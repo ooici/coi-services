@@ -17,6 +17,7 @@ from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
@@ -56,7 +57,6 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from coverage_model.parameter import ParameterDictionary
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -149,15 +149,31 @@ class InstrumentAgent(ResourceAgent):
         # Dictionary of data stream IDs for data publishing. Constructed
         # by stream_config agent config member during process on_init.
         self._data_streams = {}
-
-        self._param_dicts = {}
+                
+        # Dictionary of stream definition objects.
         self._stream_defs = {}
+        
+        # Data buffers for each stream.
         self._stream_buffers = {}
+        
+        # Publisher timer greenlets for stream buffering.
         self._stream_greenlets = {}
         
         # Dictionary of data stream publishers. Constructed by
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
+
+        # Dictionary of alarm expressions.
+        self.aparam_alarms = {}
+        
+        # Dictionary of stream fields.
+        self.aparam_streams = {}
+        
+        # Dictionary of stream statuses.
+        self.aparam_status = {}
+
+        # Dictionary of stream publication rates.
+        self.aparam_pubfreq = {}
 
     def on_init(self):
         """
@@ -825,46 +841,10 @@ class InstrumentAgent(ResourceAgent):
                 stream name %s.', self._proc_name, stream_name)
 
         state = self._fsm.get_current_state()
-        param_key = 'aparam_pubfreq_'+stream_name
-        pubfreq = getattr(self,param_key)
+        pubfreq = self.aparam_pubfreq[stream_name]
 
         if state != ResourceAgentState.STREAMING or pubfreq == 0:
             self._publish_stream_buffer(stream_name)
-
-        """
-        try:
-            stream_name = val['stream_name']
-            publisher = self._data_publishers[stream_name]
-            #param_dict = self._param_dicts[stream_name]
-            stream_def = self._stream_defs[stream_name]
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-            log.info("Stream definition has the followinf fields: %s" % rdt.fields)
-
-            for (k, v) in val.iteritems():
-                if k == 'values':
-                    for x in v:
-                        value_id = x['value_id']
-                        if value_id in rdt:
-                            value = x['value']
-                            if x.get('binary', None):
-                                value = base64.b64decode(value)
-                            rdt[value_id] = numpy.array([value]) # There might be an issue here, if value is a list...
-                    
-                elif k in rdt:
-                    if k == 'driver_timestamp':
-                        rdt['time'] = numpy.array([v])
-                    rdt[k] = numpy.array([v]) # There might be an issue here if value is a list
-
-            log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
-            g = rdt.to_granule(data_producer_id=self.resource_id)
-            publisher.publish(g)        
-            
-            log.info('Instrument agent %s published data granule on stream %s.',
-                     self._proc_name, stream_name)
-            
-        except:
-            log.exception('Instrument agent %s could not publish data.', self._proc_name)
-        """
 
     def _publish_stream_buffer(self, stream_name):
         """
@@ -1222,55 +1202,50 @@ class InstrumentAgent(ResourceAgent):
             log.info("stream_info = %s" % stream_info)
  
             for (stream_name, stream_config) in stream_info.iteritems():
+                
                 try:
-                    stream_id = stream_config['stream_id']
+                    stream_def = stream_config['stream_definition_ref']
+                    self._stream_defs[stream_name] = stream_def                
                     exchange_point = stream_config['exchange_point']
                     routing_key = stream_config['routing_key']
-                    param_dict_flat = stream_config['parameter_dictionary']
-                    self._param_dicts[stream_name] = ParameterDictionary.load(param_dict_flat)
-                    self._stream_defs[stream_name] = stream_config['stream_definition_ref']
-                    self._stream_buffers[stream_name] = []
                     route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+                    stream_id = stream_config['stream_id']
                     publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=route)
-
                     self._data_publishers[stream_name] = publisher
-                    self._stream_greenlets[stream_name] = None
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s" % (self._proc_name, stream_name))
                     
+                    stream_def
                     
                 except:
                     log.error('Instrument agent %s failed to create publisher for stream %s.',
                               self._proc_name, stream_name)
-
-                try:
-                    param_key = 'aparam_pubfreq_'+stream_name
-                    set_key = 'aparam_set_pubfreq_'+stream_name
-                    f = self._make_freq_set(stream_name)
-                    pubfreq = stream_config.get('pubfreq',0)
-                    setattr(self, param_key, pubfreq)
-                    from types import MethodType
-                    setattr(self, set_key, MethodType(f, self))
-                    log.info('Instrument agent %s configured pubfreq for stream %s to %i seconds.',
-                        self._proc_name, stream_name, pubfreq)
+                
+                else:
+                    self._stream_greenlets[stream_name] = None
+                    self._stream_buffers[stream_name] = []
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+                    fields = rdt.fields
+                    fields = [x for x in fields if not x.endswith('_timestamp') and x != 'time']
+                    self.aparam_streams[stream_name] = fields
+                    for x in fields:
+                        key = stream_name + '_' + x
+                        self.aparam_status[key] = ResourceAgentStreamStatus.ALL_CLEAR
                     
-                except:
-                    log.error('Instrument agent %s could not configure pubfreq for stream %s',
-                              self._proc_name, stream_name)
-
-    def _make_freq_set(self, stream_name):
-        """
-        """
-        def set_func(self, val):
-            """
-            """
-            param_key = 'aparam_pubfreq_'+stream_name
-            if not isinstance(val, int) or val < 0:
-                raise BadRequest('Invald publish frequency.')
-            setattr(self,param_key,val)
-            
-        return set_func
-
+                    pubfreq = stream_config.get('pubfreq', 0)
+                    if not isinstance(pubfreq, int) or pubfreq <0:
+                        log.error('pubfreq config for stream %s not valid',
+                                  stream_name)
+                    else:
+                        self.aparam_pubfreq[stream_name] = pubfreq
+                    
+                    for (k,v) in stream_config.iteritems():
+                        if k.startswith('alarm_'):
+                            key = k[6:]
+                            alarm = v
+                            if self._validate_alarm(alarm):
+                                self.aparam_alarms[key] = alarm
+                            
     def _start_publisher_greenlets(self):
         """
         """
@@ -1288,17 +1263,106 @@ class InstrumentAgent(ResourceAgent):
             self._stream_greenlets[stream] = None
             self._publish_stream_buffer(stream)
             
-            
     def _pub_loop(self, stream):
         """
         """
         while True:
-            pubfreq = getattr(self, 'aparam_pubfreq_'+stream)
+            pubfreq = self.aparam_pubfreq[stream]
             if pubfreq == 0:
                 gevent.sleep(1)
             else:
                 gevent.sleep(pubfreq)
                 self._publish_stream_buffer(stream)
+    
+    ##############################################################
+    # Agent parameter set functions.
+    ##############################################################    
+    
+    def aparam_set_streams(self, params):
+        """
+        """
+        return -1
+    
+    def aparam_set_pubfreq(self, params):
+        """
+        """
+        if not isinstance(params, dict):
+            return -1
+        
+        retval = 0
+        for (k,v) in params.iteritems():
+            if self.aparam_pubfreq.has_key(k) and isinstance(v, int) and v >= 0:
+                self.aparam_pubfreq[k] = v
+            else:
+                retval = -1
+                
+        return retval
+
+    def aparam_set_alarms(self, params):
+        """
+        """
+        if not isinstance(params, (list,tuple)) or len(params)==0:
+            return -1
+        
+        retval = 0
+        action = params[0]
+        params = params[1:]
+        
+        if action == 'set' or action =='add':
+            new_alarms = {}
+            for x in params:
+                if isinstance(x, (list,tuple)) and len(x)==6:
+                    key = x[0]
+                    alarm = x[1:]
+                    if self._validate_alarm(alarm):
+                        new_alarms[key] = alarm
+                    else:
+                        retval = -1
+                else:
+                    retval = -1
+                    
+            if action == 'set':
+                self.aparam_alarms = new_alarms
+                
+            else:
+                self.aparam_alarms.update(new_alarms)
+        
+        elif action == 'remove':
+            for x in params:
+                if not self.aparam_alarms.pop(x, None):
+                    retval = -1
+        
+        elif action == 'clear':
+            self.aparam_alarms = {}
+    
+        else:
+            retval = -1
+            
+        return retval
+    
+    def aparam_set_status(self, params):
+        """
+        """
+        return -1
+    
+    def _validate_alarm(self,alarm):
+        """
+        """
+        if not isinstance(alarm, (list,tuple)) or len(alarm) != 5:
+            return False
+
+        else:
+            (stream, value, expr, status, msg) = alarm
+            if sinstance(key,str) and \
+                self._aparam_streams.has_key(stream) and \
+                value in self._aparam_streams[stream] and \
+                isinstance(expr, str) and \
+                ResourceAgentStreamStatus.has(status) and \
+                isinstance(msg, str):
+                return True
+            else:
+                return False
+        
     
     ###############################################################################
     # Event callback and handling for direct access.

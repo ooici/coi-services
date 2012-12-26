@@ -102,26 +102,44 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
         #Find out the input data product to this process
         in_dp_id = self.CFG.get_safe('in_dp_id')
 
-        #print " >>>>>>>>>>>>>> IN DP ID from cfg : ", in_dp_id,  " and stream_names = ", self.stream_names
+        print " >>>>>>>>>>>>>> IN DP ID from cfg : ", in_dp_id
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.rrclient.find_objects(in_dp_id, PRED.hasDataset, RT.DataSet, True)
         if ds_ids is None or not ds_ids:
             return None
 
-        # retrieve data for the specified time interval
-        end_time = ntplib.system_to_ntp_time(time.time()) # Now
-        start_time = end_time - self._str_to_secs(self.CFG.get_safe('graph_time_period'))
-        #retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0],{'start_time':start_time,'end_time':end_time})
-        retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0])
+        # retrieve data for the specified time interval. Setup up query from pass config first
+        query = {}
 
-        visualization_parameters = {}
+        param_list_str = self.CFG.get_safe('parameters')
+        if param_list_str:
+            query['parameters'] = param_list_str.split(', ')
+            # append time if not present in list of parameters
+            if not 'time' in query['parameters']:
+                query['parameters'].append('time')
+
+
+        query['start_time'] = query['end_time'] = ntplib.system_to_ntp_time(time.time()) # Now
+        query['stride_time'] = 1
+        if self.CFG.get_safe('graph_time_period'):
+            query['start_time'] = query['end_time'] - self._str_to_secs(self.CFG.get_safe('graph_time_period'))
+
+        #print " >>>>>>>>>>>>>> QUERY = ", query
+
+        #retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0],{'start_time':start_time,'end_time':end_time})
+        retrieved_granule = self.data_retriever_client.retrieve(ds_ids[0], query=query)
+
+        # add extra parameters to query passed in config that are not needed by data retrieval
+        if self.CFG.get_safe('resolution'):
+            query['resolution'] = self.CFG.get_safe('resolution')
+
         # send the granule through the Algorithm code to get the matplotlib graphs
         mpl_pdict_id = self.dsm_client.read_parameter_dictionary_by_name('graph_image_param_dict',id_only=True)
 
         mpl_stream_def = self.pubsub_client.create_stream_definition('mpl', parameter_dictionary_id=mpl_pdict_id)
         fileName = self.CFG.get_safe('graph_time_period')
-        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=visualization_parameters, params=mpl_stream_def, fileName=fileName)
+        mpl_data_granule = VizTransformMatplotlibGraphsAlgorithm.execute(retrieved_granule, config=query, params=mpl_stream_def, fileName=fileName)
 
         if mpl_data_granule == None:
             return None
@@ -186,15 +204,18 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
 
         # build a list of fields/variables that need to be plotted. Use the list provided by the UI
         # since the retrieved granule might have extra fields.
-        fields = []
-        if config and config['parameters']:
+        fields = rdt.fields
+        resolution = "640x480"
+        if config:
+            if 'parameters' in config:
                 fields = config['parameters']
-        else:
-            fields = rdt.fields
+            if 'resolution' in config:
+                resolution = config['resolution']
 
         vardict = {}
         vardict['time'] = get_safe(rdt, 'time')
         if vardict['time'] == None:
+            print "Matplotlib transform: Did not receive a time field to work with"
             log.error("Matplotlib transform: Did not receive a time field to work with")
             return None
 
@@ -225,18 +246,25 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
-        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(graph_data, stream_definition_id, fileName)
+        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(graph_data, stream_definition_id, fileName, resolution=resolution)
 
         return out_granule
 
     @classmethod
-    def render_graphs(cls, graph_data, stream_definition_id, fileName = None):
-
-        # init Matplotlib
-        fig = Figure(figsize=(8,4), dpi=200, frameon=True)
+    def render_graphs(cls, graph_data, stream_definition_id, fileName = None, resolution = None):
+        # init Matplotlib with passsed parameters
+        x_res = y_res = 100 # some default in case nothing is provided
+        if resolution:
+            x_res, y_res = resolution.split('x')
+            x_res = int(x_res)
+            y_res = int(y_res)
+        fig = Figure(figsize=(x_res / 100, y_res / 100), dpi=100, frameon=True)
         ax = fig.add_subplot(111)
         canvas = FigureCanvas(fig)
         imgInMem = StringIO.StringIO()
+
+        # Guess xticks for number of labels along x-axis. Place a label every 100 pixels
+        ax.locator_params(x_res/100)
 
         # If there's no data, wait
         # For the simple case of testing, lets plot all time variant variables one at a time
@@ -270,8 +298,10 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
                     clean_data_flag = False
                     break
 
-        xAxisFloatData = graph_data[xAxisVar]
-        #xAxisFloatData = [dates.date2num(datetime.fromtimestamp(ntplib.ntp_to_system_time(t))) for t in graph_data[xAxisVar]]
+        #xAxisFloatData = graph_data[xAxisVar]
+        xAxisFloatData = [datetime.fromtimestamp(ntplib.ntp_to_system_time(t)) for t in graph_data[xAxisVar]]
+        #print " >>>>>>>>>>>>>>>> xAxisFloatData : ", xAxisFloatData
+
         idx = 0
         for varName in yAxisVars:
             yAxisFloatData = graph_data[varName]
