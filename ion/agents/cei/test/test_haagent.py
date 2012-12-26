@@ -2,6 +2,7 @@ import gevent
 import functools
 import BaseHTTPServer
 import socket
+from copy import deepcopy
 from BaseHTTPServer import HTTPServer
 from random import randint
 
@@ -20,8 +21,7 @@ from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
 from pyon.core.exception import BadRequest, NotFound
 
-from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
-    ProcessDispatcherSimpleAPIClient
+from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient
 from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
 
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -110,20 +110,32 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-        self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
-            module="ion.agents.cei.high_availability_agent",
-            cls="HighAvailabilityAgent", config=self._haa_config)
+        self._spawn_haagent()
 
+        self._setup_haa_client()
+
+    def _setup_haa_client(self):
         # Start a resource agent client to talk with the instrument agent.
         self._haa_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
-        log.info('Got haa client %s.', str(self._haa_pyon_client))
 
         self.haa_client = HighAvailabilityAgentClient(self._haa_pyon_client)
+
+    def _spawn_haagent(self, policy_parameters=None):
+
+        config = deepcopy(self._haa_config)
+        if policy_parameters is not None:
+            config['highavailability']['policy']['parameters'] = policy_parameters
+        self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
+            module="ion.agents.cei.high_availability_agent",
+            cls="HighAvailabilityAgent", config=config)
+
+    def _kill_haagent(self):
+        self.container.terminate_process(self._haa_pid)
 
     def tearDown(self):
         self.waiter.stop()
         try:
-            self.container.terminate_process(self._haa_pid)
+            self._kill_haagent()
         except BadRequest:
             log.warning("Couldn't terminate HA Agent in teardown (May have been terminated by a test)")
         self._stop_container()
@@ -250,27 +262,9 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.await_ha_state('STEADY')
 
-        # Ensure that once we terminate that process, there are no associations
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
-
-        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
-        self.assertEqual(len(self.get_running_procs()), 0)
-
-        processes_associated, _ = self.container.resource_registry.find_resources(
-                restype="Process", name=proc.process_id)
-        self.assertEqual(len(processes_associated), 0)
-
-        has_processes = self.container.resource_registry.find_associations(
-            service, "hasProcess")
-        self.assertEqual(len(has_processes), 0)
-
-        # Ensure that once we terminate that HA Agent, the Service object is
-        # cleaned up
-        self.container.terminate_process(self._haa_pid)
-
-        with self.assertRaises(NotFound):
-            service = self.container.resource_registry.read(service_id)
+        self.await_ha_state('STEADY')
 
     def test_dashi(self):
 
@@ -286,37 +280,42 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         dashi_conn.call(self._haa_dashi_name, "reconfigure_policy",
             new_policy=new_policy)
 
+    def test_restart(self):
+        new_policy = {'preserve_n': 3}
+        self.haa_client.reconfigure_policy(new_policy)
 
-@attr('UNIT', group='cei')
-class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
+        self.await_ha_state('STEADY')
 
-    def setUp(self):
-        self.mock_real_client = DotDict()
-        self.mock_real_client.read_process_definition = Mock()
-        self.mock_real_client.create_process = Mock()
-        self.mock_real_client.schedule_process = Mock()
-        self.mock_real_client.read_process = Mock()
-        self.mock_eventpub = DotDict()
-        self.mock_eventpub.publish_event = Mock()
-        self.mock_container = Mock()
+        procs = self.get_running_procs()
+        self.assertEqual(len(procs), 3)
 
-        self.client = ProcessDispatcherSimpleAPIClient('fake',
-            real_client=self.mock_real_client, container=self.mock_container)
-        self.client.event_pub = self.mock_eventpub
+        # kill the haagent and restart it. it should pick the existing procs
+        # back up.
 
-    def test_schedule(self):
+        self._kill_haagent()
+        self._spawn_haagent(policy_parameters=new_policy)
 
-        upid = 'my_pid'
-        definition_id = 'my_def'
-        configuration = {'some': 'value'}
+        # need to setup client again because PID has changed.
+        self._setup_haa_client()
 
-        self.client.schedule_process(upid, definition_id, configuration=configuration)
+        self.await_ha_state('STEADY')
 
-        self.assertEqual(self.mock_real_client.schedule_process.call_count, 1)
-        args, kwargs = self.mock_real_client.schedule_process.call_args
+        procs_now = self.get_running_procs()
+        self.assertEqual(len(procs_now), 3)
+        self.assertEqual(set(p.process_id for p in procs), set(p.process_id for p in procs_now))
 
-        self.assertEqual(args[0], definition_id)
-        self.assertEqual(kwargs['configuration'], configuration)
+        # should still be able to scale up
+        new_policy = {'preserve_n': 4}
+        self.haa_client.reconfigure_policy(new_policy)
+
+        self.await_ha_state('STEADY')
+        procs = self.get_running_procs()
+        self.assertEqual(len(procs), 4)
+
+        # kill everything
+        new_policy = {'preserve_n': 0}
+        self.haa_client.reconfigure_policy(new_policy)
+        self.await_ha_state('STEADY')
 
 
 @attr('INT', group='cei')

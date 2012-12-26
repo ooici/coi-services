@@ -693,6 +693,14 @@ _PD_PYON_PROCESS_STATE_MAP = {
 }
 
 
+def process_state_to_pd_core(process_state):
+    return _PD_PYON_PROCESS_STATE_MAP[process_state]
+
+
+def process_state_from_pd_core(core_process_state):
+    return _PD_PROCESS_STATE_MAP[core_process_state]
+
+
 class Notifier(object):
     """Sends Process state notifications via ION events
 
