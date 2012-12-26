@@ -38,9 +38,9 @@ class InteractionObserver(object):
         self.conv_sub.start()
 
         # Event subscription
-        self.event_sub = EventSubscriber(pattern=EventSubscriber.ALL_EVENTS, callback=self._ev_receive, queue_name="event_persister")
+        self.event_sub = EventSubscriber(pattern=EventSubscriber.ALL_EVENTS,
+                                         callback=self._ev_receive, queue_name="event_persister")
         self.event_sub.start()
-
 
     def stop(self):
         # Stop event subscriber
@@ -60,8 +60,6 @@ class InteractionObserver(object):
             args[0]['sub_type'] = event.sub_type
         self.log_message(args[0], True)
 
-
-
     def log_message(self, mhdrs, evmsg=False):
         """
         @param evmsg    This message is an event, render it as such!
@@ -79,16 +77,17 @@ class InteractionObserver(object):
 
     def _get_data(self, msglog, response_msgs):
         """
-        Provides msc data in python format, to be converted either to msc text or to json for use with
-        msc web monitor.
-
-        Returns a list of hashes of the format { to, from, content, type, ts, error (boolean), to_raw, from_raw, topline }
+        Provides msc data in python format, to be converted either to msc text or to json
+        for use with msc web monitor.
+        Returns a list of hashes in the form:
+        { to, from, content, type, ts, error (boolean), to_raw, from_raw, topline }
         """
         msgdata = []
 
         for msgtup in msglog:
 
-            datatemp = { "to": None, "from":None, "content":None, "type":None, "ts":None, "error":False }
+            datatemp = {"to": None, "from": None, "content": None, "type": None,
+                        "ts": None, "error": False}
             msg = msgtup[1]
 
             convid = msg.get('conv-id', None)
@@ -100,14 +99,14 @@ class InteractionObserver(object):
 
             else:
                 if (msg.get('sender-type', 'unknown') == 'service'):
-                    sname = msg.get('sender-service', msg.get('sender-name', msg.get('sender','unknown')))
+                    sname = msg.get('sender-service', msg.get('sender-name',
+                                    msg.get('sender', 'unknown')))
                 else:
-                    sname = msg.get('sender-name', msg.get('sender','unknown'))
-                rname = msg.get('receiver','unknown')
+                    sname = msg.get('sender-name', msg.get('sender', 'unknown'))
+                rname = msg.get('receiver', 'unknown')
 
                 if (convid is not None):
-                    response_msgs[convid] = {'sender':rname, 'receiver':sname}
-
+                    response_msgs[convid] = {'sender': rname, 'receiver': sname}
 
             # from_raw is displayed as the header on the webpage
             datatemp["from_raw"] = sname
@@ -130,7 +129,8 @@ class InteractionObserver(object):
 
             else:
 
-                mlabel = "%s\n(%s->%s)\n<%s>" % (msg.get('op', None), sname.rsplit(",",1)[-1], rname.rsplit(",",1)[-1], msg.get('_content_type', '?content-type?'))
+                mlabel = "%s\n(%s->%s)\n<%s>" % (msg.get('op', None), sname.rsplit(",", 1)[-1],
+                         rname.rsplit(",", 1)[-1], msg.get('_content_type', '?content-type?'))
                 datatemp["content"] = mlabel
                 datatemp["topline"] = mlabel.split("\n")[0]
 
@@ -142,7 +142,7 @@ class InteractionObserver(object):
                     if performative == 'request':
                         datatemp["type"] = "rpcreq"
                     elif performative == 'timeout':
-                        pass # timeout, unfortunatly you don't see this as it never gets messaged, @TODO
+                        pass  # timeout, unfortunately you don't see this @TODO
 
                     if performative == 'failure' or performative == 'error':
                         datatemp["error"] = True

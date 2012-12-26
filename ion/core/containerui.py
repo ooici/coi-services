@@ -37,20 +37,22 @@ standard_eventattrs = ['origin', 'ts_created', 'description']
 date_fieldnames = ['ts_created', 'ts_updated']
 _io = InteractionObserver()
 
+
 class ContainerUI(StandaloneProcess):
     """
     A simple Web UI to introspect the container and the ION datastores.
     """
     def on_init(self):
-        #defaults
+
         #defaults
         app.secret_key = self.CFG.get_safe('container.flask_webapp.secret_key', None)
         if (app.secret_key is None):
-            raise Exception('Set container.flask_webapp.secret_key in configuration to start successfully')
+            raise Exception('Set container.flask_webapp.secret_key '
+                            'in configuration to start successfully')
 
         self.http_server = None
         self.server_hostname = DEFAULT_WEB_SERVER_HOSTNAME
-        self.server_port = self.CFG.get_safe('container.flask_webapp.port',DEFAULT_WEB_SERVER_PORT)
+        self.server_port = self.CFG.get_safe('container.flask_webapp.port', DEFAULT_WEB_SERVER_PORT)
         self.web_server_enabled = True
         self.logging = None
 
@@ -82,9 +84,10 @@ class ContainerUI(StandaloneProcess):
             self.http_server.stop()
         return True
 
+
 # ----------------------------------------------------------------------------------------
 
-@app.route('/', methods=['GET','POST'])
+@app.route('/', methods=['GET', 'POST'])
 def process_index():
     try:
         from pyon.public import CFG
@@ -1160,6 +1163,7 @@ def get_formatted_value(value, fieldname=None, fieldtype=None, fieldschema=None,
         return "&nbsp;"
     return value
 
+
 def get_datetime(ts, time_millis=False):
     tsf = float(ts) / 1000
     dt = datetime.datetime.fromtimestamp(time.mktime(time.localtime(tsf)))
@@ -1168,15 +1172,15 @@ def get_datetime(ts, time_millis=False):
         dts += "." + ts[-3:]
     return dts
 
-@app.route('/mscweb', methods=['GET','POST'])
+
+@app.route('/mscweb', methods=['GET', 'POST'])
 def mscweb():
 
     if 'last_data' not in session:
-        last_data = {'last_index':0}
+        last_data = {'last_index': 0}
         session['last_data'] = last_data
 
     return render_template('mschart.html')
-
 
 
 @app.route('/data')
@@ -1189,7 +1193,7 @@ def data():
     if use_idx is not None:
 
         # get open conversations if any saved in the session
-        response_msgs = last_data.get('response_msgs',{})
+        response_msgs = last_data.get('response_msgs', {})
 
         # get data out of io
         rawdata = _io.msg_log[use_idx:]
