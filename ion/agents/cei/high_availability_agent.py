@@ -6,7 +6,7 @@ from gevent.event import Event
 from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventSubscriber
 from pyon.public import log, get_sys_name
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, Timeout, NotFound
 
 from interface.objects import AgentCommand, ProcessSchedule, \
         ProcessStateEnum, ProcessQueueingMode, ProcessTarget, \
@@ -32,7 +32,7 @@ except ImportError:
 @brief Pyon port of HAAgent
  """
 
-DEFAULT_INTERVAL = 5
+DEFAULT_INTERVAL = 30
 
 
 class HighAvailabilityAgent(SimpleResourceAgent):
@@ -41,7 +41,6 @@ class HighAvailabilityAgent(SimpleResourceAgent):
     """
 
     def __init__(self):
-        log.debug("HighAvailabilityAgent init")
         SimpleResourceAgent.__init__(self)
         self.dashi_handler = None
         self.service_id = None
@@ -53,7 +52,6 @@ class HighAvailabilityAgent(SimpleResourceAgent):
             msg = "HighAvailabilityCore isn't available. Use autolaunch.cfg buildout"
             log.error(msg)
             return
-        log.debug("HighAvailabilityCore Pyon on_init")
 
         policy_name = self.CFG.get_safe("highavailability.policy.name")
         if policy_name is None:
@@ -81,18 +79,20 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         self.process_configuration = self.CFG.get_safe("highavailability.process_configuration")
         aggregator_config = _get_aggregator_config(self.CFG)
 
-        self.service_id = self._register_service()
+        self.service_id, self.service_name = self._register_service()
         self.policy_event = Event()
+
+        self.logprefix = "HA Agent (%s): " % self.service_name
 
         self.control = HAProcessControl(self.pds[0],
             self.container.resource_registry, self.service_id,
-            self.policy_event.set)
+            self.policy_event.set, logprefix=self.logprefix)
 
         self.core = HighAvailabilityCore(cfg, self.control,
                 self.pds, self.policy, process_definition_id=self.process_definition_id,
                 parameters=policy_parameters,
                 process_configuration=self.process_configuration,
-                aggregator_config=aggregator_config)
+                aggregator_config=aggregator_config, name=self.service_name)
 
         dashi_messaging = self.CFG.get_safe("highavailability.dashi_messaging", False)
         if dashi_messaging:
@@ -178,7 +178,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
             log.error("Cannot find ServiceDefinition resource for %s",
                     definition.name)
 
-        return service_id
+        return service_id, definition.name
 
     def _unregister_service(self):
         if not self.service_id:
@@ -193,7 +193,11 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         while True:
             # wait until our event is set, up to policy_interval seconds
             self.policy_event.wait(self.policy_interval)
-            self.policy_event.clear()
+            if self.policy_event.is_set():
+                self.policy_event.clear()
+                log.debug("%sapplying policy due to event", self.logprefix)
+            else:
+                log.debug("%sapplying policy due to timeout", self.logprefix)
 
             self._apply_policy()
 
@@ -208,7 +212,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                 service.state = new_service_state
                 self.container.resource_registry.update(service)
         except Exception:
-            log.warn("Problem when updating Service state", exc_info=True)
+            log.warn("%sProblem when updating Service state", self.logprefix, exc_info=True)
 
     def rcmd_reconfigure_policy(self, new_policy):
         """Service operation: Change the parameters of the policy used for service
@@ -295,13 +299,14 @@ class HighAvailabilityAgentClient(object):
 
 class HAProcessControl(object):
 
-    def __init__(self, pd_name, resource_registry, service_id, callback=None):
+    def __init__(self, pd_name, resource_registry, service_id, callback=None, logprefix=""):
         self.pd_name = pd_name
         self.resource_registry = resource_registry
         self.service_id = service_id
         self.callback = callback
         if callback and not callable(callback):
             raise ValueError("callback is not callable")
+        self.logprefix = logprefix
 
         self.client = ProcessDispatcherServiceClient(to_name=pd_name)
         self.event_sub = EventSubscriber(event_type="ProcessLifecycleEvent",
@@ -317,8 +322,11 @@ class HAProcessControl(object):
             process_id = process_assoc.o
             if process_id:
                 process = self.client.read_process(process_id)
-                self.processes[process.process_id] = _process_dict_from_object(process)
+                state = process.process_state
+                state_str = ProcessStateEnum._str_map.get(state, str(state))
 
+                self.processes[process.process_id] = _process_dict_from_object(process)
+                log.info("%srecovered process %s state=%s", self.logprefix, process_id, state_str)
         self.event_sub.start()
 
     def stop(self):
@@ -331,25 +339,51 @@ class HAProcessControl(object):
         if not event:
             return
 
+        try:
+            self._inner_event_callback(event)
+        except Exception:
+            log.exception("%sException in event handler. This is a bug!", self.logprefix)
+
+    def _inner_event_callback(self, event):
         process_id = event.origin
+        state = event.state
+        state_str = ProcessStateEnum._str_map.get(state, str(state))
         if not (process_id and process_id in self.processes):
+            log.debug("%sreceived event for unknown process %s: state=%s",
+                self.logprefix, process_id, state_str)
             return
 
-        process = self.client.read_process(process_id)
-        if not process:
-            log.warn("Received process %s event but it is unknown to process dispatcher")
-            return
+        process = None
+        for _ in range(3):
+            try:
+                process = self.client.read_process(process_id)
+                break
+            except Timeout:
+                log.warn("Timeout trying to read process from Process Dispatcher!", exc_info=True)
+                pass  # retry
+            except NotFound:
+                break
 
-        log.info("HAAgent received process %s state=%s", process_id, event.state)
+        if process:
+            log.info("%sreceived process %s state=%s", self.logprefix, process_id, state_str)
 
-        # replace the cached data about this process
-        self.processes[process_id] = _process_dict_from_object(process)
+            # replace the cached data about this process
+            self.processes[process_id] = _process_dict_from_object(process)
+
+        else:
+            log.warn("%sReceived process %s event but failed to read from Process Dispatcher",
+                self.logprefix, process_id)
+
+            #XXX better approach here? we at least have the state from the event,
+            # so sticking that on cached process. We could miss other important
+            # data like hostname however.
+            self.processes[process_id]['state'] = process_state_to_pd_core(state)
 
         if self.callback:
             try:
                 self.callback()
             except Exception, e:
-                log.warn("Error in HAAgent callback: %s", e, exc_info=True)
+                log.warn("%sError in HAAgent callback: %s", self.logprefix, e, exc_info=True)
 
     def _associate_process(self, process):
         try:
