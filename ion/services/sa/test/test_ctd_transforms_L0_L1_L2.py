@@ -126,6 +126,40 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataset_management = self.datasetclient
 
+        self.exchange_names = []
+        self.exchange_points = []
+
+        # Add cleaning up
+        self.addCleanup(self.cleaning_up)
+
+    def add_to_exchange_cleanup(self, data_process_id = None):
+
+        #read the data process
+        data_process = self.dataprocessclient.read_data_process(data_process_id)
+
+        # the input subscription for the data process
+        in_subscription_id = data_process.input_subscription_id
+        log.debug("Got the in_subscription_id:: %s" % in_subscription_id)
+
+        # read the subscription
+        in_subscription = self.rrclient.read(in_subscription_id)
+
+        # Add to cleanup laundry list
+        self.exchange_names.append(in_subscription.exchange_name)
+        self.exchange_points += in_subscription.exchange_points
+
+    def cleaning_up(self):
+
+        log.debug("Came here to clean up: exchange names for cleanup: %s" % self.exchange_names)
+        log.debug("Exchange points for cleanup: %s" % self.exchange_points)
+
+        for xn in self.exchange_names:
+            xni = self.container.ex_manager.create_xn_queue(xn)
+            xni.delete()
+        for xp in self.exchange_points:
+            xpi = self.container.ex_manager.create_xp(xp)
+            xpi.delete()
+
     def create_logger(self, name, stream_id=''):
 
         # logger process
@@ -561,38 +595,42 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
-
-
+        self.add_to_exchange_cleanup(data_process_id = ctd_l0_all_data_process_id )
+        
         #-------------------------------------------------------------------------------------
         # L1 Conductivity: Create the data process
         #-------------------------------------------------------------------------------------
         l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_conductivity_dprocdef_id, [self.ctd_l0_conductivity_output_dp_id], {'conductivity':self.ctd_l1_conductivity_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
-
+        self.add_to_exchange_cleanup(data_process_id = l1_conductivity_data_process_id )
 
         #-------------------------------------------------------------------------------------
         # L1 Pressure: Create the data process
         #-------------------------------------------------------------------------------------
         l1_pressure_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_pressure_dprocdef_id, [self.ctd_l0_pressure_output_dp_id], {'pressure':self.ctd_l1_pressure_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
+        self.add_to_exchange_cleanup(data_process_id = l1_pressure_data_process_id )
 
         #-------------------------------------------------------------------------------------
         # L1 Temperature: Create the data process
         #-------------------------------------------------------------------------------------
         l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_temperature_dprocdef_id, [self.ctd_l0_temperature_output_dp_id], {'temperature':self.ctd_l1_temperature_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
+        self.add_to_exchange_cleanup(data_process_id = l1_temperature_all_data_process_id )
 
         #-------------------------------------------------------------------------------------
         # L2 Salinity: Create the data process
         #-------------------------------------------------------------------------------------
         l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], {'salinity':self.ctd_l2_salinity_output_dp_id})
         self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
+        self.add_to_exchange_cleanup(data_process_id = l2_salinity_all_data_process_id )
 
         #-------------------------------------------------------------------------------------
         # L2 Density: Create the data process
         #-------------------------------------------------------------------------------------
         l2_density_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], {'density':self.ctd_l2_density_output_dp_id})
         self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
+        self.add_to_exchange_cleanup(data_process_id = l2_density_all_data_process_id )
 
         #-------------------------------------------------------------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
