@@ -2,6 +2,7 @@
 
 import uuid
 import json
+import logging
 from time import time
 
 import gevent
@@ -890,7 +891,6 @@ class PDNativeBackend(object):
         self.core.node_state(node_id, domain_id, state, properties=properties)
 
     def _heartbeat_callback(self, heartbeat, headers):
-        log.debug("Got EEAgent heartbeat. headers=%s msg=%s", headers, heartbeat)
 
         try:
             eeagent_id = heartbeat['eeagent_id']
@@ -898,6 +898,14 @@ class PDNativeBackend(object):
         except KeyError, e:
             log.warn("Invalid EEAgent heartbeat received. Missing: %s -- %s", e, heartbeat)
             return
+
+        if log.isEnabledFor(logging.DEBUG):
+            processes = beat.get('processes')
+            if processes is not None:
+                processes_str = "processes=%d" % len(processes)
+            else:
+                processes_str = ""
+            log.debug("Received heartbeat from EEAgent %s %s", eeagent_id, processes_str)
 
         try:
             self.core.ee_heartbeat(eeagent_id, beat)

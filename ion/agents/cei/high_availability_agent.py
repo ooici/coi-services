@@ -349,8 +349,7 @@ class HAProcessControl(object):
         state = event.state
         state_str = ProcessStateEnum._str_map.get(state, str(state))
         if not (process_id and process_id in self.processes):
-            log.debug("%sreceived event for unknown process %s: state=%s",
-                self.logprefix, process_id, state_str)
+            # we receive events for all processes but ignore most
             return
 
         process = None
