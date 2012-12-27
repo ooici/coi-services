@@ -15,6 +15,9 @@ from pyon.public import PRED, RT, IonObject
 from ion.services.coi.org_management_service import OrgManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+
+
 
 @attr('UNIT', group='coi')
 class TestOrgManagementService(PyonTestCase):
@@ -118,6 +121,9 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
             self.org_management_service.create_org(IonObject("Org", {"name": "Test Facility"}))
         self.assertTrue("can only contain alphanumeric and underscore characters" in br.exception.message)
 
+        with self.assertRaises(BadRequest):
+            self.org_management_service.create_org()
+
         org_obj = IonObject("Org", {"name": "TestFacility"})
         org_id = self.org_management_service.create_org(org_obj)
         self.assertNotEqual(org_id, None)
@@ -130,6 +136,8 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         role_list = self.org_management_service.find_org_roles(org_id)
         self.assertEqual(len(role_list),2 )
 
+        with self.assertRaises(BadRequest):
+            self.org_management_service.update_org()
         org.name = 'Updated_TestFacility'
         self.org_management_service.update_org(org)
 
@@ -138,6 +146,14 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         self.assertNotEqual(org, None)
         self.assertEqual(org.name, 'Updated_TestFacility')
 
+        user_role = self.org_management_service.find_org_role_by_name(org_id, ORG_MANAGER_ROLE)
+        self.assertNotEqual(user_role, None)
+
+        #find_org = self.org_management_service.remove_user_role(org_id, ORG_MANAGER_ROLE)
+        #self.assertEqual(find_org, True)
+
+        with self.assertRaises(BadRequest):
+            self.org_management_service.delete_org()
         self.org_management_service.delete_org(org_id)
 
         with self.assertRaises(NotFound) as cm:

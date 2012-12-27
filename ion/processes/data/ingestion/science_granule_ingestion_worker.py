@@ -7,7 +7,6 @@
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.datastore.datastore import DataStore
-from pyon.util.arg_check import validate_is_instance
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.util.containers import get_ion_ts, get_safe
 from pyon.public import log, RT, PRED, CFG
@@ -18,6 +17,7 @@ from ion.core.process.transform import TransformStreamListener
 import collections
 import numpy
 import gevent
+import time
 
 
 
@@ -26,7 +26,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
     def __init__(self, *args,**kwargs):
         super(ScienceGranuleIngestionWorker, self).__init__(*args, **kwargs)
-        self.iqueue = gevent.queue.Queue()
         #--------------------------------------------------------------------------------
         # Ingestion Cache
         # - Datasets
@@ -34,21 +33,40 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         self._datasets  = collections.OrderedDict()
         self._coverages = collections.OrderedDict()
+        self._queues    = {}
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
+        self.buffer_limit   = self.CFG.get_safe('process.buffer_limit',10)
+        self.time_limit     = self.CFG.get_safe('process.time_limit', 10)
+        self.flushing       = gevent.coros.RLock()
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
         log.debug('Created datastore %s', self.datastore_name)
-
+        self.done_flushing = gevent.event.Event()
+        self.flusher_g = gevent.spawn(self.flusher)
 
 
     def on_quit(self): #pragma no cover
         self.subscriber.stop()
+        self.flush_all()
+        self.done_flushing.set()
+        self.flusher_g.join(10)
+        self.flusher_g.kill()
+
         for stream, coverage in self._coverages.iteritems():
             try:
                 coverage.close(timeout=5)
             except:
                 log.exception('Problems closing the coverage')
+    
+    def flusher(self):
+        then = time.time()
+        while not self.done_flushing.wait(1):
+            if (time.time() - then) >= self.time_limit:
+                then = time.time()
+                self.flush_all()
+
+
 
 
     def _new_dataset(self, stream_id):
@@ -95,6 +113,21 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._coverages[stream_id] = result
         return result
 
+    @classmethod
+    def _new_queue(cls):
+        rlock = gevent.coros.RLock()
+        queue = gevent.queue.Queue()
+        return (rlock, queue)
+
+    def get_queue(self, stream_id):
+        '''
+        Memoization (LRU) for retrieving a queue based on the stream id.
+        '''
+        if not stream_id in self._queues:
+            self._queues[stream_id] = self._new_queue()
+        return self._queues[stream_id]
+
+
     def recv_packet(self, msg, stream_route, stream_id):
         '''
         Actual ingestion mechanism
@@ -109,15 +142,29 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         log.trace('Received incoming granule from route: %s and stream_id: %s', stream_route, stream_id)
         log.trace('Granule contents: %s', msg.__dict__)
         granule = msg
-        self.iqueue.put(granule)
-        if self.iqueue.qsize() == 10:
-            g = self.iqueue.get()
-            rdt = RecordDictionaryTool.load_from_granule(g)
-            while not self.iqueue.empty():
-                g = self.iqueue.get()
+        lock, queue = self.get_queue(stream_id)
+        queue.put(granule)
+        if queue.qsize() >= self.buffer_limit:
+            self.flush_queue(stream_id)
+
+    def flush_queue(self,stream_id):
+        lock, queue = self.get_queue(stream_id)
+        lock.acquire()
+        rdt = None
+        while not queue.empty():
+            g = queue.get()
+            if rdt is not None:
                 rdt = RecordDictionaryTool.append(rdt, RecordDictionaryTool.load_from_granule(g))
+            else:
+                rdt = RecordDictionaryTool.load_from_granule(g)
+        if rdt is not None:
             self.add_granule(stream_id, rdt)
             self.persist_meta(stream_id, rdt)
+        lock.release()
+
+    def flush_all(self):
+        for stream_id in self._queues.iterkeys():
+            self.flush_queue(stream_id)
         
 
     def persist_meta(self, stream_id, granule):

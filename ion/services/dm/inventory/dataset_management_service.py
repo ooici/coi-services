@@ -34,6 +34,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def on_start(self):
         super(DatasetManagementService,self).on_start()
         self.datastore_name = self.CFG.get_safe('process.datastore_name', self.DEFAULT_DATASTORE)
+        self.inline_data_writes  = self.CFG.get_safe('service.ingestion_management.inline_data_writes', True)
         self.db = self.container.datastore_manager.get_datastore(self.datastore_name,DataStore.DS_PROFILE.SCIDATA)
 
 #--------
@@ -327,7 +328,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
         return scov
 
     @classmethod

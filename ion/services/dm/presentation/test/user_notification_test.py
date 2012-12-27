@@ -645,20 +645,27 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
         #--------------------------------------------------------------------------------------
-        proc1 = self.container.proc_manager.procs.get(pids[0])
 
-        ar_1 = gevent.event.AsyncResult()
-        ar_2 = gevent.event.AsyncResult()
+        processes =self.container.proc_manager.procs
 
-        def received_reload(msg, headers):
-            ar_1.set(msg)
-            ar_2.set(headers)
+        def found_user_info_dicts(processes, *args, **kwargs):
+            for key in processes:
+                if key.startswith('notification_worker'):
+                    proc1 = processes[key]
+                    queue = proc1.q
 
+                    if queue.qsize() > 0:
+                        log.debug("the name of the process: %s" % key)
 
-        proc1.test_hook = received_reload
+                        reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
+                        self.assertTrue(queue.empty())
+                        return reloaded_user_info, reloaded_reverse_user_info
 
-        reloaded_user_info = ar_1.get(timeout=10)
-        reloaded_reverse_user_info = ar_2.get(timeout=10)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        self.assertIsNotNone(reloaded_user_info)
+        self.assertIsNotNone(reloaded_reverse_user_info)
 
         # read back the registered notification request objects
         notification_request_correct = self.rrc.read(notification_id_1)
@@ -677,13 +684,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
-
-        ar_1 = gevent.event.AsyncResult()
-        ar_2 = gevent.event.AsyncResult()
-
-        reloaded_user_info = ar_1.get(timeout=10)
-        reloaded_reverse_user_info = ar_2.get(timeout=10)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 

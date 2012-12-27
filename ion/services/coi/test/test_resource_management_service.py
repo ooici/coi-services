@@ -273,10 +273,15 @@ class TestResourceManagementServiceInterface(IonIntegrationTestCase):
         self.rr.delete(rid1)
 
         # Test CRUD
+        with self.assertRaises(BadRequest):
+            self.rms.create_resource(IonObject('StreamConfiguration', stream_name='res2'))
+
         rid2 = self.rms.create_resource(IonObject('Resource', name='res2'))
         res_obj = self.rr.read(rid2)
         self.assertEquals(res_obj.name, 'res2')
 
+        with self.assertRaises(BadRequest):
+            self.rms.update_resource(IonObject('StreamConfiguration', stream_name='res2'))
         res_obj.description = 'DESC2'
         self.rms.update_resource(res_obj)
         res_obj = self.rr.read(rid2)
@@ -284,6 +289,15 @@ class TestResourceManagementServiceInterface(IonIntegrationTestCase):
 
         res_obj2 = self.rms.read_resource(rid2)
         self.assertEquals(res_obj.description, res_obj2.description)
+
+        with self.assertRaises(BadRequest):
+            self.rms.get_resource_state(rid2)
+        with self.assertRaises(BadRequest):
+            self.rms.ping_resource(rid2)
+        with self.assertRaises(BadRequest):
+            self.rms.get_agent(rid2)
+        with self.assertRaises(BadRequest):
+            self.rms.get_agent_state(rid2)
 
         self.rms.delete_resource(rid2)
 
@@ -294,5 +308,8 @@ class TestResourceManagementServiceInterface(IonIntegrationTestCase):
         self.rms.execute_lifecycle_transition(rid3, "plan")
         rid3_r = self.rr.read(rid3)
         self.assertEquals(rid3_r.lcstate, "PLANNED_PRIVATE")
+
+
+
 
 

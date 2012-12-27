@@ -13,10 +13,6 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 from pyon.ion.endpoint import ProcessEventSubscriber
 
-ORG_MANAGER_ROLE = 'ORG_MANAGER'  # Can only act upon resource within the specific Org
-ORG_MEMBER_ROLE = 'ORG_MEMBER'    # Can only access resources within the specific Org
-ION_MANAGER = 'ION_MANAGER'   # Can act upon resources across all Orgs - like a Super User access
-
 
 class PolicyManagementService(BasePolicyManagementService):
 
@@ -347,7 +343,7 @@ class PolicyManagementService(BasePolicyManagementService):
     def _remove_resource_policy(self, resource, policy):
         aid = self.clients.resource_registry.get_association(resource, PRED.hasPolicy, policy)
         if not aid:
-            raise NotFound("The association between the specified Resource %s and Policy %s was not found" % (resource_id, policy_id))
+            raise NotFound("The association between the specified Resource %s and Policy %s was not found" % (resource._id, policy._id))
 
         self.clients.resource_registry.delete_association(aid)
 

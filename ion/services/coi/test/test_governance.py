@@ -33,7 +33,7 @@ from mi.core.instrument.instrument_driver import DriverConnectionState
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-from ion.services.coi.policy_management_service import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 ORG2 = 'Org2'
@@ -1319,6 +1319,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Conflict) as cm:
            ia_client.set_resource(new_params, headers=actor_header)
 
+        resource_commitment, _ = self.rr_client.find_objects(actor_id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(resource_commitment),1)
+        self.assertNotEqual(resource_commitment[0].lcstate, LCS.RETIRED)
+
+
         #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
@@ -1355,11 +1360,43 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.execute_agent(cmd, headers=actor_header)
         self.assertIn('(execute_agent) has been denied',cm.exception.message)
 
+        #Now release the shared commitment
+        #Check commitment to be inactive
+        commitments, _ = self.rr_client.find_objects(inst_obj_id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),2)
+        for com in commitments:
+            if com.commitment.exclusive:
+                self.assertEqual(com.lcstate, LCS.RETIRED)
+            else:
+                self.assertNotEqual(com.lcstate, LCS.RETIRED)
+                #Release the resource
+                self.org_client.release_commitment(resource_commitment[0]._id, headers=actor_header)
+
+
+        #Check commitment to be inactive
+        commitments, _ = self.rr_client.find_objects(inst_obj_id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),2)
+        for com in commitments:
+            self.assertEqual(com.lcstate, LCS.RETIRED)
+
+
+        #Try again with user with only Instrument Operator role, but should fail with out acquiring a resource
+        with self.assertRaises(Unauthorized) as cm:
+            ia_client.set_resource(new_params, headers=actor_header)
+        self.assertIn('(set_resource) has been denied',cm.exception.message)
+
+
         #Grant the role of Org Manager to the user
         self.org_client.grant_role(org2_id,actor_id, ORG_MANAGER_ROLE, headers=self.system_actor_header)
 
         #Refresh header with updated roles
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+
+        #Try again with user with also Org Manager role and should pass even with out acquiring a resource
+        with self.assertRaises(Conflict) as cm:
+            ia_client.set_resource(new_params, headers=actor_header)
+
 
         #Now reset the agent for checking operation based policy
         #The reset command should now be allowed for the Org Manager

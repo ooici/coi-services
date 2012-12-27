@@ -190,8 +190,6 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         def process(event_msg, headers):
-            assert event_msg.origin == process_batch_key
-
             self.end_time = UserNotificationService.makeEpochTime(self.__now())
 
             # run the process_batch() method
@@ -204,6 +202,7 @@ class UserNotificationService(BaseUserNotificationService):
         """
         self.batch_processing_subscriber = EventSubscriber(
             event_type="ResourceEvent",
+            queue_name='user_notification',
             origin=process_batch_key,
             callback=process
         )
@@ -730,21 +729,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         for event in events_for_message:
 
-            if event.type_ == 'DeviceStatusEvent':
-                time_stamps = []
-                for t in event.time_stamps:
-                    t = _convert_to_human_readable(t)
-                    time_stamps.append(t)
-                # Convert the timestamp list to a string
-                time = str(time_stamps)
-
-            elif event.type_ == 'DeviceCommsEvent':
-                # Convert seconds since epoch to human readable form
-                time = _convert_to_human_readable(event.time_stamp)
-
-            else:
-                time = "None for this event type"
-
             ts_created = _convert_to_human_readable(event.ts_created)
 
             msg_body += string.join(("\r\n",
@@ -753,8 +737,6 @@ class UserNotificationService(BaseUserNotificationService):
                                      "Originator: %s" %  event.origin,
                                      "",
                                      "Description: %s" % event.description or "Not provided",
-                                     "",
-                                     "Value of time_stamp(s) attribute of event: %s" %  time,
                                      "",
                                      "ts_created: %s" %  ts_created,
                                      "\r\n",

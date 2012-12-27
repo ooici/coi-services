@@ -15,6 +15,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 import random
 import numpy
 import gevent
+import ntplib
+import time
 
 class SimpleCtdPublisher(TransformStreamPublisher):
     '''
@@ -43,7 +45,7 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         pubsub_cli = PubsubManagementServiceProcessClient(process=self)
         self.stream_id = self.CFG.get_safe('process.stream_id',{})
         self.interval  = self.CFG.get_safe('process.interval', 1.0)
-        self.last_time = self.CFG.get_safe('process.last_time', 0)
+        #self.last_time = self.CFG.get_safe('process.last_time', 0)
 
         self.stream_def = pubsub_cli.read_stream_definition(stream_id=self.stream_id)
         self.pdict      = self.stream_def.parameter_dictionary
@@ -90,9 +92,11 @@ class SimpleCtdPublisher(TransformStreamPublisher):
         p = numpy.array([random.lognormvariate(1,2) for i in xrange(length)])
         lat = numpy.array([random.uniform(-90.0, 90.0) for i in xrange(length)]) 
         lon = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)]) 
-        h = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)]) 
-        tvar = numpy.array([self.last_time + i for i in xrange(1,length+1)]) 
-        self.last_time = max(tvar)
+        h = numpy.array([random.uniform(0.0, 360.0) for i in xrange(length)])
+
+        start_time = ntplib.system_to_ntp_time(time.time()) - (length + 1)
+        tvar = numpy.array([start_time + i for i in xrange(1,length+1)])
+
 
         rdt['time'] = tvar
         rdt['lat'] = lat

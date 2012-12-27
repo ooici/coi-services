@@ -15,11 +15,12 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import ProcessDefinition
 import gevent, unittest, os
 import datetime, time
 import random, numpy
-from datetime import timedelta
+from datetime import timedelta, datetime
 from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
@@ -36,6 +37,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.pubsub_management = PubsubManagementServiceClient()
         self.ssclient = SchedulerServiceClient()
         self.event_publisher = EventPublisher()
+        self.user_notification = UserNotificationServiceClient()
+        self.process_dispatcher = ProcessDispatcherServiceClient()
 
         self.exchange_names = []
         self.exchange_points = []
@@ -50,7 +53,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             xpi.delete()
 
     def now_utc(self):
-        return time.mktime(datetime.datetime.utcnow().timetuple())
+        return time.mktime(datetime.utcnow().timetuple())
 
     def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
         '''
@@ -119,7 +122,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             module='ion.processes.data.transforms.event_alert_transform',
             class_name='EventAlertTransform',
             configuration= configuration)
-
+        self.addCleanup(self.process_dispatcher.cancel_process, pid)
         self.assertIsNotNone(pid)
 
         #-------------------------------------------------------------------------------------
@@ -230,7 +233,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             module='ion.processes.data.transforms.event_alert_transform',
             class_name='StreamAlertTransform',
             configuration= config)
-
+        self.addCleanup(self.process_dispatcher.cancel_process, pid)
         self.assertIsNotNone(pid)
 
         #-------------------------------------------------------------------------------------
@@ -282,6 +285,8 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         return pid
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_demo_stream_granules_processing(self):
         """
         Test that the Demo Stream Alert Transform is functioning. The transform coordinates with the scheduler.
@@ -346,7 +351,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             module='ion.processes.data.transforms.event_alert_transform',
             class_name='DemoStreamAlertTransform',
             configuration= config)
-
+        self.addCleanup(self.process_dispatcher.cancel_process, pid)
         self.assertIsNotNone(pid)
 
         #-------------------------------------------------------------------------------------
@@ -434,6 +439,39 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
         self.assertEquals(event.sub_type, 'input_voltage')
 
+        #-------------------------------------------------------------------------------------
+        # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
+        #-------------------------------------------------------------------------------------
+        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
+        events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
+
+        log.debug("events::: %s" % events_in_db)
+
+        bad_data_events = []
+        no_data_events = []
+
+        for event in events_in_db:
+            if event.type_ == 'DeviceStatusEvent':
+                bad_data_events.append(event)
+                self.assertEquals(event.origin, "instrument_1")
+                self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+                self.assertEquals(event.valid_values, self.valid_values)
+                self.assertEquals(event.sub_type, 'input_voltage')
+            elif event.type_ == 'DeviceCommsEvent':
+                no_data_events.append(event)
+                self.assertEquals(event.origin, "instrument_1")
+                self.assertEquals(event.origin_type, "PlatformDevice")
+                self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+                self.assertEquals(event.sub_type, 'input_voltage')
+
+        self.assertTrue(len(bad_data_events) > 0)
+        self.assertTrue(len(no_data_events) > 0)
+
+        log.debug("This satisfies L4-CI-SA-RQ-114 : 'Marine facility shall monitor marine infrastructure usage by instruments.'"
+                  " The req is satisfied because the stream alert transform"
+                  "is able to send device status and communication events over selected time intervals. This capability will be "
+                  "augmented in the future.")
+
     def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
@@ -455,3 +493,18 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             log.debug("granule #%s published by instrument:: %s" % ( number,g))
 
             pub.publish(g)
+
+    @staticmethod
+    def makeEpochTime(date_time = None):
+        """
+        provides the seconds since epoch give a python datetime object.
+
+        @param date_time Python datetime object
+        @retval seconds_since_epoch int
+        """
+        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
+        #'2009-07-04 18:30:47'
+        pattern = '%Y-%m-%d %H:%M:%S'
+        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
+
+        return seconds_since_epoch

@@ -501,13 +501,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
         finally:
             self._data_subscribers = []
 
-    def _start_event_subscriber(self, event_type="PlatformAlarmEvent", sub_type="power"):
+    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
         """
-        Starts event subscriber for events of given event_type ("PlatformAlarmEvent"
-        by default) and given sub_type ("power" by default).
+        Starts event subscriber for events of given event_type ("DeviceEvent"
+        by default) and given sub_type ("platform_event" by default).
         """
-        # TODO note: ion-definitions still using 'PlatformAlarmEvent' but we
-        # should probably define 'PlatformExternalEvent' or something like that.
 
         def consume_event(evt, *args, **kwargs):
             # A callback for consuming events.
@@ -593,7 +591,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         platform_data_process_id = self.dataprocessclient.create_data_process(self.platform_dprocdef_id, [self.data_product_id], {}, config)
         self.dataprocessclient.activate_data_process(platform_data_process_id)
-
+        self.addCleanup(self.dataprocessclient.delete_data_process, platform_data_process_id)
 
         #-------------------------------
         # Launch Base Platform AgentInstance, connect to the resource agent client

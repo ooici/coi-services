@@ -17,6 +17,7 @@ from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client, 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 import gevent, time
+from gevent import queue
 
 class NotificationWorker(TransformEventListener):
     """
@@ -25,13 +26,15 @@ class NotificationWorker(TransformEventListener):
     def on_init(self):
         self.user_info = {}
         self.resource_registry = ResourceRegistryServiceClient()
+        self.q = gevent.queue.Queue()
+
         super(NotificationWorker, self).on_init()
 
     def test_hook(self, user_info, reverse_user_info ):
         '''
         This method exists only to facilitate the testing of the reload of the user_info dictionary
         '''
-        pass
+        self.q.put((user_info, reverse_user_info))
 
     def on_start(self):
         super(NotificationWorker,self).on_start()

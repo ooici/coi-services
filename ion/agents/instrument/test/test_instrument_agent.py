@@ -30,7 +30,7 @@ from nose.plugins.attrib import attr
 from mock import patch
 
 # Pyon pubsub and event support.
-from pyon.event.event import EventSubscriber
+from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.stream import StandaloneStreamSubscriber
 
 # Pyon unittest support.
@@ -66,6 +66,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
 # TODO chagne the path following the refactor.
+# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_resource_states
@@ -79,6 +80,8 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command_errors
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_direct_access
 # bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
+# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
+# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
 
 
 ###############################################################################
@@ -878,6 +881,35 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_agent(['example'])
 
         self.assertEquals(retval['example'], 'newvalue')
+        
+        retval = self._ia_client.get_agent(['streams'])
+        expected_streams_result = {'streams': {'raw': ['quality_flag', 'lon',
+            'raw', 'lat'],'parsed': ['quality_flag', 'temp', 'density', 'lon',
+            'salinity', 'pressure', 'lat', 'conductivity']}}
+        self.assertEqual(retval, expected_streams_result)
+        
+        retval = self._ia_client.get_agent(['pubfreq'])
+        expected_pubfreq_result = {'pubfreq': {'raw': 0, 'parsed': 0}}
+        self.assertEqual(retval, expected_pubfreq_result)
+        
+        retval = self._ia_client.get_agent(['status'])
+        expected_status_result = {'status': {
+            'parsed_conductivity':'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'parsed_lat': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'parsed_pressure': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'parsed_temp': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'parsed_lon': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'parsed_density': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'raw_quality_flag': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'raw_lon': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'parsed_salinity': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'parsed_quality_flag': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'raw_raw': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
+            'raw_lat': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR'}}
+        self.assertEqual(retval, expected_status_result)
+
+        retval = self._ia_client.get_agent(['alarms'])
+        #{'alarms': {}}
 
     def test_poll(self):
         """
@@ -1019,7 +1051,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             ResourceAgentEvent.GO_DIRECT_ACCESS           
         ]
         
-        agt_pars_all = ['example']
+        agt_pars_all = ['example',
+                        'alarms',
+                        'streams',
+                        'status',
+                        'pubfreq'
+                        ]
         
         res_cmds_all =[
             SBE37ProtocolEvent.TEST,
@@ -1129,6 +1166,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'get_resource_state'
         ]
         
+            
         self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, [])
@@ -1637,3 +1675,117 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)                        
         self.assertGreaterEqual(len(self._events_received), 1)        
         #self.assertEqual(test_results[0]['value']['success'], 'Passed')
+
+    @unittest.skip('This test used to track down publisher threadsafety bug.')
+    def test_states_special(self):
+        """
+        test_states_special
+        """
+        states = [
+            ResourceAgentState.INACTIVE,
+            ResourceAgentState.IDLE,
+            ResourceAgentState.COMMAND,
+            ResourceAgentState.STOPPED,
+            ResourceAgentState.COMMAND,
+            ResourceAgentState.IDLE,
+            ResourceAgentState.COMMAND,
+            ResourceAgentState.UNINITIALIZED                        
+        ]
+        states.reverse()
+
+        publisher = EventPublisher()
+
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentStateEvent', 8)
+        self.addCleanup(self._stop_event_subscriber)    
+
+        gevent.sleep(1)
+
+        def loop(publisher, ev):
+            #pub = EventPublisher()
+            pub = publisher
+            while not ev.wait(timeout=0.1):
+                event_data = {
+                    'state': ResourceAgentState.INACTIVE
+                }
+                result = pub.publish_event(event_type='ResourceAgentStateEvent',
+                              origin='xxxxzzzz', **event_data)
+
+        gl = []
+        for x in range(20):
+            ev = gevent.event.Event()
+            gl.append((gevent.spawn(loop, publisher, ev), ev))
+
+        def cleanup_gl(gl_array):
+            for g in gl_array:
+                g[1].set()
+
+            #gevent.killall(gl_array)
+            gevent.joinall([g[0] for g in gl_array])
+        self.addCleanup(cleanup_gl, gl)
+
+        while len(states)>0:
+            gevent.sleep(5)
+            state = states.pop()
+            event_data = {
+                'state': state
+            }
+            result = publisher.publish_event(event_type='ResourceAgentStateEvent',
+                              origin=IA_RESOURCE_ID, **event_data)
+            log.info('Published event %s with result %s.',
+                     state, str(result))
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertEquals(len(self._events_received), 8)
+        
+    def test_data_buffering(self):
+        """
+        test_data_buffering
+        """
+        
+        # Start data subscribers.
+        self._start_data_subscribers(1)
+        self.addCleanup(self._stop_data_subscribers)    
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Set buffering parameters.
+        pubfreq = {
+            'parsed':15,
+            'raw':15
+        }
+        self._ia_client.set_agent({'pubfreq':pubfreq})
+        retval = self._ia_client.get_agent(['pubfreq'])
+        print '#############'
+        print str(retval)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        gevent.sleep(60)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+ 
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertLessEqual(len(self._samples_received), 16)
