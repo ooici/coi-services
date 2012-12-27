@@ -12,7 +12,7 @@ from mock import Mock
 from uuid import uuid4
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
-from pyon.public import log
+from pyon.public import log, RT, IonObject
 from pyon.service.service import BaseService
 from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
@@ -59,6 +59,19 @@ class TestProcess(BaseService):
     def on_init(self):
         pass
 
+SERVICE_DEFINITION_TMPL = '''
+name: %s
+docstring:  Service used to create, read, update and delete persistent Objects
+dependencies: []
+methods:
+  create_datastore:
+    docstring: Create a new datastore namespace.
+    in:
+      datastore_name: ""
+    out:
+      success: True
+'''
+
 
 @attr('INT', group='cei')
 class HighAvailabilityAgentTest(IonIntegrationTestCase):
@@ -71,12 +84,17 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.pd_cli = ProcessDispatcherServiceClient(to_name="process_dispatcher")
 
         self.process_definition_id = uuid4().hex
-        self.process_definition_name = 'test'
+        self.process_definition_name = 'test_haagent_%s' % self.process_definition_id
         self.process_definition = ProcessDefinition(name=self.process_definition_name, executable={
                 'module': 'ion.agents.cei.test.test_haagent',
                 'class': 'TestProcess'
         })
         self.pd_cli.create_process_definition(self.process_definition, self.process_definition_id)
+
+        service_definition = SERVICE_DEFINITION_TMPL % self.process_definition_name
+        sd = IonObject(RT.ServiceDefinition, {"name": self.process_definition_name,
+            "definition": service_definition})
+        self.service_def_id, _ = self.container.resource_registry.create(sd)
 
         self.resource_id = "haagent_1234"
         self._haa_name = "high_availability_agent"
@@ -138,6 +156,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
             self._kill_haagent()
         except BadRequest:
             log.warning("Couldn't terminate HA Agent in teardown (May have been terminated by a test)")
+        self.container.resource_registry.delete(self.service_def_id, del_associations=True)
         self._stop_container()
 
     def get_running_procs(self):
@@ -292,7 +311,11 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         # kill the haagent and restart it. it should pick the existing procs
         # back up.
 
+        log.info("killing haagent")
+
         self._kill_haagent()
+
+        log.info("respawning haagent")
         self._spawn_haagent(policy_parameters=new_policy)
 
         # need to setup client again because PID has changed.

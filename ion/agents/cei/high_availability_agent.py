@@ -172,8 +172,12 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                 restype="ServiceDefinition", name=definition.name)
 
         if svcdefs:
-            self.container.resource_registry.create_association(
-                    service_id, "hasServiceDefinition", svcdefs[0]._id)
+            try:
+                self.container.resource_registry.create_association(
+                        service_id, "hasServiceDefinition", svcdefs[0]._id)
+            except BadRequest:
+                log.warn("Failed to associate %s Service and ServiceDefinition. It probably exists.",
+                    definition.name)
         else:
             log.error("Cannot find ServiceDefinition resource for %s",
                     definition.name)
@@ -321,7 +325,13 @@ class HAProcessControl(object):
         for process_assoc in process_assocs:
             process_id = process_assoc.o
             if process_id:
-                process = self.client.read_process(process_id)
+                try:
+                    process = self.client.read_process(process_id)
+                except NotFound:
+                    log.debug("%sService was assocated with process %s, which is unknown to PD. ignoring.",
+                        self.logprefix, process_id)
+                    continue
+
                 state = process.process_state
                 state_str = ProcessStateEnum._str_map.get(state, str(state))
 
