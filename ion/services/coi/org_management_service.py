@@ -1089,9 +1089,9 @@ class OrgManagementService(BaseOrgManagementService):
                 if user_info_objs:
                     log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
                     extended_org.members.append( user_info_objs[0] )
-        else:
-            if extended_org.members:
-                extended_org.members = extended_org.members[0]
+#        else:
+#            if extended_org.members:
+#                extended_org.members = extended_org.members[0]
 
         log.debug("get_marine_facility_extension: extended_org 2:  %s ", str(extended_org))
 
