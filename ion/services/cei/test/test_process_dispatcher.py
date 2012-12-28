@@ -9,7 +9,7 @@ from nose.plugins.attrib import attr
 
 from pyon.net.endpoint import RPCClient
 from pyon.service.service import BaseService
-from pyon.util.containers import DotDict
+from pyon.util.containers import DotDict, get_safe
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound, BadRequest
@@ -485,6 +485,7 @@ class TestProcess(BaseService):
     def on_init(self):
         self.i = 0
         self.response = self.CFG.test_response
+        self.restart = get_safe(self.CFG, "process.start_mode") == "RESTART"
 
     def count(self):
         self.i += 1
@@ -492,6 +493,9 @@ class TestProcess(BaseService):
 
     def query(self):
         return self.response
+
+    def is_restart(self):
+        return self.restart
 
     def get_process_name(self, pid=None):
         if pid is None:
@@ -515,6 +519,9 @@ class TestClient(RPCClient):
 
     def get_process_name(self, pid=None, headers=None, timeout=None):
         return self.request({'pid': pid}, op='get_process_name', headers=headers, timeout=timeout)
+
+    def is_restart(self, headers=None, timeout=None):
+        return self.request({}, op='is_restart', headers=headers, timeout=timeout)
 
 
 @attr('INT', group='cei')
@@ -766,6 +773,8 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
 
         self._eea_pids = []
+        self._eea_pid_to_resource_id = {}
+        self._eea_pid_to_persistence_dir = {}
         self._tmpdirs = []
 
         self.dashi = get_dashi(uuid.uuid4().hex,
@@ -775,7 +784,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         #send a fake node_state message to PD's dashi binding.
         self.node1_id = uuid.uuid4().hex
         self._send_node_state("engine1", self.node1_id)
-        self._start_eeagent(self.node1_id)
+        self._initial_eea_pid = self._start_eeagent(self.node1_id)
 
         self.waiter = ProcessStateWaiter()
 
@@ -785,19 +794,32 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             domain_id=domain_id_from_engine(engine_id))
         self.dashi.fire(get_pd_dashi_name(), "node_state", args=node_state)
 
-    def _start_eeagent(self, node_id):
-        persistence_dir = tempfile.mkdtemp()
-        self._tmpdirs.append(persistence_dir)
-        agent_config = _get_eeagent_config(node_id, persistence_dir)
+    def _start_eeagent(self, node_id, resource_id=None, persistence_dir=None):
+        if not persistence_dir:
+            persistence_dir = tempfile.mkdtemp()
+            self._tmpdirs.append(persistence_dir)
+        resource_id = resource_id or uuid.uuid4().hex
+        agent_config = _get_eeagent_config(node_id, persistence_dir,
+            resource_id=resource_id)
         pid = self.container_client.spawn_process(name="eeagent",
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=agent_config)
         log.info('Agent pid=%s.', str(pid))
         self._eea_pids.append(pid)
+        self._eea_pid_to_resource_id[pid] = resource_id
+        self._eea_pid_to_persistence_dir[pid] = persistence_dir
+        return pid
+
+    def _kill_eeagent(self, pid):
+        self.assertTrue(pid in self._eea_pids)
+        self.container.terminate_process(pid)
+        self._eea_pids.remove(pid)
+        del self._eea_pid_to_resource_id[pid]
+        del self._eea_pid_to_persistence_dir[pid]
 
     def tearDown(self):
-        for pid in self._eea_pids:
-            self.container.terminate_process(pid)
+        for pid in list(self._eea_pids):
+            self._kill_eeagent(pid)
         for d in self._tmpdirs:
             shutil.rmtree(d)
 
@@ -981,3 +1003,64 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             process_schedule, process_id=pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
+
+    def test_restart(self):
+
+        # create a process with RestartMode.ALWAYS -- will restart on any exit
+        process_schedule = ProcessSchedule()
+        process_schedule.restart_mode = ProcessRestartMode.ALWAYS
+        pid1 = self.pd_cli.create_process(self.process_definition_id)
+        self.waiter.start()
+
+        pid1_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
+        config = {'process': {'listen_name': pid1_listen_name}}
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid1, configuration=config)
+
+        self.waiter.await_state_event(pid1, ProcessStateEnum.RUNNING)
+
+        # and one with RestartMode.NEVER -- will never restart
+        process_schedule = ProcessSchedule()
+        process_schedule.restart_mode = ProcessRestartMode.NEVER
+        pid2 = self.pd_cli.create_process(self.process_definition_id)
+
+        pid2_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
+        config = {'process': {'listen_name': pid2_listen_name}}
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid2, configuration=config)
+
+        self.waiter.await_state_event(pid2, ProcessStateEnum.RUNNING)
+
+        test_client1 = TestClient(to_name=pid1_listen_name)
+        self.assertFalse(test_client1.is_restart())
+        self.assertEqual(test_client1.count(), 1)
+
+        test_client2 = TestClient(to_name=pid2_listen_name)
+        self.assertFalse(test_client2.is_restart())
+        self.assertEqual(test_client2.count(), 1)
+
+        # now kill the whole eeagent and restart it. processes should
+        # show up as FAILED in the next heartbeat.
+        resource_id = self._eea_pid_to_resource_id[self._initial_eea_pid]
+        persistence_dir = self._eea_pid_to_persistence_dir[self._initial_eea_pid]
+        log.debug("Restarting eeagent %s", self._initial_eea_pid)
+        self._kill_eeagent(self._initial_eea_pid)
+
+        # manually kill the processes to simulate a real container failure
+        self.container.terminate_process(pid1)
+        self.container.terminate_process(pid2)
+
+        self._start_eeagent(self.node1_id, resource_id=resource_id,
+            persistence_dir=persistence_dir)
+
+        self.waiter.await_state_event(pid1, ProcessStateEnum.RUNNING)
+
+        # query the process again. it should have restart mode config
+        self.assertTrue(test_client1.is_restart())
+        self.assertEqual(test_client1.count(), 1)
+
+        # meanwhile proc2 should not have restarted
+        proc2 = self.pd_cli.read_process(pid2)
+        self.assertEqual(proc2.process_state, ProcessStateEnum.FAILED)
