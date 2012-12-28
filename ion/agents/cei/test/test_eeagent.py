@@ -20,6 +20,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.public import log
 from pyon.agent.simple_agent import SimpleResourceAgentClient
+from pyon.core.exception import Timeout
 
 from interface.services.icontainer_agent import ContainerAgentClient
 
@@ -369,7 +370,11 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         attempts = 0
         last_state = None
         while timeout > attempts:
-            state = self.eea_client.dump_state().result
+            try:
+                state = self.eea_client.dump_state().result
+            except Timeout:
+                log.warn("Timeout calling EEAgent dump_state. retrying.")
+                continue
             proc = get_proc_for_upid(state, upid)
             last_state = proc.get('state')
             if last_state == desired_state:

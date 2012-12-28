@@ -531,7 +531,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2cei.yml')
 
-        self.rr_cli  = ResourceRegistryServiceClient()
+        self.rr_cli = ResourceRegistryServiceClient()
         self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
 
         self.process_definition = ProcessDefinition(name='test_process')
@@ -657,46 +657,6 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         with self.assertRaises(BadRequest):
             self.pd_cli.create_process_definition(definition)
 
-    def test_idempotency(self):
-        # ensure every operation can be safely retried
-        process_schedule = ProcessSchedule()
-        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
-
-        proc_name = 'myreallygoodname'
-        pid = self.pd_cli.create_process(self.process_definition_id)
-        self.waiter.start(pid)
-
-        # note: if we import UNSCHEDULED state into ProcessStateEnum,
-        # this assertion will need to change.
-        proc = self.pd_cli.read_process(pid)
-        self.assertEqual(proc.process_id, pid)
-        self.assertEqual(proc.process_state, ProcessStateEnum.REQUESTED)
-
-        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, configuration={}, process_id=pid, name=proc_name)
-        self.assertEqual(pid, pid2)
-
-        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
-
-        # repeating schedule is harmless
-        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, configuration={}, process_id=pid, name=proc_name)
-        self.assertEqual(pid, pid2)
-
-        proc = self.pd_cli.read_process(pid)
-        self.assertEqual(proc.process_id, pid)
-        self.assertEqual(proc.process_configuration, {})
-        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
-
-        self.pd_cli.cancel_process(pid)
-        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
-
-        # repeating cancel is harmless
-        self.pd_cli.cancel_process(pid)
-        proc = self.pd_cli.read_process(pid)
-        self.assertEqual(proc.process_id, pid)
-        self.assertEqual(proc.process_configuration, {})
-        self.assertEqual(proc.process_state, ProcessStateEnum.TERMINATED)
 
 pd_config = {
     'processdispatcher': {
@@ -1064,3 +1024,44 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         # meanwhile proc2 should not have restarted
         proc2 = self.pd_cli.read_process(pid2)
         self.assertEqual(proc2.process_state, ProcessStateEnum.FAILED)
+
+    def test_idempotency(self):
+        # ensure every operation can be safely retried
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+
+        proc_name = 'myreallygoodname'
+        pid = self.pd_cli.create_process(self.process_definition_id)
+        self.waiter.start(pid)
+
+        # note: if we import UNSCHEDULED state into ProcessStateEnum,
+        # this assertion will need to change.
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_state, ProcessStateEnum.REQUESTED)
+
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid, name=proc_name)
+        self.assertEqual(pid, pid2)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
+
+        # repeating schedule is harmless
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid, name=proc_name)
+        self.assertEqual(pid, pid2)
+
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_configuration, {})
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
+
+        self.pd_cli.cancel_process(pid)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+
+        # repeating cancel is harmless
+        self.pd_cli.cancel_process(pid)
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_configuration, {})
+        self.assertEqual(proc.process_state, ProcessStateEnum.TERMINATED)
