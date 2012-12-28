@@ -201,7 +201,18 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                 self.policy_event.clear()
                 log.debug("%sapplying policy due to event", self.logprefix)
             else:
-                log.debug("%sapplying policy due to timeout", self.logprefix)
+
+                # on a regular basis, we check for the current state of each process.
+                # this is essentially a hedge against bugs in the HAAgent, or in the
+                # ION events system that could prevent us from seeing state changes
+                # of processes.
+                log.debug("%sapplying policy due to timer. Reloading process cache first.",
+                    self.logprefix)
+                try:
+                    self.control.reload_processes()
+                except Exception:
+                    log.warn("%sFailed to reload processes from PD. Will retry later.",
+                        self.logprefix, exc_info=True)
 
             self._apply_policy()
 
@@ -328,7 +339,7 @@ class HAProcessControl(object):
                 try:
                     process = self.client.read_process(process_id)
                 except NotFound:
-                    log.debug("%sService was assocated with process %s, which is unknown to PD. ignoring.",
+                    log.debug("%sService was associated with process %s, which is unknown to PD. ignoring.",
                         self.logprefix, process_id)
                     continue
 
@@ -451,6 +462,20 @@ class HAProcessControl(object):
     def get_all_processes(self):
         processes = deepcopy(self.processes.values())
         return {self.pd_name: processes}
+
+    def reload_processes(self):
+        for process_id, process_dict in self.processes.items():
+            try:
+                process = self.client.read_process(process_id)
+            except Exception:
+                log.warn("%sFailed to read process %s from PD. Will retry later.",
+                    self.logprefix, process_id, exc_info=True)
+                continue
+            new_process_dict = _process_dict_from_object(process)
+            if new_process_dict['state'] != process_dict['state']:
+                log.warn("%sUpdating process %s record manually. we may have missed an event?",
+                    self.logprefix, process_id)
+                self.processes[process_id] = new_process_dict
 
 
 def _process_dict_from_object(process):
