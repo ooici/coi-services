@@ -827,7 +827,10 @@ class UserNotificationService(BaseUserNotificationService):
     def update_user_info_dictionary(self, user_id, new_notification, old_notification):
 
         notifications = []
+        notification_preferences = None
         user = self.clients.resource_registry.read(user_id)
+
+        log.debug("user.variables::: %s" % user.variables)
 
         #------------------------------------------------------------------------------------
         # If there was a previous notification which is being updated, check the dictionaries and update there
@@ -848,7 +851,12 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         notifications.append(new_notification)
 
-        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications}
+        # Get the user's notification preferences
+        for item in user.variables:
+            if item.has_key('notification_preferences'):
+                notification_preferences = item['notification_preferences']
+
+        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 

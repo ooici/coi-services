@@ -21,7 +21,7 @@ from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from ion.services.dm.presentation.user_notification_service import UserNotificationService
 from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
-from interface.objects import DeviceEvent
+from interface.objects import DeviceEvent, NotificationPreferences, NotificationDeliveryModeEnum
 from pyon.util.context import LocalContextMixin
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from nose.plugins.attrib import attr
@@ -425,6 +425,59 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notifications_received = set([received_event_1.notification_id, received_event_2.notification_id])
 
         self.assertEquals(notifications, notifications_received)
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_notification_preferences(self):
+        #--------------------------------------------------------------------------------------
+        # Make a notification request object
+        #--------------------------------------------------------------------------------------
+
+        notification_request = NotificationRequest(   name= 'notification_1',
+            origin="instrument_1",
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        #--------------------------------------------------------------------------------------
+        # Create user 1
+        #--------------------------------------------------------------------------------------
+
+        notification_preferences = NotificationPreferences()
+        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
+
+        user_1 = UserInfo()
+        user_1.name = 'user_1'
+        user_1.contact.email = 'user_1@yahoo.com'
+        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+
+        user_id_1, _ = self.rrc.create(user_1)
+
+        #--------------------------------------------------------------------------------------
+        # user 2
+        #--------------------------------------------------------------------------------------
+
+        notification_preferences = NotificationPreferences()
+        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.BATCH
+        notification_preferences.delivery_enabled = False
+
+
+        user_2 = UserInfo()
+        user_2.name = 'user_2'
+        user_2.contact.email = 'user_2@yahoo.com'
+        user_2.variables.append({'notification_preferences': notification_preferences})
+
+        user_id_2, _ = self.rrc.create(user_2)
+
+        #--------------------------------------------------------------------------------------
+        # Create notification
+        #--------------------------------------------------------------------------------------
+
+        notification_id_1 = self.unsc.create_notification(notification=notification_request, user_id=user_id_1)
+        notification_id_2 = self.unsc.create_notification(notification=notification_request, user_id=user_id_2)
+
+        notifications = set([notification_id_1, notification_id_2])
+
 
 
     @attr('LOCOINT')
