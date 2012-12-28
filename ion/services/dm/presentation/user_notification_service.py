@@ -666,6 +666,14 @@ class UserNotificationService(BaseUserNotificationService):
         for user_id, value in self.user_info.iteritems():
 
             notifications = value['notifications']
+            notification_preferences = value['notification_preferences']
+
+            # Ignore users who do NOT want batch notifications or who have disabled the delivery switch
+            # However, if notification preferences have not been set for the user, use the default mechanism and do not bother
+            if notification_preferences:
+                if notification_preferences.delivery_mode != NotificationDeliveryModeEnum.BATCH \
+                    or not notification_preferences.delivery_enabled:
+                    continue
 
             events_for_message = []
 

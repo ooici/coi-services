@@ -480,9 +480,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         proc1 = self.container.proc_manager.procs_by_name['user_notification']
 
-        # check user_info dictionary
+        #--------------------------------------------------------------------------------------------------------------------------------------
+        # check user_info dictionary to see that the notification preferences are properly loaded to the user info dictionaries
+        #--------------------------------------------------------------------------------------------------------------------------------------
         self.assertEquals(proc1.user_info[user_id_1]['notification_preferences'], notification_preferences_1)
-
         self.assertEquals(proc1.user_info[user_id_2]['notification_preferences'], notification_preferences_2)
 
 
