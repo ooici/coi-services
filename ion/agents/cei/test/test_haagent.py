@@ -2,7 +2,7 @@ import gevent
 import functools
 import BaseHTTPServer
 import socket
-import md5
+from copy import deepcopy
 from BaseHTTPServer import HTTPServer
 from random import randint
 
@@ -12,17 +12,16 @@ from mock import Mock
 from uuid import uuid4
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
-from pyon.public import log
+from pyon.public import log, RT, IonObject
 from pyon.service.service import BaseService
 from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
-from pyon.core.exception import Timeout, BadRequest, NotFound
+from pyon.core.exception import BadRequest, NotFound
 
-from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, \
-    ProcessDispatcherSimpleAPIClient
+from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient
 from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
 
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -60,6 +59,19 @@ class TestProcess(BaseService):
     def on_init(self):
         pass
 
+SERVICE_DEFINITION_TMPL = '''
+name: %s
+docstring:  Service used to create, read, update and delete persistent Objects
+dependencies: []
+methods:
+  create_datastore:
+    docstring: Create a new datastore namespace.
+    in:
+      datastore_name: ""
+    out:
+      success: True
+'''
+
 
 @attr('INT', group='cei')
 class HighAvailabilityAgentTest(IonIntegrationTestCase):
@@ -72,12 +84,17 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self.pd_cli = ProcessDispatcherServiceClient(to_name="process_dispatcher")
 
         self.process_definition_id = uuid4().hex
-        self.process_definition_name = 'test'
-        self.process_definition =  ProcessDefinition(name=self.process_definition_name, executable={
+        self.process_definition_name = 'test_haagent_%s' % self.process_definition_id
+        self.process_definition = ProcessDefinition(name=self.process_definition_name, executable={
                 'module': 'ion.agents.cei.test.test_haagent',
                 'class': 'TestProcess'
         })
         self.pd_cli.create_process_definition(self.process_definition, self.process_definition_id)
+
+        service_definition = SERVICE_DEFINITION_TMPL % self.process_definition_name
+        sd = IonObject(RT.ServiceDefinition, {"name": self.process_definition_name,
+            "definition": service_definition})
+        self.service_def_id, _ = self.container.resource_registry.create(sd)
 
         self.resource_id = "haagent_1234"
         self._haa_name = "high_availability_agent"
@@ -94,8 +111,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                     }
                 },
                 'process_definition_id': self.process_definition_id,
-                'dashi_messaging' : True,
-                'dashi_exchange' : self._haa_dashi_exchange,
+                'dashi_messaging': True,
+                'dashi_exchange': self._haa_dashi_exchange,
                 'dashi_name': self._haa_dashi_name
             },
             'agent': {'resource_id': self.resource_id},
@@ -111,23 +128,35 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-        self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
-            module="ion.agents.cei.high_availability_agent",
-            cls="HighAvailabilityAgent", config=self._haa_config)
+        self._spawn_haagent()
 
+        self._setup_haa_client()
+
+    def _setup_haa_client(self):
         # Start a resource agent client to talk with the instrument agent.
         self._haa_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
-        log.info('Got haa client %s.', str(self._haa_pyon_client))
 
         self.haa_client = HighAvailabilityAgentClient(self._haa_pyon_client)
 
+    def _spawn_haagent(self, policy_parameters=None):
+
+        config = deepcopy(self._haa_config)
+        if policy_parameters is not None:
+            config['highavailability']['policy']['parameters'] = policy_parameters
+        self._haa_pid = self.container_client.spawn_process(name=self._haa_name,
+            module="ion.agents.cei.high_availability_agent",
+            cls="HighAvailabilityAgent", config=config)
+
+    def _kill_haagent(self):
+        self.container.terminate_process(self._haa_pid)
 
     def tearDown(self):
         self.waiter.stop()
         try:
-            self.container.terminate_process(self._haa_pid)
+            self._kill_haagent()
         except BadRequest:
             log.warning("Couldn't terminate HA Agent in teardown (May have been terminated by a test)")
+        self.container.resource_registry.delete(self.service_def_id, del_associations=True)
         self._stop_container()
 
     def get_running_procs(self):
@@ -149,7 +178,6 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         base_names = [i.name for i in base]
         services_registered, _ = self.container.resource_registry.find_resources(
                 restype="Service", name=self.process_definition_name)
-        current_names = [i.name for i in services_registered]
         normal = [cserv for cserv in services_registered if cserv.name not in base_names]
         return normal
 
@@ -163,12 +191,10 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         raise Exception("Took more than %s to get to ha state %s" % (timeout, want_state))
 
-
     def test_features(self):
         status = self.haa_client.status().result
         # Ensure HA hasn't already failed
         assert status in ('PENDING', 'READY', 'STEADY')
-
 
         # verifies L4-CI-CEI-RQ44
         # Note: the HA agent is started in the setUp() method, with config
@@ -255,27 +281,9 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.await_ha_state('STEADY')
 
-        # Ensure that once we terminate that process, there are no associations
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
-
-        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
-        self.assertEqual(len(self.get_running_procs()), 0)
-
-        processes_associated, _ = self.container.resource_registry.find_resources(
-                restype="Process", name=proc.process_id)
-        self.assertEqual(len(processes_associated), 0)
-
-        has_processes = self.container.resource_registry.find_associations(
-            service, "hasProcess")
-        self.assertEqual(len(has_processes), 0)
-
-        # Ensure that once we terminate that HA Agent, the Service object is
-        # cleaned up
-        self.container.terminate_process(self._haa_pid)
-
-        with self.assertRaises(NotFound):
-            service = self.container.resource_registry.read(service_id)
+        self.await_ha_state('STEADY')
 
     def test_dashi(self):
 
@@ -291,37 +299,46 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         dashi_conn.call(self._haa_dashi_name, "reconfigure_policy",
             new_policy=new_policy)
 
+    def test_restart(self):
+        new_policy = {'preserve_n': 3}
+        self.haa_client.reconfigure_policy(new_policy)
 
-@attr('UNIT', group='cei')
-class ProcessDispatcherSimpleAPIClientTest(PyonTestCase):
+        self.await_ha_state('STEADY')
 
-    def setUp(self):
-        self.mock_real_client = DotDict()
-        self.mock_real_client.read_process_definition = Mock()
-        self.mock_real_client.create_process = Mock()
-        self.mock_real_client.schedule_process = Mock()
-        self.mock_real_client.read_process = Mock()
-        self.mock_eventpub = DotDict()
-        self.mock_eventpub.publish_event = Mock()
-        self.mock_container = Mock()
+        procs = self.get_running_procs()
+        self.assertEqual(len(procs), 3)
 
-        self.client = ProcessDispatcherSimpleAPIClient('fake',
-            real_client=self.mock_real_client, container=self.mock_container)
-        self.client.event_pub = self.mock_eventpub
+        # kill the haagent and restart it. it should pick the existing procs
+        # back up.
 
-    def test_schedule(self):
+        log.info("killing haagent")
 
-        upid = 'my_pid'
-        definition_id = 'my_def'
-        configuration = {'some': 'value'}
+        self._kill_haagent()
 
-        self.client.schedule_process(upid, definition_id, configuration=configuration)
+        log.info("respawning haagent")
+        self._spawn_haagent(policy_parameters=new_policy)
 
-        self.assertEqual(self.mock_real_client.schedule_process.call_count, 1)
-        args, kwargs = self.mock_real_client.schedule_process.call_args
+        # need to setup client again because PID has changed.
+        self._setup_haa_client()
 
-        self.assertEqual(args[0], definition_id)
-        self.assertEqual(kwargs['configuration'], configuration)
+        self.await_ha_state('STEADY')
+
+        procs_now = self.get_running_procs()
+        self.assertEqual(len(procs_now), 3)
+        self.assertEqual(set(p.process_id for p in procs), set(p.process_id for p in procs_now))
+
+        # should still be able to scale up
+        new_policy = {'preserve_n': 4}
+        self.haa_client.reconfigure_policy(new_policy)
+
+        self.await_ha_state('STEADY')
+        procs = self.get_running_procs()
+        self.assertEqual(len(procs), 4)
+
+        # kill everything
+        new_policy = {'preserve_n': 0}
+        self.haa_client.reconfigure_policy(new_policy)
+        self.await_ha_state('STEADY')
 
 
 @attr('INT', group='cei')
@@ -339,13 +356,13 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         class TestRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
             server_version = 'test_server'
             extensions_map = ''
+
             def do_GET(self):
                 self.send_response(200)
                 self.send_header("Content-type", "text/plain")
                 self.send_header("Content-Length", len(self.server.response))
                 self.end_headers()
                 self.wfile.write(self.server.response)
-
 
         class Server(HTTPServer):
 
@@ -390,7 +407,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self.pd_cli = ProcessDispatcherServiceClient(to_name="process_dispatcher")
 
         self.process_definition_id = uuid4().hex
-        self.process_definition =  ProcessDefinition(name='test', executable={
+        self.process_definition = ProcessDefinition(name='test', executable={
                 'module': 'ion.agents.cei.test.test_haagent',
                 'class': 'TestProcess'
         })
@@ -398,13 +415,21 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self.pd_cli.create_process_definition(self.process_definition,
                 self.process_definition_id)
 
-
         http_port = 8919
         http_port = self._start_webserver(port=http_port)
 
         self.resource_id = "haagent_4567"
         self._haa_name = "high_availability_agent"
         self._haa_config = {
+            'server': {
+                'trafficsentinel': {
+                    'host': 'localhost',
+                    'port': http_port,
+                    'protocol': 'http',
+                    'username': 'user',
+                    'password': 'pw'
+                }
+            },
             'highavailability': {
                 'policy': {
                     'interval': 1,
@@ -422,14 +447,6 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
                         'minimum_processes': 1,
                     }
                 },
-                'aggregator': {
-                    'type': 'trafficsentinel',
-                    'host': 'localhost',
-                    'port': http_port,
-                    'protocol': 'http',
-                    'username': 'user',
-                    'password': 'pw'
-                },
                 'process_definition_id': self.process_definition_id,
                 "process_dispatchers": [
                     'process_dispatcher'
@@ -437,7 +454,6 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
             },
             'agent': {'resource_id': self.resource_id},
         }
-
 
         self._base_procs = self.pd_cli.list_processes()
 
@@ -455,7 +471,6 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         log.info('Got haa client %s.', str(self._haa_pyon_client))
 
         self.haa_client = HighAvailabilityAgentClient(self._haa_pyon_client)
-
 
     def tearDown(self):
         self.waiter.stop()

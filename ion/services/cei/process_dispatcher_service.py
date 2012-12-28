@@ -2,6 +2,7 @@
 
 import uuid
 import json
+import logging
 from time import time
 
 import gevent
@@ -23,12 +24,14 @@ try:
     from epu.processdispatcher.engines import EngineRegistry
     from epu.processdispatcher.matchmaker import PDMatchmaker
     from epu.dashiproc.epumanagement import EPUManagementClient
+    import epu.exceptions as core_exceptions
 except ImportError:
     ProcessDispatcherCore = None
     get_processdispatcher_store = None
     EngineRegistry = None
     PDMatchmaker = None
     EPUManagementClient = None
+    core_exceptions = None
 
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
@@ -63,7 +66,6 @@ class ProcessStateGate(EventSubscriber):
         self.read_process_fn = read_process_fn
         self.last_chance = None
         self.first_chance = None
-
 
         _ = ProcessStateEnum._str_map[self.desired_state] # make sure state exists
         log.info("ProcessStateGate is going to wait on process '%s' for state '%s'",
@@ -154,10 +156,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
     #       CEI EPUM Management Service, this mode cannot be directly used
     #       outside of a CEI launch.
     #
-    #   bridge mode - this is a deprecated mode where the real Process
-    #       Dispatcher runs as an external service and this service "bridges"
-    #       requests to it.
-    #
 
     def on_init(self):
 
@@ -165,12 +163,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             pd_conf = self.CFG.processdispatcher
         except AttributeError:
             pd_conf = {}
-
-        # temporarily supporting old config format
-        try:
-            pd_bridge_conf = self.CFG.process_dispatcher_bridge
-        except AttributeError:
-            pd_bridge_conf = None
 
         if pd_conf.get('dashi_messaging', False) == True:
 
@@ -189,13 +181,7 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
 
         pd_backend_name = pd_conf.get('backend')
 
-        # note: this backend is deprecated. Keeping it around only until the system launches
-        # are switched to the Pyon PD implementation.
-        if pd_bridge_conf:
-            log.debug("Using Process Dispatcher Bridge backend -- requires running CEI services.")
-            self.backend = PDBridgeBackend(pd_bridge_conf, self)
-
-        elif not pd_backend_name or pd_backend_name == "container":
+        if not pd_backend_name or pd_backend_name == "container":
             log.debug("Using Process Dispatcher container backend -- spawns processes in local container")
             self.backend = PDLocalBackend(self.container)
 
@@ -285,9 +271,13 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         process_id = str(process_definition.name or "process") + uuid.uuid4().hex
         process_id = create_valid_identifier(process_id, ws_sub='_')
 
-        process = Process(process_id=process_id)
-        self.container.resource_registry.create(process, object_id=process_id)
+        self.backend.create(process_id, process_definition_id)
 
+        try:
+            process = Process(process_id=process_id)
+            self.container.resource_registry.create(process, object_id=process_id)
+        except BadRequest:
+            log.debug("Tried to create Process %s, but already exists. This is normally ok.", process_id)
         return process_id
 
     def schedule_process(self, process_definition_id='', schedule=None, configuration=None, process_id='', name=''):
@@ -307,8 +297,8 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         process_definition = self.backend.read_definition(process_definition_id)
 
         try:
-            module = process_definition.executable['module']
-            cls = process_definition.executable['class']
+            process_definition.executable['module']
+            process_definition.executable['class']
         except KeyError, e:
             raise BadRequest("Process definition incomplete. missing: %s", e)
 
@@ -336,9 +326,11 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             process = Process(process_id=process_id, name=name)
             self.container.resource_registry.create(process, object_id=process_id)
         except BadRequest:
-            log.debug("Tried to create Process %s, but already exists. This is normally ok.", process_id)
+            log.debug("Tried to create Process %s, but already exists. This is normally ok.",
+                process_id)
 
-        return self.backend.spawn(process_id, process_definition_id, schedule, configuration, name)
+        return self.backend.schedule(process_id, process_definition_id,
+            schedule, configuration, name)
 
     def cancel_process(self, process_id=''):
         """Cancels the execution of the given process id.
@@ -351,7 +343,6 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             raise NotFound('No process was provided')
 
         cancel_result = self.backend.cancel(process_id)
-        self.container.resource_registry.delete(process_id, del_associations=True)
         return cancel_result
 
     def read_process(self, process_id=''):
@@ -444,24 +435,15 @@ class PDDashiHandler(object):
         else:
             raise NotFound('No process definition id or name was provided')
 
-
         # early validation before we pass definition through to backend
         try:
-            module = process_definition.executable['module']
-            cls = process_definition.executable['class']
+            process_definition.executable['module']
+            process_definition.executable['class']
         except KeyError, e:
             raise BadRequest("Process definition incomplete. missing: %s", e)
 
         if configuration is None:
             configuration = {}
-        else:
-            # push the config through a JSON serializer to ensure that the same
-            # config would work with the bridge backend
-
-            try:
-                json.dumps(configuration)
-            except TypeError, e:
-                raise BadRequest("bad configuration: " + str(e))
 
         target = ProcessTarget()
         if execution_engine_id is not None:
@@ -490,7 +472,7 @@ class PDDashiHandler(object):
         if not name:
             name = self._get_process_name(process_definition, configuration)
 
-        return self.backend.spawn(upid, definition_id, schedule, configuration, name)
+        return self.backend.schedule(upid, definition_id, schedule, configuration, name)
 
     def describe_process(self, upid):
         if hasattr(self.backend, 'read_core_process'):
@@ -576,9 +558,15 @@ class PDLocalBackend(object):
     def delete_definition(self, definition_id):
         return self.rr.delete(definition_id)
 
-    def spawn(self, process_id, definition_id, schedule, configuration, name):
+    def create(self, process_id, definition_id):
+        if not self._get_process(process_id):
+            self._add_process(process_id, {}, ProcessStateEnum.REQUESTED)
+        return process_id
+
+    def schedule(self, process_id, definition_id, schedule, configuration, name):
 
         definition = self.read_definition(definition_id)
+        process = self._get_process(process_id)
 
         # in order for this local backend to behave more like the real thing,
         # we introduce an artificial delay in spawn requests. This helps flush
@@ -590,10 +578,16 @@ class PDLocalBackend(object):
                 process_id, definition, schedule, configuration)
             self._spawn_greenlets.add(glet)
 
-            self._add_process(process_id, configuration, None)
+            if process:
+                process.process_configuration = configuration
+            else:
+                self._add_process(process_id, configuration, None)
 
         else:
-            self._add_process(process_id, configuration, None)
+            if process:
+                process.process_configuration = configuration
+            else:
+                self._add_process(process_id, configuration, None)
             self._inner_spawn(process_id, name, definition, schedule, configuration)
 
         return process_id
@@ -629,16 +623,19 @@ class PDLocalBackend(object):
         return pid
 
     def cancel(self, process_id):
-        self.container.proc_manager.terminate_process(process_id)
-        log.debug('PD: Terminated Process (%s)', process_id)
-        try:
-            self._remove_process(process_id)
-        except ValueError:
-            log.warning("PD: No record of %s to remove?" % process_id)
+        process = self._get_process(process_id)
+        if process:
+            try:
+                self.container.proc_manager.terminate_process(process_id)
+                log.debug('PD: Terminated Process (%s)', process_id)
+            except BadRequest, e:
+                log.warn("PD: Failed to terminate process %s in container. already dead?: %s",
+                    process_id, str(e))
+            process.process_state = ProcessStateEnum.TERMINATED
 
-        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
-            origin=process_id, origin_type="DispatchedProcess",
-            state=ProcessStateEnum.TERMINATED)
+            self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+                origin=process_id, origin_type="DispatchedProcess",
+                state=ProcessStateEnum.TERMINATED)
 
         return True
 
@@ -671,6 +668,9 @@ class PDLocalBackend(object):
 # map from internal PD states to external ProcessStateEnum values
 
 _PD_PROCESS_STATE_MAP = {
+    "100-UNSCHEDULED": ProcessStateEnum.REQUESTED,
+    "200-REQUESTED": ProcessStateEnum.REQUESTED,
+    "250-DIED_REQUESTED": ProcessStateEnum.REQUESTED,
     "300-WAITING": ProcessStateEnum.WAITING,
     "400-PENDING": ProcessStateEnum.PENDING,
     "500-RUNNING": ProcessStateEnum.RUNNING,
@@ -682,6 +682,7 @@ _PD_PROCESS_STATE_MAP = {
 }
 
 _PD_PYON_PROCESS_STATE_MAP = {
+    ProcessStateEnum.REQUESTED: "200-REQUESTED",
     ProcessStateEnum.WAITING: "300-WAITING",
     ProcessStateEnum.PENDING: "400-PENDING",
     ProcessStateEnum.RUNNING: "500-RUNNING",
@@ -691,6 +692,14 @@ _PD_PYON_PROCESS_STATE_MAP = {
     ProcessStateEnum.FAILED: "850-FAILED",
     ProcessStateEnum.REJECTED: "900-REJECTED"
 }
+
+
+def process_state_to_pd_core(process_state):
+    return _PD_PYON_PROCESS_STATE_MAP[process_state]
+
+
+def process_state_from_pd_core(core_process_state):
+    return _PD_PROCESS_STATE_MAP[core_process_state]
 
 
 class Notifier(object):
@@ -882,7 +891,6 @@ class PDNativeBackend(object):
         self.core.node_state(node_id, domain_id, state, properties=properties)
 
     def _heartbeat_callback(self, heartbeat, headers):
-        log.debug("Got EEAgent heartbeat. headers=%s msg=%s", headers, heartbeat)
 
         try:
             eeagent_id = heartbeat['eeagent_id']
@@ -890,6 +898,14 @@ class PDNativeBackend(object):
         except KeyError, e:
             log.warn("Invalid EEAgent heartbeat received. Missing: %s -- %s", e, heartbeat)
             return
+
+        if log.isEnabledFor(logging.DEBUG):
+            processes = beat.get('processes')
+            if processes is not None:
+                processes_str = "processes=%d" % len(processes)
+            else:
+                processes_str = ""
+            log.debug("Received heartbeat from EEAgent %s %s", eeagent_id, processes_str)
 
         try:
             self.core.ee_heartbeat(eeagent_id, beat)
@@ -943,7 +959,15 @@ class PDNativeBackend(object):
         # also delete in RR
         self.rr.delete(definition_id)
 
-    def spawn(self, process_id, definition_id, schedule, configuration, name):
+    def create(self, process_id, definition_id):
+        try:
+            self.core.create_process(None, process_id, definition_id)
+        except core_exceptions.NotFoundError, e:
+            raise NotFound(str(e))
+        except core_exceptions.BadRequestError, e:
+            raise BadRequest(str(e))
+
+    def schedule(self, process_id, definition_id, schedule, configuration, name):
 
         # note: not doing anything with schedule mode yet: the backend PD
         # service doesn't fully support it.
@@ -967,12 +991,17 @@ class PDNativeBackend(object):
             if hasattr(schedule, 'restart_mode') and schedule.restart_mode:
                 restart_mode = ProcessRestartMode._str_map.get(schedule.restart_mode)
 
-        self.core.schedule_process(None, upid=process_id, definition_id=definition_id,
-            subscribers=None, constraints=constraints,
-            node_exclusive=node_exclusive, queueing_mode=queueing_mode,
-            execution_engine_id=execution_engine_id,
-            restart_mode=restart_mode, configuration=configuration, name=name)
-
+        try:
+            self.core.schedule_process(None, upid=process_id,
+                definition_id=definition_id, subscribers=None,
+                constraints=constraints, node_exclusive=node_exclusive,
+                queueing_mode=queueing_mode, restart_mode=restart_mode,
+                execution_engine_id=execution_engine_id, name=name,
+                configuration=configuration)
+        except core_exceptions.NotFoundError, e:
+            raise NotFound(str(e))
+        except core_exceptions.BadRequestError, e:
+            raise BadRequest(str(e))
         return process_id
 
     def cancel(self, process_id):
@@ -995,156 +1024,6 @@ class PDNativeBackend(object):
         return self.core.describe_process(None, process_id)
 
 
-class PDBridgeBackend(object):
-    """Scheduling backend to PD that bridges to external CEI Process Dispatcher
-
-    This is deprecated but we are leaving it around for the time being.
-    """
-
-    def __init__(self, conf, service):
-        self.dashi = None
-        self.consumer_thread = None
-
-        # grab config parameters used to connect to backend Process Dispatcher
-        try:
-            self.uri = conf.dashi_uri
-            self.topic = conf.topic
-            self.exchange = conf.dashi_exchange
-        except AttributeError, e:
-            log.warn("Needed Process Dispatcher config not found: %s", e)
-            raise
-
-        self.dashi_name = self.topic + "_bridge"
-        self.pd_process_subscribers = [(self.dashi_name, "process_state")]
-
-        self.event_pub = EventPublisher()
-
-        # use the container RR instance -- talks directly to couchdb
-        self.rr = service.container.resource_registry
-
-    def initialize(self):
-        self.dashi = self._init_dashi()
-        self.dashi.handle(self._process_state, "process_state")
-        self.consumer_thread = gevent.spawn(self.dashi.consume)
-
-    def shutdown(self):
-        if self.dashi:
-            self.dashi.cancel()
-        if self.consumer_thread:
-            self.consumer_thread.join()
-
-    def _init_dashi(self):
-        # we are avoiding directly depending on dashi as this bridging approach
-        # is short term and only used from CEI launches. And we have enough
-        # deps. Where needed we install dashi specially via a separate
-        # buildout config.
-        return get_dashi(self.dashi_name, self.uri, self.exchange)
-
-    def _process_state(self, process):
-        # handle incoming process state updates from the real PD service.
-        # some states map to ION events while others are ignored.
-
-        log.debug("Got process state: %s", process)
-
-        process_id = None
-        state = None
-        if process:
-            process_id = process.get('upid')
-            state = process.get('state')
-
-        if not (process and process_id and state):
-            log.warn("Invalid process state from CEI process dispatcher: %s",
-                process)
-            return
-
-        ion_process_state = _PD_PROCESS_STATE_MAP.get(state)
-        if not ion_process_state:
-            log.debug("Received unknown process state from Process Dispatcher." +
-                      " process=%s state=%s", process_id, state)
-            return
-
-        log.debug("Sending process state event: %s -> %s", process_id, ion_process_state)
-        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
-            origin=process_id, origin_type="DispatchedProcess",
-            state=ion_process_state)
-
-    def create_definition(self, definition, definition_id=None):
-        """
-        @type definition: ProcessDefinition
-        """
-        definition_id = definition_id or uuid.uuid4().hex
-        args = dict(definition_id=definition_id,
-            definition_type=definition.definition_type,
-            executable=definition.executable, name=definition.name,
-            description=definition.description)
-        self.dashi.call(self.topic, "create_definition", args=args)
-
-        self.rr.create(definition, object_id=definition_id)
-
-        return definition_id
-
-    def read_definition(self, definition_id):
-        definition = self.dashi.call(self.topic, "describe_definition",
-            definition_id=definition_id)
-        if not definition:
-            raise NotFound("process definition %s unknown" % definition_id)
-        return _ion_process_definition_from_core(definition_id, definition)
-
-    def read_definition_by_name(self, definition_name):
-        raise ServerError("reading process definitions by name not supported by this backend")
-
-    def delete_definition(self, definition_id):
-        self.dashi.call(self.topic, "remove_definition",
-            definition_id=definition_id)
-
-        self.rr.delete(definition_id)
-
-    def spawn(self, process_id, definition_id, schedule, configuration, name):
-
-        # note: not doing anything with schedule mode yet: the backend PD
-        # service doesn't fully support it.
-
-        constraints = None
-        if schedule:
-            if schedule.target and schedule.target.constraints:
-                constraints = schedule.target.constraints
-
-        # form a pyon process spec
-        # warning: this spec will change in the near future.
-
-        config = configuration or {}
-
-        proc = self.dashi.call(self.topic, "schedule_process",
-            upid=process_id, definition_id=definition_id, subscribers=self.pd_process_subscribers,
-            constraints=constraints, configuration=config, name=name)
-
-        log.debug("Dashi Process Dispatcher returned process: %s", proc)
-
-        # upid == process_id
-        return process_id
-
-    def cancel(self, process_id):
-
-        if not process_id:
-            raise ValueError("invalid process id")
-
-        proc = self.dashi.call(self.topic, "terminate_process", upid=process_id)
-        log.debug("Dashi Process Dispatcher terminating process: %s", proc)
-        return True
-
-    def list(self):
-        d_processes = self.dashi.call(self.topic, "describe_processes")
-        return [_ion_process_from_core(p) for p in d_processes]
-
-    def read_process(self, process_id):
-        d_process = self.dashi.call(self.topic, "describe_process", upid=process_id)
-        if d_process is None:
-            raise NotFound("process %s unknown" % process_id)
-        process = _ion_process_from_core(d_process)
-
-        return process
-
-
 def _ion_process_from_core(core_process):
     try:
         config = core_process['configuration']
@@ -1165,6 +1044,7 @@ def _ion_process_from_core(core_process):
 
     return process
 
+
 def _core_process_from_ion(ion_process):
     process = {
             'state': _PD_PYON_PROCESS_STATE_MAP.get(ion_process.process_state),
@@ -1174,6 +1054,7 @@ def _core_process_from_ion(ion_process):
     }
     return process
 
+
 def _ion_process_definition_from_core(definition_id, core_process_definition):
     procdef = ProcessDefinition(name=core_process_definition.get('name'),
         description=core_process_definition.get('description'),
@@ -1181,6 +1062,7 @@ def _ion_process_definition_from_core(definition_id, core_process_definition):
         executable=core_process_definition.get('executable'))
     procdef._id = definition_id
     return procdef
+
 
 def _core_process_definition_from_ion(ion_process_definition):
     definition = {
@@ -1190,7 +1072,6 @@ def _core_process_definition_from_ion(ion_process_definition):
             'executable': ion_process_definition.executable,
             }
     return definition
-
 
 
 def get_dashi(*args, **kwargs):
