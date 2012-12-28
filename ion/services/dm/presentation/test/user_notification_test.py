@@ -1024,18 +1024,45 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------
 
         # user_1
+        notification_preferences = NotificationPreferences()
+        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
+        notification_preferences.delivery_enabled = True
+
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
+        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
 
         # user_2
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.email = 'user_2@gmail.com'
 
+        # user_3
+        notification_preferences = NotificationPreferences()
+        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
+        notification_preferences.delivery_enabled = False
+
+        user_3 = UserInfo()
+        user_3.name = 'user_3'
+        user_3.contact.email = 'user_3@gmail.com'
+        user_3.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+
+        # user_4
+        notification_preferences = NotificationPreferences()
+        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.BATCH
+        notification_preferences.delivery_enabled = True
+
+        user_4 = UserInfo()
+        user_4.name = 'user_4'
+        user_4.contact.email = 'user_4@gmail.com'
+        user_4.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+
 
         user_id_1, _ = self.rrc.create(user_1)
         user_id_2, _ = self.rrc.create(user_2)
+        user_id_3, _ = self.rrc.create(user_3)
+        user_id_4, _ = self.rrc.create(user_4)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
@@ -1104,8 +1131,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         id3 = self.unsc.create_notification(notification=notification_request_3, user_id=user_id_2)
         q.put(id3)
 
+        id4 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_3)
+        q.put(id4)
+
+        id5 = self.unsc.create_notification(notification=notification_request_1, user_id=user_id_4)
+        q.put(id5)
+
         # Wait till all the notifications have been created....
-        for i in xrange(3):
+        for i in xrange(5):
             q.get(timeout = 10)
 
         #--------------------------------------------------------------------------------------
@@ -1157,6 +1190,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(msg_sender, CFG.get_safe('server.smtp.sender') )
             self.assertTrue(msg_recipient in ['user_1@gmail.com', 'user_2@gmail.com'])
 
+            # The below users did not want real time notifications or disabled delivery
+            self.assertTrue(msg_recipient not in ['user_3@gmail.com', 'user_4@gmail.com'])
+
             maps = msg.split(",")
 
             event_type = ''
@@ -1173,6 +1209,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                 self.assertTrue(event_type in ['ResourceLifecycleEvent', 'DeviceStatusEvent'])
             elif msg_recipient == 'user_2@gmail.com':
                 self.assertTrue(event_type in ['DeviceCommsEvent', 'DeviceStatusEvent'])
+            else:
+                self.fail('Got email sent to msg recipient who did not set a correct notification preference.')
 
 
     @attr('LOCOINT')
