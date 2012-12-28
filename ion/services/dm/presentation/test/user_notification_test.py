@@ -655,16 +655,47 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         '''
 
         #--------------------------------------------------------------------------------------
-        # Create a user and get the user_id
+        # Create a user subscribed to REALTIME notifications
         #--------------------------------------------------------------------------------------
+        notification_preferences = NotificationPreferences()
+        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
+        notification_preferences.delivery_enabled = True
 
         user = UserInfo()
         user.name = 'new_user'
         user.contact.email = 'new_user@gmail.com'
+        user.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+
+        #--------------------------------------------------------------------------------------
+        # Create a user subscribed to BATCH notifications
+        #--------------------------------------------------------------------------------------
+        notification_preferences_2 = NotificationPreferences()
+        notification_preferences_2.delivery_mode = NotificationDeliveryModeEnum.BATCH
+        notification_preferences_2.delivery_enabled = True
+
+        user_batch = UserInfo()
+        user_batch.name = 'user_batch'
+        user_batch.contact.email = 'user_batch@gmail.com'
+        user_batch.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_2})
+
+        #--------------------------------------------------------------------------------------
+        # Create a user subscribed to REALTIME notifications but with delivery turned OFF
+        #--------------------------------------------------------------------------------------
+        notification_preferences_3 = NotificationPreferences()
+        notification_preferences_3.delivery_mode = NotificationDeliveryModeEnum.REALTIME
+        notification_preferences_3.delivery_enabled = False
+
+        user_disabled = UserInfo()
+        user_disabled.name = 'user_disabled'
+        user_disabled.contact.email = 'user_disabled@gmail.com'
+        user_disabled.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_3})
+
 
         # this part of code is in the beginning to allow enough time for users_index creation
 
         user_id, _ = self.rrc.create(user)
+        user_batch_id, _ = self.rrc.create(user_batch)
+        user_disabled_id, _ = self.rrc.create(user_disabled)
 
         # confirm that users_index got created by discovery
         search_string = 'search "name" is "*" from "users_index"'
@@ -701,6 +732,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
 
         notification_id_1 = self.unsc.create_notification(notification=notification_request_correct, user_id=user_id)
+        notification_id_batch = self.unsc.create_notification(notification=notification_request_correct, user_id=user_batch_id)
+        notification_id_disabled = self.unsc.create_notification(notification=notification_request_correct, user_id=user_disabled_id)
 
         #--------------------------------------------------------------------------------------
         # Check the user_info and reverse_user_info got reloaded
@@ -708,20 +741,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         processes =self.container.proc_manager.procs
 
-        def found_user_info_dicts(processes, *args, **kwargs):
+        def found_user_info_dicts(processes, qsize,*args, **kwargs):
             for key in processes:
                 if key.startswith('notification_worker'):
                     proc1 = processes[key]
                     queue = proc1.q
 
-                    if queue.qsize() > 0:
+                    if queue.qsize() >= qsize:
                         log.debug("the name of the process: %s" % key)
 
                         reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
-                        self.assertTrue(queue.empty())
+                        proc1.q.queue.clear()
                         return reloaded_user_info, reloaded_reverse_user_info
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes, 3)
         notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         self.assertIsNotNone(reloaded_user_info)
@@ -731,6 +764,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_request_correct = self.rrc.read(notification_id_1)
 
         self.assertEquals(reloaded_user_info[user_id]['notifications'], [notification_request_correct] )
+        self.assertEquals(reloaded_user_info[user_id]['notification_preferences'].delivery_mode, notification_preferences.delivery_mode )
+        self.assertEquals(reloaded_user_info[user_id]['notification_preferences'].delivery_enabled, notification_preferences.delivery_enabled )
+
+        self.assertEquals(reloaded_user_info[user_batch_id]['notification_preferences'].delivery_mode, notification_preferences_2.delivery_mode )
+        self.assertEquals(reloaded_user_info[user_batch_id]['notification_preferences'].delivery_enabled, notification_preferences_2.delivery_enabled )
+
+        self.assertEquals(reloaded_user_info[user_disabled_id]['notification_preferences'].delivery_mode, notification_preferences_3.delivery_mode )
+        self.assertEquals(reloaded_user_info[user_disabled_id]['notification_preferences'].delivery_enabled, notification_preferences_3.delivery_enabled )
+
         self.assertEquals(reloaded_user_info[user_id]['user_contact'].email, 'new_user@gmail.com')
 
         self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], [user_id] )
@@ -744,7 +786,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes, 1)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 
