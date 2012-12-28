@@ -9,7 +9,7 @@ from nose.plugins.attrib import attr
 
 from pyon.net.endpoint import RPCClient
 from pyon.service.service import BaseService
-from pyon.util.containers import DotDict
+from pyon.util.containers import DotDict, get_safe
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound, BadRequest
@@ -23,8 +23,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
-    PDLocalBackend, PDNativeBackend, PDBridgeBackend, get_dashi, get_pd_dashi_name,\
-    PDDashiHandler
+    PDLocalBackend, PDNativeBackend, get_dashi, get_pd_dashi_name, PDDashiHandler
 from ion.services.cei.test import ProcessStateWaiter
 
 try:
@@ -145,10 +144,13 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
 
     def test_local_cancel(self):
 
-        ok = self.pd_service.cancel_process("process-id")
+        pid = self.pd_service.create_process("fake-process-def-id")
+
+        ok = self.pd_service.cancel_process(pid)
 
         self.assertTrue(ok)
-        self.mock_cc_terminate.assert_called_once_with("process-id")
+        self.mock_cc_terminate.assert_called_once_with(pid)
+
 
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
@@ -164,7 +166,8 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend['read_definition'] = Mock()
         self.mock_backend['read_definition_by_name'] = Mock()
         self.mock_backend['delete_definition'] = Mock()
-        self.mock_backend['spawn'] = Mock()
+        self.mock_backend['create'] = Mock()
+        self.mock_backend['schedule'] = Mock()
         self.mock_backend['read_process'] = Mock()
         self.mock_backend['list'] = Mock()
         self.mock_backend['cancel'] = Mock()
@@ -217,10 +220,11 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         queueing_mode = 'RESTART_ONLY'
         restart_mode = 'ABNORMAL'
 
-        self.pd_dashi_handler.schedule_process(upid, definition_id, queueing_mode=queueing_mode, restart_mode=restart_mode, name=name)
+        self.pd_dashi_handler.schedule_process(upid, definition_id,
+            queueing_mode=queueing_mode, restart_mode=restart_mode, name=name)
 
-        self.assertEqual(self.mock_backend.spawn.call_count, 1)
-        args, kwargs = self.mock_backend.spawn.call_args
+        self.assertEqual(self.mock_backend.schedule.call_count, 1)
+        args, kwargs = self.mock_backend.schedule.call_args
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
@@ -243,12 +247,11 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend.read_definition_by_name.assert_called_once_with(definition_name)
         self.assertFalse(self.mock_backend.read_definition.call_count)
 
-        self.assertEqual(self.mock_backend.spawn.call_count, 1)
-        args, kwargs = self.mock_backend.spawn.call_args
+        self.assertEqual(self.mock_backend.schedule.call_count, 1)
+        args, kwargs = self.mock_backend.schedule.call_args
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
-
 
 
 @attr('UNIT', group='cei')
@@ -474,160 +477,6 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
 
 
-@attr('UNIT', group='cei')
-class ProcessDispatcherServiceBridgeTest(PyonTestCase):
-    """Tests the bridge backend of the PD
-    """
-    def setUp(self):
-        self.pd_service = ProcessDispatcherService()
-        self.pd_service.container = DotDict()
-        self.pd_service.container['resource_registry'] = Mock()
-
-        pdcfg = dict(uri="amqp://hello", topic="pd", exchange="123")
-        self.pd_service.CFG = DotDict()
-        self.pd_service.CFG['process_dispatcher_bridge'] = pdcfg
-        self.pd_service.init()
-        self.assertIsInstance(self.pd_service.backend, PDBridgeBackend)
-        self.pd_service.backend.rr = self.mock_rr = Mock()
-
-        self.event_pub = Mock()
-        self.pd_service.backend.event_pub = self.event_pub
-
-        # sneak in and replace dashi connection method
-        mock_dashi = Mock()
-        mock_dashi.consume.return_value = lambda: None
-        self.pd_service.backend._init_dashi = lambda: mock_dashi
-        self.mock_dashi = mock_dashi
-
-        self.pd_service.start()
-        self.assertEqual(mock_dashi.handle.call_count, 1)
-
-    def tearDown(self):
-        self.pd_service.quit()
-
-    def test_create_schedule(self):
-
-        proc_def = DotDict()
-        proc_def['name'] = "someprocess"
-        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
-        mock_read_def = Mock()
-        mock_read_def.return_value = proc_def
-        self.pd_service.backend.read_definition = mock_read_def
-
-        pid = self.pd_service.create_process("fake-process-def-id")
-        mock_read_def.assert_called_once_with("fake-process-def-id")
-
-        proc_schedule = DotDict()
-        proc_schedule['target'] = DotDict()
-        proc_schedule.target['constraints'] = {"hats": 4}
-        proc_schedule.target['node_exclusive'] = None
-        proc_schedule.target['execution_engine_id'] = None
-
-        configuration = {"some": "value"}
-        name = 'allthehats'
-
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
-            proc_schedule, configuration, pid, name=name)
-
-        self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
-        self.assertEqual(pid, pid2)
-        self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
-        self.assertEqual(self.mock_dashi.call.call_count, 1)
-        call_args, call_kwargs = self.mock_dashi.call.call_args
-        self.assertEqual(set(call_kwargs),
-            set(['upid', 'definition_id', 'configuration', 'subscribers', 'constraints', 'name']))
-        self.assertEqual(call_kwargs['constraints'],
-            proc_schedule.target['constraints'])
-        self.assertEqual(call_kwargs['subscribers'],
-            self.pd_service.backend.pd_process_subscribers)
-        self.assertEqual(call_args, ("pd", "schedule_process"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 0)
-
-        # trigger some fake async state updates from dashi
-
-        self.pd_service.backend._process_state(dict(upid=pid,
-            state="400-PENDING"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 1)
-
-        self.pd_service.backend._process_state(dict(upid=pid,
-            state="500-RUNNING"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 2)
-
-    def test_cancel(self):
-
-        ok = self.pd_service.cancel_process("process-id")
-
-        self.assertTrue(ok)
-        self.mock_dashi.call.assert_called_once_with("pd", "terminate_process",
-            upid="process-id")
-        self.assertEqual(self.event_pub.publish_event.call_count, 0)
-
-        self.pd_service.backend._process_state(dict(upid="process-id",
-            state="700-TERMINATED"))
-        self.assertEqual(self.event_pub.publish_event.call_count, 1)
-
-    def test_definitions(self):
-        executable = {'module': 'my_module', 'class': 'class'}
-        definition = ProcessDefinition(name="someprocess", executable=executable)
-        pd_id = self.pd_service.create_process_definition(definition)
-        assert self.mock_dashi.call.called
-        self.assertTrue(pd_id)
-        assert self.mock_rr.create.called_once_with(definition, object_id=pd_id)
-
-        self.mock_dashi.call.reset_mock()
-        self.mock_dashi.call.return_value = dict(name="someprocess",
-            executable=executable)
-
-        definition2 = self.pd_service.read_process_definition("someprocess")
-        assert self.mock_dashi.call.called
-        self.assertEqual(definition2.name, "someprocess")
-        self.assertEqual(definition2.executable, executable)
-
-        self.mock_dashi.call.reset_mock()
-        self.pd_service.delete_process_definition("someprocess")
-        assert self.mock_dashi.call.called
-        assert self.mock_rr.delete.called_once_with(pd_id)
-
-    def test_read_process(self):
-
-        self.mock_dashi.call.return_value = dict(upid="processid",
-            state="500-RUNNING")
-        proc = self.pd_service.read_process("processid")
-        assert self.mock_dashi.call.called
-
-        self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
-        self.assertEqual(proc.process_configuration, {})
-
-    def test_read_process_notfound(self):
-
-        self.mock_dashi.call.return_value = None
-
-        with self.assertRaises(NotFound):
-            self.pd_service.read_process("processid")
-        assert self.mock_dashi.call.called
-
-    def test_read_process_with_config(self):
-        config = {"hats": 4}
-        self.mock_dashi.call.return_value = dict(upid="processid",
-            state="500-RUNNING", configuration=config)
-        proc = self.pd_service.read_process("processid")
-        assert self.mock_dashi.call.called
-
-        self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
-        self.assertEqual(proc.process_configuration, config)
-
-    def test_list_processes(self):
-
-        core_procs = [dict(upid="processid", state="500-RUNNING")]
-        self.mock_dashi.call.return_value = core_procs
-        procs = self.pd_service.list_processes()
-        proc = procs[0]
-        self.assertEqual(proc.process_id, "processid")
-        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
-
-
 class TestProcess(BaseService):
     """Test process to deploy via PD
     """
@@ -636,6 +485,7 @@ class TestProcess(BaseService):
     def on_init(self):
         self.i = 0
         self.response = self.CFG.test_response
+        self.restart = get_safe(self.CFG, "process.start_mode") == "RESTART"
 
     def count(self):
         self.i += 1
@@ -643,6 +493,9 @@ class TestProcess(BaseService):
 
     def query(self):
         return self.response
+
+    def is_restart(self):
+        return self.restart
 
     def get_process_name(self, pid=None):
         if pid is None:
@@ -667,6 +520,8 @@ class TestClient(RPCClient):
     def get_process_name(self, pid=None, headers=None, timeout=None):
         return self.request({'pid': pid}, op='get_process_name', headers=headers, timeout=timeout)
 
+    def is_restart(self, headers=None, timeout=None):
+        return self.request({}, op='is_restart', headers=headers, timeout=timeout)
 
 
 @attr('INT', group='cei')
@@ -730,17 +585,10 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         self.pd_cli.cancel_process(pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
-        self.waiter.stop()
-
-        oldpid = pid
-
-        pid = self.pd_cli.create_process(self.process_definition_id)
-        self.waiter.start(pid)
 
         pid2 = self.pd_cli.schedule_process(self.process_definition_id,
             process_schedule, configuration={}, process_id=pid)
         self.assertEqual(pid, pid2)
-        self.assertNotEqual(oldpid, pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
@@ -764,7 +612,7 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         # feed in a string that the process will return -- verifies that
         # configuration actually makes it to the instantiated process
         test_response = uuid.uuid4().hex
-        configuration = {"test_response" : test_response}
+        configuration = {"test_response": test_response}
 
         pid2 = self.pd_cli.schedule_process(self.process_definition_id,
             process_schedule, configuration=configuration, process_id=pid)
@@ -806,9 +654,49 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         # verifies L4-CI-CEI-RQ137
         executable = dict(url="http://somewhere.com/something.py")
         definition = ProcessDefinition(name="test_process", executable=executable)
-        with self.assertRaises(BadRequest) as ar:
+        with self.assertRaises(BadRequest):
             self.pd_cli.create_process_definition(definition)
 
+    def test_idempotency(self):
+        # ensure every operation can be safely retried
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+
+        proc_name = 'myreallygoodname'
+        pid = self.pd_cli.create_process(self.process_definition_id)
+        self.waiter.start(pid)
+
+        # note: if we import UNSCHEDULED state into ProcessStateEnum,
+        # this assertion will need to change.
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_state, ProcessStateEnum.REQUESTED)
+
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid, name=proc_name)
+        self.assertEqual(pid, pid2)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
+
+        # repeating schedule is harmless
+        pid2 = self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, configuration={}, process_id=pid, name=proc_name)
+        self.assertEqual(pid, pid2)
+
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_configuration, {})
+        self.assertEqual(proc.process_state, ProcessStateEnum.RUNNING)
+
+        self.pd_cli.cancel_process(pid)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+
+        # repeating cancel is harmless
+        self.pd_cli.cancel_process(pid)
+        proc = self.pd_cli.read_process(pid)
+        self.assertEqual(proc.process_id, pid)
+        self.assertEqual(proc.process_configuration, {})
+        self.assertEqual(proc.process_state, ProcessStateEnum.TERMINATED)
 
 pd_config = {
     'processdispatcher': {
@@ -830,6 +718,7 @@ pd_config = {
         }
     }
 }
+
 
 def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
 
@@ -853,6 +742,7 @@ def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
             },
         'agent': {'resource_id': resource_id},
         }
+
 
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -883,6 +773,8 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
 
         self._eea_pids = []
+        self._eea_pid_to_resource_id = {}
+        self._eea_pid_to_persistence_dir = {}
         self._tmpdirs = []
 
         self.dashi = get_dashi(uuid.uuid4().hex,
@@ -892,7 +784,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         #send a fake node_state message to PD's dashi binding.
         self.node1_id = uuid.uuid4().hex
         self._send_node_state("engine1", self.node1_id)
-        self._start_eeagent(self.node1_id)
+        self._initial_eea_pid = self._start_eeagent(self.node1_id)
 
         self.waiter = ProcessStateWaiter()
 
@@ -902,26 +794,38 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             domain_id=domain_id_from_engine(engine_id))
         self.dashi.fire(get_pd_dashi_name(), "node_state", args=node_state)
 
-    def _start_eeagent(self, node_id):
-        persistence_dir = tempfile.mkdtemp()
-        self._tmpdirs.append(persistence_dir)
-        agent_config = _get_eeagent_config(node_id, persistence_dir)
+    def _start_eeagent(self, node_id, resource_id=None, persistence_dir=None):
+        if not persistence_dir:
+            persistence_dir = tempfile.mkdtemp()
+            self._tmpdirs.append(persistence_dir)
+        resource_id = resource_id or uuid.uuid4().hex
+        agent_config = _get_eeagent_config(node_id, persistence_dir,
+            resource_id=resource_id)
         pid = self.container_client.spawn_process(name="eeagent",
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=agent_config)
         log.info('Agent pid=%s.', str(pid))
         self._eea_pids.append(pid)
+        self._eea_pid_to_resource_id[pid] = resource_id
+        self._eea_pid_to_persistence_dir[pid] = persistence_dir
+        return pid
+
+    def _kill_eeagent(self, pid):
+        self.assertTrue(pid in self._eea_pids)
+        self.container.terminate_process(pid)
+        self._eea_pids.remove(pid)
+        del self._eea_pid_to_resource_id[pid]
+        del self._eea_pid_to_persistence_dir[pid]
 
     def tearDown(self):
-        for pid in self._eea_pids:
-            self.container.terminate_process(pid)
+        for pid in list(self._eea_pids):
+            self._kill_eeagent(pid)
         for d in self._tmpdirs:
             shutil.rmtree(d)
 
         self.waiter.stop()
         if self.dashi:
             self.dashi.cancel()
-
 
     def test_requested_ee(self):
 
@@ -939,7 +843,6 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             process_schedule, process_id=pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
-
 
         # request unknown engine, with NEVER queuing mode. The request
         # should be rejected.
@@ -1100,3 +1003,64 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             process_schedule, process_id=pid)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
+
+    def test_restart(self):
+
+        # create a process with RestartMode.ALWAYS -- will restart on any exit
+        process_schedule = ProcessSchedule()
+        process_schedule.restart_mode = ProcessRestartMode.ALWAYS
+        pid1 = self.pd_cli.create_process(self.process_definition_id)
+        self.waiter.start()
+
+        pid1_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
+        config = {'process': {'listen_name': pid1_listen_name}}
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid1, configuration=config)
+
+        self.waiter.await_state_event(pid1, ProcessStateEnum.RUNNING)
+
+        # and one with RestartMode.NEVER -- will never restart
+        process_schedule = ProcessSchedule()
+        process_schedule.restart_mode = ProcessRestartMode.NEVER
+        pid2 = self.pd_cli.create_process(self.process_definition_id)
+
+        pid2_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
+        config = {'process': {'listen_name': pid2_listen_name}}
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid2, configuration=config)
+
+        self.waiter.await_state_event(pid2, ProcessStateEnum.RUNNING)
+
+        test_client1 = TestClient(to_name=pid1_listen_name)
+        self.assertFalse(test_client1.is_restart())
+        self.assertEqual(test_client1.count(), 1)
+
+        test_client2 = TestClient(to_name=pid2_listen_name)
+        self.assertFalse(test_client2.is_restart())
+        self.assertEqual(test_client2.count(), 1)
+
+        # now kill the whole eeagent and restart it. processes should
+        # show up as FAILED in the next heartbeat.
+        resource_id = self._eea_pid_to_resource_id[self._initial_eea_pid]
+        persistence_dir = self._eea_pid_to_persistence_dir[self._initial_eea_pid]
+        log.debug("Restarting eeagent %s", self._initial_eea_pid)
+        self._kill_eeagent(self._initial_eea_pid)
+
+        # manually kill the processes to simulate a real container failure
+        self.container.terminate_process(pid1)
+        self.container.terminate_process(pid2)
+
+        self._start_eeagent(self.node1_id, resource_id=resource_id,
+            persistence_dir=persistence_dir)
+
+        self.waiter.await_state_event(pid1, ProcessStateEnum.RUNNING)
+
+        # query the process again. it should have restart mode config
+        self.assertTrue(test_client1.is_restart())
+        self.assertEqual(test_client1.count(), 1)
+
+        # meanwhile proc2 should not have restarted
+        proc2 = self.pd_cli.read_process(pid2)
+        self.assertEqual(proc2.process_state, ProcessStateEnum.FAILED)
