@@ -819,26 +819,59 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create users and get the user_ids
         #----------------------------------------------------------------------------------------
 
-        # user_1
+        # user_1  -- default notification preferences
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
 
-        # user_2
+        # user_2   --- prefers BATCH notification
+        notification_preferences_2 = NotificationPreferences()
+        notification_preferences_2.delivery_mode = NotificationDeliveryModeEnum.BATCH
+        notification_preferences_2.delivery_enabled = True
+
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.email = 'user_2@gmail.com'
+        user_2.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_2})
 
-        # user_3
+        # user_3  --- delivery enabled at default
+        notification_preferences_3 = NotificationPreferences()
+        notification_preferences_3.delivery_mode = NotificationDeliveryModeEnum.BATCH
+
         user_3 = UserInfo()
         user_3.name = 'user_3'
         user_3.contact.email = 'user_3@gmail.com'
+        user_3.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_3})
+
+        # user_4   --- prefers REALTIME notification
+
+        notification_preferences_4 = NotificationPreferences()
+        notification_preferences_4.delivery_mode = NotificationDeliveryModeEnum.REALTIME
+        notification_preferences_4.delivery_enabled = True
+
+        user_4 = UserInfo()
+        user_4.name = 'user_4'
+        user_4.contact.email = 'user_4@gmail.com'
+        user_4.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_4})
+
+        # user_5   --- delivery disabled
+
+        notification_preferences_5 = NotificationPreferences()
+        notification_preferences_5.delivery_mode = NotificationDeliveryModeEnum.BATCH
+        notification_preferences_5.delivery_enabled = False
+
+        user_5 = UserInfo()
+        user_5.name = 'user_5'
+        user_5.contact.email = 'user_5@gmail.com'
+        user_5.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_5})
 
         # this part of code is in the beginning to allow enough time for the users_index creation
 
         user_id_1, _ = self.rrc.create(user_1)
         user_id_2, _ = self.rrc.create(user_2)
         user_id_3, _ = self.rrc.create(user_3)
+        user_id_4, _ = self.rrc.create(user_4)
+        user_id_5, _ = self.rrc.create(user_5)
 
         #--------------------------------------------------------------------------------------
         # Grab the UNS process
@@ -879,6 +912,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_3)
         self.unsc.create_notification(notification=notification_request_3, user_id=user_id_3)
+
+        self.unsc.create_notification(notification=notification_request_correct, user_id=user_id_4)
+        self.unsc.create_notification(notification=notification_request_3, user_id=user_id_4)
+
+        self.unsc.create_notification(notification=notification_request_correct, user_id=user_id_5)
+        self.unsc.create_notification(notification=notification_request_3, user_id=user_id_5)
 
         #--------------------------------------------------------------------------------------
         # Do a process_batch() in order to start the batch notifications machinery
