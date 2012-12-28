@@ -443,13 +443,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create user 1
         #--------------------------------------------------------------------------------------
 
-        notification_preferences = NotificationPreferences()
-        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.REALTIME
+        notification_preferences_1 = NotificationPreferences()
+        notification_preferences_1.delivery_mode = NotificationDeliveryModeEnum.REALTIME
 
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@yahoo.com'
-        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences})
+        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_1})
 
         user_id_1, _ = self.rrc.create(user_1)
 
@@ -457,15 +457,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # user 2
         #--------------------------------------------------------------------------------------
 
-        notification_preferences = NotificationPreferences()
-        notification_preferences.delivery_mode = NotificationDeliveryModeEnum.BATCH
-        notification_preferences.delivery_enabled = False
+        notification_preferences_2 = NotificationPreferences()
+        notification_preferences_2.delivery_mode = NotificationDeliveryModeEnum.BATCH
+        notification_preferences_2.delivery_enabled = False
 
 
         user_2 = UserInfo()
         user_2.name = 'user_2'
         user_2.contact.email = 'user_2@yahoo.com'
-        user_2.variables.append({'notification_preferences': notification_preferences})
+        user_2.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_2})
 
         user_id_2, _ = self.rrc.create(user_2)
 
@@ -478,6 +478,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notifications = set([notification_id_1, notification_id_2])
 
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        # check user_info dictionary
+        self.assertEquals(proc1.user_info[user_id_1]['notification_preferences'], notification_preferences_1)
+
+        self.assertEquals(proc1.user_info[user_id_2]['notification_preferences'], notification_preferences_2)
 
 
     @attr('LOCOINT')

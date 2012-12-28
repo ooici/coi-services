@@ -853,10 +853,12 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Get the user's notification preferences
         for item in user.variables:
-            if item.has_key('notification_preferences'):
-                notification_preferences = item['notification_preferences']
+            if item['name'] == 'notification_preferences':
+                notification_preferences = item['value']
 
         self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+
+        log.debug("self.user_info::: %s" % self.user_info)
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
