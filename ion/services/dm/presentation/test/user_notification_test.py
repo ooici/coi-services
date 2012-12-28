@@ -1465,9 +1465,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #----------------------------------------------------------------------------------------
 
         # user_1
+        notification_preferences_1 = NotificationPreferences()
+        notification_preferences_1.delivery_mode = NotificationDeliveryModeEnum.BATCH
+        notification_preferences_1.delivery_enabled = True
+
         user_1 = UserInfo()
         user_1.name = 'user_1'
         user_1.contact.email = 'user_1@gmail.com'
+        user_1.variables.append({'name' : 'notification_preferences', 'value' : notification_preferences_1})
 
         # this part of code is in the beginning to allow enough time for the users_index creation
 
