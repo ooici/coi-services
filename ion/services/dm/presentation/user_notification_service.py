@@ -871,16 +871,23 @@ class UserNotificationService(BaseUserNotificationService):
         notifications_all = set()
         notifications_active = set()
 
+        object_ids = []
         for item in ret_vals:
-
             if item['_type'] == 'NotificationRequest':
-                notif = self.clients.resource_registry.read(item['_id'])
+                object_ids.append(item['_id'])
 
-                if include_nonactive:
-                    # Add active or retired notification
-                    notifications_all.add(notif)
+        log.debug("object_ids: %s" % object_ids)
 
-                elif notif.temporal_bounds.end_datetime == '':
+        notifs = self.clients.resource_registry.read_mult(object_ids)
+
+
+        if include_nonactive:
+            # Add active or retired notification
+            notifications_all.update(notifs)
+
+        else:
+            for notif in notifs:
+                if notif.temporal_bounds.end_datetime == '':
                     # Add the active notification
                     notifications_active.add(notif)
 
