@@ -14,6 +14,7 @@ class MockUtil(object):
         self.res_objs = {}
         self.res_id_list = []
         self.associations = []
+        self.events = []
 
     def create_process_mock(self):
         self.process_mock = Mock()
@@ -56,16 +57,32 @@ class MockUtil(object):
             ass_obj._id = "%s_%s_%s" % (sid, assoc_entry[1], oid)
             self.associations.append(ass_obj)
 
-    def load_mock_events(self, event_list):
-        for event_entry in event_list:
-            pass
-
-    def assign_mockres_find_associations(self, filter_predicate=None):
         self.container_mock.resource_registry.find_associations = Mock()
-        assocs = self.associations
-        if filter_predicate:
-            assocs = [assoc for assoc in self.associations if assoc.p == filter_predicate]
-        self.container_mock.resource_registry.find_associations.return_value = assocs
+        def side_effect(subject=None, predicate=None, obj=None, **kwargs):
+            if predicate:
+                assocs = [assoc for assoc in self.associations if assoc.p == predicate]
+            else:
+                assocs = self.associations
+            return assocs
+        self.container_mock.resource_registry.find_associations.side_effect = side_effect
+
+    def load_mock_events(self, event_list):
+        is_first = len(self.events) == 0
+
+        for cnt, event_entry in enumerate(event_list):
+            origin = event_entry.get('o', None)
+            origin_type = event_entry.get('ot', None)
+            sub_type = event_entry.get('st', None)
+            attr = event_entry.get('attr', {})
+            evt_obj = IonObject(event_entry['et'], origin=origin, origin_type=origin_type, sub_type=sub_type, ts_created=get_ion_ts(), **attr)
+            evt_obj._id = str(cnt)
+            self.events.append(evt_obj)
+
+        if is_first:
+            self.container_mock.event_repository.find_events = Mock()
+            def side_effect(event_type=None, **kwargs):
+                return [(evt._id, None, evt) for evt in reversed(self.events) if evt.type_ == event_type]
+            self.container_mock.event_repository.find_events.side_effect = side_effect
 
     def assign_mockres_find_objects(self, filter_predicate=None):
         self.container_mock.resource_registry.find_objects = Mock()

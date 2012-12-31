@@ -3,14 +3,15 @@
 __author__ = 'Michael Meisinger'
 
 import unittest
-from mock import Mock, patch
 from nose.plugins.attrib import attr
 
-from pyon.public import log, RT
-from pyon.util.unit_test import PyonTestCase
+from pyon.public import RT, log
 
-from ion.core.mockutil import MockUtil
+from ion.services.sa.observatory.mockutil import MockUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+
+from interface.objects import StatusType, DeviceStatusType, DeviceCommsType
+
 
 @attr('UNIT', group='saob')
 class TestObservatoryUtil(unittest.TestCase):
@@ -30,7 +31,7 @@ class TestObservatoryUtil(unittest.TestCase):
         dict(rt='InstrumentSite', _id='IS_1', attr={}),
 
         dict(rt='PlatformDevice', _id='PD_1', attr={}),
-        dict(rt='InstrumentDevice', _id='ID_1',attr={}),
+        dict(rt='InstrumentDevice', _id='ID_1', attr={}),
     ]
 
     assoc_list = [
@@ -50,16 +51,9 @@ class TestObservatoryUtil(unittest.TestCase):
         ['PD_1', 'hasDevice', 'ID_1'],
     ]
 
-    event_list = [
-        dict(et='EventType', o='origin', ot='origin_type', st='sub_type', att={})
-    ]
-
-
     def test_get_child_sites(self):
         self.mu.load_mock_resources(self.res_list)
         self.mu.load_mock_associations(self.assoc_list)
-
-        self.mu.assign_mockres_find_associations(filter_predicate="hasSite")
 
         self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
 
@@ -118,7 +112,6 @@ class TestObservatoryUtil(unittest.TestCase):
         self.mu.load_mock_resources(self.res_list)
         self.mu.load_mock_associations(self.assoc_list + self.assoc_list1)
 
-        self.mu.assign_mockres_find_associations(filter_predicate="hasSite")
         self.mu.assign_mockres_find_objects(filter_predicate="hasResource")
 
         self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
@@ -146,8 +139,6 @@ class TestObservatoryUtil(unittest.TestCase):
         self.mu.load_mock_resources(self.res_list)
         self.mu.load_mock_associations(self.assoc_list2)
 
-        self.mu.assign_mockres_find_associations(filter_predicate="hasDevice")
-
         self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
         site_devices = self.obs_util.get_site_devices(['Sub_1', 'PS_1', 'IS_1'])
         self.assertEquals(len(site_devices), 3)
@@ -157,7 +148,6 @@ class TestObservatoryUtil(unittest.TestCase):
     def test_get_child_devices(self):
         self.mu.load_mock_resources(self.res_list)
         self.mu.load_mock_associations(self.assoc_list2)
-        self.mu.assign_mockres_find_associations(filter_predicate="hasDevice")
 
         self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
         child_devices = self.obs_util.get_child_devices('PD_1')
@@ -175,7 +165,220 @@ class TestObservatoryUtil(unittest.TestCase):
         child_devices = self.obs_util.get_child_devices('XXX')
         self.assertEquals(len(child_devices), 1)
 
+    event_list1 = [
+        dict(et='DeviceStatusEvent', o='ID_1', attr=dict(state=DeviceStatusType.OK))
+    ]
+    event_list2 = [
+        dict(et='DeviceStatusEvent', o='ID_1', attr=dict(state=DeviceStatusType.OUT_OF_RANGE))
+    ]
+    event_list3 = [
+        dict(et='DeviceCommsEvent', o='ID_1', attr=dict(state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION))
+    ]
+    event_list4 = [
+        dict(et='DeviceStatusEvent', o='PD_1', attr=dict(state=DeviceStatusType.OUT_OF_RANGE)),
+        dict(et='DeviceCommsEvent', o='PD_1', attr=dict(state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION))
+    ]
+
     def test_get_status_roll_ups(self):
         self.mu.load_mock_resources(self.res_list)
-        self.mu.load_mock_associations(self.assoc_lis2 + self.assoc_list1 + self.assoc_list2)
-        self.mu.assign_mockres_find_associations(filter_predicate="hasDevice")
+        self.mu.load_mock_associations(self.assoc_list + self.assoc_list1 + self.assoc_list2)
+        self.mu.load_mock_events(self.event_list1)
+
+        self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
+
+        # No problems
+        status_rollups = self.obs_util.get_status_roll_ups('ID_1', RT.InstrumentDevice)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('PD_1', RT.PlatformDevice)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'PD_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('IS_1', RT.InstrumentSite)
+        self.assertEquals(len(status_rollups), 6)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('PS_1', RT.PlatformSite)
+        self.assertEquals(len(status_rollups), 6)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'PS_1')
+        self._assert_status(status_rollups, 'PD_1')
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('Sub_1', RT.Subsite)
+        self.assertIn('Sub_1', status_rollups)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'Sub_1')
+        self._assert_status(status_rollups, 'PS_1')
+        self._assert_status(status_rollups, 'PD_1')
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('Obs_1', RT.Observatory)
+        self.assertIn('Obs_1', status_rollups)
+        self.assertIn('Sub_1', status_rollups)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'Obs_1')
+        self._assert_status(status_rollups, 'Sub_1')
+        self._assert_status(status_rollups, 'PS_1')
+        self._assert_status(status_rollups, 'PD_1')
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        # ID_1 power warning
+        self.mu.load_mock_events(self.event_list2)
+        status_rollups = self.obs_util.get_status_roll_ups('ID_1', RT.InstrumentDevice)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('PD_1', RT.PlatformDevice)
+        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('IS_1', RT.InstrumentSite)
+        self.assertIn('IS_1', status_rollups)
+        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('PS_1', RT.PlatformSite)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+
+        # ID_1 power+comms warning
+        self.mu.load_mock_events(self.event_list3)
+        status_rollups = self.obs_util.get_status_roll_ups('ID_1', RT.InstrumentDevice)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('PD_1', RT.PlatformDevice)
+        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('IS_1', RT.InstrumentSite)
+        self.assertEquals(len(status_rollups), 6)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('PS_1', RT.PlatformSite)
+        self.assertEquals(len(status_rollups), 6)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1')
+        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('Sub_1', RT.Subsite)
+        self.assertIn('Sub_1', status_rollups)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1')
+        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+
+        status_rollups = self.obs_util.get_status_roll_ups('Obs_1', RT.Observatory)
+        self.assertIn('Obs_1', status_rollups)
+        self.assertIn('Sub_1', status_rollups)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'Obs_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1')
+        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+
+    def test_get_status_roll_ups_platform_warn(self):
+        self.mu.load_mock_resources(self.res_list)
+        self.mu.load_mock_associations(self.assoc_list + self.assoc_list1 + self.assoc_list2)
+        self.mu.load_mock_events(self.event_list4)
+
+        self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
+
+        # PD_1 power+comms warning
+        status_rollups = self.obs_util.get_status_roll_ups('ID_1', RT.InstrumentDevice)
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('PD_1', RT.PlatformDevice)
+        #log.warn("status %s" % status_rollups)
+        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('IS_1', RT.InstrumentSite)
+        self.assertEquals(len(status_rollups), 6)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('PS_1', RT.PlatformSite)
+        self.assertEquals(len(status_rollups), 6)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('Sub_1', RT.Subsite)
+        self.assertIn('Sub_1', status_rollups)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+        status_rollups = self.obs_util.get_status_roll_ups('Obs_1', RT.Observatory)
+        self.assertIn('Obs_1', status_rollups)
+        self.assertIn('Sub_1', status_rollups)
+        self.assertIn('PS_1', status_rollups)
+        self.assertIn('PD_1', status_rollups)
+        self.assertIn('IS_1', status_rollups)
+        self.assertIn('ID_1', status_rollups)
+        self._assert_status(status_rollups, 'Obs_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1')
+        self._assert_status(status_rollups, 'ID_1')
+
+    def _assert_status(self, status_rollups, res_id=None, agg=StatusType.STATUS_OK, loc=StatusType.STATUS_OK,
+                       data=StatusType.STATUS_OK, comms=StatusType.STATUS_OK, power=StatusType.STATUS_OK):
+        res_status = status_rollups[res_id] if res_id else status_rollups
+        self.assertEquals(len(res_status), 5)
+        self.assertEquals(res_status['agg'], agg)
+        self.assertEquals(res_status['loc'], loc)
+        self.assertEquals(res_status['data'], data)
+        self.assertEquals(res_status['comms'], comms)
+        self.assertEquals(res_status['power'], power)
