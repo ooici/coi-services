@@ -23,36 +23,47 @@ class ObservatoryUtil(object):
 
     def get_child_sites(self, parent_site_id=None, org_id=None, exclude_types=None, include_parents=True, id_only=True):
         """
-        Returns all child sites for a given parent site_id or a given org_id.
+        Returns all child sites and parent site for a given parent site_id.
+        Returns all child sites and org for a given org_id.
         Return type is a tuple of two elements.
         The first element is a dict mapping site_id to Site object (or None if id_only==True).
         The second element is a dict mapping site_id to a list of direct child site_ids.
+        @param include_parents if True, walk up the parents all the way to the root and include
+        @param id_only if True, return Site objects
         """
+        if parent_site_id and org_id:
+            raise BadRequest("Either parent_site_id OR org_id supported!")
         if exclude_types is None:
             exclude_types = []
+
+        parents = self._get_site_parents()   # Note: root elements are not in list
+
         if org_id:
             obsite_ids,_ = self.container.resource_registry.find_objects(
                 org_id, PRED.hasResource, RT.Observatory, id_only=True)
             if not obsite_ids:
                 return {}, {}
-            parent_site_list = set(obsite_ids)
+            parent_site_id = org_id
+            for obsite_id in obsite_ids:
+                parents[obsite_id] = ('Observatory', org_id, 'Org')
         elif parent_site_id:
-            parent_site_list = set([parent_site_id])
+            if parent_site_id not in parents:
+                parents[parent_site_id] = ('Observatory', None, 'Org')
         else:
             raise BadRequest("Must provide either parent_site_id or org_id")
-        matchlist = []
-        ancestors = {}
-        parents = self._get_site_parents()
-        for p_site in parent_site_list:
-            if org_id and p_site not in parents:
-                parents[p_site] = ('Observatory', org_id, 'Org')
-        for rid, (st, psid, pt) in parents.iteritems():
+
+        matchlist = []  # sites with wanted parent
+        ancestors = {}  # child ids for sites in result set
+        for site_id, (st, parent_id, pt) in parents.iteritems():
+            # Iterate through sites and find the ones with a wanted parent
             if st in exclude_types:
                 continue
-            parent_stack = [rid, psid]
-            while psid:
-                if psid in parent_site_list or (include_parents and rid in parent_site_list):
-                    matchlist.append(rid)
+            parent_stack = [site_id, parent_id]
+            while parent_id:
+                # Walk up to parents
+                if parent_id == parent_site_id:
+                    matchlist.append(site_id)
+                    # Fill out ancestors
                     par = parent_stack.pop()
                     while parent_stack:
                         ch = parent_stack.pop()
@@ -61,28 +72,29 @@ class ObservatoryUtil(object):
                         if ch not in ancestors[par]:
                             ancestors[par].append(ch)
                         par = ch
-                    psid = None
+                    parent_id = None
                 else:
-                    _,psid,_ = parents.get(psid, (None,None,None))
-                    parent_stack.append(psid)
+                    _,parent_id,_ = parents.get(parent_id, (None,None,None))
+                    parent_stack.append(parent_id)
+
+        # Go all the way up to the roots
         if include_parents:
-            for p_site in parent_site_list:
-                child_id = p_site
+            matchlist.append(parent_site_id)
+            child_id = parent_site_id
+            parent = parents.get(child_id, None)
+            while parent:
+                st, parent_id, pt = parent
+                if parent_id:
+                    matchlist.append(parent_id)
+                    if parent_id not in ancestors:
+                        ancestors[parent_id] = []
+                    ancestors[parent_id].append(child_id)
+                child_id = parent_id
                 parent = parents.get(child_id, None)
-                while parent:
-                    st, psid, pt = parent
-                    matchlist.append(psid)
-                    if psid not in ancestors:
-                        ancestors[psid] = []
-                    ancestors[psid].append(child_id)
-                    child_id = psid
-                    parent = parents.get(child_id, None)
 
         if id_only:
             child_site_dict = dict(zip(matchlist, [None]*len(matchlist)))
         else:
-            if org_id and include_parents:
-                matchlist.append(org_id)
             all_res = self.container.resource_registry.read_mult(matchlist) if matchlist else []
             child_site_dict = dict(zip([res._id for res in all_res], all_res))
 
@@ -133,7 +145,7 @@ class ObservatoryUtil(object):
             if dev_id not in all_children:
                 del child_devices[dev_id]
         if device_id not in child_devices:
-            child_devices[device_id] = None
+            child_devices[device_id] = []
         return child_devices
 
     def _get_child_devices(self):
@@ -189,62 +201,55 @@ class ObservatoryUtil(object):
         """
         For given parent device/site/org res_id compute the status roll ups.
         The result is a dict of id with value dict of status values.
+        Includes all parents of given site as well.
         """
         if not res_type:
             res_obj = self.container.resource_registry.read(res_id)
             res_type = res_obj._get_type()
 
-        def get_site_status(site_id, status_rollup, site_ancestors):
+        def get_site_status(site_id, status_rollup, site_ancestors, site_devices, device_events):
             """For one site, compute the aggregate status and recurse to child sites if necessary"""
             if site_id in status_rollup:
-                return status_rollup[site_id]
-            elif site_ancestors.get(site_id, None):
-                ch_stat_list = []
+                return status_rollup[site_id]   # If known return and don't recompute
+
+            ch_stat_list = []  # Status dicts to roll up into current
+            if site_ancestors.get(site_id, None):
                 for ch_id in site_ancestors[site_id]:
-                    ch_status = get_site_status(ch_id, status_rollup, site_ancestors)
+                    ch_status = get_site_status(ch_id, status_rollup, site_ancestors, site_devices, device_events)
                     status_rollup[ch_id] = ch_status
                     ch_stat_list.append(ch_status)
 
-                # See if there is a device deployed -  include into rollup in addition to child sites
-                device_info = site_devices.get(site_id, None)
-                if device_info:
-                    device_id = device_info[1]
-                    d_status = self._compute_status(device_id, device_events)
-                    status_rollup[device_id] = d_status
-                    ch_stat_list.append(d_status)
+            # See if there is a device deployed -  include into rollup in addition to child sites
+            # Note: Only look at this device status, not roll-up status of all child devices
+            device_info = site_devices.get(site_id, None)
+            if device_info:
+                device_id = device_info[1]
+                d_status = self._compute_status(device_id, device_events)
+                status_rollup[device_id] = d_status
+                ch_stat_list.append(d_status)
 
-                s_status = self._rollup_statuses(ch_stat_list)
-                status_rollup[site_id] = s_status
-                return s_status
-            else:
-                device_info = site_devices.get(site_id, None)
-                if not device_info:
-                    s_status = dict(power=StatusType.STATUS_UNKNOWN, comms=StatusType.STATUS_UNKNOWN,
-                        data=StatusType.STATUS_UNKNOWN, loc=StatusType.STATUS_UNKNOWN, agg=StatusType.STATUS_UNKNOWN)
-                else:
-                    device_id = device_info[1]
-                    s_status = self._compute_status(device_id, device_events)
-                status_rollup[site_id] = s_status
-                return s_status
+            status_rollup[site_id] = self._rollup_statuses(ch_stat_list)
+            return status_rollup[site_id]
 
-        def get_device_status(device_id, status_rollup, child_devices):
+        def get_device_status(device_id, status_rollup, child_devices, device_events):
             """For one device, compute the aggregate status and recurse to child devices if necessary"""
 
             if device_id in status_rollup:
                 return status_rollup[device_id]
-            elif child_devices.get(device_id, None):
-                ch_stat_list = []
+
+            ch_stat_list = []
+            if child_devices.get(device_id, None):
                 for _,ch_id,_ in child_devices[device_id]:
-                    ch_status = get_device_status(ch_id, status_rollup, child_devices)
+                    ch_status = get_device_status(ch_id, status_rollup, child_devices, device_events)
                     status_rollup[ch_id] = ch_status
                     ch_stat_list.append(ch_status)
-                d_status = self._rollup_statuses(ch_stat_list)
-                status_rollup[device_id] = d_status
-                return d_status
-            else:
-                d_status = self._compute_status(device_id, device_events)
-                status_rollup[device_id] = d_status
-                return d_status
+
+            d_status = self._compute_status(device_id, device_events)
+            ch_stat_list.append(d_status)
+
+            status_rollup[device_id] = self._rollup_statuses(ch_stat_list)
+            return status_rollup[device_id]
+
 
         # Do the status rollup work. Different modes dependent on type of resource (org, site, device)
         if res_type in [RT.Org, RT.Observatory, RT.Subsite, RT.PlatformSite, RT.InstrumentSite]:
@@ -253,13 +258,16 @@ class ObservatoryUtil(object):
             else:
                 child_sites, site_ancestors = self.get_child_sites(parent_site_id=res_id, id_only=not include_structure)
 
+            #print "******C", child_sites
+            #print "******A", site_ancestors
+
             site_devices = self.get_site_devices(child_sites.keys())
             device_events = self._get_status_events()
 
             status_rollup = {}
-            get_site_status(res_id, status_rollup, site_ancestors)
+            get_site_status(res_id, status_rollup, site_ancestors, site_devices, device_events)
             for site_id in child_sites.keys():
-                get_site_status(site_id, status_rollup, site_ancestors)
+                get_site_status(site_id, status_rollup, site_ancestors, site_devices, device_events)
 
             # Stuff extra information into the result
             if include_structure:
@@ -274,9 +282,9 @@ class ObservatoryUtil(object):
             device_events = self._get_status_events()
 
             status_rollup = {}
-            get_device_status(res_id, status_rollup, child_devices)
+            get_device_status(res_id, status_rollup, child_devices, device_events)
             for device_id in child_devices.keys():
-                get_device_status(device_id, status_rollup, child_devices)
+                get_device_status(device_id, status_rollup, child_devices, device_events)
 
             # Stuff extra information into the result
             if include_structure:
