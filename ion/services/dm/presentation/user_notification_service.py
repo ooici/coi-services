@@ -154,6 +154,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.event_publisher = EventPublisher()
+        self.datastore = self.container.datastore_manager.get_datastore('events')
 
         self.start_time = UserNotificationService.makeEpochTime(self.__now())
 
@@ -431,8 +432,6 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
-        datastore = self.container.datastore_manager.get_datastore('events')
-
 
         # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
         # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
@@ -459,7 +458,7 @@ class UserNotificationService(BaseUserNotificationService):
             opts['startkey'] = opts['endkey']
             opts['endkey'] = t
 
-        results = datastore.query_view('event/by_origintype',opts=opts)
+        results = self.datastore.query_view('event/by_origintype',opts=opts)
 
         events = []
         for res in results:
@@ -514,11 +513,7 @@ class UserNotificationService(BaseUserNotificationService):
         ret_vals = self.discovery.parse(search_string)
         log.debug("(find_events_extended) Discovery search returned the following event ids: %s" % ret_vals)
 
-        events = []
-        for event_id in ret_vals:
-            datastore = self.container.datastore_manager.get_datastore('events')
-            event_obj = datastore.read(event_id)
-            events.append(event_obj)
+        events = self.datastore.read_mult(ret_vals)
 
         log.debug("(find_events_extended) UNS found the following relevant events: %s" % events)
 
@@ -697,10 +692,7 @@ class UserNotificationService(BaseUserNotificationService):
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
 
-                for event_id in ret_vals:
-                    datastore = self.container.datastore_manager.get_datastore('events')
-                    event_obj = datastore.read(event_id)
-                    events_for_message.append(event_obj)
+                events_for_message += self.datastore.read_mult(ret_vals)
 
             log.debug("Found following events of interest to user, %s: %s" % (user_id, events_for_message))
 
