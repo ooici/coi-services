@@ -10,6 +10,9 @@
 THISDIR=$(git rev-parse --show-toplevel)
 THISSCRIPT=$(basename $0)
 
+PREHOOK="scripts/local-hook-get-latest-code-pre.sh"
+POSTHOOK=scripts/local-hook-get-latest-code-post.sh"
+
 get_submodule ()
 {
     echo -e "\n\n=== UPDATING COI-SERVICES SUBMODULE ($1) ===\n"
@@ -30,11 +33,11 @@ get_submodule ()
 
 cd $THISDIR
 
-if [ -r "scripts/get-latest-code-local-hooks.sh" ]; then
+if [ -r $PREHOOK ]; then
     echo -e "\n\n=== EXECUTING LOCAL HOOK ===\n"
-    sh scripts/get-latest-code-local-hooks.sh
+    sh $PREHOOK
 else
-    echo -e "\n\nLooked for a script named scripts/get-latest-code-local-hooks.sh"
+    echo -e "\n\nLooked for a script named $PREHOOK"
     echo -e "  (containing your local pre-update commands) but it didn't exist."
 fi
 
@@ -68,5 +71,14 @@ echo -e "\n\n=== GENERATING INTERFACES ===\n"
 bin/generate_interfaces --force
 
 
+if [ -r $POSTHOOK ]; then
+    echo -e "\n\n=== EXECUTING LOCAL HOOK ===\n"
+    sh $POSTHOOK
+else
+    echo -e "\n\nLooked for a script named $POSTHOOK"
+    echo -e "  (containing your local post-update commands) but it didn't exist."
+fi
+
 echo -e "\n\n=== DONE  Printing git stashes: ===\n"
 git stash list
+
