@@ -11,7 +11,7 @@ THISDIR=$(git rev-parse --show-toplevel)
 THISSCRIPT=$(basename $0)
 
 PREHOOK="scripts/local-hook-get-latest-code-pre.sh"
-POSTHOOK=scripts/local-hook-get-latest-code-post.sh"
+POSTHOOK="scripts/local-hook-get-latest-code-post.sh"
 
 get_submodule ()
 {
