@@ -178,7 +178,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         normal = [cserv for cserv in services_registered if cserv.name not in base_names]
         return normal
 
-    def await_ha_state(self, want_state, timeout=10):
+    def await_ha_state(self, want_state, timeout=20):
 
         for i in range(0, timeout):
             try:
@@ -187,7 +187,8 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                     return
                 else:
                     procs = self.get_running_procs()
-                    print "want state %s, got state %s, with procs %s" % (want_state,status, procs)
+                    num_procs = len(procs)
+                    log.debug("assert wants state %s, got state %s, with %s procs" % (want_state,status, num_procs))
             except Exception:
                 log.exception("Problem getting HA status, trying again...")
                 gevent.sleep(1)
