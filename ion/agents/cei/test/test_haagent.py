@@ -8,18 +8,15 @@ from random import randint
 
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
-from mock import Mock
 from uuid import uuid4
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.public import log, RT, IonObject
 from pyon.service.service import BaseService
-from pyon.util.containers import DotDict
-from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
-from pyon.core.exception import BadRequest, NotFound
+from pyon.core.exception import BadRequest
 
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient
 from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
@@ -184,10 +181,16 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
     def await_ha_state(self, want_state, timeout=10):
 
         for i in range(0, timeout):
-            status = self.haa_client.status().result
-            if status == want_state:
-                return
-            gevent.sleep(1)
+            try:
+                status = self.haa_client.status().result
+                if status == want_state:
+                    return
+                else:
+                    procs = self.get_running_procs()
+                    print "want state %s, got state %s, with procs %s" % (want_state,status, procs)
+            except Exception:
+                log.exception("Problem getting HA status, trying again...")
+                gevent.sleep(1)
 
         raise Exception("Took more than %s to get to ha state %s" % (timeout, want_state))
 
@@ -212,15 +215,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
-        for i in range(0, 5):
-            status = self.haa_client.status().result
-            try:
-                self.assertEqual(status, 'STEADY')
-                break
-            except:
-                gevent.sleep(1)
-        else:
-            assert False, "HA Service took too long to get to state STEADY"
+        self.await_ha_state('STEADY')
 
         # Ensure Service object has the correct state
         result = self.haa_client.dump().result
