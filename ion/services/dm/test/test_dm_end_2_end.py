@@ -5,7 +5,6 @@
 @date 06/29/12 13:58
 @description Complete DM End to End Integration Tests
 '''
-from pyon.core.exception import Timeout
 from pyon.datastore.datastore import DataStore
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
@@ -16,7 +15,6 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.processes.data.replay.replay_client import ReplayClient
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 
 from coverage_model.parameter import ParameterContext
@@ -37,7 +35,6 @@ import gevent
 import numpy as np
 import os
 import unittest
-import time
 
 @attr('INT',group='dm')
 class TestDMEnd2End(IonIntegrationTestCase):
@@ -176,20 +173,23 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
         self.event.set()
 
-    def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
+    def wait_until_we_have_enough_granules(self, dataset_id='',data_size=40):
         '''
         Loops until there is a sufficient amount of data in the dataset
         '''
-        datastore = self.get_datastore(dataset_id)
-        dataset = self.dataset_management.read_dataset(dataset_id)
-        
-        with gevent.timeout.Timeout(40):
-            success = False
-            while not success:
-                success = len(datastore.query_view(dataset.view_name)) >= granules
-                gevent.sleep(0.1)
+        done = False
+        with gevent.Timeout(40):
+            while not done:
+                extents = self.dataset_management.dataset_extents(dataset_id, 'time')[0]
+                granule = self.data_retriever.retrieve_last_data_points(dataset_id, 1)
+                rdt     = RecordDictionaryTool.load_from_granule(granule)
+                if rdt['time'] and rdt['time'][0] != rdt._pdict.get_context('time').fill_value and extents:
+                    done = True
+                else:
+                    gevent.sleep(0.2)
 
-        log.info(datastore.query_view(dataset.view_name))
+
+
 
     #--------------------------------------------------------------------------------
     # Test Methods
@@ -240,7 +240,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         self.launch_producer(stream_id)
-        self.wait_until_we_have_enough_granules(dataset_id,4)
+        self.wait_until_we_have_enough_granules(dataset_id,40)
         
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
@@ -390,7 +390,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         publisher.publish(rdt.to_granule())
 
 
-        self.wait_until_we_have_enough_granules(dataset_id, 2)
+        self.wait_until_we_have_enough_granules(dataset_id, 20)
 
         granule = self.data_retriever.retrieve(dataset_id, 
                                              None,
@@ -410,12 +410,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.publish_hifi(stream_id,route, 1)
         
 
-        self.wait_until_we_have_enough_granules(dataset_id,2) # I just need two
+        self.wait_until_we_have_enough_granules(dataset_id,20) # I just need two
 
 
         success = False
         def verifier():
-                replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
+                replay_granule = self.data_retriever.retrieve_last_data_points(dataset_id, 10)
 
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
                 print rdt['time']
@@ -475,7 +475,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.launch_producer(stream_id)
 
-        self.wait_until_we_have_enough_granules(dataset_id,4)
+        self.wait_until_we_have_enough_granules(dataset_id,40)
 
         query = {
             'start_time': 0,
@@ -501,13 +501,13 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.start_ingestion(stream_id, dataset_id)
         self.publish_hifi(stream_id,route,0)
         self.publish_hifi(stream_id,route,1)
-        self.wait_until_we_have_enough_granules(dataset_id,2)
+        self.wait_until_we_have_enough_granules(dataset_id,20)
         config_id = self.get_ingestion_config()
         self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id,dataset_id=dataset_id)
         self.publish_hifi(stream_id,route,2)
         self.publish_hifi(stream_id,route,3)
-        self.wait_until_we_have_enough_granules(dataset_id,4)
+        self.wait_until_we_have_enough_granules(dataset_id,40)
         success = False
         with gevent.timeout.Timeout(5):
             while not success:
