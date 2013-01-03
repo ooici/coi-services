@@ -16,6 +16,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.processes.data.replay.replay_client import ReplayClient
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 
 from coverage_model.parameter import ParameterContext
@@ -76,29 +77,71 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 xn = self.container.ex_manager.create_xn_queue(queue)
                 xn.delete()
 
+    #--------------------------------------------------------------------------------
+    # Helper/Utility methods
+    #--------------------------------------------------------------------------------
         
+    def create_dataset(self, parameter_dict_id=''):
+        '''
+        Creates a time-series dataset
+        '''
+        tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+        if not parameter_dict_id:
+            parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-    def launch_producer(self, stream_id=''):
-        #--------------------------------------------------------------------------------
-        # Launch the producer
-        #--------------------------------------------------------------------------------
-
-        pid = self.container.spawn_process('better_data_producer', 'ion.processes.data.example_data_producer', 'BetterDataProducer', {'process':{'stream_id':stream_id}})
-
-        self.pids.append(pid)
-
+        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
+        return dataset_id
+    
+    def get_datastore(self, dataset_id):
+        '''
+        Gets an instance of the datastore
+            This method is primarily used to defeat a bug where integration tests in multiple containers may sometimes 
+            delete a CouchDB datastore and the other containers are unaware of the new state of the datastore.
+        '''
+        dataset = self.dataset_management.read_dataset(dataset_id)
+        datastore_name = dataset.datastore_name
+        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
+        return datastore
+    
     def get_ingestion_config(self):
-        #--------------------------------------------------------------------------------
-        # Grab the ingestion configuration from the resource registry
-        #--------------------------------------------------------------------------------
+        '''
+        Grab the ingestion configuration from the resource registry
+        '''
         # The ingestion configuration should have been created by the bootstrap service 
         # which is configured through r2deploy.yml
 
         ingest_configs, _  = self.resource_registry.find_resources(restype=RT.IngestionConfiguration,id_only=True)
         return ingest_configs[0]
 
+    def launch_producer(self, stream_id=''):
+        '''
+        Launch the producer
+        '''
+
+        pid = self.container.spawn_process('better_data_producer', 'ion.processes.data.example_data_producer', 'BetterDataProducer', {'process':{'stream_id':stream_id}})
+
+        self.pids.append(pid)
+
+    def make_simple_dataset(self):
+        '''
+        Makes a stream, a stream definition and a dataset, the essentials for most of these tests
+        '''
+        pdict_id             = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id        = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
+        stream_id, route     = self.pubsub_management.create_stream('ctd stream', 'xp1', stream_definition_id=stream_def_id)
+
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.get_datastore(dataset_id)
+        return stream_id, route, stream_def_id, dataset_id
 
     def publish_hifi(self,stream_id,stream_route,offset=0):
+        '''
+        Publish deterministic data
+        '''
+
         pub = StandaloneStreamPublisher(stream_id, stream_route)
 
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
@@ -109,18 +152,23 @@ class TestDMEnd2End(IonIntegrationTestCase):
         pub.publish(rdt.to_granule())
 
     def publish_fake_data(self,stream_id, route):
-
+        '''
+        Make four granules
+        '''
         for i in xrange(4):
             self.publish_hifi(stream_id,route,i)
-        
 
-    def get_datastore(self, dataset_id):
-        dataset = self.dataset_management.read_dataset(dataset_id)
-        datastore_name = dataset.datastore_name
-        datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
-        return datastore
-
+    def start_ingestion(self, stream_id, dataset_id):
+        '''
+        Starts ingestion/persistence for a given dataset
+        '''
+        ingest_config_id = self.get_ingestion_config()
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
+    
     def validate_granule_subscription(self, msg, route, stream_id):
+        '''
+        Validation for granule format
+        '''
         if msg == {}:
             return
         rdt = RecordDictionaryTool.load_from_granule(msg)
@@ -128,19 +176,10 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertIsInstance(msg,Granule,'Message is improperly formatted. (%s)' % type(msg))
         self.event.set()
 
-    def make_file_data(self):
-        from interface.objects import File
-        import uuid
-        data = 'hello world\n'
-        rand = str(uuid.uuid4())[:8]
-        meta = File(name='/examples/' + rand + '.txt', group_id='example1')
-        return {'body': data, 'meta':meta}
-
-    def publish_file(self, stream_id, stream_route):
-        publisher = StandaloneStreamPublisher(stream_id,stream_route)
-        publisher.publish(self.make_file_data())
-        
     def wait_until_we_have_enough_granules(self, dataset_id='',granules=4):
+        '''
+        Loops until there is a sufficient amount of data in the dataset
+        '''
         datastore = self.get_datastore(dataset_id)
         dataset = self.dataset_management.read_dataset(dataset_id)
         
@@ -152,107 +191,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         log.info(datastore.query_view(dataset.view_name))
 
-
-
-
-    def wait_until_we_have_enough_files(self):
-        datastore = self.container.datastore_manager.get_datastore('filesystem', DataStore.DS_PROFILE.FILESYSTEM)
-
-        now = time.time()
-        timeout = now + 10
-        done = False
-        while not done:
-            if now >= timeout:
-                raise Timeout('Files are not populating in time.')
-            if len(datastore.query_view('catalog/file_by_owner')) >= 1:
-                done = True
-            now = time.time()
-
-
-    def create_dataset(self, parameter_dict_id=''):
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-        if not parameter_dict_id:
-            parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-
-        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
-        return dataset_id
-
-    @unittest.skip('Doesnt work')
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_replay_pause(self):
-        # Get a precompiled parameter dictionary with basic ctd fields
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
-        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
-
-        # Add a field that supports binary data input.
-        bin_context = ParameterContext('binary',  param_type=ArrayType())
-        context_ids.append(self.dataset_management.create_parameter_context('binary', bin_context.dump()))
-        # Add another field that supports dictionary elements.
-        rec_context = ParameterContext('records', param_type=RecordType())
-        context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
-
-        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
-        
-
-        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
-        replay_stream, replay_route = self.pubsub_management.create_stream('replay', 'xp1', stream_definition_id=stream_def_id)
-        dataset_id = self.create_dataset(pdict_id)
-        scov = DatasetManagementService._get_coverage(dataset_id)
-
-        bb = CoverageCraft(scov)
-        bb.rdt['time'] = np.arange(100)
-        bb.rdt['temp'] = np.random.random(100) + 30
-        bb.sync_with_granule()
-
-        DatasetManagementService._persist_coverage(dataset_id, bb.coverage) # This invalidates it for multi-host configurations
-        # Set up the subscriber to verify the data
-        subscriber = StandaloneStreamSubscriber(self.exchange_space_name, self.validate_granule_subscription)
-        xp = self.container.ex_manager.create_xp('xp1')
-        self.queue_buffer.append(self.exchange_space_name)
-        subscriber.start()
-        subscriber.xn.bind(replay_route.routing_key, xp)
-
-        # Set up the replay agent and the client wrapper
-
-        # 1) Define the Replay (dataset and stream to publish on)
-        self.replay_id, process_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream)
-        # 2) Make a client to the interact with the process (optionall provide it a process to bind with)
-        replay_client = ReplayClient(process_id)
-        # 3) Start the agent (launch the process)
-        self.data_retriever.start_replay_agent(self.replay_id)
-        # 4) Start replaying...
-        replay_client.start_replay()
-        
-        # Wait till we get some granules
-        self.assertTrue(self.event.wait(5))
-        
-        # We got granules, pause the replay, clear the queue and allow the process to finish consuming
-        replay_client.pause_replay()
-        gevent.sleep(1)
-        subscriber.xn.purge()
-        self.event.clear()
-        
-        # Make sure there's no remaining messages being consumed
-        self.assertFalse(self.event.wait(1))
-
-        # Resume the replay and wait until we start getting granules again
-        replay_client.resume_replay()
-        self.assertTrue(self.event.wait(5))
-    
-        # Stop the replay, clear the queues
-        replay_client.stop_replay()
-        gevent.sleep(1)
-        subscriber.xn.purge()
-        self.event.clear()
-
-        # Make sure that it did indeed stop
-        self.assertFalse(self.event.wait(1))
-
-        subscriber.stop()
-
+    #--------------------------------------------------------------------------------
+    # Test Methods
+    #--------------------------------------------------------------------------------
 
     @attr('SMOKE') 
     def test_dm_end_2_end(self):
@@ -351,27 +292,90 @@ class TestDMEnd2End(IonIntegrationTestCase):
         b = rdt['time'] == np.arange(5)
         self.assertTrue(b.all() if not isinstance(b,bool) else b)
 
+    @unittest.skip('Doesnt work')
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_replay_pause(self):
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
+
+        # Add a field that supports binary data input.
+        bin_context = ParameterContext('binary',  param_type=ArrayType())
+        context_ids.append(self.dataset_management.create_parameter_context('binary', bin_context.dump()))
+        # Add another field that supports dictionary elements.
+        rec_context = ParameterContext('records', param_type=RecordType())
+        context_ids.append(self.dataset_management.create_parameter_context('records', rec_context.dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('replay_pdict', parameter_context_ids=context_ids, temporal_context='time')
+        
+
+        stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
+        replay_stream, replay_route = self.pubsub_management.create_stream('replay', 'xp1', stream_definition_id=stream_def_id)
+        dataset_id = self.create_dataset(pdict_id)
+        scov = DatasetManagementService._get_coverage(dataset_id)
+
+        bb = CoverageCraft(scov)
+        bb.rdt['time'] = np.arange(100)
+        bb.rdt['temp'] = np.random.random(100) + 30
+        bb.sync_with_granule()
+
+        DatasetManagementService._persist_coverage(dataset_id, bb.coverage) # This invalidates it for multi-host configurations
+        # Set up the subscriber to verify the data
+        subscriber = StandaloneStreamSubscriber(self.exchange_space_name, self.validate_granule_subscription)
+        xp = self.container.ex_manager.create_xp('xp1')
+        self.queue_buffer.append(self.exchange_space_name)
+        subscriber.start()
+        subscriber.xn.bind(replay_route.routing_key, xp)
+
+        # Set up the replay agent and the client wrapper
+
+        # 1) Define the Replay (dataset and stream to publish on)
+        self.replay_id, process_id = self.data_retriever.define_replay(dataset_id=dataset_id, stream_id=replay_stream)
+        # 2) Make a client to the interact with the process (optionall provide it a process to bind with)
+        replay_client = ReplayClient(process_id)
+        # 3) Start the agent (launch the process)
+        self.data_retriever.start_replay_agent(self.replay_id)
+        # 4) Start replaying...
+        replay_client.start_replay()
+        
+        # Wait till we get some granules
+        self.assertTrue(self.event.wait(5))
+        
+        # We got granules, pause the replay, clear the queue and allow the process to finish consuming
+        replay_client.pause_replay()
+        gevent.sleep(1)
+        subscriber.xn.purge()
+        self.event.clear()
+        
+        # Make sure there's no remaining messages being consumed
+        self.assertFalse(self.event.wait(1))
+
+        # Resume the replay and wait until we start getting granules again
+        replay_client.resume_replay()
+        self.assertTrue(self.event.wait(5))
+    
+        # Stop the replay, clear the queues
+        replay_client.stop_replay()
+        gevent.sleep(1)
+        subscriber.xn.purge()
+        self.event.clear()
+
+        # Make sure that it did indeed stop
+        self.assertFalse(self.event.wait(1))
+
+        subscriber.stop()
 
 
     def test_retrieve_and_transform(self):
-
-        # Stream definition for the CTD data
-        pdict_id             = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id        = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
-        ctd_stream_id, route = self.pubsub_management.create_stream('ctd stream', 'xp1', stream_definition_id=stream_def_id)
-
+        # Make a simple dataset and start ingestion, pretty standard stuff.
+        ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        self.start_ingestion(ctd_stream_id, dataset_id)
 
         # Stream definition for the salinity data
         salinity_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         sal_stream_def_id = self.pubsub_management.create_stream_definition('sal data', parameter_dictionary_id=salinity_pdict_id)
 
-        ingest_config_id = self.get_ingestion_config()
-        dataset_id = self.create_dataset(pdict_id)
-        #--------------------------------------------------------------------------------
-        # Again with this ridiculous problem
-        #--------------------------------------------------------------------------------
-        self.get_datastore(dataset_id)
-        self.ingestion_management.persist_data_stream(stream_id=ctd_stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(10)
@@ -398,23 +402,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         for i in rdt['salinity']:
             self.assertNotEquals(i,0)
 
-
-
     def test_last_granule(self):
-        #--------------------------------------------------------------------------------
-        # Create the necessary configurations for the test
-        #--------------------------------------------------------------------------------
-        pdict_id          = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id     = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
-        stream_id, route  = self.pubsub_management.create_stream('last_granule', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
-        config_id         = self.get_ingestion_config()
-        dataset_id        = self.create_dataset(pdict_id)
-
-        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
-        #--------------------------------------------------------------------------------
-        # Create the datastore first,
-        #--------------------------------------------------------------------------------
-        self.get_datastore(dataset_id)
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        self.start_ingestion(stream_id, dataset_id)
 
         self.publish_hifi(stream_id,route, 0)
         self.publish_hifi(stream_id,route, 1)
@@ -451,8 +441,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         success = poll(verify_points)
 
         self.assertTrue(success)
-
-
 
     def test_replay_with_parameters(self):
         #--------------------------------------------------------------------------------
@@ -509,16 +497,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_repersist_data(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
-        stream_def_id = self.pubsub_management.create_stream_definition(name='ctd', parameter_dictionary_id=pdict_id)
-        stream_id, route = self.pubsub_management.create_stream(name='repersist', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
-        config_id = self.get_ingestion_config()
-        dataset_id = self.create_dataset(pdict_id)
-        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
-        self.get_datastore(dataset_id)
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        self.start_ingestion(stream_id, dataset_id)
         self.publish_hifi(stream_id,route,0)
         self.publish_hifi(stream_id,route,1)
         self.wait_until_we_have_enough_granules(dataset_id,2)
+        config_id = self.get_ingestion_config()
         self.ingestion_management.unpersist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id,ingestion_configuration_id=config_id,dataset_id=dataset_id)
         self.publish_hifi(stream_id,route,2)
