@@ -213,7 +213,7 @@ class TestBulkIngest(IonIntegrationTestCase):
 
 
         #todo enable after Luke's mor to retrieve, right now must have the Time axis called 'time'
-#        replay_granule = self.data_retriever.retrieve_last_granule(self.dataset_id)
+#        replay_granule = self.data_retriever.retrieve_last_data_points(self.dataset_id, 10)
 
 #        rdt = RecordDictionaryTool.load_from_granule(replay_granule)
 #
