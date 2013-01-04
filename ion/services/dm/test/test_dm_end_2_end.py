@@ -183,7 +183,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 extents = self.dataset_management.dataset_extents(dataset_id, 'time')[0]
                 granule = self.data_retriever.retrieve_last_data_points(dataset_id, 1)
                 rdt     = RecordDictionaryTool.load_from_granule(granule)
-                if rdt['time'] and rdt['time'][0] != rdt._pdict.get_context('time').fill_value and extents:
+                if rdt['time'] and rdt['time'][0] != rdt._pdict.get_context('time').fill_value and extents >= data_size:
                     done = True
                 else:
                     gevent.sleep(0.2)
