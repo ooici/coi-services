@@ -179,7 +179,7 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         #validate that data was ingested
-        replay_granule = self.data_retriever.retrieve_last_granule(dataset_id)
+        replay_granule = self.data_retriever.retrieve_last_data_points(dataset_id, 10)
         rdt = RecordDictionaryTool.load_from_granule(replay_granule)
         salinity = get_safe(rdt, 'salinity')
         assertions(salinity != None)
