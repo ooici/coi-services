@@ -837,11 +837,12 @@ class InstrumentAgent(ResourceAgent):
             log.error('Instrument agent %s received sample with bad \
                 stream name %s.', self._proc_name, stream_name)
 
-        state = self._fsm.get_current_state()
-        pubfreq = self.aparam_pubfreq[stream_name]
+        else:
+            state = self._fsm.get_current_state()
+            pubfreq = self.aparam_pubfreq[stream_name]
 
-        if state != ResourceAgentState.STREAMING or pubfreq == 0:
-            self._publish_stream_buffer(stream_name)
+            if state != ResourceAgentState.STREAMING or pubfreq == 0:
+                self._publish_stream_buffer(stream_name)
 
     def _publish_stream_buffer(self, stream_name):
         """
