@@ -174,10 +174,10 @@ class UserDefinedAlarm(BaseAlarm):
         """
         super(IntervalAlarm, self).__init__(name, stream_id, value_id, message,
                                             type)
-        self.expr = expr        
 
         if not isinstance(self.expr, str):
             raise TypeError('Alarm expression must be a string.')
     
+        self.expr = expr        
 
 
