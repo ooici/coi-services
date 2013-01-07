@@ -50,7 +50,6 @@ from mi.core.exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
-from ion.agents.util.alarm_factory import AgentStreamAlarmExprFactory
 from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.instrument_fsm import FSMStateError
 from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
