@@ -41,7 +41,6 @@ from ion.agents.alarms.alarms import UserDefinedAlarm
 # bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_less_than_interval
 # bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_two_sided_interval
 
-
 class TestAlarms(IonIntegrationTestCase):
     """
     """
