@@ -50,6 +50,7 @@ from mi.core.exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
+from ion.agents.util.alarm_factory import AgentStreamAlarmExprFactory
 from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.instrument_fsm import FSMStateError
 from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
@@ -163,15 +164,12 @@ class InstrumentAgent(ResourceAgent):
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
-        # Dictionary of alarm expressions.
-        self.aparam_alarms = {}
+        # List of current alarm objects.
+        self.aparam_alarms = []
         
         # Dictionary of stream fields.
         self.aparam_streams = {}
         
-        # Dictionary of stream statuses.
-        self.aparam_status = {}
-
         # Dictionary of stream publication rates.
         self.aparam_pubfreq = {}
 
@@ -896,7 +894,9 @@ class InstrumentAgent(ResourceAgent):
                                 if tval_dict.get('binary', None):
                                     tval_val = base64.b64decode(tval_val)
                                 data_arrays[tval_id][i] = tval_val
-
+                                
+                                self._eval_alarms(stream_name, tval_id, tval_val)
+                                
                     elif tk in rdt:
                         data_arrays[tk][i] = tv
                         if tk == 'driver_timestamp':
@@ -915,6 +915,33 @@ class InstrumentAgent(ResourceAgent):
             log.exception('Instrument agent %s could not publish data on stream %s.',
                 self._proc_name, stream_name)
         
+        
+    def _eval_alarms(self, stream_name, value_id, value):
+        """
+        """
+        no_changed = 0
+        went_true = []
+        for a in self.aparam_alarms:
+            if a.stream_name == stream_name and a.value_id == value_id:
+                if eval(a.expr):
+                    if not a.status:
+                        a.status = True
+                        no_changed += 1
+                        went_true.append(a)
+                else:
+                    if a.status:
+                        a.status = False
+                        no_changed += 1
+
+        if no_changed > 0:
+            if len(went_true)>0:
+                # publish all true events
+                pass
+        
+            else:
+                #publish all clear
+                pass    
+                         
     def _async_driver_event_error(self, val, ts):
         """
         """
@@ -1224,13 +1251,6 @@ class InstrumentAgent(ResourceAgent):
                 else:
                     self._stream_greenlets[stream_name] = None
                     self._stream_buffers[stream_name] = []
-                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-                    fields = rdt.fields
-                    fields = [x for x in fields if not x.endswith('_timestamp') and x != 'time']
-                    self.aparam_streams[stream_name] = fields
-                    for x in fields:
-                        key = stream_name + '_' + x
-                        self.aparam_status[key] = ResourceAgentStreamStatus.ALL_CLEAR
                     
                     pubfreq = stream_config.get('pubfreq', 0)
                     if not isinstance(pubfreq, int) or pubfreq <0:
@@ -1238,14 +1258,7 @@ class InstrumentAgent(ResourceAgent):
                                   stream_name)
                     else:
                         self.aparam_pubfreq[stream_name] = pubfreq
-                    
-                    for (k,v) in stream_config.iteritems():
-                        if k.startswith('alarm_'):
-                            key = k[6:]
-                            alarm = v
-                            if self._validate_alarm(alarm):
-                                self.aparam_alarms[key] = alarm
-                            
+                                                
     def _start_publisher_greenlets(self):
         """
         """
@@ -1308,61 +1321,33 @@ class InstrumentAgent(ResourceAgent):
         action = params[0]
         params = params[1:]
         
-        if action == 'set' or action =='add':
-            new_alarms = {}
-            for x in params:
-                if isinstance(x, (list,tuple)) and len(x)==6:
-                    key = x[0]
-                    alarm = x[1:]
-                    if self._validate_alarm(alarm):
-                        new_alarms[key] = alarm
-                    else:
-                        retval = -1
-                else:
-                    retval = -1
-                    
-            if action == 'set':
-                self.aparam_alarms = new_alarms
+        if action not in ('set','add','remove','clear'):
+            return -1
+        
+        if action in ('set', 'clear'):
+            self.aparam_alarms = []
                 
-            else:
-                self.aparam_alarms.update(new_alarms)
-        
+        if action in ('set', 'add'):
+            for a in params:
+                pass 
+                    
         elif action == 'remove':
-            for x in params:
-                if not self.aparam_alarms.pop(x, None):
-                    retval = -1
-        
-        elif action == 'clear':
-            self.aparam_alarms = {}
-    
-        else:
-            retval = -1
+            new_alarms = []
+            """
+            for x in self.aparam_alarms:
+                keep = True
+                for a in params:
+                    if x.stream_id == a.stream_id and \
+                        x.value_id == a.value_id and \
+                        x.expr == a.expr:
+                            keep = False
+                            break
+                if keep:
+                    new_alarms.append(x)
+            self.aparam_alarms = new_alarms
+            """
             
-        return retval
-    
-    def aparam_set_status(self, params):
-        """
-        """
-        return -1
-    
-    def _validate_alarm(self,alarm):
-        """
-        """
-        if not isinstance(alarm, (list,tuple)) or len(alarm) != 5:
-            return False
-
-        else:
-            (stream, value, expr, status, msg) = alarm
-            if sinstance(key,str) and \
-                self._aparam_streams.has_key(stream) and \
-                value in self._aparam_streams[stream] and \
-                isinstance(expr, str) and \
-                ResourceAgentStreamStatus.has(status) and \
-                isinstance(msg, str):
-                return True
-            else:
-                return False
-        
+        return len(self.aparam_alarms)
     
     ###############################################################################
     # Event callback and handling for direct access.
