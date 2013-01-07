@@ -222,7 +222,7 @@ def check_user_notification_interest(event, reverse_user_info):
                 user_list_4 += reverse_user_info['event_origin_type']['']
             users = set.intersection(users, user_list_4)
             log.debug("For event_origin_type = %s too, UNS got interested users here  %s" % (event.origin_type, users))
-    else:
+        else:
             log.debug("For event_origin_type = %s too, UNS got interested users here  %s" % (event.origin_type, set()))
             return []
 
