@@ -135,7 +135,7 @@ def send_email(message, msg_recipient, smtp_client):
     msg['Subject'] = msg_subject
     msg['From'] = smtp_sender
     msg['To'] = msg_recipient
-    log.debug("UNS sending email from %s to %s" % ( smtp_sender,msg_recipient))
+    log.debug("UNS sending email from %s to %s for event type: %s" % ( smtp_sender,msg_recipient, message.type_))
     log.debug("UNS using the smtp client: %s" % smtp_client)
 
     try:
@@ -157,7 +157,7 @@ def check_user_notification_interest(event, reverse_user_info):
 
     @retval user_ids list
     '''
-    log.debug("checking for interested users. Event type: %s, reverse_user_info: %s" % (event.type_, reverse_user_info))
+    log.debug("Checking for interested users. Event type: %s, reverse_user_info: %s" % (event.type_, reverse_user_info))
 
     if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
@@ -176,46 +176,58 @@ def check_user_notification_interest(event, reverse_user_info):
 
     users = set()
 
-    if reverse_user_info['event_origin'].has_key(event.origin):
-        if event.origin: # for an incoming event that has origin specified (this should be true for almost all events)
-            user_list_1 = set(reverse_user_info['event_origin'][event.origin])
+    """
+    Prioritize... First check event type. If that matches proceed to check origin if that attribute of the event obj is filled,
+    If that matches too, check for sub_type if that attribute is filled for the event object...
+    If this matches too, check for origin_type if that attribute of the event object is not empty.
+    """
+
+    if event.type_: # for an incoming event with origin type specified
+        if reverse_user_info['event_type'].has_key(event.type_):
+            user_list_1 = reverse_user_info['event_type'][event.type_]
+            if reverse_user_info['event_type'].has_key(''): # for users who subscribe to any event types
+                user_list_1 += reverse_user_info['event_type']['']
+            users = set(user_list_1)
+            log.debug("For event_type = %s, UNS got interested users here  %s" % (event.type_, users))
+        else:
+            log.debug("For event_type = %s, UNS got interested users here  %s" % (event.type_, set()))
+            return []
+
+    if event.origin: # for an incoming event that has origin specified (this should be true for almost all events)
+        if reverse_user_info['event_origin'].has_key(event.origin):
+            user_list_2 = set(reverse_user_info['event_origin'][event.origin])
             if reverse_user_info['event_origin'].has_key(''): # for users who subscribe to any event origins
-                user_list_1 += reverse_user_info['event_origin']['']
-            users = user_list_1
-
-            log.debug("For event origin = %s, UNS got interested users here  %s" % (event.origin, users))
-
-    if reverse_user_info['event_origin_type'].has_key(event.origin_type):
-        if event.origin_type: # for an incoming event with origin type specified
-            user_list_2 = reverse_user_info['event_origin_type'][event.origin_type]
-            if reverse_user_info['event_origin_type'].has_key(''): # for users who subscribe to any event origin types
-                user_list_2 += reverse_user_info['event_origin_type']['']
+                user_list_2 += reverse_user_info['event_origin']['']
             users = set.intersection(users, user_list_2)
+            log.debug("For event origin = %s too, UNS got interested users here  %s" % (event.origin, users))
+        else:
+            log.debug("For event origin = %s too, UNS got interested users here  %s" % (event.origin, set()))
+            return []
 
-            log.debug("For event_origin_type = %s too, UNS got interested users here  %s" % (event.origin_type, users))
-
-    if reverse_user_info['event_type'].has_key(event.type_):
-        user_list_3 = reverse_user_info['event_type'][event.type_]
-        if reverse_user_info['event_type'].has_key(''): # for users who subscribe to any event types
-            user_list_3 += reverse_user_info['event_type']['']
-        users = set.intersection(users, user_list_3)
-
-        log.debug("For event_type = %s too, UNS got interested users here  %s" % (event.type_, users))
-
-
-    if reverse_user_info['event_subtype'].has_key(event.sub_type):
-        if event.sub_type: # for an incoming event with the sub type specified
-            user_list_4 = reverse_user_info['event_subtype'][event.sub_type]
+    if event.sub_type: # for an incoming event with the sub type specified
+        if reverse_user_info['event_subtype'].has_key(event.sub_type):
+            user_list_3 = reverse_user_info['event_subtype'][event.sub_type]
             if reverse_user_info['event_subtype'].has_key(''): # for users who subscribe to any event subtypes
-                user_list_4 += reverse_user_info['event_subtype']['']
-            users = set.intersection(users, user_list_4)
-
+                user_list_3 += reverse_user_info['event_subtype']['']
+            users = set.intersection(users, user_list_3)
             log.debug("For event_subtype = %s too, UNS got interested users here  %s" % (event.sub_type, users))
+        else:
+            log.debug("For event_subtype = %s too, UNS got interested users here  %s" % (event.sub_type, set()))
+            return []
 
+    if event.origin_type: # for an incoming event with origin type specified
+        if reverse_user_info['event_origin_type'].has_key(event.origin_type):
+            user_list_4 = reverse_user_info['event_origin_type'][event.origin_type]
+            if reverse_user_info['event_origin_type'].has_key(''): # for users who subscribe to any event origin types
+                user_list_4 += reverse_user_info['event_origin_type']['']
+            users = set.intersection(users, user_list_4)
+            log.debug("For event_origin_type = %s too, UNS got interested users here  %s" % (event.origin_type, users))
+    else:
+            log.debug("For event_origin_type = %s too, UNS got interested users here  %s" % (event.origin_type, set()))
+            return []
 
-    users = list( users)
-
-    return users
+    log.debug("The interested users found here are: %s, for event: %s" % (users, event))
+    return list( users)
 
 def calculate_reverse_user_info(user_info=None):
     '''
