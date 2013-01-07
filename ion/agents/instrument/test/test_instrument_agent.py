@@ -882,32 +882,24 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         self.assertEquals(retval['example'], 'newvalue')
         
-        retval = self._ia_client.get_agent(['streams'])
-        expected_streams_result = {'streams': {'raw': ['quality_flag', 'lon',
-            'raw', 'lat'],'parsed': ['quality_flag', 'temp', 'density', 'lon',
-            'salinity', 'pressure', 'lat', 'conductivity']}}
-        self.assertEqual(retval, expected_streams_result)
+        raw_fields = ['quality_flag', 'preferred_timestamp', 'port_timestamp',
+            'lon', 'raw', 'internal_timestamp', 'time',
+            'lat', 'driver_timestamp']
+        parsed_fields = ['quality_flag', 'preferred_timestamp', 'temp',
+            'density', 'port_timestamp', 'lon', 'salinity', 'pressure',
+            'internal_timestamp', 'time', 'lat', 'driver_timestamp',
+            'conductivity']
+
+        retval = self._ia_client.get_agent(['streams'])['streams']
+        self.assertIn('raw', retval)
+        self.assertIn('parsed', retval)
+        self.assertItemsEqual(retval['raw'], raw_fields)
+        self.assertItemsEqual(retval['parsed'], parsed_fields)
         
         retval = self._ia_client.get_agent(['pubfreq'])
         expected_pubfreq_result = {'pubfreq': {'raw': 0, 'parsed': 0}}
         self.assertEqual(retval, expected_pubfreq_result)
         
-        retval = self._ia_client.get_agent(['status'])
-        expected_status_result = {'status': {
-            'parsed_conductivity':'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'parsed_lat': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'parsed_pressure': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'parsed_temp': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'parsed_lon': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'parsed_density': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'raw_quality_flag': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'raw_lon': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'parsed_salinity': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'parsed_quality_flag': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'raw_raw': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR',
-            'raw_lat': 'RESOURCE_AGENT_STREAM_STATUS_ALL_CLEAR'}}
-        self.assertEqual(retval, expected_status_result)
-
         retval = self._ia_client.get_agent(['alarms'])
         #{'alarms': {}}
 
@@ -1054,7 +1046,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         agt_pars_all = ['example',
                         'alarms',
                         'streams',
-                        'status',
                         'pubfreq'
                         ]
         

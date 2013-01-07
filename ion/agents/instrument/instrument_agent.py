@@ -1257,7 +1257,10 @@ class InstrumentAgent(ResourceAgent):
                                   stream_name)
                     else:
                         self.aparam_pubfreq[stream_name] = pubfreq
-                                                
+                                        
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+                    self.aparam_streams[stream_name] = rdt.fields
+                    
     def _start_publisher_greenlets(self):
         """
         """
