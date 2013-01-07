@@ -156,13 +156,13 @@ class DoubleIntervalAlarm(BaseAlarm):
     An alarm providing a double interval. Either the left lower bound,
     the right upper bound or both may be open.
     """
-    pass
+    raise Exception('Not implemented.')
 
 class SetMembershipAlarm(BaseAlarm):
     """
     An alarm providing membership in a discrete set of objects.
     """
-    pass
+    raise Exception('Not implemented.')
 
 class UserDefinedAlarm(BaseAlarm):
     """
