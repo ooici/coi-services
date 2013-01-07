@@ -156,13 +156,15 @@ class DoubleIntervalAlarm(BaseAlarm):
     An alarm providing a double interval. Either the left lower bound,
     the right upper bound or both may be open.
     """
-    raise Exception('Not implemented.')
+    def __init__(self, name, stream_id, value_id, message, type):
+        raise Exception('Not implemented.')
 
 class SetMembershipAlarm(BaseAlarm):
     """
     An alarm providing membership in a discrete set of objects.
     """
-    raise Exception('Not implemented.')
+    def __init__(self, name, stream_id, value_id, message, type):
+        raise Exception('Not implemented.')
 
 class UserDefinedAlarm(BaseAlarm):
     """

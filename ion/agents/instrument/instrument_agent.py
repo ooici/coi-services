@@ -1331,23 +1331,26 @@ class InstrumentAgent(ResourceAgent):
                 
         if action in ('set', 'add'):
             for a in params:
-                pass 
+                if isinstance(a,BaseAlarm):
+                    self.aparam_alarms.append(a)
+                else:
+                    log.error('Attempted to set an invalid alarm.')
                     
         elif action == 'remove':
-            new_alarms = []
-            """
-            for x in self.aparam_alarms:
-                keep = True
-                for a in params:
-                    if x.stream_id == a.stream_id and \
-                        x.value_id == a.value_id and \
-                        x.expr == a.expr:
-                            keep = False
-                            break
-                if keep:
-                    new_alarms.append(x)
+            new_alarms = copy.deepcopy(self.aparam_alarms)
+            for a in self.aparam_alarms:
+                if isinstance(a, str):
+                    new_alarms = [x for x in self.aparam_alarms if
+                        x.name == a]
+                elif isinstance(a, BaseAlarm):
+                    new_alarms = [x for x in self.aparam_alarms if
+                        x.stream_id == a.stream_id and
+                        x.value_id == a.value_id and
+                        x.expr == a.expr]
+                else:
+                    log.error('Attempted to remove an invalid alarm.')
+                    
             self.aparam_alarms = new_alarms
-            """
             
         return len(self.aparam_alarms)
     

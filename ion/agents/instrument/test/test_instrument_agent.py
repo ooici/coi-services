@@ -900,8 +900,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         expected_pubfreq_result = {'pubfreq': {'raw': 0, 'parsed': 0}}
         self.assertEqual(retval, expected_pubfreq_result)
         
-        retval = self._ia_client.get_agent(['alarms'])
-        #{'alarms': {}}
+        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        #self.assertItemsEqual(retval, [])
 
     def test_poll(self):
         """
