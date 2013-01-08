@@ -182,4 +182,129 @@ class UserDefinedAlarm(BaseAlarm):
     
         self.expr = expr        
 
+def construct_alarm_expression(alarm_def):
+    """
+    """
+    
+    if not isinstance(alarm_def, AlarmDef):
+        raise Exception('Invalid alarm type.')
+        
+    if not isinstance(alarm_def.name, str):
+        raise TypeError('Invalid name.')
+       
+    if not isinstance(alarm_def.stream_name, str):
+        raise TypeError('Invalid stream name.')
 
+    if not isinstance(alarm_def.value_id, str):
+        raise TypeError('Invalid value id.')
+
+    if not isinstance(alarm_def.message, str):
+        raise TypeError('Invalid message.')
+
+    if not isinstance(alarm_def.type, int):
+        raise TypeError('Invalid alarm type.')
+
+    if not alarm_def.type in StreamAlarmType._value_map.values():
+        raise TypeError('Invalid alarm type.')
+        
+    alarm_def.status = None
+    alarm_def.current_val = None
+        
+    if isinstance(alarm_def, IntervalAlarmDef):
+        return construct_interval_alarm_expression(alarm_def)
+    
+    elif isinstance(alarm_def, DoubleIntervalAlarmDef):
+        return construct_double_interval_alarm_expression(alarm_def)
+    
+    elif isinstance(alarm_def, SetMembershipAlarmDef):
+        return construct_set_membership_alarm_expression(alarm_def)
+    
+    elif isinstance(alarm_def, UserDefinedAlarmDef):
+        return construct_user_defined_alarm_expression(alarm_def)
+    
+    else:
+        log.error('Invalid alarm type.')
+
+    return alarm_def
+
+def construct_interval_alarm_expression(alarm_def):
+    """
+    """
+    
+    if alarm_def.lower_bound:
+        if not isinstance(alarm_def.lower_bound, (int, float)):
+            raise TypeError('Bad lower bound value.')
+        if alarm_def.lower_rel_op not in ('<','<='):
+            raise TypeError('Bad lower bound relational op.')
+    
+    if alarm_def.upper_bound:
+        if not isinstance(alarm_def.upper_bound, (int, float)):
+            raise TypeError('Bad upper bound value.')
+        if alarm_def.upper_rel_op not in ('<','<='):
+            raise TypeError('Bad upper bound relational op.')
+    
+    if alarm_def.lower_bound and alarm_def.upper_bound:
+        if self.lower_bound >= alarm_def.upper_bound:
+            raise ValueError('Lower bound >= upper bound.')
+    
+    if alarm_def.lower_bound:
+        alarm_def.expr += str(alarm_def.lower_bound)
+        alarm_def.expr += alarm_def.lower_rel_op
+    
+    alarm_def.expr += 'x'
+    
+    if alarm_def.upper_bound:
+        alarm_def.expr += alarm_def.upper_rel_op
+        alarm_def.expr += str(alarm_def.upper_bound)
+
+    return alarm_def
+
+def construct_double_interval_alarm_expression(alarm_def):
+    """
+    """
+    raise Exception('Alarm type not implemented.')
+
+def construct_set_membership_alarm_expression(alarm_def):
+    """
+    """
+    raise Exception('Alarm type not implemented.')
+
+def construct_user_defined_alarm_expression(alarm_def):
+    """
+    """
+    pass
+
+def eval_alarm(alarm_def, x):
+    """
+    """
+    alarm_def.current_val = x
+    old_status = alarm_def.status
+    alarm_def.status = eval(alarm_def.expr)
+    
+    event_data = None
+    
+    if old_status != alarm_def.status:
+            
+        event_data = {
+            'name' : alarm_def.name,
+            'message' : alarm_def.message,
+            'expr' : alarm_def.expr,
+            'stream_name' : alarm_def.stream_name,
+            'value_id' : alarm_def.value_id,
+            'value' : x
+        }
+        
+        if not alarm_def.status:
+            event_data['event_type'] = 'StreamAllClearAlarmEvent'
+            event_data['message'] = 'The alarm %s has cleared.' % alarm_def.name
+            
+        elif self.type == StreamAlarmType.WARNING:
+            event_data['event_type'] = 'StreamWarningAlaramEvent'
+
+        elif self.type == StreamAlarmType.ALERT:
+            event_data['event_type'] = 'StreamAlertAlarmEvent'
+
+        else:
+            log.error('Unknown alarm type.')
+    
+    return (alarm_def, event_data)

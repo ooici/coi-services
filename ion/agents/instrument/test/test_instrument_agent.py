@@ -65,24 +65,28 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
 
-# TODO chagne the path following the refactor.
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_resource_states
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_errors
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_agent
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command_errors
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_direct_access
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
-# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
+# Alarms.
+from pyon.public import IonObject
+from interface.objects import StreamAlarmType
 
+"""
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_initialize
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_resource_states
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_errors
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_agent
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_poll
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autosample
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_command_errors
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_direct_access
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
+"""
 
 ###############################################################################
 # Global constants.
@@ -900,15 +904,25 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         expected_pubfreq_result = {'pubfreq': {'raw': 0, 'parsed': 0}}
         self.assertEqual(retval, expected_pubfreq_result)
         
+        """
         retval = self._ia_client.get_agent(['alarms'])['alarms']
         self.assertItemsEqual(retval, [])
 
-        """
         alarms = []
+        alarm = IonObject('IntervalAlarmDef',
+                    name='temp_high_warning',
+                    stream_name='parsed',
+                    value_id='temp',
+                    message='Temperature is above normal range.',
+                    type=StreamAlarmType.WARNING,
+                    lower_bound=10.0,
+                    lower_rel_op='<',
+                    upper_bound=20.0,
+                    upper_rel_op='<')
 
         kwargs = {
             'name' : 'temp_high_warning',
-            'stream_id' : 'fakestreamid',
+            'stream_name' : 'parsed',
             'value_id' : 'temp',
             'message' : 'Temperature is above normal range.',
             'type' : StreamAlarmType.WARNING,
@@ -923,7 +937,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         kwargs = {
             'name' : 'reserve_power_warning',
-            'stream_id' : 'fakestreamid',
+            'stream_name' : 'parsed',
             'value_id' : 'battery_level',
             'message' : 'Battery is below normal range.',
             'type' : StreamAlarmType.WARNING,
@@ -933,9 +947,18 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         alarm = IntervalAlarm(**kwargs)
         alarms.append(alarm)
+
+        params = ['set']
+        params.extend(alarms)
+        print '############ input params:'
+        print str(params)
+
+        retval = self._ia_client.set_agent({'alarms' : params})
+        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        print '################'
+        print str(retval)
+        #self.assertItemsEqual(retval, alarms)
         """
-
-
 
     def test_poll(self):
         """

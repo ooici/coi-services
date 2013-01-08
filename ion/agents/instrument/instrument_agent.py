@@ -21,6 +21,7 @@ from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from pyon.public import IonObject
 
 # Pyon exceptions.
 from pyon.core.exception import IonException
@@ -57,6 +58,10 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+
+# Alarms.
+from interface.objects import StreamAlarmType
+from interface.objects import AlarmDef
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -1317,6 +1322,11 @@ class InstrumentAgent(ResourceAgent):
     def aparam_set_alarms(self, params):
         """
         """
+        pass
+        """
+        print '#######################'
+        print str(params)
+        
         if not isinstance(params, (list,tuple)) or len(params)==0:
             return -1
         
@@ -1354,7 +1364,8 @@ class InstrumentAgent(ResourceAgent):
             self.aparam_alarms = new_alarms
             
         return len(self.aparam_alarms)
-    
+        """
+        
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################
