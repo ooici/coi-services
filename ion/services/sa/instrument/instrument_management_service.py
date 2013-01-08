@@ -505,7 +505,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                             'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
                                                             }
 
-        log.debug("IMS:_generate_stream_config: %s", str(stream_config_too) )
+        log.trace("IMS:_generate_stream_config: %s", str(stream_config_too) )
         return stream_config_too
 
 
