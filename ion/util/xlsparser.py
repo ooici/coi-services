@@ -17,7 +17,7 @@ class XLSParser(object):
         csv_docs = {}
         for sheet_name, sheet in sheets.iteritems():
             csv_doc = self.dumps_csv(sheet)
-            csv_docs[sheet_name] = csv_doc
+            csv_docs[sheet_name] = csv_doc.splitlines()
         return csv_docs
 
     def extract_worksheets(self, file_content):

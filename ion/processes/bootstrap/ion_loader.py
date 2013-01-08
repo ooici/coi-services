@@ -73,7 +73,12 @@ from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from interface import objects
 import logging
 
+# format for time values within the preload data
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+# sometimes the HTTP download from google returns only partial results (causing errors parsing).
+# allow this many tries to get a clean, parseable document before giving up.
+HTTP_RETRIES=5
 
 ## can set ui_path to keywords 'default' for TESTED_UI_ASSETS or 'candidate' for CANDIDATE_UI_ASSETS
 TESTED_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/'
@@ -83,7 +88,6 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-#TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE01OXVvMnhraVZtM05rNkthQnVjU1E&output=xls"
 TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidEZOS29JWG5EWHJkTldzVmdmV2RUX2c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
@@ -148,6 +152,8 @@ class IONLoader(ImmediateProcess):
         self.constraint_defs = {} # alias -> value for refs, since not stored in DB
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
         self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
+
+        self.object_definitions = None
 
         # process to use for RPC communications (override to use as utility, default to use as process)
         self.rpc_sender = self
@@ -229,6 +235,88 @@ class IONLoader(ImmediateProcess):
     def on_quit(self):
         pass
 
+    def _read_and_parse(self, scenarios):
+        """ read data records from appropriate source and extract usable rows,
+            complete all IO and parsing -- save only a dict[by category] of lists[usable rows] of dicts[by columns]
+        """
+
+        # support use-case:
+        #   x = IonLoader()
+        #   x.object_definitions = my_funky_dict_of_lists_of_dicts
+        #   x.load_ion()
+        #
+        if self.object_definitions:
+            log.info("Object definitions already provided, NOT loading from path")
+        else:
+            # but here is the normal, expected use-case
+            #
+            log.info("Loading preload data from: %s", self.path)
+
+            # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
+            if self.path.startswith('http'):
+                self._read_http(scenarios)
+            elif self.path.endswith(".xlsx"):
+                self._read_xls_file(scenarios)
+            else:
+                self._read_csv_files(scenarios)
+
+    def _read_http(self, scenarios):
+        """ read from google doc or similar HTTP XLS document """
+        self.object_definitions = None
+        for attempt in xrange(HTTP_RETRIES):
+            length = 0
+            try:
+                contents = requests.get(self.path).content
+                length = len(contents)
+                self._parse_xls(contents, scenarios)
+                break
+            except:
+                log.warn("Failed to parse preload document (read %d bytes)", length, exc_info=True)
+        if not self.object_definitions:
+            raise iex.BadRequest("failed to read and parse URL %d times" % HTTP_RETRIES)
+        log.debug("Read and parsed URL (%d bytes)", length)
+
+    def _read_xls_file(self, scenarios):
+        """ read from XLS file """
+        with open(self.path, "rb") as f:
+            contents = f.read()
+            log.debug("Loaded xlsx file, size=%s", len(contents))
+            self._parse_xls(contents, scenarios)
+
+    def _parse_xls(self, contents, scenarios):
+        """ handle XLS parsing for http or file """
+        csv_docs = XLSParser().extract_csvs(contents)
+        self.object_definitions = {}
+        for category in self.categories:
+            reader = csv.DictReader(csv_docs[category], delimiter=',')
+            self.object_definitions[category] = self._select_rows(reader, category, scenarios)
+
+    def _read_csv_files(self,scenarios):
+        """ read CSV files """
+        self.object_definitions = {}
+        for category in self.categories:
+            filename = "%s/%s.csv" % (self.path, category)
+            with open(filename, "rb") as f:
+                reader = csv.DictReader(f, delimiter=',')
+                self.object_definitions[category] = self._select_rows(reader, category, scenarios)
+
+    def _select_rows(self, reader, category, scenarios):
+        """ select subset of rows applicable to scenario """
+        row_skip = row_do = 0
+        rows = []
+        for row in reader:
+            if row[self.COL_SCENARIO] not in scenarios:
+                row_skip += 1
+                if self.COL_ID in row:
+                    log.trace('skipping %s row %s in scenario %s', category, row[self.COL_ID], row[self.COL_SCENARIO])
+                else:
+                    log.trace('skipping %s row in scenario %s: %r', category, row[self.COL_SCENARIO], row)
+            else:
+                row_do += 1
+                rows.append(row)
+        log.debug('parsed entries for category %s: using %d rows, skipping %d rows', category, row_do, row_skip)
+        return rows
+
     def load_ion(self, scenarios):
         """
         Loads resources for one scenario, by parsing input spreadsheets for all resource categories
@@ -236,27 +324,15 @@ class IONLoader(ImmediateProcess):
         Can load the spreadsheets from http or file location.
         Optionally imports OOI assets at the beginning of each category.
         """
-        log.info("Loading scenario from path: %s", self.path)
         if self.bulk:
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
 
-        # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
-        if self.path.startswith('http'):
-            preload_doc_str = requests.get(self.path).content
-            log.debug("Fetched URL contents, size=%s", len(preload_doc_str))
-            xls_parser = XLSParser()
-            self.csv_files = xls_parser.extract_csvs(preload_doc_str)
-        elif self.path.endswith(".xlsx"):
-            with open(self.path, "rb") as f:
-                preload_doc_str = f.read()
-                log.debug("Loaded xlsx file, size=%s", len(preload_doc_str))
-                xls_parser = XLSParser()
-                self.csv_files = xls_parser.extract_csvs(preload_doc_str)
-        else:
-            self.csv_files = None
+        # read everything ahead of time, not on the fly
+        # that way if the Nth CSV is garbled, you don't waste time preloading the other N-1
+        # before you see an error
+        self._read_and_parse(scenarios)
 
         for category in self.categories:
-            row_do, row_skip, num_bulk = 0, 0, 0
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
@@ -267,56 +343,32 @@ class IONLoader(ImmediateProcess):
                     catfunc_ooi()
 
             # Now load entries from preload spreadsheet top to bottom where scenario matches
-            filename = "%s/%s.csv" % (self.path, category)
+            if category not in self.object_definitions or not self.object_definitions[category]:
+                log.debug('no rows for category: %s', category)
+                continue
             log.debug("Loading category %s", category)
-            try:
-                csvfile = None
-                if self.csv_files is not None:
-                    csv_doc = self.csv_files[category]
-                    # This is a hack to be able to read from string
-                    csv_doc = csv_doc.splitlines()
-                    reader = csv.DictReader(csv_doc, delimiter=',')
+            for row in self.object_definitions[category]:
+                if self.COL_ID in row:
+                    log.trace('handling %s row %s: %r', category, row[self.COL_ID], row)
                 else:
-                    csvfile = open(filename, "rb")
-                    reader = csv.DictReader(csvfile, delimiter=',')
+                    log.trace('handling %s row: %r', category, row)
 
-                for row in reader:
-                    # Check if scenario applies
-                    if row[self.COL_SCENARIO] not in scenarios:
-                        row_skip += 1
-                        if self.COL_ID in row:
-                            log.debug('skipping %s row %s in scenario %s', category, row[self.COL_ID], row[self.COL_SCENARIO])
-                        else:
-                            log.debug('skipping %s row in scenario %s: %r', category, row[self.COL_SCENARIO], row)
-                        continue
+                try:
+                    self.load_row(category, row)
+                except:
+                    log.error('error loading %s row: %r', category, row, exc_info=True)
+                    raise
 
-                    row_do += 1
-
-                    if self.COL_ID in row:
-                        log.debug('handling %s row %s: %r', category, row[self.COL_ID], row)
-                    else:
-                        log.debug('handling %s row: %r', category, row)
-
-                    try:
-                        self.load_row(category, row)
-                    except:
-                        log.error('error loading %s row: %r', category, row, exc_info=True)
-                        raise
-
-                if self.bulk:
-                    num_bulk = self._finalize_bulk(category)
-                    # Update resource and associations views
-                    self.container.resource_registry.find_resources(restype="X", id_only=True)
-                    self.container.resource_registry.find_associations(predicate="X", id_only=True)
-
-            except IOError, ioe:
-                log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
-            finally:
-                if csvfile is not None:
-                    csvfile.close()
-                    csvfile = None
-
-            log.info("Loaded category %s: %d resources from scenario rows, %s bulk, %d rows skipped" % (category, row_do, num_bulk, row_skip))
+            row_count = len(self.object_definitions[category])
+            if self.bulk:
+                num_bulk = self._finalize_bulk(category)
+                # Update resource and associations views
+                self.container.resource_registry.find_resources(restype="X", id_only=True)
+                self.container.resource_registry.find_associations(predicate="X", id_only=True)
+                # should we assert that num_bulk==row_count??
+                log.info("bulk loaded category %s: %d rows, %s bulk", category, row_count, num_bulk)
+            else:
+                log.info("loaded category %s: %d rows", category, row_count)
 
     def load_row(self, type, row):
         """ expose for use by utility function """
@@ -701,7 +753,7 @@ class IONLoader(ImmediateProcess):
         """ create constraint IonObject but do not insert into DB,
             cache in dictionary for inclusion in other preload objects """
         id = row[self.COL_ID]
-        log.debug('creating contact: ' + id)
+        log.trace('creating contact: ' + id)
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
 
@@ -823,7 +875,7 @@ class IONLoader(ImmediateProcess):
         actor_name = "Identity for %s" % user_attrs['name']
         actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
         headers = self._get_system_actor_headers()
-        log.info("creating user with headers: %r", headers)
+        log.trace("creating user %s with headers: %r", user_attrs['name'], headers)
         actor_id = ims.create_actor_identity(actor_identity_obj, headers=headers)
         actor_identity_obj._id = actor_id
         self._register_id(alias, actor_id, actor_identity_obj)
@@ -1522,8 +1574,6 @@ class IONLoader(ImmediateProcess):
 
 
     def _load_PlatformAgent(self, row):
-        log.debug("_load_PlatformAgent row %s " % str(row))
-
         stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
