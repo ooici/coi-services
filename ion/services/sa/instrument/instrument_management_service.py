@@ -1875,7 +1875,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         extended_platform.computed.communications_status_roll_up = status_4()
         extended_platform.computed.power_status_roll_up          = status_4()
-        extended_platform.computed.data_status_                  = status_4()
+        extended_platform.computed.data_status_roll_up           = status_4()
         extended_platform.computed.location_status_roll_up       = status_4()
         extended_platform.computed.aggregated_status             = status_4()
 
