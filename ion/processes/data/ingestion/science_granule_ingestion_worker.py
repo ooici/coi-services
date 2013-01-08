@@ -6,16 +6,12 @@
 @description Ingestion Process
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from pyon.datastore.datastore import DataStore
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.util.containers import get_ion_ts, get_safe
 from pyon.public import log, RT, PRED, CFG
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
-from couchdb import ResourceNotFound
 from ion.core.process.transform import TransformStreamListener
 import collections
-import numpy
 import gevent
 import time
 
@@ -36,12 +32,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._queues    = {}
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
-        self.datastore_name = self.CFG.get_safe('process.datastore_name', 'datasets')
         self.buffer_limit   = self.CFG.get_safe('process.buffer_limit',10)
         self.time_limit     = self.CFG.get_safe('process.time_limit', 10)
         self.flushing       = gevent.coros.RLock()
-        self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
-        log.debug('Created datastore %s', self.datastore_name)
         self.done_flushing = gevent.event.Event()
         self.flusher_g = gevent.spawn(self.flusher)
 
@@ -159,39 +152,12 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 rdt = RecordDictionaryTool.load_from_granule(g)
         if rdt is not None:
             self.add_granule(stream_id, rdt)
-            self.persist_meta(stream_id, rdt)
         lock.release()
 
     def flush_all(self):
         for stream_id in self._queues.iterkeys():
             self.flush_queue(stream_id)
         
-
-    def persist_meta(self, stream_id, granule):
-        #--------------------------------------------------------------------------------
-        # Metadata persistence
-        #--------------------------------------------------------------------------------
-        # Determine the `time` in the granule
-        dataset_id = self.get_dataset(stream_id)
-        rdt = granule
-        time = get_safe(rdt,'time')
-        if time is not None and len(time) and isinstance(time,numpy.ndarray):
-            time = time[0]
-        else:
-            time = None
-            
-        dataset_granule = {
-           'stream_id'      : stream_id,
-           'dataset_id'     : dataset_id,
-           'persisted_sha1' : dataset_id, 
-           'encoding_type'  : 'coverage',
-           'ts_create'      : get_ion_ts()
-        }
-        if time is not None:
-            dataset_granule['ts_create'] = '%s' % time
-        self.persist(dataset_granule)
-        #--------------------------------------------------------------------------------
-
 
     def add_granule(self,stream_id, granule):
         '''
@@ -231,34 +197,4 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
             DatasetManagementService._save_coverage(coverage)
             #coverage.flush()
-
-
-    def persist(self, dataset_granule): #pragma no cover
-        '''
-        Persists the dataset metadata
-        '''
-        #--------------------------------------------------------------------------------
-        # Theres a potential that the datastore could have been deleted while ingestion
-        # is still running.  Essentially this refreshes the state
-        #--------------------------------------------------------------------------------
-        try:
-            self.db.create_doc(dataset_granule)
-            return
-        except ResourceNotFound as e:
-            log.error('The datastore was removed while ingesting (retrying)')
-            self.db = self.container.datastore_manager.get_datastore(self.datastore_name, DataStore.DS_PROFILE.SCIDATA)
-
-        #--------------------------------------------------------------------------------
-        # The first call to create_doc attached an _id to the dictionary which causes an
-        # error to be raised, to make this more resilient, we investigate to ensure
-        # the dictionary does not have any of these excess keys
-        #--------------------------------------------------------------------------------
-        try:
-            if '_id' in dataset_granule:
-                del dataset_granule['_id']
-            if '_rev' in dataset_granule:
-                del dataset_granule['_rev']
-            self.db.create_doc(dataset_granule)
-        except ResourceNotFound as e:
-            log.error(e.message) # Oh well I tried
 

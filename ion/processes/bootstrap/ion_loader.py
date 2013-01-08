@@ -135,6 +135,23 @@ class IONLoader(ImmediateProcess):
     ID_ORG_ION = "ORG_ION"
     ID_SYSTEM_ACTOR = "USER_SYSTEM"
 
+    def __init__(self,*a, **b):
+        super(IONLoader,self).__init__(*a,**b)
+
+        # initialize these here instead of on_start
+        # to support using IONLoader as a utility -- not just as a process
+        self.obj_classes = {}     # Cache of class for object types
+        self.resource_ids = {}    # Holds a mapping of preload IDs to internal resource ids
+        self.resource_objs = {}   # Holds a mapping of preload IDs to the actual resource objects
+        self.existing_resources = None
+        self.unknown_fields = {} # track unknown fields so we only warn once
+        self.constraint_defs = {} # alias -> value for refs, since not stored in DB
+        self.contact_defs = {} # alias -> value for refs, since not stored in DB
+        self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
+
+        # process to use for RPC communications (override to use as utility, default to use as process)
+        self.rpc_sender = self
+
     def on_start(self):
         # Main operation to perform
         op = self.CFG.get("op", None)
@@ -173,15 +190,6 @@ class IONLoader(ImmediateProcess):
         self.ooi_loader = OOILoader(self, asset_path=self.asset_path)
         self.resource_ds = DatastoreManager.get_datastore_instance("resources")
 
-        # Initialize variables used during subsequent load
-        self.obj_classes = {}     # Cache of class for object types
-        self.resource_ids = {}    # Holds a mapping of preload IDs to internal resource ids
-        self.resource_objs = {}   # Holds a mapping of preload IDs to the actual resource objects
-        self.existing_resources = None
-        self.unknown_fields = {} # track unknown fields so we only warn once
-        self.constraint_defs = {} # alias -> value for refs, since not stored in DB
-        self.contact_defs = {} # alias -> value for refs, since not stored in DB
-        self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
         # Loads internal bootstrapped resource ids that will be referenced during preload
         self._load_system_ids()
 
@@ -259,7 +267,6 @@ class IONLoader(ImmediateProcess):
                     catfunc_ooi()
 
             # Now load entries from preload spreadsheet top to bottom where scenario matches
-            catfunc = getattr(self, "_load_%s" % category)
             filename = "%s/%s.csv" % (self.path, category)
             log.debug("Loading category %s", category)
             try:
@@ -291,7 +298,7 @@ class IONLoader(ImmediateProcess):
                         log.debug('handling %s row: %r', category, row)
 
                     try:
-                        catfunc(row)
+                        self.load_row(category, row)
                     except:
                         log.error('error loading %s row: %r', category, row, exc_info=True)
                         raise
@@ -310,6 +317,11 @@ class IONLoader(ImmediateProcess):
                     csvfile = None
 
             log.info("Loaded category %s: %d resources from scenario rows, %s bulk, %d rows skipped" % (category, row_do, num_bulk, row_skip))
+
+    def load_row(self, type, row):
+        """ expose for use by utility function """
+        func = getattr(self, "_load_%s" % type)
+        func(row)
 
     def _load_system_ids(self):
         """Read some system objects for later reference"""
@@ -477,7 +489,7 @@ class IONLoader(ImmediateProcess):
             return ast.literal_eval(value)
 
     def _get_service_client(self, service):
-        return get_service_registry().services[service].client(process=self)
+        return get_service_registry().services[service].client(process=self.rpc_sender)
 
     def _register_id(self, alias, resid, res_obj=None):
         if alias in self.resource_ids:
@@ -810,18 +822,20 @@ class IONLoader(ImmediateProcess):
         # Build ActorIdentity
         actor_name = "Identity for %s" % user_attrs['name']
         actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
-        actor_id = ims.create_actor_identity(actor_identity_obj, headers=self._get_system_actor_headers())
+        headers = self._get_system_actor_headers()
+        log.info("creating user with headers: %r", headers)
+        actor_id = ims.create_actor_identity(actor_identity_obj, headers=headers)
         actor_identity_obj._id = actor_id
         self._register_id(alias, actor_id, actor_identity_obj)
 
         # Build UserCredentials
         user_credentials_obj = IonObject("UserCredentials", name=subject,
             description="Default credentials for %s" % user_attrs['name'])
-        ims.register_user_credentials(actor_id, user_credentials_obj, headers=self._get_system_actor_headers())
+        ims.register_user_credentials(actor_id, user_credentials_obj, headers=headers)
 
         # Build UserInfo
         user_info_obj = IonObject("UserInfo", **user_attrs)
-        ims.create_user_info(actor_id, user_info_obj, headers=self._get_system_actor_headers())
+        ims.create_user_info(actor_id, user_info_obj, headers=headers)
 
     def _load_Org(self, row):
         log.trace("Loading Org (ID=%s)", row[self.COL_ID])
@@ -1480,30 +1494,32 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
-        # create basic object from simple fields
-        agent_instance = self._create_object_from_row("InstrumentAgentInstance", row, "iai/")
+        # define complicated attributes
+        driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
+                                            'port':  int(row['comms_server_port']) } }
 
-        # add more complicated attributes
-        agent_instance.driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
-                                                           'port':  int(row['comms_server_port']) } }
+        port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
+                              'device_port':   int(row['iai/comms_device_port']),
+                              'process_type':  PortAgentProcessType.UNIX,
+                              'port_agent_addr': 'localhost',
+                              'type': PortAgentType.ETHERNET,
+                              'binary_path':   "port_agent",
+                              'command_port':  int(row['comms_server_cmd_port']),
+                              'data_port':     int(row['comms_server_port']),
+                              'log_level':     5,  }
 
-        agent_instance.port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
-                                             'device_port':   int(row['iai/comms_device_port']),
-                                             'process_type':  PortAgentProcessType.UNIX,
-                                             'port_agent_addr': 'localhost',
-                                             'type': PortAgentType.ETHERNET,
-                                             'binary_path':   "port_agent",
-                                             'command_port':  int(row['comms_server_cmd_port']),
-                                             'data_port':     int(row['comms_server_port']),
-                                             'log_level':     5,  }
+        res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
+            "instrument_management", "create_instrument_agent_instance",
+            set_attributes=dict(driver_config=driver_config, port_agent_config=port_agent_config),
+            support_bulk=True)
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
         client = self._get_service_client("instrument_management")
-        headers = self._get_op_headers(row)
-        client.create_instrument_agent_instance(
-            agent_instance, instrument_agent_id=agent_id, instrument_device_id=device_id,
-            headers=headers)
+
+        client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
+        client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
+
 
     def _load_PlatformAgent(self, row):
         log.debug("_load_PlatformAgent row %s " % str(row))
@@ -1555,9 +1571,6 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformAgent(fakerow)
 
     def _load_PlatformAgentInstance(self, row):
-        # create object with simple field types -- name, description
-        agent_instance = self._create_object_from_row("PlatformAgentInstance", row, "pai/")
-
         # construct values for more complex fields
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
@@ -1580,12 +1593,20 @@ class IONLoader(ImmediateProcess):
                             'agent_device_map':        admap,
                             'agent_streamconfig_map':  None,  # can we just omit?
                             'driver_config':           driver_config }
-        agent_instance.agent_config = { 'platform_config': platform_config }
+        agent_config = { 'platform_config': platform_config }
 
-        headers = self._get_op_headers(row)
-        res_id = self._get_service_client("instrument_management").create_platform_agent_instance(
-            agent_instance, platform_agent_id, platform_device_id, headers=headers)
+
+        res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
+            "instrument_management", "create_platform_agent_instance",
+            set_attributes=dict(agent_config=agent_config),
+            support_bulk=True)
+
+        client = self._get_service_client("instrument_management")
+        client.assign_platform_agent_to_platform_agent_instance(platform_agent_id, res_id)
+        client.assign_platform_agent_instance_to_platform_device(res_id, platform_device_id)
+
         self.resource_ids[row['ID']] = res_id
+
 
     #       TODO:
     #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.
