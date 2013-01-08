@@ -169,7 +169,10 @@ class PlatformDriver(object):
         Returns the values for specific attributes since a given time.
 
         @param attr_names [attrName, ...] desired attributes
-        @param from_time NTP v4 time from which the values are requested
+        @param from_time time from which the values are requested.
+                         Assummed to be in the format basically described by
+                         pyon's get_ion_ts function, "a str representing an
+                         integer number, the millis in UNIX epoch."
 
         @retval {attrName : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
@@ -188,7 +191,9 @@ class PlatformDriver(object):
                 dict with a single entry for the requested platform ID and value
                 as a list of (value,timestamp) pairs for each attribute indicated
                 in the input. Returned timestamps indicate the time when the
-                value was set (NTP)
+                value was set. Each timestamp is "a str representing an
+                integer number, the millis in UNIX epoch;" this is to be
+                aligned with description of pyon's get_ion_ts function.
         """
         raise NotImplemented()
 

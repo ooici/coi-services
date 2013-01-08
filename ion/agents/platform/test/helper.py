@@ -93,7 +93,8 @@ class HelperTestMixin:
         self.assertTrue(attr_id in dic)
         val = dic[attr_id]
         self.assertIsInstance(val, (tuple, list))
-        self.assertEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, tuple(val))
+        self.assertEquals(InvalidResponse.ATTRIBUTE_NAME_VALUE, tuple(val),
+                          "attr_id=%r" % attr_id)
 
     def _verify_not_writable_attribute_id(self, attr_id, dic):
         """

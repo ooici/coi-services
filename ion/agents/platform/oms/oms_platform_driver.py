@@ -12,6 +12,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+import logging
 
 from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.exceptions import PlatformException
@@ -24,6 +25,8 @@ from ion.agents.platform.oms.oms_event_listener import OmsEventListener
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
+
+from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
 
 
 class OmsPlatformDriver(PlatformDriver):
@@ -256,7 +259,12 @@ class OmsPlatformDriver(PlatformDriver):
     def get_attribute_values(self, attr_names, from_time):
         """
         """
-        retval = self._oms.getPlatformAttributeValues(self._platform_id, attr_names, from_time)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get_attribute_values: attr_names=%s from_time=%s" % (
+                str(attr_names), from_time))
+
+        ntp_from_time = ion_ts_2_ntp(from_time)
+        retval = self._oms.getPlatformAttributeValues(self._platform_id, attr_names, ntp_from_time)
         log.debug("getPlatformAttributeValues = %s", retval)
 
         if not self._platform_id in retval:
@@ -264,7 +272,36 @@ class OmsPlatformDriver(PlatformDriver):
                                     "requested platform '%s'" % self._platform_id)
 
         attr_values = retval[self._platform_id]
-        return attr_values
+
+        # the reported timestamps are in NTP; do conversion to system time
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get_attribute_values: response before conversion = %s" %
+                      str(attr_values))
+
+        conv_attr_values = {}  # the converted dictionary to return
+        for attr_name, array in attr_values.iteritems():
+            conv_array = []
+            for (val, ntp_time) in array:
+
+                if isinstance(ntp_time, (float, int)):
+                    # do conversion:
+                    sys_ts = ntp_2_ion_ts(ntp_time)
+                else:
+                    # no conversion; just keep whatever that returned value is --
+                    # normally an error code in str format:
+                    sys_ts = ntp_time
+
+                conv_array.append((val, sys_ts))
+
+            conv_attr_values[attr_name] = conv_array
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get_attribute_values: response  after conversion = %s" %
+                      str(conv_attr_values))
+
+        return conv_attr_values
+
 
     def _validate_set_attribute_values(self, attrs):
         """
@@ -300,7 +337,7 @@ class OmsPlatformDriver(PlatformDriver):
             if not attr_def:
                 vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                 errors = True
-                log.debug("Attribute %s not in associated platform %s",
+                log.warn("Attribute %s not in associated platform %s",
                     attr_name, self._platform_id)
                 continue
 
@@ -314,7 +351,7 @@ class OmsPlatformDriver(PlatformDriver):
             if "write" != read_write:
                 vals[attr_name] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
                 errors = True
-                log.debug(
+                log.warn(
                     "Trying to set read-only attribute %s in platform %s",
                     attr_name, self._platform_id)
                 continue
@@ -326,7 +363,7 @@ class OmsPlatformDriver(PlatformDriver):
                 if min_val and float(attr_value) < float(min_val):
                     vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                     errors = True
-                    log.debug(
+                    log.warn(
                         "Value %s for attribute %s is less than specified minimum "
                         "value %s in associated platform %s",
                         attr_value, attr_name, min_val,
@@ -336,7 +373,7 @@ class OmsPlatformDriver(PlatformDriver):
                 if max_val and float(attr_value) > float(max_val):
                     vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
                     errors = True
-                    log.debug(
+                    log.warn(
                         "Value %s for attribute %s is greater than specified maximum "
                         "value %s in associated platform %s",
                         attr_value, attr_name, max_val,
@@ -348,6 +385,9 @@ class OmsPlatformDriver(PlatformDriver):
     def set_attribute_values(self, attrs):
         """
         """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("set_attribute_values: attrs = %s" % str(attrs))
+
         attr_values = self._validate_set_attribute_values(attrs)
         if attr_values:  # some error
             return attr_values
@@ -361,7 +401,32 @@ class OmsPlatformDriver(PlatformDriver):
                                     "requested platform '%s'" % self._platform_id)
 
         attr_values = retval[self._platform_id]
-        return attr_values
+
+        # the reported timestamps are in NTP; do conversion to system time
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("set_attribute_values: response before conversion = %s" %
+                      str(attr_values))
+
+        conv_attr_values = {}  # the converted dictionary to return
+        for attr_name, attr_val_ts in attr_values.iteritems():
+            (val, ntp_time) = attr_val_ts
+
+            if isinstance(ntp_time, (float, int)):
+                # do conversion:
+                sys_ts = ntp_2_ion_ts(ntp_time)
+            else:
+                # no conversion; just keep whatever that returned value is --
+                # normally an error code in str format:
+                sys_ts = ntp_time
+
+            conv_attr_values[attr_name] = (val, sys_ts)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("set_attribute_values: response  after conversion = %s" %
+                      str(conv_attr_values))
+
+        return conv_attr_values
 
     def _verify_platform_id_in_response(self, response):
         """

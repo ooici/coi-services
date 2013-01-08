@@ -1,5 +1,10 @@
 platform agent framework
 
+
+2012-12-20
+https://jira.oceanobservatories.org/tasks/browse/OOIION-631
+-
+
 2012-10-31:
 - preparations for IOC demo
 - adjustments in network.yml to use the attribute 'input_voltage' for the

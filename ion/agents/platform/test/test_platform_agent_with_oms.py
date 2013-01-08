@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
+from pyon.util.containers import get_ion_ts
 from pyon.core.exception import ServerError
 from pyon.util.context import LocalContextMixin
 from pyon.public import CFG
@@ -311,8 +312,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
-        cur_time = ntplib.system_to_ntp_time(time.time())
-        from_time = cur_time - 50  # a 50-sec time window
+        cur_time = get_ion_ts()
+        from_time = str(int(cur_time) - 50000)  # a 50-sec time window
         kwargs = dict(attr_names=attrNames, from_time=from_time)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
