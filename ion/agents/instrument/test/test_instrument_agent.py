@@ -901,7 +901,41 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(retval, expected_pubfreq_result)
         
         retval = self._ia_client.get_agent(['alarms'])['alarms']
-        #self.assertItemsEqual(retval, [])
+        self.assertItemsEqual(retval, [])
+
+        """
+        alarms = []
+
+        kwargs = {
+            'name' : 'temp_high_warning',
+            'stream_id' : 'fakestreamid',
+            'value_id' : 'temp',
+            'message' : 'Temperature is above normal range.',
+            'type' : StreamAlarmType.WARNING,
+            'lower_bound' : 10.0,
+            'lower_rel_op' : '<',
+            'upper_bound' : 20.0,
+            'upper_rel_op' : '<'            
+        }
+
+        alarm = IntervalAlarm(**kwargs)
+        alarms.append(alarm)
+        
+        kwargs = {
+            'name' : 'reserve_power_warning',
+            'stream_id' : 'fakestreamid',
+            'value_id' : 'battery_level',
+            'message' : 'Battery is below normal range.',
+            'type' : StreamAlarmType.WARNING,
+            'upper_bound' : 4.0,
+            'upper_rel_op' : '<'            
+        }
+
+        alarm = IntervalAlarm(**kwargs)
+        alarms.append(alarm)
+        """
+
+
 
     def test_poll(self):
         """

@@ -98,7 +98,7 @@ class TestAlarms(IonIntegrationTestCase):
 
         kwargs = {
             'name' : 'current_warning_interval',
-            'stream_id' : 'fakestreamid',
+            'stream_name' : 'fakestreamname',
             'value_id' : 'port_current',
             'message' : 'Current is above normal range.',
             'type' : StreamAlarmType.WARNING,
@@ -137,7 +137,7 @@ class TestAlarms(IonIntegrationTestCase):
 
         kwargs = {
             'name' : 'reserve_power_warning',
-            'stream_id' : 'fakestreamid',
+            'stream_name' : 'fakestreamname',
             'value_id' : 'battery_level',
             'message' : 'Battery is below normal range.',
             'type' : StreamAlarmType.WARNING,
@@ -170,7 +170,7 @@ class TestAlarms(IonIntegrationTestCase):
 
         kwargs = {
             'name' : 'temp_high_warning',
-            'stream_id' : 'fakestreamid',
+            'stream_name' : 'fakestreamname',
             'value_id' : 'temp',
             'message' : 'Temperature is above normal range.',
             'type' : StreamAlarmType.WARNING,

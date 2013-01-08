@@ -20,7 +20,7 @@ class BaseAlarm(object):
     """
     Base alarm object.
     """
-    def __init__(self, name, stream_id, value_id, message, type):
+    def __init__(self, name, stream_name, value_id, message, type):
         """
         Populate fields used by all alarms.
         """
@@ -28,8 +28,8 @@ class BaseAlarm(object):
         if not isinstance(name, str):
             raise TypeError('Invalid name.')
             
-        if not isinstance(stream_id, str):
-            raise TypeError('Invalid stream id.')
+        if not isinstance(stream_name, str):
+            raise TypeError('Invalid stream name.')
 
         if not isinstance(value_id, str):
             raise TypeError('Invalid value id.')
@@ -44,7 +44,7 @@ class BaseAlarm(object):
             raise TypeError('Invalid alarm type.')
 
         self.name = name
-        self.stream_id = stream_id
+        self.stream_name = stream_name
         self.value_id = value_id
         self.message = message
         self.type = type
@@ -67,7 +67,7 @@ class BaseAlarm(object):
                 'name' : self.name,
                 'message' : self.message,
                 'expr' : self.expr,
-                'stream_id' : self.stream_id,
+                'stream_name' : self.stream_name,
                 'value_id' : self.value_id,
                 'value' : x
             }
@@ -95,13 +95,13 @@ class BaseAlarm(object):
         Pretty print the alarm object.
         """
         fmt = ('Alarm object of class:%s \n   name:%s \n   message:%s \n'
-            '   expr:%s \n   stream_id:%s \n   value_id:%s \n   value:%s')
+            '   expr:%s \n   stream_name:%s \n   value_id:%s \n   value:%s')
         
         s = fmt % (self.__class__.__name__,
                   self.name,
                   self.message,
                   self.expr,
-                  self.stream_id,
+                  self.stream_name,
                   self.value_id,
                   str(self.current_val))
 
@@ -111,13 +111,13 @@ class IntervalAlarm(BaseAlarm):
     """
     An alarm that specifies an interval range. Can be one sided or closed.
     """
-    def __init__(self, name, stream_id, value_id, message, type,
+    def __init__(self, name, stream_name, value_id, message, type,
                  lower_bound=None, lower_rel_op=None,
                  upper_bound=None, upper_rel_op=None):
         """
         Call superclass and construct interval expression.
         """
-        super(IntervalAlarm, self).__init__(name, stream_id, value_id, message,
+        super(IntervalAlarm, self).__init__(name, stream_name, value_id, message,
                                             type)
         
         self.lower_bound = lower_bound
@@ -156,14 +156,14 @@ class DoubleIntervalAlarm(BaseAlarm):
     An alarm providing a double interval. Either the left lower bound,
     the right upper bound or both may be open.
     """
-    def __init__(self, name, stream_id, value_id, message, type):
+    def __init__(self, name, stream_name, value_id, message, type):
         raise Exception('Not implemented.')
 
 class SetMembershipAlarm(BaseAlarm):
     """
     An alarm providing membership in a discrete set of objects.
     """
-    def __init__(self, name, stream_id, value_id, message, type):
+    def __init__(self, name, stream_name, value_id, message, type):
         raise Exception('Not implemented.')
 
 class UserDefinedAlarm(BaseAlarm):
@@ -171,10 +171,10 @@ class UserDefinedAlarm(BaseAlarm):
     An alarm provided by a user supplied expression.
     This must be used with caution.
     """
-    def __init__(self, name, stream_id, value_id, message, type, expr=None):
+    def __init__(self, name, stream_name, value_id, message, type, expr=None):
         """
         """
-        super(IntervalAlarm, self).__init__(name, stream_id, value_id, message,
+        super(UserDefinedAlarm, self).__init__(name, stream_name, value_id, message,
                                             type)
 
         if not isinstance(self.expr, str):
