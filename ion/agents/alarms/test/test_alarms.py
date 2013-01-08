@@ -31,15 +31,23 @@ from pyon.event.event import EventSubscriber, EventPublisher
 from interface.objects import StreamAlarmType
 
 # Alarm objects.
+from pyon.public import IonObject
 from ion.agents.alarms.alarms import IntervalAlarm
 from ion.agents.alarms.alarms import DoubleIntervalAlarm
 from ion.agents.alarms.alarms import SetMembershipAlarm
 from ion.agents.alarms.alarms import UserDefinedAlarm
+from ion.agents.alarms.alarms import construct_alarm_expression
+from ion.agents.alarms.alarms import eval_alarm
 
-# bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms
-# bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_greater_than_interval
-# bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_less_than_interval
-# bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_two_sided_interval
+
+"""
+bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms
+bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_greater_than_interval
+bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_less_than_interval
+bin/nosetests -s -v --nologcapture ion/agents/alarms/test/test_alarms.py:TestAlarms.test_two_sided_interval
+"""
+
+TEST_ION_OBJECTS=True
 
 class TestAlarms(IonIntegrationTestCase):
     """
@@ -106,7 +114,12 @@ class TestAlarms(IonIntegrationTestCase):
             'lower_rel_op' : '<'
         }
 
-        alarm = IntervalAlarm(**kwargs)
+        if TEST_ION_OBJECTS:
+            # Create alarm object.
+            alarm = IonObject('IntervalAlarmDef', **kwargs)
+            alarm = construct_alarm_expression(alarm)
+        else:
+            alarm = IntervalAlarm(**kwargs)
 
         # This sequence will produce 5 alarms:
         # All clear on the first value,
@@ -122,12 +135,25 @@ class TestAlarms(IonIntegrationTestCase):
             node=self.container.node)
 
         for x in test_vals:
-            event_data = alarm.eval_alarm(x)
+            if TEST_ION_OBJECTS:
+                (alarm, event_data) = eval_alarm(alarm, x)
+                
+            else:
+                event_data = alarm.eval_alarm(x)
+
             if event_data:
                 pub.publish_event(origin=self._resource_id, **event_data)
         
         self._async_event_result.get(timeout=30)
-         
+        
+        """
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 5.5, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'The alarm current_warning_interval has cleared.', 'ts_created': '1357684731978', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.5<x', 'value': 30, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'Current is above normal range.', 'ts_created': '1357684731984', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 5.5, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'The alarm current_warning_interval has cleared.', 'ts_created': '1357684731991', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.5<x', 'value': 15.1, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'Current is above normal range.', 'ts_created': '1357684731997', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 3.3, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'The alarm current_warning_interval has cleared.', 'ts_created': '1357684732003', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        """
+        
     def test_less_than_interval(self):
         """
         test_less_than_interval
@@ -145,7 +171,12 @@ class TestAlarms(IonIntegrationTestCase):
             'upper_rel_op' : '<'            
         }
 
-        alarm = IntervalAlarm(**kwargs)
+        if TEST_ION_OBJECTS:
+            # Create alarm object.
+            alarm = IonObject('IntervalAlarmDef', **kwargs)
+            alarm = construct_alarm_expression(alarm)
+        else:
+            alarm = IntervalAlarm(**kwargs)
 
         # This sequence will produce 5 alarms:
         self._event_count = 5
@@ -155,7 +186,12 @@ class TestAlarms(IonIntegrationTestCase):
             node=self.container.node)
 
         for x in test_vals:
-            event_data = alarm.eval_alarm(x)
+            if TEST_ION_OBJECTS:
+                (alarm, event_data) = eval_alarm(alarm, x)
+                
+            else:
+                event_data = alarm.eval_alarm(x)
+
             if event_data:
                 pub.publish_event(origin=self._resource_id, **event_data)
         
@@ -180,7 +216,12 @@ class TestAlarms(IonIntegrationTestCase):
             'upper_rel_op' : '<'            
         }
 
-        alarm = IntervalAlarm(**kwargs)
+        if TEST_ION_OBJECTS:
+            # Create alarm object.
+            alarm = IonObject('IntervalAlarmDef', **kwargs)
+            alarm = construct_alarm_expression(alarm)
+        else:
+            alarm = IntervalAlarm(**kwargs)
 
         # This sequence will produce 5 alarms.
         self._event_count = 5
@@ -191,13 +232,17 @@ class TestAlarms(IonIntegrationTestCase):
             node=self.container.node)
 
         for x in test_vals:
-            event_data = alarm.eval_alarm(x)
+            if TEST_ION_OBJECTS:
+                (alarm, event_data) = eval_alarm(alarm, x)
+                
+            else:
+                event_data = alarm.eval_alarm(x)
+
             if event_data:
                 pub.publish_event(origin=self._resource_id, **event_data)
         
         self._async_event_result.get(timeout=30)
  
- 
- 
+
  
         

@@ -15,6 +15,11 @@ from pyon.public import IonObject, log
 
 # Alarm types and events.
 from interface.objects import StreamAlarmType
+from interface.objects import AlarmDef
+from interface.objects import IntervalAlarmDef
+from interface.objects import DoubleIntervalAlarmDef
+from interface.objects import SetMembershipAlarmDef
+from interface.objects import UserDefinedAlarmDef
 
 class BaseAlarm(object):
     """
@@ -244,7 +249,7 @@ def construct_interval_alarm_expression(alarm_def):
             raise TypeError('Bad upper bound relational op.')
     
     if alarm_def.lower_bound and alarm_def.upper_bound:
-        if self.lower_bound >= alarm_def.upper_bound:
+        if alarm_def.lower_bound >= alarm_def.upper_bound:
             raise ValueError('Lower bound >= upper bound.')
     
     if alarm_def.lower_bound:
@@ -298,13 +303,14 @@ def eval_alarm(alarm_def, x):
             event_data['event_type'] = 'StreamAllClearAlarmEvent'
             event_data['message'] = 'The alarm %s has cleared.' % alarm_def.name
             
-        elif self.type == StreamAlarmType.WARNING:
+        elif alarm_def.type == StreamAlarmType.WARNING:
             event_data['event_type'] = 'StreamWarningAlaramEvent'
 
-        elif self.type == StreamAlarmType.ALERT:
+        elif alarm_def.type == StreamAlarmType.ALERT:
             event_data['event_type'] = 'StreamAlertAlarmEvent'
 
         else:
             log.error('Unknown alarm type.')
+            event_data = None
     
     return (alarm_def, event_data)
