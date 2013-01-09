@@ -155,7 +155,7 @@ class ObservatoryUtil(object):
         pwr_events = self.container.event_repository.find_events(event_type=OT.DeviceStatusEvent, start_ts=min_ts, descending=True)
         events = []
         events.extend(pwr_events)
-        events.extend(comm_events)
+#        events.extend(comm_events)
         device_events = {}
         for ev_id, ev_key, event in events:
             if device_list and event.origin not in device_list:
