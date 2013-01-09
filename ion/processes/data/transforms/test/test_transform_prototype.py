@@ -66,7 +66,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         if not end_time:
             end_time = start_time + 2 * timer_interval + 1
 
-        log.debug("got the end time here!! %s" % end_time)
+        log.debug("got the end time here!! %s" , end_time)
 
         # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
         sid = self.ssclient.create_interval_timer(start_time="now" ,
@@ -163,7 +163,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         event = queue.get(timeout=10)
 
-        log.debug("Alarm event received from the EventAertTransform %s" % event)
+        log.debug("Alarm event received from the EventAertTransform %s" , event)
 
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "EventAlertTransform")
@@ -317,7 +317,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         queue_good_data = gevent.queue.Queue()
 
         def bad_data(message, headers):
-            log.debug("In the test callback, got a DeviceStatusEvent: %s" % message)
+            log.debug("In the test callback, got a DeviceStatusEvent: %s" , message)
             if message.type_ == "DeviceStatusEvent":
                 if message.state == DeviceStatusType.OUT_OF_RANGE:
                     queue_bad_data.put(message)
@@ -434,7 +434,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         events_in_db = self.poll(40, find_the_events, number_of_retvals=2)
 
-        log.debug("events::: %s" % events_in_db)
+        log.debug("events::: %s" , events_in_db)
 
         bad_data_events = []
         good_data_events = []
@@ -490,7 +490,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             g = rdt.to_granule()
             g.data_producer_id = 'instrument_1'
 
-            log.debug("granule #%s published by instrument:: %s" % ( number,g))
+            log.debug("granule #%s published by instrument:: %s",  number,g)
 
             pub.publish(g)
 

@@ -42,7 +42,7 @@ class EventAlertTransform(TransformEventListener):
         self.instrument_event_queue = gevent.queue.Queue()
 
         def instrument_event_received(message, headers):
-            log.debug("EventAlertTransform received an instrument event here::: %s" % message)
+            log.debug("EventAlertTransform received an instrument event here::: %s", message)
             self.instrument_event_queue.put(message)
 
         self.instrument_event_subscriber = EventSubscriber(origin = self.instrument_origin,
@@ -167,7 +167,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
         @param stream_id str
         '''
 
-        log.debug("DemoStreamAlertTransform received a packet!: %s" % msg)
+        log.debug("DemoStreamAlertTransform received a packet!: %s", msg)
         self.started_receiving_packets = True
 
         #-------------------------------------------------------------------------------------
@@ -183,7 +183,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher)
         #-------------------------------------------------------------------------------------
         self.bad_values, self.bad_value_times, self.origin, self.values, self.times = AlertTransformAlgorithm.execute(msg, config = config)
 
-        log.debug("DemoStreamAlertTransform got the origin of the event as: %s" % self.origin)
+        log.debug("DemoStreamAlertTransform got the origin of the event as: %s", self.origin)
 
         #-------------------------------------------------------------------------------------
         # If there are any bad values, publish an alert event for the granule
@@ -272,7 +272,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         if not origin:
             raise NotFound("The DemoStreamAlertTransform could not figure out the origin for DeviceStatusEvent. The data_producer_id attribute should be filled for the granules that are sent to it so that it can figure out the origin to use.")
 
-        log.debug("The origin the demo transform is listening to is: %s" % origin)
+        log.debug("The origin the demo transform is listening to is: %s", origin)
 
         rdt = RecordDictionaryTool.load_from_granule(input)
 
@@ -286,8 +286,8 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
         time_names = rdt[preferred_time][:]
 
-        log.debug("Values unravelled: %s" % values)
-        log.debug("Time names unravelled: %s" % time_names)
+        log.debug("Values unravelled: %s", values)
+        log.debug("Time names unravelled: %s", time_names)
 
         indexes = [l for l in xrange(len(time_names))]
 
@@ -298,7 +298,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
                 bad_values.append(val)
                 bad_value_times.append(arr[index])
 
-        log.debug("Returning bad_values: %s, bad_value_times: %s, origin: %s, all values: %s, and corresponding times: %s" % (bad_values, bad_value_times, origin, list(values), list(times)))
+        log.debug("Returning bad_values: %s, bad_value_times: %s, origin: %s, all values: %s, and corresponding times: %s", bad_values, bad_value_times, origin, list(values), list(times))
 
         # return the list of bad values and their timestamps
         return bad_values, bad_value_times, origin, list(values), list(times)
