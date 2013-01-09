@@ -17,9 +17,11 @@ from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from pyon.public import IonObject
 
 # Pyon exceptions.
 from pyon.core.exception import IonException
@@ -56,6 +58,10 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+
+# Alarms.
+from interface.objects import StreamAlarmType
+from interface.objects import AlarmDef
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -162,11 +168,14 @@ class InstrumentAgent(ResourceAgent):
         # stream_config agent config member during process on_init.
         self._data_publishers = {}
 
-        # Dictionary of alarm expressions.
-        self._alarm_expr = {}
+        # List of current alarm objects.
+        self.aparam_alarms = []
         
-        # Dictionary of alarm statuses.
-        self._alarm_status = {}
+        # Dictionary of stream fields.
+        self.aparam_streams = {}
+        
+        # Dictionary of stream publication rates.
+        self.aparam_pubfreq = {}
 
     def on_init(self):
         """
@@ -833,12 +842,12 @@ class InstrumentAgent(ResourceAgent):
             log.error('Instrument agent %s received sample with bad \
                 stream name %s.', self._proc_name, stream_name)
 
-        state = self._fsm.get_current_state()
-        param_key = 'aparam_pubfreq_'+stream_name
-        pubfreq = getattr(self,param_key)
+        else:
+            state = self._fsm.get_current_state()
+            pubfreq = self.aparam_pubfreq[stream_name]
 
-        if state != ResourceAgentState.STREAMING or pubfreq == 0:
-            self._publish_stream_buffer(stream_name)
+            if state != ResourceAgentState.STREAMING or pubfreq == 0:
+                self._publish_stream_buffer(stream_name)
 
     def _publish_stream_buffer(self, stream_name):
         """
@@ -890,7 +899,9 @@ class InstrumentAgent(ResourceAgent):
                                 if tval_dict.get('binary', None):
                                     tval_val = base64.b64decode(tval_val)
                                 data_arrays[tval_id][i] = tval_val
-
+                                
+                                self._eval_alarms(stream_name, tval_id, tval_val)
+                                
                     elif tk in rdt:
                         data_arrays[tk][i] = tv
                         if tk == 'driver_timestamp':
@@ -909,6 +920,33 @@ class InstrumentAgent(ResourceAgent):
             log.exception('Instrument agent %s could not publish data on stream %s.',
                 self._proc_name, stream_name)
         
+        
+    def _eval_alarms(self, stream_name, value_id, value):
+        """
+        """
+        no_changed = 0
+        went_true = []
+        for a in self.aparam_alarms:
+            if a.stream_name == stream_name and a.value_id == value_id:
+                if eval(a.expr):
+                    if not a.status:
+                        a.status = True
+                        no_changed += 1
+                        went_true.append(a)
+                else:
+                    if a.status:
+                        a.status = False
+                        no_changed += 1
+
+        if no_changed > 0:
+            if len(went_true)>0:
+                # publish all true events
+                pass
+        
+            else:
+                #publish all clear
+                pass    
+                         
     def _async_driver_event_error(self, val, ts):
         """
         """
@@ -1196,51 +1234,39 @@ class InstrumentAgent(ResourceAgent):
             log.info("stream_info = %s" % stream_info)
  
             for (stream_name, stream_config) in stream_info.iteritems():
+                
                 try:
-                    stream_id = stream_config['stream_id']
+                    stream_def = stream_config['stream_definition_ref']
+                    self._stream_defs[stream_name] = stream_def                
                     exchange_point = stream_config['exchange_point']
                     routing_key = stream_config['routing_key']
-                    self._stream_defs[stream_name] = stream_config['stream_definition_ref']
-                    self._stream_buffers[stream_name] = []
                     route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+                    stream_id = stream_config['stream_id']
                     publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=route)
                     self._data_publishers[stream_name] = publisher
-                    self._stream_greenlets[stream_name] = None
                     log.info("Instrument agent '%s' created publisher for stream_name "
                          "%s" % (self._proc_name, stream_name))
+                    
+                    stream_def
                     
                 except:
                     log.error('Instrument agent %s failed to create publisher for stream %s.',
                               self._proc_name, stream_name)
-
-                try:
-                    param_key = 'aparam_pubfreq_'+stream_name
-                    set_key = 'aparam_set_pubfreq_'+stream_name
-                    f = self._make_freq_set(stream_name)
-                    pubfreq = stream_config.get('pubfreq',0)
-                    setattr(self, param_key, pubfreq)
-                    from types import MethodType
-                    setattr(self, set_key, MethodType(f, self))
-                    log.info('Instrument agent %s configured pubfreq for stream %s to %i seconds.',
-                        self._proc_name, stream_name, pubfreq)
+                
+                else:
+                    self._stream_greenlets[stream_name] = None
+                    self._stream_buffers[stream_name] = []
                     
-                except:
-                    log.error('Instrument agent %s could not configure pubfreq for stream %s',
-                              self._proc_name, stream_name)
-
-    def _make_freq_set(self, stream_name):
-        """
-        """
-        def set_func(self, val):
-            """
-            """
-            param_key = 'aparam_pubfreq_'+stream_name
-            if not isinstance(val, int) or val < 0:
-                raise BadRequest('Invald publish frequency.')
-            setattr(self,param_key,val)
-            
-        return set_func
-
+                    pubfreq = stream_config.get('pubfreq', 0)
+                    if not isinstance(pubfreq, int) or pubfreq <0:
+                        log.error('pubfreq config for stream %s not valid',
+                                  stream_name)
+                    else:
+                        self.aparam_pubfreq[stream_name] = pubfreq
+                                        
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+                    self.aparam_streams[stream_name] = rdt.fields
+                    
     def _start_publisher_greenlets(self):
         """
         """
@@ -1258,18 +1284,88 @@ class InstrumentAgent(ResourceAgent):
             self._stream_greenlets[stream] = None
             self._publish_stream_buffer(stream)
             
-            
     def _pub_loop(self, stream):
         """
         """
         while True:
-            pubfreq = getattr(self, 'aparam_pubfreq_'+stream)
+            pubfreq = self.aparam_pubfreq[stream]
             if pubfreq == 0:
                 gevent.sleep(1)
             else:
                 gevent.sleep(pubfreq)
                 self._publish_stream_buffer(stream)
     
+    ##############################################################
+    # Agent parameter set functions.
+    ##############################################################    
+    
+    def aparam_set_streams(self, params):
+        """
+        """
+        return -1
+    
+    def aparam_set_pubfreq(self, params):
+        """
+        """
+        if not isinstance(params, dict):
+            return -1
+        
+        retval = 0
+        for (k,v) in params.iteritems():
+            if self.aparam_pubfreq.has_key(k) and isinstance(v, int) and v >= 0:
+                self.aparam_pubfreq[k] = v
+            else:
+                retval = -1
+                
+        return retval
+
+    def aparam_set_alarms(self, params):
+        """
+        """
+        pass
+        """
+        print '#######################'
+        print str(params)
+        
+        if not isinstance(params, (list,tuple)) or len(params)==0:
+            return -1
+        
+        retval = 0
+        action = params[0]
+        params = params[1:]
+        
+        if action not in ('set','add','remove','clear'):
+            return -1
+        
+        if action in ('set', 'clear'):
+            self.aparam_alarms = []
+                
+        if action in ('set', 'add'):
+            for a in params:
+                if isinstance(a,BaseAlarm):
+                    self.aparam_alarms.append(a)
+                else:
+                    log.error('Attempted to set an invalid alarm.')
+                    
+        elif action == 'remove':
+            new_alarms = copy.deepcopy(self.aparam_alarms)
+            for a in self.aparam_alarms:
+                if isinstance(a, str):
+                    new_alarms = [x for x in self.aparam_alarms if
+                        x.name == a]
+                elif isinstance(a, BaseAlarm):
+                    new_alarms = [x for x in self.aparam_alarms if
+                        x.stream_id == a.stream_id and
+                        x.value_id == a.value_id and
+                        x.expr == a.expr]
+                else:
+                    log.error('Attempted to remove an invalid alarm.')
+                    
+            self.aparam_alarms = new_alarms
+            
+        return len(self.aparam_alarms)
+        """
+        
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################

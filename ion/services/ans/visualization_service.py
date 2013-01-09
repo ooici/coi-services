@@ -492,7 +492,7 @@ class VisualizationService(BaseVisualizationService):
 
         # Ideally just need the latest granule to figure out the list of images
         if image_name:
-            retrieved_granule = self.clients.data_retriever.retrieve_last_granule(ds_ids[0])
+            retrieved_granule = self.clients.data_retriever.retrieve_last_data_points(ds_ids[0], 10)
         else:
             retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
 

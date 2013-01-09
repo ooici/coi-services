@@ -73,7 +73,12 @@ from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from interface import objects
 import logging
 
+# format for time values within the preload data
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+# sometimes the HTTP download from google returns only partial results (causing errors parsing).
+# allow this many tries to get a clean, parseable document before giving up.
+HTTP_RETRIES=5
 
 ## can set ui_path to keywords 'default' for TESTED_UI_ASSETS or 'candidate' for CANDIDATE_UI_ASSETS
 TESTED_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/'
@@ -83,7 +88,6 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-#TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE01OXVvMnhraVZtM05rNkthQnVjU1E&output=xls"
 TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidEZOS29JWG5EWHJkTldzVmdmV2RUX2c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
@@ -135,6 +139,25 @@ class IONLoader(ImmediateProcess):
     ID_ORG_ION = "ORG_ION"
     ID_SYSTEM_ACTOR = "USER_SYSTEM"
 
+    def __init__(self,*a, **b):
+        super(IONLoader,self).__init__(*a,**b)
+
+        # initialize these here instead of on_start
+        # to support using IONLoader as a utility -- not just as a process
+        self.obj_classes = {}     # Cache of class for object types
+        self.resource_ids = {}    # Holds a mapping of preload IDs to internal resource ids
+        self.resource_objs = {}   # Holds a mapping of preload IDs to the actual resource objects
+        self.existing_resources = None
+        self.unknown_fields = {} # track unknown fields so we only warn once
+        self.constraint_defs = {} # alias -> value for refs, since not stored in DB
+        self.contact_defs = {} # alias -> value for refs, since not stored in DB
+        self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
+
+        self.object_definitions = None
+
+        # process to use for RPC communications (override to use as utility, default to use as process)
+        self.rpc_sender = self
+
     def on_start(self):
         # Main operation to perform
         op = self.CFG.get("op", None)
@@ -173,15 +196,6 @@ class IONLoader(ImmediateProcess):
         self.ooi_loader = OOILoader(self, asset_path=self.asset_path)
         self.resource_ds = DatastoreManager.get_datastore_instance("resources")
 
-        # Initialize variables used during subsequent load
-        self.obj_classes = {}     # Cache of class for object types
-        self.resource_ids = {}    # Holds a mapping of preload IDs to internal resource ids
-        self.resource_objs = {}   # Holds a mapping of preload IDs to the actual resource objects
-        self.existing_resources = None
-        self.unknown_fields = {} # track unknown fields so we only warn once
-        self.constraint_defs = {} # alias -> value for refs, since not stored in DB
-        self.contact_defs = {} # alias -> value for refs, since not stored in DB
-        self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
         # Loads internal bootstrapped resource ids that will be referenced during preload
         self._load_system_ids()
 
@@ -221,6 +235,88 @@ class IONLoader(ImmediateProcess):
     def on_quit(self):
         pass
 
+    def _read_and_parse(self, scenarios):
+        """ read data records from appropriate source and extract usable rows,
+            complete all IO and parsing -- save only a dict[by category] of lists[usable rows] of dicts[by columns]
+        """
+
+        # support use-case:
+        #   x = IonLoader()
+        #   x.object_definitions = my_funky_dict_of_lists_of_dicts
+        #   x.load_ion()
+        #
+        if self.object_definitions:
+            log.info("Object definitions already provided, NOT loading from path")
+        else:
+            # but here is the normal, expected use-case
+            #
+            log.info("Loading preload data from: %s", self.path)
+
+            # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
+            if self.path.startswith('http'):
+                self._read_http(scenarios)
+            elif self.path.endswith(".xlsx"):
+                self._read_xls_file(scenarios)
+            else:
+                self._read_csv_files(scenarios)
+
+    def _read_http(self, scenarios):
+        """ read from google doc or similar HTTP XLS document """
+        self.object_definitions = None
+        for attempt in xrange(HTTP_RETRIES):
+            length = 0
+            try:
+                contents = requests.get(self.path).content
+                length = len(contents)
+                self._parse_xls(contents, scenarios)
+                break
+            except:
+                log.warn("Failed to parse preload document (read %d bytes)", length, exc_info=True)
+        if not self.object_definitions:
+            raise iex.BadRequest("failed to read and parse URL %d times" % HTTP_RETRIES)
+        log.debug("Read and parsed URL (%d bytes)", length)
+
+    def _read_xls_file(self, scenarios):
+        """ read from XLS file """
+        with open(self.path, "rb") as f:
+            contents = f.read()
+            log.debug("Loaded xlsx file, size=%s", len(contents))
+            self._parse_xls(contents, scenarios)
+
+    def _parse_xls(self, contents, scenarios):
+        """ handle XLS parsing for http or file """
+        csv_docs = XLSParser().extract_csvs(contents)
+        self.object_definitions = {}
+        for category in self.categories:
+            reader = csv.DictReader(csv_docs[category], delimiter=',')
+            self.object_definitions[category] = self._select_rows(reader, category, scenarios)
+
+    def _read_csv_files(self,scenarios):
+        """ read CSV files """
+        self.object_definitions = {}
+        for category in self.categories:
+            filename = "%s/%s.csv" % (self.path, category)
+            with open(filename, "rb") as f:
+                reader = csv.DictReader(f, delimiter=',')
+                self.object_definitions[category] = self._select_rows(reader, category, scenarios)
+
+    def _select_rows(self, reader, category, scenarios):
+        """ select subset of rows applicable to scenario """
+        row_skip = row_do = 0
+        rows = []
+        for row in reader:
+            if row[self.COL_SCENARIO] not in scenarios:
+                row_skip += 1
+                if self.COL_ID in row:
+                    log.trace('skipping %s row %s in scenario %s', category, row[self.COL_ID], row[self.COL_SCENARIO])
+                else:
+                    log.trace('skipping %s row in scenario %s: %r', category, row[self.COL_SCENARIO], row)
+            else:
+                row_do += 1
+                rows.append(row)
+        log.debug('parsed entries for category %s: using %d rows, skipping %d rows', category, row_do, row_skip)
+        return rows
+
     def load_ion(self, scenarios):
         """
         Loads resources for one scenario, by parsing input spreadsheets for all resource categories
@@ -228,27 +324,15 @@ class IONLoader(ImmediateProcess):
         Can load the spreadsheets from http or file location.
         Optionally imports OOI assets at the beginning of each category.
         """
-        log.info("Loading scenario from path: %s", self.path)
         if self.bulk:
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
 
-        # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
-        if self.path.startswith('http'):
-            preload_doc_str = requests.get(self.path).content
-            log.debug("Fetched URL contents, size=%s", len(preload_doc_str))
-            xls_parser = XLSParser()
-            self.csv_files = xls_parser.extract_csvs(preload_doc_str)
-        elif self.path.endswith(".xlsx"):
-            with open(self.path, "rb") as f:
-                preload_doc_str = f.read()
-                log.debug("Loaded xlsx file, size=%s", len(preload_doc_str))
-                xls_parser = XLSParser()
-                self.csv_files = xls_parser.extract_csvs(preload_doc_str)
-        else:
-            self.csv_files = None
+        # read everything ahead of time, not on the fly
+        # that way if the Nth CSV is garbled, you don't waste time preloading the other N-1
+        # before you see an error
+        self._read_and_parse(scenarios)
 
         for category in self.categories:
-            row_do, row_skip, num_bulk = 0, 0, 0
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
@@ -259,57 +343,37 @@ class IONLoader(ImmediateProcess):
                     catfunc_ooi()
 
             # Now load entries from preload spreadsheet top to bottom where scenario matches
-            catfunc = getattr(self, "_load_%s" % category)
-            filename = "%s/%s.csv" % (self.path, category)
+            if category not in self.object_definitions or not self.object_definitions[category]:
+                log.debug('no rows for category: %s', category)
+                continue
             log.debug("Loading category %s", category)
-            try:
-                csvfile = None
-                if self.csv_files is not None:
-                    csv_doc = self.csv_files[category]
-                    # This is a hack to be able to read from string
-                    csv_doc = csv_doc.splitlines()
-                    reader = csv.DictReader(csv_doc, delimiter=',')
+            for row in self.object_definitions[category]:
+                if self.COL_ID in row:
+                    log.trace('handling %s row %s: %r', category, row[self.COL_ID], row)
                 else:
-                    csvfile = open(filename, "rb")
-                    reader = csv.DictReader(csvfile, delimiter=',')
+                    log.trace('handling %s row: %r', category, row)
 
-                for row in reader:
-                    # Check if scenario applies
-                    if row[self.COL_SCENARIO] not in scenarios:
-                        row_skip += 1
-                        if self.COL_ID in row:
-                            log.debug('skipping %s row %s in scenario %s', category, row[self.COL_ID], row[self.COL_SCENARIO])
-                        else:
-                            log.debug('skipping %s row in scenario %s: %r', category, row[self.COL_SCENARIO], row)
-                        continue
+                try:
+                    self.load_row(category, row)
+                except:
+                    log.error('error loading %s row: %r', category, row, exc_info=True)
+                    raise
 
-                    row_do += 1
+            row_count = len(self.object_definitions[category])
+            if self.bulk:
+                num_bulk = self._finalize_bulk(category)
+                # Update resource and associations views
+                self.container.resource_registry.find_resources(restype="X", id_only=True)
+                self.container.resource_registry.find_associations(predicate="X", id_only=True)
+                # should we assert that num_bulk==row_count??
+                log.info("bulk loaded category %s: %d rows, %s bulk", category, row_count, num_bulk)
+            else:
+                log.info("loaded category %s: %d rows", category, row_count)
 
-                    if self.COL_ID in row:
-                        log.debug('handling %s row %s: %r', category, row[self.COL_ID], row)
-                    else:
-                        log.debug('handling %s row: %r', category, row)
-
-                    try:
-                        catfunc(row)
-                    except:
-                        log.error('error loading %s row: %r', category, row, exc_info=True)
-                        raise
-
-                if self.bulk:
-                    num_bulk = self._finalize_bulk(category)
-                    # Update resource and associations views
-                    self.container.resource_registry.find_resources(restype="X", id_only=True)
-                    self.container.resource_registry.find_associations(predicate="X", id_only=True)
-
-            except IOError, ioe:
-                log.warn("Resource category file %s error: %s" % (filename, str(ioe)), exc_info=True)
-            finally:
-                if csvfile is not None:
-                    csvfile.close()
-                    csvfile = None
-
-            log.info("Loaded category %s: %d resources from scenario rows, %s bulk, %d rows skipped" % (category, row_do, num_bulk, row_skip))
+    def load_row(self, type, row):
+        """ expose for use by utility function """
+        func = getattr(self, "_load_%s" % type)
+        func(row)
 
     def _load_system_ids(self):
         """Read some system objects for later reference"""
@@ -477,7 +541,7 @@ class IONLoader(ImmediateProcess):
             return ast.literal_eval(value)
 
     def _get_service_client(self, service):
-        return get_service_registry().services[service].client(process=self)
+        return get_service_registry().services[service].client(process=self.rpc_sender)
 
     def _register_id(self, alias, resid, res_obj=None):
         if alias in self.resource_ids:
@@ -689,7 +753,7 @@ class IONLoader(ImmediateProcess):
         """ create constraint IonObject but do not insert into DB,
             cache in dictionary for inclusion in other preload objects """
         id = row[self.COL_ID]
-        log.debug('creating contact: ' + id)
+        log.trace('creating contact: ' + id)
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
 
@@ -810,18 +874,20 @@ class IONLoader(ImmediateProcess):
         # Build ActorIdentity
         actor_name = "Identity for %s" % user_attrs['name']
         actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
-        actor_id = ims.create_actor_identity(actor_identity_obj, headers=self._get_system_actor_headers())
+        headers = self._get_system_actor_headers()
+        log.trace("creating user %s with headers: %r", user_attrs['name'], headers)
+        actor_id = ims.create_actor_identity(actor_identity_obj, headers=headers)
         actor_identity_obj._id = actor_id
         self._register_id(alias, actor_id, actor_identity_obj)
 
         # Build UserCredentials
         user_credentials_obj = IonObject("UserCredentials", name=subject,
             description="Default credentials for %s" % user_attrs['name'])
-        ims.register_user_credentials(actor_id, user_credentials_obj, headers=self._get_system_actor_headers())
+        ims.register_user_credentials(actor_id, user_credentials_obj, headers=headers)
 
         # Build UserInfo
         user_info_obj = IonObject("UserInfo", **user_attrs)
-        ims.create_user_info(actor_id, user_info_obj, headers=self._get_system_actor_headers())
+        ims.create_user_info(actor_id, user_info_obj, headers=headers)
 
     def _load_Org(self, row):
         log.trace("Loading Org (ID=%s)", row[self.COL_ID])
@@ -1480,34 +1546,34 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
-        # create basic object from simple fields
-        agent_instance = self._create_object_from_row("InstrumentAgentInstance", row, "iai/")
+        # define complicated attributes
+        driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
+                                            'port':  int(row['comms_server_port']) } }
 
-        # add more complicated attributes
-        agent_instance.driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
-                                                           'port':  int(row['comms_server_port']) } }
+        port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
+                              'device_port':   int(row['iai/comms_device_port']),
+                              'process_type':  PortAgentProcessType.UNIX,
+                              'port_agent_addr': 'localhost',
+                              'type': PortAgentType.ETHERNET,
+                              'binary_path':   "port_agent",
+                              'command_port':  int(row['comms_server_cmd_port']),
+                              'data_port':     int(row['comms_server_port']),
+                              'log_level':     5,  }
 
-        agent_instance.port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
-                                             'device_port':   int(row['iai/comms_device_port']),
-                                             'process_type':  PortAgentProcessType.UNIX,
-                                             'port_agent_addr': 'localhost',
-                                             'type': PortAgentType.ETHERNET,
-                                             'binary_path':   "port_agent",
-                                             'command_port':  int(row['comms_server_cmd_port']),
-                                             'data_port':     int(row['comms_server_port']),
-                                             'log_level':     5,  }
+        res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
+            "instrument_management", "create_instrument_agent_instance",
+            set_attributes=dict(driver_config=driver_config, port_agent_config=port_agent_config),
+            support_bulk=True)
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
         client = self._get_service_client("instrument_management")
-        headers = self._get_op_headers(row)
-        client.create_instrument_agent_instance(
-            agent_instance, instrument_agent_id=agent_id, instrument_device_id=device_id,
-            headers=headers)
+
+        client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
+        client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
+
 
     def _load_PlatformAgent(self, row):
-        log.debug("_load_PlatformAgent row %s " % str(row))
-
         stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
@@ -1555,9 +1621,6 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformAgent(fakerow)
 
     def _load_PlatformAgentInstance(self, row):
-        # create object with simple field types -- name, description
-        agent_instance = self._create_object_from_row("PlatformAgentInstance", row, "pai/")
-
         # construct values for more complex fields
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
@@ -1580,12 +1643,20 @@ class IONLoader(ImmediateProcess):
                             'agent_device_map':        admap,
                             'agent_streamconfig_map':  None,  # can we just omit?
                             'driver_config':           driver_config }
-        agent_instance.agent_config = { 'platform_config': platform_config }
+        agent_config = { 'platform_config': platform_config }
 
-        headers = self._get_op_headers(row)
-        res_id = self._get_service_client("instrument_management").create_platform_agent_instance(
-            agent_instance, platform_agent_id, platform_device_id, headers=headers)
+
+        res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
+            "instrument_management", "create_platform_agent_instance",
+            set_attributes=dict(agent_config=agent_config),
+            support_bulk=True)
+
+        client = self._get_service_client("instrument_management")
+        client.assign_platform_agent_to_platform_agent_instance(platform_agent_id, res_id)
+        client.assign_platform_agent_instance_to_platform_device(res_id, platform_device_id)
+
         self.resource_ids[row['ID']] = res_id
+
 
     #       TODO:
     #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.
