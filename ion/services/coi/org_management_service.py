@@ -1089,9 +1089,15 @@ class OrgManagementService(BaseOrgManagementService):
                 if user_info_objs:
                     log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
                     extended_org.members.append( user_info_objs[0] )
-#        else:
-#            if extended_org.members:
-#                extended_org.members = extended_org.members[0]
+        else:
+            #For all other Orgs, flatten out the list of lists returned from the extended resource framework.
+            if extended_org.members:
+                user_info_list = list()
+                for m in extended_org.members:
+                    for u in m:
+                        user_info_list.append(u)
+
+                extended_org.members = user_info_list
 
         log.debug("get_marine_facility_extension: extended_org 2:  %s ", str(extended_org))
 

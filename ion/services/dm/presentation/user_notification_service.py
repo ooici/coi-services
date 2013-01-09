@@ -227,6 +227,8 @@ class UserNotificationService(BaseUserNotificationService):
         if not user_id:
             raise BadRequest("User id not provided.")
 
+        log.debug("Create notification called for user_id: %s, and notification: %s" % (user_id, notification))
+
         #---------------------------------------------------------------------------------------------------
         # Persist Notification object as a resource if it has already not been persisted
         #---------------------------------------------------------------------------------------------------
