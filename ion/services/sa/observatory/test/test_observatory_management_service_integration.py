@@ -405,11 +405,20 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.assign_resource_to_observatory_org(observatory_id, org_id)
         log.debug("test_observatory_org_extended: org_id:  %s ", str(org_id))
 
-        #create a PlatformSite with parent Observatory
-        subsite_obj =  IonObject(RT.PlatformSite,
+        #create a SubSite with parent Observatory
+        subsite_obj =  IonObject(RT.Subsite,
+                                  name= 'SubSite1',
+                                  description = 'sample SubSite')
+        subsite_id = self.OMS.create_subsite(subsite_obj, observatory_id)
+        #self.OMS.assign_site_to_site(subsite_id, observatory_id)
+        self.OMS.assign_resource_to_observatory_org(resource_id=subsite_id, org_id=org_id)
+        self.assertIsNotNone(subsite_id, "SubSite not created.")
+
+        #create a PlatformSite with parent Subsite
+        platsite_obj =  IonObject(RT.PlatformSite,
             name= 'PlatformSite1',
             description = 'sample PlatformSite')
-        pltfrm_site_id = self.OMS.create_platform_site(subsite_obj, observatory_id)
+        pltfrm_site_id = self.OMS.create_platform_site(platsite_obj, subsite_id)
         self.assertIsNotNone(pltfrm_site_id, "PlatformSite not created.")
         self.OMS.assign_resource_to_observatory_org(resource_id=pltfrm_site_id, org_id=org_id)
 
@@ -486,6 +495,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         log.debug("test_observatory_org_extended: extended_ION_org:  %s ", str(extended_org))
         self.assertEqual(0, len(extended_org.members))
         self.assertEqual(0, extended_org.number_of_platforms)
+        #self.assertEqual(1, len(extended_org.sites))
 
         #--------------------------------------------------------------------------------
         # Get the extended Site

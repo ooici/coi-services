@@ -2,9 +2,15 @@
 source =
     ion
     examples
+    extern/pyon/pyon
 omit =
     */test/*
     examples/*
     */core/containerui*
+[report]
+omit =
+    extern/*
 [html]
 directory = coverage_results
+omit =
+    extern/*

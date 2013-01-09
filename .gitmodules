@@ -11,3 +11,9 @@
 [submodule "extern/pyon"]
 	path = extern/pyon
 	url = https://github.com/ooici/pyon.git
+[submodule "extern/epu"]
+	path = extern/epu
+	url = https://github.com/ooici/epu.git
+[submodule "extern/eeagent"]
+	path = extern/eeagent
+	url = https://github.com/ooici/eeagent.git
