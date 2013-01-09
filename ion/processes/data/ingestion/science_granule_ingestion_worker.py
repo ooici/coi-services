@@ -184,7 +184,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         elements = len(rdt)
         if not elements:
             return
-        coverage.insert_timesteps(elements)
+        coverage.insert_timesteps(elements, oob=False)
         start_index = coverage.num_timesteps - elements
 
         for k,v in rdt.iteritems():
