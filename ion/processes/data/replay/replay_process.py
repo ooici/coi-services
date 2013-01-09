@@ -171,11 +171,12 @@ class ReplayProcess(BaseReplayProcess):
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else: 
                 rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters,tdoa=self.tdoa)
-            coverage.close(timeout=5)
         except Exception as e:
             import traceback
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')
+        finally:
+            coverage.close(timeout=5)
         return rdt.to_granule()
 
 
