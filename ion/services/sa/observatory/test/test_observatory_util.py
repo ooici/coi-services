@@ -376,5 +376,7 @@ class TestObservatoryUtil(unittest.TestCase):
         self.assertEquals(res_status['agg'], agg)
         self.assertEquals(res_status['loc'], loc)
         self.assertEquals(res_status['data'], data)
-        self.assertEquals(res_status['comms'], comms)
+
+        #todo After dropping the DeviceCommsEvents, we do not have a way right now to check comms status, hence commenting out the check below
+#        self.assertEquals(res_status['comms'], comms)
         self.assertEquals(res_status['power'], power)
