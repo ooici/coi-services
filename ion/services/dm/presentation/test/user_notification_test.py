@@ -1152,8 +1152,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         event_publisher.publish_event(
             event_type = "DetectionEvent",
-            origin="instrument_3",
-            time_stamp = get_ion_ts())
+            origin="instrument_3")
 
 
         #--------------------------------------------------------------------------------------
