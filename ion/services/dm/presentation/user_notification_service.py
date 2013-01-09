@@ -227,7 +227,7 @@ class UserNotificationService(BaseUserNotificationService):
         if not user_id:
             raise BadRequest("User id not provided.")
 
-        log.debug("Create notification called for user_id: %s, and notification: %s" % (user_id, notification))
+        log.debug("Create notification called for user_id: %s, and notification: %s", user_id, notification)
 
         #---------------------------------------------------------------------------------------------------
         # Persist Notification object as a resource if it has already not been persisted
@@ -272,7 +272,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s", notification_id)
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
             origin="UserNotificationService",
@@ -387,7 +387,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+        log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s", notification_id)
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
             origin="UserNotificationService",
@@ -467,7 +467,7 @@ class UserNotificationService(BaseUserNotificationService):
             event_obj = res['doc']
             events.append(event_obj)
 
-        log.debug("(find_events) UNS found the following relevant events: %s" % events)
+        log.debug("(find_events) UNS found the following relevant events: %s", events)
 
         if -1 < limit < len(events):
             list = []
@@ -513,11 +513,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         # get the list of ids corresponding to the events
         ret_vals = self.discovery.parse(search_string)
-        log.debug("(find_events_extended) Discovery search returned the following event ids: %s" % ret_vals)
+        log.debug("(find_events_extended) Discovery search returned the following event ids: %s", ret_vals)
 
         events = self.datastore.read_mult(ret_vals)
 
-        log.debug("(find_events_extended) UNS found the following relevant events: %s" % events)
+        log.debug("(find_events_extended) UNS found the following relevant events: %s", events)
 
         if limit > -1:
             list = []
@@ -696,7 +696,7 @@ class UserNotificationService(BaseUserNotificationService):
 
                 events_for_message += self.datastore.read_mult(ret_vals)
 
-            log.debug("Found following events of interest to user, %s: %s" % (user_id, events_for_message))
+            log.debug("Found following events of interest to user, %s: %s", user_id, events_for_message)
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
@@ -716,7 +716,7 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         message = str(events_for_message)
-        log.debug("The user, %s, will get the following events in his batch notification email: %s" % (user_id, message))
+        log.debug("The user, %s, will get the following events in his batch notification email: %s", user_id, message)
 
         msg_body = ''
         count = 1
@@ -746,7 +746,7 @@ class UserNotificationService(BaseUserNotificationService):
                     "and the emails will not be read. \r\n "
 
 
-        log.debug("The email has the following message body: %s" % msg_body)
+        log.debug("The email has the following message body: %s", msg_body)
 
         msg_subject = "(SysName: " + get_sys_name() + ") ION event "
 
@@ -770,7 +770,7 @@ class UserNotificationService(BaseUserNotificationService):
         msg['Subject'] = msg_subject
         msg['From'] = self.ION_NOTIFICATION_EMAIL_ADDRESS
         msg['To'] = msg_recipient
-        log.debug("UNS sending batch (digest) email from %s to %s" % (self.ION_NOTIFICATION_EMAIL_ADDRESS, msg_recipient))
+        log.debug("UNS sending batch (digest) email from %s to %s" , self.ION_NOTIFICATION_EMAIL_ADDRESS, msg_recipient)
 
         smtp_sender = CFG.get_safe('server.smtp.sender')
 
@@ -860,7 +860,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
         ret_vals = self.discovery.parse(search_origin)
-        log.debug("Returned results: %s" % ret_vals)
+        log.debug("Returned results: %s", ret_vals)
 
         notifications_all = set()
         notifications_active = set()
@@ -870,7 +870,7 @@ class UserNotificationService(BaseUserNotificationService):
             if item['_type'] == 'NotificationRequest':
                 object_ids.append(item['_id'])
 
-        log.debug("object_ids: %s" % object_ids)
+        log.debug("object_ids: %s", object_ids)
 
         notifs = self.clients.resource_registry.read_mult(object_ids)
 
