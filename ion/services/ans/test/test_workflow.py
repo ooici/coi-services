@@ -334,7 +334,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
         ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
-        retrieved_granule = self.data_retriever.retrieve_last_granule(ds_ids[0])
+        retrieved_granule = self.data_retriever.retrieve_last_data_points(ds_ids[0], 10)
 
         #Validate the data from each of the messages along the way
         self.validate_mpl_graphs_transform_results(retrieved_granule)

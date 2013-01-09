@@ -902,23 +902,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notification_request_1 = NotificationRequest(   name = "notification_1",
             origin="instrument_1",
-            origin_type="type_1",
             event_type='ResourceLifecycleEvent',
-            event_subtype=''
         )
 
         notification_request_2 = NotificationRequest(   name = "notification_2",
             origin="instrument_2",
-            origin_type="type_2",
             event_type='DeviceStatusEvent',
-            event_subtype=''
         )
 
         notification_request_3 = NotificationRequest(   name = "notification_3",
             origin="instrument_3",
-            origin_type="type_3",
-            event_type='DetectionEvent',
-            event_subtype=''
+            event_type='DetectionEvent'
         )
 
         #--------------------------------------------------------------------------------------
@@ -975,20 +969,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         event_publisher.publish_event(
             event_type = "ResourceLifecycleEvent",
-            origin="instrument_1",
-            origin_type="type_1")
+            origin="instrument_1")
 
         event_publisher.publish_event(
             event_type = "DeviceStatusEvent",
             origin="instrument_2",
-            origin_type="type_2",
             time_stamps = [get_ion_ts(), str(int(get_ion_ts()) + 60*20*1000)])
 
         event_publisher.publish_event(
             event_type = "DetectionEvent",
             origin="instrument_3",
-            origin_type="type_3",
-            )
+            time_stamp = get_ion_ts())
 
 
         #--------------------------------------------------------------------------------------
