@@ -694,7 +694,7 @@ class UserNotificationService(BaseUserNotificationService):
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
 
-                events_for_message += self.datastore.read_mult(ret_vals)
+                events_for_message.extend(self.datastore.read_mult(ret_vals))
 
             log.debug("Found following events of interest to user, %s: %s", user_id, events_for_message)
 
