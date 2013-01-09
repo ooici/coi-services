@@ -16,7 +16,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability
+from interface.objects import ComputedValueAvailability, NotificationPreferences, NotificationDeliveryModeEnum
 
 import string
 import time
@@ -668,6 +668,14 @@ class UserNotificationService(BaseUserNotificationService):
         for user_id, value in self.user_info.iteritems():
 
             notifications = value['notifications']
+            notification_preferences = value['notification_preferences']
+
+            # Ignore users who do NOT want batch notifications or who have disabled the delivery switch
+            # However, if notification preferences have not been set for the user, use the default mechanism and do not bother
+            if notification_preferences:
+                if notification_preferences.delivery_mode != NotificationDeliveryModeEnum.BATCH \
+                    or not notification_preferences.delivery_enabled:
+                    continue
 
             events_for_message = []
 
@@ -829,7 +837,10 @@ class UserNotificationService(BaseUserNotificationService):
     def update_user_info_dictionary(self, user_id, new_notification, old_notification):
 
         notifications = []
+        notification_preferences = None
         user = self.clients.resource_registry.read(user_id)
+
+        log.debug("user.variables::: %s", user.variables)
 
         #------------------------------------------------------------------------------------
         # If there was a previous notification which is being updated, check the dictionaries and update there
@@ -850,7 +861,14 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         notifications.append(new_notification)
 
-        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications}
+        # Get the user's notification preferences
+        for item in user.variables:
+            if item['name'] == 'notification_preferences':
+                notification_preferences = item['value']
+
+        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+
+        log.debug("self.user_info::: %s" , self.user_info)
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
