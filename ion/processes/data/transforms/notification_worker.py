@@ -143,10 +143,14 @@ class NotificationWorker(TransformEventListener):
 
         for user in users:
             notifications = []
+            notification_preferences = None
             for variable in user.variables:
                 if variable['name'] == 'notifications':
                     notifications = variable['value']
 
-            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications}
+                if variable['name'] == 'notification_preferences':
+                    notification_preferences = variable['value']
+
+            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
 
         return user_info

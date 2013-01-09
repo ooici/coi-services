@@ -9,7 +9,7 @@ from pyon.util.arg_check import validate_is_not_none
 from pyon.util.log import log
 from pyon.core.exception import NotFound, BadRequest
 from pyon.event.event import EventPublisher
-from interface.objects import NotificationRequest, Event
+from interface.objects import NotificationRequest, Event, NotificationDeliveryModeEnum
 import smtplib
 import gevent
 from gevent.timeout import Timeout
@@ -264,6 +264,15 @@ def calculate_reverse_user_info(user_info=None):
     for user_id, value in user_info.iteritems():
 
         notifications = value['notifications']
+
+        notification_preferences = value['notification_preferences']
+
+        # Ignore users who do NOT want REALTIME notifications or who have disabled the delivery switch
+        # However, if notification preferences have not been set at all for the user, do not bother
+        if notification_preferences:
+            if notification_preferences.delivery_mode != NotificationDeliveryModeEnum.REALTIME\
+            or not notification_preferences.delivery_enabled:
+                continue
 
         if notifications:
 
