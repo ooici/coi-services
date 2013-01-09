@@ -838,7 +838,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification_preferences = None
         user = self.clients.resource_registry.read(user_id)
 
-        log.debug("user.variables::: %s" % user.variables)
+        log.debug("user.variables::: %s", user.variables)
 
         #------------------------------------------------------------------------------------
         # If there was a previous notification which is being updated, check the dictionaries and update there
@@ -866,7 +866,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
 
-        log.debug("self.user_info::: %s" % self.user_info)
+        log.debug("self.user_info::: %s" , self.user_info)
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
