@@ -171,6 +171,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend['read_process'] = Mock()
         self.mock_backend['list'] = Mock()
         self.mock_backend['cancel'] = Mock()
+        self.mock_backend['set_system_boot'] = Mock()
 
         self.mock_dashi = DotDict()
         self.mock_dashi['handle'] = Mock()
@@ -252,6 +253,10 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         passed_schedule = args[2]
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
+
+    def test_set_system_boot(self):
+        self.pd_dashi_handler.set_system_boot(False)
+        self.mock_backend.set_system_boot.assert_called_once_with(False)
 
 
 @attr('UNIT', group='cei')

@@ -23,12 +23,14 @@ try:
     from epu.processdispatcher.store import get_processdispatcher_store
     from epu.processdispatcher.engines import EngineRegistry
     from epu.processdispatcher.matchmaker import PDMatchmaker
+    from epu.processdispatcher.doctor import PDDoctor
     from epu.dashiproc.epumanagement import EPUManagementClient
     import epu.exceptions as core_exceptions
 except ImportError:
     ProcessDispatcherCore = None
     get_processdispatcher_store = None
     EngineRegistry = None
+    PDDoctor = None
     PDMatchmaker = None
     EPUManagementClient = None
     core_exceptions = None
@@ -389,6 +391,7 @@ class PDDashiHandler(object):
         self.backend = backend
         self.dashi = dashi
 
+        self.dashi.handle(self.set_system_boot)
         self.dashi.handle(self.create_definition)
         self.dashi.handle(self.describe_definition)
         self.dashi.handle(self.update_definition)
@@ -399,6 +402,9 @@ class PDDashiHandler(object):
         self.dashi.handle(self.describe_processes)
         self.dashi.handle(self.restart_process)
         self.dashi.handle(self.terminate_process)
+
+    def set_system_boot(self, system_boot):
+        self.backend.set_system_boot(system_boot)
 
     def create_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
@@ -545,6 +551,9 @@ class PDLocalBackend(object):
             except Exception:
                 log.warn("Ignoring error while killing spawn greenlets", exc_info=True)
             self._spawn_greenlets.clear()
+
+    def set_system_boot(self, system_boot):
+        pass
 
     def create_definition(self, definition, definition_id=None):
         pd_id, version = self.rr.create(definition, object_id=definition_id)
@@ -848,6 +857,7 @@ class PDNativeBackend(object):
 
         self.core = ProcessDispatcherCore(self.store, self.registry,
             self.eeagent_client, self.notifier)
+        self.doctor = PDDoctor(self.core, self.store)
         self.matchmaker = PDMatchmaker(self.store, self.eeagent_client,
             self.registry, epum_client, self.notifier, dashi_name,
             domain_definition_id, base_domain_config, run_type)
@@ -860,6 +870,15 @@ class PDNativeBackend(object):
         self.rr = service.container.resource_registry
 
     def initialize(self):
+
+        # start the doctor before we do anything else
+        self.doctor.start_election()
+
+        log.debug("Waiting for Process Dispatcher to initialize")
+        # wait for the store to be initialized before proceeding. The doctor
+        # (maybe not OUR doctor, but whoever gets elected), will check the
+        # state of the system and then mark it as initialized.
+        self.store.wait_initialized()
 
         # start consuming domain subscription messages from the dashi EPUM
         # service if needed.
@@ -920,6 +939,9 @@ class PDNativeBackend(object):
             log.exception("Problem processing heartbeat from eeagent")
         except Exception:
             log.exception("Unexpected error while processing heartbeat")
+
+    def set_system_boot(self, system_boot):
+        self.core.set_system_boot(system_boot)
 
     def create_definition(self, definition, definition_id=None):
         """
