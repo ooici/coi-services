@@ -4,37 +4,39 @@
 @package ion.agents.data.test.test_external_dataset_agent_slocum
 @file ion/agents/data/test/test_external_dataset_agent_slocum.py
 @author Christopher Mueller
-@brief 
+@brief
 """
 
 # Import pyon first for monkey patching.
 from pyon.public import log, IonObject
 from pyon.ion.resource import PRED, RT
-#from ion.services.dm.utility.granule.taxonomy import TaxyTool
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
+from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
 from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 #temp until stream defs are completed
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from interface.services.dm.ipubsub_management_service import \
+    PubsubManagementServiceClient
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
+from coverage_model.coverage import GridDomain, GridShape, CRS
+from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 import numpy
 
-@attr('INT_LONG', group='eoi')
-class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
+
+@attr('INT_LONG', group='now')
+class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase,
+                                      IonIntegrationTestCase):
     DVR_CONFIG = {
-        'dvr_mod' : 'ion.agents.data.handlers.slocum_data_handler',
-        'dvr_cls' : 'SlocumDataHandler',
-        }
+        'dvr_mod': 'ion.agents.data.handlers.slocum_data_handler',
+        'dvr_cls': 'SlocumDataHandler', }
 
     HIST_CONSTRAINTS_1 = {}
 
@@ -44,12 +46,14 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         # TODO: some or all of this (or some variation) should move to DAMS'
 
         # Build the test resources for the dataset
+        dms_cli = DatasetManagementServiceClient()
         dams_cli = DataAcquisitionManagementServiceClient()
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
 
-        eda = ExternalDatasetAgent()
+        eda = ExternalDatasetAgent(handler_module=self.DVR_CONFIG['dvr_mod'],
+                                   handler_class=self.DVR_CONFIG['dvr_cls'])
         eda_id = dams_cli.create_external_dataset_agent(eda)
 
         eda_inst = ExternalDatasetAgentInstance()
@@ -59,13 +63,13 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
 
         # Create DataProvider
         dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
-        dprov.contact.name = 'Christopher Mueller'
+        dprov.contact.individual_names_given = 'Christopher Mueller'
         dprov.contact.email = 'cmueller@asascience.com'
 
         # Create DataSource
         dsrc = DataSource(protocol_type='FILE', institution=Institution(), contact=ContactInformation())
         dsrc.connection_params['base_data_url'] = ''
-        dsrc.contact.name='Tim Giguere'
+        dsrc.contact.individual_names_given = 'Tim Giguere'
         dsrc.contact.email = 'tgiguere@asascience.com'
 
         # Create ExternalDataset
@@ -134,12 +138,11 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
             'm_leakdetect_voltage',
             'u_pitch_max_delta_battpos',
             'm_coulomb_amphr',
-            'm_pitch',
-        ]
+            'm_pitch', ]
 
         # Create DataSourceModel
         dsrc_model = DataSourceModel(name='slocum_model')
-        dsrc_model.model = 'SLOCUM'
+#        dsrc_model.model = 'SLOCUM'
         dsrc_model.data_handler_module = 'N/A'
         dsrc_model.data_handler_class = 'N/A'
 
@@ -160,93 +163,62 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         #create temp streamdef so the data product can create the stream
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
+        pc_list = []
+        for pc_k, pc in self._create_parameter_dictionary().iteritems():
+            pc_list.append(dms_cli.create_parameter_context(pc_k, pc[1].dump()))
+
+        pdict_id = dms_cli.create_parameter_dictionary('slocum_param_dict', pc_list)
+
+        streamdef_id = pubsub_cli.create_stream_definition(name="slocum_stream_def", description="stream def for slocum testing", parameter_dictionary_id=pdict_id)
+
+#        dpms_cli.create_data_product()
 
         # Generate the data product and associate it to the ExternalDataset
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE)  # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE)  # 1d spatial topology (station/trajectory)
+
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
 
         dprod = IonObject(RT.DataProduct,
-            name='slocum_parsed_product',
-            description='parsed slocum product',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+                          name='slocum_parsed_product',
+                          description='parsed slocum product',
+                          temporal_domain=tdom,
+                          spatial_domain=sdom)
 
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
-                                                    stream_definition_id=streamdef_id,
-                                                    parameter_dictionary=parameter_dictionary)
+                                                   stream_definition_id=streamdef_id,
+                                                   parameter_dictionary=pdict_id)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 
         stream_id, assn = rr_cli.find_objects(subject=dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         stream_id = stream_id[0]
 
-        log.info('Created resources: {0}'.format({'ExternalDataset':ds_id, 'ExternalDataProvider':ext_dprov_id, 'DataSource':ext_dsrc_id, 'DataSourceModel':ext_dsrc_model_id, 'DataProducer':dproducer_id, 'DataProduct':dproduct_id, 'Stream':stream_id}))
+        log.info('Created resources: {0}'.format({'ExternalDataset': ds_id, 'ExternalDataProvider': ext_dprov_id, 'DataSource': ext_dsrc_id, 'DataSourceModel': ext_dsrc_model_id, 'DataProducer': dproducer_id, 'DataProduct': dproduct_id, 'Stream': stream_id}))
 
-        #CBM: Use CF standard_names
+        # Create the logger for receiving publications
+        _, stream_route, _ = self.create_stream_and_logger(name='slocum', stream_id=stream_id)
 
-#        ttool = TaxyTool()
-#
-#        ttool.add_taxonomy_set('c_wpt_y_lmc'),
-#        ttool.add_taxonomy_set('sci_water_cond'),
-#        ttool.add_taxonomy_set('m_y_lmc'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_inflection_holdoff'),
-#        ttool.add_taxonomy_set('sci_m_present_time'),
-#        ttool.add_taxonomy_set('m_leakdetect_voltage_forward'),
-#        ttool.add_taxonomy_set('sci_bb3slo_b660_scaled'),
-#        ttool.add_taxonomy_set('c_science_send_all'),
-#        ttool.add_taxonomy_set('m_gps_status'),
-#        ttool.add_taxonomy_set('m_water_vx'),
-#        ttool.add_taxonomy_set('m_water_vy'),
-#        ttool.add_taxonomy_set('c_heading'),
-#        ttool.add_taxonomy_set('sci_fl3slo_chlor_units'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_gain'),
-#        ttool.add_taxonomy_set('m_vacuum'),
-#        ttool.add_taxonomy_set('u_min_water_depth'),
-#        ttool.add_taxonomy_set('m_gps_lat'),
-#        ttool.add_taxonomy_set('m_veh_temp'),
-#        ttool.add_taxonomy_set('f_fin_offset'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_hardover_holdoff'),
-#        ttool.add_taxonomy_set('c_alt_time'),
-#        ttool.add_taxonomy_set('m_present_time'),
-#        ttool.add_taxonomy_set('m_heading'),
-#        ttool.add_taxonomy_set('sci_bb3slo_b532_scaled'),
-#        ttool.add_taxonomy_set('sci_fl3slo_cdom_units'),
-#        ttool.add_taxonomy_set('m_fin'),
-#        ttool.add_taxonomy_set('x_cycle_overrun_in_ms'),
-#        ttool.add_taxonomy_set('sci_water_pressure'),
-#        ttool.add_taxonomy_set('u_hd_fin_ap_igain'),
-#        ttool.add_taxonomy_set('sci_fl3slo_phyco_units'),
-#        ttool.add_taxonomy_set('m_battpos'),
-#        ttool.add_taxonomy_set('sci_bb3slo_b470_scaled'),
-#        ttool.add_taxonomy_set('m_lat'),
-#        ttool.add_taxonomy_set('m_gps_lon'),
-#        ttool.add_taxonomy_set('sci_ctd41cp_timestamp'),
-#        ttool.add_taxonomy_set('m_pressure'),
-#        ttool.add_taxonomy_set('c_wpt_x_lmc'),
-#        ttool.add_taxonomy_set('c_ballast_pumped'),
-#        ttool.add_taxonomy_set('x_lmc_xy_source'),
-#        ttool.add_taxonomy_set('m_lon'),
-#        ttool.add_taxonomy_set('m_avg_speed'),
-#        ttool.add_taxonomy_set('sci_water_temp'),
-#        ttool.add_taxonomy_set('u_pitch_ap_gain'),
-#        ttool.add_taxonomy_set('m_roll'),
-#        ttool.add_taxonomy_set('m_tot_num_inflections'),
-#        ttool.add_taxonomy_set('m_x_lmc'),
-#        ttool.add_taxonomy_set('u_pitch_ap_deadband'),
-#        ttool.add_taxonomy_set('m_final_water_vy'),
-#        ttool.add_taxonomy_set('m_final_water_vx'),
-#        ttool.add_taxonomy_set('m_water_depth'),
-#        ttool.add_taxonomy_set('m_leakdetect_voltage'),
-#        ttool.add_taxonomy_set('u_pitch_max_delta_battpos'),
-#        ttool.add_taxonomy_set('m_coulomb_amphr'),
-#        ttool.add_taxonomy_set('m_pitch'),
+        self.EDA_RESOURCE_ID = ds_id
+        self.EDA_NAME = ds_name
+        self.DVR_CONFIG['dh_cfg'] = {
+            'TESTING': True,
+            'stream_id': stream_id,
+            'stream_route': stream_route,
+            'stream_def': streamdef_id,
+            'external_dataset_res': dset,
+            'data_producer_id': dproducer_id,  # CBM: Should this be put in the main body of the config - with mod & cls?
+            'max_records': 20,
+        }
 
+    def _create_parameter_dictionary(self):
         pdict = ParameterDictionary()
 
         t_ctxt = ParameterContext('c_wpt_y_lmc', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
@@ -465,21 +437,4 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         t_ctxt.uom = 'unknown'
         pdict.add_context(t_ctxt)
 
-        #CBM: Eventually, probably want to group this crap somehow - not sure how yet...
-
-        # Create the logger for receiving publications
-        self.create_stream_and_logger(name='slocum',stream_id=stream_id)
-
-        self.EDA_RESOURCE_ID = ds_id
-        self.EDA_NAME = ds_name
-        self.DVR_CONFIG['dh_cfg'] = {
-            'TESTING':True,
-            'stream_id':stream_id,
-            'external_dataset_res':dset,
-            'param_dictionary':pdict.dump(),
-            'data_producer_id':dproducer_id,#CBM: Should this be put in the main body of the config - with mod & cls?
-            'max_records':20,
-        }
-
-
-
+        return pdict

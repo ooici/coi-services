@@ -1,17 +1,22 @@
 #!/usr/bin/env python
 
 """
-@package 
+@package
 @file handler_utils
 @author Christopher Mueller
-@brief 
+@brief
 """
 from pyon.public import log
-from pyon.util.containers import get_safe
-import glob, os, re, time, datetime
-import requests, fnmatch
+import glob
+import os
+import re
+import time
+import datetime
+import requests
+import fnmatch
 from ftplib import FTP
 from StringIO import StringIO
+
 
 def _get_type(base):
     if base.startswith('http://'):
@@ -23,12 +28,17 @@ def _get_type(base):
 
     return type
 
+
 def list_file_info(base, pattern, name_index=0, type=None):
-    '''
+    """
     Constructs a list of tuples containing information about the files as indicated by the pattern.
     The name_index should correspond to the index in the resulting tuple that contains the name of the file, default is 0
-    '''
-    
+    @param base path for files
+    @param pattern regular expression describing file names
+    @param name_index
+    @param type the type of server (http, ftp, or local file system)
+    """
+
     # If type isn't specified, attempt to determine based on base
     type = type or _get_type(base)
 
@@ -45,7 +55,13 @@ def list_file_info(base, pattern, name_index=0, type=None):
 
     return lst
 
+
 def list_file_info_http(base, pattern, name_index=0):
+    """
+    @param base path for files
+    @param pattern regular expression describing file names
+    @param name_index
+    """
     response = requests.get(base)
     base_url = response.url
     flst = re.findall(pattern, response.content)
@@ -56,7 +72,7 @@ def list_file_info_http(base, pattern, name_index=0):
         lst = []
         for i in xrange(len(f)):
             if i is name_index:
-                lst.append(base_url+f[name_index])
+                lst.append(base_url + f[name_index])
             else:
                 lst.append(f[i])
 
@@ -64,7 +80,12 @@ def list_file_info_http(base, pattern, name_index=0):
 
     return olst
 
+
 def list_file_info_ftp(base, pattern):
+    """
+    @param base path for files
+    @param pattern regular expression describing file names
+    """
     def matches(fname):
         return fnmatch.fnmatch(fname, pattern)
 
@@ -73,25 +94,36 @@ def list_file_info_ftp(base, pattern):
     fnames = ftp.nlst()
     return filter(matches, fnames)
 
+
 def list_file_info_fs(base, pattern):
+    """
+    @param base path for files
+    @param pattern regular expression describing file names
+    """
     if not os.path.exists(base):
-        raise StandardError('base \'{0}\' does not exist')
+        raise StandardError('base \'{0}\' does not exist'.format(base))
     if not os.path.isdir(base):
         raise StandardError('base \'{0}\' is not a directory'.format(base))
     flst = glob.glob(base + '/' + pattern)
     olst = []
     for f in flst:
-        olst.append((f,os.path.getmtime(f),os.path.getsize(f)))
-
+        olst.append((f, os.path.getmtime(f), os.path.getsize(f)))
     return olst
 
+
 def get_time_from_filename(file_name, date_extraction_pattern, date_pattern):
+    """
+    @param file_name name of the file
+    @param date_extraction_pattern regular expression describing how the date is represented in the filename
+    @param date_pattern
+    """
     file_str = os.path.basename(file_name)
     matches = re.match(date_extraction_pattern, file_str)
     if matches is None:
-        raise StandardError('No matches found in string \'{0}\'for pattern: {1}'.format(file_str,date_extraction_pattern))
+        raise StandardError('No matches found in string \'{0}\'for pattern: {1}'.format(file_str, date_extraction_pattern))
     match_str = ' '.join(matches.groups())
     return time.mktime(datetime.datetime.strptime(match_str, date_pattern).timetuple())
+
 
 def calculate_iteration_count(total_recs, max_rec):
     """
@@ -105,6 +137,7 @@ def calculate_iteration_count(total_recs, max_rec):
         cnt += 1
 
     return cnt
+
 
 #TODO:  IMPROVE - Function similar to above that reads a file to a StringIO from http, ftp, or fs
 #VERY BASIC
