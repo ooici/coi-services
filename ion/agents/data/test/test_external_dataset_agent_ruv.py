@@ -14,8 +14,9 @@ from pyon.ion.resource import PRED, RT
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 from nose.plugins.attrib import attr
@@ -47,6 +48,7 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
+        dataset_management = DatasetManagementServiceClient()
 
         eda = ExternalDatasetAgent()
         eda_id = dams_cli.create_external_dataset_agent(eda)
@@ -106,12 +108,12 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
 
         #create temp streamdef so the data product can create the stream
 
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        pdict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp", parameter_diction_id=pdict_id)
+
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
 
         dprod = IonObject(RT.DataProduct,
             name='ruv_parsed_product',
@@ -119,12 +121,11 @@ class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationT
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
 
         # Generate the data product and associate it to the ExternalDataset
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
-                                                    stream_definition_id=streamdef_id,
-                                                    parameter_dictionary=parameter_dictionary)
+                                                    stream_definition_id=streamdef_id)
+
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 

@@ -27,6 +27,8 @@ from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
 
+import gevent
+
 from ion.services.sa.test.helpers import any_old
 
 
@@ -327,11 +329,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         tdom = tdom.dump()
 
 
-        spdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict')
-        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary=spdict_id)
+        spdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=spdict_id)
 
-        rpdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_raw_param_dict')
-        raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary=rpdict_id)
+        rpdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
+        raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary_id=rpdict_id)
 
 
         #-------------------------------
@@ -345,8 +347,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                            spatial_domain = sdom)
 
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj,
-                                                       stream_definition_id=parsed_stream_def_id,
-                                                       parameter_dictionary=spdict_id)
+                                                       stream_definition_id=parsed_stream_def_id)
+                                                       
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
@@ -413,4 +415,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instance_obj = self.RR.read(instAgentInstance_id)
         self.assertNotEqual("BAD_DATA", instance_obj.driver_config["comms_config"])
 
+        
+        self.DP.delete_data_product(data_product_id1)
+        self.DP.delete_data_product(data_product_id2)
 

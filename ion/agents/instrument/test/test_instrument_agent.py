@@ -361,7 +361,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         streams = {
             'parsed' : 'ctd_parsed_param_dict',
-            'raw' : 'ctd_raw_param_dict'
+            'raw'    : 'ctd_raw_param_dict'
         }
 
 
