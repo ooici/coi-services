@@ -1,16 +1,21 @@
+from pyon.core.exception import BadRequest
+from pyon.ion.process import StandaloneProcess
+from pyon.util.file_sys import FileSystem
+from pyon.util.log import log
+
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+
+from coverage_model.coverage import SimplexCoverage
+
+from xml.dom.minidom import parse, parseString
+from zipfile import ZipFile
+
+import numpy as np
+import base64
 import os
 import urllib
 import xml.dom.minidom
-from xml.dom.minidom import parse, parseString
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
-from pyon.ion.process import StandaloneProcess
-from coverage_model.coverage import SimplexCoverage
-from pyon.util.file_sys import FileSystem
-from pyon.util.log import log
-import numpy as np
-import base64
 import StringIO
-from zipfile import ZipFile
 
 class RegistrationProcess(StandaloneProcess):
 
@@ -46,7 +51,7 @@ class RegistrationProcess(StandaloneProcess):
         try:
             self.add_dataset_to_xml(coverage_path=coverage_path, product_name=data_product_name)
             self.create_symlink(coverage_path, self.pydap_data_path)
-        except:
+        except: # We don't re-raise to prevent clients from bombing out...
             log.exception('Problem registering dataset')
             log.error('Failed to register dataset for coverage path %s' % coverage_path)
 
@@ -56,13 +61,14 @@ class RegistrationProcess(StandaloneProcess):
 
     def add_dataset_to_xml(self, coverage_path, product_name=''):
         dom1 = parse(self.datasets_xml_path)
-        dom2 = parseString(self.get_dataset_xml(coverage_path,product_name))
+        xml_str = self.get_dataset_xml(coverage_path, product_name)
+        dom2 = parseString(xml_str)
+
         erddap_datasets_element = dom1.getElementsByTagName('erddapDatasets')[0]
         erddap_datasets_element.appendChild(dom2.getElementsByTagName('dataset')[0])
 
-        f = open(self.datasets_xml_path, 'w')
-        dom1.writexml(f)
-        f.close()
+        with open(self.datasets_xml_path, 'w') as f:
+            dom1.writexml(f)
 
     def get_dataset_xml(self, coverage_path, product_name=''):
 
@@ -76,6 +82,9 @@ class RegistrationProcess(StandaloneProcess):
 
         #Get lists of variables with unique sets of dimensions.
         #Datasets can only have variables with the same sets of dimensions
+
+        if not cov.list_parameters():
+            raise BadRequest('Attempting to register an empty dataset. The coverage (%s) has no definition.\n%s' %(coverage_path, cov))
 
         datasets = {}
         for key in cov.list_parameters():
