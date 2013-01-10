@@ -394,7 +394,6 @@ class EventManagementIntTest(IonIntegrationTestCase):
 
         # Create a stream
         param_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
-        parameter_dictionary = self.dataset_management.read_parameter_dictionary(parameter_dictionary_id=param_dict_id)
 
         stream_def_id = self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary_id=param_dict_id)
 
@@ -408,7 +407,7 @@ class EventManagementIntTest(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         # Create a data product
-        data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id, parameter_dictionary=parameter_dictionary)
+        data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)
 
         output_products = {}
         output_products['conductivity'] = data_product_id

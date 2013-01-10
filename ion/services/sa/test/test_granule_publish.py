@@ -23,7 +23,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 
 from nose.plugins.attrib import attr
 import numpy
-import time
+import gevent
 
 
 @attr('INT', group='sa')
@@ -115,9 +115,16 @@ class TestGranulePublish(IonIntegrationTestCase):
 
         publisher.publish(g)
 
-        time.sleep(3)
+        gevent.sleep(3)
 
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
-
   
+        #--------------------------------------------------------------------------------
+        # Cleanup data products
+        #--------------------------------------------------------------------------------
+        dp_ids, _ = self.rrclient.find_resources(restype=RT.DataProduct, id_only=True)
+
+        for dp_id in dp_ids:
+            self.dataproductclient.delete_data_product(dp_id)
+
