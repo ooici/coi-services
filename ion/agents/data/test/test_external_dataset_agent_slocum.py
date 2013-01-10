@@ -14,18 +14,20 @@ from pyon.ion.resource import PRED, RT
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+
+from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
 
 from ion.agents.data.test.test_external_dataset_agent import ExternalDatasetAgentTestBase, IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 #temp until stream defs are completed
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from ion.services.dm.utility.granule_utils import CoverageCraft
+from ion.services.dm.utility.granule_utils import time_series_domain
+
 
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
-from coverage_model.basic_types import AxisTypeEnum
 
 import numpy
 
@@ -45,6 +47,8 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
 
         # Build the test resources for the dataset
         dams_cli = DataAcquisitionManagementServiceClient()
+        dataset_management = DatasetManagementServiceClient()
+
         dpms_cli = DataProductManagementServiceClient()
         rr_cli = ResourceRegistryServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
@@ -160,16 +164,12 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
         #        dams_cli.assign_external_data_agent_to_agent_instance(external_data_agent_id=self.eda_id, agent_instance_id=self.eda_inst_id)
 
         #create temp streamdef so the data product can create the stream
-        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp")
+        pdict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        streamdef_id = pubsub_cli.create_stream_definition(name="temp", description="temp", parameter_diction_id=pdict_id)
 
-        # Generate the data product and associate it to the ExternalDataset
-
-        craft = CoverageCraft
-        sdom, tdom = craft.create_domains()
+        tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
-        parameter_dictionary = craft.create_parameters()
-        parameter_dictionary = parameter_dictionary.dump()
 
         dprod = IonObject(RT.DataProduct,
             name='slocum_parsed_product',
@@ -178,8 +178,7 @@ class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase, IonIntegrati
             spatial_domain = sdom)
 
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
-                                                    stream_definition_id=streamdef_id,
-                                                    parameter_dictionary=parameter_dictionary)
+                                                    stream_definition_id=streamdef_id)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)
 
