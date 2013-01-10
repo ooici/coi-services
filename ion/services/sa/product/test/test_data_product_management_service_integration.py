@@ -123,46 +123,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         return datastore
 
 
-    @unittest.skip('OBE')
-    def test_get_last_update(self):
-
-
-
-        # Construct temporal and spatial Coordinate Reference System objects
-        tcrs = CRS([AxisTypeEnum.TIME])
-        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
-
-        # Construct temporal and spatial Domain objects
-        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
-        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 1d spatial topology (station/trajectory)
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
-        #@TODO: DO NOT DO THIS, WHEN THIS TEST IS REWRITTEN GET RID OF THIS, IT WILL FAIL, thanks -Luke
-        parameter_dictionary = get_param_dict('ctd_parsed_param_dict')
-        parameter_dictionary = parameter_dictionary.dump()
-
-        dp_obj = IonObject(RT.DataProduct,
-            name='DP1',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        data_product_id = self.dpsc_cli.create_data_product(data_product=dp_obj, stream_definition_id=self.stream_def_id, parameter_dictionary=parameter_dictionary)
-        stream_ids, garbage = self.rrclient.find_objects(data_product_id, PRED.hasStream, id_only=True)
-        stream_id = stream_ids[0]
-
-        fake_lu = LastUpdate()
-        fake_lu_doc = self.db._ion_object_to_persistence_dict(fake_lu)
-        self.db.create_doc(fake_lu_doc, object_id=stream_id)
-
-        #------------------------------------------
-        # Now execute
-        #------------------------------------------
-        res = self.dpsc_cli.get_last_update(data_product_id=data_product_id)
-        self.assertTrue(isinstance(res[stream_id], LastUpdate), 'retrieving documents failed')
-
     def test_create_data_product(self):
 
         #------------------------------------------------------------------------------------------------
