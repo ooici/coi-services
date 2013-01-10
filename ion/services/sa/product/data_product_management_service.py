@@ -119,10 +119,10 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         #Check if this data product is associated to a producer
         #todo: convert to impl call
-        producer_ids = self.data_product.find_stemming_data_producer(data_product_id)
+        producer_objs = self.data_product.find_stemming_data_producer(data_product_id)
 
-        for producer_id in producer_ids:
-            self.clients.data_acquisition_management.unassign_data_product(producer_id, data_product_id)
+        for producer_obj in producer_objs:
+            self.clients.data_acquisition_management.unassign_data_product(data_product_id, producer_obj._id)
 
         #--------------------------------------------------------------------------------
         # suspend persistence
@@ -252,13 +252,11 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def is_persisted(self, data_product_id=''):
         # Is the data product currently persisted into a data set?
-        retval = False
         if data_product_id:
             stream_id = self._get_stream_id(data_product_id)
             if stream_id:
-                retval =  self.clients.ingestion_management.is_persisted(stream_id)
-        else:
-            return retval
+                return self.clients.ingestion_management.is_persisted(stream_id)
+        return False
 
 
 

@@ -27,6 +27,8 @@ from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
 
+import gevent
+
 from ion.services.sa.test.helpers import any_old
 
 
@@ -413,4 +415,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instance_obj = self.RR.read(instAgentInstance_id)
         self.assertNotEqual("BAD_DATA", instance_obj.driver_config["comms_config"])
 
+        
+        self.DP.delete_data_product(data_product_id1)
+        self.DP.delete_data_product(data_product_id2)
 
