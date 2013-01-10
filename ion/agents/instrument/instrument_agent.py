@@ -36,6 +36,7 @@ from pyon.core.exception import ResourceError
 import socket
 import json
 import base64
+import copy
 
 # Packages
 import numpy
@@ -62,6 +63,8 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 # Alarms.
 from interface.objects import StreamAlarmType
 from interface.objects import AlarmDef
+from ion.agents.alarms.alarms import construct_alarm_expression
+from ion.agents.alarms.alarms import eval_alarm
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -1322,15 +1325,10 @@ class InstrumentAgent(ResourceAgent):
     def aparam_set_alarms(self, params):
         """
         """
-        pass
-        """
-        print '#######################'
-        print str(params)
         
         if not isinstance(params, (list,tuple)) or len(params)==0:
             return -1
         
-        retval = 0
         action = params[0]
         params = params[1:]
         
@@ -1342,29 +1340,28 @@ class InstrumentAgent(ResourceAgent):
                 
         if action in ('set', 'add'):
             for a in params:
-                if isinstance(a,BaseAlarm):
+                try:
+                    a = construct_alarm_expression(a)
                     self.aparam_alarms.append(a)
-                else:
-                    log.error('Attempted to set an invalid alarm.')
+                except:
+                    log.error('Error constructing alarm.')
                     
         elif action == 'remove':
             new_alarms = copy.deepcopy(self.aparam_alarms)
-            for a in self.aparam_alarms:
+            for a in params:
                 if isinstance(a, str):
-                    new_alarms = [x for x in self.aparam_alarms if
-                        x.name == a]
-                elif isinstance(a, BaseAlarm):
-                    new_alarms = [x for x in self.aparam_alarms if
-                        x.stream_id == a.stream_id and
+                    new_alarms = [x for x in new_alarms if x.name != a]
+                elif isinstance(a, AlarmDef):
+                    new_alarms = [x for x in new_alarms if not
+                        (x.stream_name == a.stream_name and
                         x.value_id == a.value_id and
-                        x.expr == a.expr]
+                        x.name == a.name)]
                 else:
                     log.error('Attempted to remove an invalid alarm.')
                     
             self.aparam_alarms = new_alarms
             
         return len(self.aparam_alarms)
-        """
         
     ###############################################################################
     # Event callback and handling for direct access.

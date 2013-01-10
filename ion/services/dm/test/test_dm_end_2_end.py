@@ -15,6 +15,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from ion.processes.data.replay.replay_client import ReplayClient
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 
 from coverage_model.parameter import ParameterContext
@@ -522,4 +523,19 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 gevent.sleep(1)
 
         self.assertTrue(success)
+
+
+    def test_out_of_band_retrieve(self):
+        # Setup the environemnt
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+        
+        # Fill the dataset
+        self.publish_fake_data(stream_id, route)
+        self.wait_until_we_have_enough_granules(dataset_id,40)
+
+        # Retrieve the data
+        granule = DataRetrieverService.retrieve_oob(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        self.assertTrue((rdt['time'] == np.arange(40)).all())
 
