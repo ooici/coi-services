@@ -76,7 +76,7 @@ methods:
 
 
 @attr('INT', group='cei')
-class HighAvailabilityAgentTest(IonIntegrationTestCase):
+class BaseHighAvailabilityAgentTest(IonIntegrationTestCase):
 
     @needs_epu
     def setUp(self):
@@ -103,7 +103,24 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self._haa_dashi_name = "dashi_haa_" + uuid4().hex
         self._haa_dashi_uri = get_dashi_uri_from_cfg()
         self._haa_dashi_exchange = "hatests"
-        self._haa_config = {
+        self._haa_config = self._get_haagent_config()
+
+        self._base_services, _ = self.container.resource_registry.find_resources(
+                restype="Service", name=self.process_definition_name)
+
+        self._base_procs = self.pd_cli.list_processes()
+
+        self.waiter = ProcessStateWaiter()
+        self.waiter.start()
+
+        self.container_client = ContainerAgentClient(node=self.container.node,
+            name=self.container.name)
+        self._spawn_haagent()
+
+        self._setup_haa_client()
+
+    def _get_haagent_config(self):
+        return {
             'highavailability': {
                 'policy': {
                     'interval': 1,
@@ -119,20 +136,6 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
             },
             'agent': {'resource_id': self.resource_id},
         }
-
-        self._base_services, _ = self.container.resource_registry.find_resources(
-                restype="Service", name=self.process_definition_name)
-
-        self._base_procs = self.pd_cli.list_processes()
-
-        self.waiter = ProcessStateWaiter()
-        self.waiter.start()
-
-        self.container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
-        self._spawn_haagent()
-
-        self._setup_haa_client()
 
     def _setup_haa_client(self):
         # Start a resource agent client to talk with the instrument agent.
@@ -199,6 +202,10 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
                 gevent.sleep(1)
 
         raise Exception("Took more than %s to get to ha state %s" % (timeout, want_state))
+
+
+@attr('INT', group='cei')
+class HighAvailabilityAgentTest(BaseHighAvailabilityAgentTest):
 
     def test_features(self):
         status = self.haa_client.status().result
@@ -419,6 +426,44 @@ class HAAgentMockTest(PyonTestCase):
             gevent.sleep(0.5)
         self.assertFalse(self.policy_thread.dead)
 
+
+
+@attr('INT', group='cei')
+class HighAvailabilityAgentDefinitionByNameTest(BaseHighAvailabilityAgentTest):
+    def _get_haagent_config(self):
+        return {
+            'highavailability': {
+                'policy': {
+                    'interval': 1,
+                    'name': 'npreserving',
+                    'parameters': {
+                        'preserve_n': 0
+                    }
+                },
+                'process_definition_name': self.process_definition_name,
+                'dashi_messaging': True,
+                'dashi_exchange': self._haa_dashi_exchange,
+                'dashi_name': self._haa_dashi_name
+            },
+            'agent': {'resource_id': self.resource_id},
+        }
+
+    def test_definition_by_name(self):
+        # ensure we can run an haagent that finds process definition by name not id
+        new_policy = {'preserve_n': 1}
+        self.haa_client.reconfigure_policy(new_policy)
+
+        result = self.haa_client.dump().result
+        self.assertEqual(result['policy'], new_policy)
+
+        self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
+        self.assertEqual(len(self.get_running_procs()), 1)
+        self.await_ha_state('STEADY')
+
+        # kill everything
+        new_policy = {'preserve_n': 0}
+        self.haa_client.reconfigure_policy(new_policy)
+        self.await_ha_state('STEADY')
 
 
 @attr('INT', group='cei')

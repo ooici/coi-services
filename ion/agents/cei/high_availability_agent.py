@@ -76,7 +76,8 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         if not len(self.pds) == 1:
             raise Exception("HA Service doesn't support multiple Process Dispatchers")
 
-        self.process_definition_id = self.CFG.get_safe("highavailability.process_definition_id")
+        self.process_definition_id, self.process_definition = self._get_process_definition()
+
         self.process_configuration = self.CFG.get_safe("highavailability.process_configuration")
         aggregator_config = _get_aggregator_config(self.CFG)
 
@@ -121,6 +122,32 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         else:
             self.dashi_handler = None
 
+    def _get_process_definition(self):
+        process_definition_id = self.CFG.get_safe("highavailability.process_definition_id")
+        process_definition_name = self.CFG.get_safe("highavailability.process_definition_name")
+
+        if process_definition_id:
+            pd_name = self.pds[0]
+            pd = ProcessDispatcherServiceClient(to_name=pd_name)
+            definition = pd.read_process_definition(process_definition_id)
+
+        elif process_definition_name:
+            definitions, _ = self.container.resource_registry.find_resources(
+                restype="ProcessDefinition", name=process_definition_name)
+            if len(definitions) == 0:
+                raise Exception("Process definition with name '%s' not found" %
+                    process_definition_name)
+            elif len(definitions) > 1:
+                raise Exception("multiple process definitions found with name '%s'" %
+                    process_definition_name)
+            definition = definitions[0]
+            process_definition_id = definition._id
+
+        else:
+            raise Exception("HA Agent requires either process definition ID or name")
+
+        return process_definition_id, definition
+
     def on_start(self):
         if self.dashi_handler:
             self.dashi_handler.start()
@@ -146,18 +173,8 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         #self._unregister_service()
 
     def _register_service(self):
-        if not self.process_definition_id:
-            log.error("No process definition id. Not registering service")
-            return
 
-        if len(self.pds) < 1:
-            log.error("Must have at least one PD available to register a service")
-            return
-
-        pd_name = self.pds[0]
-        pd = ProcessDispatcherServiceClient(to_name=pd_name)
-        definition = pd.read_process_definition(self.process_definition_id)
-
+        definition = self.process_definition
         existing_services, _ = self.container.resource_registry.find_resources(
                 restype="Service", name=definition.name)
 
