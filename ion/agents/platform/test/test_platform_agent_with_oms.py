@@ -214,7 +214,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     #def _execute_agent(self, cmd, timeout=TIMEOUT):
     def _execute_agent(self, cmd):
-        log.info("_execute_agent: cmd=%r ...", cmd.command)
+        log.info("_execute_agent: cmd=%r kwargs=%r ...", cmd.command, cmd.kwargs)
         time_start = time.time()
         #retval = self._pa_client.execute_agent(cmd, timeout=timeout)
         retval = self._pa_client.execute_agent(cmd)
@@ -313,6 +313,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
         cur_time = get_ion_ts()
+        #
+        # OOIION-631 Note: I'm asked to only use get_ion_ts() as a basis for
+        # using system time. However, other associated supporting (and more
+        # "numeric") routines would be convenient. In particular, note the
+        # following operation to subtract a number of seconds for my request:
+        #
         from_time = str(int(cur_time) - 50000)  # a 50-sec time window
         kwargs = dict(attr_names=attrNames, from_time=from_time)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
@@ -326,8 +332,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         attrNames = self.ATTR_NAMES
         writ_attrNames = self.WRITABLE_ATTR_NAMES
 
+        # do valid settings:
+
         # TODO more realistic value depending on attribute's type
         attrs = [(attrName, self.VALID_ATTR_VALUE) for attrName in attrNames]
+        log.info("%r: setting attributes=%s", self.PLATFORM_ID, attrs)
         kwargs = dict(attrs=attrs)
         cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
@@ -339,9 +348,10 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             else:
                 self._verify_not_writable_attribute_id(attrName, attr_values)
 
-        # now test setting invalid values to writable attributes:
-        attrs = [(attrName, self.INVALID_ATTR_VALUE) for attrName in
-                 writ_attrNames]
+        # try invalid settings:
+
+        # set invalid values to writable attributes:
+        attrs = [(attrName, self.INVALID_ATTR_VALUE) for attrName in writ_attrNames]
         log.info("%r: setting attributes=%s", self.PLATFORM_ID, attrs)
         kwargs = dict(attrs=attrs)
         cmd = AgentCommand(command=PlatformAgentEvent.SET_RESOURCE, kwargs=kwargs)
@@ -349,7 +359,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         attr_values = retval.result
         self.assertIsInstance(attr_values, dict)
         for attrName in writ_attrNames:
-            self._verify_invalid_attribute_id(attrName, attr_values)
+            self._verify_attribute_value_out_of_range(attrName, attr_values)
 
     def _initialize(self):
         self._assert_state(PlatformAgentState.UNINITIALIZED)
@@ -649,3 +659,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._go_inactive()
         self._reset()
+
+# developer conveniences
+#
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_go_active_and_run
+#

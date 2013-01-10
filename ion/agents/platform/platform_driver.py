@@ -176,7 +176,7 @@ class PlatformDriver(object):
 
         @retval {attrName : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
-                pairs. Timestamps are NTP v4.
+                pairs. Timestamps in same format as from_time.
         """
         raise NotImplemented()
 

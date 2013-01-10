@@ -1,9 +1,9 @@
 platform agent framework
 
 
-2012-12-20
-https://jira.oceanobservatories.org/tasks/browse/OOIION-631
--
+2013-01-09
+- OOIION-631 Use system time (get_ion_ts and similar) instead of NTP
+  - get_resource and set_resource adjusted.
 
 2012-10-31:
 - preparations for IOC demo
