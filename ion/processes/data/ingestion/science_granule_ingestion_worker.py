@@ -40,7 +40,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
 
     def on_quit(self): #pragma no cover
-        self.subscriber.stop()
         self.flush_all()
         self.done_flushing.set()
         self.flusher_g.join(10)
