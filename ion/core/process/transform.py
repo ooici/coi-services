@@ -166,8 +166,9 @@ class TransformEventListener(TransformEventProcess):
     def on_start(self):
         super(TransformEventListener,self).on_start()
         event_type = self.CFG.get_safe('process.event_type', '')
+        queue_name = self.CFG.get_safe('process.queue_name', None)
 
-        self.listener = EventSubscriber(event_type=event_type, callback=self.process_event)
+        self.listener = EventSubscriber(event_type=event_type, queue_name=queue_name, callback=self.process_event)
         self.listener.start()
 
     def process_event(self, msg, headers):
