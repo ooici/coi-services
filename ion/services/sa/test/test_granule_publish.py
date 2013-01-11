@@ -22,6 +22,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 
 from nose.plugins.attrib import attr
+import uuid
 import numpy
 import gevent
 
@@ -80,7 +81,7 @@ class TestGranulePublish(IonIntegrationTestCase):
         tdom, sdom = time_series_domain()
 
         dp_obj = IonObject(RT.DataProduct,
-            name='the parsed data',
+            name=str(uuid.uuid4()),
             description='ctd stream test',
             temporal_domain = tdom.dump(),
             spatial_domain = sdom.dump())
