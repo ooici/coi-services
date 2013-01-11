@@ -36,6 +36,10 @@ from pyon.ion.stream import StandaloneStreamSubscriber
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
 
+# Pyon Object Serialization
+from pyon.core.bootstrap import get_obj_registry
+from pyon.core.object import IonObjectDeserializer
+
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
@@ -938,11 +942,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         alarm2 = IonObject('IntervalAlarmDef', **kwargs2)
         alarms.append(alarm2)
 
+
+        decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
+
+
         self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2]})
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
         self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
-            [x['name'] for x in retval])
-        self.assertTrue(all([len(x['expr'])>0 for x in retval]))
+            [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
         kwargs3 = {
             'name' : 'high_temperature_alert',
@@ -972,31 +980,31 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         params.extend(alarms)
 
         self._ia_client.set_agent({'alarms' : ['add', alarm3, alarm4]})
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
         self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
-            alarm4]], [x['name'] for x in retval])
-        self.assertTrue(all([len(x['expr'])>0 for x in retval]))
+            alarm4]], [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
         self._ia_client.set_agent({'alarms' : ['remove', alarm3, alarm4]})
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
         self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
-            [x['name'] for x in retval])
-        self.assertTrue(all([len(x['expr'])>0 for x in retval]))
+            [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
         self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2,
                 alarm3, alarm4]})
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
         self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
-            alarm4]], [x['name'] for x in retval])
-        self.assertTrue(all([len(x['expr'])>0 for x in retval]))
+            alarm4]], [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
         self._ia_client.set_agent({'alarms' : ['remove',
                 'lower_current_warning_interval',
                 'upper_current_warning_interval']})
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
         self.assertItemsEqual([x.name for x in [alarm3, alarm4]],
-            [x['name'] for x in retval])
-        self.assertTrue(all([len(x['expr'])>0 for x in retval]))
+            [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
         self._ia_client.set_agent({'alarms' : ['clear']})
         retval = self._ia_client.get_agent(['alarms'])['alarms']
