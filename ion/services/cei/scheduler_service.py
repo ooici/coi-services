@@ -17,7 +17,12 @@ import gevent
 
 
 class SchedulerService(BaseSchedulerService):
-    schedule_entries = {}
+
+    def __init__(self, *args, **kwargs):
+        BaseSchedulerService.__init__(self, *args, **kwargs)
+
+        self.schedule_entries = {}
+        self._no_reschedule = False
 
     def on_start(self):
         if CFG.get_safe("process.start_mode") == "RESTART":
@@ -26,6 +31,12 @@ class SchedulerService(BaseSchedulerService):
 
     def on_quit(self):
         self.pub.close()
+
+        # throw killswitch on future reschedules
+        self._no_reschedule = True
+
+        # terminate any pending spawns
+        self._stop_pending_timers()
 
     def __notify(self, task, id, index):
         log.debug("SchedulerService:__notify: - " + task.event_origin + " - Time: " + str(self.__now()) + " - ID: " + id + " -Index:" + str(index))
@@ -110,6 +121,10 @@ class SchedulerService(BaseSchedulerService):
         return id
 
     def __reschedule(self, id, index):
+        if self._no_reschedule:
+            log.debug("SchedulerService:__reschedule: process quitting, refusing to reschedule %s", id)
+            return False
+
         task = self.__get_entry(id)
         expire_time = self.__get_reschedule_expire_time(task, index)
         if expire_time:
@@ -194,6 +209,36 @@ class SchedulerService(BaseSchedulerService):
 
         return True
 
+    def _stop_pending_timers(self):
+        """
+        Safely stops all pending and active timers.
+
+        For all timers still waiting to run, calls kill on them. For active timers, let
+        them exit naturally and prevent the reschedule by setting the _no_reschedule flag.
+        """
+        # prevent reschedules
+        self._no_reschedule = True
+
+        gls = []
+        for timer_id in self.schedule_entries:
+            spawns = self.__get_spawns(timer_id)
+
+            for spawn in spawns:
+                gls.append(spawn)
+                # only kill spawns that haven't started yet
+                if spawn._start_event is not None:
+                    spawn.kill()
+
+            log.debug("_stop_pending_timers: timer %s deleted", timer_id)
+
+        self.schedule_entries.clear()
+
+        # wait for running gls to finish up
+        gevent.joinall(gls, timeout=10)
+
+        # allow reschedules from here on out
+        self._no_reschedule = False
+
     def on_system_restart(self):
         '''
         On system restart, get timer data from Resource Registry and restore the Scheduler state
@@ -201,13 +246,7 @@ class SchedulerService(BaseSchedulerService):
         # Remove all active timers
         # When this method is called, there should not be any active timers but if it is called from test, this helps
         # to remove current active timer and restore them from Resource Regstiry
-        if self.schedule_entries:
-            for timer_id in self.schedule_entries:
-                spawns = self.__get_spawns(timer_id)
-                for spawn in spawns:
-                    spawn.kill()
-                log.debug("SchedulerService:on_system_restart: timer deleted  " + timer_id)
-            self.schedule_entries.clear()
+        self._stop_pending_timers()
 
         # Restore the timer from Resource Registry
         scheduler_entries, _ = self.clients.resource_registry.find_resources(RT.SchedulerEntry, id_only=False)

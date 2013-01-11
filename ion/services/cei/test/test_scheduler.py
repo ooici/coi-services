@@ -8,11 +8,14 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from nose.plugins.attrib import attr
 import gevent
+from gevent.event import AsyncResult
 import datetime
 from datetime import timedelta
 import time
 import math
 from pyon.public import log
+import unittest
+import os
 
 class FakeProcess(LocalContextMixin):
     name = 'scheduler_test'
@@ -343,4 +346,31 @@ class TestSchedulerService(IonIntegrationTestCase):
             self.assertTrue(time_diff <= 2)
         log.debug("test_scheduler: tod_callback: time:" + str(tod_receive_time) + " count:" + str(self.tod_count))
 
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_quit_stops_timers(self):
+
+        ar = AsyncResult()
+        def cb(*args, **kwargs):
+            ar.set(args)
+
+            self.interval_timer_count += 1
+
+        event_origin = "test_quitter"
+        sub = EventSubscriber(event_type="ResourceEvent", callback=cb, origin=event_origin)
+        sub.start()
+        self.addCleanup(sub.stop)
+
+        tid = self.ssclient.create_interval_timer(start_time="now",
+                                                  interval=1,
+                                                  event_origin=event_origin)
+
+        # wait until at least one scheduled message
+        ar.get(timeout=5)
+
+        # shut it down!
+        p = self.container.proc_manager.procs_by_name['scheduler']
+        self.container.terminate_process(p.id)
+
+        # assert empty
+        self.assertEquals(p.schedule_entries, {})
 
