@@ -413,12 +413,19 @@ class PDDashiHandler(object):
                 definition_type=definition_type, executable=executable)
         return self.backend.create_definition(definition, definition_id)
 
-    def describe_definition(self, definition_id):
-        return _core_process_definition_from_ion(self.backend.read_definition(definition_id))
+    def describe_definition(self, definition_id=None, definition_name=None):
+        if not (definition_id or definition_name):
+            raise BadRequest("need a process definition id or name")
+        if definition_id:
+            return _core_process_definition_from_ion(self.backend.read_definition(definition_id))
+        else:
+            return _core_process_definition_from_ion(self.backend.read_definition_by_name(definition_name))
 
     def update_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
-        raise BadRequest("The Pyon PD does not support updating process definitions")
+        definition = ProcessDefinition(name=name, description=description,
+                definition_type=definition_type, executable=executable)
+        return self.backend.update_definition(definition, definition_id)
 
     def remove_definition(self, definition_id):
         self.backend.delete_definition(definition_id)
@@ -564,6 +571,9 @@ class PDLocalBackend(object):
 
     def read_definition_by_name(self, definition_name):
         raise ServerError("reading process definitions by name not supported by this backend")
+
+    def update_definition(self, definition, definition_id):
+        raise ServerError("updating process definitions not supported by this backend")
 
     def delete_definition(self, definition_id):
         return self.rr.delete(definition_id)
@@ -976,6 +986,11 @@ class PDNativeBackend(object):
 
         raise NotFound("process definition with name '%s' not found" % definition_name)
 
+    def update_definition(self, definition, definition_id):
+        self.core.update_definition(definition_id, definition.definition_type,
+            definition.executable, name=definition.name,
+            description=definition.description)
+
     def delete_definition(self, definition_id):
 
         self.core.remove_definition(definition_id)
@@ -1095,6 +1110,8 @@ def _core_process_definition_from_ion(ion_process_definition):
             'definition_type': ion_process_definition.definition_type,
             'executable': ion_process_definition.executable,
             }
+    if hasattr(ion_process_definition, "_id") and ion_process_definition._id:
+        definition['definition_id'] = ion_process_definition._id
     return definition
 
 

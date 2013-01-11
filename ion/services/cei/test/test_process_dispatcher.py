@@ -165,6 +165,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.mock_backend['create_definition'] = Mock()
         self.mock_backend['read_definition'] = Mock()
         self.mock_backend['read_definition_by_name'] = Mock()
+        self.mock_backend['update_definition'] = Mock()
         self.mock_backend['delete_definition'] = Mock()
         self.mock_backend['create'] = Mock()
         self.mock_backend['schedule'] = Mock()
@@ -193,23 +194,18 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.pd_dashi_handler.describe_definition(definition_id)
         self.assertEqual(self.mock_backend.read_definition.call_count, 1)
 
-        raised = False
-        try:
-            self.pd_dashi_handler.update_definition(definition_id, definition_type,
-                executable, name, description)
-        except BadRequest:
-            raised = True
-        assert raised, "update_definition didn't raise badrequest"
+        self.pd_dashi_handler.describe_definition(definition_name=name)
+        self.assertEqual(self.mock_backend.read_definition_by_name.call_count, 1)
+
+        self.pd_dashi_handler.update_definition(definition_id, definition_type,
+            executable, name, description)
+        self.assertEqual(self.mock_backend.update_definition.call_count, 1)
 
         self.pd_dashi_handler.remove_definition(definition_id)
         self.assertEqual(self.mock_backend.delete_definition.call_count, 1)
 
-        raised = False
-        try:
+        with self.assertRaises(BadRequest):
             self.pd_dashi_handler.list_definitions()
-        except BadRequest:
-            raised = True
-        assert raised, "list_definitions didn't raise badrequest"
 
     def test_schedule(self):
 
