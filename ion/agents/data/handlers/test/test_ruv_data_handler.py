@@ -9,14 +9,14 @@
 
 from pyon.public import log
 from pyon.util.unit_test import PyonTestCase
-from pyon.util.containers import get_safe
 from nose.plugins.attrib import attr
-from mock import patch, Mock, call
-import unittest
+from mock import Mock, patch
 
+from ion.agents.data.handlers.base_data_handler import NoNewDataWarning
 from ion.agents.data.handlers.handler_utils import list_file_info
-from ion.agents.data.handlers.ruv_data_handler import RuvDataHandler, RuvParser
-from interface.objects import ExternalDatasetAgent, ExternalDatasetAgentInstance, ExternalDataProvider, DataProduct, DataSourceModel, ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset, Institution, DataSource
+from ion.agents.data.handlers.ruv_data_handler import RuvDataHandler
+from interface.objects import ContactInformation, UpdateDescription, DatasetDescription, ExternalDataset
+
 
 @attr('UNIT', group='eoi')
 class TestRuvDataHandlerUnit(PyonTestCase):
@@ -33,16 +33,37 @@ class TestRuvDataHandlerUnit(PyonTestCase):
         edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
         edres.dataset_description.parameters['base_url'] = 'test_data/dir'
         edres.dataset_description.parameters['list_pattern'] = 'test_filter'
-        config = {'external_dataset_res':edres}
+        config = {'external_dataset_res': edres}
         RuvDataHandler._init_acquisition_cycle(config)
 
         self.assertIn('ds_params', config)
         ds_params = config['ds_params']
 
-        self.assertIn('base_url',ds_params)
-        self.assertEquals(ds_params['base_url'],'test_data/dir')
-        self.assertIn('list_pattern',ds_params)
+        self.assertIn('base_url', ds_params)
+        self.assertEquals(ds_params['base_url'], 'test_data/dir')
+        self.assertIn('list_pattern', ds_params)
         self.assertEquals(ds_params['list_pattern'], 'test_filter')
+
+    @patch('ion.agents.data.handlers.ruv_data_handler.list_file_info')
+    def test__constraints_for_new_request_no_new_data(self, list_file_info_mock):
+        edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
+        old_list = [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1339006638.0, 119066),
+                    ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1339006629.0, 109316),
+                    ('test_data/ruv/RDLm_SEAB_2012_06_06_1400.ruv', 1339006521.0, 113411), ]
+
+        config = {
+            'external_dataset_res': edres,
+            'new_data_check': old_list,
+            'ds_params': {
+                'base_url': 'test_data/ruv',
+                'list_pattern': 'RDLm_SEAB_*.ruv',
+                'date_pattern': '%Y %m %d %H %M',
+                'date_extraction_pattern': 'RDLm_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
+            }
+        }
+        list_file_info_mock.return_value = old_list
+        with self.assertRaises(NoNewDataWarning):
+            RuvDataHandler._constraints_for_new_request(config)
 
     def test__constraints_for_new_request(self):
         edres = ExternalDataset(name='test_ed_res', dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
@@ -184,17 +205,17 @@ class TestRuvDataHandlerUnit(PyonTestCase):
 #        old_list = None
 
         config = {
-            'external_dataset_res':edres,
+            'external_dataset_res': edres,
             #            'new_data_check':None,
-            'new_data_check':old_list,
-            'ds_params':{
+            'new_data_check': old_list,
+            'ds_params': {
                 # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
-    #            'base_url':'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/',
-                #CBM: What's the difference between RDLi and RDLm???
-    #            'pattern':'<a href="(RDLm.*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{1,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
-                'base_url':'test_data/ruv',
-                'list_pattern':'RDLm_SEAB_*.ruv',
-                'date_pattern':'%Y %m %d %H %M',
+                # 'base_url':'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/',
+                # CBM: What's the difference between RDLi and RDLm???
+                # 'pattern':'<a href="(RDLm.*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{1,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
+                'base_url': 'test_data/ruv',
+                'list_pattern': 'RDLm_SEAB_*.ruv',
+                'date_pattern': '%Y %m %d %H %M',
                 'date_extraction_pattern': 'RDLm_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
             }
         }
@@ -204,10 +225,10 @@ class TestRuvDataHandlerUnit(PyonTestCase):
 
     def test__get_data(self):
         config = {
-            'constraints':{
-                'new_files':[
-#                    'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/RDLi_BELM_2012_06_06_1300.ruv',
-#                    'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/RDLi_BELM_2012_06_06_1400.ruv',
+            'constraints': {
+                'new_files': [
+                    # 'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/RDLi_BELM_2012_06_06_1300.ruv',
+                    # 'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/RDLi_BELM_2012_06_06_1400.ruv',
                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1500.ruv', 1339006491.0, 113996),
                     ('test_data/ruv/RDLm_SEAB_2012_06_06_1600.ruv', 1339006513.0, 122576),
                 ]
@@ -232,32 +253,30 @@ class TestRuvDataHandlerUnit(PyonTestCase):
 #        for x in RuvDataHandler._get_data(config):
 #            log.debug(x)
 
-    @unittest.skip('needs sorting out - differs between local system and buildbot :(')
-    def test__constraints_for_historical_request(self):
+    #@unittest.skip('needs sorting out - differs between local system and buildbot :(')
+    @patch('ion.agents.data.handlers.ruv_data_handler.list_file_info')
+    def test__constraints_for_historical_request(self, list_file_info_mock):
         config = {
-            'ds_params':{
+            'ds_params': {
                 # These would be extracted from the dataset_description.parameters during _init_acquisition_cycle, but since that isn't called, just add them here
                 #            'base_url':'http://marine.rutgers.edu/cool/maracoos/codar/ooi/radials/BELM/',
                 #            'pattern':'<a href="([^"]*\.ruv)">.*(\d{2}-[a-zA-Z]{3}-\d{4} \d{2}:\d{2})\s*(\d{3,5}\w)',# Appended to base to filter files; Either a shell style pattern (for filesystem) or regex (for http/ftp)
-                'base_url':'test_data/ruv',
-                'list_pattern':'RDLm_SEAB_*.ruv',
-                'date_pattern':'%Y %m %d %H %M',
+                'base_url': 'test_data/ruv',
+                'list_pattern': 'RDLm_SEAB_*.ruv',
+                'date_pattern': '%Y %m %d %H %M',
                 'date_extraction_pattern': 'RDLm_SEAB_([\d]{4})_([\d]{2})_([\d]{2})_([\d]{2})([\d]{2}).ruv'
             },
-            'constraints' : {
+            'constraints': {
                 'start_time': 1338998400,
                 'end_time': 1339012800
             }
         }
+        list_file_info_mock.return_value = [('test_data/ruv/RDLm_SEAB_2012_06_06_1200.ruv', 1352384646.0, 119066),
+                                            ('test_data/ruv/RDLm_SEAB_2012_06_06_1300.ruv', 1352384646.0, 109316),
+                                            ('test_data/ruv/RDLm_SEAB_2012_06_06_1400.ruv', 1352384646.0, 113411),
+                                            ('test_data/ruv/RDLm_SEAB_2012_06_06_1500.ruv', 1352384646.0, 113996),
+                                            ('test_data/ruv/RDLm_SEAB_2012_06_06_1600.ruv', 1352384646.0, 122576)]
         ret = RuvDataHandler._constraints_for_historical_request(config)
         log.debug('test__constraints_for_historical_request: NEW_FILES == {0}'.format(ret['new_files']))
         files = list_file_info(config['ds_params']['base_url'], config['ds_params']['list_pattern'])
-#        files = files[:2]
-        log.error(ret['new_files'])
-        log.error(files)
-        self.assertEqual(ret['new_files'],files)
-
-
-
-
-
+        self.assertEqual(ret['new_files'], files)
