@@ -629,8 +629,7 @@ class UILoader(object):
                         msg = "UIEmbeddedScreenElement override label %s not in screen labels" % (obj.override_screen_label_id)
                         warnings.append((obj.uirefid, msg))
                     else:
-                        label_text = label.text
-                element_dict['olabel'] = label_text
+                        embed_dict['olabel'] = label.text
 
                 if verbose:
                     embed_dict['dpath_desc'] = obj.data_path_description

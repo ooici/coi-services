@@ -26,6 +26,7 @@
     ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
     ooiexclude= one or more categories to NOT import in the OOI import
     bulk= if True, uses RR bulk insert operations to load, not service calls
+    exportui= if True, writes interface/ui_specs.json with UI object
 
     TODO: constraints defined in multiple tables as list of IDs, but not used
     TODO: support attachments using HTTP URL
