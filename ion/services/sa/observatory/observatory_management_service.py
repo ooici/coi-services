@@ -1162,6 +1162,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         a, b =  self._get_instrument_states(extended_site.instrument_devices)
         extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
 
+        # lookup all hasModel predicates
+        # lookup is a 2d associative array of [subject type][subject id] -> object id
+        lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
+        for a in self.RR.find_associations(predicate=PRED.hasModel, id_only=False):
+            if a.st in lookup:
+                lookup[a.st][a.s] = a.o
+
+        # get model ids of instruments and platforms from lookup table
+        i_mod = [lookup[RT.InstrumentDevice].get(r._id) for r in extended_site.instrument_devices]
+        p_mod = [lookup[RT.PlatformDevice].get(r._id) for r in extended_site.platform_devices]
+
+        # convert model ids to model objects
+        extended_site.instrument_models = self.RR.read_mult(i_mod)
+        extended_site.platform_models = self.RR.read_mult(p_mod)
+
         # Status computation
         extended_site.computed.instrument_status = [4] * len(extended_site.instrument_devices)
         extended_site.computed.platform_status   = [4] * len(extended_site.platform_devices)
