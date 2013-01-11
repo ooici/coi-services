@@ -11,7 +11,7 @@ from couchdb.http import ResourceNotFound
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.net.endpoint import Subscriber
 from pyon.public import log
-from pyon.core.exception import NotFound, BadRequest, ServerError
+from pyon.core.exception import NotFound, BadRequest, ServerError, Conflict, IonException
 from pyon.util.containers import create_valid_identifier
 from pyon.event.event import EventPublisher
 from pyon.core import bootstrap
@@ -34,6 +34,19 @@ except ImportError:
     PDMatchmaker = None
     EPUManagementClient = None
     core_exceptions = None
+
+try:
+    from dashi import exceptions as dashi_exceptions
+
+    # map some ION exceptions to dashi exceptions
+    _PYON_DASHI_EXC_MAP = {
+            NotFound: dashi_exceptions.NotFoundError,
+            BadRequest: dashi_exceptions.BadRequestError,
+            Conflict: dashi_exceptions.WriteConflictError
+            }
+except ImportError:
+    dashi_exceptions = None
+    _PYON_DASHI_EXC_MAP = {}
 
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
@@ -384,6 +397,23 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
         return name
 
 
+def map_pyon_exceptions(f):
+    """Decorator that maps some Pyon exceptions to dashi
+    """
+    def wrapped(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except IonException, e:
+            dashi_exc = _PYON_DASHI_EXC_MAP.get(type(e))
+            if dashi_exc is not None:
+                raise dashi_exc(str(e))
+            raise
+    wrapped.__name__ = f.__name__
+    wrapped.__doc__ = f.__doc__
+    wrapped.__dict__.update(f.__dict__)
+    return wrapped
+
+
 class PDDashiHandler(object):
     """Dashi messaging handlers for the Process Dispatcher"""
 
@@ -403,9 +433,11 @@ class PDDashiHandler(object):
         self.dashi.handle(self.restart_process)
         self.dashi.handle(self.terminate_process)
 
+    @map_pyon_exceptions
     def set_system_boot(self, system_boot):
         self.backend.set_system_boot(system_boot)
 
+    @map_pyon_exceptions
     def create_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
 
@@ -413,6 +445,7 @@ class PDDashiHandler(object):
                 definition_type=definition_type, executable=executable)
         return self.backend.create_definition(definition, definition_id)
 
+    @map_pyon_exceptions
     def describe_definition(self, definition_id=None, definition_name=None):
         if not (definition_id or definition_name):
             raise BadRequest("need a process definition id or name")
@@ -421,18 +454,22 @@ class PDDashiHandler(object):
         else:
             return _core_process_definition_from_ion(self.backend.read_definition_by_name(definition_name))
 
+    @map_pyon_exceptions
     def update_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
         definition = ProcessDefinition(name=name, description=description,
                 definition_type=definition_type, executable=executable)
         return self.backend.update_definition(definition, definition_id)
 
+    @map_pyon_exceptions
     def remove_definition(self, definition_id):
         self.backend.delete_definition(definition_id)
 
+    @map_pyon_exceptions
     def list_definitions(self):
         raise BadRequest("The Pyon PD does not support listing process definitions")
 
+    @map_pyon_exceptions
     def schedule_process(self, upid, definition_id=None, definition_name=None,
                          configuration=None, subscribers=None, constraints=None,
                          queueing_mode=None, restart_mode=None,
@@ -488,21 +525,25 @@ class PDDashiHandler(object):
 
         return self.backend.schedule(upid, definition_id, schedule, configuration, name)
 
+    @map_pyon_exceptions
     def describe_process(self, upid):
         if hasattr(self.backend, 'read_core_process'):
             return self.backend.read_core_process(upid)
         else:
             return _core_process_from_ion(self.backend.read_process(upid))
 
+    @map_pyon_exceptions
     def describe_processes(self):
         if hasattr(self.backend, 'read_core_process'):
             return [self.backend.read_core_process(proc.process_id) for proc in self.backend.list()]
         else:
             return [_core_process_from_ion(proc) for proc in self.backend.list()]
 
+    @map_pyon_exceptions
     def restart_process(self, upid):
         raise BadRequest("The Pyon PD does not support restarting processes")
 
+    @map_pyon_exceptions
     def terminate_process(self, upid):
         return self.backend.cancel(upid)
 

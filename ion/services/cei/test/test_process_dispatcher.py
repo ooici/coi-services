@@ -12,7 +12,7 @@ from pyon.service.service import BaseService
 from pyon.util.containers import DotDict, get_safe
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.core.exception import NotFound, BadRequest
+from pyon.core.exception import NotFound, BadRequest, Conflict, IonException
 from pyon.public import log
 from pyon.core import bootstrap
 
@@ -152,13 +152,22 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.mock_cc_terminate.assert_called_once_with(pid)
 
 
+class FakeDashiNotFoundError(Exception):
+    pass
+
+
+class FakeDashiBadRequestError(Exception):
+    pass
+
+
+class FakeDashiWriteConflictError(Exception):
+    pass
+
+
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
     """Tests the dashi frontend of the PD
     """
-
-    #TODO: add some more thorough tests
-
     def setUp(self):
 
         self.mock_backend = DotDict()
@@ -176,6 +185,12 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
 
         self.mock_dashi = DotDict()
         self.mock_dashi['handle'] = Mock()
+
+        self.mock_pyon_dashi_exc_map = {
+            NotFound: FakeDashiNotFoundError,
+            BadRequest: FakeDashiBadRequestError,
+            Conflict: FakeDashiWriteConflictError
+            }
 
         self.pd_dashi_handler = PDDashiHandler(self.mock_backend, self.mock_dashi)
 
@@ -204,8 +219,37 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.pd_dashi_handler.remove_definition(definition_id)
         self.assertEqual(self.mock_backend.delete_definition.call_count, 1)
 
-        with self.assertRaises(BadRequest):
-            self.pd_dashi_handler.list_definitions()
+        with patch('ion.services.cei.process_dispatcher_service._PYON_DASHI_EXC_MAP',
+                self.mock_pyon_dashi_exc_map):
+
+            with self.assertRaises(FakeDashiBadRequestError):
+                self.pd_dashi_handler.list_definitions()
+
+            # need to specify either definition id or name
+            with self.assertRaises(FakeDashiBadRequestError):
+                self.pd_dashi_handler.describe_definition()
+
+    def test_exception_map(self):
+        # only testing one of the handlers. assuming they all share the decorator
+        with patch('ion.services.cei.process_dispatcher_service._PYON_DASHI_EXC_MAP',
+                self.mock_pyon_dashi_exc_map):
+
+            self.mock_backend.read_definition.side_effect = NotFound()
+            with self.assertRaises(FakeDashiNotFoundError):
+                self.pd_dashi_handler.describe_definition("some-def")
+
+            self.mock_backend.read_definition.side_effect = Conflict()
+            with self.assertRaises(FakeDashiWriteConflictError):
+                self.pd_dashi_handler.describe_definition("some-def")
+
+            self.mock_backend.read_definition.side_effect = BadRequest()
+            with self.assertRaises(FakeDashiBadRequestError):
+                self.pd_dashi_handler.describe_definition("some-def")
+
+            # try with an unmapped IonException. should get passed through directly
+            self.mock_backend.read_definition.side_effect = IonException()
+            with self.assertRaises(IonException):
+                self.pd_dashi_handler.describe_definition("some-def")
 
     def test_schedule(self):
 
