@@ -1080,7 +1080,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notification_request_3 = NotificationRequest(   name = "notification_3",
             origin="instrument_3",
-            event_type='DeviceCommsEvent',
+            event_type='DetectionEvent'
         )
 
         #--------------------------------------------------------------------------------------
@@ -1151,9 +1151,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             time_stamps = [get_ion_ts(), str(int(get_ion_ts()) + 60*20*1000)])
 
         event_publisher.publish_event(
-            event_type = "DeviceCommsEvent",
-            origin="instrument_3",
-            time_stamp = get_ion_ts())
+            event_type = "DetectionEvent",
+            origin="instrument_3")
 
 
         #--------------------------------------------------------------------------------------
@@ -1199,7 +1198,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             if msg_recipient == 'user_1@gmail.com':
                 self.assertTrue(event_type in ['ResourceLifecycleEvent', 'DeviceStatusEvent'])
             elif msg_recipient == 'user_2@gmail.com':
-                self.assertTrue(event_type in ['DeviceCommsEvent', 'DeviceStatusEvent'])
+                self.assertTrue(event_type in ['DetectionEvent', 'DeviceStatusEvent'])
             else:
                 self.fail('Got email sent to msg recipient who did not set a correct notification preference.')
 

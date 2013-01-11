@@ -13,7 +13,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.core.process.transform import TransformEventListener, TransformStreamListener, TransformEventPublisher
-from interface.objects import DeviceStatusType, DeviceStatusEvent, DeviceCommsEvent, DeviceCommsType
+from interface.objects import DeviceStatusType, DeviceStatusEvent
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 import gevent
 from gevent import queue
@@ -42,7 +42,7 @@ class EventAlertTransform(TransformEventListener):
         self.instrument_event_queue = gevent.queue.Queue()
 
         def instrument_event_received(message, headers):
-            log.debug("EventAlertTransform received an instrument event here::: %s" % message)
+            log.debug("EventAlertTransform received an instrument event here::: %s", message)
             self.instrument_event_queue.put(message)
 
         self.instrument_event_subscriber = EventSubscriber(origin = self.instrument_origin,
@@ -127,19 +127,17 @@ class StreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
 
 
-class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, TransformEventPublisher):
+class DemoStreamAlertTransform(TransformStreamListener, TransformEventPublisher):
 
     def __init__(self):
         super(DemoStreamAlertTransform,self).__init__()
 
         # the queue of granules that arrive in between two timer events
-        self.granules = gevent.queue.Queue()
+        self.bad_granules = gevent.queue.Queue()
         self.instrument_variable_name = None
-        self.timer_origin = None
-        self.timer_interval = None
         self.count = 0
-        self.timer_cleanup = (None, None)
         self.origin = ''
+        self.started_receiving_packets = False
 
     def on_start(self):
         super(DemoStreamAlertTransform,self).on_start()
@@ -150,57 +148,15 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.instrument_variable_name = self.CFG.get_safe('process.variable_name', 'input_voltage')
         self.time_field_name = self.CFG.get_safe('process.time_field_name', 'preferred_timestamp')
         self.valid_values = self.CFG.get_safe('process.valid_values', [-200,200])
-        self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
-        self.timer_interval = self.CFG.get_safe('process.timer_interval', 6)
 
         # Check that valid_values is a list
         validate_is_instance(self.valid_values, list)
 
-        # Start the timer
-        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=self)
-        id = self._create_interval_timer_with_end_time(timer_interval=self.timer_interval, end_time=-1)
-
     def on_quit(self):
         super(DemoStreamAlertTransform,self).on_quit()
 
-        self.ssclient, sid = self.timer_cleanup
-        DemoStreamAlertTransform._cleanup_timer(self.ssclient, sid)
-
-    @staticmethod
-    def _cleanup_timer(scheduler, schedule_id):
-        """
-        Do a friendly cancel of the scheduled event.
-        If it fails, it's ok.
-        """
-        try:
-            scheduler.cancel_timer(schedule_id)
-        except:
-            log.debug("Couldn't cancel")
-
     def now_utc(self):
         return time.mktime(datetime.datetime.utcnow().timetuple())
-
-    def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
-        '''
-        A convenience method to set up an interval timer with an end time
-        '''
-        self.timer_received_time = 0
-        self.timer_interval = timer_interval
-
-        start_time = self.now_utc()
-        if not end_time:
-            end_time = start_time + 2 * timer_interval + 1
-
-        # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
-        sid = self.ssclient.create_interval_timer(start_time="now" ,
-            interval=self.timer_interval,
-            end_time=end_time,
-            event_origin="Interval Timer",
-            event_subtype="")
-
-        self.timer_cleanup =  (self.ssclient, sid)
-
-        return sid
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
@@ -211,7 +167,8 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         @param stream_id str
         '''
 
-        log.debug("DemoStreamAlertTransform received a packet!: %s" % msg)
+        log.debug("DemoStreamAlertTransform received a packet!: %s", msg)
+        self.started_receiving_packets = True
 
         #-------------------------------------------------------------------------------------
         # Set up the config to use to pass info to the transform algorithm
@@ -222,64 +179,70 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         config.time_field_name = self.time_field_name
 
         #-------------------------------------------------------------------------------------
-        # Store the granule received
-        #-------------------------------------------------------------------------------------
-        self.granules.put(msg)
-
-        #-------------------------------------------------------------------------------------
         # Check for good and bad values in the granule
         #-------------------------------------------------------------------------------------
-        bad_values, bad_value_times, self.origin = AlertTransformAlgorithm.execute(msg, config = config)
+        self.bad_values, self.bad_value_times, self.origin, self.values, self.times = AlertTransformAlgorithm.execute(msg, config = config)
 
-        log.debug("DemoStreamAlertTransform got the origin of the event as: %s" % self.origin)
+        log.debug("DemoStreamAlertTransform got the origin of the event as: %s", self.origin)
 
         #-------------------------------------------------------------------------------------
         # If there are any bad values, publish an alert event for the granule
         #-------------------------------------------------------------------------------------
-        if bad_values:
-            # Publish the event
-            self.publisher.publish_event(
-                event_type = 'DeviceStatusEvent',
-                origin = self.origin,
-                origin_type='PlatformDevice',
-                sub_type = self.instrument_variable_name,
-                values = bad_values,
-                time_stamps = bad_value_times,
-                valid_values = self.valid_values,
-                state = DeviceStatusType.OUT_OF_RANGE,
-                description = "Event to deliver the status of instrument."
-            )
 
-            log.debug("DemoStreamAlertTransform published a BAD DATA event")
+        if self.started_receiving_packets: # The transform just started receiving, so it publishes a status event for the first granule received
 
-    def process_event(self, msg, headers):
-        """
-        When timer events come, if no granule has arrived since the last timer event, publish an alarm
-        """
-        self.count += 1
+            desc="Event published after first granule received by the transform"
+            log.debug(desc)
 
-        log.debug("Got a timer event with count: %s" % self.count )
-
-        if msg.origin == self.timer_origin and self.origin:
-
-            if self.granules.qsize() == 0:
-                # Publish the event
-                self.publisher.publish_event(
-                    event_type = 'DeviceCommsEvent',
-                    origin = self.origin,
-                    origin_type='PlatformDevice',
-                    sub_type = self.instrument_variable_name,
-                    time_stamp =int(time.time() + 2208988800),  # granules use NTP not unix
-#                    time_stamp = get_ion_ts(),
-                    state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION,
-                    lapse_interval_seconds=self.timer_interval,
-                    description = "Event to deliver the communications status of the instrument."
-                )
-
-                log.debug("DemoStreamAlertTransform published a NO DATA event")
-
+            if self.bad_values:
+                state = DeviceStatusType.OUT_OF_RANGE
+                # Store the granule received
+                self.bad_granules.put(msg)
             else:
-                self.granules.queue.clear()
+                state = DeviceStatusType.OK
+
+            self._publish_status_event(state=state, desc=desc)
+            log.debug("DemoStreamAlertTransform published a STATUS event because it received a packet for the first time")
+
+        elif self.bad_values: # Got a granule with OUT OF RANGE data
+            # Only if this is the first time bad granule has arrived, should we publish a BAD data event
+            if self.bad_granules.empty():
+                # Publish the event
+                self._publish_status_event(state=DeviceStatusType.OUT_OF_RANGE, desc="Event to deliver OUT_OF_RANGE status")
+                log.debug("DemoStreamAlertTransform published a BAD DATA event")
+
+                # Store the granule received
+                self.bad_granules.put(msg)
+
+        else: # The granule has valid data
+            # Only if this is the first time a good granule has arrived after bad ones, should we publish a GOOD data event
+            if not self.bad_granules.empty():
+                self._publish_status_event(state=DeviceStatusType.OK, desc="Event to deliver OK status")
+                log.debug("DemoStreamAlertTransform published a GOOD data event")
+
+                # Bad granule queue should have had one bad granule. We empty it here
+                self.bad_granules.get(timeout=10)
+
+                #Validate that the bad granule queue is empty now as it should be
+                validate_true(self.bad_granules.empty())
+
+    def _publish_status_event(self, state=None, desc=None):
+
+        log.debug("came here to publish the status event")
+
+        self.publisher.publish_event(
+            event_type = 'DeviceStatusEvent',
+            origin = self.origin,
+            origin_type='PlatformDevice',
+            sub_type = self.instrument_variable_name,
+            values = self.values,
+            time_stamps = self.times,
+            bad_values = self.bad_values,
+            bad_time_stamps = self.bad_value_times,
+            valid_values = self.valid_values,
+            state = state,
+            description = desc
+        )
 
 class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
@@ -302,41 +265,43 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
         variable_name = config.get_safe('variable_name', 'input_voltage')
         preferred_time = config.get_safe('time_field_name', 'preferred_timestamp')
 
-        # Get the source of the granules which will be used to set the origin of the DeviceStatusEvent and DeviceCommsEvent events
+        # Get the source of the granules which will be used to set the origin of the DeviceStatusEvents
 
         origin = input.data_producer_id
 
         if not origin:
             raise NotFound("The DemoStreamAlertTransform could not figure out the origin for DeviceStatusEvent. The data_producer_id attribute should be filled for the granules that are sent to it so that it can figure out the origin to use.")
 
-        log.debug("The origin the demo transform is listening to is: %s" % origin)
+        log.debug("The origin the demo transform is listening to is: %s", origin)
 
         rdt = RecordDictionaryTool.load_from_granule(input)
 
         # These variable_names will store the bad values and the timestamps of those values
         bad_values = []
         bad_value_times = []
+        times = []
 
         # retrieve the values and the times from the record dictionary
         values = rdt[variable_name][:]
 
         time_names = rdt[preferred_time][:]
 
-        log.debug("Values unravelled: %s" % values)
-        log.debug("Time names unravelled: %s" % time_names)
+        log.debug("Values unravelled: %s", values)
+        log.debug("Time names unravelled: %s", time_names)
 
         indexes = [l for l in xrange(len(time_names))]
 
         for val, index in zip(values, indexes):
+            arr = rdt[time_names[index]]
+            times.append(arr[index])
             if val < valid_values[0] or val > valid_values[1]:
                 bad_values.append(val)
-                arr = rdt[time_names[index]]
                 bad_value_times.append(arr[index])
 
-        log.debug("Returning bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
+        log.debug("Returning bad_values: %s, bad_value_times: %s, origin: %s, all values: %s, and corresponding times: %s", bad_values, bad_value_times, origin, list(values), list(times))
 
         # return the list of bad values and their timestamps
-        return bad_values, bad_value_times, origin
+        return bad_values, bad_value_times, origin, list(values), list(times)
 
 
 

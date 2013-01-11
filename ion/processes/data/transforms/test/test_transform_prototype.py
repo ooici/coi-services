@@ -21,7 +21,7 @@ import gevent, unittest, os
 import datetime, time
 import random, numpy
 from datetime import timedelta, datetime
-from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
+from interface.objects import StreamRoute, DeviceStatusType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
@@ -66,7 +66,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         if not end_time:
             end_time = start_time + 2 * timer_interval + 1
 
-        log.debug("got the end time here!! %s" % end_time)
+        log.debug("got the end time here!! %s" , end_time)
 
         # Set up the interval timer. The scheduler will publish event with origin set as "Interval Timer"
         sid = self.ssclient.create_interval_timer(start_time="now" ,
@@ -163,7 +163,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         event = queue.get(timeout=10)
 
-        log.debug("Alarm event received from the EventAertTransform %s" % event)
+        log.debug("Alarm event received from the EventAertTransform %s" , event)
 
         self.assertEquals(event.type_, "DeviceEvent")
         self.assertEquals(event.origin, "EventAlertTransform")
@@ -285,13 +285,27 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
 
         return pid
 
+    def poll(self, tries, callback, number_of_retvals, *args, **kwargs):
+        '''
+        Polling wrapper for queries
+        Elasticsearch may not index and cache the changes right away so we may need
+        a couple of tries and a little time to go by before the results show.
+        '''
+        for i in xrange(tries):
+            retval = callback(*args, **kwargs)
+            if retval and len(retval) >= number_of_retvals:
+                return retval
+            time.sleep(0.2)
+        return None
+
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_demo_stream_granules_processing(self):
         """
         Test that the Demo Stream Alert Transform is functioning. The transform coordinates with the scheduler.
-        It is configured to listen to a source that publishes granules. It publishes a DeviceStatusEvent if it
-        receives a granule with bad data or a DeviceCommsEvent if no granule has arrived between two timer events.
+        It is configured to listen to a source that publishes granules. It publishes a bad data DeviceStatusEvent the first time it
+        receives a granule with bad data and then an OK DeviceStatusEvent the first time good data comes in
 
         The transform is configured at launch using a config dictionary.
         """
@@ -300,30 +314,23 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         queue_bad_data = gevent.queue.Queue()
-        queue_no_data = gevent.queue.Queue()
+        queue_good_data = gevent.queue.Queue()
 
         def bad_data(message, headers):
-            log.debug("Got a BAD data event: %s" % message)
+            log.debug("In the test callback, got a DeviceStatusEvent: %s" , message)
             if message.type_ == "DeviceStatusEvent":
-                queue_bad_data.put(message)
+                if message.state == DeviceStatusType.OUT_OF_RANGE:
+                    queue_bad_data.put(message)
+                elif message.state == DeviceStatusType.OK:
+                    queue_good_data.put(message)
 
-        def no_data(message, headers):
-            log.debug("Got a NO data event: %s" % message)
-            queue_no_data.put(message)
-
-        event_subscriber_bad_data = EventSubscriber( origin="instrument_1",
+        status_event_subscriber = EventSubscriber( origin="instrument_1",
             event_type="DeviceStatusEvent",
             callback=bad_data)
 
-        event_subscriber_no_data = EventSubscriber( origin="instrument_1",
-            event_type="DeviceCommsEvent",
-            callback=no_data)
+        status_event_subscriber.start()
 
-        event_subscriber_bad_data.start()
-        event_subscriber_no_data.start()
-
-        self.addCleanup(event_subscriber_bad_data.stop)
-        self.addCleanup(event_subscriber_no_data.stop)
+        self.addCleanup(status_event_subscriber.stop)
 
         #-------------------------------------------------------------------------------------
         # The configuration for the Stream Alert Transform... set up the event types to listen to
@@ -370,117 +377,110 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         self.exchange_names.append('sub_1')
         self.exchange_points.append('exch_point_1')
 
+        self.number = 2
+
         #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule
         #-------------------------------------------------------------------------------------
         self.length = 2
-        val = numpy.array([random.uniform(0,50)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
+        val = numpy.array([(l + 20)  for l in xrange(self.length)])         # feeding in bogus good values
+        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
+        good_val = list(val)
+        good_times = list(times)
 
+        # Check out the OK status event
+        good_event = queue_good_data.get(timeout=40)
+        self.assertEquals(good_event.state, DeviceStatusType.OK)
         self.assertTrue(queue_bad_data.empty())
+        self.assertTrue(queue_good_data.empty())
 
         #-------------------------------------------------------------------------------------
         # publish a few *BAD* granules
         #-------------------------------------------------------------------------------------
-        self.number = 2
-        val = numpy.array([(110 + l)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val)
+        val = numpy.array([(110 + l)  for l in xrange(self.length)])        # feeding in bogus bad values
+        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in bogus times
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number= self.number, values=val, times=times)
+        bad_val = list(val)
+        bad_times = list(times)
 
-        for number in xrange(self.number):
-            event = queue_bad_data.get(timeout=40)
-            self.assertEquals(event.type_, "DeviceStatusEvent")
-            self.assertEquals(event.origin, "instrument_1")
-            self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
-            self.assertEquals(event.valid_values, self.valid_values)
-            self.assertEquals(event.sub_type, 'input_voltage')
-            self.assertTrue(set(event.values) ==  set(val))
-
-            s = set(event.time_stamps)
-            cond = s in [set(numpy.array([1  for l in xrange(self.length)]).tolist()), set(numpy.array([2  for l in xrange(self.length)]).tolist())]
-            self.assertTrue(cond)
+        event = queue_bad_data.get(timeout=40)
+        self.assertEquals(event.type_, "DeviceStatusEvent")
+        self.assertEquals(event.origin, "instrument_1")
+        self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+        self.assertEquals(event.valid_values, self.valid_values)
+        self.assertEquals(event.sub_type, 'input_voltage')
+        self.assertTrue(set(event.values) ==  set(val))
+        self.assertEquals(event.time_stamps, list(times))
 
         # To ensure that only the bad values generated the alert events. Queue should be empty now
         self.assertEquals(queue_bad_data.qsize(), 0)
 
         #-------------------------------------------------------------------------------------
-        # Do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-        #-------------------------------------------------------------------------------------
-        event = queue_no_data.get(timeout=15)
-
-        self.assertEquals(event.type_, "DeviceCommsEvent")
-        self.assertEquals(event.origin, "instrument_1")
-        self.assertEquals(event.origin_type, "PlatformDevice")
-        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
-        self.assertEquals(event.sub_type, 'input_voltage')
-
-        #-------------------------------------------------------------------------------------
-        # Empty the queues and repeat tests
-        #-------------------------------------------------------------------------------------
-        queue_bad_data.queue.clear()
-        queue_no_data.queue.clear()
-
-        #-------------------------------------------------------------------------------------
         # publish a *GOOD* granule again
         #-------------------------------------------------------------------------------------
-        val = numpy.array([(l + 20)  for l in xrange(self.length)])
-        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val)
+        val = numpy.array([(l + 20)  for l in xrange(self.length)])         # feeding in same bogus good values as before
+        times = numpy.array([self.number  for l in xrange(self.length)])    # feeding in same bogus times as before
+        self._publish_granules(stream_id= stream_id, stream_route= stream_route, number=1, values=val, times=times)
 
-        self.assertTrue(queue_bad_data.empty())
+        # Did we get the OK status event again?
+        good_event = queue_good_data.get(timeout=40)
+        self.assertEquals(good_event.state, DeviceStatusType.OK)
 
-        #-------------------------------------------------------------------------------------
-        # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-        #-------------------------------------------------------------------------------------
+        def find_the_events():
+            now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
+            events = self.user_notification.find_events(origin= 'instrument_1', limit=5,  max_datetime= now, descending=True)
+            return events
 
-        event = queue_no_data.get(timeout=20)
+        events_in_db = self.poll(40, find_the_events, number_of_retvals=2)
 
-        self.assertEquals(event.type_, "DeviceCommsEvent")
-        self.assertEquals(event.origin, "instrument_1")
-        self.assertEquals(event.origin_type, "PlatformDevice")
-        self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
-        self.assertEquals(event.sub_type, 'input_voltage')
-
-        #-------------------------------------------------------------------------------------
-        # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
-        #-------------------------------------------------------------------------------------
-        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-        events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
-
-        log.debug("events::: %s" % events_in_db)
+        log.debug("events::: %s" , events_in_db)
 
         bad_data_events = []
-        no_data_events = []
+        good_data_events = []
+
+        event_states = []
+        for event in events_in_db:
+            event_states.append(event.state)
+
+        self.assertEquals(set(event_states), set([DeviceStatusType.OUT_OF_RANGE, DeviceStatusType.OK]))
 
         for event in events_in_db:
+
             if event.type_ == 'DeviceStatusEvent':
-                bad_data_events.append(event)
                 self.assertEquals(event.origin, "instrument_1")
-                self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
                 self.assertEquals(event.valid_values, self.valid_values)
                 self.assertEquals(event.sub_type, 'input_voltage')
-            elif event.type_ == 'DeviceCommsEvent':
-                no_data_events.append(event)
-                self.assertEquals(event.origin, "instrument_1")
-                self.assertEquals(event.origin_type, "PlatformDevice")
-                self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
-                self.assertEquals(event.sub_type, 'input_voltage')
+
+                if event.state == DeviceStatusType.OK:
+                    self.assertEquals(event.values, good_val)
+                    self.assertEquals(event.time_stamps, good_times)
+                    good_data_events.append(event)
+                else: # It must be a BAD data DeviceStatusEvent
+                    self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+                    self.assertEquals(len(event.values), len(bad_val))
+                    self.assertEquals(len(event.time_stamps), len(bad_times))
+
+                    for x in xrange(len(event.values)):
+                        self.assertTrue(event.values[x] in bad_val)
+                        self.assertTrue(event.time_stamps[x] in bad_times)
+                    bad_data_events.append(event)
 
         self.assertTrue(len(bad_data_events) > 0)
-        self.assertTrue(len(no_data_events) > 0)
+        self.assertTrue(len(good_data_events) > 0)
 
         log.debug("This satisfies L4-CI-SA-RQ-114 : 'Marine facility shall monitor marine infrastructure usage by instruments.'"
                   " The req is satisfied because the stream alert transform"
                   "is able to send device status and communication events over selected time intervals. This capability will be "
                   "augmented in the future.")
 
-    def _publish_granules(self, stream_id=None, stream_route=None, values = None,number=None):
+    def _publish_granules(self, stream_id=None, stream_route=None, values = None, times = None, number=None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
 
         stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         stream_def_id = stream_def._id
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-
-        times = numpy.array([number  for l in xrange(self.length)])
 
         for i in xrange(number):
             rdt['input_voltage'] = values
@@ -490,7 +490,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             g = rdt.to_granule()
             g.data_producer_id = 'instrument_1'
 
-            log.debug("granule #%s published by instrument:: %s" % ( number,g))
+            log.debug("granule #%s published by instrument:: %s",  number,g)
 
             pub.publish(g)
 

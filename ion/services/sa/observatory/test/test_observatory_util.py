@@ -10,7 +10,7 @@ from pyon.public import RT, log
 from ion.services.sa.observatory.mockutil import MockUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
-from interface.objects import StatusType, DeviceStatusType, DeviceCommsType
+from interface.objects import StatusType, DeviceStatusType
 
 
 @attr('UNIT', group='saob')
@@ -171,12 +171,8 @@ class TestObservatoryUtil(unittest.TestCase):
     event_list2 = [
         dict(et='DeviceStatusEvent', o='ID_1', attr=dict(state=DeviceStatusType.OUT_OF_RANGE))
     ]
-    event_list3 = [
-        dict(et='DeviceCommsEvent', o='ID_1', attr=dict(state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION))
-    ]
     event_list4 = [
         dict(et='DeviceStatusEvent', o='PD_1', attr=dict(state=DeviceStatusType.OUT_OF_RANGE)),
-        dict(et='DeviceCommsEvent', o='PD_1', attr=dict(state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION))
     ]
 
     def test_get_status_roll_ups(self):
@@ -261,7 +257,7 @@ class TestObservatoryUtil(unittest.TestCase):
         self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
 
         # ID_1 power+comms warning
-        self.mu.load_mock_events(self.event_list3)
+#        self.mu.load_mock_events(self.event_list3)
         status_rollups = self.obs_util.get_status_roll_ups('ID_1', RT.InstrumentDevice)
         self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
 
@@ -380,5 +376,7 @@ class TestObservatoryUtil(unittest.TestCase):
         self.assertEquals(res_status['agg'], agg)
         self.assertEquals(res_status['loc'], loc)
         self.assertEquals(res_status['data'], data)
-        self.assertEquals(res_status['comms'], comms)
+
+        #todo After dropping the DeviceCommsEvents, we do not have a way right now to check comms status, hence commenting out the check below
+#        self.assertEquals(res_status['comms'], comms)
         self.assertEquals(res_status['power'], power)

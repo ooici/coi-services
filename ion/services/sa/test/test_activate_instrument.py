@@ -31,7 +31,7 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
+from interface.objects import Granule, DeviceStatusType, StatusType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 
 from nose.plugins.attrib import attr
@@ -383,12 +383,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
                 origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
-        self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
-                origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instDevice_id)
         log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
-        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
+#        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
