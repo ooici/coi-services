@@ -120,6 +120,7 @@ class BootstrapProcessDispatcher(BootstrapPlugin):
 
         for i in xrange(notification_workers):
             config.process.name = 'notification_worker_%s' % i
+            config.process.queue_name = 'notification_worker_queue'
             self.pds_client.schedule_process(process_definition_id=uns_procdef_id, configuration=config)
 
 
