@@ -714,6 +714,8 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
     def setUp(self):
         self.dashi = None
         self._start_container()
+        from pyon.public import CFG
+
         self.container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         self.container = self.container_client._get_container_instance()
@@ -739,7 +741,9 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.dashi = get_dashi(uuid.uuid4().hex,
             pd_config['processdispatcher']['dashi_uri'],
-            pd_config['processdispatcher']['dashi_exchange'])
+            pd_config['processdispatcher']['dashi_exchange'],
+            sysname=CFG.get_safe("dashi.sysname")
+            )
 
         #send a fake node_state message to PD's dashi binding.
         self.node1_id = uuid.uuid4().hex
