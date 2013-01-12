@@ -4,10 +4,8 @@
 from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.util.ion_time import IonTime
-from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, PRED
-from pyon.public import Container, log, IonObject
+from pyon.public import log, IonObject
 from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -21,11 +19,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from nose.plugins.attrib import attr
-import unittest, time
-from ooi.logging import log
 
 from ion.services.sa.test.helpers import any_old
-from ion.services.dm.utility.granule_utils import time_series_domain
 
 
 class FakeProcess(LocalContextMixin):
@@ -511,4 +506,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         extended_site =  self.OMS.get_site_extension(inst_site_id)
 
         log.debug("test_observatory_org_extended: extended_site:  %s ", str(extended_site))
+
+        self.dpclient.delete_data_product(data_product_id1)
+
+
 

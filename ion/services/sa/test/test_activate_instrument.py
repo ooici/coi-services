@@ -400,3 +400,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
 
+        self.dpclient.delete_data_product(data_product_id1)
+        self.dpclient.delete_data_product(data_product_id2)
+

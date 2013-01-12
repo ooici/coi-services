@@ -13,28 +13,19 @@ pid = cc.spawn_process(name='ctd_test',module='ion.processes.data.vis_stream_pub
 
 from pyon.public import log
 
-import time
-import math
-import random
-import threading
-import gevent
 
-from pyon.service.service import BaseService
 from pyon.ion.process import ImmediateProcess
-from pyon.public import PRED,RT,Container, log, IonObject 
+from pyon.public import PRED,RT,IonObject 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_packet, ctd_stream_definition
-from ion.services.dm.utility.granule_utils import CoverageCraft
 
 #Instrument related imports
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from prototype.sci_data.stream_defs import ctd_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.services.sa.idata_product_management_service import IDataProductManagementService, DataProductManagementServiceClient
-from interface.objects import HdfStorage, CouchStorage
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 
 
@@ -63,7 +54,9 @@ class VisStreamLauncher(ImmediateProcess):
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
-        self.IngestClient = IngestionManagementServiceClient(node=self.container.node)
+        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient()
+
 
         # create the pubsub client
         self.pubsubclient = PubsubManagementServiceClient(node=self.container.node)
@@ -99,14 +92,12 @@ class VisStreamLauncher(ImmediateProcess):
             self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
             # create a stream definition for the data from the ctd simulator
-            ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_CDM')
+            pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+            ctd_stream_def_id = self.pubsubclient.create_stream_definition(name="SBE37_CDM", description="SBE37_CDM", parameter_diction_id=pdict_id)
 
-            craft = CoverageCraft
-            sdom, tdom = craft.create_domains()
+            tdom, sdom = time_series_domain()
             sdom = sdom.dump()
             tdom = tdom.dump()
-            parameter_dictionary = craft.create_parameters()
-            parameter_dictionary = parameter_dictionary.dump()
 
             dp_obj = IonObject(RT.DataProduct,
                 name=self.data_source_name,
@@ -114,7 +105,7 @@ class VisStreamLauncher(ImmediateProcess):
                 temporal_domain = tdom,
                 spatial_domain = sdom)
 
-            data_product_id = self.dpclient.create_data_product(dp_obj, ctd_stream_def_id, parameter_dictionary)
+            data_product_id = self.dpclient.create_data_product(dp_obj, stream_definition_id=ctd_stream_def_id)
 
             self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id)
             self.dpclient.activate_data_product_persistence(data_product_id=data_product_id)
@@ -125,10 +116,10 @@ class VisStreamLauncher(ImmediateProcess):
         stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)
 
         if self.dataset == 'sinusoidal':
-            pid = self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
+            self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
                 module='ion.processes.data.sinusoidal_stream_publisher',cls='SinusoidalCtdPublisher',config={'process':{'stream_id':stream_ids[0]}})
         else:
-            pid = self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
+            self.container.spawn_process(name='ctd_test.' + self.data_source_name ,
                 module='ion.processes.data.ctd_stream_publisher',cls='SimpleCtdPublisher',config={'process':{'stream_id':stream_ids[0]}})
 
 

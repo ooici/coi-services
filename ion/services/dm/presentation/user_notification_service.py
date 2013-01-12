@@ -616,7 +616,8 @@ class UserNotificationService(BaseUserNotificationService):
             configuration = {}
             configuration['process'] = dict({
                 'name': 'notification_worker_%s' % n,
-                'type':'simple'
+                'type':'simple',
+                'queue_name': 'notification_worker_queue'
             })
 
             pid  = self.process_dispatcher.schedule_process(
