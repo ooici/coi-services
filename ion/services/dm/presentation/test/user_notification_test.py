@@ -389,11 +389,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Update notification
         #--------------------------------------------------------------------------------------
+        notification_request_correct = self.unsc.read_notification(notification_id_1)
+        notification_request_correct.origin = 'instrument_correct'
 
-        notification_id_1 = self.unsc.create_notification(notification=notification_request_correct, user_id=user_id)
-        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+        notification_request_2 = self.unsc.read_notification(notification_id_2)
+        notification_request_2.origin = 'instrument_2_correct'
 
-        notifications = set([notification_id_1, notification_id_2])
+        self.unsc.update_notification(notification=notification_request_correct, user_id=user_id)
+        self.unsc.update_notification(notification=notification_request_2, user_id=user_id)
 
         #--------------------------------------------------------------------------------------
         # Check that the correct events were published
@@ -410,8 +413,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Delete notification
         #--------------------------------------------------------------------------------------
 
-        notification_id_1 = self.unsc.create_notification(notification=notification_request_correct, user_id=user_id)
-        notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+        self.unsc.delete_notification(notification_id_1)
+        self.unsc.delete_notification(notification_id_2)
 
         notifications = set([notification_id_1, notification_id_2])
 

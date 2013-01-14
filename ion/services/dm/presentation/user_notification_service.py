@@ -339,7 +339,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
             origin="UserNotificationService",
-            description= "A notification has been updated."
+            description= "A notification has been updated.",
+            notification_id = notification_id
         )
 
     def read_notification(self, notification_id=''):
