@@ -60,9 +60,9 @@ class TestLoader(IonIntegrationTestCase):
 
     @attr('INT')
     def test_assetdb_valid(self):
-        """ make sure DEVS scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
-            NOTE: test will pass/fail based on current google doc, not just code changes.
+        """ make sure OOI preload works correctly
+            NOTE: - currently must load BASE,BETA first, then OOI assets
+                  - asset preload only works with bulk=True
         """
         self.assert_can_load("BASE,BETA", loadooi=True, asset_path='res/preload/r2_ioc/ooi_assets')
 
