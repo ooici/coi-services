@@ -918,13 +918,12 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Get the notifications whose origin field has the provided resource_id
         notifs = self.get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
-        log.debug("UNS:: Got the notifications here %s::", notifs)
-        log.debug("UNS:: include_nonactive %s::", include_nonactive)
+        log.debug("UNS fetched the following the notifications subscribed to %s::", notifs)
 
         if not user_id:
             return notifs
 
-        notifications = notifs
+        notifications = []
 
         # Now find the users who subscribed to the above notifications
         #todo Right now looking at assocs in a loop which is not efficient to find the users linked to these notifications
@@ -934,11 +933,9 @@ class UserNotificationService(BaseUserNotificationService):
             # Find if the user is associated with this notification request
             ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
 
-            log.debug("Got the user ids here::: %s", ids)
-
-            if not user_id in ids:
-                log.debug("removing the notification: %s", notif)
-                notifications.remove(notif)
+            if user_id in ids:
+                log.debug("Removing the notification: %s", notif)
+                notifications.append(notif)
 
         return notifications
 
