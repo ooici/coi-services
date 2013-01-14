@@ -1222,6 +1222,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         user_id, _ = self.rrc.create(user)
 
+        user_2 = UserInfo()
+        user_2.name = 'user_2'
+        user_2.contact.email = 'user_2@gmail.com'
+
+        user_id_2, _ = self.rrc.create(user_2)
 
         #--------------------------------------------------------------------------------------
         # Make notification request objects -- Remember to put names
@@ -1237,13 +1242,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             origin_type="type_2",
             event_type='DetectionEvent')
 
-
         #--------------------------------------------------------------------------------------
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
 
         notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
         notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
+
+        notification_id_user_2 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id_2)
+
+        log.debug("the notification_id1::: %s", notification_id1)
+        log.debug("the notification_id_user_2::: %s", notification_id_user_2)
 
         #--------------------------------------------------------------------------------------
         # Make assertions
