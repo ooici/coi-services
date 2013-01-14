@@ -346,9 +346,10 @@ class IONLoader(ImmediateProcess):
             # Now load entries from preload spreadsheet top to bottom where scenario matches
             if category not in self.object_definitions or not self.object_definitions[category]:
                 log.debug('no rows for category: %s', category)
-                continue
-            log.debug("Loading category %s", category)
-            for row in self.object_definitions[category]:
+            else:
+                log.debug("Loading category %s", category)
+
+            for row in self.object_definitions.get(category, []):
                 if self.COL_ID in row:
                     log.trace('handling %s row %s: %r', category, row[self.COL_ID], row)
                 else:
@@ -360,7 +361,7 @@ class IONLoader(ImmediateProcess):
                     log.error('error loading %s row: %r', category, row, exc_info=True)
                     raise
 
-            row_count = len(self.object_definitions[category])
+            row_count = len(self.object_definitions.get(category,[]))
             if self.bulk:
                 num_bulk = self._finalize_bulk(category)
                 # Update resource and associations views
