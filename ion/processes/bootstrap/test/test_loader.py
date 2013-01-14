@@ -19,12 +19,18 @@ class TestLoader(IonIntegrationTestCase):
         self.ingestion_management = IngestionManagementServiceClient()
 
     def assert_can_load(self, scenarios, loadui=False, loadooi=False,
-            path=TESTED_DOC, ui_path='default'):
+            path=TESTED_DOC, ui_path='default', asset_path=None):
         """ perform preload for given scenarios and raise exception if there is a problem with the data """
         config = dict(op="load", scenario=scenarios,
                 attachments="res/preload/r2_ioc/attachments",
-                loadui=loadui, loadooi=loadooi, path=path, ui_path=ui_path)
+                loadui=loadui, loadooi=False, path=path, ui_path=ui_path, assets=asset_path)
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
+        if loadooi:
+            config['loadui']=False
+            config['loadooi']=True
+            config['scenario']='X'
+            config['bulk']=True
+            self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
     @attr('PRELOAD')
     def test_ui_valid(self):
@@ -51,6 +57,14 @@ class TestLoader(IonIntegrationTestCase):
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
         self.assert_can_load("BASE,BETA,DEVS", path='master')
+
+    @attr('INT')
+    def test_assetdb_valid(self):
+        """ make sure DEVS scenario in master google doc
+            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            NOTE: test will pass/fail based on current google doc, not just code changes.
+        """
+        self.assert_can_load("BASE,BETA", loadooi=True, asset_path='res/preload/r2_ioc/ooi_assets')
 
     def find_object_by_name(self, name, type):
         objects,_ = self.container.resource_registry.find_resources(type, id_only=False)
