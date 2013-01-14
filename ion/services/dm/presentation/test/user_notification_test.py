@@ -1860,17 +1860,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for notific in res_notifs:
             self.assertEquals(notific.origin, data_product_id)
             self.assertEquals(notific.temporal_bounds.end_datetime, '')
-            self.assertTrue(notif.origin_type in ['type_1', 'type_2'])
-            self.assertEquals(notif.event_type, 'ResourceLifecycleEvent')
-
-        notifs_for_user = self.unsc.get_subscriptions_for_user(resource_id=data_product_id, user_id = user_ids[0],include_nonactive=False)
-#        self.assertEquals(len(notifs_for_user), 1)
-#
-#        for notif in notifs_for_user:
-#            self.assertEquals(notif.origin, data_product_id)
-#            self.assertEquals(notif.temporal_bounds.end_datetime, '')
-#            self.assertTrue(notif.origin_type in ['type_1', 'type_2'])
-#            self.assertEquals(notif.event_type, 'ResourceLifecycleEvent')
+            self.assertTrue(notific.origin_type == 'type_1' or  notific.origin_type =='type_2')
+            self.assertEquals(notific.event_type, 'ResourceLifecycleEvent')
 
         #--------------------------------------------------------------------------------------
         # Use UNS to get the all subscriptions --- including retired
@@ -1878,22 +1869,12 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         res_notifs = self.unsc.get_subscriptions(resource_id=data_product_id, include_nonactive=True)
 
         for notific in res_notifs:
+            log.debug("notif.origin_type:: %s", notific.origin_type)
             self.assertEquals(notific.origin, data_product_id)
-            self.assertEquals(notif.temporal_bounds.end_datetime, '')
-            self.assertTrue(notif.origin_type in ['type_1', 'type_2', 'type3', 'type_4'])
-            self.assertTrue(notif.event_type in ['ResourceLifecycleEvent', 'DetectionEvent'])
+            self.assertTrue(notific.origin_type in ['type_1', 'type_2', 'type_3', 'type_4'])
+            self.assertTrue(notific.event_type in ['ResourceLifecycleEvent', 'DetectionEvent'])
 
         self.assertEquals(len(res_notifs), 4)
-
-        notifs_for_user = self.unsc.get_subscriptions_for_user(resource_id=data_product_id, user_id = user_ids[1],include_nonactive=True)
-#        self.assertEquals(len(notifs_for_user), 2)
-#
-#        for notif in notifs_for_user:
-#            self.assertEquals(notif.origin, data_product_id)
-#            self.assertEquals(notif.temporal_bounds.end_datetime, '')
-#            self.assertTrue(notif.origin_type in ['type_1', 'type_2', 'type3', 'type_4'])
-#            self.assertTrue(notif.event_type in ['ResourceLifecycleEvent', 'DetectionEvent'])
-
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
