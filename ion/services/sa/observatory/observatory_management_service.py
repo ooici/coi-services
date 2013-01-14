@@ -1197,7 +1197,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                         for idev in extended_site.instrument_devices]
             extended_site.computed.platform_status   = [status_rollups.get(pdev._id,{}).get("agg",4)
                                                         for pdev in extended_site.platform_devices]
-            extended_site.site_status                = [status_rollups.get(site._id,{}).get("agg",4)
+            extended_site.computed.site_status       = [status_rollups.get(site._id,{}).get("agg",4)
                                                         for site in extended_site.sites]
 
 
@@ -1211,7 +1211,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             extended_site.computed.location_status_roll_up       = short_status_rollup("loc")
             extended_site.computed.aggregated_status             = short_status_rollup("agg")
         except Exception as ex:
-            log.exception("Computed attribute failed for %s" % site_id)
+            log.exception("Computed attribute failed for site %s" % site_id)
 
         return extended_site
 
