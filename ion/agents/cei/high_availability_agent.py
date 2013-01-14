@@ -33,7 +33,7 @@ except ImportError:
 @brief Pyon port of HAAgent
  """
 
-DEFAULT_INTERVAL = 30
+DEFAULT_INTERVAL = 60
 
 
 class HighAvailabilityAgent(SimpleResourceAgent):
@@ -553,6 +553,9 @@ def _get_process_schedule(**kwargs):
         except KeyError:
             msg = "%s is not a known ProcessRestartMode" % (restart_mode)
             raise BadRequest(msg)
+    else:
+        # if restart mode isn't specified, use NEVER. HA Agent itself will reschedule failures.
+        process_schedule.restart_mode = ProcessRestartMode.NEVER
 
     target = ProcessTarget()
     if execution_engine_id is not None:
