@@ -910,6 +910,56 @@ class UserNotificationService(BaseUserNotificationService):
         else:
             return list(notifications_active)
 
+    def get_subscriptions_for_user(self, resource_id='', user_id = '', include_nonactive=False):
+        """
+        This method takes the user-id as an input parameter. The logic will first find all notification requests for this resource
+        then if a user_id is present, it will filter on those that this user is associated with.
+        """
+
+        # Get the notifications whose origin field has the provided resource_id
+        notifs = self.get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
+        log.debug("UNS:: Got the notifications here %s::", notifs)
+        log.debug("UNS:: include_nonactive %s::", include_nonactive)
+
+        if not user_id:
+            return notifs
+
+        notifications = notifs
+
+        # Now find the users who subscribed to the above notifications
+        #todo Right now looking at assocs in a loop which is not efficient to find the users linked to these notifications
+        # todo(contd) Need to use a more efficient way later
+        for notif in notifs:
+            notif_id = notif._id
+            # Find if the user is associated with this notification request
+            ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
+
+            log.debug("Got the user ids here::: %s", ids)
+
+            if not user_id in ids:
+                log.debug("removing the notification: %s", notif)
+                notifications.remove(notif)
+
+        return notifications
+
+
+#    def get_users_who_subscribed(self, resource_id='', include_nonactive=False):
+#
+#        # Get the notifications whose origin field has the provided resource_id
+#        notifications = self.get_subscriptions(resource_id, include_nonactive)
+#
+#        # Now find the users who subscribed to the above notifications
+#        #todo Right now looking at assocs in a loop which is not efficient to find the users linked to these notifications
+#        # todo(contd) Need to use a more efficient way later
+#
+#        user_ids = set()
+#        for notif in notifications:
+#            notif_id = notif._id
+#            # Find the users who are associated with this notification request
+#            ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
+#            user_ids.add(ids)
+#
+#        return user_ids
 
     def _notification_in_notifications(self, notification = None, notifications = None):
 
