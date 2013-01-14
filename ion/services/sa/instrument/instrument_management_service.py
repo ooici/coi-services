@@ -593,13 +593,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
         # if no comms_config specified in the driver config
+        log.info("IMS:start_instrument_agent_instance check to launch port agent. driver_config: %s ", instrument_agent_instance_obj.driver_config)
         if not 'comms_config' in instrument_agent_instance_obj.driver_config:
-            log.debug("IMS:start_instrument_agent_instance no comms_config specified in the driver config so call _start_pagent")
+            log.info("IMS:start_instrument_agent_instance no comms_config specified in the driver_config so call _start_pagent")
             self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
         # if the comms_config host addr in the driver config is localhost
         elif 'addr' in instrument_agent_instance_obj.driver_config.get('comms_config') and \
              instrument_agent_instance_obj.driver_config['comms_config']['addr'] == 'localhost':
-                log.debug("IMS:start_instrument_agent_instance  comms_config host addr in the driver config is localhost so call _start_pagent")
+                log.info("IMS:start_instrument_agent_instance  comms_config host addr in the driver_config is localhost so call _start_pagent")
                 self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
 
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
@@ -642,11 +643,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
        
         #todo: ask bill if this blocks
         # It blocks until the port agent starts up or a timeout
-        log.debug("IMS:_start_pagent calling PortAgentProcess.launch_process ")
+        log.info("IMS:_start_pagent calling PortAgentProcess.launch_process ")
         _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
         pid = _pagent.get_pid()
         port = _pagent.get_data_port()
-        log.debug("IMS:_start_pagent returned from PortAgentProcess.launch_process pid: %s ", pid)
+        log.info("IMS:_start_pagent returned from PortAgentProcess.launch_process pid: %s ", pid)
 
         # Hack to get ready for DEMO.  Further though needs to be put int
         # how we pass this config info around.
