@@ -866,7 +866,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-    def get_subscriptions(self, resource_id='', include_nonactive=False):
+    def _get_subscriptions(self, resource_id='', include_nonactive=False):
         """
         This method is used to get the subscriptions to a data product. The method will return a list of NotificationRequest
         objects for whom the origin is set to this data product. This way all the users who were interested in listening to
@@ -910,14 +910,14 @@ class UserNotificationService(BaseUserNotificationService):
         else:
             return list(notifications_active)
 
-    def get_subscriptions_for_user(self, resource_id='', user_id = '', include_nonactive=False):
+    def get_subscriptions(self, resource_id='', user_id = '', include_nonactive=False):
         """
         This method takes the user-id as an input parameter. The logic will first find all notification requests for this resource
         then if a user_id is present, it will filter on those that this user is associated with.
         """
 
         # Get the notifications whose origin field has the provided resource_id
-        notifs = self.get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
+        notifs = self._get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
         log.debug("UNS fetched the following the notifications subscribed to %s::", notifs)
 
         if not user_id:

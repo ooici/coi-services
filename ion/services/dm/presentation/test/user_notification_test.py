@@ -1998,7 +1998,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Use UNS to get the subscriptions
         #--------------------------------------------------------------------------------------
 
-        n_for_user_1 = self.unsc.get_subscriptions_for_user(resource_id=data_product_id, user_id = user_id_1, include_nonactive=False)
+        n_for_user_1 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_1, include_nonactive=False)
         self.assertEquals(len(n_for_user_1), 1)
 
         for notif in n_for_user_1:
@@ -2008,7 +2008,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(notif.origin_type, 'active_1')
             self.assertEquals(notif.event_type, 'ResourceLifecycleEvent')
 
-        n_for_user_2 = self.unsc.get_subscriptions_for_user(resource_id=data_product_id, user_id = user_id_2, include_nonactive=False)
+        n_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=False)
         self.assertEquals(len(n_for_user_2), 1)
 
         for notif in n_for_user_2:
@@ -2021,7 +2021,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         # Use UNS to get the all subscriptions --- including retired
         #--------------------------------------------------------------------------------------
-        notifs_for_user_1 = self.unsc.get_subscriptions_for_user(resource_id=data_product_id, user_id = user_id_1, include_nonactive=True)
+        notifs_for_user_1 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_1, include_nonactive=True)
         self.assertEquals(len(notifs_for_user_1), 2)
         log.debug("number of returned notif object: %s", len(notifs_for_user_1))
 
@@ -2032,7 +2032,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertTrue(notif.origin_type == 'active_1' or notif.origin_type == 'past_1')
             self.assertTrue(notif.event_type== 'ResourceLifecycleEvent' or notif.event_type=='DetectionEvent')
 
-        notifs_for_user_2 = self.unsc.get_subscriptions_for_user(resource_id=data_product_id, user_id = user_id_2, include_nonactive=True)
+        notifs_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=True)
 
         for notif in notifs_for_user_2:
             self.assertEquals(notif.origin, data_product_id)
