@@ -374,6 +374,41 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
 
+    def test_schedule_haagent_name(self):
+        haa_proc_def = DotDict()
+        haa_proc_def['name'] = "haagent"
+        haa_proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+
+        payload_proc_def = DotDict()
+        payload_proc_def['name'] = "payload_process"
+        payload_proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+
+        proc_defs = {"haa_proc_def_id": haa_proc_def,
+                     "payload_proc_def_id": payload_proc_def}
+
+        read_definition_mock = Mock()
+        read_definition_mock.side_effect = proc_defs.get
+        self.pd_service.backend.read_definition = read_definition_mock
+
+        # not used for anything in local mode
+        proc_schedule = DotDict()
+
+        configuration = {"highavailability": {"process_definition_id": "payload_proc_def_id"}}
+        self.pd_service.schedule_process("haa_proc_def_id", proc_schedule, configuration)
+
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        name = self.mock_core.schedule_process.call_args[1]['name']
+        self.assertTrue(name.startswith("payload_process-ha"))
+
+        # now try with scheduling by process definition name instead of ID
+        self.mock_core.schedule_process.reset_mock()
+        configuration = {"highavailability": {"process_definition_name": "payload_process"}}
+        self.pd_service.schedule_process("haa_proc_def_id", proc_schedule, configuration)
+
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        name = self.mock_core.schedule_process.call_args[1]['name']
+        self.assertTrue(name.startswith("payload_process-ha"))
+
     def test_queueing_mode(self):
 
         proc_def = DotDict()

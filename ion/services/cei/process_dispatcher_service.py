@@ -382,13 +382,20 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
 
     def _get_process_name(self, process_definition, configuration):
 
-        ha_pd_id = configuration.get('highavailability', {}).get('process_definition_id')
+        base_name = ""
         name_suffix = ""
-        if ha_pd_id is not None:
-            process_definition = self.backend.read_definition(ha_pd_id)
-            name_suffix = "ha"
+        ha_config = configuration.get('highavailability')
+        if ha_config:
+            if ha_config.get('process_definition_name'):
+                base_name = ha_config['process_definition_name']
+                name_suffix = "ha"
+            elif ha_config.get('process_definition_id'):
+                inner_definition = self.backend.read_definition(
+                    ha_config['process_definition_id'])
+                base_name = inner_definition.name
+                name_suffix = "ha"
 
-        name_parts = [str(process_definition.name or "process")]
+        name_parts = [str(base_name or process_definition.name or "process")]
         if name_suffix:
             name_parts.append(name_suffix)
         name_parts.append(uuid.uuid4().hex)
