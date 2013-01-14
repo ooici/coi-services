@@ -933,7 +933,7 @@ class UserNotificationService(BaseUserNotificationService):
             # Find if the user is associated with this notification request
             ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
 
-            if user_id in ids:
+            if ids and user_id in ids:
                 log.debug("Removing the notification: %s", notif)
                 notifications.append(notif)
 
