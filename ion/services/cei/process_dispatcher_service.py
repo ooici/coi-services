@@ -730,6 +730,7 @@ class PDLocalBackend(object):
 
 _PD_PROCESS_STATE_MAP = {
     "100-UNSCHEDULED": ProcessStateEnum.REQUESTED,
+    "150-UNSCHEDULED_PENDING": ProcessStateEnum.REQUESTED,
     "200-REQUESTED": ProcessStateEnum.REQUESTED,
     "250-DIED_REQUESTED": ProcessStateEnum.REQUESTED,
     "300-WAITING": ProcessStateEnum.WAITING,
