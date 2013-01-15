@@ -27,7 +27,7 @@ from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, StatusType
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
@@ -1177,33 +1177,36 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.instrument_models = self.RR.read_mult(i_mod)
         extended_site.platform_models = self.RR.read_mult(p_mod)
 
-        # Status computation
-        extended_site.computed.instrument_status = [4] * len(extended_site.instrument_devices)
-        extended_site.computed.platform_status   = [4] * len(extended_site.platform_devices)
-        extended_site.computed.site_status       = [4] * len(extended_site.sites)
-        def status_4():
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        s_unknown = StatusType.STATUS_UNKNOWN
 
-        extended_site.computed.communications_status_roll_up = status_4()
-        extended_site.computed.power_status_roll_up          = status_4()
-        extended_site.computed.data_status_roll_up           = status_4()
-        extended_site.computed.location_status_roll_up       = status_4()
-        extended_site.computed.aggregated_status             = status_4()
+        # Status computation
+        extended_site.computed.instrument_status = [s_unknown] * len(extended_site.instrument_devices)
+        extended_site.computed.platform_status   = [s_unknown] * len(extended_site.platform_devices)
+        extended_site.computed.site_status       = [s_unknown] * len(extended_site.sites)
+
+        def status_unknown():
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
+
+        extended_site.computed.communications_status_roll_up = status_unknown()
+        extended_site.computed.power_status_roll_up          = status_unknown()
+        extended_site.computed.data_status_roll_up           = status_unknown()
+        extended_site.computed.location_status_roll_up       = status_unknown()
+        extended_site.computed.aggregated_status             = status_unknown()
 
         try:
             status_rollups = self.outil.get_status_roll_ups(site_id, extended_site.resource._get_type())
 
-            extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4)
+            extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg", s_unknown)
                                                         for idev in extended_site.instrument_devices]
-            extended_site.computed.platform_status   = [status_rollups.get(pdev._id,{}).get("agg",4)
+            extended_site.computed.platform_status   = [status_rollups.get(pdev._id,{}).get("agg", s_unknown)
                                                         for pdev in extended_site.platform_devices]
-            extended_site.computed.site_status       = [status_rollups.get(site._id,{}).get("agg",4)
+            extended_site.computed.site_status       = [status_rollups.get(site._id,{}).get("agg", s_unknown)
                                                         for site in extended_site.sites]
 
 
             def short_status_rollup(key):
                 return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                                        value=status_rollups[site_id][key])
+                                        value=status_rollups[site_id].get(key, s_unknown))
 
             extended_site.computed.communications_status_roll_up = short_status_rollup("comms")
             extended_site.computed.power_status_roll_up          = short_status_rollup("power")
