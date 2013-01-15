@@ -33,12 +33,14 @@ from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
 
+# for direct hdf access
+from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
+
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
 
 
 class VisualizationService(BaseVisualizationService):
-
 
     def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
@@ -328,6 +330,7 @@ class VisualizationService(BaseVisualizationService):
 
         dataset_bounds = None
         dataset_time_bounds = None
+        use_direct_access = False
         if visualization_parameters == {}:
             visualization_parameters = None
 
@@ -362,6 +365,13 @@ class VisualizationService(BaseVisualizationService):
                 query['stride_time'] = int(visualization_parameters['stride_time'])
             else:
                 query['stride_time'] == 1
+
+            # direct access parameter
+            if 'use_direct_access' in visualization_parameters:
+                if (int(visualization_parameters['use_direct_access']) == 1):
+                    use_direct_access = True
+                else:
+                    use_direct_access = False
 
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
@@ -398,8 +408,12 @@ class VisualizationService(BaseVisualizationService):
                 query['stride_time'] = int(math.ceil(float(num_of_actual_data_points) / float(max_time_steps)))
         """
 
-        #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-        retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
+        if use_direct_access:
+            retrieved_granule = DataRetrieverService.retrieve_oob(ds_ids[0], query=query)
+        else:
+            #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
+            retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
+
         if retrieved_granule is None:
             return None
 
@@ -658,7 +672,7 @@ class VisualizationService(BaseVisualizationService):
                 break
 
 
-        google_dt += "],\"cols\":[{\"type\":\"datetime\",\"id\":\"time\",\"label\":\"time\"},{\"type\":\"number\",\"id\":\"temp\",\"label\":\"temp\"},{\"type\":\"number\",\"id\":\"density\",\"label\":\"density\"},{\"type\":\"number\",\"id\":\"lon\",\"label\":\"lon\"},{\"type\":\"number\",\"id\":\"salinity\",\"label\":\"salinity\"},{\"type\":\"number\",\"id\":\"pressure\",\"label\":\"pressure\"},{\"type\":\"number\",\"id\":\"lat\",\"label\":\"lat\"},{\"type\":\"number\",\"id\":\"conductivity\",\"label\":\"conductivity\"}]},\"reqId\":\"0\",\"version\":\"0.6\"});"
+        google_dt += "],\"cols\":[{\"type\":\"datetime\",\"id\":\"tget_ime\",\"label\":\"time\"},{\"type\":\"number\",\"id\":\"temp\",\"label\":\"temp\"},{\"type\":\"number\",\"id\":\"density\",\"label\":\"density\"},{\"type\":\"number\",\"id\":\"lon\",\"label\":\"lon\"},{\"type\":\"number\",\"id\":\"salinity\",\"label\":\"salinity\"},{\"type\":\"number\",\"id\":\"pressure\",\"label\":\"pressure\"},{\"type\":\"number\",\"id\":\"lat\",\"label\":\"lat\"},{\"type\":\"number\",\"id\":\"conductivity\",\"label\":\"conductivity\"}]},\"reqId\":\"0\",\"version\":\"0.6\"});"
 
         #print " >>>>>>>>>>>> TIME TAKEN BY get_dummy_googledt() = ", time.time() - start_time, " secs"
         return google_dt
