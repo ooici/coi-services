@@ -294,58 +294,60 @@ class UserNotificationService(BaseUserNotificationService):
         @throws Conflict        object not based on latest persisted object version
         """
 
-        #-------------------------------------------------------------------------------------------------------------------
-        # Get the old notification
-        #-------------------------------------------------------------------------------------------------------------------
+        raise NotImplementedError("This method needs to be worked out in terms of implementation")
 
-        old_notification = self.clients.resource_registry.read(notification._id)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # Update the notification in the notifications dict
-        #-------------------------------------------------------------------------------------------------------------------
-
-
-        self._update_notification_in_notifications_dict(new_notification=notification,
-                                                        notifications=self.notifications)
-        #-------------------------------------------------------------------------------------------------------------------
-        # Update the notification in the registry
-        #-------------------------------------------------------------------------------------------------------------------
-        '''
-        Since one user should not be able to update the notification request resource without the knowledge of other users
-        who have subscribed to the same notification request, we do not update the resource in the resource registry
-        '''
-
-#        self.clients.resource_registry.update(notification)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # reading up the notification object to make sure we have the newly registered notification request object
-        #-------------------------------------------------------------------------------------------------------------------
-
-        notification_id = notification._id
-        notification = self.clients.resource_registry.read(notification_id)
-
-        #------------------------------------------------------------------------------------
-        # Update the UserInfo object
-        #------------------------------------------------------------------------------------
-
-        user = self.update_user_info_object(user_id, notification, old_notification)
-
-        #------------------------------------------------------------------------------------
-        # Update the user_info dictionary maintained by UNS
-        #------------------------------------------------------------------------------------
-
-        self.update_user_info_dictionary(user_id, notification, old_notification)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
-        #-------------------------------------------------------------------------------------------------------------------
-        log.info("(update notification) Publishing ReloadUserInfoEvent for updated notification")
-
-        self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
-            origin="UserNotificationService",
-            description= "A notification has been updated.",
-            notification_id = notification_id
-        )
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # Get the old notification
+#        #-------------------------------------------------------------------------------------------------------------------
+#
+#        old_notification = self.clients.resource_registry.read(notification._id)
+#
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # Update the notification in the notifications dict
+#        #-------------------------------------------------------------------------------------------------------------------
+#
+#
+#        self._update_notification_in_notifications_dict(new_notification=notification,
+#                                                        notifications=self.notifications)
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # Update the notification in the registry
+#        #-------------------------------------------------------------------------------------------------------------------
+#        '''
+#        Since one user should not be able to update the notification request resource without the knowledge of other users
+#        who have subscribed to the same notification request, we do not update the resource in the resource registry
+#        '''
+#
+##        self.clients.resource_registry.update(notification)
+#
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # reading up the notification object to make sure we have the newly registered notification request object
+#        #-------------------------------------------------------------------------------------------------------------------
+#
+#        notification_id = notification._id
+#        notification = self.clients.resource_registry.read(notification_id)
+#
+#        #------------------------------------------------------------------------------------
+#        # Update the UserInfo object
+#        #------------------------------------------------------------------------------------
+#
+#        user = self.update_user_info_object(user_id, notification, old_notification)
+#
+#        #------------------------------------------------------------------------------------
+#        # Update the user_info dictionary maintained by UNS
+#        #------------------------------------------------------------------------------------
+#
+#        self.update_user_info_dictionary(user_id, notification, old_notification)
+#
+#        #-------------------------------------------------------------------------------------------------------------------
+#        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
+#        #-------------------------------------------------------------------------------------------------------------------
+#        log.info("(update notification) Publishing ReloadUserInfoEvent for updated notification")
+#
+#        self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
+#            origin="UserNotificationService",
+#            description= "A notification has been updated.",
+#            notification_id = notification_id
+#        )
 
     def read_notification(self, notification_id=''):
         """Returns the NotificationRequest object for the specified notification id.
@@ -579,16 +581,19 @@ class UserNotificationService(BaseUserNotificationService):
 
         if self.user_info.has_key(user_id):
             notifications = self.user_info[user_id]['notifications']
-            ret = IonObject(OT.ComputedListValue)
 
-            if notifications:
-                ret.value = notifications
-                ret.status = ComputedValueAvailability.PROVIDED
-            else:
-                ret.status = ComputedValueAvailability.NOTAVAILABLE
-            return ret
-        else:
-            return None
+            return notifications
+
+#            ret = IonObject(OT.ComputedListValue)
+#
+#            if notifications:
+#                ret.value = notifications
+#                ret.status = ComputedValueAvailability.PROVIDED
+#            else:
+#                ret.status = ComputedValueAvailability.NOTAVAILABLE
+#            return ret
+#        else:
+#            return None
 
     def create_worker(self, number_of_workers=1):
         """
