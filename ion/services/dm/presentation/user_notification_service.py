@@ -60,42 +60,38 @@ class EmailEventProcessor(object):
         # the resource registry
         self.rr = ResourceRegistryServiceClient()
 
-    def add_notification_for_user(self, notification_request, user_id):
+    def add_notification_for_user(self, new_notification=None, user_id=''):
         """
         Add a notification to the user's list of subscribed notifications
         @param notification_request NotificationRequest
         @param user_id str
         """
-
         user = self.rr.read(user_id)
 
-        # Add the notification into the user info object
-        user = self.put_notification_in_user_object(user, notification_request)
-
-        # return the updated user object
-        return user
-
-    def put_notification_in_user_object(self, user, notification_request):
-        """
-        Add the notification into the user info object.
-
-        @param user UserInfo
-        @param notification_request NotificationRequest
-
-        @retval user UserInfo
-        """
-
-        user_variables_has_notifications = False
-
+        cond = True
         for item in user.variables:
-            if item.has_key('name') and item['name']=='notifications':
-                item['value'].append(notification_request)
-                user_variables_has_notifications = True
+            if item.has_key('name') and item['name'] == 'notifications':
+                cond = False
 
-        if not user_variables_has_notifications:
-            user.variables.append({'name' : 'notifications', 'value' : [notification_request]})
+        if cond: # this means that this dict is not already filled in the user info object
+            dict = {'name' : 'notifications', 'value' : [new_notification]}
+            user.variables.append(dict)
+
+        else: # the user has previous notifications
+            for item in user.variables:
+                if item.has_key('name') and item['name'] == 'notifications':
+                    item['value'].append(new_notification)
+                    break
+
+        #------------------------------------------------------------------------------------
+        # update the resource registry
+        #------------------------------------------------------------------------------------
 
         self.rr.update(user)
+
+        user = self.rr.read(user_id)
+        log.debug("NEW NOTIFICATION ID::: %s", new_notification._id)
+        log.debug("user.variables XXX here::: %s", user.variables)
 
         return user
 
@@ -255,9 +251,10 @@ class UserNotificationService(BaseUserNotificationService):
                                                                     predicate=PRED.hasNotification,
                                                                     object=notification_id,
                                                                     id_only=True)
-        log.debug("Got an already existing association: %s, between user_id: %s, and notification_id: %s", assocs,user_id,notification_id)
-
-        if not assocs:
+        if assocs:
+            log.debug("Got an already existing association: %s, between user_id: %s, and notification_id: %s", assocs,user_id,notification_id)
+            return notification_id
+        else:
             log.debug("Creating association between user_id: %s, and notification_id: %s", user_id, notification_id )
             self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
@@ -265,7 +262,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification = self.clients.resource_registry.read(notification_id)
 
         # Update the user info object with the notification
-        user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
+        user = self.event_processor.add_notification_for_user(new_notification=notification, user_id=user_id)
 
         # Update the user info and the reverse user info dictionaries
         self.update_user_info_dictionary(user_id=user_id, new_notification=notification, old_notification=None)
@@ -570,17 +567,17 @@ class UserNotificationService(BaseUserNotificationService):
 
         return ret
 
-    def get_user_notifications(self, user_id=''):
+    def get_user_notifications(self, user_info_id=''):
         """
         Get the notification request objects that are subscribed to by the user
 
-        @param user_id str
+        @param user_info_id str
 
         @retval notifications list of NotificationRequest objects
         """
 
-        if self.user_info.has_key(user_id):
-            notifications = self.user_info[user_id]['notifications']
+        if self.user_info.has_key(user_info_id):
+            notifications = self.user_info[user_info_id]['notifications']
 
             return notifications
 
@@ -822,6 +819,7 @@ class UserNotificationService(BaseUserNotificationService):
                     # remove the old notification
                     notifications.remove(old_notification)
 
+                log.debug("came to append the new notification: %s", new_notification)
                 # put in the new notification
                 notifications.append(new_notification)
 
@@ -833,6 +831,8 @@ class UserNotificationService(BaseUserNotificationService):
         # update the resource registry
         #------------------------------------------------------------------------------------
 
+        log.debug("user.variables::: %s", user.variables)
+
         self.clients.resource_registry.update(user)
 
         return user
@@ -842,8 +842,6 @@ class UserNotificationService(BaseUserNotificationService):
         notifications = []
         notification_preferences = None
         user = self.clients.resource_registry.read(user_id)
-
-        log.debug("user.variables::: %s", user.variables)
 
         #------------------------------------------------------------------------------------
         # If there was a previous notification which is being updated, check the dictionaries and update there

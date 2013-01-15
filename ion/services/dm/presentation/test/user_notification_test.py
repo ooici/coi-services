@@ -1228,24 +1228,51 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
 
+        # a notification is created for user 1
         notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
         notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
-        notification_id_user_2 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id_2)
-
-        log.debug("the notification_id1::: %s", notification_id1)
-        log.debug("the notification_id_user_2::: %s", notification_id_user_2)
-
         #--------------------------------------------------------------------------------------
-        # Make assertions
+        # Check the resource registry
         #--------------------------------------------------------------------------------------
 
         n1 = self.unsc.read_notification(notification_id1)
-        n2 = self.unsc.read_notification(notification_id2)
 
         self.assertEquals(n1.event_type, notification_request_1.event_type)
         self.assertEquals(n1.origin, notification_request_1.origin)
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
+
+        # Check the user notification service process
+        proc = self.container.proc_manager.procs_by_name['user_notification']
+
+        self.assertEquals(len(proc.notifications.values()), 2)
+
+        # Check the user info dictionary of the UNS process
+        user_info = proc.user_info
+        notifications_held = user_info[user_id]['notifications']
+
+        self.assertEquals(len(notifications_held), 2)
+
+        def _compare_notifications(notifications):
+
+            log.debug("notification insider here:: %s", notifications)
+            for notif in notifications:
+
+                log.debug("notif::: %s", notif)
+                self.assertTrue(notif._id==notification_id1 or notif._id==notification_id2)
+                if notif._id==notification_id1:
+                    self.assertEquals(notif.event_type, notification_request_1.event_type)
+                    self.assertEquals(notif.origin, notification_request_1.origin)
+                    self.assertEquals(notif.origin_type, notification_request_1.origin_type)
+                    self.assertEquals(notif._id, notification_id1)
+                else:
+                    self.assertEquals(notif.event_type, notification_request_2.event_type)
+                    self.assertEquals(notif.origin, notification_request_2.origin)
+                    self.assertEquals(notif.origin_type, notification_request_2.origin_type)
+                    self.assertEquals(notif._id, notification_id2)
+
+        _compare_notifications(notifications_held)
+
 
         #--------------------------------------------------------------------------------------
         # Create the same notification request again using UNS. Check that no duplicate notification request is made
@@ -1254,16 +1281,31 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_again_id =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
         notification_again = self.rrc.read(notification_again_id)
 
+        # Check the resource registry to see that the common notification request is being used
         self.assertEquals(notification_again.event_type, notification_request_1.event_type)
         self.assertEquals(notification_again.origin, notification_request_1.origin)
         self.assertEquals(notification_again.origin_type, notification_request_1.origin_type)
-
         # assert that the old id is unchanged
         self.assertEquals(notification_again_id, notification_id1)
 
-        proc = self.container.proc_manager.procs_by_name['user_notification']
+        # Check the user info object
+        user = self.rrc.read(user_id)
+        notifs_of_user = [item['value'] for item in user.variables if item['name']=='notifications'][0]
+        self.assertTrue(len(notifs_of_user), 2)
 
-        self.assertEquals(len(proc.notifications.values()), 2)
+        log.debug("came here::: %s", notifs_of_user)
+        _compare_notifications(notifs_of_user)
+
+        #--------------------------------------------------------------------------------------
+        # now have the other user subscribe to the same notification request
+        #--------------------------------------------------------------------------------------
+
+        notification_id_user_2 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id_2)
+
+        log.debug("the notification_id_user_2::: %s", notification_id_user_2)
+
+        n2 = self.unsc.read_notification(notification_id_user_2)
+
 
 
     @attr('LOCOINT')
