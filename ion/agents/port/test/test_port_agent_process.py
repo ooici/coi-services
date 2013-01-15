@@ -13,11 +13,18 @@ __license__ = 'Apache 2.0'
 import unittest
 
 from nose.plugins.attrib import attr
+
+from pyon.public import log
+from pyon.public import CFG
+
+# Pyon unittest support.
+from pyon.util.int_test import IonIntegrationTestCase
+
 from ion.agents.port.port_agent_process import PortAgentProcess, PythonPortAgentProcess, UnixPortAgentProcess, PortAgentProcessType
 from ion.agents.port.exceptions import PortAgentTimeout
 from ion.agents.port.exceptions import PortAgentMissingConfig
 from ion.agents.port.exceptions import PortAgentLaunchException
-from pyon.public import CFG
+
 
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/agents/port/test/test_port_agent_process.py
@@ -25,16 +32,16 @@ from pyon.public import CFG
 TEST_TIMEOUT = 2
 LOCALHOST = 'localhost'
 
-DEVICE_ADDR = 'localhost'
-DEVICE_PORT = 4001
+DEVICE_ADDR = CFG.device.sbe37.host
+DEVICE_PORT = CFG.device.sbe37.port
 
 PORT_AGENT_BINARY = 'port_agent'
-PORT_AGENT_COMMAND_PORT = 3000
-PORT_AGENT_DATA_PORT = 3001
+PORT_AGENT_COMMAND_PORT = CFG.device.sbe37.port_agent_cmd_port
+PORT_AGENT_DATA_PORT = CFG.device.sbe37.port_agent_data_port
 PORT_AGENT_LOG_LEVEL = 5
 
 @attr('HARDWARE', group='mi')
-class TestPythonEthernetProcess(unittest.TestCase):
+class TestPythonEthernetProcess(IonIntegrationTestCase):
     """
     Unit tests for the Port Agent Process using python classes
     """
