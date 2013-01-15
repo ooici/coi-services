@@ -372,8 +372,7 @@ class VisualizationService(BaseVisualizationService):
                     use_direct_access = True
                 else:
                     use_direct_access = False
-                print " >>>>>> USE_DIRECT_ACCESS : ", use_direct_access
-
+               
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
