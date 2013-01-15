@@ -22,7 +22,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.objects import PlatformEvent, EventType, ProcessDefinition
 from mock import Mock, mocksignature
 from nose.plugins.attrib import attr
-import unittest, gevent
+import gevent
 
 @attr('UNIT',group='dm')
 class EventManagementTest(PyonTestCase):
@@ -148,26 +148,34 @@ class EventManagementTest(PyonTestCase):
         self.event_management.delete_event_process_definition('an id')
         self.mock_rr_client.delete.assert_called_once_with('an id')
 
-    @unittest.skip('Not working')
     def test_create_event_process(self):
         """
         Test creating an event process
         """
-        process_definition = ProcessDefinition(name='test')
-        process_definition.definition = ''
+#        process_definition = ProcessDefinition(name='test')
 
-        rrc = ResourceRegistryServiceClient(node = self.container.node)
-        process_definition_id = rrc.create(process_definition)
+        mock = Mock()
+        mock.definition = 'a_definition'
+        mock.detail = 'event_process_detail'
+        mock_id = 'a_process_definition_id'
+
+        self.mock_rr_client.read = Mock()
+        self.mock_rr_client.read.return_value = mock
+
+        self.mock_rr_client.update = Mock()
+        self.mock_rr_client.update = mocksignature(self.mock_rr_client.update)
 
         self.mock_rr_client.find_objects = Mock()
         self.mock_rr_client.find_objects.return_value = ['stream_id_1'], 'obj_assoc_1'
 
-#        self.mock_pd_client.schedule_process = Mock()
-#        self.mock_pd_client.schedule_process.return_value = 'process_id'
+        self.mock_pd_client.schedule_process = Mock()
+        self.mock_pd_client.schedule_process.return_value = 'process_id'
 
         self.mock_rr_client.create_association = mocksignature(self.mock_rr_client.create_association)
 
-        pid = self.event_management.create_event_process(process_definition_id=process_definition_id,
+        self.mock_dams_client.register_event_process = mocksignature(self.mock_dams_client.register_event_process)
+
+        pid = self.event_management.create_event_process(process_definition_id=mock_id,
             event_types=['type_1', 'type_2'],
             sub_types=['subtype_1', 'subtype_2'],
             origins=['or_1', 'or_2'],
@@ -177,12 +185,6 @@ class EventManagementTest(PyonTestCase):
 
 #        self.assertEquals(pid, 'process_id')
 
-    @unittest.skip("The method to be tested has not yet been implemented")
-    def test_update_event_process(self):
-        """
-        Test updating an event process
-        """
-        pass
 
     def test_read_event_process(self):
         """
@@ -203,27 +205,6 @@ class EventManagementTest(PyonTestCase):
         self.event_management.delete_event_process('event_process_id')
 
         self.mock_rr_client.delete.assert_called_once_with('event_process_id')
-
-    @unittest.skip("The method to be tested has not yet been implemented")
-    def test_activate_event_process(self):
-        """
-        Test activating an event process
-        """
-        pass
-
-    @unittest.skip("The method to be tested has not yet been implemented")
-    def test_deactivate_event_process(self):
-        """
-        Test deactivating an event process
-        """
-        pass
-
-    @unittest.skip("The method to be tested has not yet been implemented")
-    def update_event_process_inputs(self):
-        """
-        Test updating event process inputs
-        """
-        pass
 
 
 @attr('INT', group='dm')
@@ -413,7 +394,6 @@ class EventManagementIntTest(IonIntegrationTestCase):
 
         # Create a stream
         param_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
-        parameter_dictionary = self.dataset_management.read_parameter_dictionary(parameter_dictionary_id=param_dict_id)
 
         stream_def_id = self.pubsub.create_stream_definition('cond_stream_def', parameter_dictionary_id=param_dict_id)
 
@@ -427,7 +407,7 @@ class EventManagementIntTest(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         # Create a data product
-        data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id, parameter_dictionary=parameter_dictionary)
+        data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)
 
         output_products = {}
         output_products['conductivity'] = data_product_id
@@ -456,20 +436,3 @@ class EventManagementIntTest(IonIntegrationTestCase):
         self.assertEquals(event_process_obj.detail.sub_types, ['s1', 's2'])
         self.assertEquals(event_process_obj.detail.origins, ['or_1', 'or_2'])
         self.assertEquals(event_process_obj.detail.origin_types, ['or_t1', 'or_t2'])
-
-    @unittest.skip("Not yet implemented in R 2.0")
-    def test_activate_deactivate_data_process(self):
-        """
-        Test that the activation and deactivation of event processes happens correctly
-        """
-
-        pass
-
-    @unittest.skip("Not yet implemented in R 2.0")
-    def test_update_event_process_inputs(self):
-        """
-        Test that the event process inputs can be correctly updated
-        """
-
-        pass
-

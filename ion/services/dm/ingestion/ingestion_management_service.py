@@ -99,7 +99,6 @@ class IngestionManagementService(BaseIngestionManagementService):
 
     def launch_worker(self, queue_name):
         config = DotDict()
-        config.process.datastore_name = self.CFG.get_safe('service.ingestion_management.datastore_name', 'datasets')
         config.process.queue_name = queue_name
         config.process.buffer_limit = self.CFG.get_safe('service.ingestion_management.buffer_limit', 10)
         config.process.time_limit = self.CFG.get_safe('service.ingestion_management.time_limit', 10)

@@ -1,4 +1,4 @@
-from pyon.public import Container, log, IonObject
+from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -11,33 +11,18 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
-from prototype.sci_data.stream_defs import ctd_stream_definition, L0_pressure_stream_definition, L0_temperature_stream_definition, L0_conductivity_stream_definition
-from prototype.sci_data.stream_defs import L1_pressure_stream_definition, L1_temperature_stream_definition, L1_conductivity_stream_definition, L2_practical_salinity_stream_definition, L2_density_stream_definition
-from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition, SBE37_RAW_stream_definition
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter, SBE37ProtocolEvent
 
-from pyon.public import log
 from nose.plugins.attrib import attr
-from coverage_model.coverage import CRS, GridDomain, GridShape
-from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
-from ion.util.parameter_yaml_IO import get_param_dict
 from ion.services.dm.utility.granule_utils import time_series_domain
 
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.public import CFG, RT, LCS, PRED
-from pyon.core.exception import BadRequest, NotFound, Conflict
+from pyon.public import CFG, RT, PRED
 
-from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentClient
 
-from pyon.util.unit_test import PyonTestCase
-from nose.plugins.attrib import attr
-import unittest
 from mock import patch
-import time
 import gevent
 
 from pyon.util.context import LocalContextMixin
@@ -676,3 +661,14 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------------------
         for pid in self.loggerpids:
             self.processdispatchclient.cancel_process(pid)
+
+
+        #--------------------------------------------------------------------------------
+        # Cleanup data products
+        #--------------------------------------------------------------------------------
+        dp_ids, _ = self.rrclient.find_resources(restype=RT.DataProduct, id_only=True)
+
+        for dp_id in dp_ids:
+            self.dataproductclient.delete_data_product(dp_id)
+
+

@@ -6,7 +6,7 @@ __author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
 import os
 import pwd
 import json
-from datetime import date, datetime, timedelta
+from datetime import datetime
 import time
 import tempfile
 
@@ -18,7 +18,7 @@ from pyon.core.exception import Inconsistent,BadRequest, NotFound
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
-from pyon.public import RT, PRED, OT, CFG
+from pyon.public import RT, PRED, OT
 
 from coverage_model.parameter import ParameterDictionary
 
@@ -48,7 +48,7 @@ from ion.util.qa_doc_parser import QADocParser
 from ion.services.sa.product.data_product_impl import DataProductImpl
 from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
-from ion.agents.port.port_agent_process import PortAgentProcess, PortAgentProcessType
+from ion.agents.port.port_agent_process import PortAgentProcess
 
 from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
@@ -293,19 +293,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        #validate inputs
-        self.read_instrument_agent(instrument_agent_id)
-        self.read_instrument_device(instrument_device_id)
-
         instrument_agent_instance_id = self.instrument_agent_instance.create_one(instrument_agent_instance)
 
-        self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
+        if instrument_agent_id:
+            self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
 
-
-        self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
+        if instrument_device_id:
+            self.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
         log.debug("create_instrument_agent_instance: device %s now connected to instrument agent instance %s (L4-CI-SA-RQ-363)", str(instrument_device_id),  str(instrument_agent_instance_id))
 
         return instrument_agent_instance_id
+
 
     def update_instrument_agent_instance(self, instrument_agent_instance=None):
         """
@@ -547,6 +545,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'agent'         : {'resource_id': instrument_device_id}
         }
 
+        #retrieve the Org name to which this agent instance belongs
+        org_name = ''
+        org_objs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=instrument_agent_instance_obj._id)
+        if org_objs:
+            org_name = org_objs[0].name
+        agent_config['org_name'] = org_name
+
         return driver_config, agent_config
 
     def start_instrument_agent_instance(self, instrument_agent_instance_id=''):
@@ -588,12 +593,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
 
         # if no comms_config specified in the driver config
+        log.info("IMS:start_instrument_agent_instance check to launch port agent. driver_config: %s ", instrument_agent_instance_obj.driver_config)
         if not 'comms_config' in instrument_agent_instance_obj.driver_config:
+            log.info("IMS:start_instrument_agent_instance no comms_config specified in the driver_config so call _start_pagent")
             self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
         # if the comms_config host addr in the driver config is localhost
         elif 'addr' in instrument_agent_instance_obj.driver_config.get('comms_config') and \
              instrument_agent_instance_obj.driver_config['comms_config']['addr'] == 'localhost':
-                log.debug("IMS:start_instrument_agent_instance comms_server_address: %s", str(instrument_agent_instance_obj.driver_config['comms_config']['addr']) )
+                log.info("IMS:start_instrument_agent_instance  comms_config host addr in the driver_config is localhost so call _start_pagent")
                 self._start_pagent(instrument_agent_instance_id) # <-- this updates agent instance obj!
 
         instrument_agent_instance_obj = self.read_instrument_agent_instance(instrument_agent_instance_id)
@@ -636,9 +643,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
        
         #todo: ask bill if this blocks
         # It blocks until the port agent starts up or a timeout
+        log.info("IMS:_start_pagent calling PortAgentProcess.launch_process ")
         _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
         pid = _pagent.get_pid()
         port = _pagent.get_data_port()
+        log.info("IMS:_start_pagent returned from PortAgentProcess.launch_process pid: %s ", pid)
 
         # Hack to get ready for DEMO.  Further though needs to be put int
         # how we pass this config info around.
@@ -1017,15 +1026,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        #validate inputs
-        self.read_platform_agent(platform_agent_id)
-        self.read_platform_device(platform_device_id)
-
         platform_agent_instance_id = self.platform_agent_instance.create_one(platform_agent_instance)
 
-        self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
-
-        self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
+        if platform_agent_id:
+            self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+        if platform_device_id:
+            self.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
 
         return platform_agent_instance_id
 
@@ -1140,6 +1146,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         platform_id = agent_config['platform_config']['platform_id']
         stream_config = self._generate_platform_streamconfig( platform_id, platform_device_id )
         agent_config['platform_config']['agent_streamconfig_map'] = { platform_id: stream_config }
+
+        #retrieve the Org name to which this agent instance belongs
+        org_name = ''
+        org_objs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=platform_agent_instance_id)
+        if org_objs:
+            org_name = org_objs[0].name
+        agent_config['org_name'] = org_name
+
 
 #        import pprint
 #        print '============== config within IMS for platform ID: %s ===========' % platform_id
@@ -1765,11 +1779,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Status computation
         status_rollups = self.outil.get_status_roll_ups(instrument_device_id, RT.InstrumentDevice)
 
-        extended_instrument.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["comms"])
-        extended_instrument.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["power"])
-        extended_instrument.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["data"])
-        extended_instrument.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["loc"])
-        extended_instrument.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[instrument_device_id]["agg"])
+        def short_status_rollup(key):
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
+                                    value=status_rollups[instrument_device_id][key])
+
+        extended_instrument.computed.communications_status_roll_up = short_status_rollup("comms")
+        extended_instrument.computed.power_status_roll_up          = short_status_rollup("power")
+        extended_instrument.computed.data_status_roll_up           = short_status_rollup("data")
+        extended_instrument.computed.location_status_roll_up       = short_status_rollup("loc")
+        extended_instrument.computed.aggregated_status             = short_status_rollup("agg")
 
         return extended_instrument
 
@@ -1853,26 +1871,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_exclude=ext_exclude)
 
         # Status computation
-        extended_platform.computed.instrument_status = [4]*len(extended_platform.instrument_devices)
-        extended_platform.computed.platform_status = [4]*len(extended_platform.platforms)
+        extended_platform.computed.instrument_status = [4] * len(extended_platform.instrument_devices)
+        extended_platform.computed.platform_status   = [4] * len(extended_platform.platforms)
 
-        extended_platform.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_platform.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_platform.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        def status_4():
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+
+        extended_platform.computed.communications_status_roll_up = status_4()
+        extended_platform.computed.power_status_roll_up          = status_4()
+        extended_platform.computed.data_status_roll_up           = status_4()
+        extended_platform.computed.location_status_roll_up       = status_4()
+        extended_platform.computed.aggregated_status             = status_4()
 
         try:
             status_rollups = self.outil.get_status_roll_ups(platform_device_id, RT.PlatformDevice)
 
-            extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_platform.instrument_devices]
-            extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg",4) for pdev in extended_platform.platforms]
+            extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg", 4)
+                                                            for idev in extended_platform.instrument_devices]
+            extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg", 4)
+                                                          for pdev in extended_platform.platforms]
 
-            extended_platform.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["comms"])
-            extended_platform.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["power"])
-            extended_platform.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["data"])
-            extended_platform.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["loc"])
-            extended_platform.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[platform_device_id]["agg"])
+            def short_status_rollup(key):
+                        return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
+                                                value=status_rollups[platform_device_id][key])
+
+            extended_platform.computed.communications_status_roll_up = short_status_rollup("comms")
+            extended_platform.computed.power_status_roll_up          = short_status_rollup("power")
+            extended_platform.computed.data_status_roll_up           = short_status_rollup("data")
+            extended_platform.computed.location_status_roll_up       = short_status_rollup("loc")
+            extended_platform.computed.aggregated_status             = short_status_rollup("agg")
+
         except Exception as ex:
             log.exception("Computed attribute failed for %s" % platform_device_id)
 

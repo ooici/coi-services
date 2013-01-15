@@ -6,17 +6,18 @@
 @description Implementation for a replay process.
 '''
 
-from pyon.core.exception import BadRequest, NotFound
+from pyon.core.exception import BadRequest
 from pyon.core.object import IonObjectDeserializer
 from pyon.core.bootstrap import get_obj_registry
-from pyon.datastore.datastore import DataStore
 from pyon.util.arg_check import validate_is_instance
 from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
 
-from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient, DatasetManagementServiceClient
+from coverage_model import utils
+
+from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from interface.services.dm.ireplay_process import BaseReplayProcess
 
@@ -136,6 +137,7 @@ class ReplayProcess(BaseReplayProcess):
         else:
             rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
         if parameters is not None:
+            # TODO: Improve efficiency here
             fields = list(set(parameters).intersection(rdt.fields))
         else:
             fields = rdt.fields
@@ -146,6 +148,12 @@ class ReplayProcess(BaseReplayProcess):
             if n is None:
                 rdt[field] = [n]
             elif isinstance(n,np.ndarray):
+                if coverage.get_data_extents(field)[0] != coverage.num_timesteps:
+                    log.error("Misformed coverage detected, padding with fill_value")
+                    arr_len = utils.slice_len(slice_, (coverage.num_timesteps,))[0]
+                    fill_arr = np.empty(arr_len - n.shape[0] , dtype=n.dtype)
+                    fill_arr.fill(coverage.get_parameter_context(field).fill_value)
+                    n = np.append(n,fill_arr)
                 rdt[field] = n
             else:
                 rdt[field] = [n]
@@ -163,11 +171,12 @@ class ReplayProcess(BaseReplayProcess):
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else: 
                 rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters,tdoa=self.tdoa)
-            coverage.close(timeout=5)
         except Exception as e:
             import traceback
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')
+        finally:
+            coverage.close(timeout=5)
         return rdt.to_granule()
 
 
@@ -202,41 +211,6 @@ class ReplayProcess(BaseReplayProcess):
         self.end.set()
 
 
-
-    @classmethod
-    def get_last_granule(cls, container, dataset_id):
-        dsm_cli = DatasetManagementServiceClient()
-        dataset = dsm_cli.read_dataset(dataset_id)
-        cc = container
-        datastore_name = dataset.datastore_name
-        view_name = dataset.view_name
-        
-        datastore = cc.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
-
-        opts = dict(
-            startkey = [dataset_id, {}],
-            endkey   = [dataset_id, 0], 
-            descending = True,
-            limit = 1,
-            include_docs = True
-        )
-
-        results = datastore.query_view(view_name,opts=opts)
-        if not results:
-            raise NotFound('A granule could not be located.')
-        if results[0] is None:
-            raise NotFound('A granule could not be located.')
-        doc = results[0].get('doc')
-        if doc is None:
-            return None
-
-        ts = float(doc.get('ts_create',0))
-
-        coverage = DatasetManagementService._get_coverage(dataset_id,mode='r')
-
-        rdt = cls._coverage_to_granule(coverage,tdoa=slice(cls.get_relative_time(coverage,ts),None))
-        coverage.close(timeout=5)
-        return rdt.to_granule()
 
 
     @classmethod

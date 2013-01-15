@@ -30,7 +30,7 @@ reslocal/config/logging.local.yml
 logs
 res/config/*~*
 scripts/*~*
-scripts/get-latest-code-local-hooks.sh
+scripts/local-hook*.sh
 unittest.out
 interface/*
 res

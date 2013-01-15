@@ -132,7 +132,15 @@ class HeartBeater(object):
             beat = make_beat_msg(self._factory, self._CFG)
             message = dict(beat=beat, eeagent_id=self.process_id, resource_id=self._CFG.agent.resource_id)
             to_name = self._pd_name
-            self._log.debug("Send heartbeat: %s to %s", message, self._pd_name)
+
+            if self._log.isEnabledFor(logging.DEBUG):
+                processes = beat.get('processes')
+                if processes is not None:
+                    processes_str = "processes=%d" % len(processes)
+                else:
+                    processes_str = ""
+                self._log.debug("Sending heartbeat to %s %s", self._pd_name, processes_str)
+
             self._publisher.publish(message, to_name=to_name)
         except Exception:
             self._log.exception("beat failed")

@@ -84,8 +84,6 @@ class OOILoader(object):
             try:
                 if category in self.csv_files:
                     csv_doc = self.csv_files[category]
-                    # This is a hack to be able to read from string
-                    csv_doc = csv_doc.splitlines()
                     reader = csv.DictReader(csv_doc, delimiter=',')
                     filename = mapping_file + ":" + category
                 else:

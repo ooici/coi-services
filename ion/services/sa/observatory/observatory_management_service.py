@@ -1159,31 +1159,59 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_exclude=ext_exclude)
 
         # Get status of Site instruments.
-        extended_site.instruments_operational, extended_site.instruments_not_operational = self._get_instrument_states(extended_site.instrument_devices)
+        a, b =  self._get_instrument_states(extended_site.instrument_devices)
+        extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
+
+        # lookup all hasModel predicates
+        # lookup is a 2d associative array of [subject type][subject id] -> object id
+        lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
+        for a in self.RR.find_associations(predicate=PRED.hasModel, id_only=False):
+            if a.st in lookup:
+                lookup[a.st][a.s] = a.o
+
+        # get model ids of instruments and platforms from lookup table
+        i_mod = [lookup[RT.InstrumentDevice].get(r._id) for r in extended_site.instrument_devices]
+        p_mod = [lookup[RT.PlatformDevice].get(r._id) for r in extended_site.platform_devices]
+
+        # convert model ids to model objects
+        extended_site.instrument_models = self.RR.read_mult(i_mod)
+        extended_site.platform_models = self.RR.read_mult(p_mod)
 
         # Status computation
-        extended_site.computed.instrument_status = [4]*len(extended_site.instrument_devices)
-        extended_site.computed.platform_status = [4]*len(extended_site.platform_devices)
+        extended_site.computed.instrument_status = [4] * len(extended_site.instrument_devices)
+        extended_site.computed.platform_status   = [4] * len(extended_site.platform_devices)
+        extended_site.computed.site_status       = [4] * len(extended_site.sites)
+        def status_4():
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
 
-        extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_site.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
-        extended_site.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        extended_site.computed.communications_status_roll_up = status_4()
+        extended_site.computed.power_status_roll_up          = status_4()
+        extended_site.computed.data_status_roll_up           = status_4()
+        extended_site.computed.location_status_roll_up       = status_4()
+        extended_site.computed.aggregated_status             = status_4()
 
         try:
             status_rollups = self.outil.get_status_roll_ups(site_id, extended_site.resource._get_type())
 
-            extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_site.instrument_devices]
-            extended_site.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_site.platform_devices]
+            extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4)
+                                                        for idev in extended_site.instrument_devices]
+            extended_site.computed.platform_status   = [status_rollups.get(pdev._id,{}).get("agg",4)
+                                                        for pdev in extended_site.platform_devices]
+            extended_site.computed.site_status       = [status_rollups.get(site._id,{}).get("agg",4)
+                                                        for site in extended_site.sites]
 
-            extended_site.computed.communications_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["comms"])
-            extended_site.computed.power_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["power"])
-            extended_site.computed.data_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["data"])
-            extended_site.computed.location_status_roll_up = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["loc"])
-            extended_site.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status_rollups[site_id]["agg"])
+
+            def short_status_rollup(key):
+                return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
+                                        value=status_rollups[site_id][key])
+
+            extended_site.computed.communications_status_roll_up = short_status_rollup("comms")
+            extended_site.computed.power_status_roll_up          = short_status_rollup("power")
+            extended_site.computed.data_status_roll_up           = short_status_rollup("data")
+            extended_site.computed.location_status_roll_up       = short_status_rollup("loc")
+            extended_site.computed.aggregated_status             = short_status_rollup("agg")
         except Exception as ex:
-            log.exception("Computed attribute failed for %s" % site_id)
+            log.exception("Computed attribute failed for site %s" % site_id)
 
         return extended_site
 
@@ -1221,7 +1249,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if instrument_device_obj_list is None:
             instrument_device_list = []
 
-        #call eventsdb to check  data-related events from this device. Use UNix vs NTP tiem for now, as resource timestaps are in Unix, data is in NTP
+        #call eventsdb to check  data-related events from this device. Use UNix vs NTP tiem for now, as
+        # resource timestaps are in Unix, data is in NTP
 
         now = str(int(time.time() * 1000))
         query_interval = str(int(time.time() - (AGENT_STATUS_EVENT_DELTA_DAYS * 86400) )  *1000)
@@ -1232,14 +1261,22 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 non_op.append(device_obj)
 
             else:
-                # we dont have a find_events that takes a list yet so loop thru the instruments and get recent events for each.
-                events = self.clients.user_notification.find_events(origin=device_obj._id, type= 'ResourceAgentStateEvent', max_datetime = now, min_datetime = query_interval, limit=1)
+                # we dont have a find_events that takes a list yet so loop thru the instruments and get
+                # recent events for each.
+                events = self.clients.user_notification.find_events(origin=device_obj._id,
+                                                                    type= 'ResourceAgentStateEvent',
+                                                                    max_datetime = now,
+                                                                    min_datetime = query_interval,
+                                                                    limit=1)
                 # the most recent event is first so assume that is the current state
                 if not events:
                     non_op.append(device_obj)
                 else:
                     current_instrument_state = events[0].state
-                    if current_instrument_state in [ResourceAgentState.STREAMING, ResourceAgentState.CALIBRATE, ResourceAgentState.BUSY, ResourceAgentState.DIRECT_ACCESS]:
+                    if current_instrument_state in [ResourceAgentState.STREAMING,
+                                                    ResourceAgentState.CALIBRATE,
+                                                    ResourceAgentState.BUSY,
+                                                    ResourceAgentState.DIRECT_ACCESS]:
                         op.append(device_obj)
                     else:
                         op.append(device_obj)

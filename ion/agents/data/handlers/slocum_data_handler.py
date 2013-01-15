@@ -4,25 +4,24 @@
 @package ion.agents.data.handlers.slocum_data_handler
 @file ion/agents/data/handlers/slocum_data_handler
 @author Christopher Mueller
-@brief 
+@brief
 """
 
 from pyon.public import log
 from pyon.util.containers import get_safe
-from coverage_model.parameter import ParameterDictionary
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.agents.data.handlers.base_data_handler import BaseDataHandler
 from ion.agents.data.handlers.handler_utils import list_file_info, get_sbuffer, calculate_iteration_count, get_time_from_filename
-import numpy as np, os, re
-import time, datetime
+import numpy as np
 
 DH_CONFIG_DETAILS = {
     'ds_desc_params': [
-        ('base_url',str,'base path/url for this dataset'),
-        ('header_count',int,'# of header lines'),
-        ('pattern',str,'The filter pattern for this dataset.  If file-based, use shell-style notation; if remote (http, ftp), use regex'),
-    ],
-}
+        ('base_url', str, 'base path/url for this dataset'),
+        ('header_count', int, '# of header lines'),
+        ('pattern', str, 'The filter pattern for this dataset.  If file-based, use shell-style notation; if remote (http, ftp), use regex'),
+        ],
+    }
+
 
 class SlocumDataHandler(BaseDataHandler):
     @classmethod
@@ -36,22 +35,22 @@ class SlocumDataHandler(BaseDataHandler):
 
         config['ds_params'] = ext_dset_res.dataset_description.parameters
 
-#        base_url = ext_dset_res.dataset_description.parameters['base_url']
-#        hdr_cnt = get_safe(ext_dset_res.dataset_description.parameters, 'header_count', 17)
-#        pattern = get_safe(ext_dset_res.dataset_description.parameters, 'pattern')
-#        config['header_count'] = hdr_cnt
-#        config['base_url'] = base_url
-#        config['pattern'] = pattern
+    #        base_url = ext_dset_res.dataset_description.parameters['base_url']
+    #        hdr_cnt = get_safe(ext_dset_res.dataset_description.parameters, 'header_count', 17)
+    #        pattern = get_safe(ext_dset_res.dataset_description.parameters, 'pattern')
+    #        config['header_count'] = hdr_cnt
+    #        config['base_url'] = base_url
+    #        config['pattern'] = pattern
 
     @classmethod
     def _constraints_for_new_request(cls, config):
         old_list = get_safe(config, 'new_data_check') or []
         # CBM: Fix this when the DotList crap is sorted out
-        old_list = list(old_list) # NOTE that the internal tuples are also DotList objects
+        old_list = list(old_list)  # NOTE that the internal tuples are also DotList objects
 
         ret = {}
-        base_url = get_safe(config,'ds_params.base_url')
-        list_pattern = get_safe(config,'ds_params.list_pattern')
+        base_url = get_safe(config, 'ds_params.base_url')
+        list_pattern = get_safe(config, 'ds_params.list_pattern')
         date_pattern = get_safe(config, 'ds_params.date_pattern')
         date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
 
@@ -70,8 +69,8 @@ class SlocumDataHandler(BaseDataHandler):
 
     @classmethod
     def _constraints_for_historical_request(cls, config):
-        base_url = get_safe(config,'ds_params.base_url')
-        list_pattern = get_safe(config,'ds_params.list_pattern')
+        base_url = get_safe(config, 'ds_params.base_url')
+        list_pattern = get_safe(config, 'ds_params.list_pattern')
         date_pattern = get_safe(config, 'ds_params.date_pattern')
         date_extraction_pattern = get_safe(config, 'ds_params.date_extraction_pattern')
 
@@ -86,45 +85,51 @@ class SlocumDataHandler(BaseDataHandler):
             if start_time <= curr_time <= end_time:
                 new_list.append(x)
 
-#        config['constraints']['new_files'] = new_list
-        return {'new_files':new_list}
+            #        config['constraints']['new_files'] = new_list
+        return {'new_files': new_list}
 
     @classmethod
     def _get_data(cls, config):
+        """
+        Iterable function that acquires data from a source iteratively based on constraints provided by config
+        Passed into BaseDataHandler._publish_data and iterated to publish samples.
+        @param config dict containing configuration parameters, may include constraints, formatters, etc
+        @retval an iterable that returns well-formed Granule objects on each iteration
+        """
         new_flst = get_safe(config, 'constraints.new_files', [])
         hdr_cnt = get_safe(config, 'header_count', SlocumParser.DEFAULT_HEADER_SIZE)
         for f in new_flst:
             try:
                 parser = SlocumParser(f[0], hdr_cnt)
                 #CBM: Not in use yet...
-    #            ext_dset_res = get_safe(config, 'external_dataset_res', None)
-    #            t_vname = ext_dset_res.dataset_description.parameters['temporal_dimension']
-    #            x_vname = ext_dset_res.dataset_description.parameters['zonal_dimension']
-    #            y_vname = ext_dset_res.dataset_description.parameters['meridional_dimension']
-    #            z_vname = ext_dset_res.dataset_description.parameters['vertical_dimension']
-    #            var_lst = ext_dset_res.dataset_description.parameters['variables']
+                #            ext_dset_res = get_safe(config, 'external_dataset_res', None)
+                #            t_vname = ext_dset_res.dataset_description.parameters['temporal_dimension']
+                #            x_vname = ext_dset_res.dataset_description.parameters['zonal_dimension']
+                #            y_vname = ext_dset_res.dataset_description.parameters['meridional_dimension']
+                #            z_vname = ext_dset_res.dataset_description.parameters['vertical_dimension']
+                #            var_lst = ext_dset_res.dataset_description.parameters['variables']
 
                 max_rec = get_safe(config, 'max_records', 1)
                 dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
-                #tx_yml = get_safe(config, 'taxonomy')
-                #ttool = TaxyTool.load(tx_yml) #CBM: Assertion inside RDT.__setitem__ requires same instance of TaxyTool
-                pdict = ParameterDictionary.load(get_safe(config, 'param_dictionary'))
 
-                cnt = calculate_iteration_count(len(parser.sensor_map), max_rec)
+                stream_def = get_safe(config, 'stream_def')
+
+                cnt = calculate_iteration_count(len(parser.data_map[parser.data_map.keys()[0]]), max_rec)
                 for x in xrange(cnt):
                     #rdt = RecordDictionaryTool(taxonomy=ttool)
-                    rdt = RecordDictionaryTool(param_dictionary=pdict)
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)
 
                     for name in parser.sensor_map:
-                        d = parser.data_map[name][x*max_rec:(x+1)*max_rec]
-                        rdt[name]=d
+                        d = parser.data_map[name][x * max_rec:(x + 1) * max_rec]
+                        rdt[name] = d
 
                     #g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
                     g = rdt.to_granule()
                     yield g
-            except SlocumParseException as spe:
+            except SlocumParseException:
                 # TODO: Decide what to do here, raise an exception or carry on
                 log.error('Error parsing data file: \'{0}\''.format(f))
+
 
 class SlocumParser(object):
     # John K's documentation says there are 16 header lines, but I believe there are actually 17
@@ -135,6 +140,12 @@ class SlocumParser(object):
     data_map = {}
 
     def __init__(self, url=None, header_size=17):
+        """
+        Constructor for the parser. Initializes headers and data
+
+        @param url the url/filepath of the file
+        @param header_size number of header lines. This is information is in the header already, so it will be removed
+        """
         if not url:
             raise SlocumParseException('Must provide a filename')
 
@@ -145,16 +156,16 @@ class SlocumParser(object):
             # Get a byte-string generator for use in the data-retrieval loop (to avoid opening the file every time)
             sb = get_sbuffer(url)
             sb.seek(0)
-            for x in xrange(self.header_size-3):
+            for x in xrange(self.header_size - 3):
                 line = sb.readline()
-                key,value=line.split(':',1)
-                self.header_map[key.strip()]=value.strip()
+                key, value = line.split(':', 1)
+                self.header_map[key.strip()] = value.strip()
 
             # Collect the sensor names & units
             sensor_names = sb.readline().split()
             units = sb.readline().split()
             # Keep track of the intended data type for each sensor
-            dtypes=[]
+            dtypes = []
             for d in sb.readline().split():
                 if d is '1':
                     dtypes.append('byte')
@@ -169,13 +180,14 @@ class SlocumParser(object):
 
             for i in xrange(len(sensor_names)):
                 sb.seek(0)
-                self.sensor_map[sensor_names[i]]=(units[i],dtypes[i])
-                dat = np.genfromtxt(fname=sb,skip_header=self.header_size,usecols=i,dtype=dtypes[i],missing_values='NaN')#,usemask=True)
-                self.data_map[sensor_names[i]]=dat
+                self.sensor_map[sensor_names[i]] = (units[i], dtypes[i])
+                dat = np.genfromtxt(fname=sb, skip_header=self.header_size, usecols=i, dtype=dtypes[i], missing_values='NaN')  # ,usemask=True)
+                self.data_map[sensor_names[i]] = dat
 
         finally:
             if not sb is None:
                 sb.close()
+
 
 class SlocumParseException(Exception):
     pass
