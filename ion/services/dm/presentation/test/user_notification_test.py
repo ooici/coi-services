@@ -1258,7 +1258,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             log.debug("notification insider here:: %s", notifications)
             for notif in notifications:
 
-                log.debug("notif::: %s", notif)
                 self.assertTrue(notif._id==notification_id1 or notif._id==notification_id2)
                 if notif._id==notification_id1:
                     self.assertEquals(notif.event_type, notification_request_1.event_type)
@@ -1293,7 +1292,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notifs_of_user = [item['value'] for item in user.variables if item['name']=='notifications'][0]
         self.assertTrue(len(notifs_of_user), 2)
 
-        log.debug("came here::: %s", notifs_of_user)
         _compare_notifications(notifs_of_user)
 
         #--------------------------------------------------------------------------------------
@@ -1302,10 +1300,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         notification_id_user_2 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id_2)
 
-        log.debug("the notification_id_user_2::: %s", notification_id_user_2)
-
         ##########-------------------------------------------------------------------------------------------------------
-        # Now check if subscriptions of user 1 are getting over because user 2 subscribed to the same notification
+        # Now check if subscriptions of user 1 are getting overwritten because user 2 subscribed to the same notification
         ##########-------------------------------------------------------------------------------------------------------
 
         #--------------------------------------------------------------------------------------
