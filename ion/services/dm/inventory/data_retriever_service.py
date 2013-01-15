@@ -104,20 +104,21 @@ class DataRetrieverService(BaseDataRetrieverService):
     @classmethod
     def retrieve_oob(cls, dataset_id='', query=None, delivery_format=None):
         query = query or {}
-
+        coverage = None
         try:
             coverage = DatasetManagementService._get_coverage(dataset_id, mode='r')
             if coverage.num_timesteps == 0:
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
-                rdt = ReplayProcess._coverage_to_granule(coverage, query.get('star_time', None), query.get('end_time',None), query.get('stride_time',None), query.get('parameters',None), delivery_format, query.get('tdoa',None))
+                rdt = ReplayProcess._coverage_to_granule(coverage, query.get('start_time', None), query.get('end_time',None), query.get('stride_time',None), query.get('parameters',None), delivery_format, query.get('tdoa',None))
         except Exception as e:
             import traceback
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')
         finally:
-            coverage.close(timeout=5)
+            if coverage is not None:
+                coverage.close(timeout=5)
         return rdt.to_granule()
 
   
