@@ -235,12 +235,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         # if the notification has already been registered, simply use the old id
 
-        id = self._notification_in_notifications(notification, self.notifications)
+        notification_id = self._notification_in_notifications(notification, self.notifications)
 
-        if id:
-            log.debug("Notification object has already been created in resource registry before. No new id to be generated.")
-            notification_id = id
-        else:
+        if not notification_id:
 
             # since the notification has not been registered yet, register it and get the id
             notification.temporal_bounds = TemporalBounds()
@@ -248,25 +245,29 @@ class UserNotificationService(BaseUserNotificationService):
             notification.temporal_bounds.end_datetime = ''
 
             notification_id, _ = self.clients.resource_registry.create(notification)
-            self.notifications[notification_id] = notification
 
-            # Link the user and the notification with a hasNotification association
+            self.notifications[notification_id] = notification
+        else:
+            log.debug("Notification object has already been created in resource registry before. No new id to be generated.")
+
+        # Link the user and the notification with a hasNotification association
+        assocs= self.clients.resource_registry.find_associations(subject=user_id,
+                                                                    predicate=PRED.hasNotification,
+                                                                    object=notification_id,
+                                                                    id_only=True)
+        log.debug("Got an already existing association: %s, between user_id: %s, and notification_id: %s", assocs,user_id,notification_id)
+
+        if not assocs:
+            log.debug("Creating association between user_id: %s, and notification_id: %s", user_id, notification_id )
             self.clients.resource_registry.create_association(user_id, PRED.hasNotification, notification_id)
 
-        #-------------------------------------------------------------------------------------------------------------------
         # read the registered notification request object because this has an _id and is more useful
-        #-------------------------------------------------------------------------------------------------------------------
-
         notification = self.clients.resource_registry.read(notification_id)
 
-        #-----------------------------------------------------------------------------------------------------------
-        # Create an event processor for user. This sets up callbacks etc.
-        # As a side effect this updates the UserInfo object and also the user info and reverse user info dictionaries.
-        #-----------------------------------------------------------------------------------------------------------
-
+        # Update the user info object with the notification
         user = self.event_processor.add_notification_for_user(notification_request=notification, user_id=user_id)
 
-        # Update the user info object with the notification
+        # Update the user info and the reverse user info dictionaries
         self.update_user_info_dictionary(user_id=user_id, new_notification=notification, old_notification=None)
 
         #-------------------------------------------------------------------------------------------------------------------
@@ -305,13 +306,16 @@ class UserNotificationService(BaseUserNotificationService):
 
 
         self._update_notification_in_notifications_dict(new_notification=notification,
-                                                        old_notification=old_notification,
                                                         notifications=self.notifications)
         #-------------------------------------------------------------------------------------------------------------------
         # Update the notification in the registry
         #-------------------------------------------------------------------------------------------------------------------
+        '''
+        Since one user should not be able to update the notification request resource without the knowledge of other users
+        who have subscribed to the same notification request, we do not update the resource in the resource registry
+        '''
 
-        self.clients.resource_registry.update(notification)
+#        self.clients.resource_registry.update(notification)
 
         #-------------------------------------------------------------------------------------------------------------------
         # reading up the notification object to make sure we have the newly registered notification request object
@@ -395,28 +399,28 @@ class UserNotificationService(BaseUserNotificationService):
             description= "A notification has been deleted.",
             notification_id = notification_id)
 
-    def delete_notification_from_user_info(self, notification_id):
-        """
-        Helper method to delete the notification from the user_info dictionary
-
-        @param notification_id str
-        """
-
-        user_ids, assocs = self.clients.resource_registry.find_subjects(object=notification_id, predicate=PRED.hasNotification, id_only=True)
-
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc)
-
-        for user_id in user_ids:
-
-            value = self.user_info[user_id]
-
-            for notif in value['notifications']:
-                if notification_id == notif._id:
-                    # remove the notification
-                    value['notifications'].remove(notif)
-
-        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
+#    def delete_notification_from_user_info(self, notification_id):
+#        """
+#        Helper method to delete the notification from the user_info dictionary
+#
+#        @param notification_id str
+#        """
+#
+#        user_ids, assocs = self.clients.resource_registry.find_subjects(object=notification_id, predicate=PRED.hasNotification, id_only=True)
+#
+#        for assoc in assocs:
+#            self.clients.resource_registry.delete_association(assoc)
+#
+#        for user_id in user_ids:
+#
+#            value = self.user_info[user_id]
+#
+#            for notif in value['notifications']:
+#                if notification_id == notif._id:
+#                    # remove the notification
+#                    value['notifications'].remove(notif)
+#
+#        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
     def find_events(self, origin='', type='', min_datetime=0, max_datetime=0, limit= -1, descending=False):
         """
@@ -968,13 +972,10 @@ class UserNotificationService(BaseUserNotificationService):
                 return id
         return None
 
-    def _update_notification_in_notifications_dict(self, new_notification = None, old_notification = None, notifications = None ):
+    def _update_notification_in_notifications_dict(self, new_notification = None, notifications = None ):
 
         for id, notif in notifications.iteritems():
-            if notif.name == old_notification.name and\
-               notif.origin == old_notification.origin and\
-               notif.origin_type == old_notification.origin_type and\
-               notif.event_type == old_notification.event_type:
+            if id == new_notification._id:
                 notifications.pop(id)
                 notifications[id] = new_notification
                 break

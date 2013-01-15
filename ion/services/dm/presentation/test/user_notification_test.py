@@ -162,9 +162,6 @@ class UserNotificationTest(PyonTestCase):
         notification = 'notification'
         user_id = 'user_id_1'
 
-        self.mock_rr_client.update = mocksignature(self.mock_rr_client.update)
-        self.mock_rr_client.update.return_value = ''
-
         self.mock_rr_client.read = mocksignature(self.mock_rr_client.read)
         self.mock_rr_client.read.return_value = notification
 
@@ -203,7 +200,6 @@ class UserNotificationTest(PyonTestCase):
         # assertions
         #-------------------------------------------------------------------------------------------------------------------
 
-        self.mock_rr_client.update.assert_called_once_with(notification_request)
         self.user_notification.update_user_info_object.assert_called_once_with(user_id, notification, notification)
         self.user_notification.update_user_info_dictionary.assert_called_once_with('user_id_1', notification, notification)
 
@@ -1353,10 +1349,14 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # read back the notification and check that it got changed
         notification = self.unsc.read_notification(notification_id)
 
-        self.assertEquals(notification.origin_type, 'new_type')
+        # Assert that the notification resource in the datastore does not get overwritten
+        self.assertEquals(notification.origin_type, 'type_1')
         self.assertEquals(notification.event_type, 'ResourceLifecycleEvent')
         self.assertEquals(notification.origin, 'instrument_1')
 
+        # Check that the UserInfo object is updated
+
+        # Check that the user info dictionary is updated
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
