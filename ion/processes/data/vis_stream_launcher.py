@@ -93,7 +93,7 @@ class VisStreamLauncher(ImmediateProcess):
 
             # create a stream definition for the data from the ctd simulator
             pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-            ctd_stream_def_id = self.pubsubclient.create_stream_definition(name="SBE37_CDM", description="SBE37_CDM", parameter_diction_id=pdict_id)
+            ctd_stream_def_id = self.pubsubclient.create_stream_definition(name="SBE37_CDM", description="SBE37_CDM", parameter_dictionary_id=pdict_id)
 
             tdom, sdom = time_series_domain()
             sdom = sdom.dump()
