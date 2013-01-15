@@ -11,7 +11,7 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier, get_ion_ts
 from pyon.core.governance.negotiation import Negotiation
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability, ComputedIntValue, StatusType
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
@@ -1104,58 +1104,100 @@ class OrgManagementService(BaseOrgManagementService):
         instruments_not_deployed = []
         #compute the non deployed devices
         if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') :
-            #clean up the list of deployed instrument
-            dply_inst = []
-            for instrument_deployed in extended_org.instruments_deployed:
-                # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
-                if len(instrument_deployed):
-                    instrument_deployed = instrument_deployed[0]
-                    if hasattr(instrument_deployed, 'type_') and instrument_deployed.type_ == 'InstrumentDevice':
-                        dply_inst.append(instrument_deployed)
-            extended_org.instruments_deployed = dply_inst
+            # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between
+            #     a site and a device so get the only element from inside this list
+            extended_org.instruments_deployed = [d[0] for d in extended_org.instruments_deployed
+                                                 if len(d) and hasattr(d, "type_") and d.type_ == RT.InstrumentDevice]
 
-            #compute the list of non-deployed instruments
-            for org_instrument in extended_org.instruments:
-                if not org_instrument in extended_org.instruments_deployed:
-                    instruments_not_deployed.append(org_instrument)
+#            instruments_not_deployed = [x for x in extended_org.instruments
+#                                        if x not in extended_org.instruments_deployed]
 
         platforms_not_deployed = []
         if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
-            #clean up the list of deployed platforms
-            dply_pltfrms = []
-            for platform_deployed in extended_org.platforms_deployed:
-                # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between a site and a device so get the only element from inside this list
-                if len(platform_deployed):
-                    platform_deployed = platform_deployed[0]
-                    if hasattr(platform_deployed, 'type_') and platform_deployed.type_ == 'PlatformDevice':
-                        dply_pltfrms.append(platform_deployed)
-            extended_org.platforms_deployed = dply_pltfrms
+            # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between
+            #     a site and a device so get the only element from inside this list
+            extended_org.platforms_deployed = [d[0] for d in extended_org.platforms_deployed
+                                                 if len(d) and hasattr(d, "type_") and d.type_ == RT.PlatformDevice]
 
-            #compute the list of non-deployed platforms
-            for org_platform in extended_org.platforms:
-                if not extended_org.platforms_deployed.count(org_platform):
-                    platforms_not_deployed.append(org_platform)
+#            platforms_not_deployed = [x for x in extended_org.platforms
+#                                      if x not in extended_org.platforms_deployed]
+
 
 
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
-        extended_org.computed.instrument_status = [4]*len(extended_org.instruments)
-        extended_org.computed.platform_status = [4]*len(extended_org.platforms)
+        # lookup all hasModel predicates
+        # lookup is a 2d associative array of [subject type][subject id] -> object id (model)
+        lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
+        for a in self.clients.resource_registry.find_associations(predicate=PRED.hasModel, id_only=False):
+            if a.st in lookup:
+                lookup[a.st][a.s] = a.o
+
+        def retrieve_model_objs(rsrc_list, object_type):
+            # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
+            # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
+            #  look up all the model ids, then create the proper output
+            model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
+            model_uniq = list(set([m for m in model_list if m is not None]))
+            model_objs = self.clients.resource_registry.read_mult(model_uniq)
+            model_dict = dict(zip(model_uniq, model_objs))
+            return [model_dict.get(m) for m in model_list]
+
+        extended_org.instrument_models = retrieve_model_objs(extended_org.instruments, RT.InstrumentDevice)
+        extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
+
+
+        s_unknown = StatusType.STATUS_UNKNOWN
+
+        # initialize computed attributes
+        extended_org.computed.instrument_status = [s_unknown] * len(extended_org.instruments)
+        extended_org.computed.platform_status   = [s_unknown] * len(extended_org.platforms)
+        extended_org.computed.site_status       = [s_unknown] * len(extended_org.sites)
+
+        # shortcut constructor for default value
+        def status_unknown():
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
+
+        extended_org.computed.communications_status_roll_up = status_unknown()
+        extended_org.computed.power_status_roll_up          = status_unknown()
+        extended_org.computed.data_status_roll_up           = status_unknown()
+        extended_org.computed.location_status_roll_up       = status_unknown()
+        extended_org.computed.aggregated_status             = status_unknown()
+
+
+        # calculate computed attributes
         try:
             outil = ObservatoryUtil(self)
             status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
-            extended_org.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg",4) for idev in extended_org.instruments]
-            extended_org.computed.platform_status = [status_rollups.get(pdev._id,{}).get("agg",4) for pdev in extended_org.platforms]
+            extended_org.computed.instrument_status = [status_rollups.get(idev._id, {}).get("agg", s_unknown)
+                                                       for idev in extended_org.instruments]
+            extended_org.computed.platform_status   = [status_rollups.get(pdev._id, {}).get("agg", s_unknown)
+                                                       for pdev in extended_org.platforms]
+            extended_org.computed.site_status       = [status_rollups.get(site._id, {}).get("agg", s_unknown)
+                                                       for site in extended_org.sites]
         except Exception as ex:
-            log.exception("Computed attribute failed for %s" % org_id)
+            log.exception("Computed attribute failed for org %s" % org_id)
+
+
+        # shortcut constructor for computed int value
+        def short_status_rollup(key):
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
+                                    value=status_rollups.get(org_id, {}).get(key, s_unknown))
+
+        extended_org.computed.communications_status_roll_up = short_status_rollup("comms")
+        extended_org.computed.power_status_roll_up          = short_status_rollup("power")
+        extended_org.computed.data_status_roll_up           = short_status_rollup("data")
+        extended_org.computed.location_status_roll_up       = short_status_rollup("loc")
+        extended_org.computed.aggregated_status             = short_status_rollup("agg")
+
 
         #set counter attributes
-        extended_org.number_of_platforms = len(extended_org.platforms)
-        extended_org.number_of_platforms_deployed = len(extended_org.platforms_deployed)
-        extended_org.number_of_instruments = len(extended_org.instruments)
+        extended_org.number_of_platforms            = len(extended_org.platforms)
+        extended_org.number_of_platforms_deployed   = len(extended_org.platforms_deployed)
+        extended_org.number_of_instruments          = len(extended_org.instruments)
         extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
-        extended_org.number_of_data_products = len(extended_org.data_products)
+        extended_org.number_of_data_products        = len(extended_org.data_products)
 
         return extended_org
 
