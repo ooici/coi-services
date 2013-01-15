@@ -1374,6 +1374,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # and that user 2 is associated with one notification
         #--------------------------------------------------------------------------------------
 
+        not_ids, _ = self.rrc.find_objects(subject=user_id,
+                                predicate=PRED.hasNotification,
+                                id_only=True)
+
+        log.debug("not_ids::: %s", not_ids)
+
+        self.assertEquals(set(not_ids), set([notification_id1,notification_id2]))
+
+        not_ids_2, _ = self.rrc.find_objects(subject=user_id_2,
+            predicate=PRED.hasNotification,
+            id_only=True)
+
+        log.debug("not_ids_2::: %s", not_ids_2)
+
+        self.assertEquals(set(not_ids_2), set([notification_id1]))
 
 
 
