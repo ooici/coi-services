@@ -144,6 +144,9 @@ class RecordDictionaryTool(object):
         """
         if name not in self._rd:
             raise KeyError(name)
+        if vals is None:
+            self._rd[name] = None
+            return
         context = self._pdict.get_context(name)
         if self._shp is None: # Not initialized:
             if isinstance(vals, np.ndarray):
