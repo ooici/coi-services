@@ -309,7 +309,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def get_visualization_data(self, data_product_id='', visualization_parameters=None, callback=''):
+    def get_visualization_data(self, data_product_id='', visualization_parameters=None, callback='', tqx=""):
         """Retrieves the data for the specified DP and sends a token back which can be checked in
             a non-blocking fashion till data is ready
 
@@ -320,16 +320,25 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    object with specified id, query does not exist
         """
 
+        print ">>>>>>>>>  DP ID , ", data_product_id , " visualization_params = ", visualization_parameters , "  TQX = ", tqx
+
         # error check
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
 
-        max_time_steps = None
         dataset_bounds = None
         dataset_time_bounds = None
         if visualization_parameters == {}:
             visualization_parameters = None
 
+        reqId = 0
+        # If a reqId was passed in tqx, extract it
+        if tqx:
+            tqx_param_list = tqx.split(";")
+            for param in tqx_param_list:
+                key, value = param.split(":")
+                if key == 'reqId':
+                    reqId = value
 
         # Extract the parameters. Definitely init first
         query = None
@@ -349,8 +358,10 @@ class VisualizationService(BaseVisualizationService):
                 query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
 
             # calculate stride time
-            if 'max_time_steps' in visualization_parameters:
-                max_time_steps = int(visualization_parameters['max_time_steps'])
+            if 'stride_time' in visualization_parameters:
+                query['stride_time'] = int(visualization_parameters['stride_time'])
+            else:
+                query['stride_time'] == 1
 
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
@@ -359,11 +370,11 @@ class VisualizationService(BaseVisualizationService):
         if ds_ids is None or not ds_ids:
             raise NotFound("Could not find dataset associated with data product")
 
+        """
         # Retrieve the required data. If max time steps were specified, calculate a stride_time factor
         if max_time_steps:
 
             dataset_extents = self.clients.dataset_management.dataset_extents(ds_ids[0])
-
 
             # ********  Dirty hack to get around missing start_time bug. Try to call dataset_bounds several times
             count = 0
@@ -376,21 +387,17 @@ class VisualizationService(BaseVisualizationService):
                 if dataset_time_bounds[0] != 0:
                     break
 
+                print " >>>>>>>>> TRYING TO RETRIEVE BOUNDS AGAIN : ", dataset_bounds
                 time.sleep(0.1)
 
             if dataset_time_bounds[0] == 0:
                 query['stride_time'] == 1
             else:
                 avg_data_rate = float(dataset_extents['time'][0]) / float(dataset_time_bounds[1] - dataset_time_bounds[0])
-                #print " >>>>>>>>> AVG DATA RATE : ", avg_data_rate
                 num_of_actual_data_points = min((query['end_time'] - query['start_time']), (dataset_time_bounds[1] - dataset_time_bounds[0])) * avg_data_rate
-                #print ">>>>>>>>>>>>>  num_of_actual_data_points : ", num_of_actual_data_points
                 query['stride_time'] = int(math.ceil(float(num_of_actual_data_points) / float(max_time_steps)))
+        """
 
-            #print ">>>>>>>>>>>>>>>> TOTAL TIME STEPS : ", dataset_extents ,  " TIME BOUND = ", dataset_time_bounds
-
-
-        #print ">>>>>>>>>>>>> QUERY = ", query
         #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
         retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
         if retrieved_granule is None:
@@ -446,9 +453,9 @@ class VisualizationService(BaseVisualizationService):
 
         # return the json version of the table
         if callback == '':
-            return gdt.ToJSonResponse()
+            return gdt.ToJSonResponse(req_id = reqId)
         else:
-            return callback + "(\"" + gdt.ToJSonResponse() + "\")"
+            return callback + "(\"" + gdt.ToJSonResponse(req_id = reqId) + "\")"
 
 
 
@@ -655,3 +662,31 @@ class VisualizationService(BaseVisualizationService):
 
         #print " >>>>>>>>>>>> TIME TAKEN BY get_dummy_googledt() = ", time.time() - start_time, " secs"
         return google_dt
+
+
+    def get_dataproduct_metadata(self, data_product_id="", callback=""):
+
+        dp_meta_data = {}
+        if not data_product_id:
+            raise BadRequest("The data_product_id parameter is missing")
+
+        # get the dataset_id associated with the data_product. Need it to do the data retrieval
+        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+
+        if ds_ids is None or not ds_ids:
+            log.warn("Specified dataproduct does not have an associated dataset")
+            return None
+
+        # Start collecting the data to populate the output dictionary
+        time_bounds = self.clients.dataset_management.dataset_bounds(ds_ids[0])['time']
+        dp_meta_data['time_bounds'] = [float(ntplib.ntp_to_system_time(i)) for i in time_bounds]
+        dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents(ds_ids[0])['time'][0]
+
+        print " >>>>>>>> DP META DATA = ", dp_meta_data
+
+        dp_meta_data_json = simplejson.dumps(dp_meta_data)
+
+        if callback:
+            return callback + "(" + dp_meta_data_json + ")"
+        else:
+            return dp_meta_data_json
