@@ -104,7 +104,7 @@ class DataRetrieverService(BaseDataRetrieverService):
     @classmethod
     def retrieve_oob(cls, dataset_id='', query=None, delivery_format=None):
         query = query or {}
-
+        coverage = None
         try:
             coverage = DatasetManagementService._get_coverage(dataset_id, mode='r')
             if coverage.num_timesteps == 0:
@@ -117,7 +117,8 @@ class DataRetrieverService(BaseDataRetrieverService):
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')
         finally:
-            coverage.close(timeout=5)
+            if coverage is not None:
+                coverage.close(timeout=5)
         return rdt.to_granule()
 
   
