@@ -83,11 +83,12 @@ class OmsSimulatorServer(object):
             sys.stderr.write("\n%s\n%s\n%s\n\n" % (s, m, s))
 
 
-DEFAULT_HOST = 'localhost'
-DEFAULT_PORT = 7700
-
 # Main program
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
+
+    DEFAULT_HOST = 'localhost'
+    DEFAULT_PORT = 7700
+
     import argparse
     import sys
 

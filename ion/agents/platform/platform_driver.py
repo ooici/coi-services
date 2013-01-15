@@ -142,7 +142,7 @@ class PlatformDriver(object):
         @retval "PONG"
         @raise PlatformConnectionException
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def go_active(self):
         """
@@ -152,7 +152,7 @@ class PlatformDriver(object):
 
         @raise PlatformConnectionException
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def get_metadata(self):
         """
@@ -161,7 +161,7 @@ class PlatformDriver(object):
 
         @raise PlatformConnectionException
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def get_attribute_values(self, attr_names, from_time):
         """
@@ -175,7 +175,7 @@ class PlatformDriver(object):
                 dict indexed by attribute name with list of (value, timestamp)
                 pairs. Timestamps are NTP v4.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def set_attribute_values(self, attrs):
         """
@@ -190,7 +190,7 @@ class PlatformDriver(object):
                 in the input. Returned timestamps indicate the time when the
                 value was set (NTP)
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def get_ports(self):
         """
@@ -199,7 +199,7 @@ class PlatformDriver(object):
 
         @raise PlatformConnectionException
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def set_up_port(self, port_id, attributes):
         """
@@ -213,7 +213,7 @@ class PlatformDriver(object):
 
         @raise PlatformConnectionException
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def turn_on_port(self, port_id):
         """
@@ -226,7 +226,7 @@ class PlatformDriver(object):
 
         @raise PlatformConnectionException
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def turn_off_port(self, port_id):
         """
@@ -239,7 +239,7 @@ class PlatformDriver(object):
 
         @raise PlatformConnectionException
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def get_subplatform_ids(self):
         """
@@ -256,14 +256,14 @@ class PlatformDriver(object):
         Starts greenlets to periodically retrieve values of the attributes
         associated with my platform, and do corresponding event notifications.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def stop_resource_monitoring(self):
         """
         To be implemented by subclass.
         Stops all the monitoring greenlets.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def destroy(self):
         """
@@ -296,11 +296,11 @@ class PlatformDriver(object):
         Starts the dispatch of events received from the platform network to do
         corresponding event notifications.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def stop_event_dispatch(self):
         """
         To be implemented by subclass.
         Stops the dispatch of events received from the platform network.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
