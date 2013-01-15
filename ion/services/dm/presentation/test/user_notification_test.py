@@ -1797,7 +1797,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Get the notifications for the user
         #--------------------------------------------------------------------------------------
 
-        ret= self.unsc.get_user_notifications(user_info_id==user_id)
+        ret= self.unsc.get_user_notifications(user_id)
 
 #        self.assertIsInstance(ret, ComputedListValue)
 #        notifications = ret.value
