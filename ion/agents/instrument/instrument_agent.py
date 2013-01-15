@@ -36,6 +36,7 @@ from pyon.core.exception import ResourceError
 import socket
 import json
 import base64
+import copy
 
 # Packages
 import numpy
@@ -62,6 +63,11 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 # Alarms.
 from interface.objects import StreamAlarmType
 from interface.objects import AlarmDef
+from ion.agents.alarms.alarms import construct_alarm_expression
+from ion.agents.alarms.alarms import eval_alarm
+from interface.objects import StreamWarningAlaramEvent
+from interface.objects import StreamAlertAlarmEvent
+from interface.objects import StreamAllClearAlarmEvent
 
 # MI imports
 from mi.core.instrument.instrument_driver import DriverEvent
@@ -843,12 +849,42 @@ class InstrumentAgent(ResourceAgent):
                 stream name %s.', self._proc_name, stream_name)
 
         else:
+            self._process_alarms(val)
             state = self._fsm.get_current_state()
             pubfreq = self.aparam_pubfreq[stream_name]
 
             if state != ResourceAgentState.STREAMING or pubfreq == 0:
                 self._publish_stream_buffer(stream_name)
 
+    def _process_alarms(self, val):
+        """
+        """
+        
+        try:
+            stream_name = val['stream_name']
+            values = val['values']
+        
+        except KeyError:
+            log.error('Tomato missing stream_name or values keys. Could not process alarms.')
+            return
+ 
+        for v in values:
+            try:
+                value_id = v['value_id']
+                value = v['value']
+            except KeyError:
+                log.error('Tomato value missing value_id or value keys. Could not process alarms.')
+                
+            else:           
+                for a in self.aparam_alarms:
+                    if a.stream_name == stream_name and a.value_id == value_id:
+                        (a, event_data) = eval_alarm(a, value)
+                        if event_data:
+                            self._event_publisher.publish_event(
+                                event_data['event_type'],
+                                origin=self._resource_id,
+                                **event_data)
+        
     def _publish_stream_buffer(self, stream_name):
         """
         """
@@ -868,7 +904,6 @@ class InstrumentAgent(ResourceAgent):
         
         {'quality_flag': [u'ok'], 'preferred_timestamp': [u'driver_timestamp'], 'temp': [-4.9733], 'density': [None], 'port_timestamp': [None], 'lon': [None], 'salinity': [None], 'pressure': [539.527],
         'internal_timestamp': [None], 'time': [3564867788.0627117], 'lat': [None], 'driver_timestamp': [3564867788.0627117], 'conductivity': [16.0239]}
-        
         """
 
         try:
@@ -1263,9 +1298,13 @@ class InstrumentAgent(ResourceAgent):
                                   stream_name)
                     else:
                         self.aparam_pubfreq[stream_name] = pubfreq
-                                        
+                    
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)
                     self.aparam_streams[stream_name] = rdt.fields
+                    
+                    alarms = stream_config.get('alarms',None)
+                    if isinstance(alarms, (list,tuple)):
+                        self.aparam_set_alarms(['add'].extend(alarms))
                     
     def _start_publisher_greenlets(self):
         """
@@ -1322,15 +1361,10 @@ class InstrumentAgent(ResourceAgent):
     def aparam_set_alarms(self, params):
         """
         """
-        pass
-        """
-        print '#######################'
-        print str(params)
         
         if not isinstance(params, (list,tuple)) or len(params)==0:
             return -1
         
-        retval = 0
         action = params[0]
         params = params[1:]
         
@@ -1342,29 +1376,28 @@ class InstrumentAgent(ResourceAgent):
                 
         if action in ('set', 'add'):
             for a in params:
-                if isinstance(a,BaseAlarm):
+                try:
+                    a = construct_alarm_expression(a)
                     self.aparam_alarms.append(a)
-                else:
-                    log.error('Attempted to set an invalid alarm.')
+                except:
+                    log.error('Error constructing alarm.')
                     
         elif action == 'remove':
             new_alarms = copy.deepcopy(self.aparam_alarms)
-            for a in self.aparam_alarms:
+            for a in params:
                 if isinstance(a, str):
-                    new_alarms = [x for x in self.aparam_alarms if
-                        x.name == a]
-                elif isinstance(a, BaseAlarm):
-                    new_alarms = [x for x in self.aparam_alarms if
-                        x.stream_id == a.stream_id and
+                    new_alarms = [x for x in new_alarms if x.name != a]
+                elif isinstance(a, AlarmDef):
+                    new_alarms = [x for x in new_alarms if not
+                        (x.stream_name == a.stream_name and
                         x.value_id == a.value_id and
-                        x.expr == a.expr]
+                        x.name == a.name)]
                 else:
                     log.error('Attempted to remove an invalid alarm.')
                     
             self.aparam_alarms = new_alarms
             
         return len(self.aparam_alarms)
-        """
         
     ###############################################################################
     # Event callback and handling for direct access.

@@ -15,6 +15,8 @@ from pyon.util.log import log
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
 
+from coverage_model import utils
+
 from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from interface.services.dm.ireplay_process import BaseReplayProcess
@@ -135,6 +137,7 @@ class ReplayProcess(BaseReplayProcess):
         else:
             rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
         if parameters is not None:
+            # TODO: Improve efficiency here
             fields = list(set(parameters).intersection(rdt.fields))
         else:
             fields = rdt.fields
@@ -145,6 +148,12 @@ class ReplayProcess(BaseReplayProcess):
             if n is None:
                 rdt[field] = [n]
             elif isinstance(n,np.ndarray):
+                if coverage.get_data_extents(field)[0] != coverage.num_timesteps:
+                    log.error("Misformed coverage detected, padding with fill_value")
+                    arr_len = utils.slice_len(slice_, (coverage.num_timesteps,))[0]
+                    fill_arr = np.empty(arr_len - n.shape[0] , dtype=n.dtype)
+                    fill_arr.fill(coverage.get_parameter_context(field).fill_value)
+                    n = np.append(n,fill_arr)
                 rdt[field] = n
             else:
                 rdt[field] = [n]
@@ -162,11 +171,12 @@ class ReplayProcess(BaseReplayProcess):
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else: 
                 rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters,tdoa=self.tdoa)
-            coverage.close(timeout=5)
         except Exception as e:
             import traceback
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')
+        finally:
+            coverage.close(timeout=5)
         return rdt.to_granule()
 
 

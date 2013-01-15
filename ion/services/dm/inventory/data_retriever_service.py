@@ -4,15 +4,19 @@
 @description Data Retriever Service
 '''
 
-from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
-from interface.objects import Replay 
-from pyon.core.exception import BadRequest 
 from ion.core.function.transform_function import TransformFunction
-from pyon.util.arg_check import validate_is_instance, validate_true
 from ion.processes.data.replay.replay_process import ReplayProcess
-from pyon.public import PRED, RT
-from pyon.util.containers import for_name
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule import RecordDictionaryTool
 
+from pyon.core.exception import BadRequest 
+from pyon.public import PRED, RT
+from pyon.util.arg_check import validate_is_instance, validate_true
+from pyon.util.containers import for_name
+from pyon.util.log import log
+
+from interface.objects import Replay 
+from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 
 class DataRetrieverService(BaseDataRetrieverService):
     REPLAY_PROCESS = 'replay_process'
@@ -97,11 +101,32 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         self.clients.resource_registry.delete(replay_id)
 
+    @classmethod
+    def retrieve_oob(cls, dataset_id='', query=None, delivery_format=None):
+        query = query or {}
+        coverage = None
+        try:
+            coverage = DatasetManagementService._get_coverage(dataset_id, mode='r')
+            if coverage.num_timesteps == 0:
+                log.info('Reading from an empty coverage')
+                rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
+            else:
+                rdt = ReplayProcess._coverage_to_granule(coverage, query.get('star_time', None), query.get('end_time',None), query.get('stride_time',None), query.get('parameters',None), delivery_format, query.get('tdoa',None))
+        except Exception as e:
+            import traceback
+            traceback.print_exc(e)
+            raise BadRequest('Problems reading from the coverage')
+        finally:
+            if coverage is not None:
+                coverage.close(timeout=5)
+        return rdt.to_granule()
+
+  
     def retrieve(self, dataset_id='', query=None, delivery_format=None, module='', cls='', kwargs=None):
         '''
         Retrieves a dataset.
         @param dataset_id      Dataset identifier
-        @param query           Query parameters (start_time, end_time, stride_time, parameters)
+        @param query           Query parameters (start_time, end_time, stride_time, parameters, tdoa)
         @param delivery_format The stream definition identifier for the outgoing granule (stream_defintinition_id)
         @param module          Module to chain a transform into
         @param cls             Class of the transform

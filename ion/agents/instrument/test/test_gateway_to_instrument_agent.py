@@ -266,7 +266,10 @@ def _process_gateway_request(resource_id, operation, json_request, requester):
     if requester is not None:
         json_request["agentRequest"]["requester"] = requester
 
-    payload = simplejson.dumps(json_request)
+    
+    decoder = IonObjectSerializer()
+    decoded_msg = decoder.serialize(json_request)
+    payload = simplejson.dumps(decoded_msg)
 
     response = _agent_gateway_request(resource_id + '/' + operation,   payload)
 

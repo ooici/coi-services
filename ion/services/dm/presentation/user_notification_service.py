@@ -16,7 +16,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability
+from interface.objects import ComputedValueAvailability, NotificationPreferences, NotificationDeliveryModeEnum
 
 import string
 import time
@@ -154,6 +154,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.discovery = DiscoveryServiceClient()
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.event_publisher = EventPublisher()
+        self.datastore = self.container.datastore_manager.get_datastore('events')
 
         self.start_time = UserNotificationService.makeEpochTime(self.__now())
 
@@ -226,7 +227,7 @@ class UserNotificationService(BaseUserNotificationService):
         if not user_id:
             raise BadRequest("User id not provided.")
 
-        log.debug("Create notification called for user_id: %s, and notification: %s" % (user_id, notification))
+        log.debug("Create notification called for user_id: %s, and notification: %s", user_id, notification)
 
         #---------------------------------------------------------------------------------------------------
         # Persist Notification object as a resource if it has already not been persisted
@@ -271,7 +272,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+        log.debug("(create notification) Publishing ReloadUserInfoEvent for notification_id: %s", notification_id)
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
             origin="UserNotificationService",
@@ -338,7 +339,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
             origin="UserNotificationService",
-            description= "A notification has been updated."
+            description= "A notification has been updated.",
+            notification_id = notification_id
         )
 
     def read_notification(self, notification_id=''):
@@ -386,7 +388,7 @@ class UserNotificationService(BaseUserNotificationService):
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
-        log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s" % notification_id)
+        log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s", notification_id)
 
         self.event_publisher.publish_event( event_type= "ReloadUserInfoEvent",
             origin="UserNotificationService",
@@ -433,8 +435,6 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
-        datastore = self.container.datastore_manager.get_datastore('events')
-
 
         # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
         # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
@@ -461,14 +461,14 @@ class UserNotificationService(BaseUserNotificationService):
             opts['startkey'] = opts['endkey']
             opts['endkey'] = t
 
-        results = datastore.query_view('event/by_origintype',opts=opts)
+        results = self.datastore.query_view('event/by_origintype',opts=opts)
 
         events = []
         for res in results:
             event_obj = res['doc']
             events.append(event_obj)
 
-        log.debug("(find_events) UNS found the following relevant events: %s" % events)
+        log.debug("(find_events) UNS found the following relevant events: %s", events)
 
         if -1 < limit < len(events):
             list = []
@@ -514,15 +514,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         # get the list of ids corresponding to the events
         ret_vals = self.discovery.parse(search_string)
-        log.debug("(find_events_extended) Discovery search returned the following event ids: %s" % ret_vals)
+        log.debug("(find_events_extended) Discovery search returned the following event ids: %s", ret_vals)
 
-        events = []
-        for event_id in ret_vals:
-            datastore = self.container.datastore_manager.get_datastore('events')
-            event_obj = datastore.read(event_id)
-            events.append(event_obj)
+        events = self.datastore.read_mult(ret_vals)
 
-        log.debug("(find_events_extended) UNS found the following relevant events: %s" % events)
+        log.debug("(find_events_extended) UNS found the following relevant events: %s", events)
 
         if limit > -1:
             list = []
@@ -621,7 +617,8 @@ class UserNotificationService(BaseUserNotificationService):
             configuration = {}
             configuration['process'] = dict({
                 'name': 'notification_worker_%s' % n,
-                'type':'simple'
+                'type':'simple',
+                'queue_name': 'notification_worker_queue'
             })
 
             pid  = self.process_dispatcher.schedule_process(
@@ -668,6 +665,14 @@ class UserNotificationService(BaseUserNotificationService):
         for user_id, value in self.user_info.iteritems():
 
             notifications = value['notifications']
+            notification_preferences = value['notification_preferences']
+
+            # Ignore users who do NOT want batch notifications or who have disabled the delivery switch
+            # However, if notification preferences have not been set for the user, use the default mechanism and do not bother
+            if notification_preferences:
+                if notification_preferences.delivery_mode != NotificationDeliveryModeEnum.BATCH \
+                    or not notification_preferences.delivery_enabled:
+                    continue
 
             events_for_message = []
 
@@ -699,12 +704,9 @@ class UserNotificationService(BaseUserNotificationService):
                 # get the list of ids corresponding to the events
                 ret_vals = self.discovery.parse(search_string)
 
-                for event_id in ret_vals:
-                    datastore = self.container.datastore_manager.get_datastore('events')
-                    event_obj = datastore.read(event_id)
-                    events_for_message.append(event_obj)
+                events_for_message.extend(self.datastore.read_mult(ret_vals))
 
-            log.debug("Found following events of interest to user, %s: %s" % (user_id, events_for_message))
+            log.debug("Found following events of interest to user, %s: %s", user_id, events_for_message)
 
             # send a notification email to each user using a _send_email() method
             if events_for_message:
@@ -724,7 +726,7 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         message = str(events_for_message)
-        log.debug("The user, %s, will get the following events in his batch notification email: %s" % (user_id, message))
+        log.debug("The user, %s, will get the following events in his batch notification email: %s", user_id, message)
 
         msg_body = ''
         count = 1
@@ -754,7 +756,7 @@ class UserNotificationService(BaseUserNotificationService):
                     "and the emails will not be read. \r\n "
 
 
-        log.debug("The email has the following message body: %s" % msg_body)
+        log.debug("The email has the following message body: %s", msg_body)
 
         msg_subject = "(SysName: " + get_sys_name() + ") ION event "
 
@@ -778,7 +780,7 @@ class UserNotificationService(BaseUserNotificationService):
         msg['Subject'] = msg_subject
         msg['From'] = self.ION_NOTIFICATION_EMAIL_ADDRESS
         msg['To'] = msg_recipient
-        log.debug("UNS sending batch (digest) email from %s to %s" % (self.ION_NOTIFICATION_EMAIL_ADDRESS, msg_recipient))
+        log.debug("UNS sending batch (digest) email from %s to %s" , self.ION_NOTIFICATION_EMAIL_ADDRESS, msg_recipient)
 
         smtp_sender = CFG.get_safe('server.smtp.sender')
 
@@ -829,7 +831,10 @@ class UserNotificationService(BaseUserNotificationService):
     def update_user_info_dictionary(self, user_id, new_notification, old_notification):
 
         notifications = []
+        notification_preferences = None
         user = self.clients.resource_registry.read(user_id)
+
+        log.debug("user.variables::: %s", user.variables)
 
         #------------------------------------------------------------------------------------
         # If there was a previous notification which is being updated, check the dictionaries and update there
@@ -850,11 +855,18 @@ class UserNotificationService(BaseUserNotificationService):
         #------------------------------------------------------------------------------------
         notifications.append(new_notification)
 
-        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications}
+        # Get the user's notification preferences
+        for item in user.variables:
+            if item['name'] == 'notification_preferences':
+                notification_preferences = item['value']
+
+        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+
+        log.debug("self.user_info::: %s" , self.user_info)
 
         self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
-    def get_subscriptions(self, resource_id='', include_nonactive=False):
+    def _get_subscriptions(self, resource_id='', include_nonactive=False):
         """
         This method is used to get the subscriptions to a data product. The method will return a list of NotificationRequest
         objects for whom the origin is set to this data product. This way all the users who were interested in listening to
@@ -868,21 +880,28 @@ class UserNotificationService(BaseUserNotificationService):
 
         search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
         ret_vals = self.discovery.parse(search_origin)
-        log.debug("Returned results: %s" % ret_vals)
+        log.debug("Returned results: %s", ret_vals)
 
         notifications_all = set()
         notifications_active = set()
 
+        object_ids = []
         for item in ret_vals:
-
             if item['_type'] == 'NotificationRequest':
-                notif = self.clients.resource_registry.read(item['_id'])
+                object_ids.append(item['_id'])
 
-                if include_nonactive:
-                    # Add active or retired notification
-                    notifications_all.add(notif)
+        log.debug("object_ids: %s", object_ids)
 
-                elif notif.temporal_bounds.end_datetime == '':
+        notifs = self.clients.resource_registry.read_mult(object_ids)
+
+
+        if include_nonactive:
+            # Add active or retired notification
+            notifications_all.update(notifs)
+
+        else:
+            for notif in notifs:
+                if notif.temporal_bounds.end_datetime == '':
                     # Add the active notification
                     notifications_active.add(notif)
 
@@ -891,6 +910,53 @@ class UserNotificationService(BaseUserNotificationService):
         else:
             return list(notifications_active)
 
+    def get_subscriptions(self, resource_id='', user_id = '', include_nonactive=False):
+        """
+        This method takes the user-id as an input parameter. The logic will first find all notification requests for this resource
+        then if a user_id is present, it will filter on those that this user is associated with.
+        """
+
+        # Get the notifications whose origin field has the provided resource_id
+        notifs = self._get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
+        log.debug("UNS fetched the following the notifications subscribed to %s::", notifs)
+
+        if not user_id:
+            return notifs
+
+        notifications = []
+
+        # Now find the users who subscribed to the above notifications
+        #todo Right now looking at assocs in a loop which is not efficient to find the users linked to these notifications
+        # todo(contd) Need to use a more efficient way later
+        for notif in notifs:
+            notif_id = notif._id
+            # Find if the user is associated with this notification request
+            ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
+
+            if ids and user_id in ids:
+                log.debug("Removing the notification: %s", notif)
+                notifications.append(notif)
+
+        return notifications
+
+
+#    def get_users_who_subscribed(self, resource_id='', include_nonactive=False):
+#
+#        # Get the notifications whose origin field has the provided resource_id
+#        notifications = self.get_subscriptions(resource_id, include_nonactive)
+#
+#        # Now find the users who subscribed to the above notifications
+#        #todo Right now looking at assocs in a loop which is not efficient to find the users linked to these notifications
+#        # todo(contd) Need to use a more efficient way later
+#
+#        user_ids = set()
+#        for notif in notifications:
+#            notif_id = notif._id
+#            # Find the users who are associated with this notification request
+#            ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
+#            user_ids.add(ids)
+#
+#        return user_ids
 
     def _notification_in_notifications(self, notification = None, notifications = None):
 

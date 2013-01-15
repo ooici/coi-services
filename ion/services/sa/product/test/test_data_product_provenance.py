@@ -583,3 +583,19 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
 
+
+        #-------------------------------
+        # Cleanup
+        #-------------------------------
+
+        self.dpmsclient.delete_data_product(ctd_parsed_data_product)
+        self.dpmsclient.delete_data_product(log_data_product_id)
+        self.dpmsclient.delete_data_product(ctd_l0_conductivity_output_dp_id)
+        self.dpmsclient.delete_data_product(ctd_l0_pressure_output_dp_id)
+        self.dpmsclient.delete_data_product(ctd_l0_temperature_output_dp_id)
+        self.dpmsclient.delete_data_product(ctd_l1_conductivity_output_dp_id)
+        self.dpmsclient.delete_data_product(ctd_l1_pressure_output_dp_id)
+        self.dpmsclient.delete_data_product(ctd_l1_temperature_output_dp_id)
+        self.dpmsclient.delete_data_product(ctd_l2_salinity_output_dp_id)
+        self.dpmsclient.delete_data_product(ctd_l2_density_output_dp_id)
+

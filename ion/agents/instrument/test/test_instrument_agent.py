@@ -36,6 +36,10 @@ from pyon.ion.stream import StandaloneStreamSubscriber
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
 
+# Pyon Object Serialization
+from pyon.core.bootstrap import get_obj_registry
+from pyon.core.object import IonObjectDeserializer
+
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
@@ -361,7 +365,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         streams = {
             'parsed' : 'ctd_parsed_param_dict',
-            'raw' : 'ctd_raw_param_dict'
+            'raw'    : 'ctd_raw_param_dict'
         }
 
 
@@ -904,61 +908,107 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         expected_pubfreq_result = {'pubfreq': {'raw': 0, 'parsed': 0}}
         self.assertEqual(retval, expected_pubfreq_result)
         
-        """
+        new_pubfreq = {'raw' : 30, 'parsed' : 30}
+        self._ia_client.set_agent({'pubfreq' : new_pubfreq})
+        retval = self._ia_client.get_agent(['pubfreq'])['pubfreq']
+        self.assertEqual(retval, new_pubfreq)
+
         retval = self._ia_client.get_agent(['alarms'])['alarms']
         self.assertItemsEqual(retval, [])
 
         alarms = []
-        alarm = IonObject('IntervalAlarmDef',
-                    name='temp_high_warning',
-                    stream_name='parsed',
-                    value_id='temp',
-                    message='Temperature is above normal range.',
-                    type=StreamAlarmType.WARNING,
-                    lower_bound=10.0,
-                    lower_rel_op='<',
-                    upper_bound=20.0,
-                    upper_rel_op='<')
+        
+        kwargs1 = {
+            'name' : 'lower_current_warning_interval',
+            'stream_name' : 'parsed',
+            'value_id' : 'port_current',
+            'message' : 'Current is below normal range.',
+            'type' : StreamAlarmType.WARNING,
+            'lower_bound' : 10.5,
+            'lower_rel_op' : '<'
+        }
+        alarm1 = IonObject('IntervalAlarmDef', **kwargs1)
+        alarms.append(alarm1)
+        
+        kwargs2 = {
+            'name' : 'upper_current_warning_interval',
+            'stream_name' : 'parsed',
+            'value_id' : 'port_current',
+            'message' : 'Current is above normal range.',
+            'type' : StreamAlarmType.WARNING,
+            'upper_bound' : 30.5,
+            'upper_rel_op' : '<'
+        }
+        alarm2 = IonObject('IntervalAlarmDef', **kwargs2)
+        alarms.append(alarm2)
 
-        kwargs = {
-            'name' : 'temp_high_warning',
+
+        decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
+
+
+        self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
+        self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
+            [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+
+        kwargs3 = {
+            'name' : 'high_temperature_alert',
             'stream_name' : 'parsed',
             'value_id' : 'temp',
-            'message' : 'Temperature is above normal range.',
-            'type' : StreamAlarmType.WARNING,
-            'lower_bound' : 10.0,
-            'lower_rel_op' : '<',
-            'upper_bound' : 20.0,
-            'upper_rel_op' : '<'            
+            'message' : 'Temp is above operating range.',
+            'type' : StreamAlarmType.ALERT,
+            'lower_bound' : 30.0,
+            'lower_rel_op' : '<'
         }
-
-        alarm = IntervalAlarm(**kwargs)
-        alarms.append(alarm)
+        alarm3 = IonObject('IntervalAlarmDef', **kwargs3)
+        alarms.append(alarm3)
         
-        kwargs = {
-            'name' : 'reserve_power_warning',
+        kwargs4 = {
+            'name' : 'invalid_salinity_alert',
             'stream_name' : 'parsed',
-            'value_id' : 'battery_level',
-            'message' : 'Battery is below normal range.',
-            'type' : StreamAlarmType.WARNING,
-            'upper_bound' : 4.0,
-            'upper_rel_op' : '<'            
+            'value_id' : 'salinity',
+            'message' : 'Salinity value not valid.',
+            'type' : StreamAlarmType.ALERT,
+            'upper_bound' : 0.0,
+            'upper_rel_op' : '<'
         }
+        alarm4 = IonObject('IntervalAlarmDef', **kwargs4)
+        alarms.append(alarm4)
 
-        alarm = IntervalAlarm(**kwargs)
-        alarms.append(alarm)
-
-        params = ['set']
+        params = ['add']
         params.extend(alarms)
-        print '############ input params:'
-        print str(params)
 
-        retval = self._ia_client.set_agent({'alarms' : params})
+        self._ia_client.set_agent({'alarms' : ['add', alarm3, alarm4]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
+        self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
+            alarm4]], [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+
+        self._ia_client.set_agent({'alarms' : ['remove', alarm3, alarm4]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
+        self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
+            [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+
+        self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2,
+                alarm3, alarm4]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
+        self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
+            alarm4]], [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+
+        self._ia_client.set_agent({'alarms' : ['remove',
+                'lower_current_warning_interval',
+                'upper_current_warning_interval']})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
+        self.assertItemsEqual([x.name for x in [alarm3, alarm4]],
+            [x.name for x in retval])
+        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+
+        self._ia_client.set_agent({'alarms' : ['clear']})
         retval = self._ia_client.get_agent(['alarms'])['alarms']
-        print '################'
-        print str(retval)
-        #self.assertItemsEqual(retval, alarms)
-        """
+        self.assertEqual(retval,[])
 
     def test_poll(self):
         """

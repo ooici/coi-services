@@ -4,10 +4,8 @@
 from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.util.ion_time import IonTime
-from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
 from pyon.public import RT, PRED
-from pyon.public import Container, log, IonObject
+from pyon.public import log, IonObject
 from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -21,11 +19,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 from nose.plugins.attrib import attr
-import unittest, time
-from ooi.logging import log
 
 from ion.services.sa.test.helpers import any_old
-from ion.services.dm.utility.granule_utils import time_series_domain
 
 
 class FakeProcess(LocalContextMixin):
@@ -48,7 +43,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
         self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
         self.org_management_service = OrgManagementServiceClient(node=self.container.node)
-        self.instrument_management_service =  InstrumentManagementServiceClient(node=self.container.node)
+        self.IMS =  InstrumentManagementServiceClient(node=self.container.node)
         self.dpclient = DataProductManagementServiceClient(node=self.container.node)
         self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
         self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
@@ -186,34 +181,49 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         |
         Sb-Pb2-Ib3
         |
-        P--I2
+        P--I2 <- PlatformDevice, InstrumentDevice2
         |
-        Pb
+        Pb <- PlatformDevice b
         |
-        I
+        I <- InstrumentDevice
 
         """
 
+        org_id = self.OMS.create_marine_facility(any_old(RT.Org))
+
+        def create_under_org(resource_type):
+            obj = any_old(resource_type)
+
+            if RT.InstrumentDevice == resource_type:
+                resource_id = self.IMS.create_instrument_device(obj)
+            else:
+                resource_id, _ = self.RR.create(obj)
+
+            self.OMS.assign_resource_to_observatory_org(resource_id=resource_id, org_id=org_id)
+            return resource_id
+
         #stuff we control
-        observatory_id, _       = self.RR.create(any_old(RT.Observatory))
-        subsite_id, _           = self.RR.create(any_old(RT.Subsite))
-        subsite2_id, _          = self.RR.create(any_old(RT.Subsite))
-        subsiteb_id, _          = self.RR.create(any_old(RT.Subsite))
-        subsitez_id, _          = self.RR.create(any_old(RT.Subsite))
-        platform_site_id, _     = self.RR.create(any_old(RT.PlatformSite))
-        platform_siteb_id, _    = self.RR.create(any_old(RT.PlatformSite))
-        platform_siteb2_id, _   = self.RR.create(any_old(RT.PlatformSite))
-        platform_site3_id, _    = self.RR.create(any_old(RT.PlatformSite))
-        instrument_site_id, _   = self.RR.create(any_old(RT.InstrumentSite))
-        instrument_site2_id, _  = self.RR.create(any_old(RT.InstrumentSite))
-        instrument_siteb3_id, _ = self.RR.create(any_old(RT.InstrumentSite))
-        instrument_site4_id, _  = self.RR.create(any_old(RT.InstrumentSite))
+        observatory_id          = create_under_org(RT.Observatory)
+        subsite_id              = create_under_org(RT.Subsite)
+        subsite2_id             = create_under_org(RT.Subsite)
+        subsiteb_id             = create_under_org(RT.Subsite)
+        subsitez_id             = create_under_org(RT.Subsite)
+        platform_site_id        = create_under_org(RT.PlatformSite)
+        platform_siteb_id       = create_under_org(RT.PlatformSite)
+        platform_siteb2_id      = create_under_org(RT.PlatformSite)
+        platform_site3_id       = create_under_org(RT.PlatformSite)
+        instrument_site_id      = create_under_org(RT.InstrumentSite)
+        instrument_site2_id     = create_under_org(RT.InstrumentSite)
+        instrument_siteb3_id    = create_under_org(RT.InstrumentSite)
+        instrument_site4_id     = create_under_org(RT.InstrumentSite)
 
         #stuff we associate to
+        instrument_device_id    = create_under_org(RT.InstrumentDevice)
+        instrument_device2_id   = create_under_org(RT.InstrumentDevice)
+        platform_device_id      = create_under_org(RT.PlatformDevice)
+        platform_deviceb_id     = create_under_org(RT.PlatformDevice)
         instrument_model_id, _  = self.RR.create(any_old(RT.InstrumentModel))
-        instrument_device_id, _ = self.RR.create(any_old(RT.InstrumentDevice))
         platform_model_id, _    = self.RR.create(any_old(RT.PlatformModel))
-        platform_device_id, _   = self.RR.create(any_old(RT.PlatformDevice))
         deployment_id, _        = self.RR.create(any_old(RT.Deployment))
 
         #observatory
@@ -227,24 +237,35 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(subsiteb_id, PRED.hasSite, platform_siteb2_id)
         self.RR.create_association(subsiteb_id, PRED.hasSite, platform_site_id)
         
-        #platform_site
+        #platform_site(s)
         self.RR.create_association(platform_site3_id, PRED.hasSite, instrument_site4_id)
         self.RR.create_association(platform_siteb2_id, PRED.hasSite, instrument_siteb3_id)
         self.RR.create_association(platform_site_id, PRED.hasSite, instrument_site2_id)
         self.RR.create_association(platform_site_id, PRED.hasSite, platform_siteb_id)
         self.RR.create_association(platform_siteb_id, PRED.hasSite, instrument_site_id)
 
+        self.RR.create_association(platform_siteb_id, PRED.hasDevice, platform_deviceb_id)
+
         self.RR.create_association(platform_site_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
         self.RR.create_association(platform_site_id, PRED.hasDeployment, deployment_id)
 
-        #instrument_site
+        #instrument_site(s)
         self.RR.create_association(instrument_site_id, PRED.hasModel, instrument_model_id)
         self.RR.create_association(instrument_site_id, PRED.hasDevice, instrument_device_id)
         self.RR.create_association(instrument_site_id, PRED.hasDeployment, deployment_id)
 
+        self.RR.create_association(instrument_site2_id, PRED.hasDevice, instrument_device2_id)
+
+        #platform_device
+        self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
+
+        #instrument_device
+        self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_device2_id, PRED.hasModel, instrument_model_id)
 
         ret = DotDict()
+        ret.org_id                = org_id
         ret.observatory_id        = observatory_id
         ret.subsite_id            = subsite_id
         ret.subsite2_id           = subsite2_id
@@ -259,7 +280,14 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         ret.instrument_siteb3_id  = instrument_siteb3_id
         ret.instrument_site4_id   = instrument_site4_id
 
-        
+        ret.instrument_device_id  = instrument_device_id
+        ret.instrument_device2_id = instrument_device2_id
+        ret.platform_device_id    = platform_device_id
+        ret.platform_deviceb_id    = platform_deviceb_id
+        ret.instrument_model_id   = instrument_model_id
+        ret.platform_model_id     = platform_model_id
+        ret.deployment_id         = deployment_id
+
         return ret
 
     #@unittest.skip("targeting")
@@ -387,77 +415,16 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_platform_site(platform_site_id)
         self.OMS.force_delete_instrument_site(instrument_site_id)
 
+
     #@unittest.skip("in development...")
     def test_observatory_org_extended(self):
 
-        org_obj = IonObject(RT.Org,
-            name='TestOrg',
-            description='some new mf org')
+        stuff = self._make_associations()
 
-        org_id =  self.OMS.create_marine_facility(org_obj)
-
-        observatory_obj = IonObject(RT.Observatory,
-            name='TestObservatory',
-            description='some new obs')
-        observatory_id = self.OMS.create_observatory(observatory_obj)
-
-        #make association
-        self.OMS.assign_resource_to_observatory_org(observatory_id, org_id)
-        log.debug("test_observatory_org_extended: org_id:  %s ", str(org_id))
-
-        #create a SubSite with parent Observatory
-        subsite_obj =  IonObject(RT.Subsite,
-                                  name= 'SubSite1',
-                                  description = 'sample SubSite')
-        subsite_id = self.OMS.create_subsite(subsite_obj, observatory_id)
-        #self.OMS.assign_site_to_site(subsite_id, observatory_id)
-        self.OMS.assign_resource_to_observatory_org(resource_id=subsite_id, org_id=org_id)
-        self.assertIsNotNone(subsite_id, "SubSite not created.")
-
-        #create a PlatformSite with parent Subsite
-        platsite_obj =  IonObject(RT.PlatformSite,
-            name= 'PlatformSite1',
-            description = 'sample PlatformSite')
-        pltfrm_site_id = self.OMS.create_platform_site(platsite_obj, subsite_id)
-        self.assertIsNotNone(pltfrm_site_id, "PlatformSite not created.")
-        self.OMS.assign_resource_to_observatory_org(resource_id=pltfrm_site_id, org_id=org_id)
-
-
-        #create a InstrumentSite with parent Observatory
-        subsite_obj =  IonObject(RT.InstrumentSite,
-            name= 'InstrumentSite1',
-            description = 'sample InstrumentSite')
-        inst_site_id = self.OMS.create_instrument_site(subsite_obj, pltfrm_site_id)
-        self.assertIsNotNone(inst_site_id, "InstrumentSite not created.")
-        self.OMS.assign_resource_to_observatory_org(resource_id=inst_site_id, org_id=org_id)
-
-        # create two PLATFORM devices, one deployed and one not
-        platfrmDevice1_obj = IonObject(RT.PlatformDevice,
-            name='PlatformDevice1',
-            description="PlatformDevice1")
-        platfrmDevice1_id = self.instrument_management_service.create_platform_device(platfrmDevice1_obj)
-        self.OMS.assign_resource_to_observatory_org(resource_id=platfrmDevice1_id, org_id=org_id)
-        self.RR.create_association(subject=pltfrm_site_id, predicate=PRED.hasDevice, object=platfrmDevice1_id)
-
-
-        platfrmDevice2_obj = IonObject(RT.PlatformDevice,
-            name='PlatformDevice2',
-            description="PlatformDevice2")
-        platfrmDevice2_id = self.instrument_management_service.create_platform_device(platfrmDevice2_obj)
-        self.OMS.assign_resource_to_observatory_org(resource_id=platfrmDevice2_id, org_id=org_id)
-
-
-        # create two INSTRUMENT devices, one deployed and one not
-        instDevice1_obj = IonObject(RT.InstrumentDevice,
-            name='SBE37IMDevice1',
-            description="SBE37IMDevice1",
-            serial_number="1" )
-        instDevice1_id = self.instrument_management_service.create_instrument_device(instrument_device=instDevice1_obj)
-        self.OMS.assign_resource_to_observatory_org(resource_id=instDevice1_id, org_id=org_id)
-        self.RR.create_association(subject=inst_site_id, predicate=PRED.hasDevice, object=instDevice1_id)
-
-        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
+        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',
+                                                                                    id_only=True)
+        parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed',
+                                                                       parameter_dictionary_id=parsed_pdict_id)
         tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
@@ -467,27 +434,36 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
-        self.damsclient.assign_data_product(input_resource_id=instDevice1_id, data_product_id=data_product_id1)
+        data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj,
+                                                             stream_definition_id=parsed_stream_def_id)
+        self.damsclient.assign_data_product(input_resource_id=stuff.instrument_device_id,
+                                            data_product_id=data_product_id1)
 
-        instDevice2_obj = IonObject(RT.InstrumentDevice,
-            name='SBE37IMDevice2',
-            description="SBE37IMDevice2",
-            serial_number="2" )
-        instDevice2_id = self.instrument_management_service.create_instrument_device(instrument_device=instDevice2_obj)
-        self.OMS.assign_resource_to_observatory_org(resource_id=instDevice2_id, org_id=org_id)
+
+        #--------------------------------------------------------------------------------
+        # Get the extended Site (platformSite)
+        #--------------------------------------------------------------------------------
+
+        extended_site = self.OMS.get_site_extension(stuff.platform_site_id)
+        log.debug("extended_site:  %s ", str(extended_site))
+        self.assertEqual(1, len(extended_site.platform_devices))
+        self.assertEqual(1, len(extended_site.platform_models))
+        self.assertEqual(stuff.platform_device_id, extended_site.platform_devices[0]._id)
+        self.assertEqual(stuff.platform_model_id, extended_site.platform_models[0]._id)
 
         #--------------------------------------------------------------------------------
         # Get the extended Org
         #--------------------------------------------------------------------------------
         #test the extended resource
-        extended_org = self.org_management_service.get_marine_facility_extension(org_id)
+        extended_org = self.org_management_service.get_marine_facility_extension(stuff.org_id)
         log.debug("test_observatory_org_extended: extended_org:  %s ", str(extended_org))
-#        self.assertEqual(1, len(extended_org.instruments_deployed) )
-#        self.assertEqual(1, len(extended_org.platforms_not_deployed) )
-        self.assertEqual(0, len(extended_org.platform_models) )
+        #self.assertEqual(2, len(extended_org.instruments_deployed) )
+        #self.assertEqual(1, len(extended_org.platforms_not_deployed) )
         self.assertEqual(2, extended_org.number_of_platforms)
+        self.assertEqual(2, len(extended_org.platform_models) )
 
+        self.assertEqual(2, extended_org.number_of_instruments)
+        self.assertEqual(2, len(extended_org.instrument_models) )
 
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
@@ -497,6 +473,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(0, extended_org.number_of_platforms)
         #self.assertEqual(1, len(extended_org.sites))
 
+
+
         #--------------------------------------------------------------------------------
         # Get the extended Site
         #--------------------------------------------------------------------------------
@@ -504,11 +482,16 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         #create device state events to use for op /non-op filtering in extended
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'ResourceAgentStateEvent',
-            origin = instDevice1_id, state=ResourceAgentState.STREAMING  )
+            origin = stuff.instrument_device_id, state=ResourceAgentState.STREAMING  )
 
         self.event_publisher.publish_event( ts_created= t,   event_type = 'ResourceAgentStateEvent',
-            origin = instDevice2_id, state=ResourceAgentState.INACTIVE )
-        extended_site =  self.OMS.get_site_extension(inst_site_id)
+            origin = stuff.instrument_device2_id, state=ResourceAgentState.INACTIVE )
+        extended_site =  self.OMS.get_site_extension(stuff.instrument_site2_id)
+
 
         log.debug("test_observatory_org_extended: extended_site:  %s ", str(extended_site))
+
+        self.dpclient.delete_data_product(data_product_id1)
+
+
 
