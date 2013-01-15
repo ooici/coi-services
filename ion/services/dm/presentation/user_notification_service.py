@@ -89,10 +89,6 @@ class EmailEventProcessor(object):
 
         self.rr.update(user)
 
-        user = self.rr.read(user_id)
-        log.debug("NEW NOTIFICATION ID::: %s", new_notification._id)
-        log.debug("user.variables XXX here::: %s", user.variables)
-
         return user
 
 #----------------------------------------------------------------------------------------------------------------

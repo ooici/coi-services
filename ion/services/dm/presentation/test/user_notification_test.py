@@ -1304,7 +1304,30 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         log.debug("the notification_id_user_2::: %s", notification_id_user_2)
 
+        #--------------------------------------------------------------------------------------
+        # Check the resource registry
+        #--------------------------------------------------------------------------------------
+
         n2 = self.unsc.read_notification(notification_id_user_2)
+        self.assertEquals(n2.event_type, notification_request_1.event_type)
+        self.assertEquals(n2.origin, notification_request_1.origin)
+        self.assertEquals(n2.origin_type, notification_request_1.origin_type)
+
+        self.assertEquals(len(proc.notifications.values()), 2)
+
+        # Check the user info dictionary of the UNS process
+        user_info = proc.user_info
+
+        # For the first user, his subscriptions should be unchanged
+        notifications_held_1 = user_info[user_id]['notifications']
+
+        self.assertEquals(len(notifications_held_1), 2)
+
+        # For the second user, he should have got a new subscription
+        notifications_held_2 = user_info[user_id_2]['notifications']
+
+        self.assertEquals(len(notifications_held_2), 1)
+
 
 
 
