@@ -9,6 +9,8 @@ omit =
     */test/*
     examples/*
     */core/containerui*
+    */shell_utils*
+    */cei/*
 [html]
 directory = coverage_results
 omit =
@@ -16,3 +18,5 @@ omit =
     */test/*
     examples/*
     */core/containerui*
+    */shell_utils*
+    */cei/*

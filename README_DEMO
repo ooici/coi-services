@@ -21,7 +21,10 @@ Prepare for start:
 Start the services container:
 > bin/pycc -fc -r res/deploy/r2deploy.yml
 
-Preload system resources (without OOI resources or UI)
+Preload system resources (base demo setup, without OOI resources or UI)
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA,R2_DEMO attachments=res/preload/r2_ioc/attachments
+
+Preload system resources (extensive demo setup, without OOI resources or UI)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA,R2_DEMO,BF_DEMO,EER2 path=master attachments=res/preload/r2_ioc/attachments
 
 Preload system UI only
