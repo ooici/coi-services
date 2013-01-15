@@ -1304,6 +1304,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         log.debug("the notification_id_user_2::: %s", notification_id_user_2)
 
+        ##########-------------------------------------------------------------------------------------------------------
+        # Now check if subscriptions of user 1 are getting over because user 2 subscribed to the same notification
+        ##########-------------------------------------------------------------------------------------------------------
+
         #--------------------------------------------------------------------------------------
         # Check the resource registry
         #--------------------------------------------------------------------------------------
@@ -1315,18 +1319,61 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.assertEquals(len(proc.notifications.values()), 2)
 
+        #--------------------------------------------------------------------------------------
         # Check the user info dictionary of the UNS process
+        #--------------------------------------------------------------------------------------
         user_info = proc.user_info
 
         # For the first user, his subscriptions should be unchanged
         notifications_held_1 = user_info[user_id]['notifications']
 
         self.assertEquals(len(notifications_held_1), 2)
+        _compare_notifications(notifications_held_1)
 
         # For the second user, he should have got a new subscription
         notifications_held_2 = user_info[user_id_2]['notifications']
 
         self.assertEquals(len(notifications_held_2), 1)
+
+        notif = notifications_held_2[0]
+        self.assertTrue(notif._id==notification_id1 or notif._id==notification_id2)
+
+        if notif._id==notification_id1:
+            self.assertEquals(notif.event_type, notification_request_1.event_type)
+            self.assertEquals(notif.origin, notification_request_1.origin)
+            self.assertEquals(notif.origin_type, notification_request_1.origin_type)
+            self.assertEquals(notif._id, notification_id1)
+
+        #--------------------------------------------------------------------------------------
+        # Check the user info objects
+        #--------------------------------------------------------------------------------------
+
+        # Check the first user's info object
+        user = self.rrc.read(user_id)
+        notifs_of_user = [item['value'] for item in user.variables if item['name']=='notifications'][0]
+        self.assertTrue(len(notifs_of_user), 2)
+
+        _compare_notifications(notifs_of_user)
+
+        # Check the second user's info object
+        user = self.rrc.read(user_id_2)
+        notifs_of_user = [item['value'] for item in user.variables if item['name']=='notifications'][0]
+        self.assertTrue(len(notifs_of_user), 1)
+
+        notif = notifs_of_user[0]
+        self.assertTrue(notif._id==notification_id1 or notif._id==notification_id2)
+
+        if notif._id==notification_id1:
+            self.assertEquals(notif.event_type, notification_request_1.event_type)
+            self.assertEquals(notif.origin, notification_request_1.origin)
+            self.assertEquals(notif.origin_type, notification_request_1.origin_type)
+            self.assertEquals(notif._id, notification_id1)
+
+        #--------------------------------------------------------------------------------------
+        # Check the associations... check that user 1 is associated with the same two notifications as before
+        # and that user 2 is associated with one notification
+        #--------------------------------------------------------------------------------------
+
 
 
 
