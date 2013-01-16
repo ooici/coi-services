@@ -12,7 +12,7 @@ import sys
 if sys.platform == 'darwin':
     os.environ['C_INCLUDE_PATH'] = '/usr/local/include'
 
-version = '0.1.8-dev'
+version = '2.0.0-dev'
 
 setup(  name = 'coi-services',
         version = version,
