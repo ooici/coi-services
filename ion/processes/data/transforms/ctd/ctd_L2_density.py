@@ -43,11 +43,11 @@ class DensityTransform(TransformDataProcess):
         """
         if packet == {}:
             return
-#        log.debug("L2 density transform received granule with record dict: %s", packet.record_dictionary)
+        log.debug("L2 density transform received granule with record dict: %s", packet.record_dictionary)
 
         granule = CTDL2DensityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
 
-#        log.debug("L2 density transform publishing granule with record dict: %s", granule.record_dictionary)
+        log.debug("L2 density transform publishing granule with record dict: %s", granule.record_dictionary)
 
         self.density.publish(msg=granule)
 

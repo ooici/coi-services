@@ -45,7 +45,12 @@ class SalinityTransform(TransformDataProcess):
         if packet == {}:
             return
 
+        log.debug("L2 salinity transform received granule with record dict: %s", packet.record_dictionary)
+
         granule = CTDL2SalinityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
+
+        log.debug("L2 salinity transform publishing granule with record dict: %s", granule.record_dictionary)
+
         granule.data_producer_id=self.id
         self.salinity.publish(msg=granule)
 
