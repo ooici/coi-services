@@ -111,28 +111,14 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         log.debug("launching with agent_config=%s",  str(self._agent_config))
 
+        self._launcher = LauncherFactory.createLauncher()
+        self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)
 
-        if os.getenv("STANDALONE") is not None:
-            standalone = {
-                'platform_id': self.PLATFORM_ID,
-                'container': self.container,
-                'pubsub_client': self._pubsub_client
-            }
-            self._launcher = LauncherFactory.createLauncher(standalone=standalone)
-            self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)
-            self._pa_client = self._pid
+        log.debug("LAUNCHED PLATFORM_ID=%r", self.PLATFORM_ID)
 
-            log.debug("STANDALONE: LAUNCHED PLATFORM_ID=%r", self.PLATFORM_ID)
-
-        else:
-            self._launcher = LauncherFactory.createLauncher()
-            self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)
-
-            log.debug("LAUNCHED PLATFORM_ID=%r", self.PLATFORM_ID)
-
-            # Start a resource agent client to talk with the agent.
-            self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
-            log.info('Got pa client %s.' % str(self._pa_client))
+        # Start a resource agent client to talk with the agent.
+        self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
+        log.info('Got pa client %s.' % str(self._pa_client))
 
     def tearDown(self):
         try:

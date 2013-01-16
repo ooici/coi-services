@@ -204,8 +204,10 @@ class NNode(object):
 
         return s
 
-    def diagram(self, style="dot", root=True):
+    def diagram(self, style="dot", root=True):  # pragma: no cover
         """
+        **Developer routine**
+
         String representation that can be processed by Graphviz tools or
         plantuml.
 
@@ -244,8 +246,10 @@ class NNode(object):
 
         return result
 
-    def yaml(self, level=0):
+    def yaml(self, level=0):  # pragma: no cover
         """
+        **Developer routine**
+
         Partial string representation in yaml.
         *NOTE*: Very ad hoc, just to help capture some of the real info from
         the RSN OMS interface into network.yml (the file used by the simulator)
@@ -324,25 +328,26 @@ class NNode(object):
 
         return nodes
 
-    def diff_topology(self, other):
-        """
-        Returns None if the other node represents the same topology as this
-        node. Otherwise, returns a message describing the first difference.
-        """
-        if self.platform_id != other.platform_id:
-            return "platform IDs are different: %r != %r" % (
-                self.platform_id, other.platform_id)
-
-        subplatform_ids = set(self.subplatforms.iterkeys())
-        other_subplatform_ids = set(other.subplatforms.iterkeys())
-        if subplatform_ids != other_subplatform_ids:
-            return "subplatform IDs are different: %r != %r" % (
-                    subplatform_ids, other_subplatform_ids)
-
-        for platform_id, node in self.subplatforms.iteritems():
-            other_node = other.subplatforms[platform_id]
-            diff = node.diff_topology(other_node)
-            if diff:
-                return diff
-
-        return None
+#TODO currently unused method -- might be removed.
+#    def diff_topology(self, other):
+#        """
+#        Returns None if the other node represents the same topology as this
+#        node. Otherwise, returns a message describing the first difference.
+#        """
+#        if self.platform_id != other.platform_id:
+#            return "platform IDs are different: %r != %r" % (
+#                self.platform_id, other.platform_id)
+#
+#        subplatform_ids = set(self.subplatforms.iterkeys())
+#        other_subplatform_ids = set(other.subplatforms.iterkeys())
+#        if subplatform_ids != other_subplatform_ids:
+#            return "subplatform IDs are different: %r != %r" % (
+#                    subplatform_ids, other_subplatform_ids)
+#
+#        for platform_id, node in self.subplatforms.iteritems():
+#            other_node = other.subplatforms[platform_id]
+#            diff = node.diff_topology(other_node)
+#            if diff:
+#                return diff
+#
+#        return None
