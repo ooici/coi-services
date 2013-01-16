@@ -7,8 +7,12 @@
 @brief   Helper for launching platform agent processes. This helper was introduced
          to facilitate testing and diagnosing of launching issues in coi_pycc and
          other builds in buildbot, and also to facilitate other variations
-         like direct PlatformAgent instantation ("standalone" mode) for
+         like direct PlatformAgent instantiation ("standalone" mode) for
          testing purposes.
+
+         NOTE: some of these mechanisms have been commented out as they are
+         not currently used (2013-01-15), and to more realistically improve
+         code coverage report.
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,8 +20,6 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
-from pyon.event.event import EventSubscriber
-from pyon.util.containers import DotDict
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition, ProcessStateEnum
@@ -25,8 +27,6 @@ from interface.objects import ProcessDefinition, ProcessStateEnum
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 
 from ion.agents.platform.exceptions import PlatformException
-
-from gevent import queue
 
 
 PA_MOD = 'ion.agents.platform.platform_agent'
@@ -44,10 +44,20 @@ class LauncherFactory(object):
 
     @classmethod
     def createLauncher(cls, use_gate=True, standalone=None):
-        if standalone:
-            return _StandaloneLauncher(standalone)
-        else:
-            return _Launcher(use_gate)
+#
+#        NOTE 2013-01-15: this method is only being called with no arguments.
+#        meaning the gate mechanism is always used (use_gate=True) and *no*
+#        standalone mode (standalone=None).
+#
+#        if standalone:
+#            return _StandaloneLauncher(standalone)
+#        else:
+#            return _Launcher(use_gate)
+
+        assert (use_gate is True) and (standalone is None), \
+            "createLauncher expected to be called with default argument values"
+
+        return _Launcher(use_gate)
 
 
 class _Launcher(object):
@@ -86,11 +96,13 @@ class _Launcher(object):
         if self._use_gate:
             return self._do_launch_gate(platform_id, agent_config, timeout_spawn)
 
-        try:
-            return self._do_launch(platform_id, agent_config, timeout_spawn)
-        finally:
-            self._event_queue = None
-            self._event_sub = None
+#        NOTE 2013-01-15: self._use_gate is always True. No need for the following.
+#
+#        try:
+#            return self._do_launch(platform_id, agent_config, timeout_spawn)
+#        finally:
+#            self._event_queue = None
+#            self._event_sub = None
 
     def cancel_process(self, pid):
         """
@@ -101,9 +113,10 @@ class _Launcher(object):
     def _do_launch_gate(self, platform_id, agent_config, timeout_spawn):
         """
         The method for when using the ProcessStateGate pattern, which is the
-        one used by test_oms_launch to launch the root platform.
+        one used by test_oms_launch2 to launch the root platform.
         """
-        log.debug("_do_launch_gate: platform_id=%r", platform_id)
+        log.debug("_do_launch_gate: platform_id=%r, timeout_spawn=%s",
+                  platform_id, timeout_spawn)
 
         pa_name = 'PlatformAgent_%s' % platform_id
 
@@ -146,130 +159,139 @@ class _Launcher(object):
 
         return pid
 
-    def _do_launch(self, platform_id, agent_config, timeout_spawn):
-        """
-        The method for the
-        "create_process/subscribe-to-event/schedule_process/_await_state_event"
-        pattern as described in
-        https://confluence.oceanobservatories.org/display/CIDev/R2+Process+Dispatcher+Guide
-        as of Sept 14/12.
-        """
-
-        log.debug("launching plaform agent, platform_id=%r "
-                  "('create_process/subscribe-to-event/schedule_process/_await_state_event' pattern used)",
-                  platform_id)
-
-        self._event_queue = None
-        self._event_sub = None
-
-        pa_name = 'PlatformAgent_%s' % platform_id
-
-        pdef = ProcessDefinition(name=pa_name)
-        pdef.executable = {
-            'module': PA_MOD,
-            'class': PA_CLS
-        }
-        pdef_id = self._pd_client.create_process_definition(process_definition=pdef)
-
-        pid = self._pd_client.create_process(process_definition_id=pdef_id)
-
-        if timeout_spawn:
-            self._event_queue = queue.Queue()
-            self._subscribe_events(pid)
-
-        log.debug("calling schedule_process: pid=%s", str(pid))
-
-        self._pd_client.schedule_process(process_definition_id=pdef_id,
-                                         process_id=pid,
-                                         configuration=agent_config)
-
-        if timeout_spawn:
-            self._await_state_event(pid, ProcessStateEnum.RUNNING, timeout=timeout_spawn)
-
-        log.debug("Plaform agent spawned, platform_id=%r, pid=%r "
-                  "('create_process/subscribe-to-event/schedule_process/_await_state_event' pattern used)",
-                  platform_id, pid)
-
-        return pid
-
-    def _state_event_callback(self, event, *args, **kwargs):
-        state_str = ProcessStateEnum._str_map.get(event.state)
-        origin = event.origin
-        log.debug("_state_event_callback CALLED: state=%s from %s\n "
-                  "event=%s\n args=%s\n kwargs=%s",
-            state_str, origin, str(event), str(args), str(kwargs))
-
-        self._event_queue.put(event)
-
-    def _subscribe_events(self, origin):
-        self._event_sub = EventSubscriber(
-            event_type="ProcessLifecycleEvent",
-            callback=self._state_event_callback,
-            origin=origin,
-            origin_type="DispatchedProcess"
-        )
-        self._event_sub.start()
-
-        log.debug("_subscribe_events: origin=%s STARTED", str(origin))
-
-    def _await_state_event(self, pid, state, timeout):
-        state_str = ProcessStateEnum._str_map.get(state)
-        log.debug("_await_state_event: state=%s from %s timeout=%s",
-            state_str, str(pid), timeout)
-
-        #check on the process as it exists right now
-        process_obj = self._pd_client.read_process(pid)
-        log.debug("process_obj.process_state: %s",
-                  ProcessStateEnum._str_map.get(process_obj.process_state))
-
-        if state == process_obj.process_state:
-            self._event_sub.stop()
-            log.debug("ALREADY in state %s", state_str)
-            return
-
-        try:
-            event = self._event_queue.get(timeout=timeout)
-        except queue.Empty:
-            msg = "Event timeout! Waited %s seconds for process %s to notifiy state %s" % (
-                            timeout, pid, state_str)
-            log.error(msg) #, exc_info=True)
-            raise PlatformException(msg)
-        except Exception as e:
-            msg = "Something unexpected happened: %s" % str(e)
-            log.error(msg) #, exc_info=True)
-            raise PlatformException(msg)
-
-        log.debug("Got event: %s", event)
-        if event.state != state:
-            msg = "Expecting state %s but got %s" % (state, event.state)
-            log.error(msg)
-            raise PlatformException(msg)
-        if event.origin != pid:
-            msg = "Expecting origin %s but got %s" % (pid, event.origin)
-            log.error(msg)
-            raise PlatformException(msg)
-
-
-class _StandaloneLauncher(object):
-    """
-    Direct builder of PlatformAgent instances.
-    """
-    def __init__(self, standalone):
-        self._standalone = standalone
-
-    def launch(self, platform_id, agent_config, timeout_spawn=30):
-        from ion.agents.platform.platform_agent import PlatformAgent
-
-        standalone = dict((k, v) for k, v in self._standalone.iteritems())
-        standalone['platform_id'] = platform_id
-
-        pa = PlatformAgent(standalone=standalone)
-        CFG = pa.CFG = DotDict()
-        CFG.agent = agent_config['agent']
-        CFG.stream_config = agent_config['stream_config']
-
-        return pa
-
-    def cancel_process(self, pid):
-        # nothing needs to be done.
-        pass
+################################################################
+#   NOTE 2013-01-15: routines commented out; not used. Not removed yet in
+#   case there's still a need to use them.
+#
+#from pyon.event.event import EventSubscriber
+#from gevent import queue
+#
+#    def _do_launch(self, platform_id, agent_config, timeout_spawn):
+#        """
+#        The method for the
+#        "create_process/subscribe-to-event/schedule_process/_await_state_event"
+#        pattern as described in
+#        https://confluence.oceanobservatories.org/display/CIDev/R2+Process+Dispatcher+Guide
+#        as of Sept 14/12.
+#        """
+#
+#        log.debug("launching plaform agent, platform_id=%r "
+#                  "('create_process/subscribe-to-event/schedule_process/_await_state_event' pattern used)",
+#                  platform_id)
+#
+#        self._event_queue = None
+#        self._event_sub = None
+#
+#        pa_name = 'PlatformAgent_%s' % platform_id
+#
+#        pdef = ProcessDefinition(name=pa_name)
+#        pdef.executable = {
+#            'module': PA_MOD,
+#            'class': PA_CLS
+#        }
+#        pdef_id = self._pd_client.create_process_definition(process_definition=pdef)
+#
+#        pid = self._pd_client.create_process(process_definition_id=pdef_id)
+#
+#        if timeout_spawn:
+#            self._event_queue = queue.Queue()
+#            self._subscribe_events(pid)
+#
+#        log.debug("calling schedule_process: pid=%s", str(pid))
+#
+#        self._pd_client.schedule_process(process_definition_id=pdef_id,
+#                                         process_id=pid,
+#                                         configuration=agent_config)
+#
+#        if timeout_spawn:
+#            self._await_state_event(pid, ProcessStateEnum.RUNNING, timeout=timeout_spawn)
+#
+#        log.debug("Plaform agent spawned, platform_id=%r, pid=%r "
+#                  "('create_process/subscribe-to-event/schedule_process/_await_state_event' pattern used)",
+#                  platform_id, pid)
+#
+#        return pid
+#
+#    def _state_event_callback(self, event, *args, **kwargs):
+#        state_str = ProcessStateEnum._str_map.get(event.state)
+#        origin = event.origin
+#        log.debug("_state_event_callback CALLED: state=%s from %s\n "
+#                  "event=%s\n args=%s\n kwargs=%s",
+#            state_str, origin, str(event), str(args), str(kwargs))
+#
+#        self._event_queue.put(event)
+#
+#    def _subscribe_events(self, origin):
+#        self._event_sub = EventSubscriber(
+#            event_type="ProcessLifecycleEvent",
+#            callback=self._state_event_callback,
+#            origin=origin,
+#            origin_type="DispatchedProcess"
+#        )
+#        self._event_sub.start()
+#
+#        log.debug("_subscribe_events: origin=%s STARTED", str(origin))
+#
+#    def _await_state_event(self, pid, state, timeout):
+#        state_str = ProcessStateEnum._str_map.get(state)
+#        log.debug("_await_state_event: state=%s from %s timeout=%s",
+#            state_str, str(pid), timeout)
+#
+#        #check on the process as it exists right now
+#        process_obj = self._pd_client.read_process(pid)
+#        log.debug("process_obj.process_state: %s",
+#                  ProcessStateEnum._str_map.get(process_obj.process_state))
+#
+#        if state == process_obj.process_state:
+#            self._event_sub.stop()
+#            log.debug("ALREADY in state %s", state_str)
+#            return
+#
+#        try:
+#            event = self._event_queue.get(timeout=timeout)
+#        except queue.Empty:
+#            msg = "Event timeout! Waited %s seconds for process %s to notifiy state %s" % (
+#                            timeout, pid, state_str)
+#            log.error(msg) #, exc_info=True)
+#            raise PlatformException(msg)
+#        except Exception as e:
+#            msg = "Something unexpected happened: %s" % str(e)
+#            log.error(msg) #, exc_info=True)
+#            raise PlatformException(msg)
+#
+#        log.debug("Got event: %s", event)
+#        if event.state != state:
+#            msg = "Expecting state %s but got %s" % (state, event.state)
+#            log.error(msg)
+#            raise PlatformException(msg)
+#        if event.origin != pid:
+#            msg = "Expecting origin %s but got %s" % (pid, event.origin)
+#            log.error(msg)
+#            raise PlatformException(msg)
+#
+#
+#from pyon.util.containers import DotDict
+#
+#class _StandaloneLauncher(object):
+#    """
+#    Direct builder of PlatformAgent instances.
+#    """
+#    def __init__(self, standalone):
+#        self._standalone = standalone
+#
+#    def launch(self, platform_id, agent_config, timeout_spawn=30):
+#        from ion.agents.platform.platform_agent import PlatformAgent
+#
+#        standalone = dict((k, v) for k, v in self._standalone.iteritems())
+#        standalone['platform_id'] = platform_id
+#
+#        pa = PlatformAgent(standalone=standalone)
+#        CFG = pa.CFG = DotDict()
+#        CFG.agent = agent_config['agent']
+#        CFG.stream_config = agent_config['stream_config']
+#
+#        return pa
+#
+#    def cancel_process(self, pid):
+#        # nothing needs to be done.
+#        pass

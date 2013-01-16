@@ -111,8 +111,9 @@ class OmsPlatformDriver(PlatformDriver):
 
         self.__gen_diagram()
 
-    def __gen_diagram(self):
+    def __gen_diagram(self):  # pragma: no cover
         """
+        **Developer routine**
         Convenience method for testing/debugging.
         Generates a dot diagram iff the environment variable GEN_DIAG is
         defined and this driver corresponds to the root of the network
