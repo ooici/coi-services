@@ -72,9 +72,11 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         log.debug("Salinity algorithm calculated the sp (practical salinity) values: %s", sal_value)
 
-#        for key, value in rdt.iteritems():
-#            if key in out_rdt:
-#                out_rdt[key] = value[:]
+        for key, value in rdt.iteritems():
+            if key in out_rdt:
+                if key=='conductivity' or key=='temp' or key=='pressure':
+                    continue
+                out_rdt[key] = value[:]
 
         out_rdt['salinity'] = sal_value
 

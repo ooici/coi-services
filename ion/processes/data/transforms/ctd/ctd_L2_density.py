@@ -78,9 +78,11 @@ class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         dens_value = rho(sa, temperature, pressure)
 
-#        for key, value in rdt.iteritems():
-#            if key in out_rdt:
-#                out_rdt[key] = value[:]
+        for key, value in rdt.iteritems():
+            if key in out_rdt:
+                if key=='conductivity' or key=='temp' or key=='pressure':
+                    continue
+                out_rdt[key] = value[:]
 
         out_rdt['density'] = dens_value
 
