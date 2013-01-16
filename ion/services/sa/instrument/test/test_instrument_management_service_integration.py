@@ -174,6 +174,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         plat_device_obj = self.RR.read(platform_device_id)
         self.assertEqual(plat_device_obj.name, extended_instrument.platform_device.name)
 
+        extended_platform = self.IMS.get_platform_device_extension(platform_device_id)
+
+        self.assertEqual(1, len(extended_platform.instrument_devices))
+        self.assertEqual(instrument_device_id, extended_platform.instrument_devices[0]._id)
+        self.assertEqual(1, len(extended_platform.instrument_models))
+        self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
+
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
 
