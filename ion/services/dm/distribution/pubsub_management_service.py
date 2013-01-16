@@ -434,7 +434,10 @@ class PubsubManagementService(BasePubsubManagementService):
         subs, assocs = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, subject_type=RT.Subscription, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
-        objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, id_only=True)
+        objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasTopic, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+        objects, assocs = self.clients.resource_registry.find_objects(subject=stream_id,predicate=PRED.hasStreamDefinition, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
@@ -480,7 +483,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
 
     def _deassociate_topic(self, topic_id):
-        parents, assocs = self.clients.resource_registry.find_subjects(object=topic_id, id_only=True)
+        parents, assocs = self.clients.resource_registry.find_subjects(object=topic_id,predicate=PRED.hasTopic,id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
