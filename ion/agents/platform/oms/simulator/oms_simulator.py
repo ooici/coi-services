@@ -203,7 +203,7 @@ class OmsSimulator(OmsClient):
                 vals[attrName] = values
                 # Note: values == [] if there are no values.
             else:
-                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
 
         return {platform_id: vals}
 
@@ -227,7 +227,7 @@ class OmsSimulator(OmsClient):
                 else:
                     vals[attrName] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
             else:
-                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME_VALUE
+                vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
 
         retval = {platform_id: vals}
         log.debug("setPlatformAttributeValues returning: %s", str(retval))

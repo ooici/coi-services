@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
-from ion.agents.platform.platform_driver import AttributeValueDriverEvent
+from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 
 import logging
 from gevent import Greenlet, sleep
@@ -155,7 +155,7 @@ class OmsResourceMonitor(object):
         _, ts = values[-1]
         self._last_ts = ts
 
-        driver_event = AttributeValueDriverEvent(ts, self._platform_id,
+        driver_event = AttributeValueDriverEvent(self._platform_id,
                                               self._attr_id, values)
         self._notify_driver_event(driver_event)
 

@@ -1,10 +1,19 @@
 platform agent framework
 
+some noteworthy notes (occasionaly updated)
+
 2013-01-15:
 - code clean-up to improve code coverage: from 79% to 86% when running the
   platform agent specific tests (so actual coverage when running the whole
   test suite might be even better):
   bin/nosetests --with-coverage --cover-package=ion.agents.platform ion/agents/platform ion/services/sa/observatory/test/test_oms_launch2.py
+
+2013-01-11
+- OOIION-631 Use system time (get_ion_ts and similar) instead of NTP
+  - get_resource and set_resource adjusted.
+  - refactor: moved *DriverEvent classes from platform_driver into new
+    module platform_driver_event.
+  - Removed the unneeded ts attribute in *DriverEvent classes.
 
 
 2012-10-31:
