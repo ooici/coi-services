@@ -31,8 +31,8 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
-from ion.agents.platform.platform_driver import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver import ExternalEventDriverEvent
+from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
+from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool

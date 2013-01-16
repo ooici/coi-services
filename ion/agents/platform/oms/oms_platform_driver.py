@@ -12,6 +12,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+import logging
 
 from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.exceptions import PlatformException
@@ -24,6 +25,8 @@ from ion.agents.platform.oms.oms_event_listener import OmsEventListener
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
+
+from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
 
 
 class OmsPlatformDriver(PlatformDriver):
@@ -257,7 +260,14 @@ class OmsPlatformDriver(PlatformDriver):
     def get_attribute_values(self, attr_names, from_time):
         """
         """
-        retval = self._oms.getPlatformAttributeValues(self._platform_id, attr_names, from_time)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get_attribute_values: attr_names=%s from_time=%s" % (
+                str(attr_names), from_time))
+
+        # OOIION-631 convert the system time from_time to NTP, which is used by
+        # the RSN OMS interface:
+        ntp_from_time = ion_ts_2_ntp(from_time)
+        retval = self._oms.getPlatformAttributeValues(self._platform_id, attr_names, ntp_from_time)
         log.debug("getPlatformAttributeValues = %s", retval)
 
         if not self._platform_id in retval:
@@ -265,43 +275,72 @@ class OmsPlatformDriver(PlatformDriver):
                                     "requested platform '%s'" % self._platform_id)
 
         attr_values = retval[self._platform_id]
-        return attr_values
+
+        # OOIION-631 the reported timestamps are in NTP; do conversion to system time
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get_attribute_values: response before conversion = %s" %
+                      str(attr_values))
+
+        conv_attr_values = {}  # the converted dictionary to return
+        for attr_name, array in attr_values.iteritems():
+            conv_array = []
+            for (val, ntp_time) in array:
+
+                if isinstance(ntp_time, (float, int)):
+                    # do conversion:
+                    sys_ts = ntp_2_ion_ts(ntp_time)
+                else:
+                    # NO conversion; just keep whatever the returned value is --
+                    # normally an error code in str format:
+                    sys_ts = ntp_time
+
+                conv_array.append((val, sys_ts))
+
+            conv_attr_values[attr_name] = conv_array
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("get_attribute_values: response  after conversion = %s" %
+                      str(conv_attr_values))
+
+        return conv_attr_values
+
 
     def _validate_set_attribute_values(self, attrs):
         """
         Does some pre-validation of the passed values according to the
         definition of the attributes.
 
-        NOTE: We don't yet check everything here, just some basics.
+        NOTE: We don't check everything here, just some basics.
         TODO determine appropriate validations at this level.
         Note that the basic checks here follow what the OMS system
         will do if we just send the request directly to it. So,
         need to determine what exactly should be done on the CI side.
+
+        @param attrs
+
+        @return dict of errors for the offending attribute names, if any.
         """
         # TODO determine appropriate validations at this level.
 
-        # get definitions rto verify the values against
+        # get definitions to verify the values against
         attr_defs = self._get_platform_attributes()
-        log.debug("validating passed attributes: %s against defs %s", attrs, attr_defs)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("validating passed attributes: %s against defs %s", attrs, attr_defs)
 
         # to collect errors, if any:
-        vals = {}
-        errors = False
+        error_vals = {}
         for attr_name, attr_value in attrs:
-
-            # assume ok:
-            vals[attr_name] = (attr_value, '')
-            # fake timestamp--value not actually set here, of course. But we
-            # need to include OK entries in case there're other bad entries.
 
             attr_def = attr_defs.get(attr_name, None)
 
-            log.debug("validating %s against %s", attr_name, str(attr_def))
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("validating %s against %s", attr_name, str(attr_def))
 
             if not attr_def:
-                vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
-                errors = True
-                log.debug("Attribute %s not in associated platform %s",
+                error_vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME
+                log.warn("Attribute %s not in associated platform %s",
                     attr_name, self._platform_id)
                 continue
 
@@ -313,9 +352,8 @@ class OmsPlatformDriver(PlatformDriver):
             group = attr_def.get('group', None)
 
             if "write" != read_write:
-                vals[attr_name] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
-                errors = True
-                log.debug(
+                error_vals[attr_name] = InvalidResponse.ATTRIBUTE_NOT_WRITABLE
+                log.warn(
                     "Trying to set read-only attribute %s in platform %s",
                     attr_name, self._platform_id)
                 continue
@@ -325,9 +363,8 @@ class OmsPlatformDriver(PlatformDriver):
             #
             if type in ["float", "int"]:
                 if min_val and float(attr_value) < float(min_val):
-                    vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
-                    errors = True
-                    log.debug(
+                    error_vals[attr_name] = InvalidResponse.ATTRIBUTE_VALUE_OUT_OF_RANGE
+                    log.warn(
                         "Value %s for attribute %s is less than specified minimum "
                         "value %s in associated platform %s",
                         attr_value, attr_name, min_val,
@@ -335,23 +372,36 @@ class OmsPlatformDriver(PlatformDriver):
                     continue
 
                 if max_val and float(attr_value) > float(max_val):
-                    vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME_VALUE
-                    errors = True
-                    log.debug(
+                    error_vals[attr_name] = InvalidResponse.ATTRIBUTE_VALUE_OUT_OF_RANGE
+                    log.warn(
                         "Value %s for attribute %s is greater than specified maximum "
                         "value %s in associated platform %s",
                         attr_value, attr_name, max_val,
                         self._platform_id)
                     continue
 
-        return vals if errors else None
+        return error_vals
 
     def set_attribute_values(self, attrs):
         """
         """
-        attr_values = self._validate_set_attribute_values(attrs)
-        if attr_values:  # some error
-            return attr_values
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("set_attribute_values: attrs = %s" % str(attrs))
+
+        error_vals = self._validate_set_attribute_values(attrs)
+        if len(error_vals) > 0:
+            # remove offending attributes for the request below
+            attrs_dict = dict(attrs)
+            for bad_attr_name in error_vals:
+                del attrs_dict[bad_attr_name]
+
+            # no good attributes at all?
+            if len(attrs_dict) == 0:
+                # just immediately return with the errors:
+                return error_vals
+
+            # else: update attrs with the good attributes:
+            attrs = attrs_dict.items()
 
         # ok, now make the request to RSN OMS:
         retval = self._oms.setPlatformAttributeValues(self._platform_id, attrs)
@@ -362,7 +412,36 @@ class OmsPlatformDriver(PlatformDriver):
                                     "requested platform '%s'" % self._platform_id)
 
         attr_values = retval[self._platform_id]
-        return attr_values
+
+        # OOIION-631 the reported timestamps are in NTP; see below for
+        # conversion to system time.
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("set_attribute_values: response before conversion = %s" %
+                      str(attr_values))
+
+        # conv_attr_values: the time converted dictionary to return, initialized
+        # with the error ones determined above if any:
+        conv_attr_values = error_vals
+
+        for attr_name, attr_val_ts in attr_values.iteritems():
+            (val, ntp_time) = attr_val_ts
+
+            if isinstance(ntp_time, (float, int)):
+                # do conversion:
+                sys_ts = ntp_2_ion_ts(ntp_time)
+            else:
+                # NO conversion; just keep whatever the returned value is --
+                # normally an error code in str format:
+                sys_ts = ntp_time
+
+            conv_attr_values[attr_name] = (val, sys_ts)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("set_attribute_values: response  after conversion = %s" %
+                      str(conv_attr_values))
+
+        return conv_attr_values
 
     def _verify_platform_id_in_response(self, response):
         """

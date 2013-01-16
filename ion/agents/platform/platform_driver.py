@@ -14,68 +14,7 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
-
-class DriverEvent(object):
-    """
-    Base class for driver events.
-    """
-    def __init__(self, ts):
-        self._ts = ts
-
-    @property
-    def ts(self):
-        return self._ts
-
-
-class AttributeValueDriverEvent(DriverEvent):
-    """
-    Event to notify the retrieved value for a platform attribute.
-    """
-    def __init__(self, ts, platform_id, attr_id, value):
-        DriverEvent.__init__(self, ts)
-        self._platform_id = platform_id
-        self._attr_id = attr_id
-        self._value = value
-
-    @property
-    def platform_id(self):
-        return self._platform_id
-
-    @property
-    def attr_id(self):
-        return self._attr_id
-
-    @property
-    def value(self):
-        return self._value
-
-    def __str__(self):
-        return "%s(platform_id=%r, attr_id=%r, value=%r, ts=%r)" % (
-            self.__class__.__name__, self.platform_id, self.attr_id,
-            self.value, self.ts)
-
-
-class ExternalEventDriverEvent(DriverEvent):
-    """
-    Event to notify an external event.
-    """
-    def __init__(self, ts, event_type, event_instance):
-        DriverEvent.__init__(self, ts)
-        self._event_type = event_type
-        self._event_instance = event_instance
-
-    @property
-    def event_type(self):
-        return self._event_type
-
-    @property
-    def event_instance(self):
-        return self._event_instance
-
-    def __str__(self):
-        return "%s(event_type=%r, event_instance=%s, ts=%r)" % (
-            self.__class__.__name__, self.event_type, self.event_instance,
-            self.ts)
+from ion.agents.platform.platform_driver_event import DriverEvent
 
 
 class PlatformDriver(object):
@@ -169,11 +108,14 @@ class PlatformDriver(object):
         Returns the values for specific attributes since a given time.
 
         @param attr_names [attrName, ...] desired attributes
-        @param from_time NTP v4 time from which the values are requested
+        @param from_time time from which the values are requested.
+                         Assummed to be in the format basically described by
+                         pyon's get_ion_ts function, "a str representing an
+                         integer number, the millis in UNIX epoch."
 
         @retval {attrName : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
-                pairs. Timestamps are NTP v4.
+                pairs. Timestamps in same format as from_time.
         """
         raise NotImplementedError()  #pragma: no cover
 
@@ -188,7 +130,9 @@ class PlatformDriver(object):
                 dict with a single entry for the requested platform ID and value
                 as a list of (value,timestamp) pairs for each attribute indicated
                 in the input. Returned timestamps indicate the time when the
-                value was set (NTP)
+                value was set. Each timestamp is "a str representing an
+                integer number, the millis in UNIX epoch;" this is to be
+                aligned with description of pyon's get_ion_ts function.
         """
         raise NotImplementedError()  #pragma: no cover
 

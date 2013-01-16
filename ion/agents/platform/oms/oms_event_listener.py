@@ -13,10 +13,8 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 
-from ion.agents.platform.platform_driver import ExternalEventDriverEvent
+from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 
-import time
-import ntplib
 from gevent.pywsgi import WSGIServer
 import yaml
 
@@ -132,11 +130,7 @@ class OmsEventListener(object):
 
         log.debug('notifying event_instance=%s', str(event_instance))
 
-        # note the ts for the event is the time of reception -- the
-        # event_instance has its own timestamp
-        ts = ntplib.system_to_ntp_time(time.time())
-
-        driver_event = ExternalEventDriverEvent(ts, event_type, event_instance)
+        driver_event = ExternalEventDriverEvent(event_type, event_instance)
         self._notify_driver_event(driver_event)
 
     def stop_http_server(self):
