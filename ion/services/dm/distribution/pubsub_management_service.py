@@ -20,6 +20,8 @@ from interface.services.dm.ipubsub_management_service import BasePubsubManagemen
 from collections import deque
 import logging
 
+
+
 dot = logging.getLogger('dot')
 
 class PubsubManagementService(BasePubsubManagementService):
@@ -437,10 +439,14 @@ class PubsubManagementService(BasePubsubManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _deassociate_subscription(self, subscription_id):
-        objects, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, id_only=True)
+        objects, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasStream, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
+        objects, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
+        for assoc in assocs:
+            self.clients.resource_registry.delete_association(assoc)
+        
         subjects, assocs = self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=True)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
@@ -468,7 +474,7 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.create_association(subject=stream_def_id, predicate=PRED.hasParameterDictionary, object=pdict_id)
 
     def _deassociate_definition(self, stream_def_id):
-        objs, assocs = self.clients.resource_registry.find_objects(subject=stream_def_id, object_type=RT.ParameterDictionaryResource)
+        objs, assocs = self.clients.resource_registry.find_objects(subject=stream_def_id, predicate=PRED.hasParameterDictionary)
         for assoc in assocs:
             self.clients.resource_registry.delete_association(assoc)
 
