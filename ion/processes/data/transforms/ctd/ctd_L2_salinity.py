@@ -4,7 +4,7 @@
 @file ion/processes/data/transforms/ctd/ctd_L2_salinity.py
 @description Transforms CTD parsed data into L2 product for salinity
 '''
-
+from pyon.util.log import log
 from ion.core.process.transform import TransformDataProcess
 from pyon.core.exception import BadRequest
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -65,9 +65,11 @@ class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
 
-        for key, value in rdt.iteritems():
-            if key in out_rdt:
-                out_rdt[key] = value[:]
+        log.debug("Salinity algorithm calculated the sp (practical salinity) values: %s", sal_value)
+
+#        for key, value in rdt.iteritems():
+#            if key in out_rdt:
+#                out_rdt[key] = value[:]
 
         out_rdt['salinity'] = sal_value
 
