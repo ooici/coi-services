@@ -50,7 +50,7 @@ from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue
+from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 
@@ -1781,7 +1781,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         def short_status_rollup(key):
             return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                                    value=status_rollups[instrument_device_id][key])
+                                    value=status_rollups[instrument_device_id].get(key, StatusType.STATUS_UNKNOWN))
 
         extended_instrument.computed.communications_status_roll_up = short_status_rollup("comms")
         extended_instrument.computed.power_status_roll_up          = short_status_rollup("power")
@@ -1870,30 +1870,55 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
 
+
+        # lookup all hasModel predicates
+        # lookup is a 2d associative array of [subject type][subject id] -> object id
+        lookup = dict([(rt, {}) for rt in [RT.PlatformDevice, RT.InstrumentDevice]])
+        for a in self.RR.find_associations(predicate=PRED.hasModel, id_only=False):
+            if a.st in lookup:
+                lookup[a.st][a.s] = a.o
+
+        def retrieve_model_objs(rsrc_list, object_type):
+        # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
+        # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
+        #  look up all the model ids, then create the proper output
+            model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
+            model_uniq = list(set([m for m in model_list if m is not None]))
+            model_objs = self.clients.resource_registry.read_mult(model_uniq)
+            model_dict = dict(zip(model_uniq, model_objs))
+            return [model_dict.get(m) for m in model_list]
+
+        extended_platform.instrument_models = retrieve_model_objs(extended_platform.instrument_devices,
+                                                                  RT.InstrumentDevice)
+        extended_platform.platform_models   = retrieve_model_objs(extended_platform.platforms,
+                                                                  RT.PlatformDevice)
+
+        s_unknown = StatusType.STATUS_UNKNOWN
+
         # Status computation
-        extended_platform.computed.instrument_status = [4] * len(extended_platform.instrument_devices)
-        extended_platform.computed.platform_status   = [4] * len(extended_platform.platforms)
+        extended_platform.computed.instrument_status = [s_unknown] * len(extended_platform.instrument_devices)
+        extended_platform.computed.platform_status   = [s_unknown] * len(extended_platform.platforms)
 
-        def status_4():
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=4)
+        def status_unknown():
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
 
-        extended_platform.computed.communications_status_roll_up = status_4()
-        extended_platform.computed.power_status_roll_up          = status_4()
-        extended_platform.computed.data_status_roll_up           = status_4()
-        extended_platform.computed.location_status_roll_up       = status_4()
-        extended_platform.computed.aggregated_status             = status_4()
+        extended_platform.computed.communications_status_roll_up = status_unknown()
+        extended_platform.computed.power_status_roll_up          = status_unknown()
+        extended_platform.computed.data_status_roll_up           = status_unknown()
+        extended_platform.computed.location_status_roll_up       = status_unknown()
+        extended_platform.computed.aggregated_status             = status_unknown()
 
         try:
             status_rollups = self.outil.get_status_roll_ups(platform_device_id, RT.PlatformDevice)
 
-            extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg", 4)
+            extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg", s_unknown)
                                                             for idev in extended_platform.instrument_devices]
-            extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg", 4)
+            extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg", s_unknown)
                                                           for pdev in extended_platform.platforms]
 
             def short_status_rollup(key):
-                        return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                                                value=status_rollups[platform_device_id][key])
+                return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
+                                        value=status_rollups[platform_device_id].get(key, StatusType.STATUS_UNKNOWN))
 
             extended_platform.computed.communications_status_roll_up = short_status_rollup("comms")
             extended_platform.computed.power_status_roll_up          = short_status_rollup("power")
