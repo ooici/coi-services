@@ -1,5 +1,12 @@
 platform agent framework
 
+2013-01-15:
+- code clean-up to improve code coverage: from 79% to 86% when running the
+  platform agent specific tests (so actual coverage when running the whole
+  test suite might be even better):
+  bin/nosetests --with-coverage --cover-package=ion.agents.platform ion/agents/platform ion/services/sa/observatory/test/test_oms_launch2.py
+
+
 2012-10-31:
 - preparations for IOC demo
 - adjustments in network.yml to use the attribute 'input_voltage' for the
