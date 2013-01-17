@@ -1179,8 +1179,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             model_dict = dict(zip(model_uniq, model_objs))
             return [model_dict.get(m) for m in model_list]
 
-        extended_site.instrument_models = retrieve_model_objs(extended_site.instruments, RT.InstrumentDevice)
-        extended_site.platform_models   = retrieve_model_objs(extended_site.platforms, RT.PlatformDevice)
+        extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
+        extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
 
         s_unknown = StatusType.STATUS_UNKNOWN
