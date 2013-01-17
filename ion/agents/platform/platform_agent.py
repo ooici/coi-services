@@ -13,7 +13,6 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 from pyon.ion.stream import StreamPublisher
-from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
@@ -32,8 +31,8 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException
-from ion.agents.platform.platform_driver import AttributeValueDriverEvent
-from ion.agents.platform.platform_driver import ExternalEventDriverEvent
+from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
+from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -117,10 +116,9 @@ class PlatformAgent(ResourceAgent):
     # Override to set specific origin type
     ORIGIN_TYPE = "PlatformDevice"  #TODO how this works?
 
-    def __init__(self, standalone=None):
+    def __init__(self):
         log.info("PlatformAgent constructor called")
         ResourceAgent.__init__(self)
-        self._standalone = standalone
         self._plat_config = None
         self._platform_id = None
         self._topology = None
@@ -147,15 +145,8 @@ class PlatformAgent(ResourceAgent):
 
         self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
 
-        self._launcher = LauncherFactory.createLauncher(standalone=standalone)
+        self._launcher = LauncherFactory.createLauncher()
         log.debug("launcher created: %s", str(type(self._launcher)))
-
-        # standalone stuff
-        self.container = None
-        if self._standalone:
-            self.resource_id = self._standalone['platform_id']
-            self.container = self._standalone.get('container', None)
-            self._on_init()
 
         log.info("PlatformAgent constructor complete.")
 
@@ -315,11 +306,7 @@ class PlatformAgent(ResourceAgent):
 
 
     def _create_publisher(self, stream_id=None, stream_route=None):
-        if self._standalone:
-            publisher = StandaloneStreamPublisher(stream_id, stream_route)
-        else:
-            publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=stream_route)
-
+        publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=stream_route)
         return publisher
 
     def _construct_data_publishers(self):
@@ -743,10 +730,7 @@ class PlatformAgent(ResourceAgent):
             self._platform_id, subplatform_id)
         pid = self._launcher.launch(subplatform_id, agent_config)
 
-        if self._standalone:
-            pa_client = pid
-        else:
-            pa_client = self._create_resource_agent_client(subplatform_id)
+        pa_client = self._create_resource_agent_client(subplatform_id)
 
         self._pa_clients[subplatform_id] = (pa_client, pid)
 

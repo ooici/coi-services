@@ -126,7 +126,7 @@ attributeNames = [
 
 
 # Main program
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
 
     def gen_diagrams(name, nnode):
         yml_name = '%s.yml' % name
