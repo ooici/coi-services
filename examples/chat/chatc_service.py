@@ -14,11 +14,8 @@ def get_username():
 class ChatClientService(BaseChatcService):
     def on_init(self):
 
-        self.username = get_username()
-        try:
-            self.username = CFG.chat.user_name
-        except Exception, ex:
-            pass
+        self.username = CFG.get_safe('chat.user_name',get_username())
+        print 'Username: %s' % self.username
         print "INIT CHAT CLIENT: ", self.clients.chats.register(self.username, self.id)
 
     def on_stop(self):
