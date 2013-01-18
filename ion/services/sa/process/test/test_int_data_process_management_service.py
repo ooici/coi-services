@@ -403,15 +403,17 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_process.input_data_products))
         log.debug("test_createDataProcess: extended_process  %s", str(extended_process))
 
+        ################################ Test the removal of data processes ##################################
+
         #-------------------------------------------------------------------
-        # Cleanup.... Delete the data process
+        # Test the deleting of the data process
         #-------------------------------------------------------------------
 
         # Before deleting, get the input streams, output streams and the subscriptions so that they can be checked after deleting
         dp_obj_1 = self.rrclient.read(ctd_l0_all_data_process_id)
         input_subscription_id = dp_obj_1.input_subscription_id
-        out_prods, _ = self.rrclient.find_objects(subject=ctd_L0_all_dprocdef_id, predicate=PRED.hasOutputProduct, id_only=True)
-        in_prods, _ = self.rrclient.find_objects(ctd_L0_all_dprocdef_id, PRED.hasInputProduct, id_only=True)
+        out_prods, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
+        in_prods, _ = self.rrclient.find_objects(ctd_l0_all_data_process_id, PRED.hasInputProduct, id_only=True)
         in_streams = []
         for in_prod in in_prods:
             streams, _ = self.rrclient.find_objects(in_prod, PRED.hasStream, id_only=True)
@@ -421,6 +423,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             streams, _ = self.rrclient.find_objects(out_prod, PRED.hasStream, id_only=True)
             out_streams.extend(streams)
 
+        # Deleting the data process
         self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
 
         # Check that the data process got removed. Check the lcs state. It should be retired
@@ -428,22 +431,20 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.assertEquals(dp_obj.lcstate, LCS.RETIRED)
 
         # Check for process defs still attached to the data process
-        dpd_assn_ids = self.rrclient.find_associations(subject=ctd_L0_all_dprocdef_id,  predicate=PRED.hasProcessDefinition, id_only=True)
-
-        log.debug("The associations for data process definition found are: %s", dpd_assn_ids)
-#        self.assertEquals(len(dpd_assn_ids), 0)
+        dpd_assn_ids = self.rrclient.find_associations(subject=ctd_l0_all_data_process_id,  predicate=PRED.hasProcessDefinition, id_only=True)
+        self.assertEquals(len(dpd_assn_ids), 0)
 
         # Check for output data product still attached to the data process
-        out_products, assocs = self.rrclient.find_objects(subject=ctd_L0_all_dprocdef_id, predicate=PRED.hasOutputProduct, id_only=True)
+        out_products, assocs = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
         self.assertEquals(len(out_products), 0)
         self.assertEquals(len(assocs), 0)
 
         # Check for input data products still attached to the data process
-        inprod_associations = self.rrclient.find_associations(ctd_L0_all_dprocdef_id, PRED.hasInputProduct)
+        inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
         self.assertEquals(len(inprod_associations), 0)
 
         # Check for input data products still attached to the data process
-        inprod_associations = self.rrclient.find_associations(ctd_L0_all_dprocdef_id, PRED.hasInputProduct)
+        inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
         self.assertEquals(len(inprod_associations), 0)
 
         # Check of the data process has been deactivated
@@ -456,6 +457,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------------------------------------------
         # Delete the data process definition
         #-------------------------------------------------------------------
+
+        # before deleting, get the process definition being associated to in order to be able to check later if the latter gets deleted as it should
+
 
         self.dataprocessclient.delete_data_process_definition(ctd_L0_all_dprocdef_id)
 
@@ -478,5 +482,18 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.rrclient.read(ctd_l0_all_data_process_id)
 
+
+        # Test the force delete method for a data process definition
         self.dataprocessclient.force_delete_data_process_definition(ctd_L0_all_dprocdef_id)
 
+        # find all associations where this is the subject
+        _, obj_assns = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.rrclient.find_subjects(object=ctd_l0_all_data_process_id, id_only=True)
+
+        self.assertEquals(len(obj_assns), 0)
+        self.assertEquals(len(sbj_assns), 0)
+
+        with self.assertRaises(NotFound):
+            self.rrclient.read(ctd_l0_all_data_process_id)

@@ -503,6 +503,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("delete the association with DataProcessDefinition")
         dpd_assn_ids = self.clients.resource_registry.find_associations(subject=data_process_id,  predicate=PRED.hasProcessDefinition, id_only=True)
         for dpd_assn_id in dpd_assn_ids:
+            log.debug("Trying to delete the association with this data process definition: %s", dpd_assn_id)
             self.clients.resource_registry.delete_association(dpd_assn_id)
 
         self._stop_process(data_process_obj)
