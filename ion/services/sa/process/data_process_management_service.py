@@ -137,6 +137,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def delete_data_process_definition(self, data_process_definition_id=''):
 
+        # Delete all associations for this resource
+        self._remove_associations(data_process_definition_id)
+
+        # Delete the resource
         self.clients.resource_registry.retire(data_process_definition_id)
 
     def force_delete_data_process_definition(self, data_process_definition_id=''):

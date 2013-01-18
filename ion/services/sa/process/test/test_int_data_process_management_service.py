@@ -459,15 +459,28 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------------------------------------------
 
         # before deleting, get the process definition being associated to in order to be able to check later if the latter gets deleted as it should
-
-
+        proc_def_ids, proc_def_asocs = self.rrclient.find_objects(ctd_l0_all_data_process_id, PRED.hasProcessDefinition)
         self.dataprocessclient.delete_data_process_definition(ctd_L0_all_dprocdef_id)
 
-        #---------------------------------------------------------------------------------------------------------------
+        # check that the data process definition has been retired
+        dp_proc_def = self.rrclient.read(ctd_L0_all_dprocdef_id)
+        self.assertEquals(dp_proc_def.lcstate, LCS.RETIRED)
+
+        # Check for old associations of this data process definition
+        proc_defs, proc_def_asocs = self.rrclient.find_objects(ctd_L0_all_dprocdef_id, PRED.hasProcessDefinition)
+        self.assertEquals(len(proc_defs), 0)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.rrclient.find_objects(subject= ctd_L0_all_dprocdef_id, id_only=True)
+        self.assertEquals(len(obj_assns), 0)
+
+        ################################ Test the removal of data processes ##################################
         # Try force delete... This should simply delete the associations and the data process object
         # from the resource registry
-        #---------------------------------------------------------------------------------------------------------------
 
+        #---------------------------------------------------------------------------------------------------------------
+        # Force deleting a data process
+        #---------------------------------------------------------------------------------------------------------------
         self.dataprocessclient.force_delete_data_process(ctd_l0_all_data_process_id)
 
         # find all associations where this is the subject
@@ -482,8 +495,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.rrclient.read(ctd_l0_all_data_process_id)
 
-
-        # Test the force delete method for a data process definition
+        #---------------------------------------------------------------------------------------------------------------
+        # Force deleting a data process definition
+        #---------------------------------------------------------------------------------------------------------------
         self.dataprocessclient.force_delete_data_process_definition(ctd_L0_all_dprocdef_id)
 
         # find all associations where this is the subject
