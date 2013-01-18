@@ -30,6 +30,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._datasets  = collections.OrderedDict()
         self._coverages = collections.OrderedDict()
         self._queues    = {}
+
+        self._bad_coverages = {}
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
         self.buffer_limit   = self.CFG.get_safe('process.buffer_limit',10)
@@ -163,6 +165,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         '''
         Appends the granule's data to the coverage and persists it.
         '''
+        if stream_id in self._bad_coverages:
+            log.info('Message attempting to be inserted into bad coverage: %s' % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+            
+
         #--------------------------------------------------------------------------------
         # Coverage determiniation and appending
         #--------------------------------------------------------------------------------
@@ -170,7 +176,13 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         if not dataset_id:
             log.error('No dataset could be determined on this stream: %s', stream_id)
             return
-        coverage = self.get_coverage(stream_id)
+        try:
+            coverage = self.get_coverage(stream_id)
+        except IOError:
+            log.error("Couldn't open coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+            log.exception('IOError')
+            return
+        
         if not coverage:
             log.error('Could not persist coverage from granule, coverage is None')
             return
@@ -184,7 +196,17 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         elements = len(rdt)
         if not elements:
             return
-        coverage.insert_timesteps(elements, oob=False)
+        try:
+            coverage.insert_timesteps(elements, oob=False)
+        except IOError:
+            log.error("Couldn't insert time steps for coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+            log.exception('IOError')
+            try:
+                coverage.close()
+            finally:
+                self._bad_coverages[stream_id] = 1
+                return
+
         start_index = coverage.num_timesteps - elements
 
         for k,v in rdt.iteritems():
@@ -194,7 +216,16 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 log.trace( '%s: %s', k, v)
 
             slice_ = slice(start_index, None)
-            coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+            try:
+                coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+            except IOError:
+                log.error("Couldn't insert values for coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+                log.exception('IOError')
+                try:
+                    coverage.close()
+                finally:
+                    self._bad_coverages[stream_id] = 1
+                    return
             DatasetManagementService._save_coverage(coverage)
             #coverage.flush()
 
