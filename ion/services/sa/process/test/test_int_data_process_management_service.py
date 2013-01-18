@@ -18,11 +18,14 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from interface.objects import ProcessStateEnum
 from mock import patch
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
@@ -58,6 +61,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.dataset_management = self.datasetclient
+        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
 
     def test_createDataProcess(self):
 
@@ -372,8 +376,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
         #-------------------------------
 
-        # todo: add this validate for Req: L4-CI-SA-RQ-366  Data processing shall manage data topic definitions
-        # todo: This capability is not yet completed (Swarbhanu)
+        # todo: Req: L4-CI-SA-RQ-366  Data processing shall manage data topic definitions
+        # todo: data topics are being handled by pub sub at the level of streams
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         
 
@@ -387,6 +391,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         input_subscription_id = ctd_l0_all_data_process.input_subscription_id
         subs = self.rrclient.read(input_subscription_id)
         self.assertTrue(subs.activated)
+
+        process_obj = self.process_dispatcher.read_process(ctd_l0_all_data_process.process_id)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
 
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
@@ -411,17 +418,17 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         # Before deleting, get the input streams, output streams and the subscriptions so that they can be checked after deleting
         dp_obj_1 = self.rrclient.read(ctd_l0_all_data_process_id)
-        input_subscription_id = dp_obj_1.input_subscription_id
-        out_prods, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
-        in_prods, _ = self.rrclient.find_objects(ctd_l0_all_data_process_id, PRED.hasInputProduct, id_only=True)
-        in_streams = []
-        for in_prod in in_prods:
-            streams, _ = self.rrclient.find_objects(in_prod, PRED.hasStream, id_only=True)
-            in_streams.extend(streams)
-        out_streams = []
-        for out_prod in out_prods:
-            streams, _ = self.rrclient.find_objects(out_prod, PRED.hasStream, id_only=True)
-            out_streams.extend(streams)
+#        input_subscription_id = dp_obj_1.input_subscription_id
+#        out_prods, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
+#        in_prods, _ = self.rrclient.find_objects(ctd_l0_all_data_process_id, PRED.hasInputProduct, id_only=True)
+#        in_streams = []
+#        for in_prod in in_prods:
+#            streams, _ = self.rrclient.find_objects(in_prod, PRED.hasStream, id_only=True)
+#            in_streams.extend(streams)
+#        out_streams = []
+#        for out_prod in out_prods:
+#            streams, _ = self.rrclient.find_objects(out_prod, PRED.hasStream, id_only=True)
+#            out_streams.extend(streams)
 
         # Deleting the data process
         self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)

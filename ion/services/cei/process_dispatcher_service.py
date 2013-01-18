@@ -86,6 +86,7 @@ class ProcessStateGate(EventSubscriber):
         # Once pd creates the process, process_obj is never None
         try:
             process_obj = self.read_process_fn(self.process_id)
+
             return (process_obj and self.desired_state == process_obj.process_state)
         except NotFound:
             return False
