@@ -37,6 +37,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.get_unique_id = (lambda : uuid4().hex)
 
+        self.data_product_management = DataProductManagementServiceClient()
+
     def init_module_uploader(self):
         if self.CFG:
             #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
@@ -509,8 +511,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("Finalizing data products by removing streams associated with the dataset and product")
         out_products, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
         for out_product, assoc in zip(out_products, assocs):
-            data_product_management = DataProductManagementServiceClient()
-            data_product_management.remove_streams(out_product)
+            self.data_product_management.remove_streams(out_product)
             log.debug("deleting association with output data product '%s'" % out_product)
             self.clients.resource_registry.delete_association(assoc)
 
@@ -532,6 +533,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         subscription_id = data_process_obj.input_subscription_id
         self.clients.pubsub_management.delete_subscription(subscription_id)
         data_process_obj.input_subscription_id = None
+        self.clients.resource_registry.update(data_process_obj)
 
         #unregister the data process in DataAcquisitionMgmtSvc
         self.clients.data_acquisition_management.unregister_process(data_process_id)

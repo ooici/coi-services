@@ -7,6 +7,12 @@
 '''
 
 from nose.plugins.attrib import attr
+from pyon.public import LCS
+from pyon.public import log, IonObject
+from pyon.public import CFG, RT, PRED
+from pyon.core.exception import BadRequest, NotFound
+from pyon.util.context import LocalContextMixin
+from pyon.util.int_test import IonIntegrationTestCase
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -17,11 +23,6 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
-from pyon.public import log, IonObject
-from pyon.public import CFG, RT, PRED 
-from pyon.core.exception import BadRequest
-from pyon.util.context import LocalContextMixin
-from pyon.util.int_test import IonIntegrationTestCase
 from mock import patch
 from coverage_model.coverage import GridDomain, GridShape, CRS
 from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
@@ -402,13 +403,80 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_process.input_data_products))
         log.debug("test_createDataProcess: extended_process  %s", str(extended_process))
 
-        #-------------------------------
-        # Cleanup
-        #-------------------------------
+        #-------------------------------------------------------------------
+        # Cleanup.... Delete the data process
+        #-------------------------------------------------------------------
+
+        # Before deleting, get the input streams, output streams and the subscriptions so that they can be checked after deleting
+        dp_obj_1 = self.rrclient.read(ctd_l0_all_data_process_id)
+        input_subscription_id = dp_obj_1.input_subscription_id
+        out_prods, _ = self.rrclient.find_objects(subject=ctd_L0_all_dprocdef_id, predicate=PRED.hasOutputProduct, id_only=True)
+        in_prods, _ = self.rrclient.find_objects(ctd_L0_all_dprocdef_id, PRED.hasInputProduct, id_only=True)
+        in_streams = []
+        for in_prod in in_prods:
+            streams, _ = self.rrclient.find_objects(in_prod, PRED.hasStream, id_only=True)
+            in_streams.extend(streams)
+        out_streams = []
+        for out_prod in out_prods:
+            streams, _ = self.rrclient.find_objects(out_prod, PRED.hasStream, id_only=True)
+            out_streams.extend(streams)
 
         self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
+
+        # Check that the data process got removed. Check the lcs state. It should be retired
+        dp_obj = self.rrclient.read(ctd_l0_all_data_process_id)
+        self.assertEquals(dp_obj.lcstate, LCS.RETIRED)
+
+        # Check for process defs still attached to the data process
+        dpd_assn_ids = self.rrclient.find_associations(subject=ctd_L0_all_dprocdef_id,  predicate=PRED.hasProcessDefinition, id_only=True)
+
+        log.debug("The associations for data process definition found are: %s", dpd_assn_ids)
+#        self.assertEquals(len(dpd_assn_ids), 0)
+
+        # Check for output data product still attached to the data process
+        out_products, assocs = self.rrclient.find_objects(subject=ctd_L0_all_dprocdef_id, predicate=PRED.hasOutputProduct, id_only=True)
+        self.assertEquals(len(out_products), 0)
+        self.assertEquals(len(assocs), 0)
+
+        # Check for input data products still attached to the data process
+        inprod_associations = self.rrclient.find_associations(ctd_L0_all_dprocdef_id, PRED.hasInputProduct)
+        self.assertEquals(len(inprod_associations), 0)
+
+        # Check for input data products still attached to the data process
+        inprod_associations = self.rrclient.find_associations(ctd_L0_all_dprocdef_id, PRED.hasInputProduct)
+        self.assertEquals(len(inprod_associations), 0)
+
+        # Check of the data process has been deactivated
+        self.assertIsNone(dp_obj.input_subscription_id)
+
+        # Read the original subscription id of the data process and check that it has been deactivated
+        with self.assertRaises(NotFound):
+            self.pubsubclient.read_subscription(input_subscription_id)
+
+        #-------------------------------------------------------------------
+        # Delete the data process definition
+        #-------------------------------------------------------------------
+
         self.dataprocessclient.delete_data_process_definition(ctd_L0_all_dprocdef_id)
 
+        #---------------------------------------------------------------------------------------------------------------
+        # Try force delete... This should simply delete the associations and the data process object
+        # from the resource registry
+        #---------------------------------------------------------------------------------------------------------------
+
         self.dataprocessclient.force_delete_data_process(ctd_l0_all_data_process_id)
+
+        # find all associations where this is the subject
+        _, obj_assns = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, id_only=True)
+
+        # find all associations where this is the object
+        _, sbj_assns = self.rrclient.find_subjects(object=ctd_l0_all_data_process_id, id_only=True)
+
+        self.assertEquals(len(obj_assns), 0)
+        self.assertEquals(len(sbj_assns), 0)
+        
+        with self.assertRaises(NotFound):
+            self.rrclient.read(ctd_l0_all_data_process_id)
+
         self.dataprocessclient.force_delete_data_process_definition(ctd_L0_all_dprocdef_id)
 
