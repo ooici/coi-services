@@ -7,6 +7,7 @@ from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventSubscriber
 from pyon.public import log, get_sys_name
 from pyon.core.exception import BadRequest, Timeout, NotFound
+from pyon.core import bootstrap
 
 from interface.objects import AgentCommand, ProcessSchedule, \
         ProcessStateEnum, ProcessQueueingMode, ProcessTarget, \
@@ -259,8 +260,8 @@ class HADashiHandler(object):
     """
     def __init__(self, agent, dashi_name, dashi_uri, dashi_exchange):
         self.agent = agent
-
-        self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange)
+        self.CFG = agent.CFG
+        self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange, sysname=self.CFG.get_safe('dashi.sysname'))
         self.dashi.handle(self.status)
         self.dashi.handle(self.reconfigure_policy)
 

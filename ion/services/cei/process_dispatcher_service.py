@@ -175,7 +175,8 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
             except AttributeError, e:
                 log.warn("Needed Process Dispatcher config not found: %s", e)
                 raise
-            self.dashi = get_dashi(dashi_name, uri, exchange)
+            self.dashi = get_dashi(dashi_name, uri, exchange,
+                    sysname=self.CFG.get_safe('dashi.sysname'))
         else:
             self.dashi = None
 
@@ -820,7 +821,8 @@ class PDNativeBackend(object):
                 log.warn("Needed Process Dispatcher config not found: %s", e)
                 raise
 
-            self.dashi = get_dashi(dashi_name, uri, exchange)
+            self.dashi = get_dashi(dashi_name, uri, exchange,
+                    sysname=self.CFG.get_safe('dashi.sysname'))
 
         dashi_name = self.dashi.name
 
@@ -1085,4 +1087,4 @@ def get_dashi(*args, **kwargs):
 
 
 def get_pd_dashi_name():
-    return "%s.dashi_process_dispatcher" % bootstrap.get_sys_name()
+    return "process_dispatcher"

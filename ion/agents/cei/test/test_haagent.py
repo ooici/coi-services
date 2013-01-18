@@ -17,6 +17,8 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
 from pyon.core import bootstrap
 from pyon.core.exception import BadRequest
+from pyon.core import bootstrap
+from pyon.public import CFG
 
 from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient
 from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
@@ -97,7 +99,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         self._haa_name = "high_availability_agent"
         self._haa_dashi_name = "dashi_haa_" + uuid4().hex
         self._haa_dashi_uri = get_dashi_uri_from_cfg()
-        self._haa_dashi_exchange = "%s.hatests" % bootstrap.get_sys_name()
+        self._haa_dashi_exchange = "hatests"
         self._haa_config = {
             'highavailability': {
                 'policy': {
@@ -286,7 +288,7 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         import dashi
 
         dashi_conn = dashi.DashiConnection("something", self._haa_dashi_uri,
-            self._haa_dashi_exchange)
+            self._haa_dashi_exchange, sysname=CFG.get_safe("dashi.sysname"))
 
         status = dashi_conn.call(self._haa_dashi_name, "status")
         assert status in ('PENDING', 'READY', 'STEADY')
