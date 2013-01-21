@@ -254,11 +254,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #---------------------------------------------------------------------------------------
         data_process_definition = self.read_data_process_definition(data_process_definition_id)
 
-        #---------------------------------------------------------------------------------------
-        # Read the output bindings from the definition
-        #---------------------------------------------------------------------------------------
-
-        output_bindings = data_process_definition.output_bindings
+#        #---------------------------------------------------------------------------------------
+#        # Read the output bindings from the definition
+#        #---------------------------------------------------------------------------------------
+#
+#        output_bindings = data_process_definition.output_bindings
 
         #---------------------------------------------------------------------------------------
         # Find the process definition associated with this data process definition.
@@ -332,6 +332,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                     raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
 
                 output_stream_dict[binding] = stream_ids[0]
+
+        data_process_definition.output_bindings = output_stream_dict
+        self.clients.resource_registry.update(data_process_definition)
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         #Check for attached objects and put them into the configuration
@@ -438,12 +441,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return pid
 
-    def replace_data_process(self, data_process=None, data_process_definition= None, in_data_product_ids=None, out_data_products=None, configuration=None):
+    def replace_data_process(self, data_process_id='', data_process_definition= None, in_data_product_ids=None, out_data_products=None, configuration=None):
 
-        # Get the data process id
-        data_process_id = data_process._id
-
+        #------------------------------------------------------------------------------------------------------------------------------------------
         # Cancel the running data process. todo: we might have tried just pause here, but right now we have only cancel functionality
+        #------------------------------------------------------------------------------------------------------------------------------------------
+
+        validate_is_not_none(data_process_id, "The id of the data process to be replaced has not been provided.")
+
+        data_process = self.clients.resource_registry.read(data_process_id)
         process_id = data_process.process_id
         self.clients.process_dispatcher.cancel_process(process_id)
 
@@ -452,20 +458,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #------------------------------------------------------------------------------------------------------------------------------------------
 
         # Get the new data process definition containing module, class etc to run
-        data_process_def = None
-
         if data_process_definition:
             self.update_data_process_definition(data_process_definition)
             output_bindings = data_process_definition.output_bindings
-
             # Check for attachments in data process definition and put them into the configuration
             configuration = self._find_lookup_tables(data_process_definition._id, configuration)
-
         else:
             data_proc_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=True )
-            data_process_def = self.clients.resource_registry.read(data_proc_def_ids[0])
+            data_process_definition = self.clients.resource_registry.read(data_proc_def_ids[0])
 
-        data_process_definition = data_process_def
         data_process_definition_id = data_process_definition._id
 
         output_stream_dict = {}
@@ -505,8 +506,17 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
                 output_stream_dict[binding] = stream_ids[0]
 
-        if in_data_product_ids:
+            data_process_definition.output_bindings = output_stream_dict
+            self.clients.resource_registry.update(data_process_definition)
 
+        else:
+            # Get the original output stream dict from the data process definition attribute, output_binding
+            dp_def_ids, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasProcessDefinition, RT.DataProcessDefinition, True)
+            data_process_definition = self.clients.resource_registry.read(dp_def_ids[0])
+
+            output_stream_dict = data_process_definition.output_bindings
+
+        if in_data_product_ids:
             #------------------------------------------------------------------------------------------------------------------------------------------
             # If input data products have been provided, find the ones already associated to the data process and remove them first before associating the new ones
             #------------------------------------------------------------------------------------------------------------------------------------------

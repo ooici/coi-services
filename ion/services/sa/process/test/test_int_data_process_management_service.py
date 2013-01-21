@@ -230,18 +230,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
 
-
-        port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
-            'process_type': PortAgentProcessType.UNIX,
-            'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
-            'log_level': 5,
-        }
-
-
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
             'device_port':  CFG.device.sbe37.port,
@@ -548,18 +536,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
 
-
-        port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
-            'process_type': PortAgentProcessType.UNIX,
-            'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
-            'log_level': 5,
-            }
-
-
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
             'device_port':  CFG.device.sbe37.port,
@@ -691,3 +667,16 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         process_obj = self.process_dispatcher.read_process(data_process.process_id)
         self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        #-----------------------------------------------------------------------------
+        # Now test the replacing of the data process
+        #-----------------------------------------------------------------------------
+
+        # Change only the data process definition and test if the replace works
+        data_process_definition = self.rrclient.read(ctd_L0_all_dprocdef_id)
+        data_process_definition.name = 'an updated data process definition'
+        data_process_definition.description = 'to test the replace method'
+
+        self.dataprocessclient.replace_data_process( data_process_id=data_process_id, data_process_definition= data_process_definition)
+
+
