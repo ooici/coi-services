@@ -665,7 +665,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         subs = self.rrclient.read(input_subscription_id)
         self.assertTrue(subs.activated)
 
-        process_obj = self.process_dispatcher.read_process(data_process.process_id)
+        old_pid =  data_process.process_id
+        process_obj = self.process_dispatcher.read_process(old_pid)
         self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
 
         #-----------------------------------------------------------------------------
@@ -679,4 +680,15 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.dataprocessclient.replace_data_process( data_process_id=data_process_id, data_process_definition= data_process_definition)
 
+        # get the process id from the data process
+        rep_dp_obj = self.rrclient.read(data_process_id)
+        pid = rep_dp_obj.process_id
+
+        self.assertNotEquals(pid, old_pid)
+
+        # Check that the new process is running
+        process_obj = self.process_dispatcher.read_process(pid)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        # Check that the old process has stopped
 
