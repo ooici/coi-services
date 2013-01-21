@@ -150,7 +150,7 @@ class ReplayProcess(BaseReplayProcess):
             elif isinstance(n,np.ndarray):
                 if coverage.get_data_extents(field)[0] != coverage.num_timesteps:
                     log.error("Misformed coverage detected, padding with fill_value")
-                    arr_len = utils.slice_len(slice_, (coverage.num_timesteps,))[0]
+                    arr_len = utils.slice_shape(slice_, (coverage.num_timesteps,))[0]
                     fill_arr = np.empty(arr_len - n.shape[0] , dtype=n.dtype)
                     fill_arr.fill(coverage.get_parameter_context(field).fill_value)
                     n = np.append(n,fill_arr)
