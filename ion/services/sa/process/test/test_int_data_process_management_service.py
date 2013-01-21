@@ -722,3 +722,57 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Check that the old process has stopped
         old_proc_obj = self.process_dispatcher.read_process(pid)
         self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Change only the output data products for the data process and use the replace_data_process()
+        #-------------------------------------------------------------------------------------------------------------
+        self.output_products={}
+
+        dp_1 = IonObject(  RT.DataProduct,
+            name='new out data product 1',
+            description='to test replace_data_process()',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dp_id_1 = self.dataproductclient.create_data_product(dp_1,
+            out_stream_cond_id)
+
+        self.output_products['conductivity'] = dp_id_1
+
+        dp_2 = IonObject(RT.DataProduct,
+            name='new out data product 2',
+            description='to test replace_data_process()',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dp_id_2 = self.dataproductclient.create_data_product(dp_2,
+            out_stream_pres_id)
+
+        self.output_products['pressure'] = dp_id_2
+
+        dp_3 = IonObject(RT.DataProduct,
+            name='new data product',
+            description='for test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+
+        dp_id_3 = self.dataproductclient.create_data_product(dp_3,
+            out_stream_temp_id)
+        self.output_products['temperature'] = dp_id_3
+
+        self.dataprocessclient.replace_data_process( data_process_id=data_process_id, out_data_products=self.output_products)
+
+        # get the process id from the data process
+        rep_dp_obj = self.rrclient.read(data_process_id)
+        pid_3 = rep_dp_obj.process_id
+
+        self.assertNotEquals(pid_3, pid_2)
+
+        # Check that the new process is running
+        process_obj = self.process_dispatcher.read_process(pid_3)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        # Check that the old process has stopped
+        old_proc_obj = self.process_dispatcher.read_process(pid_2)
+        self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
