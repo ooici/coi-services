@@ -511,30 +511,30 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_replace_data_process_using_sim(self):
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # Create InstrumentModel
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel" )
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # Create InstrumentAgent
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver" )
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # Create InstrumentDevice
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
         instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
         self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # Create InstrumentAgentInstance to hold configuration information
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
 
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
@@ -554,9 +554,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # Create CTD Parsed as the first data product
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # create a stream definition for the data from the ctd simulator
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE32_CDM', parameter_dictionary_id=pdict_id)
@@ -582,9 +582,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # Create CTD Raw as the second data product
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW', parameter_dictionary_id=pdict_id)
 
         dp_obj.name = 'ctd_raw'
@@ -595,9 +595,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # L0 Conductivity - Temperature - Pressure: Data Process Definition
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='ctd_L0_all',
             description='transform ctd package into three separate L0 streams',
@@ -605,9 +605,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             class_name='ctd_L0_all')
         ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # L0 Conductivity - Temperature - Pressure: Output Data Products
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
 
         out_stream_cond_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity', parameter_dictionary_id=pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(out_stream_cond_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
@@ -653,9 +653,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             out_stream_temp_id)
         self.output_products['temperature'] = out_temp_dp_id
 
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
-        #-------------------------------
+        #-------------------------------------------------------------------------------------------------------------
         data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
 
         self.dataprocessclient.activate_data_process(data_process_id)
@@ -669,11 +669,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         process_obj = self.process_dispatcher.read_process(old_pid)
         self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
 
-        #-----------------------------------------------------------------------------
+        ######################################################################
         # Now test the replacing of the data process
-        #-----------------------------------------------------------------------------
+        ######################################################################
 
-        # Change only the data process definition and test if the replace works
+        #-------------------------------------------------------------------------------------------------------------
+        # Change only the data process definition and test if replace_data_process() works
+        #-------------------------------------------------------------------------------------------------------------
         data_process_definition = self.rrclient.read(ctd_L0_all_dprocdef_id)
         data_process_definition.name = 'an updated data process definition'
         data_process_definition.description = 'to test the replace method'
@@ -691,4 +693,32 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
 
         # Check that the old process has stopped
+        old_proc_obj = self.process_dispatcher.read_process(old_pid)
+        self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
 
+        #-------------------------------------------------------------------------------------------------------------
+        # Change only the input subscriptions and test if replace_data_process() works
+        #-------------------------------------------------------------------------------------------------------------
+        new_dp_obj = IonObject(RT.DataProduct,
+            name='new input data product',
+            description='to test replace data process method',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        new_in_dp_id = self.dataproductclient.create_data_product(new_dp_obj, ctd_stream_def_id)
+
+        self.dataprocessclient.replace_data_process( data_process_id=data_process_id, in_data_product_ids= [new_in_dp_id])
+
+        # get the process id from the data process
+        rep_dp_obj = self.rrclient.read(data_process_id)
+        pid_2 = rep_dp_obj.process_id
+
+        self.assertNotEquals(pid_2, pid)
+
+        # Check that the new process is running
+        process_obj = self.process_dispatcher.read_process(pid_2)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        # Check that the old process has stopped
+        old_proc_obj = self.process_dispatcher.read_process(pid)
+        self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
