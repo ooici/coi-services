@@ -417,7 +417,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------------------------------------------
 
         # Before deleting, get the input streams, output streams and the subscriptions so that they can be checked after deleting
-        dp_obj_1 = self.rrclient.read(ctd_l0_all_data_process_id)
+#        dp_obj_1 = self.rrclient.read(ctd_l0_all_data_process_id)
 #        input_subscription_id = dp_obj_1.input_subscription_id
 #        out_prods, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
 #        in_prods, _ = self.rrclient.find_objects(ctd_l0_all_data_process_id, PRED.hasInputProduct, id_only=True)
