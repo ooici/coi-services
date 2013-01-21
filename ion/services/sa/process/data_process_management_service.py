@@ -563,7 +563,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         process_definition_id = procdef_ids[0]
 
         log.info("Relaunching the data process")
-        debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % (data_process_name, output_stream_dict, process_definition_id, configuration)
+        debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % (data_process.name, output_stream_dict, process_definition_id, configuration)
         log.debug(debug_str)
 
         new_pid = self._launch_process(
@@ -572,7 +572,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             process_definition_id=process_definition_id,
             configuration=configuration)
 
-        data_process_obj.process_id = new_pid
+        data_process.process_id = new_pid
         self.clients.resource_registry.update(data_process)
 
     def _find_lookup_tables(self, resource_id="", configuration=None):
