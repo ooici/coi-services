@@ -500,8 +500,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             self.clients.resource_registry.create_association(data_process._id, PRED.hasInputProduct, in_data_product_id)
 
-            log.debug("created the associations")
-
             #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
             instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
 
@@ -515,14 +513,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 for instmodel_id in instmodel_ids:
                     # check for attachments in instrument model
                     configuration = self._find_lookup_tables(instmodel_id, configuration)
-            log.debug("came here!! XX ")
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
         #------------------------------------------------------------------------------------------------------------------------------------------
         input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
-
-        log.debug("got the input stream ids:: %s", input_stream_ids)
 
         #------------------------------------------------------------------------------------------------------------------------------------------
         # Update the subscriptions of the data process
@@ -602,9 +597,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             process_definition_id=process_definition_id,
             configuration=configuration)
 
+        log.debug("On relaunching the data process, got the new process id: %s", new_pid)
+
         data_process.process_id = new_pid
 
         self.clients.resource_registry.update(data_process)
+
+        log.debug("Replaced the old data process object with the new one: %s", data_process)
 
     def _find_lookup_tables(self, resource_id="", configuration=None):
         #check if resource has lookup tables attached
