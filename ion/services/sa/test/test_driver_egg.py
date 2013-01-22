@@ -16,6 +16,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from pyon.core.exception import ServerError
 
 from pyon.public import RT, PRED, CFG
 from pyon.public import IonObject, log
@@ -79,6 +80,9 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         self.event_publisher = EventPublisher()
 
+        self.egg_url_good = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg"
+        self.egg_url_bad  = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1-py2.7.egg"
+        self.egg_url_404  = "http://sddevrepo.oceanobservatories.org/releases/completely_made_up_404.egg"
 
 
 
@@ -107,7 +111,6 @@ class TestDriverEgg(IonIntegrationTestCase):
     #
     ###########################
 
-    #@unittest.skip("for quickness, UNSKIP BEFORE COMMIT")
     def test_driverLaunchModuleNoURI(self):
         raw_config, parsed_config = self.get_streamConfigs()
 
@@ -120,7 +123,6 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         self.base_activateInstrumentSample(instAgent_obj)
 
-    @unittest.skip("Causes error 500 in endpoint")
     def test_driverLaunchModuleWithURI(self):
         raw_config, parsed_config = self.get_streamConfigs()
 
@@ -129,12 +131,11 @@ class TestDriverEgg(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
                                   driver_class="SBE37Driver",
-                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1-py2.7.egg",
+                                  driver_uri=self.egg_url_good,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj)
 
-    @unittest.skip("Causes error 500 in endpoint")
     def test_driverLaunchNoModuleOnlyURI(self):
         raw_config, parsed_config = self.get_streamConfigs()
 
@@ -143,12 +144,11 @@ class TestDriverEgg(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   #driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
                                   #driver_class="SBE37Driver",
-                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1-py2.7.egg",
+                                  driver_uri=self.egg_url_good,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj)
 
-    @unittest.skip("Causes error 500 in endpoint")
     def test_driverLaunchBogusModuleWithURI(self):
         raw_config, parsed_config = self.get_streamConfigs()
 
@@ -157,13 +157,40 @@ class TestDriverEgg(IonIntegrationTestCase):
                                   description="SBE37IMAgent",
                                   driver_module="bogus",
                                   driver_class="Bogus",
-                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1-py2.7.egg",
+                                  driver_uri=self.egg_url_good,
                                   stream_configurations = [raw_config, parsed_config])
 
         self.base_activateInstrumentSample(instAgent_obj)
 
+    @unittest.skip("Launches an egg 'process' even though the egg download should produce error 404")
+    def test_driverLaunchNoModule404URI(self):
+        raw_config, parsed_config = self.get_streamConfigs()
 
-    def base_activateInstrumentSample(self, instAgent_obj):
+        instAgent_obj = IonObject(RT.InstrumentAgent,
+                                  name='agent007',
+                                  description="SBE37IMAgent",
+                                  #driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+                                  #driver_class="SBE37Driver",
+                                  driver_uri=self.egg_url_404,
+                                  stream_configurations = [raw_config, parsed_config])
+
+        self.base_activateInstrumentSample(instAgent_obj, False)
+
+    def test_driverLaunchNoModuleBadEggURI(self):
+        raw_config, parsed_config = self.get_streamConfigs()
+
+        instAgent_obj = IonObject(RT.InstrumentAgent,
+                                  name='agent007',
+                                  description="SBE37IMAgent",
+                                  #driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
+                                  #driver_class="SBE37Driver",
+                                  driver_uri=self.egg_url_bad,
+                                  stream_configurations = [raw_config, parsed_config])
+
+        self.base_activateInstrumentSample(instAgent_obj, True, False)
+
+
+    def base_activateInstrumentSample(self, instAgent_obj, expect_launch=True, expect_command=True):
         """
         This method runs a test of launching a driver with a given agent configuration
         """
@@ -296,6 +323,11 @@ class TestDriverEgg(IonIntegrationTestCase):
                                 instance_obj.agent_process_id,
                                 ProcessStateEnum.RUNNING)
 
+        if not expect_launch:
+            self.assertFalse(gate.await(30), "The instance (%s) of bogus instrument agent spawned in 30 seconds ?!?" %
+                                             instance_obj.agent_process_id)
+            return
+
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
                                         instance_obj.agent_process_id)
 
@@ -314,6 +346,11 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         print "Sending command=ResourceAgentEvent.INITIALIZE"
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+
+        if not expect_command:
+            self.assertRaises(ServerError, self._ia_client.execute_agent, cmd)
+            return
+
         retval = self._ia_client.execute_agent(cmd)
         print "Result of INITIALIZE: %s" % str(retval)
         state = self._ia_client.get_agent_state()
