@@ -489,8 +489,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #------------------------------------------------------------------------------------------------------------------------------------------
         # If input data products have been provided, find the ones already associated to the data process and remove them first before associating the new ones
         #------------------------------------------------------------------------------------------------------------------------------------------
-        _, assocs = self.clients.resource_registry.find_objects(subject=data_process._id, predicate=PRED.hasOutputProduct, id_only=True)
-
+        _, assocs = self.clients.resource_registry.find_objects(subject=data_process._id, predicate=PRED.hasInputProduct, id_only=True)
         [self.clients.resource_registry.delete_association(assoc) for assoc in assocs]
 
         #------------------------------------------------------------------------------------------------------------------------------------------
