@@ -28,7 +28,7 @@ from ion.agents.instrument.packet_factory_man import create_packet_builder
 
 PYTHON_PATH = 'bin/python'
 CACHE_DIR = '/tmp'
-REPO_BASE = 'http://sddevrepo.oceanobservatories.org/releases/'
+REPO_BASE = 'http://sddevrepo.oceanobservatories.org/releases'
 
 class DriverProcessType(BaseEnum):
     """
