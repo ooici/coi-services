@@ -441,23 +441,51 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return pid
 
-    def replace_data_process(self, data_process_id='', data_process_definition= None, in_data_product_ids=None, out_data_products=None, configuration=None):
-
-        configuration = configuration or DotDict()
-
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        # Cancel the running data process. todo: we might have tried just pause here, but right now we have only cancel functionality
-        #------------------------------------------------------------------------------------------------------------------------------------------
-
-        validate_is_not_none(data_process_id, "The id of the data process to be replaced has not been provided.")
-
+    def _cancel_process(self, data_process_id = ''):
         data_process = self.clients.resource_registry.read(data_process_id)
         process_id = data_process.process_id
         self.clients.process_dispatcher.cancel_process(process_id)
 
+        # return data process object whose process is cancelled
+        return data_process
+
+    def _update_out_data_products(self, data_process_id = '', out_data_products = None, data_process_definition = None, output_stream_dict = None):
         #------------------------------------------------------------------------------------------------------------------------------------------
-        # Update stuff.... before restarting the process
+        # If out_data_products have been provided, find the ones already associated to the data process and remove them first before associate the new ones
         #------------------------------------------------------------------------------------------------------------------------------------------
+        assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
+
+        [self.clients.resource_registry.delete_association(assoc) for assoc in assocs]
+
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # Now get the new data products in
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        for binding, output_data_product_id in out_data_products.iteritems():
+
+            # check that the product is not already associated with a producer
+            producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+            if producer_ids:
+                raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDataProducer %s", str(data_process_id), str(producer_ids[0]))
+
+            # Associate with DataProcess: register as an output product for this process
+            log.debug("Link data process %s and output out data product: %s  (L4-CI-SA-RQ-260)", str(data_process_id), str(output_data_product_id))
+            self.clients.data_acquisition_management.assign_data_product(input_resource_id= data_process_id,data_product_id= output_data_product_id)
+
+            # Retrieve the id of the OUTPUT stream from the out Data Product
+            stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
+
+            if not stream_ids:
+                raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
+
+            if len(stream_ids) != 1:
+                raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
+
+            output_stream_dict[binding] = stream_ids[0]
+
+        data_process_definition.output_bindings = output_stream_dict
+        self.clients.resource_registry.update(data_process_definition)
+
+    def _update_data_process_params(self, data_process = None, data_process_definition= None, in_data_product_ids=None, out_data_products=None, configuration=None):
 
         # Get the new data process definition containing module, class etc to run
         if data_process_definition:
@@ -466,7 +494,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             # Check for attachments in data process definition and put them into the configuration
             configuration = self._find_lookup_tables(data_process_definition._id, configuration)
         else:
-            data_proc_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=True )
+            data_proc_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process._id, predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=True )
             data_process_definition = self.clients.resource_registry.read(data_proc_def_ids[0])
 
         data_process_definition_id = data_process_definition._id
@@ -475,44 +503,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         if out_data_products:
 
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            # If out_data_products have been provided, find the ones already associated to the data process and remove them first before associate the new ones
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
-
-            [self.clients.resource_registry.delete_association(assoc) for assoc in assocs]
-
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            # Now get the new data products in
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            for binding, output_data_product_id in out_data_products.iteritems():
-
-                # check that the product is not already associated with a producer
-                producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
-                if producer_ids:
-                    raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDataProducer %s", str(data_process_id), str(producer_ids[0]))
-
-                # Associate with DataProcess: register as an output product for this process
-                log.debug("Link data process %s and output out data product: %s  (L4-CI-SA-RQ-260)", str(data_process_id), str(output_data_product_id))
-                self.clients.data_acquisition_management.assign_data_product(input_resource_id= data_process_id,data_product_id= output_data_product_id)
-
-                # Retrieve the id of the OUTPUT stream from the out Data Product
-                stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
-
-                if not stream_ids:
-                    raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
-
-                if len(stream_ids) != 1:
-                    raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
-
-                output_stream_dict[binding] = stream_ids[0]
-
-            data_process_definition.output_bindings = output_stream_dict
-            self.clients.resource_registry.update(data_process_definition)
+            self._update_out_data_products(data_process._id, out_data_products, data_process_definition, output_stream_dict)
 
         else:
             # Get the original output stream dict from the data process definition attribute, output_binding
-            dp_def_ids, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasProcessDefinition, RT.DataProcessDefinition, True)
+            dp_def_ids, _ = self.clients.resource_registry.find_objects(data_process._id, PRED.hasProcessDefinition, RT.DataProcessDefinition, True)
             data_process_definition = self.clients.resource_registry.read(dp_def_ids[0])
 
             output_stream_dict = data_process_definition.output_bindings
@@ -521,7 +516,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             #------------------------------------------------------------------------------------------------------------------------------------------
             # If input data products have been provided, find the ones already associated to the data process and remove them first before associating the new ones
             #------------------------------------------------------------------------------------------------------------------------------------------
-            _, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
+            _, assocs = self.clients.resource_registry.find_objects(subject=data_process._id, predicate=PRED.hasOutputProduct, id_only=True)
 
             [self.clients.resource_registry.delete_association(assoc) for assoc in assocs]
 
@@ -530,7 +525,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             #------------------------------------------------------------------------------------------------------------------------------------------
             for  in_data_product_id in in_data_product_ids:
 
-                self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
+                self.clients.resource_registry.create_association(data_process._id, PRED.hasInputProduct, in_data_product_id)
 
                 log.debug("created the associations")
 
@@ -559,8 +554,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             #------------------------------------------------------------------------------------------------------------------------------------------
             # Update the subscriptions of the data process
             #------------------------------------------------------------------------------------------------------------------------------------------
-            self.update_data_process_inputs(data_process_id=data_process_id, in_stream_ids= input_stream_ids)
-            data_process = self.clients.resource_registry.read(data_process_id)
+            self.update_data_process_inputs(data_process_id=data_process._id, in_stream_ids= input_stream_ids)
+            data_process = self.clients.resource_registry.read(data_process._id)
 
         procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
         if not procdef_ids:
@@ -568,8 +563,32 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         process_definition_id = procdef_ids[0]
 
+        return data_process, output_stream_dict, process_definition_id, configuration
+
+    def replace_data_process(self, data_process_id='', data_process_definition= None, in_data_product_ids=None, out_data_products=None, configuration=None):
+
+        configuration = configuration or DotDict()
+
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # Cancel the running data process. todo: we might have tried just pause here, but right now we have only cancel functionality
+        #------------------------------------------------------------------------------------------------------------------------------------------
+
+        validate_is_not_none(data_process_id, "The id of the data process to be replaced has not been provided.")
+        data_process = self._cancel_process(data_process_id)
+
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # Update stuff.... before restarting the process
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        data_process, output_stream_dict, process_definition_id, configuration \
+        = self._update_data_process_params(data_process, data_process_definition, in_data_product_ids, out_data_products, configuration)
+
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # Relaunch the data process
+        #------------------------------------------------------------------------------------------------------------------------------------------
+
         log.info("Relaunching the data process")
-        debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % (data_process.name, output_stream_dict, process_definition_id, configuration)
+        debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % \
+                    (data_process.name, output_stream_dict, process_definition_id, configuration)
         log.debug(debug_str)
 
         new_pid = self._launch_process(
@@ -579,6 +598,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             configuration=configuration)
 
         data_process.process_id = new_pid
+
         self.clients.resource_registry.update(data_process)
 
     def _find_lookup_tables(self, resource_id="", configuration=None):
