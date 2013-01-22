@@ -28,7 +28,7 @@ from ion.agents.instrument.packet_factory_man import create_packet_builder
 
 PYTHON_PATH = 'bin/python'
 CACHE_DIR = '/tmp'
-REPO_BASE = 'http://sddevrepo.oceanobservatories.org/releases/'
+REPO_BASE = 'http://sddevrepo.oceanobservatories.org/releases'
 
 class DriverProcessType(BaseEnum):
     """
@@ -72,10 +72,13 @@ class DriverProcess(object):
         #
         #
         elif type == DriverProcessType.PYTHON_MODULE:
+            log.debug("DriverProcessType.PYTHON_MODULE")
             return ZMQPyClassDriverProcess(driver_config, test_mode)
 
         elif type == DriverProcessType.EGG:
+            log.debug("DriverProcessType.EGG")
             return ZMQEggDriverProcess(driver_config, test_mode)
+
         else:
             raise DriverLaunchException("unknown driver process type: %s" % type)
 
@@ -347,17 +350,36 @@ class ZMQEggDriverProcess(DriverProcess):
         self.config = driver_config
         self.test_mode = test_mode
 
+    def _egg_path(self, egg_name):
+        log.debug("_egg_path")
+        if not CACHE_DIR:
+            raise ServerError("CACHE_DIR is %s'%s'" % (type(CACHE_DIR), CACHE_DIR))
+        elif not egg_name:
+            raise ServerError("egg_name for path is %s'%s'" % (type(egg_name), egg_name))
+
+        return CACHE_DIR + "/" + egg_name
+
+    def _egg_remotepath(self, egg_name):
+        log.debug("_egg_remotepath" + str(egg_name))
+        if not REPO_BASE:
+            raise ServerError("REPO_BASE is %s'%s'" % (type(REPO_BASE), REPO_BASE))
+        elif not egg_name:
+            raise ServerError("egg_name for remotepath is %s'%s'" % (type(egg_name), egg_name))
+
+        return REPO_BASE + "/" + egg_name
+
     def _check_cache_for_egg(self, egg_name):
         """
         Check if the egg is already cached, if so, return the path.
         @return: egg path if cached, else None
         """
-        path = CACHE_DIR + '/' + egg_name
+        log.debug("_check_cache_for_egg" + str(egg_name))
+        path = self._egg_path(egg_name)
         if os.path.exists(path):
             log.debug("_check_cache_for_egg cache hit PATH = " + str(path))
             return path
         else:
-            log.debug("_check_cache_for_egg cache miss")
+            log.debug("_check_cache_for_egg cache miss" + str(path))
             return None
 
     def _get_remote_egg(self, egg_name):
@@ -365,19 +387,24 @@ class ZMQEggDriverProcess(DriverProcess):
         pull the egg from a remote server if present to the local cache dir.
         @return: returns the path, throws exception if not found.
         """
+        log.debug("_get_remote_egg1" + str(egg_name))
         try:
-            response = urlopen(REPO_BASE + '/' + egg_name)
+            if egg_name.startswith("http://"):
+                response = urlopen(egg_name)
+            else:
+                response = urlopen(self._egg_remotepath(egg_name))
             egg_yolk = response.read()
             log.debug("_fetch_egg GOT YOLK")
         except HTTPError, e:
             raise DriverLaunchException(e.code)
         except URLError, e:
             raise DriverLaunchException(e.reason)
-
-        path = CACHE_DIR + '/' + egg_name
-
+        
+        filename = get_filename_from_uri(egg_name)
+        path = self._egg_path(filename)
+        log.debug("PATH = " + str(path))
         try:
-            egg_file = open(CACHE_DIR + '/' + egg_name, "wb")
+            egg_file = open(path, "wb")
             egg_file.write(egg_yolk)
         except IOError:
             raise DriverLaunchException("IOError writing egg file to cache")
@@ -387,10 +414,12 @@ class ZMQEggDriverProcess(DriverProcess):
         log.debug("_fetch_egg GOT EGG, PATH = " + str(path))
         return path
 
-    def _get_egg(self, egg_name):
-        path = self._check_cache_for_egg(egg_name)
+    def _get_egg(self, egg_uri):
+        filename = get_filename_from_uri(egg_uri)
+        log.debug("_get_egg" + str(filename))
+        path = self._check_cache_for_egg(filename)
         if None == path:
-            path = self._get_remote_egg(egg_name) # Will exception out if problem.
+            path = self._get_remote_egg(filename) # Will exception out if problem.
 
         return path
 
@@ -405,6 +434,7 @@ class ZMQEggDriverProcess(DriverProcess):
         """
 
         path = self._get_egg(self.config.get('dvr_egg'))
+        log.debug("_process_command" + str(path))
 
         log.debug("cwd: %s" % os.getcwd())
         driver_package = self.config.get('dvr_egg')
@@ -421,7 +451,10 @@ class ZMQEggDriverProcess(DriverProcess):
         evt_port_fname = self._driver_event_port_file()
 
         cmd_str = "import sys; sys.path.insert(0, '%s/%s'); from mi.main import run; sys.exit(run(command_port_file='%s', event_port_file='%s', ppid=%s))" % \
-                  (CACHE_DIR, driver_package, cmd_port_fname, evt_port_fname, str(ppid))
+                  (CACHE_DIR, get_filename_from_uri(driver_package), cmd_port_fname, evt_port_fname, str(ppid))
 
         return [ python, '-c', cmd_str ]
 
+def get_filename_from_uri(uri):
+    (base, seperator, filename) = uri.rpartition('/')
+    return filename
