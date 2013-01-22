@@ -696,6 +696,22 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         old_proc_obj = self.process_dispatcher.read_process(old_pid)
         self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
 
+        # Assert that the data process definition has changed
+        process_def_ids, _ = self.rrclient.find_objects(data_process_id, PRED.hasProcessDefinition)
+
+        self.assertEquals(len(process_def_ids), 1)
+        self.assertEquals(process_def_ids[0]._id, ctd_L0_all_dprocdef_id)
+        self.assertEquals(process_def_ids[0].name, data_process_definition.name)
+        self.assertEquals(process_def_ids[0].description, data_process_definition.description)
+
+        # Assert that the input and output subscriptions are unchanged
+        output_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasOutputProduct)
+        [self.assertTrue(out_dp._id in self.output_products.values()) for out_dp in output_dps]
+
+        input_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasInputProduct)
+        self.assertEquals(input_dps[0]._id, ctd_parsed_data_product)
+        self.assertEquals(len(input_dps), 1)
+
         #-------------------------------------------------------------------------------------------------------------
         # Change only the input subscriptions and test if replace_data_process() works
         #-------------------------------------------------------------------------------------------------------------
