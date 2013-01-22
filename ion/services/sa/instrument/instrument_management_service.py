@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ion.agents.instrument.driver_process import DriverProcessType
 
 __author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
 
@@ -505,7 +506,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                             'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
                                                             }
 
-        log.debug("IMS:_generate_stream_config: %s", str(stream_config_too) )
+        log.trace("IMS:_generate_stream_config: %s", str(stream_config_too) )
         return stream_config_too
 
 
@@ -528,15 +529,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         stream_config = self._generate_stream_config(instrument_device_id, instrument_agent_instance_obj)
 
         # Create driver config.
-
         driver_config = {
-            'dvr_mod' : instrument_agent_obj.driver_module,
-            'dvr_cls' : instrument_agent_obj.driver_class,
-            'workdir' : tempfile.gettempdir(),
-            'process_type' : ('ZMQPyClassDriverLauncher',),
+            'workdir'      : tempfile.gettempdir(),
             'comms_config' : instrument_agent_instance_obj.driver_config.get('comms_config'),
-            'pagent_pid' : instrument_agent_instance_obj.driver_config.get('pagent_pid')
+            'pagent_pid'   : instrument_agent_instance_obj.driver_config.get('pagent_pid'),
+            'dvr_mod'      : instrument_agent_obj.driver_module,
+            'dvr_cls'      : instrument_agent_obj.driver_class
         }
+
+        if instrument_agent_obj.driver_uri:
+            driver_config['process_type'] = (DriverProcessType.EGG,)
+            driver_config['dvr_egg'] = instrument_agent_obj.driver_uri
+        else:
+            driver_config['process_type'] = (DriverProcessType.PYTHON_MODULE,)
 
         # Create agent config.
         agent_config = {
