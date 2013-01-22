@@ -485,6 +485,53 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_definition.output_bindings = output_stream_dict
         self.clients.resource_registry.update(data_process_definition)
 
+    def _update_input_data_products(self, data_process = None, in_data_product_ids = None, configuration = None):
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # If input data products have been provided, find the ones already associated to the data process and remove them first before associating the new ones
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        _, assocs = self.clients.resource_registry.find_objects(subject=data_process._id, predicate=PRED.hasOutputProduct, id_only=True)
+
+        [self.clients.resource_registry.delete_association(assoc) for assoc in assocs]
+
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # Now get the new input data products
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        for  in_data_product_id in in_data_product_ids:
+
+            self.clients.resource_registry.create_association(data_process._id, PRED.hasInputProduct, in_data_product_id)
+
+            log.debug("created the associations")
+
+            #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
+            instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
+
+            for instdevice_id in instdevice_ids:
+                log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
+
+                # check for attachments in instrument device
+                configuration = self._find_lookup_tables(instdevice_id, configuration)
+                instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
+
+                for instmodel_id in instmodel_ids:
+                    # check for attachments in instrument model
+                    configuration = self._find_lookup_tables(instmodel_id, configuration)
+            log.debug("came here!! XX ")
+
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
+
+        log.debug("got the input stream ids:: %s", input_stream_ids)
+
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        # Update the subscriptions of the data process
+        #------------------------------------------------------------------------------------------------------------------------------------------
+        self.update_data_process_inputs(data_process_id=data_process._id, in_stream_ids= input_stream_ids)
+        data_process = self.clients.resource_registry.read(data_process._id)
+
+        return data_process, configuration
+
     def _update_data_process_params(self, data_process = None, data_process_definition= None, in_data_product_ids=None, out_data_products=None, configuration=None):
 
         # Get the new data process definition containing module, class etc to run
@@ -513,49 +560,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             output_stream_dict = data_process_definition.output_bindings
 
         if in_data_product_ids:
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            # If input data products have been provided, find the ones already associated to the data process and remove them first before associating the new ones
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            _, assocs = self.clients.resource_registry.find_objects(subject=data_process._id, predicate=PRED.hasOutputProduct, id_only=True)
-
-            [self.clients.resource_registry.delete_association(assoc) for assoc in assocs]
-
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            # Now get the new input data products
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            for  in_data_product_id in in_data_product_ids:
-
-                self.clients.resource_registry.create_association(data_process._id, PRED.hasInputProduct, in_data_product_id)
-
-                log.debug("created the associations")
-
-                #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
-                instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
-
-                for instdevice_id in instdevice_ids:
-                    log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
-
-                    # check for attachments in instrument device
-                    configuration = self._find_lookup_tables(instdevice_id, configuration)
-                    instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
-
-                    for instmodel_id in instmodel_ids:
-                        # check for attachments in instrument model
-                        configuration = self._find_lookup_tables(instmodel_id, configuration)
-                log.debug("came here!! XX ")
-
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
-
-            log.debug("got the input stream ids:: %s", input_stream_ids)
-
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            # Update the subscriptions of the data process
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            self.update_data_process_inputs(data_process_id=data_process._id, in_stream_ids= input_stream_ids)
-            data_process = self.clients.resource_registry.read(data_process._id)
+            data_process, configuration = self._update_input_data_products(data_process, in_data_product_ids, configuration)
 
         procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
         if not procdef_ids:
