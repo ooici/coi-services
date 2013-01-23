@@ -656,7 +656,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def update_data_process(self,):
         #todo: What are valid ways to update a data process?.
 
-        return
+        raise NotImplementedError()
 
     def read_data_process(self, data_process_id=""):
 
