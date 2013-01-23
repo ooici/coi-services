@@ -998,7 +998,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         return False
 
-    def is_resource_acquired(self, user_id, resource_id):
+    def is_resource_acquired(self, resource_id):
         return self.is_resource_acquired(None, resource_id)
 
     def is_resource_acquired(self, user_id, resource_id):

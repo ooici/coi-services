@@ -417,6 +417,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
 
     #@unittest.skip("in development...")
+    @attr('EXT')
     def test_observatory_org_extended(self):
 
         stuff = self._make_associations()
