@@ -8,7 +8,7 @@
 from pyon.public import PRED, RT
 from pyon.util.arg_check import validate_is_instance, validate_true
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
-from interface.objects import IngestionConfiguration, IngestionQueue
+from interface.objects import IngestionConfiguration, IngestionQueue, ProcessSchedule, ProcessRestartMode
 from pyon.core.exception import BadRequest
 from pyon.util.log import log
 from pyon.util.containers import DotDict
@@ -113,7 +113,10 @@ class IngestionManagementService(BaseIngestionManagementService):
         for xn_id in xn_ids:
             self.clients.resource_registry.create_association(xn_id, PRED.hasIngestionWorker, process_id)
 
-        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, process_id=process_id, configuration=config)
+        schedule = ProcessSchedule()
+        schedule.restart_mode = ProcessRestartMode.ABNORMAL
+
+        self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,schedule=schedule,process_id=process_id, configuration=config)
 
     def kill_worker(self, subscription_id):
         for xn_obj in self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=False)[0]:
