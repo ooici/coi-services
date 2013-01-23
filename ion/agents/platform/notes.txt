@@ -8,6 +8,9 @@ some noteworthy notes (occasionaly updated)
   test suite might be even better):
   bin/nosetests --with-coverage --cover-package=ion.agents.platform ion/agents/platform ion/services/sa/observatory/test/test_oms_launch2.py
 
+2013-01-22
+- fix OOIION-674 Set resource_type in Platform Agent to be PlatformDevice.
+
 2013-01-11
 - OOIION-631 Use system time (get_ion_ts and similar) instead of NTP
   - get_resource and set_resource adjusted.
