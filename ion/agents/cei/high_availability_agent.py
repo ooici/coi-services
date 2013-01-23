@@ -211,11 +211,15 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                     self.logprefix)
                 try:
                     self.control.reload_processes()
-                except Exception:
+                except (Exception, gevent.Timeout) as e:
                     log.warn("%sFailed to reload processes from PD. Will retry later.",
                         self.logprefix, exc_info=True)
 
-            self._apply_policy()
+            try:
+                self._apply_policy()
+            except (Exception, gevent.Timeout) as e:
+                log.warn("%sFailed to apply policy. Will retry later.",
+                    self.logprefix, exc_info=True)
 
     def _apply_policy(self):
 

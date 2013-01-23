@@ -11,7 +11,7 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from pyon.public import log
+from pyon.public import log, RT
 from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentState
@@ -119,6 +119,10 @@ class PlatformAgent(ResourceAgent):
     def __init__(self):
         log.info("PlatformAgent constructor called")
         ResourceAgent.__init__(self)
+
+        #This is the type of Resource managed by this agent
+        self.resource_type = RT.PlatformDevice
+
         self._plat_config = None
         self._platform_id = None
         self._topology = None

@@ -9,18 +9,21 @@ from random import randint
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
 from uuid import uuid4
+from mock import Mock, patch, DEFAULT
 
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.public import log, RT, IonObject
 from pyon.service.service import BaseService
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
+from pyon.util.unit_test import PyonTestCase
+from pyon.util.containers import DotDict
 from pyon.core import bootstrap
 from pyon.core.exception import BadRequest
 from pyon.core import bootstrap
 from pyon.public import CFG
 
-from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient
+from ion.agents.cei.high_availability_agent import HighAvailabilityAgentClient, HighAvailabilityAgent
 from ion.services.cei.test import ProcessStateWaiter, get_dashi_uri_from_cfg
 
 from interface.services.icontainer_agent import ContainerAgentClient
@@ -337,6 +340,85 @@ class HighAvailabilityAgentTest(IonIntegrationTestCase):
         new_policy = {'preserve_n': 0}
         self.haa_client.reconfigure_policy(new_policy)
         self.await_ha_state('STEADY')
+
+
+@attr('UNIT', group='cei')
+class HAAgentMockTest(PyonTestCase):
+    """Tests which mock out parts of the HA Agent
+    """
+
+    def setUp(self):
+        self.ha_agent = HighAvailabilityAgent()
+        self.ha_agent.container = DotDict()
+        self.ha_agent.CFG = DotDict()
+        self.ha_agent.CFG.highavailability = DotDict()
+        self.ha_agent.CFG.highavailability.policy = DotDict()
+        self.ha_agent.CFG.highavailability.policy.name = 'npreserving'
+        self.ha_agent.CFG.highavailability.policy.interval = 1
+        self.ha_agent.CFG.highavailability.policy.parameters = {'preserve_n': 0}
+        self.ha_agent.CFG.highavailability.process_definition_id = 'myprocdef'
+        service_id = 'ha_agent'
+        definition_name = 'mydef'
+        self.ha_agent._register_service = Mock(return_value=(service_id, definition_name))
+
+        self.ha_agent.container['resource_registry'] = Mock()
+        service = DotDict()
+        service.state = 'state'
+        self.ha_agent.container.resource_registry.read = Mock()
+        self.ha_agent.container.resource_registry.update = Mock()
+
+        self.ha_agent.init()
+
+        self.ha_agent.control = Mock()
+        self.ha_agent.control.get_all_processes = Mock(return_value={})
+        self.ha_agent.control.reload_processes = Mock()
+        self.ha_agent.core.control = self.ha_agent.control
+
+        self.policy_thread = gevent.spawn(self.ha_agent._policy_thread_loop)
+
+        self.threads = [self.policy_thread]
+
+    def tearDown(self):
+        for thread in self.threads:
+            thread.kill()
+
+    def test_policy_crash(self):
+        """test_policy_crash
+        This test ensures that the policy thread will catch any exceptions
+        arising from deep inside HA Agent
+        """
+
+
+        # First make reload_processes raise an Exception
+        self.ha_agent.control.reload_processes = Mock(side_effect=ValueError)
+
+        while not self.ha_agent.control.reload_processes.called:
+            gevent.sleep(0.5)
+        self.assertFalse(self.policy_thread.dead)
+
+        # Next make reload_processes raise a Timeout, not derived from Exception
+        self.ha_agent.control.reload_processes = Mock(side_effect=gevent.Timeout)
+
+        while not self.ha_agent.control.reload_processes.called:
+            gevent.sleep(0.5)
+        self.assertFalse(self.policy_thread.dead)
+
+        self.ha_agent.control.reload_processes = Mock()
+
+        # Next make apply_policy raise an Exception
+        self.ha_agent.control.get_all_processes = Mock(side_effect=ValueError)
+
+        while not self.ha_agent.control.get_all_processes.called:
+            gevent.sleep(0.5)
+        self.assertFalse(self.policy_thread.dead)
+
+        # Next make apply_policy raise a Timeout
+        self.ha_agent.control.get_all_processes = Mock(side_effect=gevent.Timeout)
+
+        while not self.ha_agent.control.get_all_processes.called:
+            gevent.sleep(0.5)
+        self.assertFalse(self.policy_thread.dead)
+
 
 
 @attr('INT', group='cei')

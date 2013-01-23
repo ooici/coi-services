@@ -51,7 +51,7 @@ from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType
+from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType, ProcessSchedule, ProcessRestartMode
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 
@@ -614,8 +614,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_obj.driver_config = driver_config
 
+        process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL)
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
-                                                                      schedule=None,
+                                                                      schedule=process_schedule,
                                                                       configuration=agent_config)
         #update the producer context for provenance
         #todo: should get the time from process dispatcher
