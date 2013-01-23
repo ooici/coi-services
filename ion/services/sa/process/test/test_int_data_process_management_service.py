@@ -230,18 +230,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
 
-
-        port_agent_config = {
-            'device_addr': 'sbe37-simulator.oceanobservatories.org',
-            'device_port': 4001,
-            'process_type': PortAgentProcessType.UNIX,
-            'binary_path': "port_agent",
-            'command_port': 4002,
-            'data_port': 4003,
-            'log_level': 5,
-        }
-
-
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
             'device_port':  CFG.device.sbe37.port,
@@ -518,3 +506,332 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound):
             self.rrclient.read(ctd_l0_all_data_process_id)
+
+
+    @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+    def test_replace_data_process_using_sim(self):
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Create InstrumentModel
+        #-------------------------------------------------------------------------------------------------------------
+        instModel_obj = IonObject(RT.InstrumentModel, name='SBE37IMModel', description="SBE37IMModel" )
+        instModel_id = self.imsclient.create_instrument_model(instModel_obj)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Create InstrumentAgent
+        #-------------------------------------------------------------------------------------------------------------
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver" )
+        instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
+
+        self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Create InstrumentDevice
+        #-------------------------------------------------------------------------------------------------------------
+        instDevice_obj = IonObject(RT.InstrumentDevice, name='SBE37IMDevice', description="SBE37IMDevice", serial_number="12345" )
+        instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
+        self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Create InstrumentAgentInstance to hold configuration information
+        #-------------------------------------------------------------------------------------------------------------
+
+        port_agent_config = {
+            'device_addr':  CFG.device.sbe37.host,
+            'device_port':  CFG.device.sbe37.port,
+            'process_type': PortAgentProcessType.UNIX,
+            'binary_path': "port_agent",
+            'port_agent_addr': 'localhost',
+            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+            'data_port': CFG.device.sbe37.port_agent_data_port,
+            'log_level': 5,
+            'type': PortAgentType.ETHERNET
+        }
+
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
+            comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
+            port_agent_config = port_agent_config)
+        instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
+
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Create CTD Parsed as the first data product
+        #-------------------------------------------------------------------------------------------------------------
+        # create a stream definition for the data from the ctd simulator
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE32_CDM', parameter_dictionary_id=pdict_id)
+
+        # Construct temporal and spatial Coordinate Reference System objects
+        tdom, sdom = time_series_domain()
+
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='ctd_parsed',
+            description='ctd stream test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        ctd_parsed_data_product = self.dataproductclient.create_data_product(dp_obj, ctd_stream_def_id)
+
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_parsed_data_product)
+
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.rrclient.find_objects(ctd_parsed_data_product, PRED.hasStream, None, True)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Create CTD Raw as the second data product
+        #-------------------------------------------------------------------------------------------------------------
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='SBE37_RAW', parameter_dictionary_id=pdict_id)
+
+        dp_obj.name = 'ctd_raw'
+        ctd_raw_data_product = self.dataproductclient.create_data_product(dp_obj, raw_stream_def_id)
+
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=ctd_raw_data_product)
+
+        # Retrieve the id of the OUTPUT stream from the out Data Product
+        stream_ids, _ = self.rrclient.find_objects(ctd_raw_data_product, PRED.hasStream, None, True)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # L0 Conductivity - Temperature - Pressure: Data Process Definition
+        #-------------------------------------------------------------------------------------------------------------
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name='ctd_L0_all',
+            description='transform ctd package into three separate L0 streams',
+            module='ion.processes.data.transforms.ctd.ctd_L0_all',
+            class_name='ctd_L0_all')
+        ctd_L0_all_dprocdef_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # L0 Conductivity - Temperature - Pressure: Output Data Products
+        #-------------------------------------------------------------------------------------------------------------
+
+        out_stream_cond_id = self.pubsubclient.create_stream_definition(name='L0_Conductivity', parameter_dictionary_id=pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(out_stream_cond_id, ctd_L0_all_dprocdef_id, binding='conductivity' )
+
+        out_stream_pres_id = self.pubsubclient.create_stream_definition(name='L0_Pressure', parameter_dictionary_id=pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(out_stream_pres_id, ctd_L0_all_dprocdef_id, binding='pressure' )
+
+        out_stream_temp_id = self.pubsubclient.create_stream_definition(name='L0_Temperature', parameter_dictionary_id=pdict_id)
+        self.dataprocessclient.assign_stream_definition_to_data_process_definition(out_stream_temp_id, ctd_L0_all_dprocdef_id, binding='temperature' )
+
+
+        self.output_products={}
+
+        out_cond_dp_obj = IonObject(  RT.DataProduct,
+            name='L0_Conductivity',
+            description='transform output conductivity',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+
+        out_cond_dp_id = self.dataproductclient.create_data_product(out_cond_dp_obj,
+            out_stream_cond_id)
+        self.output_products['conductivity'] = out_cond_dp_id
+
+        out_pres_dp_obj = IonObject(RT.DataProduct,
+            name='L0_Pressure',
+            description='transform output pressure',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        out_pres_dp_id = self.dataproductclient.create_data_product(out_pres_dp_obj,
+            out_stream_pres_id)
+        self.output_products['pressure'] = out_pres_dp_id
+
+        out_temp_dp_obj = IonObject(RT.DataProduct,
+            name='L0_Temperature',
+            description='transform output temperature',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+
+        out_temp_dp_id = self.dataproductclient.create_data_product(out_temp_dp_obj,
+            out_stream_temp_id)
+        self.output_products['temperature'] = out_temp_dp_id
+
+        #-------------------------------------------------------------------------------------------------------------
+        # L0 Conductivity - Temperature - Pressure: Create the data process
+        #-------------------------------------------------------------------------------------------------------------
+        data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+
+        self.dataprocessclient.activate_data_process(data_process_id)
+
+        data_process = self.rrclient.read(data_process_id)
+        input_subscription_id = data_process.input_subscription_id
+        subs = self.rrclient.read(input_subscription_id)
+        self.assertTrue(subs.activated)
+
+        old_pid =  data_process.process_id
+        process_obj = self.process_dispatcher.read_process(old_pid)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        ######################################################################
+        # Now test the replacing of the data process
+        ######################################################################
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Change only the data process definition and test if replace_data_process() works
+        #-------------------------------------------------------------------------------------------------------------
+        data_process_definition = self.rrclient.read(ctd_L0_all_dprocdef_id)
+        data_process_definition.name = 'an updated data process definition'
+        data_process_definition.description = 'to test the replace method'
+
+        self.dataprocessclient.replace_data_process( data_process_id=data_process_id, data_process_definition= data_process_definition)
+
+        # get the process id from the data process
+        rep_dp_obj = self.rrclient.read(data_process_id)
+        pid = rep_dp_obj.process_id
+
+        self.assertNotEquals(pid, old_pid)
+
+        # Check that the new process is running
+        process_obj = self.process_dispatcher.read_process(pid)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        # Check that the old process has stopped
+        old_proc_obj = self.process_dispatcher.read_process(old_pid)
+        self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
+
+        # Assert that the data process definition has changed
+        process_def_ids, _ = self.rrclient.find_objects(data_process_id, PRED.hasProcessDefinition)
+
+        self.assertEquals(len(process_def_ids), 1)
+        self.assertEquals(process_def_ids[0]._id, ctd_L0_all_dprocdef_id)
+        self.assertEquals(process_def_ids[0].name, data_process_definition.name)
+        self.assertEquals(process_def_ids[0].description, data_process_definition.description)
+
+        # Assert that the input and output subscriptions are unchanged
+        output_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasOutputProduct)
+        [self.assertTrue(out_dp._id in self.output_products.values()) for out_dp in output_dps]
+
+        input_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasInputProduct)
+        self.assertEquals(input_dps[0]._id, ctd_parsed_data_product)
+        self.assertEquals(len(input_dps), 1)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Change only the input subscriptions and test if replace_data_process() works
+        #-------------------------------------------------------------------------------------------------------------
+        new_dp_obj = IonObject(RT.DataProduct,
+            name='new input data product',
+            description='to test replace data process method',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        new_in_dp_id = self.dataproductclient.create_data_product(new_dp_obj, ctd_stream_def_id)
+
+        self.dataprocessclient.replace_data_process( data_process_id=data_process_id, in_data_product_ids= [new_in_dp_id])
+
+        # get the process id from the data process
+        rep_dp_obj = self.rrclient.read(data_process_id)
+        pid_2 = rep_dp_obj.process_id
+
+        self.assertNotEquals(pid_2, pid)
+
+        # Check that the new process is running
+        process_obj = self.process_dispatcher.read_process(pid_2)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        # Check that the old process has stopped
+        old_proc_obj = self.process_dispatcher.read_process(pid)
+        self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
+
+        # Assert that the data process definition has NOT changed
+        process_def_ids, _ = self.rrclient.find_objects(data_process_id, PRED.hasProcessDefinition)
+        old_data_process_def = self.rrclient.read(ctd_L0_all_dprocdef_id)
+
+        self.assertEquals(len(process_def_ids), 1)
+        self.assertEquals(process_def_ids[0]._id, ctd_L0_all_dprocdef_id)
+        self.assertEquals(process_def_ids[0].name, old_data_process_def.name)
+        self.assertEquals(process_def_ids[0].description, old_data_process_def.description)
+
+        # Assert that the output subscriptions have NOT changed
+        output_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasOutputProduct)
+        [self.assertTrue(out_dp._id in self.output_products.values()) for out_dp in output_dps]
+
+        # Assert that the input subscription has changed to the new one
+        input_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasInputProduct)
+        self.assertEquals(input_dps[0]._id, new_in_dp_id)
+        self.assertEquals(len(input_dps), 1)
+        self.assertEquals( input_dps[0].name, new_dp_obj.name)
+        self.assertEquals( input_dps[0].description, new_dp_obj.description)
+
+        #-------------------------------------------------------------------------------------------------------------
+        # Change only the output data products for the data process and use the replace_data_process()
+        #-------------------------------------------------------------------------------------------------------------
+        self.output_products={}
+
+        dp_1 = IonObject(  RT.DataProduct,
+            name='new out data product 1',
+            description='to test replace_data_process()',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dp_id_1 = self.dataproductclient.create_data_product(dp_1,
+            out_stream_cond_id)
+
+        self.output_products['conductivity'] = dp_id_1
+
+        dp_2 = IonObject(RT.DataProduct,
+            name='new out data product 2',
+            description='to test replace_data_process()',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        dp_id_2 = self.dataproductclient.create_data_product(dp_2,
+            out_stream_pres_id)
+
+        self.output_products['pressure'] = dp_id_2
+
+        dp_3 = IonObject(RT.DataProduct,
+            name='new data product',
+            description='for test',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+
+        dp_id_3 = self.dataproductclient.create_data_product(dp_3,
+            out_stream_temp_id)
+        self.output_products['temperature'] = dp_id_3
+
+        self.dataprocessclient.replace_data_process( data_process_id=data_process_id, out_data_products=self.output_products)
+
+        # get the process id from the data process
+        rep_dp_obj = self.rrclient.read(data_process_id)
+        pid_3 = rep_dp_obj.process_id
+
+        self.assertNotEquals(pid_3, pid_2)
+
+        # Check that the new process is running
+        process_obj = self.process_dispatcher.read_process(pid_3)
+        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
+
+        # Check that the old process has stopped
+        old_proc_obj = self.process_dispatcher.read_process(pid_2)
+        self.assertEquals(old_proc_obj.process_state, ProcessStateEnum.TERMINATED)
+
+        # Assert that the data process definition has NOT changed
+        process_def_ids, _ = self.rrclient.find_objects(data_process_id, PRED.hasProcessDefinition)
+        old_data_process_def = self.rrclient.read(ctd_L0_all_dprocdef_id)
+
+        self.assertEquals(len(process_def_ids), 1)
+        self.assertEquals(process_def_ids[0]._id, ctd_L0_all_dprocdef_id)
+        self.assertEquals(process_def_ids[0].name, old_data_process_def.name)
+        self.assertEquals(process_def_ids[0].description, old_data_process_def.description)
+
+        # Assert that the input subscription has NOT changed to the new one
+        input_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasInputProduct)
+
+        self.assertEquals(input_dps[0]._id, new_in_dp_id)
+        self.assertEquals(len(input_dps), 1)
+        self.assertEquals( input_dps[0].name, new_dp_obj.name)
+        self.assertEquals( input_dps[0].description, new_dp_obj.description)
+
+        # Assert that the output subscriptions have changed to the new ones
+        output_dps, _ = self.rrclient.find_objects(data_process_id, PRED.hasOutputProduct)
+        [self.assertTrue(out_dp._id in self.output_products.values()) for out_dp in output_dps]
+
+
