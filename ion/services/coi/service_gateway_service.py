@@ -630,6 +630,30 @@ def get_visualization_image(data_product_id, img_name):
     image_info = vs_cli.get_visualization_image(data_product_id, visualization_params)
     return app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
 
+# Get version information about this copy of coi-services
+@app.route('/version')
+def get_version_info():
+    import pkg_resources
+
+    pkg_list = ["coi-services",
+                "pyon",
+                "coverage-model",
+                "eeagent",
+                "epu",
+                "utilities",
+                "marine-integrations"]
+
+    version = {}
+
+    for package in pkg_list:
+        try:
+            version["%s-release" % package] = pkg_resources.require(package)[0].version
+            # @TODO git versions for each?
+        except pkg_resources.DistributionNotFound:
+            pass
+
+    return gateway_json_response(version)
+
 
 #More REST-ful examples...should probably not use but here for example reference
 
