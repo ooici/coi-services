@@ -1048,7 +1048,7 @@ class OrgManagementService(BaseOrgManagementService):
     #-----------------------------------------------
     #  COMPUTED RESOURCES
     #-----------------------------------------------
-    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None):
+    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
         """Returns an MarineFacilityOrgExtension object containing additional related information
 
         @param org_id    str
@@ -1070,6 +1070,7 @@ class OrgManagementService(BaseOrgManagementService):
             computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
+            #user_id=requesting_user_id)
 
         log.debug("get_marine_facility_extension: extended_org 1:  %s ", str(extended_org))
 
@@ -1122,7 +1123,13 @@ class OrgManagementService(BaseOrgManagementService):
 #            platforms_not_deployed = [x for x in extended_org.platforms
 #                                      if x not in extended_org.platforms_deployed]
 
-
+        open_negotiations = []
+        #filer out the accepted/rejected negotiations
+        if hasattr(extended_org, 'negotiations'):
+            for negotiation in extended_org.negotiations:
+                if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
+                    open_negotiations.append(negotiation)
+            extended_org.negotiations = open_negotiations
 
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil

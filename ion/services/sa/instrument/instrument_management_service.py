@@ -1752,7 +1752,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ############################
 
 
-    def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None):
+    def get_instrument_device_extension(self, instrument_device_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
         """Returns an InstrumentDeviceExtension object containing additional related information
         @param instrument_device_id    str
         @param ext_associations    dict
@@ -1773,6 +1773,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.InstrumentDeviceComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
+            #user_id=requesting_user_id)
 
         # clean up InstAgent list as it sometimes includes the device
         ia = []
@@ -1859,7 +1860,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
-    def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None):
+    def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
         """Returns an PlatformDeviceExtension object containing additional related information
         """
 
@@ -1874,6 +1875,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             OT.PlatformDeviceComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
+            #user_id=requesting_user_id)
 
 
         # lookup all hasModel predicates
