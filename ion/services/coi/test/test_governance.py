@@ -557,7 +557,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Create a new enrollment proposal
 
         #Build the Service Agreement Proposal to enroll
-        sap = IonObject(OT.EnrollmentProposal,consumer=actor_id, provider=org2_id )
+        sap = IonObject(OT.EnrollmentProposal,consumer=actor_id, provider=org2_id, description='Enrollment request for test user' )
 
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
@@ -569,6 +569,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         users = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(users),0)
+
+        #Make sure the Negotiation object has the proper description set from the initial SAP
+        self.assertEqual(negotiations[0].description, sap.description)
 
         #Manager approves proposal
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
