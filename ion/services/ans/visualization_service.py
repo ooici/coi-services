@@ -324,6 +324,8 @@ class VisualizationService(BaseVisualizationService):
 
         print ">>>>>>>>>  DP ID , ", data_product_id , " visualization_params = ", visualization_parameters , "  TQX = ", tqx
 
+        gvd_start_time = time.time()
+
         # error check
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
@@ -346,9 +348,10 @@ class VisualizationService(BaseVisualizationService):
         # Extract the parameters. Definitely init first
         query = None
         if visualization_parameters:
-            query = {'parameters':[]}
+            #query = {'parameters':[]}
+            query = {}
             # Error check and damage control. Definitely need time
-            if 'parameters' in visualization_parameters:
+            if 'parameters' in visualization_parameters and len(visualization_parameters['parameters']) > 0:
                 if not 'time' in visualization_parameters['parameters']:
                     visualization_parameters['parameters'].append('time')
 
@@ -360,7 +363,7 @@ class VisualizationService(BaseVisualizationService):
             if 'end_time' in visualization_parameters:
                 query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
 
-            # calculate stride time
+            # stride time
             if 'stride_time' in visualization_parameters:
                 query['stride_time'] = int(visualization_parameters['stride_time'])
             else:
@@ -373,47 +376,20 @@ class VisualizationService(BaseVisualizationService):
                 else:
                     use_direct_access = False
 
-
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
 
         if ds_ids is None or not ds_ids:
             raise NotFound("Could not find dataset associated with data product")
 
-        """
-        # Retrieve the required data. If max time steps were specified, calculate a stride_time factor
-        if max_time_steps:
-
-            dataset_extents = self.clients.dataset_management.dataset_extents(ds_ids[0])
-
-            # ********  Dirty hack to get around missing start_time bug. Try to call dataset_bounds several times
-            count = 0
-            while count < 20:
-                count = count + 1
-
-                dataset_bounds = self.clients.dataset_management.dataset_bounds(ds_ids[0])
-                dataset_time_bounds = dataset_bounds['time']
-
-                if dataset_time_bounds[0] != 0:
-                    break
-
-                print " >>>>>>>>> TRYING TO RETRIEVE BOUNDS AGAIN : ", dataset_bounds
-                time.sleep(0.1)
-
-            if dataset_time_bounds[0] == 0:
-                query['stride_time'] == 1
-            else:
-                avg_data_rate = float(dataset_extents['time'][0]) / float(dataset_time_bounds[1] - dataset_time_bounds[0])
-                num_of_actual_data_points = min((query['end_time'] - query['start_time']), (dataset_time_bounds[1] - dataset_time_bounds[0])) * avg_data_rate
-                query['stride_time'] = int(math.ceil(float(num_of_actual_data_points) / float(max_time_steps)))
-        """
-
+        retrieve_start_time = time.time()
         if use_direct_access:
             retrieved_granule = DataRetrieverService.retrieve_oob(ds_ids[0], query=query)
         else:
             #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
             retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
 
+        print ">>>>>>>>>>>>  Time taken by the data retrieve call : ", time.time() - retrieve_start_time
         if retrieved_granule is None:
             return None
 
@@ -464,6 +440,8 @@ class VisualizationService(BaseVisualizationService):
         # now generate the Google datatable out of the description and content
         gdt = gviz_api.DataTable(gdt_description)
         gdt.LoadData(gdt_content)
+
+        print " >>>>>>>> Total time taken by the get_visualization_data call : ", time.time() - gvd_start_time
 
         # return the json version of the table
         if callback == '':
