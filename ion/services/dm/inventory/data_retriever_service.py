@@ -111,7 +111,7 @@ class DataRetrieverService(BaseDataRetrieverService):
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
-                rdt = ReplayProcess._coverage_to_granule(coverage, query.get('start_time', None), query.get('end_time',None), query.get('stride_time',None), query.get('parameters',None), delivery_format, query.get('tdoa',None))
+                rdt = ReplayProcess._coverage_to_granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
         except Exception as e:
             import traceback
             traceback.print_exc(e)

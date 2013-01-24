@@ -7,6 +7,7 @@ from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventSubscriber
 from pyon.public import log, get_sys_name
 from pyon.core.exception import BadRequest, Timeout, NotFound
+from pyon.core import bootstrap
 
 from interface.objects import AgentCommand, ProcessSchedule, \
         ProcessStateEnum, ProcessQueueingMode, ProcessTarget, \
@@ -210,11 +211,15 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                     self.logprefix)
                 try:
                     self.control.reload_processes()
-                except Exception:
+                except (Exception, gevent.Timeout) as e:
                     log.warn("%sFailed to reload processes from PD. Will retry later.",
                         self.logprefix, exc_info=True)
 
-            self._apply_policy()
+            try:
+                self._apply_policy()
+            except (Exception, gevent.Timeout) as e:
+                log.warn("%sFailed to apply policy. Will retry later.",
+                    self.logprefix, exc_info=True)
 
     def _apply_policy(self):
 
@@ -259,8 +264,8 @@ class HADashiHandler(object):
     """
     def __init__(self, agent, dashi_name, dashi_uri, dashi_exchange):
         self.agent = agent
-
-        self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange)
+        self.CFG = agent.CFG
+        self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange, sysname=self.CFG.get_safe('dashi.sysname'))
         self.dashi.handle(self.status)
         self.dashi.handle(self.reconfigure_policy)
 

@@ -456,6 +456,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
         correct.sort()
         self.assertTrue(results == correct)
 
+    @attr('EXT')
     def test_get_resource_extension(self):
 
 

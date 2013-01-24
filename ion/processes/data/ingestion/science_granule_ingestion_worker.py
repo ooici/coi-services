@@ -7,6 +7,8 @@
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from pyon.core.exception import CorruptionError
+from pyon.event.event import handle_stream_exception
 from pyon.public import log, RT, PRED, CFG
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
@@ -30,6 +32,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._datasets  = collections.OrderedDict()
         self._coverages = collections.OrderedDict()
         self._queues    = {}
+
+        self._bad_coverages = {}
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
         self.buffer_limit   = self.CFG.get_safe('process.buffer_limit',10)
@@ -41,7 +45,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
     def on_quit(self): #pragma no cover
         self.subscriber.stop()
-        self.flush_all()
+        try:
+            with gevent.Timeout(5):
+                self.flush_all()
+        except:
+            pass
         self.done_flushing.set()
         self.flusher_g.join(10)
         self.flusher_g.kill()
@@ -97,7 +105,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             dataset_id = self.get_dataset(stream_id)
             if dataset_id is None:
                 return None
-            result = DatasetManagementService._get_coverage(dataset_id)
+            result = DatasetManagementService._get_coverage(dataset_id, mode='a')
             if result is None:
                 return None
             if len(self._coverages) >= self.CACHE_LIMIT:
@@ -121,6 +129,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         return self._queues[stream_id]
 
 
+    @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
         '''
         Actual ingestion mechanism
@@ -163,6 +172,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         '''
         Appends the granule's data to the coverage and persists it.
         '''
+        if stream_id in self._bad_coverages:
+            log.info('Message attempting to be inserted into bad coverage: %s' % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+            
+
         #--------------------------------------------------------------------------------
         # Coverage determiniation and appending
         #--------------------------------------------------------------------------------
@@ -170,7 +183,13 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         if not dataset_id:
             log.error('No dataset could be determined on this stream: %s', stream_id)
             return
-        coverage = self.get_coverage(stream_id)
+        try:
+            coverage = self.get_coverage(stream_id)
+        except IOError as e:
+            log.error("Couldn't open coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+            log.exception('IOError')
+            raise CorruptionError(e.message)
+        
         if not coverage:
             log.error('Could not persist coverage from granule, coverage is None')
             return
@@ -184,7 +203,17 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         elements = len(rdt)
         if not elements:
             return
-        coverage.insert_timesteps(elements, oob=False)
+        try:
+            coverage.insert_timesteps(elements, oob=False)
+        except IOError as e:
+            log.error("Couldn't insert time steps for coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+            log.exception('IOError')
+            try:
+                coverage.close()
+            finally:
+                self._bad_coverages[stream_id] = 1
+                raise CorruptionError(e.message)
+
         start_index = coverage.num_timesteps - elements
 
         for k,v in rdt.iteritems():
@@ -194,7 +223,16 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 log.trace( '%s: %s', k, v)
 
             slice_ = slice(start_index, None)
-            coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+            try:
+                coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+            except IOError as e:
+                log.error("Couldn't insert values for coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+                log.exception('IOError')
+                try:
+                    coverage.close()
+                finally:
+                    self._bad_coverages[stream_id] = 1
+                    raise CorruptionError(e.message)
             DatasetManagementService._save_coverage(coverage)
             #coverage.flush()
 

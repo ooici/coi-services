@@ -98,37 +98,48 @@ class ReplayProcess(BaseReplayProcess):
         self.dataset = dsm_cli.read_dataset(self.dataset_id)
         self.pubsub = PubsubManagementServiceProcessClient(process=self)
 
+
     @classmethod
-    def _coverage_to_granule(cls, coverage, start_time=None, end_time=None, stride_time=None, parameters=None, stream_def_id=None, tdoa=None):
+    def get_time_idx(cls, coverage, timeval):
+        temporal_variable = coverage.temporal_parameter_name
+        uom = coverage.get_parameter_context(temporal_variable).uom
+
+        units = cls.ts_to_units(uom, timeval)
+
+        idx = cls.get_relative_time(coverage, units)
+        return idx
+
+
+    @classmethod
+    def _coverage_to_granule(cls, coverage, start_time=None, end_time=None, stride_time=None, fuzzy_stride=True, parameters=None, stream_def_id=None, tdoa=None):
         slice_ = slice(None) # Defaults to all values
+
+
+        # Validations
+        if start_time is not None:
+            validate_is_instance(start_time, Number, 'start_time must be a number for striding.')
+        if end_time is not None:
+            validate_is_instance(end_time, Number, 'end_time must be a number for striding.')
+        if stride_time is not None:
+            validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
 
         if tdoa is not None and isinstance(tdoa,slice):
             slice_ = tdoa
-        elif stride_time is not None:
-            validate_is_instance(start_time, Number, 'start_time must be a number for striding.')
-            validate_is_instance(end_time, Number, 'end_time must be a number for striding.')
-            validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
+        
+        elif stride_time is not None and not fuzzy_stride: # SLOW 
             ugly_range = np.arange(start_time, end_time, stride_time)
-            idx_values = [cls.get_relative_time(coverage,i) for i in ugly_range]
+            idx_values = [cls.get_time_idx(coverage,i) for i in ugly_range]
             idx_values = list(set(idx_values)) # Removing duplicates - also mixes the order of the list!!!
             idx_values.sort()
             slice_ = [idx_values]
 
+
         elif not (start_time is None and end_time is None):
-            time_var = coverage.temporal_parameter_name
-            uom = coverage.get_parameter_context(time_var).uom
             if start_time is not None:
-                start_units = cls.ts_to_units(uom,start_time)
-                log.info('Units: %s', start_units)
-                start_idx = cls.get_relative_time(coverage,start_units)
-                log.info('Start Index: %s', start_idx)
-                start_time = start_idx
+                start_time = cls.get_time_idx(coverage,start_time)
             if end_time is not None:
-                end_units   = cls.ts_to_units(uom,end_time)
-                log.info('End units: %s', end_units)
-                end_idx   = cls.get_relative_time(coverage,end_units)
-                log.info('End index: %s',  end_idx)
-                end_time = end_idx
+                end_time = cls.get_time_idx(coverage,end_time)
+
             slice_ = slice(start_time,end_time,stride_time)
             log.info('Slice: %s', slice_)
 
@@ -150,7 +161,7 @@ class ReplayProcess(BaseReplayProcess):
             elif isinstance(n,np.ndarray):
                 if coverage.get_data_extents(field)[0] != coverage.num_timesteps:
                     log.error("Misformed coverage detected, padding with fill_value")
-                    arr_len = utils.slice_len(slice_, (coverage.num_timesteps,))[0]
+                    arr_len = utils.slice_shape(slice_, (coverage.num_timesteps,))[0]
                     fill_arr = np.empty(arr_len - n.shape[0] , dtype=n.dtype)
                     fill_arr.fill(coverage.get_parameter_context(field).fill_value)
                     n = np.append(n,fill_arr)
@@ -170,7 +181,7 @@ class ReplayProcess(BaseReplayProcess):
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else: 
-                rdt = self._coverage_to_granule(coverage,self.start_time, self.end_time, self.stride_time, self.parameters,tdoa=self.tdoa)
+                rdt = self._coverage_to_granule(coverage=coverage,start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters,tdoa=self.tdoa)
         except Exception as e:
             import traceback
             traceback.print_exc(e)
@@ -228,7 +239,7 @@ class ReplayProcess(BaseReplayProcess):
 
     def _replay(self):
         coverage = DatasetManagementService._get_coverage(self.dataset_id,mode='r')
-        rdt = self._coverage_to_granule(coverage, self.start_time, self.end_time, self.stride_time, self.parameters, self.stream_def_id)
+        rdt = self._coverage_to_granule(coverage=coverage, start_time=self.start_time, end_time=self.end_time, stride_time=self.stride_time, parameters=self.parameters, stream_def_id=self.stream_def_id)
         elements = len(rdt)
         
         for i in xrange(elements / self.publish_limit):

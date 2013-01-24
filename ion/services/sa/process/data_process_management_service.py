@@ -37,6 +37,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.get_unique_id = (lambda : uuid4().hex)
 
+        self.data_product_management = DataProductManagementServiceClient()
+
     def init_module_uploader(self):
         if self.CFG:
             #looking for forms like host=amoeba.ucsd.edu, remotepath=/var/www/release, user=steve
@@ -135,6 +137,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def delete_data_process_definition(self, data_process_definition_id=''):
 
+        # Delete all associations for this resource
+        self._remove_associations(data_process_definition_id)
+
+        # Delete the resource
         self.clients.resource_registry.retire(data_process_definition_id)
 
     def force_delete_data_process_definition(self, data_process_definition_id=''):
@@ -501,6 +507,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("delete the association with DataProcessDefinition")
         dpd_assn_ids = self.clients.resource_registry.find_associations(subject=data_process_id,  predicate=PRED.hasProcessDefinition, id_only=True)
         for dpd_assn_id in dpd_assn_ids:
+            log.debug("Trying to delete the association with this data process definition: %s", dpd_assn_id)
             self.clients.resource_registry.delete_association(dpd_assn_id)
 
         self._stop_process(data_process_obj)
@@ -509,8 +516,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         log.debug("Finalizing data products by removing streams associated with the dataset and product")
         out_products, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
         for out_product, assoc in zip(out_products, assocs):
-            data_product_management = DataProductManagementServiceClient()
-            data_product_management.remove_streams(out_product)
+            self.data_product_management.remove_streams(out_product)
             log.debug("deleting association with output data product '%s'" % out_product)
             self.clients.resource_registry.delete_association(assoc)
 
@@ -532,6 +538,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         subscription_id = data_process_obj.input_subscription_id
         self.clients.pubsub_management.delete_subscription(subscription_id)
         data_process_obj.input_subscription_id = None
+        self.clients.resource_registry.update(data_process_obj)
 
         #unregister the data process in DataAcquisitionMgmtSvc
         self.clients.data_acquisition_management.unregister_process(data_process_id)
@@ -641,7 +648,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
 
-    def get_data_process_definition_extension(self, data_process_definition_id='', ext_associations=None, ext_exclude=None):
+    def get_data_process_definition_extension(self, data_process_definition_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
         #Returns an DataProcessDefinition Extension object containing additional related information
 
         if not data_process_definition_id:
@@ -655,6 +662,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             computed_resource_type=OT.DataProcessDefinitionComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
+            #user_id=requesting_user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -675,7 +683,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return extended_data_process_definition
 
-    def get_data_process_extension(self, data_process_id='', ext_associations=None, ext_exclude=None):
+    def get_data_process_extension(self, data_process_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
         #Returns an DataProcessDefinition Extension object containing additional related information
 
         if not data_process_id:
@@ -689,6 +697,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             computed_resource_type=OT.DataProcessComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
+            #user_id=requesting_user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way

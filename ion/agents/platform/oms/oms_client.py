@@ -13,15 +13,15 @@ __license__ = 'Apache 2.0'
 
 
 class InvalidResponse(object):
-    PLATFORM_ID          = 'INVALID-PLATFORM-ID'
-    ATTRIBUTE_NAME       = 'INVALID-ATTRIBUTE-NAME'
-    ATTRIBUTE_NAME_VALUE = ('INVALID-ATTRIBUTE-NAME', '')
-    ATTRIBUTE_NOT_WRITABLE = 'ATTRIBUTE-NOT-WRITABLE'
-    PORT_ID              = 'INVALID-PORT-ID'
+    PLATFORM_ID                   = 'INVALID_PLATFORM_ID'
+    ATTRIBUTE_NAME                = 'INVALID_ATTRIBUTE_NAME'
+    ATTRIBUTE_VALUE_OUT_OF_RANGE  = 'ATTRIBUTE_VALUE_OUT_OF_RANGE'
+    ATTRIBUTE_NOT_WRITABLE        = 'ATTRIBUTE_NOT_WRITABLE'
+    PORT_ID                       = 'INVALID_PORT_ID'
 
-    PLATFORM_TYPE        = 'INVALID-PLATFORM-TYPE'
-    EVENT_LISTENER_URL   = 'INVALID-EVENT-LISTENER-URL'
-    EVENT_TYPE           = 'INVALID-EVENT-TYPE'
+    PLATFORM_TYPE                 = 'INVALID_PLATFORM_TYPE'
+    EVENT_LISTENER_URL            = 'INVALID_EVENT_LISTENER_URL'
+    EVENT_TYPE                    = 'INVALID_EVENT_TYPE'
 
 VALID_PORT_ATTRIBUTES = [
     'maxCurrentDraw', 'initCurrent', 'dataThroughput', 'instrumentType'
@@ -52,7 +52,7 @@ class OmsClient(object):
         """
         Basic verification of connection with OMS.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getPlatformMap(self):
         """
@@ -60,14 +60,14 @@ class OmsClient(object):
 
         @retval [(platform_id, parent_platform_id), ...]
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getRootPlatformID(self):
         """
         Returns the ID of the root platform in the network.
         @retval the ID of the root platform in the network.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getSubplatformIDs(self, platform_id):
         """
@@ -76,7 +76,7 @@ class OmsClient(object):
                     Dict with single entry for the desired platform with list
                     of IDs of the corresponding sub-platforms. ||
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getPlatformTypes(self):
         """
@@ -85,7 +85,7 @@ class OmsClient(object):
         @retval { platform_type: description, ... } Dict of platform types in
          the network.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getPlatformMetadata(self, platform_id):
         """
@@ -96,7 +96,7 @@ class OmsClient(object):
                 dict with a single entry for the requested platform ID with a
                 dictionary for corresponding metadata
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getPlatformAttributes(self, platform_id):
         """
@@ -107,19 +107,19 @@ class OmsClient(object):
                 dict with a single entry for the requested platform ID with an
                 info dictionary for each attribute in that platform.
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getPlatformAttributeValues(self, platform_id, attrNames, from_time):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def setPlatformAttributeValues(self, platform_id, attrs):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getPlatformPorts(self, platform_id):
         """
@@ -130,7 +130,7 @@ class OmsClient(object):
         @retval {platform_id: {port_id: portInfo, ...} }
                 Dict with information for each port in the platform
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def setUpPort(self, platform_id, port_id, attributes):
         """
@@ -143,7 +143,7 @@ class OmsClient(object):
 
         @retval TBD
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def turnOnPort(self, platform_id, port_id):
         """
@@ -154,7 +154,7 @@ class OmsClient(object):
 
         @retval TBD
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def turnOffPort(self, platform_id, port_id):
         """
@@ -165,34 +165,34 @@ class OmsClient(object):
 
         @retval TBD
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def describeEventTypes(self, event_type_ids):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getEventsByPlatformType(self, platform_types):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def registerEventListener(self, url, event_types):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def unregisterEventListener(self, url, event_types):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover
 
     def getRegisteredEventListeners(self):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
-        raise NotImplemented()
+        raise NotImplementedError()  #pragma: no cover

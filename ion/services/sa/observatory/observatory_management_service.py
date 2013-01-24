@@ -1135,7 +1135,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ############################
 
 
-    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None):
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
         """Returns an InstrumentDeviceExtension object containing additional related information
 
         @param site_id    str
@@ -1157,6 +1157,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             computed_resource_type=OT.SiteComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude)
+            #user_id=requesting_user_id)
 
         # Get status of Site instruments.
         a, b =  self._get_instrument_states(extended_site.instrument_devices)
@@ -1169,13 +1170,19 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             if a.st in lookup:
                 lookup[a.st][a.s] = a.o
 
-        # get model ids of instruments and platforms from lookup table
-        i_mod = [lookup[RT.InstrumentDevice].get(r._id) for r in extended_site.instrument_devices]
-        p_mod = [lookup[RT.PlatformDevice].get(r._id) for r in extended_site.platform_devices]
+        def retrieve_model_objs(rsrc_list, object_type):
+        # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
+        # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
+        #  look up all the model ids, then create the proper output
+            model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
+            model_uniq = list(set([m for m in model_list if m is not None]))
+            model_objs = self.clients.resource_registry.read_mult(model_uniq)
+            model_dict = dict(zip(model_uniq, model_objs))
+            return [model_dict.get(m) for m in model_list]
 
-        # convert model ids to model objects
-        extended_site.instrument_models = self.RR.read_mult(i_mod)
-        extended_site.platform_models = self.RR.read_mult(p_mod)
+        extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
+        extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
+
 
         s_unknown = StatusType.STATUS_UNKNOWN
 
