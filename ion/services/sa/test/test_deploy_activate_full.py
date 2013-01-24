@@ -26,7 +26,7 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+#from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 import gevent
 import time
@@ -136,8 +136,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
             name='agent007',
             description="SBE37IMAgent",
-            driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-            driver_class="SBE37Driver" )
+            driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
