@@ -6,6 +6,7 @@
 @description Complete DM End to End Integration Tests
 '''
 from pyon.datastore.datastore import DataStore
+from pyon.event.event import EventSubscriber
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.public import RT, log
@@ -540,4 +541,42 @@ class TestDMEnd2End(IonIntegrationTestCase):
         granule = DataRetrieverService.retrieve_oob(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         self.assertTrue((rdt['time'] == np.arange(40)).all())
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_ingestion_failover(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+        
+        event = Event()
+
+        def cb(*args, **kwargs):
+            event.set()
+
+        sub = EventSubscriber(event_type="ExceptionEvent", callback=cb, origin="stream_exception")
+        sub.start()
+
+        self.publish_fake_data(stream_id, route)
+        self.wait_until_we_have_enough_granules(dataset_id, 40)
+        
+        file_path = DatasetManagementService._get_coverage_path(dataset_id)
+        master_file = os.path.join(file_path, '%s_master.hdf5' % dataset_id)
+
+        with open(master_file, 'w') as f:
+            f.write('this will crash HDF')
+
+        self.publish_hifi(stream_id, route, 5)
+
+
+        self.assertTrue(event.wait(10))
+
+
+
+        sub.stop()
+
+
+
+
+
+
 
