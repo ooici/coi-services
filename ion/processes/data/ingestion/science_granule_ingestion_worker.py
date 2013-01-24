@@ -129,7 +129,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         return self._queues[stream_id]
 
 
-    @handle_stream_exception
+    @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
         '''
         Actual ingestion mechanism
