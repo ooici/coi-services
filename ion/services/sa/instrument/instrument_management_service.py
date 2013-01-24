@@ -1165,8 +1165,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #        print '============== config within IMS for platform ID: %s ===========' % platform_id
 #        pprint.pprint(agent_config)
 
+        process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL)
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
-                                                               schedule=None,
+                                                               schedule=process_schedule,
                                                                configuration=agent_config)
         #update the producer context for provenance
         #todo: should get the time from process dispatcher
