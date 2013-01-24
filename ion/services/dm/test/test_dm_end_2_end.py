@@ -479,8 +479,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.wait_until_we_have_enough_granules(dataset_id,40)
 
         query = {
-            'start_time': 0,
-            'end_time':   20,
+            'start_time': 0 - 2208988800,
+            'end_time':   20 - 2208988800,
             'stride_time' : 2,
             'parameters': ['time','temp']
         }
