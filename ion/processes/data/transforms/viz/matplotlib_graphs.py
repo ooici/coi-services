@@ -66,7 +66,7 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
         graph_time_periods= self.CFG.get_safe('graph_time_periods')
 
         # If this is meant to be an event driven process, schedule an event to be generated every few minutes/hours
-        self.event_timer_interval = self.CFG.get_safe('graph_update_interval')
+        self.event_timer_interval = self.CFG.get_safe('graph_gen_interval')
         if self.event_timer_interval:
             event_origin = "Interval_Timer_Matplotlib"
             sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
