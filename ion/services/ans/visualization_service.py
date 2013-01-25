@@ -359,9 +359,9 @@ class VisualizationService(BaseVisualizationService):
 
             # The times passed from UI are system times so convert them to NTP
             if 'start_time' in visualization_parameters:
-                query['start_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['start_time'])))
+                query['start_time'] = int(visualization_parameters['start_time'])
             if 'end_time' in visualization_parameters:
-                query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
+                query['end_time'] = int((visualization_parameters['end_time']))
 
             # stride time
             if 'stride_time' in visualization_parameters:
