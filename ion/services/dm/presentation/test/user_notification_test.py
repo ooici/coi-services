@@ -1997,10 +1997,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(res_notifs), 2)
 
         for notific in res_notifs:
+
+            notific_in_db = self.rrc.read(notific._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notific.origin, data_product_id)
             self.assertEquals(notific.temporal_bounds.end_datetime, '')
             self.assertTrue(notific.origin_type == 'type_1' or  notific.origin_type =='type_2')
             self.assertEquals(notific.event_type, 'ResourceLifecycleEvent')
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertEquals(notific_in_db.temporal_bounds.end_datetime, '')
+            self.assertTrue(notific_in_db.origin_type == 'type_1' or  notific_in_db.origin_type =='type_2')
+            self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
+
 
         #--------------------------------------------------------------------------------------
         # Use UNS to get the all subscriptions --- including retired
@@ -2009,9 +2019,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         for notific in res_notifs:
             log.debug("notif.origin_type:: %s", notific.origin_type)
+
+            notific_in_db = self.rrc.read(notific._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notific.origin, data_product_id)
             self.assertTrue(notific.origin_type in ['type_1', 'type_2', 'type_3', 'type_4'])
             self.assertTrue(notific.event_type in ['ResourceLifecycleEvent', 'DetectionEvent'])
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertTrue(notific_in_db.origin_type in ['type_1', 'type_2', 'type_3', 'type_4'])
+            self.assertTrue(notific_in_db.event_type in ['ResourceLifecycleEvent', 'DetectionEvent'])
+
 
         self.assertEquals(len(res_notifs), 4)
 
@@ -2142,19 +2161,38 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         for notif in n_for_user_1:
             log.debug("notif_active::: %s" % notif)
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notif.origin, data_product_id)
             self.assertEquals(notif.temporal_bounds.end_datetime, '')
             self.assertEquals(notif.origin_type, 'active_1')
             self.assertEquals(notif.event_type, 'ResourceLifecycleEvent')
 
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertEquals(notific_in_db.temporal_bounds.end_datetime, '')
+            self.assertEquals(notific_in_db.origin_type, 'active_1')
+            self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
+
+
         n_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=False)
         self.assertEquals(len(n_for_user_2), 1)
 
         for notif in n_for_user_2:
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notif.origin, data_product_id)
             self.assertEquals(notif.temporal_bounds.end_datetime, '')
             self.assertEquals(notif.origin_type, 'active_2')
             self.assertEquals(notif.event_type, 'ResourceLifecycleEvent')
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertEquals(notific_in_db.temporal_bounds.end_datetime, '')
+            self.assertEquals(notific_in_db.origin_type, 'active_2')
+            self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
 
 
         #--------------------------------------------------------------------------------------
@@ -2167,17 +2205,34 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for notif in notifs_for_user_1:
             log.debug("notif.origin_type:: %s", notif.origin_type)
             log.debug("notif::: %s", notif)
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notif.origin, data_product_id)
             self.assertTrue(notif.origin_type == 'active_1' or notif.origin_type == 'past_1')
             self.assertTrue(notif.event_type== 'ResourceLifecycleEvent' or notif.event_type=='DetectionEvent')
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertTrue(notific_in_db.origin_type == 'active_1' or notific_in_db.origin_type == 'past_1')
+            self.assertTrue(notific_in_db.event_type== 'ResourceLifecycleEvent' or notific_in_db.event_type=='DetectionEvent')
+
 
         notifs_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=True)
 
         for notif in notifs_for_user_2:
             self.assertEquals(notif.origin, data_product_id)
             log.debug("notif_past::: %s" % notif)
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertTrue(notif.origin_type == 'active_2' or notif.origin_type == 'past_2')
             self.assertTrue(notif.event_type== 'ResourceLifecycleEvent' or notif.event_type=='DetectionEvent')
+
+            self.assertTrue(notific_in_db.origin_type == 'active_2' or notific_in_db.origin_type == 'past_2')
+            self.assertTrue(notific_in_db.event_type== 'ResourceLifecycleEvent' or notific_in_db.event_type=='DetectionEvent')
+
         log.debug("number of returned notif object for user 2: %s", len(notifs_for_user_2))
 
 
