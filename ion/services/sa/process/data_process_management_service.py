@@ -661,8 +661,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             resource_id=data_process_definition_id,
             computed_resource_type=OT.DataProcessDefinitionComputedAttributes,
             ext_associations=ext_associations,
-            ext_exclude=ext_exclude)
-            #user_id=requesting_user_id)
+            ext_exclude=ext_exclude,
+            user_id=requesting_user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -696,8 +696,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             resource_id=data_process_id,
             computed_resource_type=OT.DataProcessComputedAttributes,
             ext_associations=ext_associations,
-            ext_exclude=ext_exclude)
-            #user_id=requesting_user_id)
+            ext_exclude=ext_exclude,
+            user_id=requesting_user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way

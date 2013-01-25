@@ -1156,8 +1156,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             resource_id=site_id,
             computed_resource_type=OT.SiteComputedAttributes,
             ext_associations=ext_associations,
-            ext_exclude=ext_exclude)
-            #user_id=requesting_user_id)
+            ext_exclude=ext_exclude,
+            user_id=requesting_user_id)
 
         # Get status of Site instruments.
         a, b =  self._get_instrument_states(extended_site.instrument_devices)

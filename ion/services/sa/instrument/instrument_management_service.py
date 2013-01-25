@@ -1774,8 +1774,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             instrument_device_id,
             OT.InstrumentDeviceComputedAttributes,
             ext_associations=ext_associations,
-            ext_exclude=ext_exclude)
-            #user_id=requesting_user_id)
+            ext_exclude=ext_exclude,
+            user_id=requesting_user_id)
 
         # clean up InstAgent list as it sometimes includes the device
         ia = []
@@ -1876,8 +1876,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             platform_device_id,
             OT.PlatformDeviceComputedAttributes,
             ext_associations=ext_associations,
-            ext_exclude=ext_exclude)
-            #user_id=requesting_user_id)
+            ext_exclude=ext_exclude,
+            user_id=requesting_user_id)
 
 
         # lookup all hasModel predicates

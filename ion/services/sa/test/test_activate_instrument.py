@@ -10,6 +10,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -33,6 +34,7 @@ from pyon.agent.agent import ResourceAgentEvent
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
+from interface.objects import UserInfo, NotificationRequest
 
 from nose.plugins.attrib import attr
 from mock import patch
@@ -47,7 +49,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('SMOKE', group='sa')
+@attr('SMOKE', group='saxx')
 #@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
@@ -69,6 +71,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
         self.dataretrieverclient = DataRetrieverServiceClient(node=self.container.node)
         self.dataset_management = DatasetManagementServiceClient()
+        self.usernotificationclient = UserNotificationServiceClient()
         
         #setup listerner vars
         self._data_greenlets = []
@@ -97,6 +100,42 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                                           configuration=configuration)
 
         return pid
+
+    def create_user_notifications(self, instrument_id='', product_id=''):
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_correct = NotificationRequest(   name= 'notification_1',
+            origin=instrument_id,
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(   name='notification_2',
+            origin=product_id,
+            origin_type="type_2",
+            event_type='DetectionEvent')
+
+        #--------------------------------------------------------------------------------------
+        # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
+        user = UserInfo()
+        user.name = 'new_user'
+        user.contact.email = 'new_user@yahoo.com'
+
+        user_id, _ = self.rrclient.create(user)
+
+        #--------------------------------------------------------------------------------------
+        # Create notification
+        #--------------------------------------------------------------------------------------
+
+        notification_id_1 = self.usernotificationclient.create_notification(notification=notification_request_correct, user_id=user_id)
+        notification_id_2 = self.usernotificationclient.create_notification(notification=notification_request_2, user_id=user_id)
+        log.debug( "test_activateInstrumentSample: create_user_notifications user_id %s", str(user_id) )
+
+        return user_id
+
 
     def get_datastore(self, dataset_id):
         dataset = self.datasetclient.read_dataset(dataset_id)
@@ -240,6 +279,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print  'Data set for data_product_id2 = %s' % dataset_ids[0]
         self.raw_dataset = dataset_ids[0]
 
+
+        # setup notifications for the device and parsed data product
+        user_id = self.create_user_notifications(instrument_id=instDevice_id, product_id=data_product_id1)
+
+
         def start_instrument_agent():
             self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
@@ -362,10 +406,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Get the extended data product to see if it contains the granules
         #--------------------------------------------------------------------------------
-        extended_product = self.dpclient.get_data_product_extension(data_product_id1)
+        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, requesting_user_id=user_id)
         self.assertEqual(data_product_id1, extended_product._id)
         #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
-        #log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
+        log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
+        log.debug( "test_activateInstrumentSample: extended_product computed user_notification_requests %s", str(extended_product.computed.user_notification_requests.value) )
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
@@ -386,8 +431,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
                 origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
-        extended_instrument = self.imsclient.get_instrument_device_extension(instDevice_id)
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, requesting_user_id=user_id)
         log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
+        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", str(extended_instrument.computed.user_notification_requests.value) )
         self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)

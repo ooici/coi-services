@@ -519,8 +519,8 @@ class DataProductManagementService(BaseDataProductManagementService):
             resource_id=data_product_id,
             computed_resource_type=OT.DataProductComputedAttributes,
             ext_associations=ext_associations,
-            ext_exclude=ext_exclude)
-            #user_id=requesting_user_id)
+            ext_exclude=ext_exclude,
+            user_id=requesting_user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way

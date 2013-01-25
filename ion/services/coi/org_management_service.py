@@ -1069,8 +1069,8 @@ class OrgManagementService(BaseOrgManagementService):
             resource_id=org_id,
             computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
             ext_associations=ext_associations,
-            ext_exclude=ext_exclude)
-            #user_id=requesting_user_id)
+            ext_exclude=ext_exclude,
+            user_id=requesting_user_id)
 
         log.debug("get_marine_facility_extension: extended_org 1:  %s ", str(extended_org))
 

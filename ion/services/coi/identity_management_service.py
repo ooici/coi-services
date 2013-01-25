@@ -241,8 +241,8 @@ class IdentityManagementService(BaseIdentityManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
         extended_user = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.UserInfoExtension,
-            resource_id=user_info_id)
-            #user_id=requesting_user_id)
+            resource_id=user_info_id,
+            user_id=requesting_user_id)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if extended_user:
