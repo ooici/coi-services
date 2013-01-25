@@ -567,30 +567,44 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
 
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        def found_user_info_dicts(proc1,*args, **kwargs):
+            reloaded_user_info = proc1.user_info
+            reloaded_reverse_user_info = proc1.reverse_user_info
+
+            notifications = proc1.user_info[user_id_1]['notifications']
+            origins = []
+            event_types = []
+
+            log.debug("Within the poll, got notifications here :%s", notifications)
+
+            if notifications:
+                for notific in notifications:
+                    origins.append(notific.origin)
+                    event_types.append(notific.event_type)
+
+            if set(origins) == set(['instrument_1', 'instrument_2']) and set(event_types) == set(['ResourceLifecycleEvent', 'DetectionEvent']):
+                return reloaded_user_info, reloaded_reverse_user_info
+            else:
+                return None
+
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, proc1)
+
         # Check in UNS ------------>
-        self.assertEquals(proc1.user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
+        self.assertEquals(reloaded_user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
 
-        notifications = proc1.user_info[user_id_1]['notifications']
-        origins = []
-        event_types = []
-        for notific in notifications:
-            origins.append(notific.origin)
-            event_types.append(notific.event_type)
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_origin']['instrument_2']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(set(origins), set(['instrument_1', 'instrument_2']))
-        self.assertEquals(set(event_types), set(['ResourceLifecycleEvent', 'DetectionEvent']))
+        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_type']['DetectionEvent']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_origin']['instrument_2']), set([user_id_2, user_id_1]))
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_subtype']['subtype_2']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(proc1.reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_type']['DetectionEvent']), set([user_id_2, user_id_1]))
-
-        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_1'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_subtype']['subtype_2']), set([user_id_2, user_id_1]))
-
-        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_1'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_origin_type']['type_2']), set([user_id_2, user_id_1]))
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_origin_type']['type_2']), set([user_id_2, user_id_1]))
 
         log.debug("The event processor received the notification topics after another create_notification() for the first user")
         log.debug("Verified that the event processor correctly updated its user info dictionaries")
