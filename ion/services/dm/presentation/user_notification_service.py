@@ -150,6 +150,37 @@ class UserNotificationService(BaseUserNotificationService):
 
         self.start_time = UserNotificationService.makeEpochTime(self.__now())
 
+        #------------------------------------------------------------------------------------
+        # Create an event subscriber for Reload User Info events
+        #------------------------------------------------------------------------------------
+
+        def reload_user_info(event_msg, headers):
+            '''
+            Callback method for the subscriber to ReloadUserInfoEvent
+            '''
+
+            notification_id =  event_msg.notification_id
+            log.debug("(UNS instance received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
+
+            try:
+                self.user_info = self.load_user_info()
+            except NotFound:
+                log.warning("ElasticSearch has not yet loaded the user_index.")
+
+            self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
+
+            log.debug("(UNS instance) After a reload, the user_info: %s" % self.user_info)
+            log.debug("(UNS instance) The recalculated reverse_user_info: %s" % self.reverse_user_info)
+
+        # the subscriber for the ReloadUSerInfoEvent
+        self.reload_user_info_subscriber = EventSubscriber(
+            event_type="ReloadUserInfoEvent",
+            origin='UserNotificationService',
+            callback=reload_user_info
+        )
+        self.reload_user_info_subscriber.start()
+
+
     def on_quit(self):
         """
         Handles stop/terminate.
@@ -195,7 +226,6 @@ class UserNotificationService(BaseUserNotificationService):
         """
         self.batch_processing_subscriber = EventSubscriber(
             event_type="ResourceEvent",
-            queue_name='user_notification',
             origin=process_batch_key,
             callback=process
         )
@@ -979,3 +1009,31 @@ class UserNotificationService(BaseUserNotificationService):
                 notifications[id] = new_notification
                 break
 
+
+    def load_user_info(self):
+        '''
+        Method to load the user info dictionary used by the notification workers and the UNS
+
+        @retval user_info dict
+        '''
+
+        users, _ = self.clients.resource_registry.find_resources(restype= RT.UserInfo)
+
+        user_info = {}
+
+        if not users:
+            return {}
+
+        for user in users:
+            notifications = []
+            notification_preferences = None
+            for variable in user.variables:
+                if variable['name'] == 'notifications':
+                    notifications = variable['value']
+
+                if variable['name'] == 'notification_preferences':
+                    notification_preferences = variable['value']
+
+            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+
+        return user_info
