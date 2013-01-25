@@ -87,6 +87,10 @@ class ResourceLCSPolicy(object):
         return ret
 
     def _has_keyworded_attachment(self, resource_id, desired_keyword):
+        if True:
+            log.warn("Ignoring (non)existence of keyword '%s' for resource '%s' policy check for beta testing",
+                     desired_keyword, resource_id)
+            return self._make_pass() # HACK for beta testing purposes
         assert(type("") == type(resource_id))
         for a in self._find_stemming(resource_id, PRED.hasAttachment, RT.Attachment):
             for k in a.keywords:
