@@ -581,6 +581,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
             if notifications:
                 for notific in notifications:
+                    self.assertTrue(notific._id != '')
                     origins.append(notific.origin)
                     event_types.append(notific.event_type)
 
