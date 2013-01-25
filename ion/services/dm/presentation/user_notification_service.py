@@ -7,7 +7,7 @@
 @description Implementation of the UserNotificationService
 """
 
-from pyon.core.exception import BadRequest, IonException
+from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.public import RT, PRED, get_sys_name, Container, CFG, OT, IonObject
 from pyon.util.async import spawn
 from pyon.util.log import log
@@ -290,9 +290,6 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the user info object with the notification
         user = self.event_processor.add_notification_for_user(new_notification=notification, user_id=user_id)
 
-        # Update the user info and the reverse user info dictionaries
-        self.update_user_info_dictionary(user_id=user_id, new_notification=notification, old_notification=None)
-
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
@@ -355,12 +352,6 @@ class UserNotificationService(BaseUserNotificationService):
 #
 #        user = self.update_user_info_object(user_id, notification, old_notification)
 #
-#        #------------------------------------------------------------------------------------
-#        # Update the user_info dictionary maintained by UNS
-#        #------------------------------------------------------------------------------------
-#
-#        self.update_user_info_dictionary(user_id, notification, old_notification)
-#
 #        #-------------------------------------------------------------------------------------------------------------------
 #        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
 #        #-------------------------------------------------------------------------------------------------------------------
@@ -406,13 +397,6 @@ class UserNotificationService(BaseUserNotificationService):
         notification_request.temporal_bounds.end_datetime = self.makeEpochTime(self.__now())
 
         self.clients.resource_registry.update(notification_request)
-
-        #-------------------------------------------------------------------------------------------------------------------
-        # Update the user info dictionaries
-        #-------------------------------------------------------------------------------------------------------------------
-
-        for user_id in self.user_info.iterkeys():
-            self.update_user_info_dictionary(user_id, notification_request, old_notification)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -863,41 +847,41 @@ class UserNotificationService(BaseUserNotificationService):
 
         return user
 
-    def update_user_info_dictionary(self, user_id, new_notification, old_notification):
-
-        notifications = []
-        notification_preferences = None
-        user = self.clients.resource_registry.read(user_id)
-
-        #------------------------------------------------------------------------------------
-        # If there was a previous notification which is being updated, check the dictionaries and update there
-        #------------------------------------------------------------------------------------
-        if old_notification:
-            # Remove the old notifications
-            if old_notification in self.user_info[user_id]['notifications']:
-
-                # remove from notifications list
-                self.user_info[user_id]['notifications'].remove(old_notification)
-
-        # find the already existing notifications for the user
-        if self.user_info.has_key(user_id):
-            notifications = self.user_info[user_id]['notifications']
-
-        #------------------------------------------------------------------------------------
-        # update the user info - contact information, notifications
-        #------------------------------------------------------------------------------------
-        notifications.append(new_notification)
-
-        # Get the user's notification preferences
-        for item in user.variables:
-            if item['name'] == 'notification_preferences':
-                notification_preferences = item['value']
-
-        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
-
-        log.debug("self.user_info::: %s" , self.user_info)
-
-        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
+#    def update_user_info_dictionary(self, user_id, new_notification, old_notification):
+#
+#        notifications = []
+#        notification_preferences = None
+#        user = self.clients.resource_registry.read(user_id)
+#
+#        #------------------------------------------------------------------------------------
+#        # If there was a previous notification which is being updated, check the dictionaries and update there
+#        #------------------------------------------------------------------------------------
+#        if old_notification:
+#            # Remove the old notifications
+#            if old_notification in self.user_info[user_id]['notifications']:
+#
+#                # remove from notifications list
+#                self.user_info[user_id]['notifications'].remove(old_notification)
+#
+#        # find the already existing notifications for the user
+#        if self.user_info.has_key(user_id):
+#            notifications = self.user_info[user_id]['notifications']
+#
+#        #------------------------------------------------------------------------------------
+#        # update the user info - contact information, notifications
+#        #------------------------------------------------------------------------------------
+#        notifications.append(new_notification)
+#
+#        # Get the user's notification preferences
+#        for item in user.variables:
+#            if item['name'] == 'notification_preferences':
+#                notification_preferences = item['value']
+#
+#        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+#
+#        log.debug("self.user_info::: %s" , self.user_info)
+#
+#        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
     def _get_subscriptions(self, resource_id='', include_nonactive=False):
         """

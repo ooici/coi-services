@@ -107,7 +107,6 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification.notifications = {}
 
         self.user_notification.event_processor.add_notification_for_user = mocksignature(self.user_notification.event_processor.add_notification_for_user)
-        self.user_notification.update_user_info_dictionary = mocksignature(self.user_notification.update_user_info_dictionary)
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
 
         self.user_notification._notification_in_notifications = mocksignature(self.user_notification._notification_in_notifications)
@@ -175,13 +174,9 @@ class UserNotificationTest(PyonTestCase):
 #        self.user_notification.update_user_info_object = mocksignature(self.user_notification.update_user_info_object)
 #        self.user_notification.update_user_info_object.return_value = 'user'
 #
-#        self.user_notification.update_user_info_dictionary = mocksignature(self.user_notification.update_user_info_dictionary)
-#        self.user_notification.update_user_info_dictionary.return_value = ''
-#
 #        self.user_notification.notifications = []
 #
 #        self.user_notification._update_notification_in_notifications_dict = mocksignature(self.user_notification._update_notification_in_notifications_dict)
-#        self.user_notification.update_user_info_dictionary.return_value = ''
 #
 #        self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
 #
@@ -208,7 +203,6 @@ class UserNotificationTest(PyonTestCase):
 #        #-------------------------------------------------------------------------------------------------------------------
 #
 #        self.user_notification.update_user_info_object.assert_called_once_with(user_id, notification, notification)
-#        self.user_notification.update_user_info_dictionary.assert_called_once_with('user_id_1', notification, notification)
 
 
     def test_delete_user_notification(self):
