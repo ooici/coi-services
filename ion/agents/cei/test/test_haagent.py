@@ -374,7 +374,9 @@ class HAAgentMockTest(PyonTestCase):
         self.ha_agent.container.resource_registry.read = Mock()
         self.ha_agent.container.resource_registry.update = Mock()
 
-        self.ha_agent.init()
+        with patch('ion.agents.cei.high_availability_agent.ProcessDispatcherServiceClient') as pd_client:
+            pd_client.read_process_definition.return_value = Mock()
+            self.ha_agent.init()
 
         self.ha_agent.control = Mock()
         self.ha_agent.control.get_all_processes = Mock(return_value={})
@@ -394,7 +396,6 @@ class HAAgentMockTest(PyonTestCase):
         This test ensures that the policy thread will catch any exceptions
         arising from deep inside HA Agent
         """
-
 
         # First make reload_processes raise an Exception
         self.ha_agent.control.reload_processes = Mock(side_effect=ValueError)
@@ -425,7 +426,6 @@ class HAAgentMockTest(PyonTestCase):
         while not self.ha_agent.control.get_all_processes.called:
             gevent.sleep(0.5)
         self.assertFalse(self.policy_thread.dead)
-
 
 
 @attr('INT', group='cei')
