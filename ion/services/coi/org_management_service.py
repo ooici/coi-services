@@ -1048,7 +1048,7 @@ class OrgManagementService(BaseOrgManagementService):
     #-----------------------------------------------
     #  COMPUTED RESOURCES
     #-----------------------------------------------
-    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
+    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an MarineFacilityOrgExtension object containing additional related information
 
         @param org_id    str
@@ -1070,7 +1070,7 @@ class OrgManagementService(BaseOrgManagementService):
             computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
-            user_id=requesting_user_id)
+            user_id=user_id)
 
         log.debug("get_marine_facility_extension: extended_org 1:  %s ", str(extended_org))
 

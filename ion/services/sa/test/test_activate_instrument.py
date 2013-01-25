@@ -406,7 +406,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Get the extended data product to see if it contains the granules
         #--------------------------------------------------------------------------------
-        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, requesting_user_id=user_id)
+        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id)
         self.assertEqual(data_product_id1, extended_product._id)
         #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
         log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
@@ -431,7 +431,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
                 origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
-        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, requesting_user_id=user_id)
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id)
         log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
         log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", str(extended_instrument.computed.user_notification_requests.value) )
         self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)

@@ -1135,7 +1135,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ############################
 
 
-    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an InstrumentDeviceExtension object containing additional related information
 
         @param site_id    str
@@ -1157,7 +1157,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             computed_resource_type=OT.SiteComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
-            user_id=requesting_user_id)
+            user_id=user_id)
 
         # Get status of Site instruments.
         a, b =  self._get_instrument_states(extended_site.instrument_devices)
