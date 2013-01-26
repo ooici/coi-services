@@ -148,6 +148,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         policy_loaded = CFG.get_safe('system.load_policy', False)
 
         if not policy_loaded:
+            log.debug('Loading policy')
             LoadSystemPolicy.op_load_system_policies(process)
 
         gevent.sleep(3)  # Wait for events to be fired and policy updated
@@ -213,6 +214,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
+        log.debug('Begin testing with policies')
 
         #Attempt to access an operation in service which does not have specific policies set
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -388,6 +390,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
         self.assertEqual(len(users),2) #Should include the ION System Actor and non-user actor from setup as well.
 
+        log.debug('Begin testing with policies')
+
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
             actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_user_headers)
@@ -453,6 +457,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
+
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -609,6 +615,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
+
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -849,6 +857,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
+
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -1154,7 +1164,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
-
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
