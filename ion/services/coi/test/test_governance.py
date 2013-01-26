@@ -570,12 +570,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
         users = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(users),0)
 
-        #Make sure the Negotiation object has the proper description set from the initial SAP
-        self.assertEqual(negotiations[0].description, sap.description)
-
         #Manager approves proposal
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
             negotiation_status=NegotiationStatusEnum.OPEN, headers=self.system_actor_header)
+
+        #Make sure the Negotiation object has the proper description set from the initial SAP
+        self.assertEqual(negotiations[0].description, sap.description)
 
         sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
