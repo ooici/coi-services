@@ -150,7 +150,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         if not policy_loaded:
             LoadSystemPolicy.op_load_system_policies(process)
 
-        gevent.sleep(1)  # Wait for events to be fired and policy updated
+        gevent.sleep(3)  # Wait for events to be fired and policy updated
 
         self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
 
