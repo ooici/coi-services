@@ -359,8 +359,11 @@ class VisualizationService(BaseVisualizationService):
 
             # The times passed from UI are system times so convert them to NTP
             if 'start_time' in visualization_parameters:
+                #query['start_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['start_time'])))
                 query['start_time'] = int(visualization_parameters['start_time'])
+
             if 'end_time' in visualization_parameters:
+                #query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
                 query['end_time'] = int((visualization_parameters['end_time']))
 
             # stride time
@@ -670,8 +673,10 @@ class VisualizationService(BaseVisualizationService):
             return None
 
         # Start collecting the data to populate the output dictionary
-        time_bounds = self.clients.dataset_management.dataset_bounds(ds_ids[0])['time']
-        dp_meta_data['time_bounds'] = [float(ntplib.ntp_to_system_time(i)) for i in time_bounds]
+        #time_bounds = self.clients.dataset_management.dataset_bounds(ds_ids[0])['time']
+        #dp_meta_data['time_bounds'] = [float(ntplib.ntp_to_system_time(i)) for i in time_bounds]
+        time_bounds = self.clients.dataset_management.dataset_temporal_bounds(ds_ids[0])
+        dp_meta_data['time_bounds'] = time_bounds
         dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents(ds_ids[0])['time'][0]
 
         print " >>>>>>>> DP META DATA = ", dp_meta_data
