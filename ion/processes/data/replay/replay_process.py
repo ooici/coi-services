@@ -28,6 +28,7 @@ import dateutil.parser
 import gevent
 import netCDF4
 import numpy as np
+import calendar
 import time
 
 
@@ -293,7 +294,7 @@ class ReplayProcess(BaseReplayProcess):
         if 'since' in units:
             t = netCDF4.netcdftime.utime(units)
             dtg = t.num2date(val)
-            return time.mktime(dtg.timetuple())
+            return calendar.timegm(dtg.timetuple())
         elif 'iso' in units:
             t = dateutil.parser.parse(val)
             return time.mktime(t.timetuple())
