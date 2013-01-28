@@ -2,6 +2,10 @@ platform agent framework
 
 some noteworthy notes (occasionaly updated)
 
+2013-01-28:
+- CIDEVSA-450: Refactor: move resource monitor greenlet functionality to platform agent level
+  progressing..
+
 2013-01-15:
 - code clean-up to improve code coverage: from 79% to 86% when running the
   platform agent specific tests (so actual coverage when running the whole

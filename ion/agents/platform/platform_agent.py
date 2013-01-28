@@ -43,6 +43,9 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
+from ion.agents.platform.platform_resource_monitor import PlatformResourceMonitor
+from ion.agents.platform.util.network import NNode, Attr, Port
+
 from coverage_model.parameter import ParameterDictionary
 from interface.objects import StreamRoute
 
@@ -126,9 +129,13 @@ class PlatformAgent(ResourceAgent):
         self._plat_config = None
         self._platform_id = None
         self._topology = None
+        self._nnode = None
         self._agent_device_map = None
         self._agent_streamconfig_map = None
         self._plat_driver = None
+
+        # PlatformResourceMonitor
+        self._platform_resource_monitor = None
 
         # Platform ID of my parent, if any. This is mainly used for diagnostic
         # purposes
@@ -199,6 +206,10 @@ class PlatformAgent(ResourceAgent):
             self._plat_driver.destroy()
             self._plat_driver = None
 
+        if self._platform_resource_monitor:
+            self._platform_resource_monitor.destroy()
+            self._platform_resource_monitor = None
+
         self._unconfigured_params.clear()
 
     def _pre_initialize(self):
@@ -243,9 +254,7 @@ class PlatformAgent(ResourceAgent):
 #                # deserialize it
 #                adm = dict((k, self.deserializer.deserialize(v)) for k,v in adm.iteritems())
 
-            log.debug("agent_device_map = %s", str(adm))
-
-            self._agent_device_map = adm
+            self._set_agent_device_map(adm)
 
         if 'agent_streamconfig_map' in self._plat_config:
             self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
@@ -255,6 +264,15 @@ class PlatformAgent(ResourceAgent):
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
+
+    def _set_agent_device_map(self, adm):
+        """
+        Sets the self._agent_device_map member along with related preparations.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("agent_device_map = %s", str(adm))
+
+        self._agent_device_map = adm
 
     ##############################################################
     # Governance interfaces
@@ -443,34 +461,138 @@ class PlatformAgent(ResourceAgent):
 
     def _do_go_active(self):
         """
-        Does nothing at the moment.
+        Builds the network definition according to provided configuration.
         """
-        pass
+        self._build_network_definition()
 
     def _go_inactive(self):
         """
-        Does nothing at the moment.
+        Destroys the network definition.
         """
-        pass
+        self._nnode = None
 
     def _run(self):
         """
         """
         self._start_resource_monitoring()
 
+    def _build_network_definition(self):
+
+        if self._topology:
+            self._nnode = self._build_network_definition_using_topology()
+        else:
+            log.warn("%r: No _topology to  build network definition",
+                     self._platform_id)
+
+    def _build_network_definition_using_topology(self):
+        """
+        Uses self._topology to build the network definition.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _build_network_definition_using_topology: %s",
+                self._platform_id, self._topology)
+
+        def build(platform_id, children):
+            """
+            Returns the root NNode for the given platform_id with its
+            children according to the given list.
+            """
+            nnode = NNode(platform_id)
+            if self._agent_device_map:
+                self._set_attributes_and_ports_from_agent_device_map(nnode)
+
+            log.debug('Created NNode for %r', platform_id)
+
+            for subplatform_id in children:
+                subplatform_children = self._topology.get(subplatform_id, [])
+                sub_nnode = build(subplatform_id, subplatform_children)
+                nnode.add_subplatform(sub_nnode)
+
+            return nnode
+
+        children = self._topology.get(self._platform_id, [])
+        return build(self._platform_id, children)
+
+    def _set_attributes_and_ports_from_agent_device_map(self, nnode):
+        """
+        Sets the attributes and ports for the given NNode from
+        self._agent_device_map.
+        """
+        platform_id = nnode.platform_id
+        if platform_id not in self._agent_device_map:
+            log.warn("%r: no entry in agent_device_map for platform_id",
+                     self._platform_id, platform_id)
+            return
+
+        device_obj = self._agent_device_map[platform_id]
+        log.info("%r: for platform_id=%r device_obj=%s",
+                    self._platform_id, platform_id, device_obj)
+
+        assert isinstance(device_obj, dict)
+        attrs = device_obj['platform_monitor_attributes']
+        for attr_obj in attrs:
+            attr = Attr(attr_obj['id'], {
+                'name': attr_obj['id'],
+                'monitorCycleSeconds': attr_obj['monitor_rate'],
+                'units': attr_obj['units'],
+                })
+            nnode.add_attribute(attr)
+
+        ports = device_obj['ports']
+        for port_obj in ports:
+            port = Port(port_obj['port_id'], port_obj['ip_address'])
+            nnode.add_port(port)
+
     def _start_resource_monitoring(self):
         """
-        Calls self._plat_driver.start_resource_monitoring()
+        Starts resource monitoring.
         """
         self._assert_driver()
-        self._plat_driver.start_resource_monitoring()
+
+        # TODO REMOVE THIS LINE
+#        self._plat_driver.start_resource_monitoring()
+
+        attr_info = self._get_platform_attributes()
+        if not attr_info:
+            # warning should have been generated already.
+            return
+
+        self._platform_resource_monitor = PlatformResourceMonitor(
+            self._platform_id, attr_info, self._get_attribute_values, self.evt_recv
+        )
+
+        self._platform_resource_monitor.start_resource_monitoring()
+
+    def _get_platform_attributes(self):
+
+        if self._agent_device_map:
+            return self._get_platform_attributes_using_agent_device_map()
+        else:
+            log.warn("%r: No _agent_device_map to get platform attributes",
+                     self._platform_id)
+            return None
+
+    def _get_platform_attributes_using_agent_device_map(self):
+        attr_info = dict((attr.attr_id, attr.defn) for attr in self._nnode.attrs.itervalues())
+        log.debug("%r: _get_platform_attributes_using_agent_device_map attr_info=%s",
+              self._platform_id, attr_info)
+        return attr_info
+
+    def _get_attribute_values(self, attr_names, from_time):
+        self._assert_driver()
+        result = self._plat_driver.get_attribute_values(attr_names, from_time)
+        return result
 
     def _stop_resource_monitoring(self):
         """
-        Calls self._plat_driver.stop_resource_monitoring()
+        Stops resource monitoring.
         """
         self._assert_driver()
-        self._plat_driver.stop_resource_monitoring()
+
+        # TODO REMOVE THIS LINE
+#        self._plat_driver.stop_resource_monitoring()
+
+        self._platform_resource_monitor.stop_resource_monitoring()
 
     def evt_recv(self, driver_event):
         """
@@ -726,7 +848,6 @@ class PlatformAgent(ResourceAgent):
             'agent':            {'resource_id': subplatform_id},
             'stream_config':    self.CFG.get('stream_config', None),
 
-            # TODO pass platform config here
             'platform_config':  platform_config,
         }
 
@@ -1096,12 +1217,12 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('get_resource missing from_time argument.')
 
         try:
-            result = self._plat_driver.get_attribute_values(attr_names, from_time)
+            result = self._get_attribute_values(attr_names, from_time)
 
             next_state = self.get_agent_state()
 
         except Exception as ex:
-            log.error("error in get_attribute_values %s", str(ex)) #, exc_Info=True)
+            log.error("error in _get_attribute_values %s", str(ex)) #, exc_Info=True)
             raise
 
         return (next_state, result)
