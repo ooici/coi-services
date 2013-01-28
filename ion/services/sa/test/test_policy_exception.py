@@ -95,7 +95,7 @@ class TestAssembly(IonIntegrationTestCase):
         log.debug("asserting that %s of '%s' on %s '%s' raises Unauthorized",
                   lcsmethod, lc_event, resource_label, resource_id)
         self.assertRaises(Unauthorized, lcsmethod, resource_id, lc_event)
-
+        self.assertRaisesRegexp(Unauthorized, "401 - No model associated with agent", lcsmethod, resource_id, lc_event)
 
     def generic_lcs_pass(self,
                          owner_service,
