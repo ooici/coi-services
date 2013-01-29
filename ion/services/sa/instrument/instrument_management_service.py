@@ -966,17 +966,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         This function is used for governance validation for the request_direct_access and stop_direct_access operation.
         """
 
-        user_id = headers['ion-actor-id']
+        actor_id = headers['ion-actor-id']
         resource_id = msg['instrument_device_id']
 
-        commitment =  self.container.governance_controller.get_resource_commitment(user_id, resource_id)
+        commitments =  self.container.governance_controller.has_resource_commitments(actor_id, resource_id)
 
-        if commitment is None:
-            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (user_id, resource_id)
+        if not commitments[0]:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (actor_id, resource_id)
 
         #Look for any active commitments that are exclusive - and only allow for exclusive commitment
-        if not commitment.commitment.exclusive:
-            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (user_id, resource_id)
+        if not commitments[1]:
+            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (actor_id, resource_id)
 
         return True, ''
 
