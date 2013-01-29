@@ -494,36 +494,34 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         """
 
+        query = []
+
         if min_time and max_time:
-            search_time = "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_time, max_time)
-        else:
-            search_time = 'search "ts_created" is "*" from "events_index"'
+            query.append( "SEARCH 'ts_created' VALUES FROM %s TO %s FROM 'events_index'" % (min_time, max_time))
 
         if origin:
-            search_origin = 'search "origin" is "%s" from "events_index"' % origin
-        else:
-            search_origin = 'search "origin" is "*" from "events_index"'
+            query.append( 'search "origin" is "%s" from "events_index"' % origin)
 
         if type:
-            search_type = 'search "type_" is "%s" from "events_index"' % type
-        else:
-            search_type = 'search "type_" is "*" from "events_index"'
+            query.append( 'search "type_" is "%s" from "events_index"' % type)
 
-        search_string = search_time + ' and ' + search_origin + ' and ' + search_type
+        search_string = ' and '.join(query)
+
 
         # get the list of ids corresponding to the events
         ret_vals = self.discovery.parse(search_string)
+        if len(query) > 1:
+            events = self.datastore.read_mult(ret_vals)
+        else:
+            events = [i['_source'] for i in ret_vals]
+
         log.debug("(find_events_extended) Discovery search returned the following event ids: %s", ret_vals)
 
-        events = self.datastore.read_mult(ret_vals)
 
         log.debug("(find_events_extended) UNS found the following relevant events: %s", events)
 
-        if limit > -1:
-            list = []
-            for i in xrange(limit):
-                list.append(events[i])
-            return list
+        if limit > 0:
+            return events[:limit]
 
         #todo implement time ordering: ascending or descending
 
