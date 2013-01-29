@@ -969,13 +969,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         actor_id = headers['ion-actor-id']
         resource_id = msg['instrument_device_id']
 
-        commitments =  self.container.governance_controller.has_resource_commitments(actor_id, resource_id)
+        commitment_status =  self.container.governance_controller.has_resource_commitments(actor_id, resource_id)
 
-        if not commitments[0]:
+        if not commitment_status.shared:
             return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (actor_id, resource_id)
 
         #Look for any active commitments that are exclusive - and only allow for exclusive commitment
-        if not commitments[1]:
+        if not commitment_status.exclusive:
             return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (actor_id, resource_id)
 
         return True, ''
