@@ -16,7 +16,14 @@ from ion.services.sa.test.helpers import any_old
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
-import string
+import string, simplejson, urllib
+import pyon.core.exception as pyex
+
+from pyon.core.bootstrap import IonObject
+from pyon.core.object import IonObjectSerializer
+
+from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
+
 
 # some stuff for logging info to the console
 log = DotDict()
@@ -94,8 +101,18 @@ class TestAssembly(IonIntegrationTestCase):
         # lcsmethod(resource_id, lc_event)
         log.debug("asserting that %s of '%s' on %s '%s' raises Unauthorized",
                   lcsmethod, lc_event, resource_label, resource_id)
-        self.assertRaises(Unauthorized, lcsmethod, resource_id, lc_event)
-        self.assertRaisesRegexp(Unauthorized, "401 - No model associated with agent", lcsmethod, resource_id, lc_event)
+        #self.assertRaises(Unauthorized, lcsmethod, resource_id, lc_event)
+
+        with self.assertRaises(Unauthorized) as cm:
+            lcsmethod(resource_id, lc_event)
+        self.assertIn('No model associated with agent',cm.exception.message)
+
+        response = _gw_call('instrument_management', "execute_%s_lifecycle" % resource_label, resource_id, lc_event)
+
+        self.assertIn(GATEWAY_ERROR, response['data'])
+        self.assertEqual(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_EXCEPTION], 'Unauthorized')
+        self.assertEqual(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE], 'No model associated with agent')
+        log.debug("Service Gateway Response: %s" % response['data'][GATEWAY_ERROR])
 
     def generic_lcs_pass(self,
                          owner_service,
@@ -128,4 +145,73 @@ class TestAssembly(IonIntegrationTestCase):
 
         self.assertEqual(lc_state, parts[0])
 
+
+def _gw_call(service_name, op, platform_agent_id='', lifecycle_event='', requester=None):
+
+    ims_request = {  "serviceRequest": {
+        "serviceName": service_name,
+        "serviceOp": op,
+        "params": {
+            "platform_agent_id": platform_agent_id,
+            "lifecycle_event": lifecycle_event
+        }
+    }
+    }
+    return _process_gateway_request(service_name, op, ims_request, requester)
+
+
+def _service_gateway_request(uri, payload):
+
+    server_hostname = 'localhost'
+    server_port = 5000
+    web_server_cfg = None
+    try:
+        web_server_cfg = CFG['container']['service_gateway']['web_server']
+    except Exception, e:
+        web_server_cfg = None
+
+    if web_server_cfg is not None:
+        if 'hostname' in web_server_cfg:
+            server_hostname = web_server_cfg['hostname']
+        if 'port' in web_server_cfg:
+            server_port = web_server_cfg['port']
+
+
+
+    SEARCH_BASE = 'http://' + server_hostname + ':' + str(server_port) + '/ion-service/' + uri
+
+
+    args = {}
+    args.update({
+        #'format': "unix",
+        #'output': 'json'
+    })
+    url = SEARCH_BASE + '?' + urllib.urlencode(args)
+    log.debug(url)
+    log.debug(payload)
+
+    log.info("Service Gateway Request: %s %s" % (uri, payload))
+
+    result = simplejson.load(urllib.urlopen(url, 'payload=' + str(payload ) ))
+    if not result.has_key('data'):
+        log.error('Not a correct JSON response: %s' & result)
+
+    #log.debug("Service Gateway Response: %s" % result)
+
+    return result
+
+
+def _process_gateway_request(service_name, operation, json_request, requester):
+
+    if requester is not None:
+        json_request["serviceRequest"]["requester"] = requester
+
+
+    decoder = IonObjectSerializer()
+    decoded_msg = decoder.serialize(json_request)
+    payload = simplejson.dumps(decoded_msg)
+
+    response = _service_gateway_request(service_name + '/' + operation,   payload)
+
+    return response
 
