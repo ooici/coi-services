@@ -5,12 +5,11 @@ from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model.coverage import SimplexCoverage
+from coverage_model import SimplexCoverage, QuantityType
 
 from xml.dom.minidom import parse, parseString
 from zipfile import ZipFile
 
-import numpy as np
 import base64
 import os
 import urllib
@@ -89,7 +88,7 @@ class RegistrationProcess(StandaloneProcess):
         datasets = {}
         for key in cov.list_parameters():
             pc = cov.get_parameter_context(key)
-            if np.dtype(pc.param_type.value_encoding).char == 'O':
+            if not isinstance(pc.param_type, QuantityType):
                 continue
             param = cov.get_parameter(key)
             dims = (cov.temporal_parameter_name,)
@@ -102,7 +101,12 @@ class RegistrationProcess(StandaloneProcess):
             datasets[dims].append(key)
 
         index = 0
+        if not datasets:
+            raise BadRequest('Attempting to register a dimensionless dataset. The coverage (%s) has no dimension(s).\n%s' %( coverage_path, cov))
+        
         for dims, vars in datasets.iteritems():
+            if len(vars)==1:
+                raise BadRequest('A dataset needs a proper range, not just the temporal dimension. %s\n%s' %( coverage_path, cov))
 
             if not (len(dims) == 1 and dims[0] == vars[0]):
                 dataset_element = doc.createElement('dataset')
