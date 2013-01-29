@@ -104,13 +104,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
 
-        driver_config = {
-            'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
-            'dvr_cls' : 'SBE37Driver',
-            'workdir' : '/tmp/',
-        }
-
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", 
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
         self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 

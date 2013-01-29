@@ -11,7 +11,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate

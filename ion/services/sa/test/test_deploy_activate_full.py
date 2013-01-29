@@ -26,8 +26,6 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
-#from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-
 import gevent
 import time
 import os

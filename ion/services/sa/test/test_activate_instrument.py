@@ -11,7 +11,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from mi.core.instrument.instrument_driver import DriverEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -309,7 +309,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
         for i in xrange(10):
             retval = self._ia_client.execute_resource(cmd)
             print "test_activateInstrumentSample: return from sample %s" % str(retval)
