@@ -21,6 +21,8 @@ from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.oms.oms_event_listener import OmsEventListener
+
+from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
@@ -212,7 +214,7 @@ class OmsPlatformDriver(PlatformDriver):
             Returns the root NNode according to self._platform_id and the OMS'
             getPlatformMap response.
             """
-            nodes = NNode.create_network(map)
+            nodes = NetworkUtil.create_node_network(map)
             if not self._platform_id in nodes:
                 msg = "platform map does not contain entry for %r" % self._platform_id
                 log.error(msg)

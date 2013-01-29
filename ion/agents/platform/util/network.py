@@ -11,12 +11,14 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-# NOTE: No use of any pyon stuff mainly to facilitate use by simulator, which
-# uses a regular threading.Thread, so we avoid gevent monkey-patching issues.
+# NOTE: No use of any pyon stuff in this module mainly to facilitate use by
+# simulator, which uses a regular threading.Thread when run as a separate
+# process, so we avoid gevent monkey-patching issues.
+
 
 class Attr(object):
     """
-    An attribute
+    Represents a platform attribute.
     """
     def __init__(self, attr_id, defn):
         self._attr_id = attr_id
@@ -46,10 +48,25 @@ class Attr(object):
     def value(self):
         return self._value
 
+    def diff(self, other):
+        """
+        Returns None if the two attributes are the same.
+        Otherwise, returns a message describing the first difference.
+        """
+        if self.attr_id != other.attr_id:
+            return "Attribute IDs are different: %r != %r" % (
+                self.attr_id, other.attr_id)
+
+        if self.defn != other.defn:
+            return "Attribute definitions are different: %r != %r" % (
+                self.defn, other.defn)
+
+        return None
+
 
 class Port(object):
     """
-    A port in a platform node.
+    Represents a platform port.
     """
     def __init__(self, port_id, ip):
         self._port_id = port_id
@@ -73,6 +90,25 @@ class Port(object):
     @property
     def attrs(self):
         return self._attrs
+
+    def diff(self, other):
+        """
+        Returns None if the two ports are the same.
+        Otherwise, returns a message describing the first difference.
+        """
+        if self.port_id != other.port_id:
+            return "Port IDs are different: %r != %r" % (
+                self.port_id, other.port_id)
+
+        if self.comms != other.comms:
+            return "Port comms are different: %r != %r" % (
+                self.comms, other.comms)
+
+        if self.attrs != other.attrs:
+            return "Port attributes are different: %r != %r" % (
+                self.attrs, other.attrs)
+
+        return None
 
 
 class NNode(object):
@@ -304,50 +340,134 @@ class NNode(object):
 
         return result
 
-    @staticmethod
-    def create_network(map):
+    def diff(self, other):
         """
-        Creates a node network according to the given map.
-
-        @param map [(platform_id, parent_platform_id), ...]
-
-        @retval { platform_id: NNode }
+        Returns None if the two nodes represent the same topology and same
+        attributes and ports.
+        Otherwise, returns a message describing the first difference.
         """
-        nodes = {}
-        for platform_id, parent_platform_id in map:
-            if parent_platform_id is None:
-                parent_platform_id = ''
+        if self.platform_id != other.platform_id:
+            return "platform IDs are different: %r != %r" % (
+                self.platform_id, other.platform_id)
 
-            if not parent_platform_id in nodes:
-                nodes[parent_platform_id] = NNode(parent_platform_id)
+        if self.name != other.name:
+            return "platform names are different: %r != %r" % (
+                self.name, other.name)
 
-            if not platform_id in nodes:
-                nodes[platform_id] = NNode(platform_id)
+        # compare parents:
+        if (self.parent is None) != (other.parent is None):
+            return "platform parents are different: %r != %r" % (
+                self.parent, other.parent)
+        if self.parent is not None and self.parent.platform_id != other.parent.platform_id:
+            return "platform parents are different: %r != %r" % (
+                self.parent.platform_id, other.parent.platform_id)
 
-            nodes[parent_platform_id].add_subplatform(nodes[platform_id])
+        # compare attributes:
+        attr_ids = set(self.attrs.iterkeys())
+        other_attr_ids = set(other.attrs.iterkeys())
+        if attr_ids != other_attr_ids:
+            return "platform_id=%r: attribute IDs are different: %r != %r" % (
+                self.platform_id, attr_ids, other_attr_ids)
+        for attr_id, attr in self.attrs.iteritems():
+            other_attr = other.attrs[attr_id]
+            diff = attr.diff(other_attr)
+            if diff:
+                return diff
 
-        return nodes
+        # compare ports:
+        port_ids = set(self.ports.iterkeys())
+        other_port_ids = set(other.ports.iterkeys())
+        if port_ids != other_port_ids:
+            return "platform_id=%r: port IDs are different: %r != %r" % (
+                self.platform_id, port_ids, other_port_ids)
+        for port_id, port in self.ports.iteritems():
+            other_port = other.ports[port_id]
+            diff = port.diff(other_port)
+            if diff:
+                return diff
 
-#TODO currently unused method -- might be removed.
-#    def diff_topology(self, other):
-#        """
-#        Returns None if the other node represents the same topology as this
-#        node. Otherwise, returns a message describing the first difference.
-#        """
-#        if self.platform_id != other.platform_id:
-#            return "platform IDs are different: %r != %r" % (
-#                self.platform_id, other.platform_id)
-#
-#        subplatform_ids = set(self.subplatforms.iterkeys())
-#        other_subplatform_ids = set(other.subplatforms.iterkeys())
-#        if subplatform_ids != other_subplatform_ids:
-#            return "subplatform IDs are different: %r != %r" % (
-#                    subplatform_ids, other_subplatform_ids)
-#
-#        for platform_id, node in self.subplatforms.iteritems():
-#            other_node = other.subplatforms[platform_id]
-#            diff = node.diff_topology(other_node)
-#            if diff:
-#                return diff
-#
-#        return None
+        # compare sub-platforms:
+        subplatform_ids = set(self.subplatforms.iterkeys())
+        other_subplatform_ids = set(other.subplatforms.iterkeys())
+        if subplatform_ids != other_subplatform_ids:
+            return "platform_id=%r: subplatform IDs are different: %r != %r" % (
+                    self.platform_id,
+                    subplatform_ids, other_subplatform_ids)
+
+        for platform_id, node in self.subplatforms.iteritems():
+            other_node = other.subplatforms[platform_id]
+            diff = node.diff(other_node)
+            if diff:
+                return diff
+
+        return None
+
+
+class NetworkDefinition(object):
+    """
+    Represents a platform network definition in terms of platform types and
+    topology, including attributes and ports associated with the platforms.
+
+    See NetworkUtil for serialization/deserialization of objects of this type
+    and other associated utilities.
+    """
+
+    def __init__(self):
+        self._platform_types = {}
+        self._nodes = {}
+
+        # _dummy_root is a dummy NNode having as children the actual roots in
+        # the network.
+        self._dummy_root = None
+
+    @property
+    def platform_types(self):
+        """
+        Returns the platform types in the network.
+
+        @return {platform_type : description} dict
+        """
+        return self._platform_types
+
+    @property
+    def nodes(self):
+        """
+        Returns a dict of all NNodes in the network indexed by the platform ID.
+
+        @return {platform_id : NNode} map
+        """
+        return self._nodes
+
+    @property
+    def root(self):
+        """
+        Returns the root NNode. Can be None if there is no such root or there
+        are multiple root nodes. The expected normal situation is to have
+        single root.
+
+        @return the root NNode.
+        """
+        root = None
+        if self._dummy_root and len(self._dummy_root.subplatforms) == 1:
+            root = self._dummy_root.subplatforms.values()[0]
+        return root
+
+    def diff(self, other):
+        """
+        Returns None if the two objects represent the same network definition.
+        Otherwise, returns a message describing the first difference.
+        """
+
+        # compare platform_type definitions:
+        if set(self.platform_types.items()) != set(other.platform_types.items()):
+            return "platform types are different: %r != %r" % (
+                self.platform_types, other.platform_types)
+
+        # compare topology
+        if (self.root is None) != (other.root is None):
+            return "roots are different: %r != %r" % (
+                self.root, other.root)
+        if self.root is not None:
+            return self.root.diff(other.root)
+        else:
+            return None

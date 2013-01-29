@@ -19,7 +19,7 @@ import sys
 import os
 import traceback
 
-from ion.agents.platform.util.network import NNode
+from ion.agents.platform.util.network_util import NetworkUtil
 
 
 # hard-coded list for initial testing accord to Matthew M's email
@@ -155,7 +155,7 @@ if __name__ == "__main__":  # pragma: no cover
         print "ping() = %s"  % oms.ping()
         map = oms.getPlatformMap()
         print "getPlatformMap() = %s" % map
-        nodes = NNode.create_network(map)
+        nodes = NetworkUtil.create_node_network(map)
         if not '' in nodes:
             print "platform map does not include '' to indicate root platforms."
         else:
@@ -173,7 +173,7 @@ if __name__ == "__main__":  # pragma: no cover
     retval = proxy.config.getPlatformMap()
     print "getPlatformMap() = %s" % retval
 
-    nodes = NNode.create_network(retval)
+    nodes = NetworkUtil.create_node_network(retval)
     if not '' in nodes:
         print "platform map does not include '' to indicate root platforms."
     else:
