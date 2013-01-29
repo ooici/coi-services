@@ -65,7 +65,7 @@ class TestAssembly(IonIntegrationTestCase):
         self.client.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.client.DPMS = DataProductManagementServiceClient(node=self.container.node)
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
-        self.client.OMS = ObservatoryManagementServiceClient(node=self.container.node)
+        self.client.OMS  = ObservatoryManagementServiceClient(node=self.container.node)
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
@@ -158,6 +158,7 @@ class TestAssembly(IonIntegrationTestCase):
         #
         ###############################################
 
+        org_id = self.client .OMS.create_marine_facility(any_old(RT.Org))
 
         ###############################################
         #
@@ -169,25 +170,25 @@ class TestAssembly(IonIntegrationTestCase):
         observatory_id = self.generic_fcruf_script(RT.Observatory, 
                                           "observatory", 
                                           self.client.OMS, 
-                                          True)
+                                          org_id)
 
         log.info("Create a subsite")
         subsite_id = self.generic_fcruf_script(RT.Subsite,
                                             "subsite",
                                             self.client.OMS,
-                                            True)
+                                            org_id)
 
         log.info("Create a platform site")
         platform_site_id = self.generic_fcruf_script(RT.PlatformSite,
                                                      "platform_site",
                                                      self.client.OMS,
-                                                     True)
+                                                     org_id)
         
         log.info("Create instrument site")
         instrument_site_id = self.generic_fcruf_script(RT.InstrumentSite,
                                                        "instrument_site",
                                                        self.client.OMS,
-                                                       True)
+                                                       org_id)
         
         ###############################################
         #
@@ -199,7 +200,7 @@ class TestAssembly(IonIntegrationTestCase):
         platform_model_id = self.generic_fcruf_script(RT.PlatformModel, 
                                                      "platform_model", 
                                                      self.client.IMS, 
-                                                     True)
+                                                     None)
 
         log.info("Create instrument model")
         instModel_obj = IonObject(RT.InstrumentModel,
@@ -210,14 +211,14 @@ class TestAssembly(IonIntegrationTestCase):
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
                                                         "instrument_model", 
                                                         self.client.IMS, 
-                                                        True,
+                                                        None,
                                                         actual_obj=instModel_obj)
 
         log.info("Create sensor model")
         sensor_model_id = self.generic_fcruf_script(RT.SensorModel, 
                                                         "sensor_model", 
                                                         self.client.IMS, 
-                                                        True)
+                                                        None)
 
 
         ###############################################
@@ -230,7 +231,7 @@ class TestAssembly(IonIntegrationTestCase):
         platform_agent_id = self.generic_fcruf_script(RT.PlatformAgent, 
                                                       "platform_agent", 
                                                       self.client.IMS, 
-                                                      False)
+                                                      None)
         
         log.info("Create instrument agent")
         instAgent_obj = IonObject(RT.InstrumentAgent,
@@ -241,7 +242,7 @@ class TestAssembly(IonIntegrationTestCase):
         instrument_agent_id = self.generic_fcruf_script(RT.InstrumentAgent,
                                                         "instrument_agent", 
                                                         self.client.IMS, 
-                                                        False,
+                                                        None,
                                                         actual_obj=instAgent_obj)
 
 
@@ -255,18 +256,18 @@ class TestAssembly(IonIntegrationTestCase):
         platform_device_id = self.generic_fcruf_script(RT.PlatformDevice, 
                                                     "platform_device", 
                                                     self.client.IMS, 
-                                                    False)
+                                                    org_id)
         log.info("Create an instrument device")
         instrument_device_id = self.generic_fcruf_script(RT.InstrumentDevice, 
                                                          "instrument_device", 
                                                          self.client.IMS, 
-                                                         False)
+                                                         org_id)
 
         log.info("Create a sensor device")
         sensor_device_id = self.generic_fcruf_script(RT.SensorDevice, 
                                                          "sensor_device", 
                                                          self.client.IMS, 
-                                                         False)
+                                                         org_id)
 
 
 
@@ -530,7 +531,7 @@ class TestAssembly(IonIntegrationTestCase):
                                    data_product_id=inst_data_product_id)
         c.OMS.create_site_data_product(instrument_site_id, log_data_product_id)
 
-        deployment_id = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
+        deployment_id = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, org_id)
 
         c.OMS.deploy_platform_site(platform_site_id, deployment_id)
         c.IMS.deploy_platform_device(platform_device_id, deployment_id)
@@ -559,7 +560,7 @@ class TestAssembly(IonIntegrationTestCase):
         instrument_device_id2 = self.generic_fcruf_script(RT.InstrumentDevice,
                                                          "instrument_device",
                                                          self.client.IMS,
-                                                         False)
+                                                         org_id)
         log.info("Associate instrument model with instrument device 2")
         self.generic_association_script(c.IMS.assign_instrument_model_to_instrument_device,
                                         c.IMS.find_instrument_device_by_instrument_model,
@@ -578,7 +579,7 @@ class TestAssembly(IonIntegrationTestCase):
                                    data_product_id=inst_data_product_id2)
 
         # create a new deployment for the new device
-        deployment_id2 = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, False)
+        deployment_id2 = self.generic_fcruf_script(RT.Deployment, "deployment", c.OMS, org_id)
         log.debug("Associating instrument site with new deployment")
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id2)
         log.debug("Associating instrument device with new deployment")
@@ -717,19 +718,19 @@ class TestAssembly(IonIntegrationTestCase):
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
                                                       "instrument_model",
                                                       self.client.IMS,
-                                                      True)
+                                                      None)
 
         log.info("Create an instrument device")
         instrument_device_id = self.generic_fcruf_script(RT.InstrumentDevice,
                                                          "instrument_device",
                                                          self.client.IMS,
-                                                         False)
+                                                         None)
 
         log.info("Create instrument site")
         instrument_site_id = self.generic_fcruf_script(RT.InstrumentSite,
                                                        "instrument_site",
                                                        self.client.OMS,
-                                                       True)
+                                                       None)
 
         log.info("Associate instrument model with instrument site")
         self.generic_association_script(c.OMS.assign_instrument_model_to_instrument_site,
@@ -930,7 +931,7 @@ class TestAssembly(IonIntegrationTestCase):
         self.assertRaises(NotFound, del_op, resource_id)
 
 
-    def generic_fcruf_script(self, resource_iontype, resource_label, owner_service, is_simple, actual_obj=None):
+    def generic_fcruf_script(self, resource_iontype, resource_label, owner_service, org_id, actual_obj=None):
         """
         run through find, create, read, update, and find ops on a basic resource
 
@@ -939,8 +940,10 @@ class TestAssembly(IonIntegrationTestCase):
         @param resource_iontype something like RT.BlahBlar
         @param resource_label something like platform_model
         @param owner_service a service client instance
-        @param is_simple whether to check for AVAILABLE LCS on create
+        @param org_id an org to assign the resource to
         """
+
+        assert org_id is None or type("") == type(org_id)
 
         # this section is just to make the LCA integration script easier to write.
         #
@@ -998,12 +1001,6 @@ class TestAssembly(IonIntegrationTestCase):
         self.assertEqual(generic_obj.name, generic_ret.name)
         self.assertEqual(generic_obj.description, generic_ret.description)
 
-
-        #"simple" resources go available immediately upon creation, so check:
-        if is_simple:
-            log.info("Verifying that resource went DEPLOYED_AVAILABLE on creation")
-            self.assertEqual(generic_ret.lcstate, LCS.DEPLOYED_AVAILABLE)
-
         log.info("Updating %s '%s'", resource_label, generic_id)
         generic_newname = "%s updated" % generic_ret.name
         generic_ret.name = generic_newname
@@ -1020,6 +1017,10 @@ class TestAssembly(IonIntegrationTestCase):
 
         log.info("There were %s and now there are %s", num_objs, num_objs2)
         self.assertTrue(num_objs2 > num_objs)
+
+        if not org_id is None:
+            log.info("Associating with Org")
+            self.client.OMS.assign_resource_to_observatory_org(generic_id, org_id)
 
         log.info("Returning %s with id '%s'", resource_iontype, generic_id)
         return generic_id

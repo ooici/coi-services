@@ -193,7 +193,8 @@ class ModelPolicy(ResourceLCSPolicy):
         model_type = self._get_resource_type_by_id(model_id)
 
         if RT.SensorModel == model_type:
-            return 0 == len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id))
+            if 0 < len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id)):
+                return self._make_fail("SensorDevice(s) are using this model")
 
         if RT.InstrumentModel == model_type:
             if 0 < len(self._find_having(RT.InstrumentDevice, PRED.hasModel, model_id)):
@@ -264,6 +265,9 @@ class DevicePolicy(ResourceLCSPolicy):
     def lce_precondition_plan(self, device_id):
         obj = self.RR.read(device_id)
 
+        if 0 == len(self._find_having(RT.Org, PRED.hasResource, device_id)):
+            return self._make_fail("Device is not associated with any Org")
+
         return self._make_result("" != obj.name, "Name was not defined")
 
     def lce_precondition_develop(self, device_id):
@@ -319,17 +323,23 @@ class DevicePolicy(ResourceLCSPolicy):
 
         if RT.PlatformDevice == device_type:
             agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.PlatformAgentInstance)
-            if 0 == len(agents):
-                return self._make_fail("Device has no associated agent instance")
+            if 1 != len(agents):
+                return self._make_fail("Device has %d associated agent instances, not 1" % len(agents))
             tmp = self._resource_lcstate_in(agents[0], [LCS.DEPLOYED])
             if not tmp[0]: return tmp
+
+            #any parent must be integrated or deployed
+            parents = self._find_having(RT.PlatformDevice, PRED.hasDevice, device_id)
+            if 0 < len(parents):
+                tmp = self._resource_lcstate_in(parents[0], [LCS.INTEGRATED, LCS.DEPLOYED])
+                if not tmp[0]: return tmp
 
             return self._make_pass()
 
         if RT.InstrumentDevice == device_type:
             agents = self._find_stemming(device_id, PRED.hasAgentInstance, RT.InstrumentAgentInstance)
-            if 0 == len(agents):
-                return self._make_fail("Device has no associated agent instance")
+            if 1 != len(agents):
+                return self._make_fail("Device has %d associated agent instances, not 1" % len(agents))
             tmp = self._resource_lcstate_in(agents[0], [LCS.DEPLOYED])
             if not tmp[0]: return tmp
 
@@ -347,6 +357,7 @@ class DevicePolicy(ResourceLCSPolicy):
                 return self._make_fail("Device is not attached to a parent")
             tmp = self._resource_lcstate_in(parents[0], [LCS.INTEGRATED, LCS.DEPLOYED])
             if not tmp[0]: return tmp
+
             return self._make_pass()
 
         #todo: verify comms with device??
@@ -386,11 +397,18 @@ class DevicePolicy(ResourceLCSPolicy):
             return self._make_pass()
             
         if RT.PlatformDevice == device_type:
+            #any parent must be integrated or deployed
+            parents = self._find_having(RT.PlatformDevice, PRED.hasDevice, device_id)
+            if 0 < len(parents):
+                tmp = self._resource_lcstate_in(parents[0], [LCS.DEPLOYED])
+                if not tmp[0]: return tmp
+
             sites = self._find_having(RT.PlatformSite, PRED.hasDevice, device_id)
             if 0 == len(sites):
                 return self._make_fail("Device does not have an assigned site")
             tmp = self._resource_lcstate_in(sites[0], [LCS.DEPLOYED])
             if not tmp[0]: return tmp
+
 
             #todo: add check that model is supported
 
@@ -517,11 +535,18 @@ class DataProductPolicy(ResourceLCSPolicy):
         if 0 == len(datasets):
             return self._make_warn("Dataset not available")
         else:
-            return self._resource_lcstate_in(datasets[0])
+            return self._resource_lcstate_in(datasets[0], [LCS.DEPLOYED])
 
 
     def lce_precondition_retire(self, data_product_id):
-        # todo:
+        if 0 < len(self._find_stemming(data_product_id, PRED.hasStream, RT.Stream)):
+            return self._make_fail("Associated to a stream")
+        if 0 < len(self._find_stemming(data_product_id, PRED.hasDataset, RT.Dataset)):
+            return self._make_fail("Associated to a dataset")
+        if 0 < len(self._find_stemming(data_product_id, PRED.hasInputDataProducer, RT.DataProducer)):
+            return self._make_fail("Associated to an input data producer")
+        if 0 < len(self._find_stemming(data_product_id, PRED.hasOutputDataProducer, RT.DataProducer)):
+            return self._make_fail("Associated to an output data producer")
         return self._make_pass()
 
 
