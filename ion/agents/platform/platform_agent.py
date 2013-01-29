@@ -549,9 +549,6 @@ class PlatformAgent(ResourceAgent):
         """
         self._assert_driver()
 
-        # TODO REMOVE THIS LINE
-#        self._plat_driver.start_resource_monitoring()
-
         attr_info = self._get_platform_attributes()
         if not attr_info:
             # warning should have been generated already.
@@ -587,10 +584,7 @@ class PlatformAgent(ResourceAgent):
         """
         Stops resource monitoring.
         """
-        self._assert_driver()
-
-        # TODO REMOVE THIS LINE
-#        self._plat_driver.stop_resource_monitoring()
+        assert self._platform_resource_monitor is not None, "_start_resource_monitoring must have been called first"
 
         self._platform_resource_monitor.stop_resource_monitoring()
 
