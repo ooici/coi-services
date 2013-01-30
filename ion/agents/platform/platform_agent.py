@@ -34,6 +34,7 @@ from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
+from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 import numpy
@@ -128,8 +129,12 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_config = None
         self._platform_id = None
-        self._topology = None
+
+        self._network_definition_ser = None  # string
+        self._network_definition = None  # NetworkDefinition object
         self._nnode = None
+
+        self._topology = None
         self._agent_device_map = None
         self._agent_streamconfig_map = None
         self._plat_driver = None
@@ -240,6 +245,11 @@ class PlatformAgent(ResourceAgent):
                     self._platform_id, k, driver_config)
                 log.error(msg)
                 raise PlatformException(msg)
+
+        if 'network_definition' in self._plat_config:
+            self._network_definition_ser = self._plat_config['network_definition']
+            self._network_definition = NetworkUtil.deserialize_network_definition(
+                self._network_definition_ser)
 
         if 'platform_topology' in self._plat_config:
             self._topology = self._plat_config['platform_topology']
@@ -478,6 +488,11 @@ class PlatformAgent(ResourceAgent):
 
     def _build_network_definition(self):
 
+        if self._network_definition:
+            self._nnode = self._network_definition.root
+            log.debug("_nnode set from _network_definition")
+            return
+
         if self._topology:
             self._nnode = self._build_network_definition_using_topology()
         else:
@@ -561,6 +576,13 @@ class PlatformAgent(ResourceAgent):
         self._platform_resource_monitor.start_resource_monitoring()
 
     def _get_platform_attributes(self):
+
+        if self._network_definition:
+            nnode = self._network_definition.nodes[self._platform_id]
+            attr_info = dict((attr.attr_id, attr.defn) for attr in nnode.attrs.itervalues())
+            log.debug("%r: from _network_definition got attr_info=%s",
+                  self._platform_id, attr_info)
+            return attr_info
 
         if self._agent_device_map:
             return self._get_platform_attributes_using_agent_device_map()
@@ -829,6 +851,7 @@ class PlatformAgent(ResourceAgent):
         """
 
         # platform configuration:
+        # TODO general config under revision
         platform_config = {
             'platform_id': subplatform_id,
             'platform_topology' : self._topology,
@@ -836,6 +859,8 @@ class PlatformAgent(ResourceAgent):
             'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
+
+            'network_definition' : self._network_definition_ser,
         }
 
         agent_config = {
@@ -924,6 +949,8 @@ class PlatformAgent(ResourceAgent):
             'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
+
+            'network_definition' : self._network_definition_ser,
         }
 
         kwargs = dict(plat_config=platform_config)
