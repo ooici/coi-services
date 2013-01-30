@@ -552,6 +552,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_empty_coverage_time(self):
+
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+        temporal_bounds = self.dataset_management.dataset_temporal_bounds(dataset_id)
+        self.assertEquals([coverage.get_parameter_context('time').fill_value] *2, temporal_bounds)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_out_of_band_retrieve(self):
         # Setup the environemnt
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
@@ -593,8 +603,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
         self.assertTrue(event.wait(10))
-
-
 
         sub.stop()
 

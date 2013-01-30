@@ -249,11 +249,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         from ion.processes.data.replay.replay_process import ReplayProcess
         coverage = self._get_coverage(dataset_id)
         temporal_param = coverage.temporal_parameter_name
-        bounds = coverage.get_data_bounds(temporal_param)
+        try:
+            bounds = coverage.get_data_bounds(temporal_param)
+        except ValueError:
+            return (coverage.get_parameter_context(temporal_param).fill_value,) * 2
         uom = coverage.get_parameter_context(temporal_param).uom
         new_bounds = (ReplayProcess.units_to_ts(uom,bounds[0]), ReplayProcess.units_to_ts(uom,bounds[1]))
         return new_bounds
-
 
     def dataset_extents(self, dataset_id='', parameters=None):
         self.read_dataset(dataset_id)
