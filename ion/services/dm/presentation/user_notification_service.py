@@ -8,26 +8,22 @@
 """
 
 from pyon.core.exception import BadRequest, IonException
-from pyon.public import RT, PRED, get_sys_name, Container, CFG, OT, IonObject
-from pyon.util.async import spawn
+from pyon.public import RT, PRED, get_sys_name, CFG, OT, IonObject
 from pyon.util.log import log
-from pyon.util.containers import DotDict
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, NotificationPreferences, NotificationDeliveryModeEnum
+from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue
 
 import string
 import time
 from email.mime.text import MIMEText
-import elasticpy as ep
 from datetime import datetime
 
-from ion.services.dm.presentation.sms_providers import sms_providers
-from interface.objects import ProcessDefinition, UserInfo, TemporalBounds, NotificationRequest
+from interface.objects import ProcessDefinition, TemporalBounds 
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from ion.services.dm.utility.uns_utility_methods import send_email, setting_up_smtp_client
+from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
 from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_to_human_readable
 
 
@@ -258,7 +254,7 @@ class UserNotificationService(BaseUserNotificationService):
         notification = self.clients.resource_registry.read(notification_id)
 
         # Update the user info object with the notification
-        user = self.event_processor.add_notification_for_user(new_notification=notification, user_id=user_id)
+        self.event_processor.add_notification_for_user(new_notification=notification, user_id=user_id)
 
         # Update the user info and the reverse user info dictionaries
         self.update_user_info_dictionary(user_id=user_id, new_notification=notification, old_notification=None)
@@ -469,11 +465,8 @@ class UserNotificationService(BaseUserNotificationService):
 
         log.debug("(find_events) UNS found the following relevant events: %s", events)
 
-        if -1 < limit < len(events):
-            list = []
-            for i in xrange(limit):
-                list.append(events[i])
-            return list
+        if limit > 0:
+            return events[:limit]
 
         return events
 
@@ -939,6 +932,11 @@ class UserNotificationService(BaseUserNotificationService):
                 notifications.append(notif)
 
         return notifications
+
+    def get_subscriptions_attribute(self, resource_id='', user_id = '', include_nonactive=False):
+        retval = self.get_subscriptions(resource_id=resource_id, user_id=user_id, include_nonactive=include_nonactive)
+        container = ComputedListValue(value=retval)
+        return container
 
 
 #    def get_users_who_subscribed(self, resource_id='', include_nonactive=False):
