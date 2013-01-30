@@ -355,6 +355,12 @@ class HAAgentMockTest(PyonTestCase):
     """
 
     def setUp(self):
+
+        try:
+            from epu.highavailability.core import HighAvailabilityCore
+        except ImportError:
+            raise SkipTest("HA Core not available. Run buildout with autolaunch.cfg")
+
         self.ha_agent = HighAvailabilityAgent()
         self.ha_agent.container = DotDict()
         self.ha_agent.CFG = DotDict()
