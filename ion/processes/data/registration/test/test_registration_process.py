@@ -6,7 +6,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule_utils import time_series_domain
 from xml.dom.minidom import parseString
-from coverage_model.coverage import SimplexCoverage
+from coverage_model import SimplexCoverage, QuantityType
 
 @attr('INT')
 class RegistrationProcessUnitTest(IonIntegrationTestCase):
@@ -28,32 +28,38 @@ class RegistrationProcessUnitTest(IonIntegrationTestCase):
         self.rp.on_start()
             
     def test_get_dataset_to_xml(self):
-        import sys
-        #print >> sys.stderr, "make dataset"
         dataset_id = self._make_dataset()
         coverage_path = DatasetManagementService()._get_coverage_path(dataset_id)
         cov = SimplexCoverage.load(coverage_path)
         
-        print >> sys.stderr, coverage_path
         xml_str = self.rp.get_dataset_xml(coverage_path)
         dom = parseString(xml_str)
-        print >> sys.stderr, dom.toprettyxml()
         node = dom.getElementsByTagName('addAttributes')
         
         metadata = node[0]
-        for node in metadata.childNodes:
-            if node.nodeType != 3:
-                #print >> sys.stderr, node.attributes["name"].value
-                #print >> sys.stderr, node.childNodes[0].nodeValue
-                if node.attributes["name"].value == "title":
-                    self.assertEquals(cov.name, node.childNodes[0].nodeValue)
-                if node.attributes["name"].value == "institution":
-                    self.assertEquals('OOI', node.childNodes[0].nodeValue)
-                if node.attributes["name"].value == "infoUrl":
-                    print sys.stderr, self.rp.pydap_url
-                    self.assertEquals(self.rp.pydap_url+cov.name, node.childNodes[0].nodeValue)
+        for n in metadata.childNodes:
+            if n.nodeType != 3:
+                if n.attributes["name"].value == "title":
+                    self.assertEquals(cov.name, n.childNodes[0].nodeValue)
+                if n.attributes["name"].value == "institution":
+                    self.assertEquals('OOI', n.childNodes[0].nodeValue)
+                if n.attributes["name"].value == "infoUrl":
+                    self.assertEquals(self.rp.pydap_url+cov.name, n.childNodes[0].nodeValue)
+        parameters = []
+        node = dom.getElementsByTagName('sourceName')
+        for n in node:
+            if n.nodeType != 3:
+                parameters.append(str(n.childNodes[0].nodeValue))
+        cov_params = self._get_parameters(cov)
+        self.assertEquals(parameters, cov_params)
+
+    def _get_parameters(self, cov):
+        result = []
         for key in cov.list_parameters():
-            print >> sys.stderr, key
+            pc = cov.get_parameter_context(key)
+            if isinstance(pc.param_type, QuantityType):
+                result.append(key)
+        return result
 
     def _make_dataset(self):
         tdom, sdom = time_series_domain()
