@@ -154,9 +154,9 @@ class TestPydapCoverageHandlerUnit(PyonTestCase):
 
         SimplexCoverage_mock.assert_called_once_with('file_path', 'file_name', mode='r')
         self.assertEqual(cov.list_parameters.call_count, 1)
-        self.assertEqual(cov.get_parameter.call_count, 1)
-        self.assertEqual(cov.get_parameter_values.call_count, 2)
-        self.assertEqual(cov.get_parameter_context.call_count, 4)
+        self.assertEqual(cov.get_parameter.call_count, 2)
+        self.assertEqual(cov.get_parameter_values.call_count, 4)
+        self.assertEqual(cov.get_parameter_context.call_count, 6)
 
     @patch('ion.util.pydap.handlers.coverage.coverage_handler.log')
     @patch('ion.util.pydap.handlers.coverage.coverage_handler.get_var')
