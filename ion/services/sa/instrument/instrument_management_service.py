@@ -51,7 +51,7 @@ from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType, ProcessSchedule, ProcessRestartMode
+from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType, ProcessSchedule, ProcessRestartMode, ProcessQueueingMode
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 
 
@@ -614,7 +614,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_obj.driver_config = driver_config
 
-        process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL)
+        process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL, queueing_mode=ProcessQueueingMode.ALWAYS)
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
                                                                       schedule=process_schedule,
                                                                       configuration=agent_config)
@@ -966,17 +966,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         This function is used for governance validation for the request_direct_access and stop_direct_access operation.
         """
 
-        user_id = headers['ion-actor-id']
+        actor_id = headers['ion-actor-id']
         resource_id = msg['instrument_device_id']
 
-        commitment =  self.container.governance_controller.get_resource_commitment(user_id, resource_id)
+        commitment_status =  self.container.governance_controller.has_resource_commitments(actor_id, resource_id)
 
-        if commitment is None:
-            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (user_id, resource_id)
+        if not commitment_status.shared:
+            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (actor_id, resource_id)
 
         #Look for any active commitments that are exclusive - and only allow for exclusive commitment
-        if not commitment.commitment.exclusive:
-            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (user_id, resource_id)
+        if not commitment_status.exclusive:
+            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (actor_id, resource_id)
 
         return True, ''
 
