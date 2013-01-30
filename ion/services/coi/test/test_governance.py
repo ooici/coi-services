@@ -3,7 +3,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import unittest, os, gevent, time, datetime
+import unittest, os, gevent, platform
 from mock import Mock, patch
 from pyon.util.containers import get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
@@ -121,6 +121,15 @@ TEST_BOUNDARY_POLICY_TEXT = '''
         </Rule>
         '''
 
+#Hack for running tests on CentOS which is significantly slower than a Mac
+SLEEP_TIME = 1
+ver = platform.mac_ver()
+if ver[0] == '':
+    SLEEP_TIME = 3  # Increase for non Macs
+    log.info('Not running on a Mac')
+else:
+    log.info('Running on a Mac)')
+
 
 class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
@@ -129,8 +138,6 @@ class GovernanceTestProcess(LocalContextMixin):
 
 @attr('INT', group='coi')
 class TestGovernanceInt(IonIntegrationTestCase):
-
-
 
     def setUp(self):
 
@@ -143,14 +150,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Instantiate a process to represent the test
         process=GovernanceTestProcess()
 
-
         #Load system policies after container has started all of the services
         policy_loaded = CFG.get_safe('system.load_policy', False)
 
         if not policy_loaded:
+            log.debug('Loading policy')
             LoadSystemPolicy.op_load_system_policies(process)
 
-        gevent.sleep(1)  # Wait for events to be fired and policy updated
+        gevent.sleep(SLEEP_TIME*2)  # Wait for events to be fired and policy updated
 
         self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
 
@@ -199,7 +206,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         for policy in sorted(policy_list,key=lambda p: p.ts_created, reverse=True):
             self.pol_client.delete_policy(policy._id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be fired and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be fired and policy updated
 
         #Clean up the non user actor
         self.rr_client.delete(self.apache_actor._id, headers=self.system_actor_header)
@@ -213,6 +220,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
+        log.debug('Begin testing with policies')
 
         #Attempt to access an operation in service which does not have specific policies set
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -225,7 +233,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
             'Allow specific operations in the Exchange Management Service for anonymous user',
             TEST_POLICY_TEXT, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be fired and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be fired and policy updated
 
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -236,7 +244,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #disable the test policy to try again
         self.pol_client.disable_policy(test_policy_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -247,7 +255,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #now enable the test policy to try again
         self.pol_client.enable_policy(test_policy_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -260,12 +268,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         pol1_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content='func1_pass', headers=self.system_actor_header )
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #try to disable the test policy  again
         self.pol_client.disable_policy(test_policy_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -276,7 +284,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #now enable the test policy to try again
         self.pol_client.enable_policy(test_policy_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -287,7 +295,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         pol2_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content='func2_deny', headers=self.system_actor_header )
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #try to disable the test policy again
         with self.assertRaises(Unauthorized) as cm:
@@ -297,12 +305,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.pol_client.delete_policy(pol2_id,  headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #try to disable the test policy  again
         self.pol_client.disable_policy(test_policy_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -321,7 +329,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         pol2_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content=pre_func1, headers=self.system_actor_header )
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #try to disable the test policy again
         with self.assertRaises(Unauthorized) as cm:
@@ -331,7 +339,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.pol_client.delete_policy(test_policy_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -388,6 +396,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
         self.assertEqual(len(users),2) #Should include the ION System Actor and non-user actor from setup as well.
 
+        log.debug('Begin testing with policies')
+
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
             actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_user_headers)
@@ -412,7 +422,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
             'Deny all access for anonymous user',
             TEST_BOUNDARY_POLICY_TEXT, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be fired and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be fired and policy updated
 
         #Hack to force container into an Org Boundary for second Org
         self.container.governance_controller._container_org_name = org2.name
@@ -437,7 +447,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.pol_client.delete_policy(test_policy_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
 
 
@@ -453,6 +463,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
+
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -547,7 +559,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.assertEqual(negotiations[0].negotiation_status, NegotiationStatusEnum.REJECTED)
 
-        gevent.sleep(2)  # Wait for events to be published
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.EnrollmentNegotiationStatusEvent)
@@ -570,12 +582,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
         users = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(users),0)
 
-        #Make sure the Negotiation object has the proper description set from the initial SAP
-        self.assertEqual(negotiations[0].description, sap.description)
-
         #Manager approves proposal
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
             negotiation_status=NegotiationStatusEnum.OPEN, headers=self.system_actor_header)
+
+        #Make sure the Negotiation object has the proper description set from the initial SAP
+        self.assertEqual(negotiations[0].description, sap.description)
 
         sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
@@ -589,7 +601,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
             neg_id = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: not is_enrolled',cm.exception.message)
 
-        gevent.sleep(2)  # Wait for events to be published
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.EnrollmentNegotiationStatusEvent)
@@ -609,6 +621,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
+
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -771,7 +785,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(ret, False)
 
 
-        gevent.sleep(2)  # Wait for events to be published
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.RequestRoleNegotiationStatusEvent)
@@ -828,7 +842,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Now the user with the proper role should be able to create an instrument.
         self.ims_client.create_instrument_agent(ia_obj, headers=actor_header)
 
-        gevent.sleep(2)  # Wait for events to be published
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.RequestRoleNegotiationStatusEvent)
@@ -849,6 +863,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(BadRequest) as cm:
             myorg = self.org_client.read_org()
         self.assertTrue(cm.exception.message == 'The org_id parameter is missing')
+
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -910,7 +926,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Build the message headers used with this user
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
 
-        gevent.sleep(2)  # Wait for events to be published
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.RequestRoleNegotiationStatusEvent)
@@ -1011,7 +1027,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
 
-        gevent.sleep(2)  # Wait for events to be published
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
@@ -1136,7 +1152,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: has_role',cm.exception.message)
 
-        gevent.sleep(2)  # Wait for events to be published
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
@@ -1154,7 +1170,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
-
+        log.debug('Begin testing with policies')
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
@@ -1429,7 +1445,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Add an example of a operation specific policy that checks internal values to decide on access
         pol_id = self.pol_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_agent', policy_content=pre_func1, headers=self.system_actor_header )
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The initialize command should be allowed
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
@@ -1448,7 +1464,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Now delete the get_current_state policy and try again
         self.pol_client.delete_policy(pol_id, headers=self.system_actor_header)
 
-        gevent.sleep(1)  # Wait for events to be published and policy updated
+        gevent.sleep(SLEEP_TIME)  # Wait for events to be published and policy updated
 
         #The reset command should now be allowed
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)

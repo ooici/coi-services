@@ -34,6 +34,7 @@ from gevent.event import Event
 from nose.plugins.attrib import attr
 
 import gevent
+import time
 import numpy as np
 import os
 import unittest
@@ -524,6 +525,29 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 gevent.sleep(1)
 
         self.assertTrue(success)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_correct_time(self):
+
+        # There are 2208988800 seconds between Jan 1 1900 and Jan 1 1970, i.e. 
+        #  the conversion factor between unix and NTP time
+        unix_now = np.floor(time.time())
+        ntp_now  = unix_now + 2208988800 
+
+        unix_ago = unix_now - 20
+        ntp_ago  = unix_ago + 2208988800
+
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+        coverage.insert_timesteps(20)
+        coverage.set_parameter_values('time', np.arange(ntp_ago,ntp_now))
+        
+        temporal_bounds = self.dataset_management.dataset_temporal_bounds(dataset_id)
+
+        self.assertTrue( np.abs(temporal_bounds[0] - unix_ago) < 2)
+        self.assertTrue( np.abs(temporal_bounds[1] - unix_now) < 2)
 
 
     @attr('LOCOINT')

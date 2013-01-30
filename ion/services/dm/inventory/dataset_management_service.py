@@ -245,6 +245,16 @@ class DatasetManagementService(BaseDatasetManagementService):
                 return (coverage.get_parameter_context(temporal).fill_value, coverage.get_parameter_context(temporal).fill_value)
         return coverage.get_data_bounds_by_axis(axis)
 
+    def dataset_temporal_bounds(self, dataset_id):
+        from ion.processes.data.replay.replay_process import ReplayProcess
+        coverage = self._get_coverage(dataset_id)
+        temporal_param = coverage.temporal_parameter_name
+        bounds = coverage.get_data_bounds(temporal_param)
+        uom = coverage.get_parameter_context(temporal_param).uom
+        new_bounds = (ReplayProcess.units_to_ts(uom,bounds[0]), ReplayProcess.units_to_ts(uom,bounds[1]))
+        return new_bounds
+
+
     def dataset_extents(self, dataset_id='', parameters=None):
         self.read_dataset(dataset_id)
         parameters = parameters or None

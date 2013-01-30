@@ -567,6 +567,19 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
         return True
 
+    def is_registered(self, user_id=''):
+
+        if not user_id:
+            raise BadRequest("The user_id parameter is missing")
+
+        try:
+            user = self.clients.resource_registry.read(user_id)
+            return True
+        except Exception, e:
+            log.error('is_registered: %s for user_id:%s' %  (e.message, user_id))
+
+        return False
+
     def is_enrolled(self, org_id='', user_id=''):
         """Returns True if the specified user_id is enrolled in the Org and False if not.
         Throws a NotFound exception if neither id is found.
@@ -838,6 +851,26 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
         return True
 
+    def is_resource_shared(self, org_id='', resource_id=''):
+
+        if not org_id:
+            raise BadRequest("The org_id parameter is missing")
+
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        try:
+            res_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasResource)
+
+            if res_list:
+                for res in res_list:
+                    if res._id == resource_id:
+                        return True
+
+        except Exception, e:
+            log.error('is_resource_shared: %s for org_id:%s and resource_id:%s' %  (e.message, org_id, resource_id))
+
+        return False
 
 
     def acquire_resource(self, sap=None):
@@ -889,6 +922,52 @@ class OrgManagementService(BaseOrgManagementService):
         #TODO - publish some kind of event for releasing a commitment
 
         return True
+
+
+    def is_resource_acquired(self, user_id='', resource_id=''):
+
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        try:
+            cur_time = int(get_ion_ts())
+            commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
+            if commitments:
+                for com in commitments:
+                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
+                        continue
+
+                    #If the expiration is not 0 make sure it has not expired
+                    if ( user_id is None or com.consumer == user_id) and (( com.expiration == 0 ) or (com.expiration > 0 and cur_time < com.expiration)):
+                        return True
+
+        except Exception, e:
+            log.error('is_resource_acquired: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
+
+        return False
+
+    def is_resource_acquired_exclusively(self, user_id='', resource_id=''):
+
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        try:
+            cur_time = int(get_ion_ts())
+            commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
+            if commitments:
+                for com in commitments:
+                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
+                        continue
+
+                    #If the expiration is not 0 make sure it has not expired
+                    if ( user_id is None or user_id == com.consumer )  and com.commitment.exclusive and\
+                       com.expiration > 0 and cur_time < com.expiration:
+                        return True
+
+        except Exception, e:
+            log.error('is_resource_acquired_exclusively: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
+
+        return False
 
     def is_in_org(self, container):
 
@@ -959,18 +1038,9 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
         return True
 
-    #Local helper functions are below - do not remove
+    #Local helper functions are below - do not remove them
 
-    def is_registered(self,user_id):
-        try:
-            user = self.clients.resource_registry.read(user_id)
-            return True
-        except Exception, e:
-            log.error('is_registered: %s for user_id:%s' %  (e.message, user_id))
-
-        return False
-
-    def is_enroll_negotiation_open(self,org_id,user_id):
+    def is_enroll_negotiation_open(self, org_id, user_id):
 
         try:
             neg_list = self.find_user_negotiations(user_id,org_id,proposal_type=OT.EnrollmentProposal, negotiation_status=NegotiationStatusEnum.OPEN )
@@ -983,72 +1053,13 @@ class OrgManagementService(BaseOrgManagementService):
 
         return False
 
-    def is_resource_shared(self, org_id, resource_id):
-
-        try:
-            res_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasResource)
-
-            if res_list:
-                for res in res_list:
-                    if res._id == resource_id:
-                        return True
-
-        except Exception, e:
-            log.error('is_resource_shared: %s for org_id:%s and resource_id:%s' %  (e.message, org_id, resource_id))
-
-        return False
-
-    def is_resource_acquired(self, resource_id):
-        return self.is_resource_acquired(None, resource_id)
-
-    def is_resource_acquired(self, user_id, resource_id):
-
-        try:
-            cur_time = int(get_ion_ts())
-            commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
-            if commitments:
-                for com in commitments:
-                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
-                        continue
-
-                    #If the expiration is not 0 make sure it has not expired
-                    if ( user_id is None or com.consumer == user_id) and (( com.expiration == 0 ) or (com.expiration > 0 and cur_time < com.expiration)):
-                        return True
-
-        except Exception, e:
-            log.error('is_resource_acquired: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
-
-        return False
-
-    def is_resource_acquired_exclusively(self, resource_id):
-        return self.is_resource_acquired_exclusively(None,resource_id)
-
-    def is_resource_acquired_exclusively(self, user_id, resource_id):
-
-        try:
-            cur_time = int(get_ion_ts())
-            commitments,_ = self.clients.resource_registry.find_objects(resource_id,PRED.hasCommitment, RT.Commitment)
-            if commitments:
-                for com in commitments:
-                    if com.lcstate == LCS.RETIRED: #TODO remove when RR find_objects does not include retired objects
-                        continue
-
-                    #If the expiration is not 0 make sure it has not expired
-                    if ( user_id is None or user_id == com.consumer )  and com.commitment.exclusive and \
-                        com.expiration > 0 and cur_time < com.expiration:
-                            return True
-
-        except Exception, e:
-            log.error('is_resource_acquired_exclusively: %s for user_id:%s and resource_id:%s' %  (e.message, user_id, resource_id))
-
-        return False
 
 
 
     #-----------------------------------------------
     #  COMPUTED RESOURCES
     #-----------------------------------------------
-    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
+    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an MarineFacilityOrgExtension object containing additional related information
 
         @param org_id    str
@@ -1070,7 +1081,7 @@ class OrgManagementService(BaseOrgManagementService):
             computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
-            user_id=requesting_user_id)
+            user_id=user_id)
 
         log.debug("get_marine_facility_extension: extended_org 1:  %s ", str(extended_org))
 

@@ -648,7 +648,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
 
-    def get_data_process_definition_extension(self, data_process_definition_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
+    def get_data_process_definition_extension(self, data_process_definition_id='', ext_associations=None, ext_exclude=None, user_id=''):
         #Returns an DataProcessDefinition Extension object containing additional related information
 
         if not data_process_definition_id:
@@ -662,7 +662,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             computed_resource_type=OT.DataProcessDefinitionComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
-            user_id=requesting_user_id)
+            user_id=user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way
@@ -683,7 +683,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return extended_data_process_definition
 
-    def get_data_process_extension(self, data_process_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
+    def get_data_process_extension(self, data_process_id='', ext_associations=None, ext_exclude=None, user_id=''):
         #Returns an DataProcessDefinition Extension object containing additional related information
 
         if not data_process_id:
@@ -697,7 +697,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             computed_resource_type=OT.DataProcessComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
-            user_id=requesting_user_id)
+            user_id=user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way

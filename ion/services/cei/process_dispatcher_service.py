@@ -11,7 +11,7 @@ from couchdb.http import ResourceNotFound
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.net.endpoint import Subscriber
 from pyon.public import log
-from pyon.core.exception import NotFound, BadRequest, ServerError
+from pyon.core.exception import NotFound, BadRequest, ServerError, Conflict, IonException
 from pyon.util.containers import create_valid_identifier
 from pyon.event.event import EventPublisher
 from pyon.core import bootstrap
@@ -23,15 +23,30 @@ try:
     from epu.processdispatcher.store import get_processdispatcher_store
     from epu.processdispatcher.engines import EngineRegistry
     from epu.processdispatcher.matchmaker import PDMatchmaker
+    from epu.processdispatcher.doctor import PDDoctor
     from epu.dashiproc.epumanagement import EPUManagementClient
     import epu.exceptions as core_exceptions
 except ImportError:
     ProcessDispatcherCore = None
     get_processdispatcher_store = None
     EngineRegistry = None
+    PDDoctor = None
     PDMatchmaker = None
     EPUManagementClient = None
     core_exceptions = None
+
+try:
+    from dashi import exceptions as dashi_exceptions
+
+    # map some ION exceptions to dashi exceptions
+    _PYON_DASHI_EXC_MAP = {
+            NotFound: dashi_exceptions.NotFoundError,
+            BadRequest: dashi_exceptions.BadRequestError,
+            Conflict: dashi_exceptions.WriteConflictError
+            }
+except ImportError:
+    dashi_exceptions = None
+    _PYON_DASHI_EXC_MAP = {}
 
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
@@ -367,19 +382,43 @@ class ProcessDispatcherService(BaseProcessDispatcherService):
 
     def _get_process_name(self, process_definition, configuration):
 
-        ha_pd_id = configuration.get('highavailability', {}).get('process_definition_id')
+        base_name = ""
         name_suffix = ""
-        if ha_pd_id is not None:
-            process_definition = self.backend.read_definition(ha_pd_id)
-            name_suffix = "ha"
+        ha_config = configuration.get('highavailability')
+        if ha_config:
+            if ha_config.get('process_definition_name'):
+                base_name = ha_config['process_definition_name']
+                name_suffix = "ha"
+            elif ha_config.get('process_definition_id'):
+                inner_definition = self.backend.read_definition(
+                    ha_config['process_definition_id'])
+                base_name = inner_definition.name
+                name_suffix = "ha"
 
-        name_parts = [str(process_definition.name or "process")]
+        name_parts = [str(base_name or process_definition.name or "process")]
         if name_suffix:
             name_parts.append(name_suffix)
         name_parts.append(uuid.uuid4().hex)
         name = '-'.join(name_parts)
 
         return name
+
+
+def map_pyon_exceptions(f):
+    """Decorator that maps some Pyon exceptions to dashi
+    """
+    def wrapped(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except IonException, e:
+            dashi_exc = _PYON_DASHI_EXC_MAP.get(type(e))
+            if dashi_exc is not None:
+                raise dashi_exc(str(e))
+            raise
+    wrapped.__name__ = f.__name__
+    wrapped.__doc__ = f.__doc__
+    wrapped.__dict__.update(f.__dict__)
+    return wrapped
 
 
 class PDDashiHandler(object):
@@ -389,6 +428,7 @@ class PDDashiHandler(object):
         self.backend = backend
         self.dashi = dashi
 
+        self.dashi.handle(self.set_system_boot)
         self.dashi.handle(self.create_definition)
         self.dashi.handle(self.describe_definition)
         self.dashi.handle(self.update_definition)
@@ -400,6 +440,11 @@ class PDDashiHandler(object):
         self.dashi.handle(self.restart_process)
         self.dashi.handle(self.terminate_process)
 
+    @map_pyon_exceptions
+    def set_system_boot(self, system_boot):
+        self.backend.set_system_boot(system_boot)
+
+    @map_pyon_exceptions
     def create_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
 
@@ -407,19 +452,31 @@ class PDDashiHandler(object):
                 definition_type=definition_type, executable=executable)
         return self.backend.create_definition(definition, definition_id)
 
-    def describe_definition(self, definition_id):
-        return _core_process_definition_from_ion(self.backend.read_definition(definition_id))
+    @map_pyon_exceptions
+    def describe_definition(self, definition_id=None, definition_name=None):
+        if not (definition_id or definition_name):
+            raise BadRequest("need a process definition id or name")
+        if definition_id:
+            return _core_process_definition_from_ion(self.backend.read_definition(definition_id))
+        else:
+            return _core_process_definition_from_ion(self.backend.read_definition_by_name(definition_name))
 
+    @map_pyon_exceptions
     def update_definition(self, definition_id, definition_type, executable,
                           name=None, description=None):
-        raise BadRequest("The Pyon PD does not support updating process definitions")
+        definition = ProcessDefinition(name=name, description=description,
+                definition_type=definition_type, executable=executable)
+        return self.backend.update_definition(definition, definition_id)
 
+    @map_pyon_exceptions
     def remove_definition(self, definition_id):
         self.backend.delete_definition(definition_id)
 
+    @map_pyon_exceptions
     def list_definitions(self):
         raise BadRequest("The Pyon PD does not support listing process definitions")
 
+    @map_pyon_exceptions
     def schedule_process(self, upid, definition_id=None, definition_name=None,
                          configuration=None, subscribers=None, constraints=None,
                          queueing_mode=None, restart_mode=None,
@@ -475,21 +532,25 @@ class PDDashiHandler(object):
 
         return self.backend.schedule(upid, definition_id, schedule, configuration, name)
 
+    @map_pyon_exceptions
     def describe_process(self, upid):
         if hasattr(self.backend, 'read_core_process'):
             return self.backend.read_core_process(upid)
         else:
             return _core_process_from_ion(self.backend.read_process(upid))
 
+    @map_pyon_exceptions
     def describe_processes(self):
         if hasattr(self.backend, 'read_core_process'):
             return [self.backend.read_core_process(proc.process_id) for proc in self.backend.list()]
         else:
             return [_core_process_from_ion(proc) for proc in self.backend.list()]
 
+    @map_pyon_exceptions
     def restart_process(self, upid):
         raise BadRequest("The Pyon PD does not support restarting processes")
 
+    @map_pyon_exceptions
     def terminate_process(self, upid):
         return self.backend.cancel(upid)
 
@@ -546,6 +607,9 @@ class PDLocalBackend(object):
                 log.warn("Ignoring error while killing spawn greenlets", exc_info=True)
             self._spawn_greenlets.clear()
 
+    def set_system_boot(self, system_boot):
+        pass
+
     def create_definition(self, definition, definition_id=None):
         pd_id, version = self.rr.create(definition, object_id=definition_id)
         return pd_id
@@ -555,6 +619,9 @@ class PDLocalBackend(object):
 
     def read_definition_by_name(self, definition_name):
         raise ServerError("reading process definitions by name not supported by this backend")
+
+    def update_definition(self, definition, definition_id):
+        raise ServerError("updating process definitions not supported by this backend")
 
     def delete_definition(self, definition_id):
         return self.rr.delete(definition_id)
@@ -670,6 +737,7 @@ class PDLocalBackend(object):
 
 _PD_PROCESS_STATE_MAP = {
     "100-UNSCHEDULED": ProcessStateEnum.REQUESTED,
+    "150-UNSCHEDULED_PENDING": ProcessStateEnum.REQUESTED,
     "200-REQUESTED": ProcessStateEnum.REQUESTED,
     "250-DIED_REQUESTED": ProcessStateEnum.REQUESTED,
     "300-WAITING": ProcessStateEnum.WAITING,
@@ -848,6 +916,7 @@ class PDNativeBackend(object):
 
         self.core = ProcessDispatcherCore(self.store, self.registry,
             self.eeagent_client, self.notifier)
+        self.doctor = PDDoctor(self.core, self.store)
         self.matchmaker = PDMatchmaker(self.store, self.eeagent_client,
             self.registry, epum_client, self.notifier, dashi_name,
             domain_definition_id, base_domain_config, run_type)
@@ -860,6 +929,15 @@ class PDNativeBackend(object):
         self.rr = service.container.resource_registry
 
     def initialize(self):
+
+        # start the doctor before we do anything else
+        self.doctor.start_election()
+
+        log.debug("Waiting for Process Dispatcher to initialize")
+        # wait for the store to be initialized before proceeding. The doctor
+        # (maybe not OUR doctor, but whoever gets elected), will check the
+        # state of the system and then mark it as initialized.
+        self.store.wait_initialized()
 
         # start consuming domain subscription messages from the dashi EPUM
         # service if needed.
@@ -921,6 +999,9 @@ class PDNativeBackend(object):
         except Exception:
             log.exception("Unexpected error while processing heartbeat")
 
+    def set_system_boot(self, system_boot):
+        self.core.set_system_boot(system_boot)
+
     def create_definition(self, definition, definition_id=None):
         """
         @type definition: ProcessDefinition
@@ -953,6 +1034,11 @@ class PDNativeBackend(object):
                 return _ion_process_definition_from_core(definition_id, definition)
 
         raise NotFound("process definition with name '%s' not found" % definition_name)
+
+    def update_definition(self, definition, definition_id):
+        self.core.update_definition(definition_id, definition.definition_type,
+            definition.executable, name=definition.name,
+            description=definition.description)
 
     def delete_definition(self, definition_id):
 
@@ -1073,6 +1159,8 @@ def _core_process_definition_from_ion(ion_process_definition):
             'definition_type': ion_process_definition.definition_type,
             'executable': ion_process_definition.executable,
             }
+    if hasattr(ion_process_definition, "_id") and ion_process_definition._id:
+        definition['definition_id'] = ion_process_definition._id
     return definition
 
 
