@@ -5,7 +5,7 @@
 VERSION="0.19.9"
 ES="elasticsearch-$VERSION"
 ES_GZ="$ES.tar.gz"
-URL="https://github.com/downloads/elasticsearch/elasticsearch/$ES_GZ"
+URL="http://download.elasticsearch.org/elasticsearch/elasticsearch/$ES_GZ"
 if [[ ! ( -n $INSTALL_DIR && -d $INSTALL_DIR ) ]]; then INSTALL_DIR="/usr/local"; fi
 ES_ROOT=$INSTALL_DIR/$ES
 
@@ -75,7 +75,7 @@ if [[ ! -d $ES_ROOT ]]; then
 
 
         if [[ -n $WGET ]]; then
-            $WGET $URL
+            $WGET $URL -O $ES_GZ
         else
             $CURL -XGET -L $URL -o $ES_GZ
         fi
