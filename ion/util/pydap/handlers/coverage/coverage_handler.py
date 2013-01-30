@@ -7,6 +7,7 @@ from email.utils import formatdate
 from stat import ST_MTIME
 
 from coverage_model.coverage import SimplexCoverage
+from coverage_model import QuantityType
 from pydap.model import DatasetType,BaseType, GridType, StructureType
 from pydap.handlers.lib import BaseHandler
 import time
@@ -38,7 +39,7 @@ class Handler(BaseHandler):
         t = []
 
         for param in all_vars:
-            if numpy.dtype(coverage.get_parameter_context(param).param_type.value_encoding).char == 'O':
+            if not isinstance(coverage.get_parameter_context(param).param_type, QuantityType):
                 t.append(param)
         [all_vars.remove(i) for i in t]
 
