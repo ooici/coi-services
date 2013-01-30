@@ -25,7 +25,6 @@ from pyon.event.event import EventPublisher
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.util.ion_time import IonTime
 from pyon.util.containers import  get_ion_ts
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
@@ -37,8 +36,7 @@ from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 
 from nose.plugins.attrib import attr
-from mock import patch
-import gevent, time
+import gevent 
 
 class FakeProcess(LocalContextMixin):
     """
@@ -130,8 +128,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Create notification
         #--------------------------------------------------------------------------------------
 
-        notification_id_1 = self.usernotificationclient.create_notification(notification=notification_request_correct, user_id=user_id)
-        notification_id_2 = self.usernotificationclient.create_notification(notification=notification_request_2, user_id=user_id)
+        self.usernotificationclient.create_notification(notification=notification_request_correct, user_id=user_id)
+        self.usernotificationclient.create_notification(notification=notification_request_2, user_id=user_id)
         log.debug( "test_activateInstrumentSample: create_user_notifications user_id %s", str(user_id) )
 
         return user_id
@@ -410,7 +408,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(data_product_id1, extended_product._id)
         #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
         log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
-        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", extended_product.computed.user_notification_requests.value)
+        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", [i.__dict__ for i in extended_product.computed.user_notification_requests.value])
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
@@ -433,7 +431,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id)
         log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
-        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", extended_instrument.computed.user_notification_requests.value)
+        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", [i.__dict__ for i in extended_instrument.computed.user_notification_requests.value])
         self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
