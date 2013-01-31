@@ -7,15 +7,12 @@
 '''
 
 from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.util.time_utils import TimeUtils
 from pyon.util.arg_check import validate_is_instance
 from coverage_model.coverage import GridDomain, CRS, AxisTypeEnum, MutabilityEnum, GridShape, SimplexCoverage
 from coverage_model.parameter import ParameterContext, ParameterDictionary 
 from coverage_model.parameter_types import QuantityType
 from pyon.public import log
-import dateutil.parser
-import netCDF4
-import time
-import datetime
 import numpy as np
 from numbers import Number
 '''
@@ -79,22 +76,22 @@ class CoverageCraft(object):
             validate_is_instance(end_time, Number, 'end_time must be a number for striding.')
             validate_is_instance(stride_time, Number, 'stride_time must be a number for striding.')
             ugly_range = np.arange(start_time, end_time, stride_time)
-            idx_values = [self.get_relative_time(coverage,i) for i in ugly_range]
+            idx_values = [TimeUtils.get_relative_time(coverage,i) for i in ugly_range]
             slice_ = [idx_values]
 
         elif not (start_time is None and end_time is None):
             time_var = coverage._temporal_param_name
             uom = coverage.get_parameter_context(time_var).uom
             if start_time is not None:
-                start_units = self.ts_to_units(uom,start_time)
+                start_units = TimeUtils.ts_to_units(uom,start_time)
                 log.info('Units: %s', start_units)
-                start_idx = self.get_relative_time(coverage,start_units)
+                start_idx = TimeUtils.get_relative_time(coverage,start_units)
                 log.info('Start Index: %s', start_idx)
                 start_time = start_idx
             if end_time is not None:
-                end_units   = self.ts_to_units(uom,end_time)
+                end_units   = TimeUtils.ts_to_units(uom,end_time)
                 log.info('End units: %s', end_units)
-                end_idx   = self.get_relative_time(coverage,end_units)
+                end_idx   = TimeUtils.get_relative_time(coverage,end_units)
                 log.info('End index: %s',  end_idx)
                 end_time = end_idx
             slice_ = slice(start_time,end_time,stride_time)
@@ -200,66 +197,6 @@ class CoverageCraft(object):
 
         return pdict
         
-    @classmethod
-    def get_relative_time(cls, coverage, time):
-        '''
-        Determines the relative time in the coverage model based on a given time
-        The time must match the coverage's time units
-        '''
-        time_name = coverage._temporal_param_name
-        pc = coverage.get_parameter_context(time_name)
-        units = pc.uom
-        if 'iso' in units:
-            return None # Not sure how to implement this....  How do you compare iso strings effectively?
-        values = coverage.get_parameter_values(time_name)
-        return cls.find_nearest(values,time)
-       
-    @classmethod
-    def find_nearest(cls, arr, val):
-        '''
-        The sexiest algorithm for finding the best matching value for a numpy array
-        '''
-        idx = np.abs(arr-val).argmin()
-        return idx
-
-
-
-    @staticmethod
-    def ts_to_units(units, val):
-        '''
-        Converts a unix timestamp into various formats
-        Example:
-        ts = time.time()
-        CoverageCraft.ts_to_units('days since 2000-01-01', ts)
-        '''
-        if 'iso' in units:
-            return time.strftime('%Y-%d-%mT%H:%M:%S', time.gmtime(val))
-        elif 'since' in units:
-            t = netCDF4.netcdftime.utime(units)
-            return t.date2num(datetime.datetime.utcfromtimestamp(val))
-        else:
-            return val
-
-
-    @staticmethod
-    def units_to_ts(units, val):
-        '''
-        Converts known time formats into a unix timestamp
-        Example:
-        ts = CoverageCraft.units_to_ts('days since 2000-01-01', 1200)
-        '''
-        if 'since' in units:
-            t = netCDF4.netcdftime.utime(units)
-            dtg = t.num2date(val)
-            return time.mktime(dtg.timetuple())
-        elif 'iso' in units:
-            t = dateutil.parser.parse(val)
-            return time.mktime(t.timetuple())
-        else:
-            return val
-        
-
-
     def build_coverage(self):
         pass
 

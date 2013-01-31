@@ -14,6 +14,7 @@ from pyon.util.file_sys import FileSystem, FS
 from pyon.util.log import log
 
 from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDictionary, GridDomain, ParameterContext
+from ion.util.time_utils import TimeUtils
 
 from interface.objects import ParameterContextResource, ParameterDictionaryResource
 from interface.objects import DataSet
@@ -246,7 +247,6 @@ class DatasetManagementService(BaseDatasetManagementService):
         return coverage.get_data_bounds_by_axis(axis)
 
     def dataset_temporal_bounds(self, dataset_id):
-        from ion.processes.data.replay.replay_process import ReplayProcess
         coverage = self._get_coverage(dataset_id)
         temporal_param = coverage.temporal_parameter_name
         try:
@@ -254,7 +254,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         except ValueError:
             return (coverage.get_parameter_context(temporal_param).fill_value,) * 2
         uom = coverage.get_parameter_context(temporal_param).uom
-        new_bounds = (ReplayProcess.units_to_ts(uom,bounds[0]), ReplayProcess.units_to_ts(uom,bounds[1]))
+        new_bounds = (TimeUtils.units_to_ts(uom,bounds[0]), TimeUtils.units_to_ts(uom,bounds[1]))
         return new_bounds
 
     def dataset_extents(self, dataset_id='', parameters=None):
