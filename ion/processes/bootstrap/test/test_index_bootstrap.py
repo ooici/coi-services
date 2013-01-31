@@ -23,7 +23,7 @@ import unittest
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
-
+@unittest.skip('Need to fix when I have time')
 @attr('UNIT')
 class IndexBootStrapUnitTest(PyonTestCase):
 
