@@ -301,7 +301,7 @@ class TestResourceManagementServiceInterface(IonIntegrationTestCase):
 
         self.rms.delete_resource(rid2)
 
-        rid3,_ = self.rr.create(IonObject('InstrumentDevice', name='res3'))
+        rid3,_ = self.rr.create(IonObject('InstrumentAgent', name='res3'))
         rid3_r = self.rr.read(rid3)
         self.assertEquals(rid3_r.lcstate, "DRAFT_PRIVATE")
 
