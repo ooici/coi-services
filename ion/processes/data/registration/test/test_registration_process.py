@@ -9,7 +9,7 @@ from xml.dom.minidom import parseString
 from coverage_model import SimplexCoverage, QuantityType
 
 @attr('INT')
-class RegistrationProcessUnitTest(IonIntegrationTestCase):
+class RegistrationProcessTest(IonIntegrationTestCase):
     def setUp(self):
         #print >> sys.stderr, "setup"
         self._start_container()
@@ -52,6 +52,7 @@ class RegistrationProcessUnitTest(IonIntegrationTestCase):
                 parameters.append(str(n.childNodes[0].nodeValue))
         cov_params = self._get_parameters(cov)
         self.assertEquals(parameters, cov_params)
+        cov.close()
 
     def _get_parameters(self, cov):
         result = []

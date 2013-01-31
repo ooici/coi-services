@@ -263,7 +263,10 @@ class RegistrationProcess(StandaloneProcess):
                     dataset_element.appendChild(axis_element)
 
                 index += 1
-                result += dataset_element.toprettyxml() + '\n'
+                #bug with prettyxml
+                #http://ronrothman.com/public/leftbraned/xml-dom-minidom-toprettyxml-and-silly-whitespace/
+                #result += dataset_element.toprettyxml() + '\n'
+                result += dataset_element.toxml() + '\n'
 
         cov.close()
 
