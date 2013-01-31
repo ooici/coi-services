@@ -5,7 +5,8 @@
 @date 04/26/12 12:56
 @description DESCRIPTION
 '''
-from interface.services.dm.iindex_management_service import IndexManagementServiceClient
+from interface.services.dm.iindex_management_service import IndexManagementServiceProcessClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 from pyon.core.bootstrap import get_sys_name
 from pyon.ion.process import ImmediateProcess
@@ -174,6 +175,7 @@ class IndexBootStrap(ImmediateProcess):
             IndexManagementService._es_call(self.es.index_delete,k)
 
 
+        self.delete_indexes()
         self.index_bootstrap()
 
     def index_bootstrap(self):
@@ -230,7 +232,8 @@ class IndexBootStrap(ImmediateProcess):
         datastore_name = db.datastore_name
         db = db.server[datastore_name]
 
-        db.create(filters)
+        if '_design/filters' not in db:
+            db.create(filters)
 
         #--------------------------------------------------------------------------------
         # Create the river connection between CouchDB and ElasticSearch
@@ -310,7 +313,7 @@ class IndexBootStrap(ImmediateProcess):
         # Construct the resources
         #=======================================================================================
 
-        ims_cli = IndexManagementServiceClient()
+        ims_cli = IndexManagementServiceProcessClient(process=self)
 
         #--------------------------------------------------------------------------------
         # Standard Indexes
@@ -353,3 +356,39 @@ class IndexBootStrap(ImmediateProcess):
             content_type=IndexManagementService.ELASTICSEARCH_INDEX,
             options=self.attr_mapping(get_events())
         )
+
+    def delete_indexes(self):
+
+        ims_cli = IndexManagementServiceProcessClient(process=self)
+        rr_cli  = ResourceRegistryServiceProcessClient(process=self)
+
+        #--------------------------------------------------------------------------------
+        # Standard Indexes
+        #--------------------------------------------------------------------------------
+
+        for index,resources in STD_INDEXES.iteritems():
+            index_ids, _ = rr_cli.find_resources(name=index,restype=RT.ElasticSearchIndex, id_only=True)
+            for index_id in index_ids:
+                ims_cli.delete_index(index_id)
+
+        #--------------------------------------------------------------------------------
+        # CouchDB Indexes
+        #--------------------------------------------------------------------------------
+        
+        for index,datastore in COUCHDB_INDEXES.iteritems():
+            index_ids, _ = rr_cli.find_resources(name=index, restype=RT.CouchDBIndex, id_only=True)
+            for index_id in index_ids:
+                ims_cli.delete_index(index_id)
+
+        #--------------------------------------------------------------------------------
+        # Edge Indexes
+        #--------------------------------------------------------------------------------
+
+        index_ids, _ = rr_cli.find_resources(name='%s_resources_index' % self.sysname,restype=RT.ElasticSearchIndex, id_only=True)
+        for index_id in index_ids:
+            ims_cli.delete_index(index_id)
+
+        index_ids, _ = rr_cli.find_resources(name='%s_events_index' % self.sysname, restype=RT.ElasticSearchIndex, id_only=True)
+        for index_id in index_ids:
+            ims_cli.delete_index(index_id)
+
