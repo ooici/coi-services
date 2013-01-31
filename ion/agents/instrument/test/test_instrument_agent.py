@@ -65,9 +65,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 # MI imports.
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
+from mi.core.instrument.instrument_driver import DriverEvent
+from mi.core.instrument.instrument_driver import DriverParameter
 
 # Alarms.
 from pyon.public import IonObject
@@ -137,43 +136,43 @@ IA_CLS = 'InstrumentAgent'
 
 # Used to validate param config retrieved from driver.
 PARAMS = {
-    SBE37Parameter.OUTPUTSAL : bool,
-    SBE37Parameter.OUTPUTSV : bool,
-    SBE37Parameter.NAVG : int,
-    SBE37Parameter.SAMPLENUM : int,
-    SBE37Parameter.INTERVAL : int,
-    SBE37Parameter.STORETIME : bool,
-    SBE37Parameter.TXREALTIME : bool,
-    SBE37Parameter.SYNCMODE : bool,
-    SBE37Parameter.SYNCWAIT : int,
-    SBE37Parameter.TCALDATE : tuple,
-    SBE37Parameter.TA0 : float,
-    SBE37Parameter.TA1 : float,
-    SBE37Parameter.TA2 : float,
-    SBE37Parameter.TA3 : float,
-    SBE37Parameter.CCALDATE : tuple,
-    SBE37Parameter.CG : float,
-    SBE37Parameter.CH : float,
-    SBE37Parameter.CI : float,
-    SBE37Parameter.CJ : float,
-    SBE37Parameter.WBOTC : float,
-    SBE37Parameter.CTCOR : float,
-    SBE37Parameter.CPCOR : float,
-    SBE37Parameter.PCALDATE : tuple,
-    SBE37Parameter.PA0 : float,
-    SBE37Parameter.PA1 : float,
-    SBE37Parameter.PA2 : float,
-    SBE37Parameter.PTCA0 : float,
-    SBE37Parameter.PTCA1 : float,
-    SBE37Parameter.PTCA2 : float,
-    SBE37Parameter.PTCB0 : float,
-    SBE37Parameter.PTCB1 : float,
-    SBE37Parameter.PTCB2 : float,
-    SBE37Parameter.POFFSET : float,
-    SBE37Parameter.RCALDATE : tuple,
-    SBE37Parameter.RTCA0 : float,
-    SBE37Parameter.RTCA1 : float,
-    SBE37Parameter.RTCA2 : float
+    'OUTPUTSAL' : bool,
+    'OUTPUTSV' : bool,
+    'NAVG' : int,
+    'SAMPLENUM' : int,
+    'INTERVAL' : int,
+    'STORETIME' : bool,
+    'TXREALTIME' : bool,
+    'SYNCMODE' : bool,
+    'SYNCWAIT' : int,
+    'TCALDATE' : tuple,
+    'TA0' : float,
+    'TA1' : float,
+    'TA2' : float,
+    'TA3' : float,
+    'CCALDATE' : tuple,
+    'CG' : float,
+    'CH' : float,
+    'CI' : float,
+    'CJ' : float,
+    'WBOTC' : float,
+    'CTCOR' : float,
+    'CPCOR' : float,
+    'PCALDATE' : tuple,
+    'PA0' : float,
+    'PA1' : float,
+    'PA2' : float,
+    'PTCA0' : float,
+    'PTCA1' : float,
+    'PTCA2' : float,
+    'PTCB0' : float,
+    'PTCB1' : float,
+    'PTCB2' : float,
+    'POFFSET' : float,
+    'RCALDATE' : tuple,
+    'RTCA0' : float,
+    'RTCA1' : float,
+    'RTCA2' : float
 }
 
 
@@ -732,31 +731,31 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
-        params = SBE37Parameter.ALL
+        params = DriverParameter.ALL
         retval = self._ia_client.get_resource(params)
         self.assertParamDict(retval, True)
         orig_config = retval
 
         params = [
-            SBE37Parameter.OUTPUTSV,
-            SBE37Parameter.NAVG,
-            SBE37Parameter.TA0
+            'OUTPUTSV',
+            'NAVG',
+            'TA0'
         ]
         retval = self._ia_client.get_resource(params)
         self.assertParamDict(retval)
         orig_params = retval
 
         new_params = {
-            SBE37Parameter.OUTPUTSV : not orig_params[SBE37Parameter.OUTPUTSV],
-            SBE37Parameter.NAVG : orig_params[SBE37Parameter.NAVG] + 1,
-            SBE37Parameter.TA0 : orig_params[SBE37Parameter.TA0] * 2
+            'OUTPUTSV' : not orig_params['OUTPUTSV'],
+            'NAVG' : orig_params['NAVG'] + 1,
+            'TA0' : orig_params['TA0'] * 2
         }
 
         self._ia_client.set_resource(new_params)
         retval = self._ia_client.get_resource(params)
         self.assertParamVals(retval, new_params)
 
-        params = SBE37Parameter.ALL
+        params = DriverParameter.ALL
         self._ia_client.set_resource(orig_config)
         retval = self._ia_client.get_resource(params)
         self.assertParamVals(retval, orig_config)        
@@ -789,13 +788,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
         # Attempt to get in invalid state.
-        params = SBE37Parameter.ALL
+        params = DriverParameter.ALL
         with self.assertRaises(Conflict):
             self._ia_client.get_resource(params)
         
         # Attempt to set in invalid state.
         params = {
-            SBE37Parameter.TA0 : -2.5e-04
+            'TA0' : -2.5e-04
         }
         with self.assertRaises(Conflict):
             self._ia_client.set_resource(params)
@@ -806,13 +805,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.INACTIVE)
 
         # Attempt to get in invalid state.
-        params = SBE37Parameter.ALL
+        params = DriverParameter.ALL
         with self.assertRaises(Conflict):
             self._ia_client.get_resource(params)
         
         # Attempt to set in invalid state.
         params = {
-            SBE37Parameter.TA0 : -2.5e-04
+            'TA0' : -2.5e-04
         }
         with self.assertRaises(Conflict):
             self._ia_client.set_resource(params)
@@ -834,7 +833,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Attempt to get with bogus parameters.
         params = [
             'I am a bogus parameter name',
-            SBE37Parameter.OUTPUTSV            
+            'OUTPUTSV'            
         ]
         with self.assertRaises(BadRequest):
             retval = self._ia_client.get_resource(params)
@@ -847,7 +846,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Attempt to set with bogus parameters.
         params = {
             'I am a bogus parameter name' : 'bogus val',
-            SBE37Parameter.OUTPUTSV : False
+            'OUTPUTSV' : False
         }
         with self.assertRaises(BadRequest):
             self._ia_client.set_resource(params)
@@ -1045,7 +1044,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         self.assertSampleDict(retval.result['parsed'])
         retval = self._ia_client.execute_resource(cmd)
@@ -1111,12 +1110,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
         gevent.sleep(15)
         
-        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
  
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
@@ -1157,10 +1156,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                         ]
         
         res_cmds_all =[
-            SBE37ProtocolEvent.TEST,
-            SBE37ProtocolEvent.ACQUIRE_SAMPLE,
-            SBE37ProtocolEvent.START_AUTOSAMPLE,
-            SBE37ProtocolEvent.STOP_AUTOSAMPLE
+            DriverEvent.TEST,
+            DriverEvent.ACQUIRE_SAMPLE,
+            DriverEvent.START_AUTOSAMPLE,
+            DriverEvent.STOP_AUTOSAMPLE
         ]
         
         res_iface_all = [
@@ -1353,9 +1352,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ]
 
         res_cmds_command = [
-            SBE37ProtocolEvent.TEST,
-            SBE37ProtocolEvent.ACQUIRE_SAMPLE,
-            SBE37ProtocolEvent.START_AUTOSAMPLE
+            DriverEvent.TEST,
+            DriverEvent.ACQUIRE_SAMPLE,
+            DriverEvent.START_AUTOSAMPLE
         ]
         
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
@@ -1376,7 +1375,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
         
-        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
     
         ##################################################################
@@ -1399,7 +1398,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ]
 
         res_cmds_streaming = [
-            SBE37ProtocolEvent.STOP_AUTOSAMPLE,
+            DriverEvent.STOP_AUTOSAMPLE,
         ]
 
         res_iface_streaming = [
@@ -1429,7 +1428,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         gevent.sleep(5)
         
-        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
         ##################################################################
@@ -1527,7 +1526,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Try to execute the resource, wrong state.
         with self.assertRaises(Conflict):
-            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+            cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
             retval = self._ia_client.execute_resource(cmd)        
 
         # Try initializing with a bogus option driver config parameter.
@@ -1557,13 +1556,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         # Issue a good resource command and verify result.
-        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         self.assertSampleDict(retval.result['parsed'])
 
         # Try to issue a wrong state resource command.
         with self.assertRaises(Conflict):
-            cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+            cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
             retval = self._ia_client.execute_resource(cmd)
 
         # Reset and shutdown.
@@ -1680,7 +1679,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
         
-        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         self.assertSampleDict(retval.result['parsed'])
 
@@ -1717,7 +1716,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.TEST)
+        cmd = AgentCommand(command=DriverEvent.TEST)
         retval = self._ia_client.execute_resource(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.TEST)
@@ -1872,12 +1871,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         print '#############'
         print str(retval)
         
-        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
         gevent.sleep(60)
         
-        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
  
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)

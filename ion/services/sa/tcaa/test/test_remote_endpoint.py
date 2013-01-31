@@ -56,7 +56,7 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from mi.core.instrument.instrument_driver import DriverEvent
 
 from ion.agents.instrument.test.test_instrument_agent import DRV_MOD
 from ion.agents.instrument.test.test_instrument_agent import DRV_CLS
@@ -947,7 +947,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                              resource_id=IA_RESOURCE_ID,
                              svc_name='',
                              command='execute_resource',
-                             args=[AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)],
+                             args=[AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)],
                              kwargs={},
                              command_id = str(uuid.uuid4()))
         self._terrestrial_client.enqueue(cmd8)
@@ -957,7 +957,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                              resource_id=IA_RESOURCE_ID,
                              svc_name='',
                              command='execute_resource',
-                             args=[AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)],
+                             args=[AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)],
                              kwargs={},
                              command_id = str(uuid.uuid4()))
         self._terrestrial_client.enqueue(cmd9)
@@ -967,7 +967,7 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
                              resource_id=IA_RESOURCE_ID,
                              svc_name='',
                              command='execute_resource',
-                             args=[AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)],
+                             args=[AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)],
                              kwargs={},
                              command_id = str(uuid.uuid4()))
         self._terrestrial_client.enqueue(cmd10)

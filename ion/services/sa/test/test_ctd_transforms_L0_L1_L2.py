@@ -11,7 +11,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter, SBE37ProtocolEvent
+from mi.core.instrument.instrument_driver import DriverEvent
 
 from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -32,45 +32,6 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 # Used to validate param config retrieved from driver.
-PARAMS = {
-    SBE37Parameter.OUTPUTSAL : bool,
-    SBE37Parameter.OUTPUTSV : bool,
-    SBE37Parameter.NAVG : int,
-    SBE37Parameter.SAMPLENUM : int,
-    SBE37Parameter.INTERVAL : int,
-    SBE37Parameter.STORETIME : bool,
-    SBE37Parameter.TXREALTIME : bool,
-    SBE37Parameter.SYNCMODE : bool,
-    SBE37Parameter.SYNCWAIT : int,
-    SBE37Parameter.TCALDATE : tuple,
-    SBE37Parameter.TA0 : float,
-    SBE37Parameter.TA1 : float,
-    SBE37Parameter.TA2 : float,
-    SBE37Parameter.TA3 : float,
-    SBE37Parameter.CCALDATE : tuple,
-    SBE37Parameter.CG : float,
-    SBE37Parameter.CH : float,
-    SBE37Parameter.CI : float,
-    SBE37Parameter.CJ : float,
-    SBE37Parameter.WBOTC : float,
-    SBE37Parameter.CTCOR : float,
-    SBE37Parameter.CPCOR : float,
-    SBE37Parameter.PCALDATE : tuple,
-    SBE37Parameter.PA0 : float,
-    SBE37Parameter.PA1 : float,
-    SBE37Parameter.PA2 : float,
-    SBE37Parameter.PTCA0 : float,
-    SBE37Parameter.PTCA1 : float,
-    SBE37Parameter.PTCA2 : float,
-    SBE37Parameter.PTCB0 : float,
-    SBE37Parameter.PTCB1 : float,
-    SBE37Parameter.PTCB2 : float,
-    SBE37Parameter.POFFSET : float,
-    SBE37Parameter.RCALDATE : tuple,
-    SBE37Parameter.RTCA0 : float,
-    SBE37Parameter.RTCA1 : float,
-    SBE37Parameter.RTCA2 : float
-}
 
 class FakeProcess(LocalContextMixin):
     """
@@ -147,8 +108,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                     name='agent007',
                                     description="SBE37IMAgent",
-                                    driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                    driver_class="SBE37Driver",
+                                    driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg",
                                     stream_configurations = [raw_config, parsed_config] )
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
@@ -632,12 +592,12 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
 
         #todo There is no ResourceAgentEvent attribute for go_streaming... so what should be the command for it?
-        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
         gevent.sleep(15)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
 

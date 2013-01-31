@@ -12,7 +12,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from mi.core.instrument.instrument_driver import DriverEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -162,8 +162,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                  driver_class="SBE37Driver",
+                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg",
                                   stream_configurations = [raw_config, parsed_config])
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         print  'new InstrumentAgent id = %s' % instAgent_id
@@ -352,7 +351,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
         for i in xrange(10):
             retval = self._ia_client.execute_resource(cmd)
             print "test_activateInstrumentSample: return from sample %s" % str(retval)

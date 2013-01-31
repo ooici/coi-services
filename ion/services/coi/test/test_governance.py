@@ -27,8 +27,8 @@ from interface.services.cei.ischeduler_service import SchedulerServiceProcessCli
 
 
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from mi.core.instrument.instrument_driver import DriverParameter
+from mi.core.instrument.instrument_driver import DriverEvent 
 from mi.core.instrument.instrument_driver import DriverConnectionState
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
@@ -1256,7 +1256,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #This agent operation should not be allowed for a user that is not an Instrument Operator
         with self.assertRaises(Unauthorized) as cm:
-            params = SBE37Parameter.ALL
+            params = DriverParameter.ALL
             retval = ia_client.get_resource(params, headers=actor_header)
         self.assertIn('(get_resource) has been denied',cm.exception.message)
 
@@ -1278,7 +1278,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #This operation should now be allowed with the Instrument Operator role
         with self.assertRaises(Conflict) as cm:
-            params = SBE37Parameter.ALL
+            params = DriverParameter.ALL
             retval = ia_client.get_resource(params, headers=actor_header)
 
 
@@ -1289,7 +1289,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #The execute commnand should fail if the user has not acquired the resource
         with self.assertRaises(Unauthorized) as cm:
-            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+            cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
             retval = ia_client.execute_resource(cmd, headers=actor_header)
         self.assertIn('(execute_resource) has been denied',cm.exception.message)
 
@@ -1297,8 +1297,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Going to try access to other operations on the agent, don't care if they actually work - just
         #do they get denied or not
         new_params = {
-            SBE37Parameter.TA0 : 2,
-            SBE37Parameter.INTERVAL : 1,
+            'TA0' : 2,                 #SBE37Parameter.TA0 : 2,
+            'INTERVAL' : 1,            #SBE37Parameter.INTERVAL : 1,
         }
 
         #First try anonymously - should be denied
@@ -1336,7 +1336,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #This operation should now be allowed since the resource has been acquired
         with self.assertRaises(Conflict) as cm:
-            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+            cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
             retval = ia_client.execute_resource(cmd, headers=actor_header)
 
         #This operation should now be allowed since the resource has been acquired
