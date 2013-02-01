@@ -68,11 +68,14 @@ PA_CLS = 'PlatformAgent'
 # because the exception alone does not show up in the logs!
 
 
-class PlatformAgentState(ResourceAgentState):
+class PlatformAgentState(BaseEnum):
     """
     Platform agent state enum.
     """
-    pass
+    UNINITIALIZED     = ResourceAgentState.UNINITIALIZED
+    INACTIVE          = ResourceAgentState.INACTIVE
+    IDLE              = ResourceAgentState.IDLE
+    COMMAND           = ResourceAgentState.COMMAND
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
