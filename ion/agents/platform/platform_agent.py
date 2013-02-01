@@ -549,7 +549,9 @@ class PlatformAgent(ResourceAgent):
         if param_dict.temporal_parameter_name is not None:
             temp_param_name = param_dict.temporal_parameter_name
             rdt[temp_param_name]       = numpy.array(timestamps)
-            rdt['preferred_timestamp'] = numpy.array([temp_param_name] * len(timestamps))
+            #@TODO: Ensure that the preferred_timestamp field is correct
+            rdt['preferred_timestamp'] = numpy.array(['internal_timestamp'] * len(timestamps))
+            log.warn('Preferred timestamp is unresolved, using "internal_timestamp"')
         else:
             log.warn("%r: Not including timestamp info in granule: "
                      "temporal_parameter_name not defined in parameter dictionary",
