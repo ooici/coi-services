@@ -18,10 +18,9 @@ from pyon.util.memoize import memoize_lru
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
 
-from coverage_model.parameter import ParameterDictionary
-from coverage_model.parameter_types import QuantityType
-from coverage_model.parameter_values import get_value_class, AbstractParameterValue
-from coverage_model.coverage import SimpleDomainSet
+
+from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet
+from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 
 import numpy as np
 import msgpack
@@ -49,6 +48,7 @@ class RecordDictionaryTool(object):
     _shp         = None
     _locator     = None
     _stream_def  = None
+    _dirty_shape = False
 
     def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
         """
@@ -109,7 +109,7 @@ class RecordDictionaryTool(object):
         
         for key,val in self._rd.iteritems():
             if val is not None:
-                granule.record_dictionary[self._pdict.ord_from_key(key)] = val._storage._storage
+                granule.record_dictionary[self._pdict.ord_from_key(key)] = val[:]
             else:
                 granule.record_dictionary[self._pdict.ord_from_key(key)] = None
         
@@ -148,7 +148,12 @@ class RecordDictionaryTool(object):
             self._rd[name] = None
             return
         context = self._pdict.get_context(name)
-        if self._shp is None: # Not initialized:
+
+        if self._shp is None and (isinstance(context.param_type, ConstantType) or isinstance(context.param_type, ConstantRangeType)):
+            self._shp = (1,)
+            self._dirty_shape = True
+        
+        elif self._shp is None or self._dirty_shape:
             if isinstance(vals, np.ndarray):
                 self._shp = vals.shape
             elif isinstance(vals, list):
@@ -157,6 +162,10 @@ class RecordDictionaryTool(object):
                 raise BadRequest('No shape was defined')
 
             log.trace('Set shape to %s', self._shp)
+            if self._dirty_shape:
+                self._dirty_shape = False
+                self._reshape_const()
+
         else:
             if isinstance(vals, np.ndarray):
                 validate_equal(vals.shape, self._shp, 'Invalid shape on input (%s expecting %s)' % (vals.shape, self._shp))
@@ -169,13 +178,16 @@ class RecordDictionaryTool(object):
         paramval.storage._storage.flags.writeable = False
         self._rd[name] = paramval
 
-
+    def _reshape_const(self):
+        for k in self.fields:
+            if isinstance(self._rd[k], ConstantValue):
+                self._rd[k].domain_set = self.domain
 
     def __getitem__(self, name):
         """
         Get an item by nick name from the record dictionary.
         """
-        if self._rd[name]:
+        if self._rd[name] is not None:
             return self._rd[name][:]
         else:
             return None
