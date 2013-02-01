@@ -382,7 +382,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['temp']
         input_data = input_rdt_to_transform['temp']
 
-        self.assertTrue(((input_data / 100000.0) - 10).all() == output_data.all())
+        self.assertTrue(((input_data / 10000.0) - 10).all() == output_data.all())
 
     def check_density_algorithm_execution(self, publish_granule, granule_from_transform):
 
