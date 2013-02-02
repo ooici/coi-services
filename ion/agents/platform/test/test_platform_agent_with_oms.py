@@ -99,6 +99,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             'network_definition' : network_definition_ser
         }
 
+        self._network_definition = network_definition
+
         # Start data suscribers, add stop to cleanup.
         # Define stream_config.
         self._async_data_result = AsyncResult()
@@ -117,7 +119,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             'platform_config': self.PLATFORM_CONFIG
         }
 
-        log.debug("launching with agent_config=%s",  str(self._agent_config))
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("launching with agent_config=%s" % str(self._agent_config))
 
         self._launcher = LauncherFactory.createLauncher()
         self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)

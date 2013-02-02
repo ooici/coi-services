@@ -112,7 +112,8 @@ class HelperTestMixin:
         """
         self.assertTrue(attr_id in dic)
         val = dic[attr_id]
-        self.assertEquals(InvalidResponse.ATTRIBUTE_NOT_WRITABLE, val)
+        self.assertEquals(InvalidResponse.ATTRIBUTE_NOT_WRITABLE, val,
+                          "attr_id=%r, val=%r" % (attr_id, val))
 
     def _verify_valid_port_id(self, port_id, dic):
         """

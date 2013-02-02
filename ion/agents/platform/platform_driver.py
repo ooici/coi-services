@@ -49,18 +49,29 @@ class PlatformDriver(object):
         self._agent_streamconfig_map = None
 
         # The root NNode defining the platform network rooted at the platform
-        # identified by self._platform_id. This _nnode is constructed by the
-        # driver based on _topology (if given) or other source of information.
+        # identified by self._platform_id.
         self._nnode = None
+
+    def set_nnode(self, nnode):
+        """
+        @note ongoing refactoring -- network definition to be provided by
+        agent directly via this method or similar (name subject to change)
+        """
+        self._nnode = nnode
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: set_nnode: %s",self._platform_id, self._nnode.platform_id)
 
     def set_topology(self, topology, agent_device_map=None,
                      agent_streamconfig_map=None):
         """
-        Sets the platform topology.
+        @note ongoing refactoring -- network definition to be provided by
+        agent directly.
+        @todo remove this method
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug(
-                "set_topology: topology=%s, agent_device_map=%s, agent_streamconfig_map=%s",
+            log.debug("%r: set_topology:\ntopology=%s,\n\nagent_device_map=%s,\n\n"
+                "agent_streamconfig_map=%s\n\n",
+                self._platform_id,
                 topology, agent_device_map, agent_streamconfig_map)
         self._topology = topology
         self._agent_device_map = agent_device_map
@@ -88,6 +99,8 @@ class PlatformDriver(object):
 
     def go_active(self):
         """
+        @note ongoing refactoring -- actually the network definition to be
+        provided by agent.
         To be implemented by subclass.
         Main task here is to determine the topology of platforms
         rooted here then assigning the corresponding definition to self._nnode.

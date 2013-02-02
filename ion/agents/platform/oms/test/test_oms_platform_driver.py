@@ -12,14 +12,18 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+import logging
+
+from pyon.util.containers import get_ion_ts
+
+from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+from ion.agents.platform.oms.oms_util import RsnOmsUtil
+from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.agents.platform.oms.oms_platform_driver import OmsPlatformDriver
 
 from pyon.util.int_test import IonIntegrationTestCase
 
-import time
-import ntplib
-import os
 from nose.plugins.attrib import attr
 
 from gevent import sleep
@@ -28,7 +32,7 @@ from ion.agents.platform.test.helper import HelperTestMixin
 
 
 DVR_CONFIG = {
-    'oms_uri': os.getenv('OMS', 'embsimulator'),
+    'oms_uri': 'embsimulator',
 }
 
 
@@ -40,8 +44,19 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
         HelperTestMixin.setUpClass()
 
     def setUp(self):
+
+        # Use the network definition provided by RSN OMS directly.
+        rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
+
+        if log.isEnabledFor(logging.DEBUG):
+            network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
+            log.debug("NetworkDefinition serialization:\n%s", network_definition_ser)
+
         platform_id = self.PLATFORM_ID
         self._plat_driver = OmsPlatformDriver(platform_id, DVR_CONFIG)
+
+        self._plat_driver.set_nnode(network_definition.nodes[platform_id])
 
         self._plat_driver.set_event_listener(self.evt_recv)
 
@@ -60,8 +75,10 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_attribute_values(self):
         attrNames = self.ATTR_NAMES
-        cur_time = ntplib.system_to_ntp_time(time.time())
-        from_time = cur_time - 50  # a 50-sec time window
+
+        # see OOIION-631 note in test_platform_agent_with_oms
+        from_time = str(int(get_ion_ts()) - 50000)  # a 50-sec time window
+
         attr_values = self._plat_driver.get_attribute_values(attrNames, from_time)
         log.info("attr_values = %s" % str(attr_values))
         self.assertIsInstance(attr_values, dict)

@@ -22,7 +22,6 @@ from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.oms.oms_event_listener import OmsEventListener
 
-from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
@@ -84,6 +83,8 @@ class OmsPlatformDriver(PlatformDriver):
         """
         Main task here is to determine the topology of platforms
         rooted here then assigning the corresponding definition to self._nnode.
+        @note ongoing refactoring -- network definition to be provided by
+                agent.
 
         @raise PlatformConnectionException
         """
@@ -96,13 +97,17 @@ class OmsPlatformDriver(PlatformDriver):
         # definition:
         self.ping()
 
-        if self._topology:
-            self._nnode = self._build_network_definition_using_topology()
+        if self._nnode:
+            log.debug("%r: go_active: _nnode already provided",
+                      self._platform_id)
         else:
-            self._nnode = self._build_network_definition_using_oms()
+            # TODO: throw an exception: given _nnode to become the only mechanism.
+            # for now, use given _topology:
+            assert self._topology, "if not _nnode, then _topology must have been set"
+            self._nnode = self._build_network_definition_using_topology()
 
-        log.debug("%r: go_active completed ok. _nnode:\n%s",
-                 self._platform_id, self._nnode.dump())
+            log.debug("%r: go_active completed ok. _nnode:\n%s",
+                     self._platform_id, self._nnode.dump())
 
         self.__gen_diagram()
 
@@ -195,34 +200,6 @@ class OmsPlatformDriver(PlatformDriver):
         for port_obj in ports:
             port = Port(port_obj['port_id'], port_obj['ip_address'])
             nnode.add_port(port)
-
-    def _build_network_definition_using_oms(self):
-        """
-        Uses OMS to build the network definition.
-        """
-        log.debug("%r: _build_network_definition_using_oms..", self._platform_id)
-        try:
-            map = self._oms.config.getPlatformMap()
-        except Exception, e:
-            log.debug("%r: error getting platform map %s", self._platform_id, str(e))
-            raise PlatformConnectionException(msg="error getting platform map %s" % str(e))
-
-        log.debug("%r: got platform map %s", self._platform_id, str(map))
-
-        def build_network_definition(map):
-            """
-            Returns the root NNode according to self._platform_id and the OMS'
-            getPlatformMap response.
-            """
-            nodes = NetworkUtil.create_node_network(map)
-            if not self._platform_id in nodes:
-                msg = "platform map does not contain entry for %r" % self._platform_id
-                log.error(msg)
-                raise PlatformException(msg=msg)
-
-            return nodes[self._platform_id]
-
-        return build_network_definition(map)
 
     def get_metadata(self):
         """
@@ -445,10 +422,14 @@ class OmsPlatformDriver(PlatformDriver):
 
     def _get_platform_attributes(self):
 
-        if self._agent_device_map:
-            return self._get_platform_attributes_using_agent_device_map()
-        else:
-            return self._get_platform_attributes_using_oms()
+        if self._nnode:
+            attr_info = dict((attr.attr_id, attr.defn) for attr in self._nnode.attrs.itervalues())
+            log.debug("%r: _get_platform_attributes attr_info=%s",
+                  self._platform_id, attr_info)
+            return attr_info
+
+        assert self._agent_device_map, "_nnode or _agent_device_map must have been set"
+        return self._get_platform_attributes_using_agent_device_map()
 
     def _get_platform_attributes_using_agent_device_map(self):
         attr_info = dict((attr.attr_id, attr.defn) for attr in self._nnode.attrs.itervalues())
@@ -456,26 +437,21 @@ class OmsPlatformDriver(PlatformDriver):
               self._platform_id, attr_info)
         return attr_info
 
-    def _get_platform_attributes_using_oms(self):
-        log.debug("%r: getting platform attributes", self._platform_id)
-
-        attrs = self._oms.getPlatformAttributes(self._platform_id)
-        log.debug("%r: getPlatformAttributes=%s",
-            self._platform_id, attrs)
-
-        attr_info = self._verify_platform_id_in_response(attrs)
-
-        return attr_info
-
     ###############################################
     # Ports:
 
     def get_ports(self):
 
-        if self._agent_device_map:
-            return self._get_ports_using_agent_device_map()
-        else:
-            return self._get_ports_using_oms()
+        if self._nnode:
+            ports = {}
+            for port_id, port in self._nnode.ports.iteritems():
+                ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+            log.debug("%r: get_ports: %s",
+                  self._platform_id, ports)
+            return ports
+
+        assert self._agent_device_map, "_nnode or _agent_device_map must have been set"
+        return self._get_ports_using_agent_device_map()
 
     def _get_ports_using_agent_device_map(self):
         ports = {}
@@ -483,17 +459,6 @@ class OmsPlatformDriver(PlatformDriver):
             ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
         log.debug("%r: _get_ports_using_agent_device_map: %s",
               self._platform_id, ports)
-        return ports
-
-    def _get_ports_using_oms(self):
-        log.debug("%r: getting ports", self._platform_id)
-
-        response = self._oms.getPlatformPorts(self._platform_id)
-        log.debug("%r: _get_ports_using_oms: %s",
-            self._platform_id, response)
-
-        ports = self._verify_platform_id_in_response(response)
-
         return ports
 
     def _verify_port_id_in_response(self, port_id, dic):
