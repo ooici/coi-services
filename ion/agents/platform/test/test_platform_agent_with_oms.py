@@ -372,6 +372,16 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
+    def _start_resource_monitoring(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.MONITORING)
+
+    def _stop_resource_monitoring(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.COMMAND)
+
     def _go_inactive(self):
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
         retval = self._execute_agent(cmd)
@@ -428,6 +438,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
             PlatformAgentEvent.START_EVENT_DISPATCH,
             PlatformAgentEvent.STOP_EVENT_DISPATCH,
+
+            PlatformAgentEvent.START_MONITORING,
+            PlatformAgentEvent.STOP_MONITORING,
         ]
 
 
@@ -590,6 +603,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
             PlatformAgentEvent.START_EVENT_DISPATCH,
             PlatformAgentEvent.STOP_EVENT_DISPATCH,
+
+            PlatformAgentEvent.START_MONITORING,
         ]
 
         res_cmds_command = [
@@ -599,6 +614,47 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_command)
         self.assertItemsEqual(res_pars, res_pars_all)
+
+
+        self._start_resource_monitoring()
+
+        ##################################################################
+        # MONITORING
+        ##################################################################
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+         # Validate capabilities of state MONITORING
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_monitoring = [
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
+            PlatformAgentEvent.SET_UP_PORT,
+            PlatformAgentEvent.TURN_ON_PORT,
+            PlatformAgentEvent.TURN_OFF_PORT,
+            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE,
+            PlatformAgentEvent.SET_RESOURCE,
+
+            PlatformAgentEvent.START_EVENT_DISPATCH,
+            PlatformAgentEvent.STOP_EVENT_DISPATCH,
+
+            PlatformAgentEvent.STOP_MONITORING,
+        ]
+
+        res_cmds_command = [
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_monitoring)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_pars, res_pars_all)
+
+
 
         # Get exposed capabilities in all states as read from state COMMAND.
         retval = self._pa_client.get_capabilities(False)
@@ -610,6 +666,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
+
+        # return to COMMAND state:
+        self._stop_resource_monitoring()
 
         self._go_inactive()
         self._reset()
@@ -628,6 +687,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._initialize()
         self._go_active()
         self._run()
+        self._start_resource_monitoring()
 
         self._ping_agent()
         self._ping_resource()
@@ -648,6 +708,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._stop_event_dispatch()
 
+        self._stop_resource_monitoring()
+
         self._turn_off_port()
 
         self._go_inactive()
@@ -655,5 +717,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
 # developer conveniences
 #
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_go_active_and_run
 #

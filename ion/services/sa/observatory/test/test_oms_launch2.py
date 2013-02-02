@@ -634,10 +634,15 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform GO_ACTIVE = %s', str(retval) )
 
-        # RUN: this command includes the launch of the resource monitoring greenlets
+        # RUN:
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform RUN = %s', str(retval) )
+
+        # START_MONITORING:
+        cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        log.debug( 'Base Platform START_MONITORING = %s', str(retval) )
 
         # START_EVENT_DISPATCH
         kwargs = dict(params="TODO set params")
@@ -672,6 +677,11 @@ class TestOmsLaunch(IonIntegrationTestCase):
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
+
+        # STOP_MONITORING:
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)
+        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
+        log.debug( 'Base Platform STOP_MONITORING = %s', str(retval) )
 
         # GO_INACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)

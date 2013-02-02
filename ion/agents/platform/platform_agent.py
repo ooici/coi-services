@@ -76,6 +76,7 @@ class PlatformAgentState(BaseEnum):
     INACTIVE          = ResourceAgentState.INACTIVE
     IDLE              = ResourceAgentState.IDLE
     COMMAND           = ResourceAgentState.COMMAND
+    MONITORING        = 'PLATFORM_AGENT_STATE_MONITORING'
 
 
 class PlatformAgentEvent(ResourceAgentEvent):
@@ -87,6 +88,8 @@ class PlatformAgentEvent(ResourceAgentEvent):
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
     START_EVENT_DISPATCH      = 'PLATFORM_AGENT_START_EVENT_DISPATCH'
     STOP_EVENT_DISPATCH       = 'PLATFORM_AGENT_STOP_EVENT_DISPATCH'
+    START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
+    STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -110,6 +113,8 @@ class PlatformAgentCapability(BaseEnum):
     START_EVENT_DISPATCH      = PlatformAgentEvent.START_EVENT_DISPATCH
     STOP_EVENT_DISPATCH       = PlatformAgentEvent.STOP_EVENT_DISPATCH
 
+    START_MONITORING          = PlatformAgentEvent.START_MONITORING
+    STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
 
 
 class PlatformAgent(ResourceAgent):
@@ -486,8 +491,12 @@ class PlatformAgent(ResourceAgent):
 
     def _run(self):
         """
+        Prepares this particular platform agent for the COMMAND state.
+        Currently, nothing is done here.
+        @note This method originally called _start_resource_monitoring but
+              that's is now done via an explicit command.
         """
-        self._start_resource_monitoring()
+        pass
 
     def _build_network_definition(self):
 
@@ -1420,6 +1429,48 @@ class PlatformAgent(ResourceAgent):
         return (next_state, result)
 
     ##############################################################
+    # Resource monitoring
+    ##############################################################
+
+    def _handler_start_resource_monitoring(self, *args, **kwargs):
+        """
+        Starts resource monitoring and transitions to MONITORING state.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        try:
+            result = self._start_resource_monitoring()
+
+            next_state = PlatformAgentState.MONITORING
+
+        except Exception as ex:
+            log.error("error in _start_resource_monitoring %s", str(ex)) #, exc_Info=True)
+            raise
+
+        return (next_state, result)
+
+    def _handler_stop_resource_monitoring(self, *args, **kwargs):
+        """
+        Stops resource monitoring and transitions to COMMAND state.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        try:
+            result = self._stop_resource_monitoring()
+
+            next_state = PlatformAgentState.COMMAND
+
+        except Exception as ex:
+            log.error("error in _stop_resource_monitoring %s", str(ex)) #, exc_Info=True)
+            raise
+
+        return (next_state, result)
+
+    ##############################################################
     # FSM setup.
     ##############################################################
 
@@ -1459,15 +1510,24 @@ class PlatformAgent(ResourceAgent):
         # COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.RESET, self._handler_command_reset)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.SET_UP_PORT, self._handler_set_up_port)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.TURN_ON_PORT, self._handler_turn_on_port)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.TURN_OFF_PORT, self._handler_turn_off_port)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.START_EVENT_DISPATCH, self._handler_start_event_dispatch)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.STOP_EVENT_DISPATCH, self._handler_stop_event_dispatch)
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.START_MONITORING, self._handler_start_resource_monitoring)
+
+        # MONITORING state event handlers.
+        self._fsm.add_handler(PlatformAgentState.MONITORING, PlatformAgentEvent.STOP_MONITORING, self._handler_stop_resource_monitoring)
+
+        # COMMAND/MONITORING common state event handlers.
+        # Note that these handlers do not change the current state.
+        # TODO revisit this when introducing the BUSY state
+        for state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
+            self._fsm.add_handler(state, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
+            self._fsm.add_handler(state, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
+            self._fsm.add_handler(state, PlatformAgentEvent.SET_UP_PORT, self._handler_set_up_port)
+            self._fsm.add_handler(state, PlatformAgentEvent.TURN_ON_PORT, self._handler_turn_on_port)
+            self._fsm.add_handler(state, PlatformAgentEvent.TURN_OFF_PORT, self._handler_turn_off_port)
+            self._fsm.add_handler(state, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
+            self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+            self._fsm.add_handler(state, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+            self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
+            self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
+            self._fsm.add_handler(state, PlatformAgentEvent.START_EVENT_DISPATCH, self._handler_start_event_dispatch)
+            self._fsm.add_handler(state, PlatformAgentEvent.STOP_EVENT_DISPATCH, self._handler_stop_event_dispatch)
