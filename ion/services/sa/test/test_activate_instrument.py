@@ -18,7 +18,8 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
-from pyon.public import RT, PRED, CFG
+from pyon.public import RT, PRED
+from pyon.core.bootstrap import CFG
 from pyon.public import IonObject, log
 from pyon.datastore.datastore import DataStore
 from pyon.event.event import EventPublisher
@@ -104,14 +105,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Make notification request objects
         #--------------------------------------------------------------------------------------
 
-        notification_request_correct = NotificationRequest(   name= 'notification_1',
+        notification_request_1 = NotificationRequest(   name= 'notification_1',
             origin=instrument_id,
-            origin_type="type_1",
+            origin_type="instrument",
             event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(   name='notification_2',
             origin=product_id,
-            origin_type="type_2",
+            origin_type="data product",
             event_type='DetectionEvent')
 
         #--------------------------------------------------------------------------------------
@@ -128,7 +129,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Create notification
         #--------------------------------------------------------------------------------------
 
-        self.usernotificationclient.create_notification(notification=notification_request_correct, user_id=user_id)
+        self.usernotificationclient.create_notification(notification=notification_request_1, user_id=user_id)
         self.usernotificationclient.create_notification(notification=notification_request_2, user_id=user_id)
         log.debug( "test_activateInstrumentSample: create_user_notifications user_id %s", str(user_id) )
 
@@ -282,6 +283,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         user_id = self.create_user_notifications(instrument_id=instDevice_id, product_id=data_product_id1)
 
 
+        #elastic search debug
+        es_indexes, _ = self.container.resource_registry.find_resources(restype='ElasticSearchIndex')
+        log.debug('ElasticSearch indexes: %s', [i.name for i in es_indexes])
+        log.debug('Bootstrap %s', CFG.bootstrap.use_es)
+
+
         def start_instrument_agent():
             self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
@@ -408,8 +415,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(data_product_id1, extended_product._id)
         #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
         log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
-        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", [i.__dict__ for i in extended_product.computed.user_notification_requests.value])
+        log.debug( "test_activateInstrumentSample: extended_product computed user_notification_requests %s", [i.__dict__ for i in extended_product.computed.user_notification_requests.value])
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
+        self.assertEqual( 1, len(extended_product.computed.user_notification_requests.value) )
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
         self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
@@ -432,9 +440,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id)
         log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
         log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", [i.__dict__ for i in extended_instrument.computed.user_notification_requests.value])
+        self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
         self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
+
 
 
         #-------------------------------
