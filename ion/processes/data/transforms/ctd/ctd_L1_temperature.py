@@ -63,7 +63,7 @@ class CTDL1TemperatureTransformAlgorithm(SimpleGranuleTransformFunction):
         out_rdt = RecordDictionaryTool(stream_definition_id=params)
 
         temperature = rdt['temp']
-        temp_value = (temperature / 100000.0) - 10
+        temp_value = (temperature / 10000.0) - 10
 
         for key, value in rdt.iteritems():
             if key in out_rdt:
