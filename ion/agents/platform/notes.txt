@@ -5,13 +5,17 @@ some noteworthy notes (occasionaly updated)
 2013-02-02:
   More clean-up related with platform configuration being provided as opposed
   as being retrieved from the external system.
-  There is set_nnode in PlatformDriver to set the NNode for the driver. This
-  will be the only basis for anything related with the static configuration
+  There is now a set_nnode in PlatformDriver to set the NNode for the driver.
+  This will be the only basis for anything related with the static configuration
   of the platform network rooted at the corresponding platform.
   TODO: all regular operations needing static information should only use the
   provided NNode. There will be explicit operations related with checking the
   validity of this configuration against the external system, for example,
   get_checksum(platform_id).
+
+  Renamings: Attr -> AttrDef; Port -> PortDef. Removed value property from
+  AttrDef (NetworkDefinition is only about the static structure of the network,
+  not dynamic information).
 
 2013-02-01:
 - CIDEVSA-455 Align platform agent state model with instrument agent / resource agent state model

@@ -59,7 +59,8 @@ class PlatformDriver(object):
         """
         self._nnode = nnode
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: set_nnode: %s",self._platform_id, self._nnode.platform_id)
+            log.debug("%r: set_nnode:\n%s",
+                     self._platform_id, self._nnode.dump(include_subplatforms=False))
 
     def set_topology(self, topology, agent_device_map=None,
                      agent_streamconfig_map=None):

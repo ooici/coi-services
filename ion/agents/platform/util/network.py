@@ -11,14 +11,14 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-# NOTE: No use of any pyon stuff in this module mainly to facilitate use by
+# NOTE: No use of any pyon stuff in this module mainly to also facilitate use by
 # simulator, which uses a regular threading.Thread when run as a separate
 # process, so we avoid gevent monkey-patching issues.
 
 
-class Attr(object):
+class AttrDef(object):
     """
-    Represents a platform attribute.
+    Represents the definition of a platform attribute.
     """
     def __init__(self, attr_id, defn):
         self._attr_id = attr_id
@@ -26,11 +26,8 @@ class Attr(object):
 
         self._writable = 'read_write' in defn and defn['read_write'].lower().find("write") >= 0
 
-        self._value = defn['value'] if 'value' in defn else None
-
     def __repr__(self):
-        return "Attr{id=%s, defn=%s, value=%s}" % (
-            self.attr_id, self.defn, self.value)
+        return "AttrDef{id=%s, defn=%s}" % (self.attr_id, self.defn)
 
     @property
     def attr_id(self):
@@ -43,10 +40,6 @@ class Attr(object):
     @property
     def writable(self):
         return self._writable
-
-    @property
-    def value(self):
-        return self._value
 
     def diff(self, other):
         """
@@ -64,9 +57,9 @@ class Attr(object):
         return None
 
 
-class Port(object):
+class PortDef(object):
     """
-    Represents a platform port.
+    Represents the definition of a platform port.
     """
     def __init__(self, port_id, ip):
         self._port_id = port_id
@@ -76,7 +69,7 @@ class Port(object):
         self._on = False
 
     def __repr__(self):
-        return "Port{id=%s, comms=%s, attrs=%s}" % (
+        return "PortDef{id=%s, comms=%s, attrs=%s}" % (
             self._port_id, self._comms, self._attrs)
 
     @property
@@ -117,8 +110,8 @@ class NNode(object):
 
     self._platform_id
     self._platform_types = [type, ...]
-    self._attrs = { attr_id: Attr, ... }
-    self._ports = { port_id: Port, ... }
+    self._attrs = { attr_id: AttrDef, ... }
+    self._ports = { port_id: PortDef, ... }
     self._subplatforms = { platform_id: NNode, ...}
     self._parent = None | NNode
 
@@ -148,7 +141,7 @@ class NNode(object):
             assert 'ip' in port_info
             port_id = port_info['port_id']
             port_ip = port_info['ip']
-            self.add_port(Port(port_id, port_ip))
+            self.add_port(PortDef(port_id, port_ip))
 
     def add_attribute(self, attr):
         if attr.attr_id in self._attrs:
@@ -162,7 +155,7 @@ class NNode(object):
             assert 'monitorCycleSeconds' in attr_defn
             assert 'units' in attr_defn
             attr_id = attr_defn['attr_id']
-            self.add_attribute(Attr(attr_id, attr_defn))
+            self.add_attribute(AttrDef(attr_id, attr_defn))
 
     @property
     def platform_id(self):
@@ -208,8 +201,9 @@ class NNode(object):
             s += "/name=%s" % self.name
         s += "/types=%s" % self.platform_types
         s += ">\n"
-        s += "ports=%s\n"      % list(self.ports.itervalues())
-        s += "attrs=%s\n"      % list(self.attrs.itervalues())
+        s += "ports=%s\n"         % list(self.ports.itervalues())
+        s += "attrs=%s\n"         % list(self.attrs.itervalues())
+        s += "#subplatforms=%d\n" % len(self.subplatforms)
         return s
 
     def get_map(self, pairs):
@@ -222,21 +216,29 @@ class NNode(object):
             sub_platform.get_map(pairs)
         return pairs
 
-    def dump(self, indent_level=0, only_topology=False):
+    def dump(self, indent_level=0, only_topology=False,
+             include_subplatforms=True):
         """
-        Indented string representation.
+        Indented string representation mainly for logging purposes.
+
+        @param indent_level To create an indented string. 0 by default.
+        @param only_topology True to only print the topology; False to also
+               include attributes and ports. False by default.
+        @param include_subplatforms True to also dump the subplatforms (with
+               incremented indentation level). True by default.
         """
         s = ""
+        indent = "    " * indent_level
         if self.platform_id:
-            indent = "    " * indent_level
             if only_topology:
                 s = "%s%s\n" % (indent, self.platform_id)
             else:
                 s = "%s%s\n" % (indent, str(self).replace('\n', '\n%s' % indent))
             indent_level += 1
 
-        for sub_platform in self.subplatforms.itervalues():
-            s += sub_platform.dump(indent_level, only_topology)
+        if include_subplatforms:
+            for sub_platform in self.subplatforms.itervalues():
+                s += sub_platform.dump(indent_level, only_topology)
 
         return s
 

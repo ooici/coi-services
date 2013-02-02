@@ -45,7 +45,7 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
 from ion.agents.platform.platform_resource_monitor import PlatformResourceMonitor
-from ion.agents.platform.util.network import NNode, Attr, Port
+from ion.agents.platform.util.network import NNode, AttrDef, PortDef
 
 from coverage_model.parameter import ParameterDictionary
 from interface.objects import StreamRoute
@@ -569,7 +569,7 @@ class PlatformAgent(ResourceAgent):
         assert isinstance(device_obj, dict)
         attrs = device_obj['platform_monitor_attributes']
         for attr_obj in attrs:
-            attr = Attr(attr_obj['id'], {
+            attr = AttrDef(attr_obj['id'], {
                 'name': attr_obj['id'],
                 'monitorCycleSeconds': attr_obj['monitor_rate'],
                 'units': attr_obj['units'],
@@ -578,7 +578,7 @@ class PlatformAgent(ResourceAgent):
 
         ports = device_obj['ports']
         for port_obj in ports:
-            port = Port(port_obj['port_id'], port_obj['ip_address'])
+            port = PortDef(port_obj['port_id'], port_obj['ip_address'])
             nnode.add_port(port)
 
     def _start_resource_monitoring(self):

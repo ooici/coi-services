@@ -23,8 +23,8 @@ from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.oms.oms_event_listener import OmsEventListener
 
 from ion.agents.platform.util.network import NNode
-from ion.agents.platform.util.network import Attr
-from ion.agents.platform.util.network import Port
+from ion.agents.platform.util.network import AttrDef
+from ion.agents.platform.util.network import PortDef
 
 from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
 
@@ -107,7 +107,7 @@ class OmsPlatformDriver(PlatformDriver):
             self._nnode = self._build_network_definition_using_topology()
 
             log.debug("%r: go_active completed ok. _nnode:\n%s",
-                     self._platform_id, self._nnode.dump())
+                     self._platform_id, self._nnode.dump(include_subplatforms=False))
 
         self.__gen_diagram()
 
@@ -189,7 +189,7 @@ class OmsPlatformDriver(PlatformDriver):
         assert isinstance(device_obj, dict)
         attrs = device_obj['platform_monitor_attributes']
         for attr_obj in attrs:
-            attr = Attr(attr_obj['id'], {
+            attr = AttrDef(attr_obj['id'], {
                 'name': attr_obj['id'],
                 'monitorCycleSeconds': attr_obj['monitor_rate'],
                 'units': attr_obj['units'],
@@ -198,7 +198,7 @@ class OmsPlatformDriver(PlatformDriver):
 
         ports = device_obj['ports']
         for port_obj in ports:
-            port = Port(port_obj['port_id'], port_obj['ip_address'])
+            port = PortDef(port_obj['port_id'], port_obj['ip_address'])
             nnode.add_port(port)
 
     def get_metadata(self):

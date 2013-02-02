@@ -16,7 +16,7 @@ import logging
 
 from ion.agents.platform.util.network import NetworkDefinition
 from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.platform.util.network import Attr, Port
+from ion.agents.platform.util.network import AttrDef, PortDef
 
 
 class RsnOmsUtil(object):
@@ -84,7 +84,7 @@ class RsnOmsUtil(object):
 
             ret_infos = attr_infos[platform_id]
             for attrName, attr_defn in ret_infos.iteritems():
-                attr = Attr(attrName, attr_defn)
+                attr = AttrDef(attrName, attr_defn)
                 nnode.add_attribute(attr)
 
         def set_ports(nnode):
@@ -101,7 +101,7 @@ class RsnOmsUtil(object):
             assert platform_id in port_infos
             ports = port_infos[platform_id]
             for port_id, dic in ports.iteritems():
-                port = Port(port_id, dic['comms']['ip'])
+                port = PortDef(port_id, dic['comms']['ip'])
                 nnode.add_port(port)
 
         # call the recursive routine
