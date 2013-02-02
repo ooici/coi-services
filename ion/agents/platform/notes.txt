@@ -6,6 +6,7 @@ some noteworthy notes (occasionaly updated)
 - CIDEVSA-455 Align platform agent state model with instrument agent / resource agent state model
   - introduced MONITORING state, entered upon explicit START_MONITORING command
     (not anymore as part of the RUN command).
+  - introduced STOPPED state
 
 2013-01-28:
 - CIDEVSA-450: Refactor: move resource monitor greenlet functionality to platform agent level

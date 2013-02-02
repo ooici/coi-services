@@ -75,6 +75,7 @@ class PlatformAgentState(BaseEnum):
     UNINITIALIZED     = ResourceAgentState.UNINITIALIZED
     INACTIVE          = ResourceAgentState.INACTIVE
     IDLE              = ResourceAgentState.IDLE
+    STOPPED           = ResourceAgentState.STOPPED
     COMMAND           = ResourceAgentState.COMMAND
     MONITORING        = 'PLATFORM_AGENT_STATE_MONITORING'
 
@@ -98,6 +99,9 @@ class PlatformAgentCapability(BaseEnum):
     GO_ACTIVE                 = PlatformAgentEvent.GO_ACTIVE
     GO_INACTIVE               = PlatformAgentEvent.GO_INACTIVE
     RUN                       = PlatformAgentEvent.RUN
+    CLEAR                     = PlatformAgentEvent.CLEAR
+    PAUSE                     = PlatformAgentEvent.PAUSE
+    RESUME                    = PlatformAgentEvent.RESUME
     GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
     PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
@@ -1186,6 +1190,35 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+    ##############################################################
+    # STOPPED event handlers.
+    ##############################################################
+
+    def _handler_stopped_resume(self, *args, **kwargs):
+        """
+        Transitions to COMMAND state.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        next_state = PlatformAgentState.COMMAND
+        result = None
+
+        return (next_state, result)
+
+    def _handler_stopped_clear(self, *args, **kwargs):
+        """
+        Transitions to IDLE state.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        next_state = PlatformAgentState.IDLE
+        result = None
+
+        return (next_state, result)
 
     ##############################################################
     # COMMAND event handlers.
@@ -1206,6 +1239,32 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+
+    def _handler_command_clear(self, *args, **kwargs):
+        """
+        Transitions to IDLE state.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        next_state = PlatformAgentState.IDLE
+        result = None
+
+        return (next_state, result)
+
+    def _handler_command_pause(self, *args, **kwargs):
+        """
+        Transitions to STOPPED state.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        next_state = PlatformAgentState.STOPPED
+        result = None
+
+        return (next_state, result)
 
     ##############################################################
     # Capabilities interface and event handlers.
@@ -1507,9 +1566,17 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
+        # STOPPED state event handlers.
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.RESUME, self._handler_stopped_resume)
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.CLEAR, self._handler_stopped_clear)
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+
         # COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.RESET, self._handler_command_reset)
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.PAUSE, self._handler_command_pause)
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.CLEAR, self._handler_command_clear)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.START_MONITORING, self._handler_start_resource_monitoring)
 
         # MONITORING state event handlers.

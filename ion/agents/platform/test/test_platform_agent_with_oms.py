@@ -372,6 +372,16 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
+    def _pause(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.PAUSE)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.STOPPED)
+
+    def _resume(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.RESUME)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.COMMAND)
+
     def _start_resource_monitoring(self):
         cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING)
         retval = self._execute_agent(cmd)
@@ -424,6 +434,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RUN,
+            PlatformAgentEvent.CLEAR,
+            PlatformAgentEvent.PAUSE,
+            PlatformAgentEvent.RESUME,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
@@ -501,11 +514,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_pars, [])
 
-        self._initialize()
 
         ##################################################################
         # INACTIVE
         ##################################################################
+        self._initialize()
 
         # Get exposed capabilities in current state.
         retval = self._pa_client.get_capabilities()
@@ -539,11 +552,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_pars, [])
 
-        self._go_active()
 
         ##################################################################
         # IDLE
         ##################################################################
+        self._go_active()
 
         # Get exposed capabilities in current state.
         retval = self._pa_client.get_capabilities()
@@ -575,11 +588,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_pars, [])
 
-        self._run()
 
         ##################################################################
         # COMMAND
         ##################################################################
+        self._run()
 
         # Get exposed capabilities in current state.
         retval = self._pa_client.get_capabilities()
@@ -590,6 +603,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds_command = [
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.PAUSE,
+            PlatformAgentEvent.CLEAR,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.SET_UP_PORT,
@@ -616,11 +631,40 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_pars, res_pars_all)
 
 
-        self._start_resource_monitoring()
+        ##################################################################
+        # STOPPED
+        ##################################################################
+        self._pause()
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+         # Validate capabilities of state STOPPED
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_stopped = [
+            PlatformAgentEvent.RESUME,
+            PlatformAgentEvent.CLEAR,
+            PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+        ]
+
+        res_cmds_command = [
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_stopped)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_pars, res_pars_all)
+
+
+        # back to COMMAND:
+        self._resume()
 
         ##################################################################
         # MONITORING
         ##################################################################
+        self._start_resource_monitoring()
 
         # Get exposed capabilities in current state.
         retval = self._pa_client.get_capabilities()
@@ -654,7 +698,13 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_cmds, res_cmds_command)
         self.assertItemsEqual(res_pars, res_pars_all)
 
+        # return to COMMAND state:
+        self._stop_resource_monitoring()
 
+
+        ###################
+        # ALL CAPABILITIES
+        ###################
 
         # Get exposed capabilities in all states as read from state COMMAND.
         retval = self._pa_client.get_capabilities(False)
@@ -666,9 +716,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
-
-        # return to COMMAND state:
-        self._stop_resource_monitoring()
 
         self._go_inactive()
         self._reset()
