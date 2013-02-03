@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.sa.observatory.test.test_oms_launch.py
-@file    ion/services/sa/observatory/test/test_oms_launch.py
+@package ion.services.sa.observatory.test.test_oms_launch2.py
+@file    ion/services/sa/observatory/test/test_oms_launch2.py
 @author  Maurice Manning, Carlos Rueda
-@brief   Test cases for R2 platform agent and other CI components
+@brief   Test cases for launching platform agent network
          using information from the RSN OMS interface.
 """
 
@@ -12,6 +12,7 @@ __author__ = 'Maurice Manning, Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from pyon.public import log, IonObject
+import logging
 from pyon.util.int_test import IonIntegrationTestCase
 
 from pyon.event.event import EventSubscriber
@@ -36,8 +37,6 @@ from nose.plugins.attrib import attr
 from pyon.public import OT
 
 
-import yaml
-
 from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand, ProcessStateEnum
 
@@ -50,6 +49,9 @@ from gevent.event import AsyncResult
 from gevent import sleep
 
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+from ion.agents.platform.oms.oms_util import RsnOmsUtil
+from ion.agents.platform.util.network_util import NetworkUtil
+
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from unittest import skip
 
@@ -105,16 +107,19 @@ class TestOmsLaunch(IonIntegrationTestCase):
         self.dataset_management = DatasetManagementServiceClient()
 
 
+        # Use the network definition provided by RSN OMS directly.
+        rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
+        # get serialized version for the configuration:
+        self._network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("NetworkDefinition serialization:\n%s", self._network_definition_ser)
+
+
+
         self.platformModel_id = None
 
-        # rsn_oms: to retrieve network structure and information from RSN-OMS:
-        # Note that OmsClientFactory will create an "embedded" RSN OMS
-        # simulator object by default.
-        self.rsn_oms = OmsClientFactory.create_instance()
-
         self.all_platforms = {}
-        self.topology = {}
-        self.agent_device_map = {}
         self.agent_streamconfig_map = {}
 
         self._async_data_result = AsyncResult()
@@ -157,7 +162,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
             self.fail("failed to create new PLatformModel: %s" %ex)
         log.debug( 'new PlatformModel id = %s', self.platformModel_id)
 
-    def _traverse(self, platform_id, parent_platform_objs=None):
+    def _traverse(self, nnode, platform_id, parent_platform_objs=None):
         """
         Recursive routine that repeatedly calls _prepare_platform to build
         the object dictionary for each platform.
@@ -171,22 +176,18 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         log.info("Starting _traverse for %r", platform_id)
 
-        plat_objs = self._prepare_platform(platform_id, parent_platform_objs)
+        plat_objs = self._prepare_platform(nnode, platform_id, parent_platform_objs)
 
         self.all_platforms[platform_id] = plat_objs
 
         # now, traverse the children:
-        retval = self.rsn_oms.getSubplatformIDs(platform_id)
-        subplatform_ids = retval[platform_id]
-        for subplatform_id in subplatform_ids:
-            self._traverse(subplatform_id, plat_objs)
-
-        # note, topology indexed by platform_id
-        self.topology[platform_id] = plat_objs['children']
+        for sub_nnode in nnode.subplatforms.itervalues():
+            subplatform_id = sub_nnode.platform_id
+            self._traverse(sub_nnode, subplatform_id, plat_objs)
 
         return plat_objs
 
-    def _prepare_platform(self, platform_id, parent_platform_objs):
+    def _prepare_platform(self, nnode, platform_id, parent_platform_objs):
         """
         This routine generalizes the manual construction currently done in
         test_oms_launch.py. It is called by the recursive _traverse method so
@@ -217,9 +218,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
                 object=site_id)
 
         # prepare platform attributes and ports:
-        monitor_attribute_objs, monitor_attribute_dicts = self._prepare_platform_attributes(platform_id)
+        monitor_attribute_objs, monitor_attribute_dicts = self._prepare_platform_attributes(nnode, platform_id)
 
-        port_objs, port_dicts = self._prepare_platform_ports(platform_id)
+        port_objs, port_dicts = self._prepare_platform_ports(nnode, platform_id)
 
         device__obj = IonObject(RT.PlatformDevice,
             name='%s_PlatformDevice' % platform_id,
@@ -280,9 +281,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         log.info("plat_objs for platform_id %r = %s", platform_id, str(plat_objs))
 
-        self.agent_device_map[platform_id] = device__dict
-        #        self.agent_device_map[platform_id] = device__obj
-
         stream_config = self._create_stream_config(plat_objs)
         self.agent_streamconfig_map[platform_id] = stream_config
         #        self.agent_streamconfig_map[platform_id] = None
@@ -290,14 +288,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         return plat_objs
 
-    def _prepare_platform_attributes(self, platform_id):
+    def _prepare_platform_attributes(self, nnode, platform_id):
         """
         Returns the list of PlatformMonitorAttributes objects corresponding to
         the attributes associated to the given platform.
         """
-        result = self.rsn_oms.getPlatformAttributes(platform_id)
-        self.assertTrue(platform_id in result)
-        ret_infos = result[platform_id]
+        # TODO complete the clean-up of this method
+        ret_infos = dict((n, a.defn) for (n, a) in nnode.attrs.iteritems())
 
         monitor_attribute_objs = []
         monitor_attribute_dicts = []
@@ -321,20 +318,19 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         return monitor_attribute_objs, monitor_attribute_dicts
 
-    def _prepare_platform_ports(self, platform_id):
+    def _prepare_platform_ports(self, nnode, platform_id):
         """
         Returns the list of PlatformPort objects corresponding to the ports
         associated to the given platform.
         """
-        result = self.rsn_oms.getPlatformPorts(platform_id)
-        self.assertTrue(platform_id in result)
-        port_dict = result[platform_id]
+        # TODO complete the clean-up of this method
+        port_dict = dict((n, p.comms) for (n, p) in nnode.ports.iteritems())
 
         port_objs = []
         port_dicts = []
-        for port_id, port in port_dict.iteritems():
+        for port_id, comms in port_dict.iteritems():
             log.debug("platform_id=%r: preparing port=%r", platform_id, port_id)
-            ip_address = port['comms']['ip']
+            ip_address = comms['ip']
 
             plat_port_obj = IonObject(OT.PlatformPort,
                 port_id=port_id,
@@ -392,43 +388,27 @@ class TestOmsLaunch(IonIntegrationTestCase):
         elements.
         """
 
-        admap = self.agent_device_map
-
-        #############################################################
-        # Note, if using PlatformDevice objects in self.agent_device_map, the
-        # following is an attempt to serialize it and then pass it in the
-        # platform config dict below. However, although the output seems
-        # properly serialized), the following error is generated:
-        #   BadRequest: 400 - bad configuration: <interface.objects.PlatformDevice object at 0x115504b50> is not JSON serializable
-        # So, I'm commenting out this attempt for the moment.
-        # Instead self.agent_device_map is created in terms of dictionaries.
-        #        from pyon.core.object import ion_serializer
-        #        admap = ion_serializer.serialize(admap)
-        #############################################################
-
-        log.info("agent_device_map = %s", str(admap))
-
         self.platform_configs = {}
         for platform_id, plat_objs in self.all_platforms.iteritems():
 
             PLATFORM_CONFIG  = {
                 'platform_id':             platform_id,
-                'platform_topology':       self.topology,
 
-                'agent_device_map':        admap,
                 'agent_streamconfig_map':  None, #self.agent_streamconfig_map,
 
                 'driver_config':           DVR_CONFIG,
+
+                'network_definition' :     self._network_definition_ser
                 }
 
             self.platform_configs[platform_id] = {
                 'platform_id':             platform_id,
-                'platform_topology':       self.topology,
 
-                'agent_device_map':        admap,
                 'agent_streamconfig_map':  self.agent_streamconfig_map,
 
                 'driver_config':           DVR_CONFIG,
+
+                'network_definition' :     self._network_definition_ser
                 }
 
             agent_config = {
@@ -551,7 +531,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def _create_launch_verify(self, base_platform_id):
         # and trigger the traversal of the branch rooted at that base platform
         # to create corresponding ION objects and configuration dictionaries:
-        base_platform_objs = self._traverse(base_platform_id)
+
+        nnode = self._network_definition.nodes[base_platform_id]
+        base_platform_objs = self._traverse(nnode, base_platform_id)
 
         # now that most of the topology information is there, add the
         # PlatformAgentInstance elements
@@ -560,7 +542,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         base_platform_config = self.platform_configs[base_platform_id]
 
         log.info("base_platform_id = %r", base_platform_id)
-        log.info("topology = %s", str(self.topology))
 
 
         #-------------------------------------------------------------------------------------
@@ -598,6 +579,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         #-------------------------------
 
         agent_instance_id = base_platform_objs['agent_instance_id']
+        log.debug("about to call imsclient.start_platform_agent_instance with id=%s", agent_instance_id)
         pid = self.imsclient.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
         log.debug("start_platform_agent_instance returned pid=%s", pid)
 

@@ -39,13 +39,7 @@ class PlatformDriver(object):
 
         self._send_event = None
 
-        # The dictionary defining the platform topology. If this dictionary is
-        # not given, then other mechanism (eg., direct access to the external
-        # platform system) is used to retrieve the information.
-        self._topology = None
-
-        # similar to _topology -- under initial testing -- may be merged
-        self._agent_device_map = None
+        # stream configuration
         self._agent_streamconfig_map = None
 
         # The root NNode defining the platform network rooted at the platform
@@ -62,20 +56,13 @@ class PlatformDriver(object):
             log.debug("%r: set_nnode:\n%s",
                      self._platform_id, self._nnode.dump(include_subplatforms=False))
 
-    def set_topology(self, topology, agent_device_map=None,
-                     agent_streamconfig_map=None):
+    def set_agent_streamconfig_map(self, agent_streamconfig_map=None):
         """
-        @note ongoing refactoring -- network definition to be provided by
-        agent directly.
-        @todo remove this method
+        Sets the stream configuration for this platform.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: set_topology:\ntopology=%s,\n\nagent_device_map=%s,\n\n"
-                "agent_streamconfig_map=%s\n\n",
-                self._platform_id,
-                topology, agent_device_map, agent_streamconfig_map)
-        self._topology = topology
-        self._agent_device_map = agent_device_map
+            log.debug("%r: set_agent_streamconfig_map=%s\n\n",
+                self._platform_id, agent_streamconfig_map)
         self._agent_streamconfig_map = agent_streamconfig_map
 
     def set_event_listener(self, evt_recv):
@@ -100,13 +87,9 @@ class PlatformDriver(object):
 
     def go_active(self):
         """
-        @note ongoing refactoring -- actually the network definition to be
-        provided by agent.
-        To be implemented by subclass.
-        Main task here is to determine the topology of platforms
-        rooted here then assigning the corresponding definition to self._nnode.
+        Activates the driver.
 
-        @raise PlatformConnectionException
+        @raise PlatformDriverException set_nnode must have been called prior to this call.
         """
         raise NotImplementedError()  #pragma: no cover
 

@@ -146,8 +146,6 @@ class PlatformAgent(ResourceAgent):
         self._network_definition = None  # NetworkDefinition object
         self._nnode = None
 
-        self._topology = None
-        self._agent_device_map = None
         self._agent_streamconfig_map = None
         self._plat_driver = None
 
@@ -246,7 +244,7 @@ class PlatformAgent(ResourceAgent):
             log.error(msg)
             raise PlatformException(msg)
 
-        for k in ['platform_id', 'driver_config']:
+        for k in ['platform_id', 'driver_config', 'network_definition']:
             if not k in self._plat_config:
                 msg = "'%s' key not given in plat_config=%s" % (k, self._plat_config)
                 log.error(msg)
@@ -261,25 +259,9 @@ class PlatformAgent(ResourceAgent):
                 log.error(msg)
                 raise PlatformException(msg)
 
-        if 'network_definition' in self._plat_config:
-            self._network_definition_ser = self._plat_config['network_definition']
-            self._network_definition = NetworkUtil.deserialize_network_definition(
-                self._network_definition_ser)
-
-        if 'platform_topology' in self._plat_config:
-            self._topology = self._plat_config['platform_topology']
-
-        if 'agent_device_map' in self._plat_config:
-            adm = self._plat_config['agent_device_map']
-
-            #########################################################
-            # attempt to us serialize/deserialize commented out for the moment.
-            # TODO decide on appropriate mechanism.
-#            if adm is not None:
-#                # deserialize it
-#                adm = dict((k, self.deserializer.deserialize(v)) for k,v in adm.iteritems())
-
-            self._set_agent_device_map(adm)
+        self._network_definition_ser = self._plat_config['network_definition']
+        self._network_definition = NetworkUtil.deserialize_network_definition(
+            self._network_definition_ser)
 
         if 'agent_streamconfig_map' in self._plat_config:
             self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
@@ -288,16 +270,6 @@ class PlatformAgent(ResourceAgent):
         if ppid:
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
-
-
-    def _set_agent_device_map(self, adm):
-        """
-        Sets the self._agent_device_map member along with related preparations.
-        """
-        if log.isEnabledFor(logging.TRACE):
-            log.trace("agent_device_map = %s", str(adm))
-
-        self._agent_device_map = adm
 
     ##############################################################
     # Governance interfaces
@@ -428,13 +400,6 @@ class PlatformAgent(ResourceAgent):
         # currently passed from configuration -- see test_oms_launch
         return platform_id
 
-#        if self._agent_device_map:
-#            platform_name = self._agent_device_map[platform_id].name
-#        else:
-#            platform_name = platform_id
-#
-#        return platform_name
-
     def _create_driver(self):
         """
         Creates the platform driver object for this platform agent.
@@ -467,10 +432,8 @@ class PlatformAgent(ResourceAgent):
         if self._network_definition:
             self._plat_driver.set_nnode(self._network_definition.nodes[self._platform_id])
 
-        if self._topology or self._agent_device_map or self._agent_streamconfig_map:
-            self._plat_driver.set_topology(self._topology,
-                                           self._agent_device_map,
-                                           self._agent_streamconfig_map)
+        if self._agent_streamconfig_map:
+            self._plat_driver.set_agent_streamconfig_map(self._agent_streamconfig_map)
 
         log.debug("%r: driver created: %s",
             self._platform_id, str(driver))
@@ -509,77 +472,17 @@ class PlatformAgent(ResourceAgent):
         """
         pass
 
+    def _verify_got_network_definition(self):
+        if not self._network_definition:
+            msg = "%r: _network_definition must have been set." % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg)
+
     def _build_network_definition(self):
+        self._verify_got_network_definition()
 
-        if self._network_definition:
-            self._nnode = self._network_definition.root
-            log.debug("_nnode set from _network_definition")
-            return
-
-        if self._topology:
-            self._nnode = self._build_network_definition_using_topology()
-        else:
-            log.warn("%r: No _topology to  build network definition",
-                     self._platform_id)
-
-    def _build_network_definition_using_topology(self):
-        """
-        Uses self._topology to build the network definition.
-        """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _build_network_definition_using_topology: %s",
-                self._platform_id, self._topology)
-
-        def build(platform_id, children):
-            """
-            Returns the root NNode for the given platform_id with its
-            children according to the given list.
-            """
-            nnode = NNode(platform_id)
-            if self._agent_device_map:
-                self._set_attributes_and_ports_from_agent_device_map(nnode)
-
-            log.debug('Created NNode for %r', platform_id)
-
-            for subplatform_id in children:
-                subplatform_children = self._topology.get(subplatform_id, [])
-                sub_nnode = build(subplatform_id, subplatform_children)
-                nnode.add_subplatform(sub_nnode)
-
-            return nnode
-
-        children = self._topology.get(self._platform_id, [])
-        return build(self._platform_id, children)
-
-    def _set_attributes_and_ports_from_agent_device_map(self, nnode):
-        """
-        Sets the attributes and ports for the given NNode from
-        self._agent_device_map.
-        """
-        platform_id = nnode.platform_id
-        if platform_id not in self._agent_device_map:
-            log.warn("%r: no entry in agent_device_map for platform_id",
-                     self._platform_id, platform_id)
-            return
-
-        device_obj = self._agent_device_map[platform_id]
-        log.info("%r: for platform_id=%r device_obj=%s",
-                    self._platform_id, platform_id, device_obj)
-
-        assert isinstance(device_obj, dict)
-        attrs = device_obj['platform_monitor_attributes']
-        for attr_obj in attrs:
-            attr = AttrDef(attr_obj['id'], {
-                'name': attr_obj['id'],
-                'monitorCycleSeconds': attr_obj['monitor_rate'],
-                'units': attr_obj['units'],
-                })
-            nnode.add_attribute(attr)
-
-        ports = device_obj['ports']
-        for port_obj in ports:
-            port = PortDef(port_obj['port_id'], port_obj['ip_address'])
-            nnode.add_port(port)
+        self._nnode = self._network_definition.root
+        log.debug("_nnode set from _network_definition")
 
     def _start_resource_monitoring(self):
         """
@@ -599,24 +502,11 @@ class PlatformAgent(ResourceAgent):
         self._platform_resource_monitor.start_resource_monitoring()
 
     def _get_platform_attributes(self):
+        self._verify_got_network_definition()
 
-        if self._network_definition:
-            nnode = self._network_definition.nodes[self._platform_id]
-            attr_info = dict((attr.attr_id, attr.defn) for attr in nnode.attrs.itervalues())
-            log.debug("%r: from _network_definition got attr_info=%s",
-                  self._platform_id, attr_info)
-            return attr_info
-
-        if self._agent_device_map:
-            return self._get_platform_attributes_using_agent_device_map()
-        else:
-            log.warn("%r: No _agent_device_map to get platform attributes",
-                     self._platform_id)
-            return None
-
-    def _get_platform_attributes_using_agent_device_map(self):
-        attr_info = dict((attr.attr_id, attr.defn) for attr in self._nnode.attrs.itervalues())
-        log.debug("%r: _get_platform_attributes_using_agent_device_map attr_info=%s",
+        nnode = self._network_definition.nodes[self._platform_id]
+        attr_info = dict((attr.attr_id, attr.defn) for attr in nnode.attrs.itervalues())
+        log.debug("%r: from _network_definition got attr_info=%s",
               self._platform_id, attr_info)
         return attr_info
 
@@ -879,8 +769,6 @@ class PlatformAgent(ResourceAgent):
         # TODO general config under revision
         platform_config = {
             'platform_id': subplatform_id,
-            'platform_topology' : self._topology,
-            'agent_device_map' : self._agent_device_map,
             'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],
@@ -969,8 +857,6 @@ class PlatformAgent(ResourceAgent):
         # built and initialized recursively:
         platform_config = {
             'platform_id': subplatform_id,
-            'platform_topology' : self._topology,
-            'agent_device_map' : self._agent_device_map,
             'agent_streamconfig_map': self._agent_streamconfig_map,
             'parent_platform_id' : self._platform_id,
             'driver_config': self._plat_config['driver_config'],

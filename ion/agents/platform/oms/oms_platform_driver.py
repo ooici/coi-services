@@ -81,12 +81,9 @@ class OmsPlatformDriver(PlatformDriver):
 
     def go_active(self):
         """
-        Main task here is to determine the topology of platforms
-        rooted here then assigning the corresponding definition to self._nnode.
-        @note ongoing refactoring -- network definition to be provided by
-                agent.
+        Activates the driver.
 
-        @raise PlatformConnectionException
+        @raise PlatformDriverException set_nnode must have been called prior to this call.
         """
 
         # NOTE: The following log.debug DOES NOT show up when running a test
@@ -97,17 +94,9 @@ class OmsPlatformDriver(PlatformDriver):
         # definition:
         self.ping()
 
-        if self._nnode:
-            log.debug("%r: go_active: _nnode already provided",
-                      self._platform_id)
-        else:
-            # TODO: throw an exception: given _nnode to become the only mechanism.
-            # for now, use given _topology:
-            assert self._topology, "if not _nnode, then _topology must have been set"
-            self._nnode = self._build_network_definition_using_topology()
-
-            log.debug("%r: go_active completed ok. _nnode:\n%s",
-                     self._platform_id, self._nnode.dump(include_subplatforms=False))
+        if not self._nnode:
+            raise PlatformDriverException("%r: set_nnode must have been called "
+                                          "prior to this call." % self._platform_id)
 
         self.__gen_diagram()
 
@@ -142,64 +131,6 @@ class OmsPlatformDriver(PlatformDriver):
             subprocess.call(open_cmd.split())
         except Exception, e:
             print "error generating or opening diagram: %s" % str(e)
-
-    def _build_network_definition_using_topology(self):
-        """
-        Uses self._topology to build the network definition.
-        """
-        log.debug("%r: _build_network_definition_using_topology: %s",
-            self._platform_id, self._topology)
-
-        def build(platform_id, children):
-            """
-            Returns the root NNode for the given platform_id with its
-            children according to the given list.
-            """
-            nnode = NNode(platform_id)
-            if self._agent_device_map:
-                self._set_attributes_and_ports_from_agent_device_map(nnode)
-
-            log.debug('Created NNode for %r', platform_id)
-
-            for subplatform_id in children:
-                subplatform_children = self._topology.get(subplatform_id, [])
-                sub_nnode = build(subplatform_id, subplatform_children)
-                nnode.add_subplatform(sub_nnode)
-
-            return nnode
-
-        children = self._topology.get(self._platform_id, [])
-        return build(self._platform_id, children)
-
-    def _set_attributes_and_ports_from_agent_device_map(self, nnode):
-        """
-        Sets the attributes and ports for the given NNode from
-        self._agent_device_map.
-        """
-        platform_id = nnode.platform_id
-        if platform_id not in self._agent_device_map:
-            log.warn("%r: no entry in agent_device_map for platform_id",
-                     self._platform_id, platform_id)
-            return
-
-        device_obj = self._agent_device_map[platform_id]
-        log.info("%r: for platform_id=%r device_obj=%s",
-                    self._platform_id, platform_id, device_obj)
-
-        assert isinstance(device_obj, dict)
-        attrs = device_obj['platform_monitor_attributes']
-        for attr_obj in attrs:
-            attr = AttrDef(attr_obj['id'], {
-                'name': attr_obj['id'],
-                'monitorCycleSeconds': attr_obj['monitor_rate'],
-                'units': attr_obj['units'],
-                })
-            nnode.add_attribute(attr)
-
-        ports = device_obj['ports']
-        for port_obj in ports:
-            port = PortDef(port_obj['port_id'], port_obj['ip_address'])
-            nnode.add_port(port)
 
     def get_metadata(self):
         """

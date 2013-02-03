@@ -3,15 +3,29 @@ platform agent framework
 some noteworthy notes (occasionaly updated)
 
 2013-02-02:
-  More clean-up related with platform configuration being provided as opposed
-  as being retrieved from the external system.
-  There is now a set_nnode in PlatformDriver to set the NNode for the driver.
-  This will be the only basis for anything related with the static configuration
-  of the platform network rooted at the corresponding platform.
+  A lot of clean-up related with platform configuration being provided as
+  opposed to being retrieved from the external system by the platform
+  agent/driver itself. Now a NetworkDefinition object is used as a basis
+  for the all the integration tests including test_platform_agent_with_oms and
+  test_oms_launch2.
+  (No more _topology and _agent_device_map in PlatformDriver/PlatformAgent)
+
+  At the level of the driver, there is now a set_nnode in PlatformDriver to
+  set the NNode for the driver. This is the only basis for anything related
+  with the static configuration of the platform network rooted at the
+  corresponding platform.
+
   TODO: all regular operations needing static information should only use the
   provided NNode. There will be explicit operations related with checking the
   validity of this configuration against the external system, for example,
   get_checksum(platform_id).
+
+  NOTE: NetworkDefinition and associated types (NNode, AttrDef, PortDef) are
+  model objects for the platform agent framework that were mainly
+  introduced (long ago, except for NetworkDefinition) while appropriate
+  mechanisms (presumably based on ion object definitions) were defined.
+  However, it is possible that this representation can interplay with others
+  as needed.
 
   Renamings: Attr -> AttrDef; Port -> PortDef. Removed value property from
   AttrDef (NetworkDefinition is only about the static structure of the network,
