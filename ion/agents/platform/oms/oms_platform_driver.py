@@ -22,10 +22,6 @@ from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.oms.oms_event_listener import OmsEventListener
 
-from ion.agents.platform.util.network import NNode
-from ion.agents.platform.util.network import AttrDef
-from ion.agents.platform.util.network import PortDef
-
 from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
 
 
@@ -79,6 +75,10 @@ class OmsPlatformDriver(PlatformDriver):
 
         return "PONG"
 
+    def _verify_got_nnode(self):
+        if not self._nnode:
+            raise PlatformDriverException("%r: set_nnode must have been called" % self._platform_id)
+
     def go_active(self):
         """
         Activates the driver.
@@ -86,17 +86,16 @@ class OmsPlatformDriver(PlatformDriver):
         @raise PlatformDriverException set_nnode must have been called prior to this call.
         """
 
-        # NOTE: The following log.debug DOES NOT show up when running a test
-        # with the pycc plugin (--with-pycc)!  (noticed with test_oms_launch).
-        log.debug("%r: going active..", self._platform_id)
+        if log.isEnabledFor(logging.DEBUG):
+            # NOTE: The following log.debug DOES NOT show up when running a test
+            # with the pycc plugin (--with-pycc)!  (noticed with test_oms_launch).
+            log.debug("%r: going active..", self._platform_id)
+
+        self._verify_got_nnode()
 
         # note, we ping the OMS here regardless of the source for the network
         # definition:
         self.ping()
-
-        if not self._nnode:
-            raise PlatformDriverException("%r: set_nnode must have been called "
-                                          "prior to this call." % self._platform_id)
 
         self.__gen_diagram()
 
@@ -352,19 +351,10 @@ class OmsPlatformDriver(PlatformDriver):
             return response[self._platform_id]
 
     def _get_platform_attributes(self):
+        self._verify_got_nnode()
 
-        if self._nnode:
-            attr_info = dict((attr.attr_id, attr.defn) for attr in self._nnode.attrs.itervalues())
-            log.debug("%r: _get_platform_attributes attr_info=%s",
-                  self._platform_id, attr_info)
-            return attr_info
-
-        assert self._agent_device_map, "_nnode or _agent_device_map must have been set"
-        return self._get_platform_attributes_using_agent_device_map()
-
-    def _get_platform_attributes_using_agent_device_map(self):
         attr_info = dict((attr.attr_id, attr.defn) for attr in self._nnode.attrs.itervalues())
-        log.debug("%r: _get_platform_attributes_using_agent_device_map attr_info=%s",
+        log.debug("%r: _get_platform_attributes attr_info=%s",
               self._platform_id, attr_info)
         return attr_info
 
@@ -372,23 +362,12 @@ class OmsPlatformDriver(PlatformDriver):
     # Ports:
 
     def get_ports(self):
+        self._verify_got_nnode()
 
-        if self._nnode:
-            ports = {}
-            for port_id, port in self._nnode.ports.iteritems():
-                ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
-            log.debug("%r: get_ports: %s",
-                  self._platform_id, ports)
-            return ports
-
-        assert self._agent_device_map, "_nnode or _agent_device_map must have been set"
-        return self._get_ports_using_agent_device_map()
-
-    def _get_ports_using_agent_device_map(self):
         ports = {}
         for port_id, port in self._nnode.ports.iteritems():
             ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
-        log.debug("%r: _get_ports_using_agent_device_map: %s",
+        log.debug("%r: get_ports: %s",
               self._platform_id, ports)
         return ports
 
