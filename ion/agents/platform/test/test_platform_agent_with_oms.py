@@ -10,9 +10,19 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
+#
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_state_transitions
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_commands
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_event_dispatch
+#
+
 
 from pyon.public import log
 import logging
+
+from pyon.event.event import EventSubscriber
 
 from pyon.util.containers import get_ion_ts
 from pyon.core.exception import ServerError
@@ -61,6 +71,11 @@ PA_NAME = 'PlatformAgent001'
 PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
 
+# DATA_TIMEOUT: timeout for reception of data sample
+DATA_TIMEOUT = 25
+
+# EVENT_TIMEOUT: timeout for reception of event
+EVENT_TIMEOUT = 25
 
 class FakeProcess(LocalContextMixin):
     """
@@ -101,7 +116,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._network_definition = network_definition
 
-        # Start data suscribers, add stop to cleanup.
+        # Start data subscribers, add stop to cleanup.
         # Define stream_config.
         self._async_data_result = AsyncResult()
         self._data_greenlets = []
@@ -110,6 +125,14 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._data_subscribers = []
         self._start_data_subscribers()
         self.addCleanup(self._stop_data_subscribers)
+
+        # start event subscriber:
+        self._async_event_result = AsyncResult()
+        self._event_subscribers = []
+        self._events_received = []
+        self.addCleanup(self._stop_event_subscribers)
+        self._start_event_subscriber()
+
 
         self._agent_config = {
             'agent'         : {'resource_id': PA_RESOURCE_ID},
@@ -200,6 +223,45 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
                     pass
                 self._pubsub_client.delete_subscription(sub.subscription_id)
             sub.stop()
+
+    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
+        """
+        Starts event subscriber for events of given event_type ("DeviceEvent"
+        by default) and given sub_type ("platform_event" by default).
+        """
+
+        def consume_event(evt, *args, **kwargs):
+            # A callback for consuming events.
+            log.info('Event subscriber received evt: %s.', str(evt))
+            self._events_received.append(evt)
+            self._async_event_result.set(evt)
+
+        sub = EventSubscriber(event_type=event_type,
+            sub_type=sub_type,
+            callback=consume_event)
+
+        sub.start()
+        log.info("registered event subscriber for event_type=%r, sub_type=%r",
+            event_type, sub_type)
+
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+    def _stop_event_subscribers(self):
+        """
+        Stops the event subscribers on cleanup.
+        """
+        try:
+            for sub in self._event_subscribers:
+                if hasattr(sub, 'subscription_id'):
+                    try:
+                        self.pubsubcli.deactivate_subscription(sub.subscription_id)
+                    except:
+                        pass
+                    self.pubsubcli.delete_subscription(sub.subscription_id)
+                sub.stop()
+        finally:
+            self._event_subscribers = []
 
     def _get_state(self):
         state = self._pa_client.get_agent_state()
@@ -359,8 +421,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _initialize(self):
         self._assert_state(PlatformAgentState.UNINITIALIZED)
-#        kwargs = dict(plat_config=self.PLATFORM_CONFIG)
-#        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.INACTIVE)
@@ -390,6 +450,13 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.MONITORING)
 
+    def _wait_for_a_data_sample(self):
+        log.info("waiting for reception of a data sample...")
+        # just wait for at least one -- see consume_data
+        self._async_data_result.get(timeout=DATA_TIMEOUT)
+        self.assertTrue(len(self._samples_received) >= 1)
+        log.info("Received samples: %s", len(self._samples_received))
+
     def _stop_resource_monitoring(self):
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)
         retval = self._execute_agent(cmd)
@@ -414,11 +481,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(retval.result is not None)
         return retval.result
 
-    def _wait_for_a_data_sample(self):
-        log.info("waiting for reception of a data sample...")
-        self._async_data_result.get(timeout=15)
-        # just wait for at least one -- see consume_data above
-        self.assertTrue(len(self._samples_received) >= 1)
+    def _wait_for_an_event(self):
+        log.info("waiting for reception of an external event...")
+        # just wait for at least one -- see consume_event
+        self._async_event_result.get(timeout=EVENT_TIMEOUT)
+        self.assertTrue(len(self._events_received) >= 1)
+        log.info("Received events: %s", len(self._events_received))
 
     def _stop_event_dispatch(self):
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
@@ -427,9 +495,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         return retval.result
 
     def test_capabilities(self):
-
-        #log.info("test_capabilities starting.  Default timeout=%s", TIMEOUT)
-        log.info("test_capabilities starting.  Default timeout=%i", CFG.endpoint.receive.timeout)
 
         agt_cmds_all = [
             PlatformAgentEvent.INITIALIZE,
@@ -723,21 +788,30 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._go_inactive()
         self._reset()
 
-    def test_go_active_and_run(self):
+    def test_some_state_transitions(self):
 
-        #log.info("test_go_active_and_run starting.  Default timeout=%s", TIMEOUT)
-        log.info("test_capabilities starting.  Default timeout=%i", CFG.endpoint.receive.timeout)
-        
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._initialize()   # -> INACTIVE
+        self._reset()        # -> UNINITIALIZED
+        self._initialize()   # -> INACTIVE
+        self._go_active()    # -> IDLE
+        self._reset()        # -> UNINITIALIZED
+        self._initialize()   # -> INACTIVE
+        self._go_active()    # -> IDLE
+        self._run()          # -> COMMAND
+        self._pause()        # -> STOPPED
+        self._resume()       # -> COMMAND
 
+        self._reset()        # -> UNINITIALIZED
+
+    def test_some_commands(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
-
-#        self._ping_resource() skipping this here while the timeout issue
-#                              on r2_light and other builds is investigated.
 
         self._initialize()
         self._go_active()
         self._run()
-        self._start_resource_monitoring()
 
         self._ping_agent()
         self._ping_resource()
@@ -752,21 +826,39 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._set_up_port()
         self._turn_on_port()
 
-        self._start_event_dispatch()
-
-        self._wait_for_a_data_sample()
-
-        self._stop_event_dispatch()
-
-        self._stop_resource_monitoring()
-
         self._turn_off_port()
 
         self._go_inactive()
         self._reset()
 
-# developer conveniences
-#
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_go_active_and_run
-#
+    def test_resource_monitoring(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._start_resource_monitoring()
+        self._wait_for_a_data_sample()
+        self._stop_resource_monitoring()
+
+        self._go_inactive()
+        self._reset()
+
+    def test_event_dispatch(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._start_event_dispatch()
+        self._wait_for_an_event()
+        self._stop_event_dispatch()
+
+        self._go_inactive()
+        self._reset()

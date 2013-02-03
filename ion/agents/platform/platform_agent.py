@@ -139,22 +139,30 @@ class PlatformAgent(ResourceAgent):
         #This is the type of Resource managed by this agent
         self.resource_type = RT.PlatformDevice
 
+        #########################################
+        # <platform configuration and dependent elements>
         self._plat_config = None
+        self._plat_config_processed = False
+
+        # my platform ID
         self._platform_id = None
+
+        # platform ID of my parent, if any. -mainly for diagnostic purposes
+        self._parent_platform_id = None
 
         self._network_definition_ser = None  # string
         self._network_definition = None  # NetworkDefinition object
-        self._nnode = None
+        self._nnode = None  # NNode object corresponding to this platform
 
         self._agent_streamconfig_map = None
+
+        # </platform configuration>
+        #########################################
+
         self._plat_driver = None
 
         # PlatformResourceMonitor
         self._platform_resource_monitor = None
-
-        # Platform ID of my parent, if any. This is mainly used for diagnostic
-        # purposes
-        self._parent_platform_id = None
 
         # Dictionaries used for data publishing. Constructed in _do_initialize
         self._data_streams = {}
@@ -184,8 +192,9 @@ class PlatformAgent(ResourceAgent):
         # INITIALIZE command. More strict check here pending while we
         # complete this change.
         self._plat_config = self.CFG.get("platform_config", None)
+        self._plat_config_processed = False
 
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE): # pragma: no cover
             if self._plat_config:
                 log.trace("self._plat_config set on_init: %s", str(self._plat_config))
 
@@ -198,8 +207,12 @@ class PlatformAgent(ResourceAgent):
         Resets this platform agent (terminates sub-platforms processes,
         clears self._pa_clients, destroys driver).
 
-        NOTE that this method is to be called *after* sending the RESET command
-        to my sub-platforms (if any).
+        Basic configuration is retained: The "platform_config" configuration
+        object provided via self.CFG (see on_init) is kept. This allows
+        to issue the INITIALIZE command again with the already configured agent.
+
+        The overall "reset" operation happens bottom-up, so this method is
+        called after sending the RESET command to the sub-platforms (if any).
         """
         log.debug("%r: resetting", self._platform_id)
 
@@ -217,8 +230,6 @@ class PlatformAgent(ResourceAgent):
 
         self._pa_clients.clear()
 
-        self._plat_config = None
-        self._platform_id = None
         if self._plat_driver:
             self._plat_driver.destroy()
             self._plat_driver = None
@@ -231,7 +242,7 @@ class PlatformAgent(ResourceAgent):
 
     def _pre_initialize(self):
         """
-        Does verification of self._plat_config.
+        Does verifications and preparations dependent on self._plat_config.
 
         @raises PlatformException if the verification fails for some reason.
         """
@@ -240,17 +251,21 @@ class PlatformAgent(ResourceAgent):
                 self._platform_id, str(self._plat_config))
 
         if not self._plat_config:
-            msg = "plat_config not provided"
+            msg = "'platform_config' entry not provided in agent configuration"
             log.error(msg)
             raise PlatformException(msg)
 
+        if self._plat_config_processed:
+            # nothing else to do here
+            return
+
+        log.debug("verifying/processing _plat_config ...")
         for k in ['platform_id', 'driver_config', 'network_definition']:
             if not k in self._plat_config:
                 msg = "'%s' key not given in plat_config=%s" % (k, self._plat_config)
                 log.error(msg)
                 raise PlatformException(msg)
 
-        self._platform_id = self._plat_config['platform_id']
         driver_config = self._plat_config['driver_config']
         for k in ['dvr_mod', 'dvr_cls']:
             if not k in driver_config:
@@ -262,14 +277,18 @@ class PlatformAgent(ResourceAgent):
         self._network_definition_ser = self._plat_config['network_definition']
         self._network_definition = NetworkUtil.deserialize_network_definition(
             self._network_definition_ser)
-
-        if 'agent_streamconfig_map' in self._plat_config:
-            self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
+        self._nnode = self._network_definition.root
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
+
+        self._platform_id = self._plat_config['platform_id']
+        if 'agent_streamconfig_map' in self._plat_config:
+            self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
+
+        self._plat_config_processed = True
 
     ##############################################################
     # Governance interfaces
@@ -432,9 +451,6 @@ class PlatformAgent(ResourceAgent):
         if self._network_definition:
             self._plat_driver.set_nnode(self._network_definition.nodes[self._platform_id])
 
-        if self._agent_streamconfig_map:
-            self._plat_driver.set_agent_streamconfig_map(self._agent_streamconfig_map)
-
         log.debug("%r: driver created: %s",
             self._platform_id, str(driver))
 
@@ -453,22 +469,20 @@ class PlatformAgent(ResourceAgent):
 
     def _do_go_active(self):
         """
-        Builds the network definition according to provided configuration.
+        Nothing done at the moment.
         """
-        self._build_network_definition()
+        pass
 
     def _go_inactive(self):
         """
-        Destroys the network definition.
+        Nothing done at the moment
         """
-        self._nnode = None
+        pass
 
     def _run(self):
         """
         Prepares this particular platform agent for the COMMAND state.
         Currently, nothing is done here.
-        @note This method originally called _start_resource_monitoring but
-              that's is now done via an explicit command.
         """
         pass
 
@@ -477,12 +491,6 @@ class PlatformAgent(ResourceAgent):
             msg = "%r: _network_definition must have been set." % self._platform_id
             log.error(msg)
             raise PlatformException(msg)
-
-    def _build_network_definition(self):
-        self._verify_got_network_definition()
-
-        self._nnode = self._network_definition.root
-        log.debug("_nnode set from _network_definition")
 
     def _start_resource_monitoring(self):
         """
@@ -769,11 +777,11 @@ class PlatformAgent(ResourceAgent):
         # TODO general config under revision
         platform_config = {
             'platform_id': subplatform_id,
-            'agent_streamconfig_map': self._agent_streamconfig_map,
-            'parent_platform_id' : self._platform_id,
-            'driver_config': self._plat_config['driver_config'],
-
             'network_definition' : self._network_definition_ser,
+            'parent_platform_id' : self._platform_id,
+
+            'agent_streamconfig_map': self._agent_streamconfig_map,
+            'driver_config': self._plat_config['driver_config'],
         }
 
         agent_config = {
@@ -848,27 +856,20 @@ class PlatformAgent(ResourceAgent):
             raise PlatformException(msg)
 
     def _initialize_subplatform(self, subplatform_id):
+        """
+        Issues INITIALIZE command to the given (sub-)platform agent so the
+        agent network gets built and initialized recursively.
+        """
         log.debug("%r: _initialize_subplatform -> %r",
             self._platform_id, subplatform_id)
 
         pa_client, _ = self._pa_clients[subplatform_id]
 
-        # now, initialize the sub-platform agent so the agent network gets
-        # built and initialized recursively:
-        platform_config = {
-            'platform_id': subplatform_id,
-            'agent_streamconfig_map': self._agent_streamconfig_map,
-            'parent_platform_id' : self._platform_id,
-            'driver_config': self._plat_config['driver_config'],
-
-            'network_definition' : self._network_definition_ser,
-        }
-
-        kwargs = dict(plat_config=platform_config)
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._execute_agent(pa_client, cmd, subplatform_id)
-        log.debug("%r: _initialize_subplatform %r  retval = %s",
-            self._platform_id, subplatform_id, str(retval))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _initialize_subplatform %r  retval = %s",
+                self._platform_id, subplatform_id, str(retval))
 
     def _subplatforms_launch(self):
         """
@@ -956,16 +957,27 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
 
     def _initialize(self, *args, **kwargs):
+        """
+        Processes the overall INITIALIZE command: does proper initialization
+        and launches and initializes sub-platforms, so, the whole network
+        rooted here gets launched and initialized recursively.
+        """
+        assert self._plat_config, "platform_config must have been provided"
+
+        log.info("%r: _initializing with provided platform_config...",
+                 self._plat_config['platform_id'])
 
         # TODO remove the following if block, which is there while
         # we transition the configuration to on_init using self.CFG and not
         # any more via parameter to this operation:
-        if not self._plat_config:
-            self._plat_config = kwargs.get('plat_config', None)
-            log.info("_initialize: self._plat_config set from initialize's plat_config param: %s",
-                     self._plat_config)
-        else:
-            log.info("_initialize: self._plat_config already set.")
+#        if not self._plat_config:
+#            self._plat_config = kwargs.get('plat_config', None)
+#            self._plat_config_processed = False
+#            log.info("_initialize: self._plat_config set from initialize's plat_config param: %s",
+#                     self._plat_config)
+#        else:
+#            log.info("%r: _initialize: self._plat_config already set.",
+#                     self._plat_config['platform_id'])
         ################################### end of block to be removed
 
         self._do_initialize()

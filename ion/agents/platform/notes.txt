@@ -1,6 +1,14 @@
 platform agent framework
 
-some noteworthy notes (occasionaly updated)
+some occasionaly updated developer notes
+
+2013-02-03:
+- more consistent handling of provided platform configuration (in particular,
+  this config is preserved in RESET so an INITIALIZE command can be issued
+  again).
+- more comprehensive tests for platform state transitions.
+- more organized test_platform_agent_with_oms including verification of
+  external event reception.
 
 2013-02-02:
   A lot of clean-up related with platform configuration being provided as

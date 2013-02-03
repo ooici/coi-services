@@ -39,31 +39,18 @@ class PlatformDriver(object):
 
         self._send_event = None
 
-        # stream configuration
-        self._agent_streamconfig_map = None
-
         # The root NNode defining the platform network rooted at the platform
         # identified by self._platform_id.
         self._nnode = None
 
     def set_nnode(self, nnode):
         """
-        @note ongoing refactoring -- network definition to be provided by
-        agent directly via this method or similar (name subject to change)
+        Sets the node definition for this driver.
         """
         self._nnode = nnode
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: set_nnode:\n%s",
                      self._platform_id, self._nnode.dump(include_subplatforms=False))
-
-    def set_agent_streamconfig_map(self, agent_streamconfig_map=None):
-        """
-        Sets the stream configuration for this platform.
-        """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: set_agent_streamconfig_map=%s\n\n",
-                self._platform_id, agent_streamconfig_map)
-        self._agent_streamconfig_map = agent_streamconfig_map
 
     def set_event_listener(self, evt_recv):
         """
