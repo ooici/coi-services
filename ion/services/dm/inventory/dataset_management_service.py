@@ -141,17 +141,19 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_context(self, name='', parameter_context=None, description=''):
+    def create_parameter_context(self, name='', parameter_context=None, description='', parameter_type='', value_encoding='', unit_of_measure=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=False)
         if len(res):
-            if res[0].name == name and self._compare_pc(res[0].parameter_context, parameter_context):
-                return res[0]._id
-            else:
-                raise Conflict('Parameter Context %s already exists with a different definition' % name)
+            for r in res:
+                if r.name == name and self._compare_pc(r.parameter_context, parameter_context):
+                    return r._id
         
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
         pc_res = ParameterContextResource(name=name, parameter_context=parameter_context, description=description)
+        pc_res.parameter_type  = parameter_type
+        pc_res.value_encoding  = value_encoding
+        pc_res.unit_of_measure = unit_of_measure
         pc_id, ver = self.clients.resource_registry.create(pc_res)
         
         return pc_id
