@@ -704,6 +704,8 @@ class PDLocalBackend(object):
             self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
                 origin=process_id, origin_type="DispatchedProcess",
                 state=ProcessStateEnum.TERMINATED)
+        else:
+            raise NotFound("process %s unknown" % (process_id,))
 
         return True
 
@@ -1093,8 +1095,13 @@ class PDNativeBackend(object):
         return process_id
 
     def cancel(self, process_id):
-        result = self.core.terminate_process(None, upid=process_id)
-        return bool(result)
+        try:
+            result = self.core.terminate_process(None, upid=process_id)
+            return bool(result)
+        except core_exceptions.NotFoundError, e:
+            raise NotFound(str(e))
+        except core_exceptions.BadRequestError, e:
+            raise BadRequest(str(e))
 
     def list(self):
         d_processes = self.core.describe_processes()
