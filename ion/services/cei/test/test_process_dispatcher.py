@@ -730,6 +730,10 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
                 process_schedule, configuration={"bad": o})
         self.assertTrue(ar.exception.message.startswith("bad configuration"))
 
+    def test_cancel_notfound(self):
+        with self.assertRaises(NotFound):
+            self.pd_cli.cancel_process("not-a-real-process-id")
+
     def test_create_invalid_definition(self):
         # create process definition missing module and class
         # verifies L4-CI-CEI-RQ137
