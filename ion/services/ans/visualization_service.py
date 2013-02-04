@@ -23,6 +23,7 @@ import ntplib
 import time
 import gevent
 import base64
+import numpy
 from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
@@ -167,7 +168,7 @@ class VisualizationService(BaseVisualizationService):
                         for idx in range(1,len(tempTuple)):
                             # some silly numpy format won't go away so need to cast numbers to floats
                             if(gdt_description[idx][1] == 'number'):
-                                varTuple.append((float)(tempTuple[idx]))
+                                varTuple.append(float(tempTuple[idx]))
                             else:
                                 varTuple.append(tempTuple[idx])
 
@@ -433,12 +434,11 @@ class VisualizationService(BaseVisualizationService):
                     if tempTuple[idx] == None:
                         varTuple.append(0.0)
                     else:
-                        varTuple.append(float(tempTuple[idx]))
+                        varTuple.append(round(float(tempTuple[idx]),4))
                 else:
                     varTuple.append(tempTuple[idx])
 
             gdt_content.append(varTuple)
-
 
         # now generate the Google datatable out of the description and content
         gdt = gviz_api.DataTable(gdt_description)
@@ -466,7 +466,8 @@ class VisualizationService(BaseVisualizationService):
         query = None
         image_name = None
         if visualization_parameters :
-            query = {'parameters':[]}
+            #query = {'parameters':[]}
+            query = {}
             # Error check and damage control. Definitely need time
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
