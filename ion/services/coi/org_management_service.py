@@ -881,27 +881,49 @@ class OrgManagementService(BaseOrgManagementService):
         @retval commitment_id    str
         @throws NotFound    object with specified id does not exist
         """
-        param_objects = self._validate_parameters(org_id=sap.provider, user_id=sap.consumer, resource_id=sap.resource)
+
+        if not sap:
+            raise BadRequest("The sap parameter is missing")
 
         if sap.type_ == OT.AcquireResourceExclusiveProposal:
             exclusive = True
         else:
             exclusive = False
 
-        res_commitment = IonObject(OT.ResourceCommitment, resource_id=sap.resource, exclusive=exclusive)
+        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource, exclusive, sap.expiration)
 
-        commitment = IonObject(RT.Commitment, name='', provider=sap.provider, consumer=sap.consumer, commitment=res_commitment,
-             description='Resource Commitment', expiration=sap.expiration)
+        #Create association between the Commitment and the Negotiation objects
+        self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
+
+        return commitment_id
+
+    def create_resource_commitment(self, org_id='', actor_id='', resource_id='', exclusive=False, expiration=0):
+        """Creates a Commitment Resource for the specified resource for a specified user withing the specified Org. Once shared,
+        the resource is committed to the user. Throws a NotFound exception if none of the ids are found.
+
+        @param org_id    str
+        @param actor_id    str
+        @param resource_id    str
+        @param exclusive    bool
+        @param expiration    int
+        @retval commitment_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        param_objects = self._validate_parameters(org_id=org_id, user_id=actor_id, resource_id=resource_id)
+
+        res_commitment = IonObject(OT.ResourceCommitment, resource_id=resource_id, exclusive=exclusive)
+
+        commitment = IonObject(RT.Commitment, name='', provider=org_id, consumer=actor_id, commitment=res_commitment,
+             description='Resource Commitment', expiration=expiration)
 
         commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
         commitment._id = commitment_id
         commitment._rev = commitment_rev
 
-        #Creating associations to all objects
-        self.clients.resource_registry.create_association(sap.provider, PRED.hasCommitment, commitment_id)
-        self.clients.resource_registry.create_association(sap.consumer, PRED.hasCommitment, commitment_id)
-        self.clients.resource_registry.create_association(sap.resource, PRED.hasCommitment, commitment_id)
-        self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
+        #Creating associations to all related objects
+        self.clients.resource_registry.create_association(org_id, PRED.hasCommitment, commitment_id)
+        self.clients.resource_registry.create_association(actor_id, PRED.hasCommitment, commitment_id)
+        self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment_id)
 
         #TODO - publish some kind of event for creating a commitment
 
@@ -925,7 +947,15 @@ class OrgManagementService(BaseOrgManagementService):
 
 
     def is_resource_acquired(self, user_id='', resource_id=''):
+        """Returns True if the specified resource_id has been acquired. The user_id is optional, as the operation can
+        return True if the resource is acquired by any user or specifically by the specified user_id, otherwise
+        False is returned.
 
+        @param user_id    str
+        @param resource_id    str
+        @retval success    bool
+        @throws BadRequest    if resource_id is not specified
+        """
         if not resource_id:
             raise BadRequest("The resource_id parameter is missing")
 
@@ -947,7 +977,15 @@ class OrgManagementService(BaseOrgManagementService):
         return False
 
     def is_resource_acquired_exclusively(self, user_id='', resource_id=''):
+        """Returns True if the specified resource_id has been acquired exclusively. The user_id is optional, as the operation can
+        return True if the resource is acquired exclusively by any user or specifically by the specified user_id,
+        otherwise False is returned.
 
+        @param user_id    str
+        @param resource_id    str
+        @retval success    bool
+        @throws BadRequest    if resource_id is not specified
+        """
         if not resource_id:
             raise BadRequest("The resource_id parameter is missing")
 
