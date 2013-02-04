@@ -85,8 +85,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                 name='agent007',
                                 description="SBE37IMAgent",
-                                driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                driver_class="SBE37Driver",
+                                driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg",
                                 stream_configurations = [parsed_config] )
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)

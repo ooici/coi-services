@@ -27,9 +27,8 @@ from interface.services.cei.ischeduler_service import SchedulerServiceProcessCli
 
 
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from mi.core.instrument.instrument_driver import DriverConnectionState
+from ion.core.includes.mi import SBE37Parameter, SBE37ProtocolEvent
+from ion.core.includes.mi import DriverConnectionState
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
