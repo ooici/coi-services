@@ -548,6 +548,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( "For user_2: extended_product computed user_notification_requests %s", extended_product.computed.user_notification_requests.value)
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
         self.assertEqual( 1, len(extended_product.computed.user_notification_requests.value) )
+
+        notifications = extended_product.computed.user_notification_requests.value
+        notification = notifications[0]
+        self.assertEqual(notification.origin, data_product_id1)
+        self.assertEqual(notification.name, 'notification_2_user_2')
+        self.assertEqual(notification.origin_type, "data product 2")
+        self.assertEqual(notification.event_type, 'DetectionEvent')
+
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
         self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
 
@@ -570,9 +578,15 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( "For user_2: extended_instrument %s", str(extended_instrument) )
         log.debug( "For user_2: extended_instrument computed user_notification_requests %s", extended_instrument.computed.user_notification_requests.value)
 
+        self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
 
-        # the following assert will not work without elasticsearch.
-        #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
+        notifications = extended_instrument.computed.user_notification_requests.value
+        notification = notifications[0]
+        self.assertEqual(notification.origin, instDevice_id)
+        self.assertEqual(notification.name, 'notification_1_user_2')
+        self.assertEqual(notification.origin_type, "instrument_2")
+        self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
+
         self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
