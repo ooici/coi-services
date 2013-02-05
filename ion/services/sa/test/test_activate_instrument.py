@@ -135,6 +135,42 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         return user_id
 
+    def create_notifications_for_another_user(self, instrument_id='', product_id=''):
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(   name= 'notification_1_user_2',
+            origin=instrument_id,
+            origin_type="instrument_2",
+            event_type='ResourceLifecycleEvent')
+
+        notification_request_2 = NotificationRequest(   name='notification_2_user_2',
+            origin=product_id,
+            origin_type="data product 2",
+            event_type='DetectionEvent')
+
+        #--------------------------------------------------------------------------------------
+        # Create a user and get the user_id
+        #--------------------------------------------------------------------------------------
+
+        user = UserInfo()
+        user.name = 'second_user'
+        user.contact.email = 'second_user@yahoo.com'
+
+        user_id, _ = self.rrclient.create(user)
+
+        #--------------------------------------------------------------------------------------
+        # Create notification
+        #--------------------------------------------------------------------------------------
+
+        self.usernotificationclient.create_notification(notification=notification_request_1, user_id=user_id)
+        self.usernotificationclient.create_notification(notification=notification_request_2, user_id=user_id)
+        log.debug( "test_activateInstrumentSample: create_user_notifications user_id %s", str(user_id) )
+
+        return user_id
+
+
 
     def get_datastore(self, dataset_id):
         dataset = self.datasetclient.read_dataset(dataset_id)
@@ -447,6 +483,55 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
+        #------------------------------------------------------------------------------------------------------------------------------
+        # Create notifications for another user and verify that we see different computed subscriptions for the two users
+        #------------------------------------------------------------------------------------------------------------------------------
+
+#        user_id = self.create_user_notifications(instrument_id=instDevice_id, product_id=data_product_id1)
+
+        user_id_2 = self.create_notifications_for_another_user(instrument_id=instDevice_id, product_id=data_product_id1)
+
+
+        ###### For the second user, check the extended data product and the extended intrument #########
+
+        #--------------------------------------------------------------------------------
+        # Get the extended data product to see if it contains the granules
+        #--------------------------------------------------------------------------------
+        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id_2)
+        self.assertEqual(data_product_id1, extended_product._id)
+        #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
+        log.debug( "For user_2: extended_product computed %s", str(extended_product.computed) )
+        log.debug( "For user_2: extended_product computed user_notification_requests %s", extended_product.computed.user_notification_requests.value)
+        #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
+        # the following assert will not work without elasticsearch.
+        #self.assertEqual( 1, len(extended_product.computed.user_notification_requests.value) )
+
+        # exact text here keeps changing to fit UI capabilities.  keep assertion general...
+        self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
+
+        self.assertEqual( 2, len(extended_product.computed.data_datetime.value) )
+
+
+        #--------------------------------------------------------------------------------
+        # Get the extended instrument
+        #--------------------------------------------------------------------------------
+
+        #put some events into the eventsdb to test - this should set the comms and data status to WARNING
+
+        t = get_ion_ts()
+        self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
+            origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
+        self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
+            origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
+
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id_2)
+        log.debug( "For user_2: extended_instrument %s", str(extended_instrument) )
+        log.debug( "For user_2: extended_instrument computed user_notification_requests %s", extended_instrument.computed.user_notification_requests.value)
+        # the following assert will not work without elasticsearch.
+        #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
+        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
+        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
+        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
 
         #-------------------------------
