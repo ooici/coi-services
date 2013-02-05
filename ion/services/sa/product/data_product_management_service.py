@@ -506,7 +506,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
 
-    def get_data_product_extension(self, data_product_id='', ext_associations=None, ext_exclude=None, requesting_user_id=None):
+    def get_data_product_extension(self, data_product_id='', ext_associations=None, ext_exclude=None, user_id=''):
         #Returns an DataProductExtension object containing additional related information
 
         if not data_product_id:
@@ -520,7 +520,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             computed_resource_type=OT.DataProductComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
-            user_id=requesting_user_id)
+            user_id=user_id)
 
         #Loop through any attachments and remove the actual content since we don't need
         #   to send it to the front end this way

@@ -23,6 +23,7 @@ import ntplib
 import time
 import gevent
 import base64
+import numpy
 from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
@@ -167,7 +168,7 @@ class VisualizationService(BaseVisualizationService):
                         for idx in range(1,len(tempTuple)):
                             # some silly numpy format won't go away so need to cast numbers to floats
                             if(gdt_description[idx][1] == 'number'):
-                                varTuple.append((float)(tempTuple[idx]))
+                                varTuple.append(float(tempTuple[idx]))
                             else:
                                 varTuple.append(tempTuple[idx])
 
@@ -359,9 +360,12 @@ class VisualizationService(BaseVisualizationService):
 
             # The times passed from UI are system times so convert them to NTP
             if 'start_time' in visualization_parameters:
-                query['start_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['start_time'])))
+                #query['start_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['start_time'])))
+                query['start_time'] = int(visualization_parameters['start_time'])
+
             if 'end_time' in visualization_parameters:
-                query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
+                #query['end_time'] = int(ntplib.system_to_ntp_time(float(visualization_parameters['end_time'])))
+                query['end_time'] = int((visualization_parameters['end_time']))
 
             # stride time
             if 'stride_time' in visualization_parameters:
@@ -430,12 +434,11 @@ class VisualizationService(BaseVisualizationService):
                     if tempTuple[idx] == None:
                         varTuple.append(0.0)
                     else:
-                        varTuple.append(float(tempTuple[idx]))
+                        varTuple.append(round(float(tempTuple[idx]),4))
                 else:
                     varTuple.append(tempTuple[idx])
 
             gdt_content.append(varTuple)
-
 
         # now generate the Google datatable out of the description and content
         gdt = gviz_api.DataTable(gdt_description)
@@ -463,7 +466,8 @@ class VisualizationService(BaseVisualizationService):
         query = None
         image_name = None
         if visualization_parameters :
-            query = {'parameters':[]}
+            #query = {'parameters':[]}
+            query = {}
             # Error check and damage control. Definitely need time
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
@@ -670,8 +674,10 @@ class VisualizationService(BaseVisualizationService):
             return None
 
         # Start collecting the data to populate the output dictionary
-        time_bounds = self.clients.dataset_management.dataset_bounds(ds_ids[0])['time']
-        dp_meta_data['time_bounds'] = [float(ntplib.ntp_to_system_time(i)) for i in time_bounds]
+        #time_bounds = self.clients.dataset_management.dataset_bounds(ds_ids[0])['time']
+        #dp_meta_data['time_bounds'] = [float(ntplib.ntp_to_system_time(i)) for i in time_bounds]
+        time_bounds = self.clients.dataset_management.dataset_temporal_bounds(ds_ids[0])
+        dp_meta_data['time_bounds'] = time_bounds
         dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents(ds_ids[0])['time'][0]
 
         print " >>>>>>>> DP META DATA = ", dp_meta_data

@@ -42,13 +42,6 @@
 
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
 
-import ast
-import calendar
-import csv
-import numpy as np
-import re
-import requests
-import time
 
 from pyon.core.bootstrap import get_service_registry
 from pyon.core.exception import NotFound
@@ -61,18 +54,26 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.utility.types import get_parameter_type, get_fill_value
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.util.parameter_loader import ParameterPlugin
 from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
-from ion.util.parameter_loader import ParameterPlugin
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 
 
 from interface import objects
+
 import logging
+import simplejson as json
+import ast
+import calendar
+import csv
+import numpy as np
+import re
+import requests
+import time
 
 # format for time values within the preload data
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
@@ -89,7 +90,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidEZOS29JWG5EWHJkTldzVmdmV2RUX2c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHBEVnM1d2tIUDUtOWZNSElxaVEySWc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1295,70 +1296,107 @@ class IONLoader(ImmediateProcess):
             headers=self._get_system_actor_headers())
         self._register_id(row[self.COL_ID], res_id)
 
-    def _load_ParameterDefs(self, row):
-        param_type = row['Parameter Type']
-        if param_type == 'record':
-            param_type = RecordType()
-        elif param_type == 'array':
-            param_type = ArrayType()
-        else:
-            try:
-                param_type = QuantityType(value_encoding = np.dtype(row['Parameter Type']))
-            except TypeError:
-                log.exception('Invalid parameter type for parameter %s: %s', row['Name'], row['Parameter Type'])
-
-        context = ParameterContext(name=row['Name'], param_type=param_type)
-        context.uom = row['Unit of Measure']
-        additional_attrs = {
-            'Attributes':'attributes',
-            'Index Key':'index_key',
-            'Ion Name':'ion_name',
-            'Standard Name':'standard_name',
-            'Long Name':'long_name',
-            'OOI Short Name':'ooi_short_name',
-            'CDM Data Type':'cdm_data_type',
-            'Variable Reports':'variable_reports',
-            'References List':'references_list',
-            'Description': 'description',
-            'Code Reports':'code_reports'
-            }
-        if row['Fill Value'] and row['Parameter Type'] not in ('array','row'):
-            if 'uint' in row['Parameter Type']:
-                context.fill_value = abs(int(row['Fill Value']))
-            elif 'int' in row['Parameter Type']:
-                context.fill_value = int(row['Fill Value'])
-            else:
-                context.fill_value = float(row['Fill Value'])
-
-        if row['Axis']:
-            s = row['Axis'].lower()
-            if s == 'lat':
-                context.axis = AxisTypeEnum.LAT
-            elif s == 'lon':
-                context.axis = AxisTypeEnum.LON
-        for key in additional_attrs.iterkeys():
-            if key in row and row[key]:
-                setattr(context, additional_attrs[key], row[key])
-
-        dataset_management = self._get_service_client('dataset_management')
-        context_id = dataset_management.create_parameter_context(
-            name=row['Name'], parameter_context=context.dump(),
-            description=row['Description'],
-            headers=self._get_system_actor_headers())
+    def _conflict_report(self, row_id, name, reason):
+        log.warn('''
+------- Conflict Report -------
+Conflict with %s
+Parmater Name: %s
+Reason: %s
+-------------------------------''', row_id, name, reason)
 
     def _load_ParameterDictionary(self, row):
-        s = re.sub(r'\s+','',row['parameters'])
-        contexts = s.split(',')
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['name'], row['SKIP'])
+            return
+
+        name = row['name']
+        definitions = row['parameter_ids'].replace(' ','').split(',')
+
+        context_ids = {}
+        for i in definitions:
+            try:
+                res_id = self.resource_ids[i]
+                if res_id not in context_ids:
+                    context_ids[res_id] = 0
+                else:
+                    print 'Duplicate: %s (%s)' % (name, i)
+                context_ids[self.resource_ids[i]] = 0
+            except KeyError:
+                pass
+
+        if not context_ids:
+            print 'No valid parameters: %s' % row['name']
+            return
         dataset_management = self._get_service_client('dataset_management')
         try:
-            context_ids = [dataset_management.read_parameter_context_by_name(i)._id for i in contexts]
-            temporal_parameter = row['temporal_parameter'] or ''
-            dataset_management.create_parameter_dictionary(name=row['name'],
-                parameter_context_ids=context_ids,
-                temporal_context=temporal_parameter,
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'])
+        except:
+            log.exception( '%s has a problem', row['name'])
+            return
+
+        self._register_id(row[self.COL_ID], pdict_id)
+
+
+
+    def _load_ParameterDefs(self, row):
+        try:
+            if row['SKIP']:
+                self._conflict_report(row['ID'], row['Name'], row['SKIP'])
+                return
+        except:
+            print '>>>>>>>>>> ', row.keys()
+            raise
+        name          = row['Name']
+        ptype         = row['Parameter Type']
+        encoding      = row['Value Encoding']
+        uom           = row['Unit of Measure']
+        code_set      = row['Code Set']
+        fill_value    = row['Fill Value']
+        display_name  = row['Display Name']
+        std_name      = row['Standard Name']
+        long_name     = row['Long Name']
+        references    = row['Reference URLS']
+        description   = row['Description']
+
+        try:
+            param_type = get_parameter_type(ptype, encoding,code_set)
+            context = ParameterContext(name=name, param_type=param_type)
+            context.uom = uom
+            context.fill_value = get_fill_value(fill_value, encoding, param_type)
+        except TypeError as e:
+            log.exception(e.message)
+            self._conflict_report(row['ID'], row['Name'], e.message)
+            return
+        except:
+            print row
+            return
+        
+
+        dataset_management = self._get_service_client('dataset_management')
+        context_dump = context.dump()
+
+        try:
+            json.dumps(context_dump)
+        except Exception as e:
+            self._conflict_report(row['ID'], row['Name'], e.message)
+            return
+        try:
+            context_id = dataset_management.create_parameter_context(
+                name=name, parameter_context=context_dump,
+                description=description,
+                parameter_type=ptype,
+                value_encoding=encoding,
+                unit_of_measure=uom,
                 headers=self._get_system_actor_headers())
-        except NotFound as e:
-            log.error('Parameter dictionary %s missing context: %s', row['name'], e.message)
+        except AttributeError as e:
+            if e.message == "'dict' object has no attribute 'read'":
+                self._conflict_report(row['ID'], row['Name'], 'Something is not JSON compatible.')
+                return
+            else:
+                self._conflict_report(row['ID'], row['Name'], e.message)
+                return
+        self._register_id(row[self.COL_ID], context_id)
+
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='PlatformDevice')

@@ -18,14 +18,14 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
-from pyon.public import RT, PRED, CFG
+from pyon.public import RT, PRED
+from pyon.core.bootstrap import CFG
 from pyon.public import IonObject, log
 from pyon.datastore.datastore import DataStore
 from pyon.event.event import EventPublisher
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.util.ion_time import IonTime
 from pyon.util.containers import  get_ion_ts
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
@@ -37,8 +37,7 @@ from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 
 from nose.plugins.attrib import attr
-from mock import patch
-import gevent, time
+import gevent 
 
 class FakeProcess(LocalContextMixin):
     """
@@ -106,14 +105,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Make notification request objects
         #--------------------------------------------------------------------------------------
 
-        notification_request_correct = NotificationRequest(   name= 'notification_1',
+        notification_request_1 = NotificationRequest(   name= 'notification_1',
             origin=instrument_id,
-            origin_type="type_1",
+            origin_type="instrument",
             event_type='ResourceLifecycleEvent')
 
         notification_request_2 = NotificationRequest(   name='notification_2',
             origin=product_id,
-            origin_type="type_2",
+            origin_type="data product",
             event_type='DetectionEvent')
 
         #--------------------------------------------------------------------------------------
@@ -130,8 +129,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Create notification
         #--------------------------------------------------------------------------------------
 
-        notification_id_1 = self.usernotificationclient.create_notification(notification=notification_request_correct, user_id=user_id)
-        notification_id_2 = self.usernotificationclient.create_notification(notification=notification_request_2, user_id=user_id)
+        self.usernotificationclient.create_notification(notification=notification_request_1, user_id=user_id)
+        self.usernotificationclient.create_notification(notification=notification_request_2, user_id=user_id)
         log.debug( "test_activateInstrumentSample: create_user_notifications user_id %s", str(user_id) )
 
         return user_id
@@ -284,6 +283,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         user_id = self.create_user_notifications(instrument_id=instDevice_id, product_id=data_product_id1)
 
 
+        #elastic search debug
+        es_indexes, _ = self.container.resource_registry.find_resources(restype='ElasticSearchIndex')
+        log.debug('ElasticSearch indexes: %s', [i.name for i in es_indexes])
+        log.debug('Bootstrap %s', CFG.bootstrap.use_es)
+
+
         def start_instrument_agent():
             self.imsclient.start_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
@@ -406,12 +411,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Get the extended data product to see if it contains the granules
         #--------------------------------------------------------------------------------
-        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, requesting_user_id=user_id)
+        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id)
         self.assertEqual(data_product_id1, extended_product._id)
         #log.debug( "test_activateInstrumentSample: extended_product %s", str(extended_product) )
         log.debug( "test_activateInstrumentSample: extended_product computed %s", str(extended_product.computed) )
-        log.debug( "test_activateInstrumentSample: extended_product computed user_notification_requests %s", str(extended_product.computed.user_notification_requests.value) )
+        log.debug( "test_activateInstrumentSample: extended_product computed user_notification_requests %s", extended_product.computed.user_notification_requests.value)
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
+        # the following assert will not work without elasticsearch.
+        #self.assertEqual( 1, len(extended_product.computed.user_notification_requests.value) )
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
         self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
@@ -431,12 +438,15 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
                 origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
-        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, requesting_user_id=user_id)
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id)
         log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
-        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", str(extended_instrument.computed.user_notification_requests.value) )
+        log.debug( "test_activateInstrumentSample: extended_instrument computed user_notification_requests %s", extended_instrument.computed.user_notification_requests.value)
+        # the following assert will not work without elasticsearch.
+        #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
         self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
+
 
 
         #-------------------------------

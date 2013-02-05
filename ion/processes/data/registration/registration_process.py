@@ -5,12 +5,12 @@ from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model.coverage import SimplexCoverage
+from coverage_model import SimplexCoverage, QuantityType
 
 from xml.dom.minidom import parse, parseString
 from zipfile import ZipFile
 
-import numpy as np
+
 import base64
 import os
 import urllib
@@ -75,11 +75,9 @@ class RegistrationProcess(StandaloneProcess):
         result = ''
 
         paths = os.path.split(coverage_path)
-        #cov = SimplexCoverage.pickle_load(coverage_path)
         cov = SimplexCoverage.load(coverage_path)
-        #ds = open_url(url)
         doc = xml.dom.minidom.Document()
-
+        
         #Get lists of variables with unique sets of dimensions.
         #Datasets can only have variables with the same sets of dimensions
 
@@ -89,7 +87,7 @@ class RegistrationProcess(StandaloneProcess):
         datasets = {}
         for key in cov.list_parameters():
             pc = cov.get_parameter_context(key)
-            if np.dtype(pc.param_type.value_encoding).char == 'O':
+            if not isinstance(pc.param_type, QuantityType):
                 continue
             param = cov.get_parameter(key)
             dims = (cov.temporal_parameter_name,)
@@ -102,10 +100,18 @@ class RegistrationProcess(StandaloneProcess):
             datasets[dims].append(key)
 
         index = 0
+        if not datasets:
+            raise BadRequest('Attempting to register a dimensionless dataset. The coverage (%s) has no dimension(s).\n%s' %( coverage_path, cov))
+        
         for dims, vars in datasets.iteritems():
+            if len(vars)==1:
+                raise BadRequest('A dataset needs a proper range, not just the temporal dimension. %s\n%s' %( coverage_path, cov))
 
             if not (len(dims) == 1 and dims[0] == vars[0]):
                 dataset_element = doc.createElement('dataset')
+                #options for cdm_data_type are Point,Profile,TimeSeries,TimeSeriesProfile,Trajectory,TrajectoryProfile,Other
+                #just dealing with Grid data so hardcode for now
+                #TODO: add dynamic data type based on data
                 dataset_element.setAttribute('type', 'EDDGridFromDap')
                 dataset_element.setAttribute('datasetID', '{0}_{1}'.format(paths[1], index))
                 dataset_element.setAttribute('active', 'True')
@@ -125,8 +131,26 @@ class RegistrationProcess(StandaloneProcess):
                 atts = {}
                 atts['title'] = product_name or urllib.unquote(cov.name)
                 atts['infoUrl'] = self.pydap_url + paths[1]
-                atts['summary'] = cov.name
                 atts['institution'] = 'OOI'
+                atts['Metadata_Conventions'] = "COARDS, CF-1.6, Unidata Dataset Discovery v1.0"
+                atts['license'] = 'the license'
+                atts['summary'] = cov.name
+                
+                try:
+                    lat_min,lat_max = cov.get_data_bounds("lat")
+                    atts['geospatial_lat_max'] = str(lat_max)
+                    atts['geospatial_lat_min'] = str(lat_min)
+                    pc = cov.get_parameter_context("lat")
+                    atts['geospatial_lat_units'] = str(pc.uom)
+                    
+                    lon_min,lon_max = cov.get_data_bounds("lon")
+                    atts['geospatial_lon_max'] = str(lon_max)
+                    atts['geospatial_lon_min'] = str(lon_min)
+                    pc = cov.get_parameter_context("lon")
+                    atts['geospatial_lon_units'] = str(pc.uom)
+                except:
+                    #silently fail and just don't fill attributes
+                    pass
 
                 for key, val in atts.iteritems():
                     att_element = doc.createElement('att')
@@ -171,14 +195,36 @@ class RegistrationProcess(StandaloneProcess):
                         att_element.appendChild(text_node)
                         add_attributes_element.appendChild(att_element)
 
-                        data_element.appendChild(add_attributes_element)
+                        att_element = doc.createElement('att')
+                        att_element.setAttribute('name', 'long_name')
+                        long_name = ""
+                        if var.long_name is not None:
+                            long_name = var.long_name
+                            text_node = doc.createTextNode(long_name)
+                            att_element.appendChild(text_node)
+                            add_attributes_element.appendChild(att_element)
+                        
+                        att_element = doc.createElement('att')
+                        standard_name = ""
+                        if var.standard_name is not None:
+                            standard_name = var.standard_name
+                            att_element.setAttribute('name', 'standard_name')
+                            text_node = doc.createTextNode(standard_name)
+                            att_element.appendChild(text_node)
+                            add_attributes_element.appendChild(att_element)
+                        
+                        att_element = doc.createElement('att')
+                        att_element.setAttribute('name', 'units')
+                        units = ""
+                        if units is not None:
+                            units = var.uom
+                            text_node = doc.createTextNode(units)
+                            att_element.appendChild(text_node)
+                            add_attributes_element.appendChild(att_element)
 
+                        data_element.appendChild(add_attributes_element)
                         dataset_element.appendChild(data_element)
 
-                        #add category
-                        #add long_name
-                        #add standard_name
-                        #add units
 
                 for dim_name in dims: #axisVariable
                     param = cov.get_parameter(dim_name)
@@ -217,7 +263,10 @@ class RegistrationProcess(StandaloneProcess):
                     dataset_element.appendChild(axis_element)
 
                 index += 1
-                result += dataset_element.toprettyxml() + '\n'
+                #bug with prettyxml
+                #http://ronrothman.com/public/leftbraned/xml-dom-minidom-toprettyxml-and-silly-whitespace/
+                #result += dataset_element.toprettyxml() + '\n'
+                result += dataset_element.toxml() + '\n'
 
         cov.close()
 

@@ -227,7 +227,7 @@ class IdentityManagementService(BaseIdentityManagementService):
             log.debug("Signon returning actor_id, valid_until, registered: %s, %s, False" % (actor_id, valid_until))
             return actor_id, valid_until, False
 
-    def get_user_info_extension(self, user_info_id='', requesting_user_id=None):
+    def get_user_info_extension(self, user_info_id='', user_id=''):
         """Returns an UserInfoExtension object containing additional related information
 
         @param user_info_id    str
@@ -242,7 +242,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         extended_user = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.UserInfoExtension,
             resource_id=user_info_id,
-            user_id=requesting_user_id)
+            user_id=user_id)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if extended_user:
@@ -265,14 +265,18 @@ class IdentityManagementService(BaseIdentityManagementService):
         #set the notifications for this user
 
         # retrieve the set of open negotaions for this user
-        open_negotiations = []
         #filer out the accepted/rejected negotiations
+        extended_user.open_negotiations = []
+        extended_user.closed_negotiations = []
         if hasattr(extended_user, 'actor_identity'):
             negotiations, _ = self.clients.resource_registry.find_objects(extended_user.actor_identity, PRED.hasNegotiation, RT.Negotiation, id_only=False)
             for negotiation in negotiations:
                 if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
-                    open_negotiations.append(negotiation)
-            extended_user.negotiations = open_negotiations
+                    extended_user.open_negotiations.append(negotiation)
+                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
+                   negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
+                    extended_user.closed_negotiations.append(negotiation)
+
 
         # replace list of lists with single list
         replacement_owned_resources = []

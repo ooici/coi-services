@@ -12,7 +12,7 @@ from pyon.service.service import BaseService
 from pyon.util.containers import DotDict, get_safe
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.core.exception import NotFound, BadRequest
+from pyon.core.exception import NotFound, BadRequest, Conflict, IonException
 from pyon.public import log
 from pyon.core import bootstrap
 
@@ -152,28 +152,45 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.mock_cc_terminate.assert_called_once_with(pid)
 
 
+class FakeDashiNotFoundError(Exception):
+    pass
+
+
+class FakeDashiBadRequestError(Exception):
+    pass
+
+
+class FakeDashiWriteConflictError(Exception):
+    pass
+
+
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
     """Tests the dashi frontend of the PD
     """
-
-    #TODO: add some more thorough tests
-
     def setUp(self):
 
         self.mock_backend = DotDict()
         self.mock_backend['create_definition'] = Mock()
         self.mock_backend['read_definition'] = Mock()
         self.mock_backend['read_definition_by_name'] = Mock()
+        self.mock_backend['update_definition'] = Mock()
         self.mock_backend['delete_definition'] = Mock()
         self.mock_backend['create'] = Mock()
         self.mock_backend['schedule'] = Mock()
         self.mock_backend['read_process'] = Mock()
         self.mock_backend['list'] = Mock()
         self.mock_backend['cancel'] = Mock()
+        self.mock_backend['set_system_boot'] = Mock()
 
         self.mock_dashi = DotDict()
         self.mock_dashi['handle'] = Mock()
+
+        self.mock_pyon_dashi_exc_map = {
+            NotFound: FakeDashiNotFoundError,
+            BadRequest: FakeDashiBadRequestError,
+            Conflict: FakeDashiWriteConflictError
+            }
 
         self.pd_dashi_handler = PDDashiHandler(self.mock_backend, self.mock_dashi)
 
@@ -192,23 +209,47 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         self.pd_dashi_handler.describe_definition(definition_id)
         self.assertEqual(self.mock_backend.read_definition.call_count, 1)
 
-        raised = False
-        try:
-            self.pd_dashi_handler.update_definition(definition_id, definition_type,
-                executable, name, description)
-        except BadRequest:
-            raised = True
-        assert raised, "update_definition didn't raise badrequest"
+        self.pd_dashi_handler.describe_definition(definition_name=name)
+        self.assertEqual(self.mock_backend.read_definition_by_name.call_count, 1)
+
+        self.pd_dashi_handler.update_definition(definition_id, definition_type,
+            executable, name, description)
+        self.assertEqual(self.mock_backend.update_definition.call_count, 1)
 
         self.pd_dashi_handler.remove_definition(definition_id)
         self.assertEqual(self.mock_backend.delete_definition.call_count, 1)
 
-        raised = False
-        try:
-            self.pd_dashi_handler.list_definitions()
-        except BadRequest:
-            raised = True
-        assert raised, "list_definitions didn't raise badrequest"
+        with patch('ion.services.cei.process_dispatcher_service._PYON_DASHI_EXC_MAP',
+                self.mock_pyon_dashi_exc_map):
+
+            with self.assertRaises(FakeDashiBadRequestError):
+                self.pd_dashi_handler.list_definitions()
+
+            # need to specify either definition id or name
+            with self.assertRaises(FakeDashiBadRequestError):
+                self.pd_dashi_handler.describe_definition()
+
+    def test_exception_map(self):
+        # only testing one of the handlers. assuming they all share the decorator
+        with patch('ion.services.cei.process_dispatcher_service._PYON_DASHI_EXC_MAP',
+                self.mock_pyon_dashi_exc_map):
+
+            self.mock_backend.read_definition.side_effect = NotFound()
+            with self.assertRaises(FakeDashiNotFoundError):
+                self.pd_dashi_handler.describe_definition("some-def")
+
+            self.mock_backend.read_definition.side_effect = Conflict()
+            with self.assertRaises(FakeDashiWriteConflictError):
+                self.pd_dashi_handler.describe_definition("some-def")
+
+            self.mock_backend.read_definition.side_effect = BadRequest()
+            with self.assertRaises(FakeDashiBadRequestError):
+                self.pd_dashi_handler.describe_definition("some-def")
+
+            # try with an unmapped IonException. should get passed through directly
+            self.mock_backend.read_definition.side_effect = IonException()
+            with self.assertRaises(IonException):
+                self.pd_dashi_handler.describe_definition("some-def")
 
     def test_schedule(self):
 
@@ -253,6 +294,10 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
         assert passed_schedule.queueing_mode == ProcessQueueingMode.RESTART_ONLY
         assert passed_schedule.restart_mode == ProcessRestartMode.ABNORMAL
 
+    def test_set_system_boot(self):
+        self.pd_dashi_handler.set_system_boot(False)
+        self.mock_backend.set_system_boot.assert_called_once_with(False)
+
 
 @attr('UNIT', group='cei')
 class ProcessDispatcherServiceNativeTest(PyonTestCase):
@@ -279,11 +324,12 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         with patch.multiple('ion.services.cei.process_dispatcher_service',
                 get_dashi=DEFAULT, ProcessDispatcherCore=DEFAULT,
                 get_processdispatcher_store=DEFAULT, EngineRegistry=DEFAULT,
-                PDMatchmaker=DEFAULT) as mocks:
+                PDMatchmaker=DEFAULT, PDDoctor=DEFAULT) as mocks:
             mocks['get_dashi'].return_value = self.mock_dashi
             mocks['get_processdispatcher_store'].return_value = self.mock_store = Mock()
             mocks['ProcessDispatcherCore'].return_value = self.mock_core = Mock()
             mocks['PDMatchmaker'].return_value = self.mock_matchmaker = Mock()
+            mocks['PDDoctor'].return_value = self.mock_doctor = Mock()
             mocks['EngineRegistry'].return_value = self.mock_engineregistry = Mock()
 
             self.pd_service.init()
@@ -328,6 +374,41 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.assertTrue(pid.startswith(proc_def.name) and pid != proc_def.name)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+
+    def test_schedule_haagent_name(self):
+        haa_proc_def = DotDict()
+        haa_proc_def['name'] = "haagent"
+        haa_proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+
+        payload_proc_def = DotDict()
+        payload_proc_def['name'] = "payload_process"
+        payload_proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+
+        proc_defs = {"haa_proc_def_id": haa_proc_def,
+                     "payload_proc_def_id": payload_proc_def}
+
+        read_definition_mock = Mock()
+        read_definition_mock.side_effect = proc_defs.get
+        self.pd_service.backend.read_definition = read_definition_mock
+
+        # not used for anything in local mode
+        proc_schedule = DotDict()
+
+        configuration = {"highavailability": {"process_definition_id": "payload_proc_def_id"}}
+        self.pd_service.schedule_process("haa_proc_def_id", proc_schedule, configuration)
+
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        name = self.mock_core.schedule_process.call_args[1]['name']
+        self.assertTrue(name.startswith("payload_process-ha"))
+
+        # now try with scheduling by process definition name instead of ID
+        self.mock_core.schedule_process.reset_mock()
+        configuration = {"highavailability": {"process_definition_name": "payload_process"}}
+        self.pd_service.schedule_process("haa_proc_def_id", proc_schedule, configuration)
+
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        name = self.mock_core.schedule_process.call_args[1]['name']
+        self.assertTrue(name.startswith("payload_process-ha"))
 
     def test_queueing_mode(self):
 
@@ -648,6 +729,10 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             self.pd_cli.schedule_process(self.process_definition_id,
                 process_schedule, configuration={"bad": o})
         self.assertTrue(ar.exception.message.startswith("bad configuration"))
+
+    def test_cancel_notfound(self):
+        with self.assertRaises(NotFound):
+            self.pd_cli.cancel_process("not-a-real-process-id")
 
     def test_create_invalid_definition(self):
         # create process definition missing module and class
