@@ -15,7 +15,7 @@ from pyon.util.containers import create_unique_identifier
 from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_not_none, validate_true
 from pyon.ion.resource import ExtendedResourceContainer
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -425,6 +425,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         configuration['process']['queue_name'] = queue_name
         configuration['process']['publish_streams'] = out_streams
 
+        # Setting the restart mode
+        schedule = ProcessSchedule()
+        schedule.restart_mode = ProcessRestartMode.ABNORMAL
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
@@ -432,6 +435,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Spawn the process
         pid = self.clients.process_dispatcher.schedule_process(
             process_definition_id=process_definition_id,
+            schedule= schedule,
             configuration=configuration
         )
         validate_is_not_none( pid, "Process could not be spawned")
