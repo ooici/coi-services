@@ -1077,6 +1077,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
         negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=actor_header)
+
+        self.assertEqual(len(negotiations),0) #Should be no more open negotiations for a user because auto-accept is enabled
+
+        #The following are no longer needed with auto-accept enabled for acquiring a resource
+        '''
         self.assertEqual(len(negotiations),1)
 
         #User accepts proposal in return
@@ -1085,6 +1090,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED)
         sap_response2 = self.org_client.negotiate(sap_response, headers=actor_header )
+
+        '''
 
         negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=actor_header)
         self.assertEqual(len(negotiations),0)
@@ -1358,9 +1365,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response3 = self.org_client.negotiate(sap_response2, headers=self.system_actor_header )
 
         #Have the User counter-accept the proposal
+        '''
         negotiation = self.rr_client.read(sap_response3.negotiation_id)
         sap_response4 = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED)
         sap_response5 = self.org_client.negotiate(sap_response4, headers=actor_header )
+        '''
 
         #This operation should now be allowed since the resource has been acquired
         with self.assertRaises(Conflict) as cm:
