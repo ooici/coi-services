@@ -22,25 +22,29 @@ negotiation_rules = {
     OT.EnrollmentProposal: {
         'pre_conditions': ['is_registered(sap.consumer)', 'not is_enrolled(sap.provider,sap.consumer)',
                            'not is_enroll_negotiation_open(sap.provider,sap.consumer)'],
-        'accept_action': 'enroll_member(sap.provider,sap.consumer)'
+        'accept_action': 'enroll_member(sap.provider,sap.consumer)',
+        'auto_accept': True
     },
 
     OT.RequestRoleProposal: {
         'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)'],
-        'accept_action': 'grant_role(sap.provider,sap.consumer,sap.role_name)'
+        'accept_action': 'grant_role(sap.provider,sap.consumer,sap.role_name)',
+        'auto_accept': True
     },
 
     OT.AcquireResourceProposal: {
         'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)',
                            'has_role(sap.provider,sap.consumer,"' + INSTRUMENT_OPERATOR_ROLE + '")',
                            'is_resource_shared(sap.provider,sap.resource)'],
-        'accept_action': 'acquire_resource(sap)'
+        'accept_action': 'acquire_resource(sap)',
+        'auto_accept': True
     },
 
     OT.AcquireResourceExclusiveProposal: {
         'pre_conditions': ['is_resource_acquired(sap.consumer, sap.resource)',
                            'not is_resource_acquired_exclusively(sap.consumer, sap.resource)'],
-        'accept_action': 'acquire_resource(sap)'
+        'accept_action': 'acquire_resource(sap)',
+        'auto_accept': True
     }
 }
 
@@ -389,29 +393,22 @@ class OrgManagementService(BaseOrgManagementService):
         #Get the most recent version of the Negotiation resource
         negotiation = self.clients.resource_registry.read(neg_id)
 
-        #hardcodng some rules at the moment
-        if sap.type_ == OT.EnrollmentProposal or sap.type_ == OT.RequestRoleProposal:
-            #Automatically accept for the consumer if the Org Manager as provider accepts the proposal
-            if sap.proposal_status == ProposalStatusEnum.ACCEPTED and sap.originator == ProposalOriginatorEnum.PROVIDER:
-                consumer_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED)
+        #hardcodng some rules at the moment - could be replaced by a Rules Engine
+        if sap.type_ == OT.AcquireResourceExclusiveProposal:
+
+            if self.is_resource_acquired_exclusively(None, sap.resource):
+                #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
+                provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
+
+                rejection_reason = "The resource has already been acquired exclusively"
 
                 #Update the Negotiation object with the latest SAP
-                neg_id = self.negotiation_handler.update_negotiation(consumer_accept_sap)
+                neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap, rejection_reason)
 
                 #Get the most recent version of the Negotiation resource
                 negotiation = self.clients.resource_registry.read(neg_id)
 
-            elif sap.proposal_status == ProposalStatusEnum.ACCEPTED and sap.originator == ProposalOriginatorEnum.CONSUMER:
-                provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
-
-                #Update the Negotiation object with the latest SAP
-                neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap)
-
-                #Get the most recent version of the Negotiation resource
-                negotiation = self.clients.resource_registry.read(neg_id)
-
-        elif sap.type_ == OT.AcquireResourceExclusiveProposal:
-            if not self.is_resource_acquired_exclusively(None, sap.resource):
+            else:
 
                 #Automatically reject the proposal if the exipration request is greater than 12 hours from now or 0
                 cur_time = int(get_ion_ts())
@@ -420,13 +417,14 @@ class OrgManagementService(BaseOrgManagementService):
                     #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
                     provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
 
-                    rejection_reason = "A proposal to acquire a resource exclusively must be included and be less than 12 hours."
+                    rejection_reason = "A proposal to acquire a resource exclusively must be more than 0 and be less than 12 hours."
 
                     #Update the Negotiation object with the latest SAP
                     neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap, rejection_reason)
 
                     #Get the most recent version of the Negotiation resource
                     negotiation = self.clients.resource_registry.read(neg_id)
+
                 else:
 
                     #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
@@ -438,13 +436,31 @@ class OrgManagementService(BaseOrgManagementService):
                     #Get the most recent version of the Negotiation resource
                     negotiation = self.clients.resource_registry.read(neg_id)
 
-                    consumer_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED)
+        #Check to see if the rules allow for auto acceptance of the negotiations - where the second party is assumed to accept if the
+        #first party accepts.
+        if negotiation_rules[sap.type_]['auto_accept']:
 
-                    #Update the Negotiation object with the latest SAP
-                    neg_id = self.negotiation_handler.update_negotiation(consumer_accept_sap)
+            #Automatically accept for the consumer if the Org Manager as provider accepts the proposal
+            latest_sap = negotiation.proposals[-1]
 
-                    #Get the most recent version of the Negotiation resource
-                    negotiation = self.clients.resource_registry.read(neg_id)
+            if latest_sap.proposal_status == ProposalStatusEnum.ACCEPTED and latest_sap.originator == ProposalOriginatorEnum.PROVIDER:
+                consumer_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED)
+
+                #Update the Negotiation object with the latest SAP
+                neg_id = self.negotiation_handler.update_negotiation(consumer_accept_sap)
+
+                #Get the most recent version of the Negotiation resource
+                negotiation = self.clients.resource_registry.read(neg_id)
+
+            elif latest_sap.proposal_status == ProposalStatusEnum.ACCEPTED and latest_sap.originator == ProposalOriginatorEnum.CONSUMER:
+                provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
+
+                #Update the Negotiation object with the latest SAP
+                neg_id = self.negotiation_handler.update_negotiation(provider_accept_sap)
+
+                #Get the most recent version of the Negotiation resource
+                negotiation = self.clients.resource_registry.read(neg_id)
+
 
         #Return the latest proposal
         return negotiation.proposals[-1]
@@ -881,27 +897,49 @@ class OrgManagementService(BaseOrgManagementService):
         @retval commitment_id    str
         @throws NotFound    object with specified id does not exist
         """
-        param_objects = self._validate_parameters(org_id=sap.provider, user_id=sap.consumer, resource_id=sap.resource)
+
+        if not sap:
+            raise BadRequest("The sap parameter is missing")
 
         if sap.type_ == OT.AcquireResourceExclusiveProposal:
             exclusive = True
         else:
             exclusive = False
 
-        res_commitment = IonObject(OT.ResourceCommitment, resource_id=sap.resource, exclusive=exclusive)
+        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource, exclusive, sap.expiration)
 
-        commitment = IonObject(RT.Commitment, name='', provider=sap.provider, consumer=sap.consumer, commitment=res_commitment,
-             description='Resource Commitment', expiration=sap.expiration)
+        #Create association between the Commitment and the Negotiation objects
+        self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
+
+        return commitment_id
+
+    def create_resource_commitment(self, org_id='', actor_id='', resource_id='', exclusive=False, expiration=0):
+        """Creates a Commitment Resource for the specified resource for a specified user withing the specified Org. Once shared,
+        the resource is committed to the user. Throws a NotFound exception if none of the ids are found.
+
+        @param org_id    str
+        @param actor_id    str
+        @param resource_id    str
+        @param exclusive    bool
+        @param expiration    int
+        @retval commitment_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+        param_objects = self._validate_parameters(org_id=org_id, user_id=actor_id, resource_id=resource_id)
+
+        res_commitment = IonObject(OT.ResourceCommitment, resource_id=resource_id, exclusive=exclusive)
+
+        commitment = IonObject(RT.Commitment, name='', provider=org_id, consumer=actor_id, commitment=res_commitment,
+             description='Resource Commitment', expiration=expiration)
 
         commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
         commitment._id = commitment_id
         commitment._rev = commitment_rev
 
-        #Creating associations to all objects
-        self.clients.resource_registry.create_association(sap.provider, PRED.hasCommitment, commitment_id)
-        self.clients.resource_registry.create_association(sap.consumer, PRED.hasCommitment, commitment_id)
-        self.clients.resource_registry.create_association(sap.resource, PRED.hasCommitment, commitment_id)
-        self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
+        #Creating associations to all related objects
+        self.clients.resource_registry.create_association(org_id, PRED.hasCommitment, commitment_id)
+        self.clients.resource_registry.create_association(actor_id, PRED.hasCommitment, commitment_id)
+        self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment_id)
 
         #TODO - publish some kind of event for creating a commitment
 
@@ -925,7 +963,15 @@ class OrgManagementService(BaseOrgManagementService):
 
 
     def is_resource_acquired(self, user_id='', resource_id=''):
+        """Returns True if the specified resource_id has been acquired. The user_id is optional, as the operation can
+        return True if the resource is acquired by any user or specifically by the specified user_id, otherwise
+        False is returned.
 
+        @param user_id    str
+        @param resource_id    str
+        @retval success    bool
+        @throws BadRequest    if resource_id is not specified
+        """
         if not resource_id:
             raise BadRequest("The resource_id parameter is missing")
 
@@ -947,7 +993,15 @@ class OrgManagementService(BaseOrgManagementService):
         return False
 
     def is_resource_acquired_exclusively(self, user_id='', resource_id=''):
+        """Returns True if the specified resource_id has been acquired exclusively. The user_id is optional, as the operation can
+        return True if the resource is acquired exclusively by any user or specifically by the specified user_id,
+        otherwise False is returned.
 
+        @param user_id    str
+        @param resource_id    str
+        @retval success    bool
+        @throws BadRequest    if resource_id is not specified
+        """
         if not resource_id:
             raise BadRequest("The resource_id parameter is missing")
 
@@ -1135,12 +1189,15 @@ class OrgManagementService(BaseOrgManagementService):
 #                                      if x not in extended_org.platforms_deployed]
 
         open_negotiations = []
-        #filer out the accepted/rejected negotiations
-        if hasattr(extended_org, 'negotiations'):
-            for negotiation in extended_org.negotiations:
+        #filer out the accepted/rejected negotiations and place in closed_negotiations
+        if hasattr(extended_org, 'open_negotiations'):
+            for negotiation in extended_org.open_negotiations:
                 if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
                     open_negotiations.append(negotiation)
-            extended_org.negotiations = open_negotiations
+                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
+                     negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
+                    extended_org.closed_negotiations.append(negotiation)
+            extended_org.open_negotiations = open_negotiations
 
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil

@@ -61,6 +61,27 @@ f8b270icOVgkOKRdLP/Q4r/x8skKSCRz1ZsRdR+7+B/EgksAJj7Ut3yiWoUekEMxCaTdAHPTMD/g
 Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 -----END CERTIFICATE-----"""
 
+DENY_EXCHANGE_TEXT = '''
+        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+                <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">exchange_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+            </Target>
+
+        </Rule>
+        '''
+
 
 TEST_POLICY_TEXT = '''
         <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
@@ -226,6 +247,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
         log.debug('Begin testing with policies')
+
+        #Add a new policy to deny all operations to the exchange_management by default .
+        test_policy_id = self.pol_client.create_service_access_policy('exchange_management', 'Exchange_Management_Deny_Policy',
+            'Deny all operations in  Exchange Management Service by default',
+            DENY_EXCHANGE_TEXT, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
 
         #Attempt to access an operation in service which does not have specific policies set
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
@@ -1049,6 +1077,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
         negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=actor_header)
+
+        self.assertEqual(len(negotiations),0) #Should be no more open negotiations for a user because auto-accept is enabled
+
+        #The following are no longer needed with auto-accept enabled for acquiring a resource
+        '''
         self.assertEqual(len(negotiations),1)
 
         #User accepts proposal in return
@@ -1057,6 +1090,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED)
         sap_response2 = self.org_client.negotiate(sap_response, headers=actor_header )
+
+        '''
 
         negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, negotiation_status=NegotiationStatusEnum.OPEN, headers=actor_header)
         self.assertEqual(len(negotiations),0)
@@ -1330,9 +1365,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response3 = self.org_client.negotiate(sap_response2, headers=self.system_actor_header )
 
         #Have the User counter-accept the proposal
+        '''
         negotiation = self.rr_client.read(sap_response3.negotiation_id)
         sap_response4 = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.ACCEPTED)
         sap_response5 = self.org_client.negotiate(sap_response4, headers=actor_header )
+        '''
 
         #This operation should now be allowed since the resource has been acquired
         with self.assertRaises(Conflict) as cm:

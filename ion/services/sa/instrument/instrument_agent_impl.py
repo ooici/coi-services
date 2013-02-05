@@ -78,7 +78,8 @@ class InstrumentAgentImpl(ResourceSimpleImpl):
             return "InstrumentAgent LCS requires an associated instrument model"
 
     def link_model(self, instrument_agent_id='', instrument_model_id=''):
-        return self._link_resources_single_subject(instrument_agent_id, PRED.hasModel, instrument_model_id)
+        #return self._link_resources_single_subject(instrument_agent_id, PRED.hasModel, instrument_model_id)
+        return self._link_resources(instrument_agent_id, PRED.hasModel, instrument_model_id)
 
     def unlink_model(self, instrument_agent_id='', instrument_model_id=''):
         return self._unlink_resources(instrument_agent_id, PRED.hasModel, instrument_model_id)

@@ -397,8 +397,65 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.eea_client.launch_process(u_pid, round, run_type, parameters)
         self.wait_for_state(u_pid, [500, 'RUNNING'])
 
+        state = self.eea_client.dump_state().result
+        assert len(state['processes']) == 1
+
         self.eea_client.terminate_process(u_pid, round)
         self.wait_for_state(u_pid, [700, 'TERMINATED'])
+
+        state = self.eea_client.dump_state().result
+        assert len(state['processes']) == 1
+
+        self.eea_client.cleanup_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        assert len(state['processes']) == 0
+
+    @needs_eeagent
+    def test_restart(self):
+        u_pid = "test0"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_x'
+        module = 'ion.agents.cei.test.test_eeagent'
+        cls = 'TestProcess'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
+
+        state = self.eea_client.dump_state().result
+        assert len(state['processes']) == 1
+
+        # Start again with incremented round. eeagent should restart the process
+        round += 1
+
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.wait_for_state(u_pid, [500, 'RUNNING'])
+
+        state = self.eea_client.dump_state().result
+        ee_round = state['processes'][0]['round']
+        assert round == int(ee_round)
+
+        # TODO: this test is disabled, as the restart op is disabled
+        # Run restart with incremented round. eeagent should restart the process
+        #round += 1
+
+        #self.eea_client.restart_process(u_pid, round)
+        #self.wait_for_state(u_pid, [500, 'RUNNING'])
+
+        #state = self.eea_client.dump_state().result
+        #ee_round = state['processes'][0]['round']
+        #assert round == int(ee_round)
+
+        self.eea_client.terminate_process(u_pid, round)
+        self.wait_for_state(u_pid, [700, 'TERMINATED'])
+
+        state = self.eea_client.dump_state().result
+        assert len(state['processes']) == 1
+
+        self.eea_client.cleanup_process(u_pid, round)
+        state = self.eea_client.dump_state().result
+        assert len(state['processes']) == 0
 
     @needs_eeagent
     def test_failing_process(self):
