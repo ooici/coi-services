@@ -515,7 +515,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
-        self.assertEqual(notification.origin, instrument_id)
+        self.assertEqual(notification.origin, instDevice_id)
         self.assertEqual(notification.name, 'notification_1')
         self.assertEqual(notification.origin_type, "instrument")
         self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
@@ -547,9 +547,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( "For user_2: extended_product computed %s", str(extended_product.computed) )
         log.debug( "For user_2: extended_product computed user_notification_requests %s", extended_product.computed.user_notification_requests.value)
         #log.debug( "test_activateInstrumentSample: extended_product last_granule %s", str(extended_product.computed.last_granule.value) )
-        # the following assert will not work without elasticsearch.
-        #self.assertEqual( 1, len(extended_product.computed.user_notification_requests.value) )
-
+        self.assertEqual( 1, len(extended_product.computed.user_notification_requests.value) )
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
         self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
 
