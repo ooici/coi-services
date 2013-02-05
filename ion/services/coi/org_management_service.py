@@ -1189,12 +1189,15 @@ class OrgManagementService(BaseOrgManagementService):
 #                                      if x not in extended_org.platforms_deployed]
 
         open_negotiations = []
-        #filer out the accepted/rejected negotiations
-        if hasattr(extended_org, 'negotiations'):
-            for negotiation in extended_org.negotiations:
+        #filer out the accepted/rejected negotiations and place in closed_negotiations
+        if hasattr(extended_org, 'open_negotiations'):
+            for negotiation in extended_org.open_negotiations:
                 if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
                     open_negotiations.append(negotiation)
-            extended_org.negotiations = open_negotiations
+                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
+                     negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
+                    extended_org.closed_negotiations.append(negotiation)
+            extended_org.open_negotiations = open_negotiations
 
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil
