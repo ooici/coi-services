@@ -32,6 +32,7 @@ from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
 from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from coverage_model import QuantityType
 import unittest, gevent
 import numpy, random
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
@@ -53,6 +54,7 @@ class TestCtdTransforms(IonUnitTestCase):
         self.tx_L0.cond_publisher = Mock()
         self.tx_L0.temp_publisher = Mock()
         self.tx_L0.pres_publisher = Mock()
+        self.i = 0
 
         self.tx_L1_C = CTDL1ConductivityTransform()
         self.tx_L1_C.streams = defaultdict(Mock)
@@ -128,6 +130,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         self.exchange_name = 'ctd_L0_all_queue'
         self.exchange_point = 'test_exchange'
+        self.i = 0
 
     def tearDown(self):
         for queue in self.queue_cleanup:
@@ -807,10 +810,13 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
     def _get_new_ctd_packet(self, stream_definition_id, length):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
+        rdt['time'] = numpy.arange(self.i, self.i+length)
 
         for field in rdt:
-            rdt[field] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+            if isinstance(rdt._pdict.get_context(field).param_type, QuantityType):
+                rdt[field] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
 
         g = rdt.to_granule()
+        self.i+=length
 
         return g

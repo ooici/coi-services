@@ -265,14 +265,18 @@ class IdentityManagementService(BaseIdentityManagementService):
         #set the notifications for this user
 
         # retrieve the set of open negotaions for this user
-        open_negotiations = []
         #filer out the accepted/rejected negotiations
+        extended_user.open_negotiations = []
+        extended_user.closed_negotiations = []
         if hasattr(extended_user, 'actor_identity'):
             negotiations, _ = self.clients.resource_registry.find_objects(extended_user.actor_identity, PRED.hasNegotiation, RT.Negotiation, id_only=False)
             for negotiation in negotiations:
                 if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
-                    open_negotiations.append(negotiation)
-            extended_user.negotiations = open_negotiations
+                    extended_user.open_negotiations.append(negotiation)
+                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
+                   negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
+                    extended_user.closed_negotiations.append(negotiation)
+
 
         # replace list of lists with single list
         replacement_owned_resources = []
