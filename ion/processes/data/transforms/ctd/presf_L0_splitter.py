@@ -56,7 +56,6 @@ class PresfL0SplitterAlgorithm(SimpleGranuleTransformFunction):
         out_rdt = RecordDictionaryTool(stream_definition_id=params)
 
         absolute_pressure = rdt['absolute_pressure']
-        pres_value = absolute_pressure
 
         for key, value in rdt.iteritems():
 
@@ -67,6 +66,6 @@ class PresfL0SplitterAlgorithm(SimpleGranuleTransformFunction):
             if cond and key in out_rdt:
                 out_rdt[key] = value[:]
 
-        out_rdt['absolute_pressure'] = pres_value
+        out_rdt['absolute_pressure'] = absolute_pressure
 
         return out_rdt.to_granule()

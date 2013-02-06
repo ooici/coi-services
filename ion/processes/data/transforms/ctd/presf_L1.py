@@ -53,7 +53,6 @@ class PresfL1TransformAlgorithm(SimpleGranuleTransformFunction):
         out_rdt = RecordDictionaryTool(stream_definition_id=params)
 
         absolute_pressure = rdt['absolute_pressure']
-        seafloor_pressure = absolute_pressure * 0.689475728
 
         for key, value in rdt.iteritems():
 
@@ -64,6 +63,6 @@ class PresfL1TransformAlgorithm(SimpleGranuleTransformFunction):
             if cond and key in out_rdt:
                 out_rdt[key] = value[:]
 
-        out_rdt['seafloor_pressure'] = seafloor_pressure
+        out_rdt['seafloor_pressure'] = absolute_pressure * 0.689475728
 
         return out_rdt.to_granule()
