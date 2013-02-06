@@ -12,7 +12,6 @@ from coverage_model.utils import create_guid
 from ion.util.pydap.handlers.coverage.coverage_handler import Handler
 from pydap.client import open_url
 from pyon.public import CFG
-import sys
 from pyon.util.file_sys import FileSystem
 
 @attr('UNIT', group='dm')
@@ -108,14 +107,10 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
     def test_parse_constraints_category(self):
         test_data = ["apple","lemon","apple","banana", "lemon"]
         self.cov.set_parameter_values('category',value=test_data)
-        pc = self.cov.get_parameter_context("category")
         dataset = open_url(self.request_url)
-        cat_keys = []
-        for d in dataset['data']['category']:
-            cat_keys.append(d)
         result = []
-        for key in cat_keys:
-            result.append(pc.param_type.categories[key])
+        for d in dataset['data']['category']:
+            result.append(d)
         self.assertEqual(result, test_data)
     
     def test_parse_constraints_range(self):
@@ -133,7 +128,7 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
             result.append(d)
         self.assertEqual(result, test_data_two)
     
-    def test_parse_constraints_array(self):
+    def test_parse_constraints_array_string(self):
         input_data = ["larry", "bob", "sally", "jennifer", "fred"]
         self.cov.set_parameter_values('array',value=input_data)
         dataset = open_url(self.request_url)
@@ -162,7 +157,6 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         for d in dataset['data']['record_values']:
             result.append(d)
         self.assertEqual(result, values)
-
     def tearDown(self):
         self.cov.close()
 
@@ -218,15 +212,11 @@ def _make_coverage(path):
     rec_ctxt.fill_value = 0x0
     pdict.add_context(rec_ctxt)
     
-    
-    
-    
-    
     serial_ctxt = ParameterContext('array', param_type=ArrayType())
     serial_ctxt.uom = 'unknown'
     serial_ctxt.fill_value = 0x0
     pdict.add_context(serial_ctxt)
-   
+    
     rec_ctxt = ParameterContext('record', param_type=RecordType())
     rec_ctxt.long_name = 'example of a parameter of type RecordType, will be filled with dictionaries'
     pdict.add_context(rec_ctxt)
