@@ -433,10 +433,7 @@ class VisualizationService(BaseVisualizationService):
                         varTuple.append(0.0)
                     else:
                         # Precision hardcoded for now. Needs to be on a per parameter basis
-                        if idx==1:   # ##### REMOVE
-                            varTuple.append(0.0)  # ##### REMOVE
-                        else:   # ##### REMOVE
-                            varTuple.append(round(float(tempTuple[idx]),5))
+                        varTuple.append(round(float(tempTuple[idx]),5))
                 else:
                     varTuple.append(tempTuple[idx])
 
