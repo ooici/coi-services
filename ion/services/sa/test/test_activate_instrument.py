@@ -33,7 +33,7 @@ from pyon.util.containers import  get_ion_ts
 
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
-
+import unittest, os
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
@@ -43,6 +43,8 @@ from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 import gevent
 import elasticpy as ep
+
+use_es = CFG.get_safe('system.elasticsearch',False)
 
 class FakeProcess(LocalContextMixin):
     """
