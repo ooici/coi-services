@@ -18,9 +18,14 @@ from pyon.util.log import log
 from interface.objects import Replay 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 
+import time
+
 class DataRetrieverService(BaseDataRetrieverService):
     REPLAY_PROCESS = 'replay_process'
 
+    _refresh_interval = 10
+    _retrieve_cache   = {}
+    
     def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
         super(DataRetrieverService,self).on_quit()
@@ -102,11 +107,31 @@ class DataRetrieverService(BaseDataRetrieverService):
         self.clients.resource_registry.delete(replay_id)
 
     @classmethod
+    def _get_coverage(cls,dataset_id):
+        '''
+        Memoized coverage instantiation and management
+        '''
+        # Cached get
+        retval = None
+        try:
+            retval, age = cls._retrieve_cache[dataset_id]
+            if (time.time() - age) > cls.refresh_interval:
+                raise KeyError(dataset_id)
+        except KeyError: # Cache hit
+            #@TODO: Add in LRU logic (maybe some mem checking too!)
+            if dataset_id not in cls._retrieve_cache:
+                print 'Cache hit for %s' % dataset_id
+                retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
+                age = time.time()
+                cls._retrieve_cache[dataset_id] = (retval, age)
+        return 
+
+    @classmethod
     def retrieve_oob(cls, dataset_id='', query=None, delivery_format=None):
         query = query or {}
         coverage = None
         try:
-            coverage = DatasetManagementService._get_coverage(dataset_id, mode='r')
+            coverage = cls._get_coverage(dataset_id)
             if coverage.num_timesteps == 0:
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
@@ -133,31 +158,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         @param kwargs          Keyword Arguments to pass into the transform.
 
         '''
-        if query is None:
-            query = {}
-        if delivery_format is None:
-            delivery_format = {}
-
-        validate_is_instance(query,dict,'Query was improperly formatted.')
-        validate_true(dataset_id, 'No dataset provided')
-        
-
-        replay_instance = ReplayProcess()
-
-        replay_instance.dataset       = self.clients.dataset_management.read_dataset(dataset_id)
-        replay_instance.dataset_id    = dataset_id
-        replay_instance.start_time    = query.get('start_time', None)
-        replay_instance.end_time      = query.get('end_time', None)
-        replay_instance.stride_time   = query.get('stride_time', None)
-        replay_instance.parameters    = query.get('parameters',None)
-        replay_instance.tdoa          = query.get('tdoa',None)
-        replay_instance.stream_def_id = delivery_format
-        replay_instance.container     = self.container
-
-        if replay_instance.tdoa is not None:
-            validate_is_instance(replay_instance.tdoa, slice)
-
-        retrieve_data = replay_instance.execute_retrieve()
+        retrieve_data = self.retrieve_oob(dataset_id=dataset_id,query=query,delivery_format=delivery_format)
 
         if module and cls:
             return self._transform_data(retrieve_data, module, cls, kwargs or {})

@@ -21,6 +21,7 @@ from interface.objects import DataSet
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
+from coverage_model import SimplexCoverage as ViewCoverage
 
 import os
 
@@ -28,6 +29,8 @@ import os
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
     DEFAULT_VIEW      = 'manifest/by_dataset'
+    _view_coverage_cache = {}
+    
     def __init__(self, *args, **kwargs):
         super(DatasetManagementService, self).__init__(*args,**kwargs)
         self.logging_name = '(DatasetManagementService %s)' % (self.name or self.id)
@@ -353,6 +356,12 @@ class DatasetManagementService(BaseDatasetManagementService):
     def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
+        return coverage
+
+    @classmethod
+    def _get_view_coverage(cls, dataset_id, mode='r'):
+        file_root = cls._get_coverage_path(dataset_id)
+        coverage = ViewCoverage(file_root, dataset_id, mode=mode)
         return coverage
 
     @classmethod
