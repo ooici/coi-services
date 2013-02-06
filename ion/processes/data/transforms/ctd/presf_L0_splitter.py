@@ -16,11 +16,10 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 
 class PresfL0Splitter(TransformDataProcess):
-    ''' A basic transform that receives input through a subscription,
-    parses the input from a CTD, extracts the pressure value and scales it according to
-    the defined algorithm. If the transform
-    has an output_stream it will publish the output on the output stream.
-
+    ''' A pressure transform that takes the absolute_pressure  as input and outputs the same. It simple maps the
+        input absolute_pressure param to an absolute_pressure output param
+        (as well as supporting params: time, port_timestamp, driver_timestamp, internal_timestamp, preferred_timestamp,)
+        other data parameters are dropped
     '''
     output_bindings = ['absolute_pressure']
 

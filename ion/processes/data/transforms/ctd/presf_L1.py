@@ -14,11 +14,9 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 
 class PresfL1Transform(TransformDataProcess):
-    ''' A basic transform that receives input through a subscription,
-    parses the input from a CTD, extracts the pressure value and scales it according to
-    the defined algorithm. If the transform
-    has an output_stream it will publish the output on the output stream.
-
+    ''' The transform takes the absolute_pressure stream as input, uses the scaling factor below on the absolute_pressure
+        param and outputs the seafloor_pressure stream with a seafloor_pressure  param and
+        supporting params.
     '''
     output_bindings = ['seafloor_pressure']
 
