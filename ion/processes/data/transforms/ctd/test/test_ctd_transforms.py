@@ -377,6 +377,30 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         self.assertTrue(input_data.all() == output_data.all())
 
+
+    def check_pres_L0_splitter_algorithm_execution(self, publish_granule, granule_from_transform):
+
+        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
+        output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
+
+        output_data = output_rdt_transform['absolute_pressure']
+        input_data = input_rdt_to_transform['absolute_pressure']
+
+        self.assertTrue(input_data.all() == output_data.all())
+
+    def check_pres_L1_algorithm_execution(self, publish_granule, granule_from_transform):
+
+        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
+        output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
+
+        output_data = output_rdt_transform['absolute_pressure']
+        input_data = input_rdt_to_transform['seafloor_pressure']
+
+        log.debug("pres_L1_transform: input_data: %s", input_data)
+        log.debug("pres_L1_transform: output_data: %s", output_data)
+
+        self.assertTrue(input_data.all() == output_data.all())
+
     def check_temp_algorithm_execution(self, publish_granule, granule_from_transform):
 
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
@@ -909,7 +933,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(result)
         self.assertTrue(rdt.__contains__('absolute_pressure'))
 
-        self.check_pres_algorithm_execution(publish_granule, result)
+        self.check_pres_L0_splitter_algorithm_execution(publish_granule, result)
 
 
     def test_presf_L1(self):
@@ -945,59 +969,59 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         # Schedule the process
         self.process_dispatcher.schedule_process(process_definition_id=ctd_transform_proc_def_id, configuration=config)
 
-#        #---------------------------------------------------------------------------------------------
-#        # Create subscribers that will receive the pressure granules from
-#        # the ctd transform
-#        #---------------------------------------------------------------------------------------------
-#
-#        ar_pres = gevent.event.AsyncResult()
-#        def subscriber3(m,r,s):
-#            ar_pres.set(m)
-#        sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
-#        self.addCleanup(sub_pres.stop)
-#
-#        sub_pres_id = self.pubsub.create_subscription('subscription_pres',
-#            stream_ids=[pres_stream_id],
-#            exchange_name='sub_pres')
-#
-#        self.pubsub.activate_subscription(sub_pres_id)
-#
-#        self.queue_cleanup.append(sub_pres.xn.queue)
-#
-#        sub_pres.start()
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
-#        #------------------------------------------------------------------------------------------------------
-#
-#        # Do all the routing stuff for the publishing
-#        routing_key = 'stream_id.stream'
-#        stream_route = StreamRoute(self.exchange_point, routing_key)
-#
-#        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
-#        xp = self.container.ex_manager.create_xp(self.exchange_point)
-#        xn.bind('stream_id.stream', xp)
-#
-#        pub = StandaloneStreamPublisher('stream_id', stream_route)
-#
-#        # Build a packet that can be published
-#        self.px_ctd = SimpleCtdPublisher()
-#        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
-#
-#        # Publish the packet
-#        pub.publish(publish_granule)
-#
-#        #------------------------------------------------------------------------------------------------------
-#        # Make assertions about whether the ctd transform executed its algorithm and published the correct
-#        # granules
-#        #------------------------------------------------------------------------------------------------------
-#
-#        # Get the granule that is published by the ctd transform post processing
-#        result = ar_pres.get(timeout=10)
-#        self.assertTrue(isinstance(result, Granule))
-#
-#        rdt = RecordDictionaryTool.load_from_granule(result)
-#        self.assertTrue(rdt.__contains__('pressure'))
-#
-#        self.check_pres_algorithm_execution(publish_granule, result)
-#
+        #---------------------------------------------------------------------------------------------
+        # Create subscribers that will receive the pressure granules from
+        # the ctd transform
+        #---------------------------------------------------------------------------------------------
+
+        ar_pres = gevent.event.AsyncResult()
+        def subscriber3(m,r,s):
+            ar_pres.set(m)
+        sub_pres = StandaloneStreamSubscriber('sub_pres', subscriber3)
+        self.addCleanup(sub_pres.stop)
+
+        sub_pres_id = self.pubsub.create_subscription('subscription_pres',
+            stream_ids=[pres_stream_id],
+            exchange_name='sub_pres')
+
+        self.pubsub.activate_subscription(sub_pres_id)
+
+        self.queue_cleanup.append(sub_pres.xn.queue)
+
+        sub_pres.start()
+
+        #------------------------------------------------------------------------------------------------------
+        # Use a StandaloneStreamPublisher to publish a packet that can be then picked up by a ctd transform
+        #------------------------------------------------------------------------------------------------------
+
+        # Do all the routing stuff for the publishing
+        routing_key = 'stream_id.stream'
+        stream_route = StreamRoute(self.exchange_point, routing_key)
+
+        xn = self.container.ex_manager.create_xn_queue(self.exchange_name)
+        xp = self.container.ex_manager.create_xp(self.exchange_point)
+        xn.bind('stream_id.stream', xp)
+
+        pub = StandaloneStreamPublisher('stream_id', stream_route)
+
+        # Build a packet that can be published
+        self.px_ctd = SimpleCtdPublisher()
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
+
+        # Publish the packet
+        pub.publish(publish_granule)
+
+        #------------------------------------------------------------------------------------------------------
+        # Make assertions about whether the ctd transform executed its algorithm and published the correct
+        # granules
+        #------------------------------------------------------------------------------------------------------
+
+        # Get the granule that is published by the ctd transform post processing
+        result = ar_pres.get(timeout=10)
+        self.assertTrue(isinstance(result, Granule))
+
+        rdt = RecordDictionaryTool.load_from_granule(result)
+        self.assertTrue(rdt.__contains__('seafloor_pressure'))
+
+        self.check_pres_L1_algorithm_execution(publish_granule, result)
+
