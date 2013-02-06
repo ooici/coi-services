@@ -365,7 +365,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['conductivity']
         input_data = input_rdt_to_transform['conductivity']
 
-        self.assertTrue(((input_data / 100000.0) - 0.5).all() == output_data.all())
+        self.assertTrue(numpy.array_equal(((input_data / 100000.0) - 0.5), output_data))
 
     def check_pres_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -375,7 +375,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['pressure']
         input_data = input_rdt_to_transform['pressure']
 
-        self.assertTrue(input_data.all() == output_data.all())
+        self.assertTrue(numpy.array_equal((input_data/ 100.0) + 0.5,output_data))
 
 
     def check_pres_L0_splitter_algorithm_execution(self, publish_granule, granule_from_transform):
@@ -412,7 +412,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['temp']
         input_data = input_rdt_to_transform['temp']
 
-        self.assertTrue(((input_data / 10000.0) - 10).all() == output_data.all())
+        self.assertTrue(numpy.array_equal(((input_data / 10000.0) - 10), output_data))
 
     def check_density_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -438,7 +438,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #-----------------------------------------------------------------------------
         # Check that the output data from the transform has the correct density values
         #-----------------------------------------------------------------------------
-        self.assertTrue(dens_value.all() == out_density.all())
+        self.assertTrue(numpy.array_equal(dens_value, out_density))
 
     def check_salinity_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -459,7 +459,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #-----------------------------------------------------------------------------
         # Check that the output data from the transform has the correct density values
         #-----------------------------------------------------------------------------
-        self.assertTrue(sal_value.all() == out_salinity.all())
+        self.assertTrue(numpy.array_equal(sal_value, out_salinity))
 
     def check_granule_splitting(self, publish_granule, out_dict):
         '''
@@ -478,9 +478,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         out_pres = out_dict['p']
         out_temp = out_dict['t']
 
-        self.assertTrue(in_cond.all() == out_cond.all())
-        self.assertTrue(in_pressure.all() == out_pres.all())
-        self.assertTrue(in_temp.all() == out_temp.all())
+        self.assertTrue(numpy.array_equal(in_cond,out_cond))
+        self.assertTrue(numpy.array_equal(in_pressure, out_pres))
+        self.assertTrue(numpy.array_equal(in_temp,out_temp))
 
     def test_ctd_L1_pressure(self):
         '''
