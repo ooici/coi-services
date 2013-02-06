@@ -386,7 +386,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['absolute_pressure']
         input_data = input_rdt_to_transform['absolute_pressure']
 
-        self.assertTrue(input_data.all() == output_data.all())
+        self.assertTrue(numpy.array_equal(output_data, input_data))
 
     def check_pres_L1_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -399,7 +399,10 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         log.debug("pres_L1_transform: input_data: %s", input_data)
         log.debug("pres_L1_transform: output_data: %s", output_data)
 
-        self.assertTrue(input_data.all() == output_data.all())
+        log.debug("type of input_data:: %s", type(input_data))
+
+
+        self.assertTrue(numpy.array_equal(output_data, input_data  * 0.689475728))
 
     def check_temp_algorithm_execution(self, publish_granule, granule_from_transform):
 
