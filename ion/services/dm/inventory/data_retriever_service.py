@@ -115,7 +115,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         retval = None
         try:
             retval, age = cls._retrieve_cache[dataset_id]
-            if (time.time() - age) > cls.refresh_interval:
+            if (time.time() - age) > cls._refresh_interval:
                 raise KeyError(dataset_id)
         except KeyError: # Cache hit
             #@TODO: Add in LRU logic (maybe some mem checking too!)
@@ -124,7 +124,7 @@ class DataRetrieverService(BaseDataRetrieverService):
                 retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
                 age = time.time()
                 cls._retrieve_cache[dataset_id] = (retval, age)
-        return 
+        return retval
 
     @classmethod
     def retrieve_oob(cls, dataset_id='', query=None, delivery_format=None):
@@ -132,18 +132,18 @@ class DataRetrieverService(BaseDataRetrieverService):
         coverage = None
         try:
             coverage = cls._get_coverage(dataset_id)
+            if coverage is None:
+                raise BadRequest('no such coverage')
             if coverage.num_timesteps == 0:
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
                 rdt = ReplayProcess._coverage_to_granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
         except Exception as e:
+            del cls._retrieve_cache[dataset_id] # Eject it from the cache
             import traceback
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')
-        finally:
-            if coverage is not None:
-                coverage.close(timeout=5)
         return rdt.to_granule()
 
   
