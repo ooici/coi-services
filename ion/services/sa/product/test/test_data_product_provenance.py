@@ -1,4 +1,4 @@
-
+from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 from pyon.public import  log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -54,6 +54,15 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.process_dispatcher   = ProcessDispatcherServiceClient()
 
         self.dataset_management = DatasetManagementServiceClient()
+
+        # create missing data process definition
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
+                            description="normally in preload",
+                            module='ion.processes.data.transforms.logical_transform',
+                            class_name='logical_transform')
+        self.dataprocessclient.create_data_process_definition(dpd_obj)
+
 
     #@unittest.skip('not ready')
     def test_get_provenance(self):

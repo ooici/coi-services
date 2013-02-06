@@ -1,3 +1,4 @@
+from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 from pyon.public import Container, log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -74,6 +75,14 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataset_management = DatasetManagementServiceClient()
+
+        # create missing data process definition
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
+                            description="normally in preload",
+                            module='ion.processes.data.transforms.logical_transform',
+                            class_name='logical_transform')
+        self.dataprocessclient.create_data_process_definition(dpd_obj)
 
 
     def create_logger(self, name, stream_id=''):

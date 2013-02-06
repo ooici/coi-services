@@ -1,5 +1,6 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from pyon.public import IonObject
@@ -32,6 +33,8 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+
+from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 
 import string
 
@@ -67,39 +70,22 @@ class TestAssembly(IonIntegrationTestCase):
         self.client.IMS  = InstrumentManagementServiceClient(node=self.container.node)
         self.client.OMS  = ObservatoryManagementServiceClient(node=self.container.node)
         self.client.PSMS = PubsubManagementServiceClient(node=self.container.node)
+        self.client.DPRS = DataProcessManagementServiceClient(node=self.container.node)
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
         self.dataset_management = DatasetManagementServiceClient()
 
-#    @unittest.skip('this test just for debugging setup')
-#    def test_just_the_setup(self):
-#        return
-    
 
-    def _low_level_init(self):
-        resource_ids = {}
-
-        #TODO: still relevant?
-        ## some stream definitions
-        #resource_ids[RT.StreamDefinition] = {}
-
-        # # get module and function by name specified in strings
-        # sc_module = "prototype.sci_data.stream_defs"
-        # sc_method = "ctd_stream_definition"
-        # module = __import__(sc_module, fromlist=[sc_method])
-        # creator_func = getattr(module, sc_method)
-
-        # for n in ["SeabirdSim_raw", "SeabirdSim_parsed"]:
-        #     container = creator_func()
-            
-        #     response = self.client.PSMS.create_stream_definition(container=container,
-        #                                                          name=n,
-        #                                                          description="inserted by test_assembly.py")
-        #     resource_ids[RT.StreamDefinition][n] = response
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
+                            description="normally in preload",
+                            module='ion.processes.data.transforms.logical_transform',
+                            class_name='logical_transform')
 
 
+        self.client.DPRS.create_data_process_definition(dpd_obj)
 
-        return resource_ids
+
 
 
 
@@ -133,8 +119,6 @@ class TestAssembly(IonIntegrationTestCase):
             
             return freeze()
 
-
-        #resource_ids = self._low_level_init()
 
 
         ###############################################

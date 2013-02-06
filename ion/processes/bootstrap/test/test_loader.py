@@ -151,4 +151,7 @@ class TestLoader(IonIntegrationTestCase):
         # check for platform model boolean values
         model = self.find_object_by_name('Nose Testing Platform Model', RT.PlatformModel)
         self.assertEquals(True, model.shore_networked)
-        self.assertNotEqual('str', model.shore_networked.__class__.__name__)
+        self.assertNotEqual('str', model.shore_networked.__class__.__name__)        self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+
+        # check for data process definition
+        self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)

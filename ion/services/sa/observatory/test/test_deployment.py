@@ -1,5 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from ion.services.dm.utility.granule_utils import time_series_domain
 from pyon.public import log, IonObject
@@ -53,6 +55,14 @@ class TestDeployment(IonIntegrationTestCase):
         self.c.resource_registry = self.rrclient
         self.resource_impl = ResourceImpl(self.c)
 
+        # create missing data process definition
+        self.dsmsclient = DataProcessManagementServiceClient(node=self.container.node)
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
+                            description="normally in preload",
+                            module='ion.processes.data.transforms.logical_transform',
+                            class_name='logical_transform')
+        self.dsmsclient.create_data_process_definition(dpd_obj)
 
     #@unittest.skip("targeting")
     def test_create_deployment(self):
