@@ -10,13 +10,10 @@ other data parameters are dropped
 
 from ion.core.process.transform import TransformDataProcess
 from pyon.core.exception import BadRequest
-### For new granule and stream interface
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
-# For usage: please refer to the integration tests in
-# ion/processes/data/transforms/ctd/test/test_ctd_transforms.py
 
 class PresfL0Splitter(TransformDataProcess):
     ''' A basic transform that receives input through a subscription,
