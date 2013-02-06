@@ -11,12 +11,10 @@ from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayT
 from pydap.model import DatasetType,BaseType, SequenceType
 from pydap.handlers.lib import BaseHandler
 import time
-import sys
 
 class Handler(BaseHandler):
 
-    #extensions = re.compile(r"^.*_cov", re.IGNORECASE)
-    extensions = re.compile(r'^.*[0-9A-Za-z]{32}', re.IGNORECASE)
+    extensions = re.compile(r'^.*[0-9A-Za-z\-]{36}',re.IGNORECASE)
 
     def __init__(self, filepath):
         self.filepath = filepath
@@ -33,6 +31,7 @@ class Handler(BaseHandler):
         return True
 
     def parse_constraints(self, environ):
+        import sys
         base = os.path.split(self.filepath)
         self.cov = SimplexCoverage.load(base[0], base[1],mode='r')
 
@@ -64,8 +63,8 @@ class Handler(BaseHandler):
                 slice_ = self.update_slice_object(slice_, fill_index)
                 if slice_ is None:
                     continue
-
-                print "name",name
+    
+                #print >> sys.stderr, "name",name
                 #print "is_coord",param.is_coordinate
                 pc = self.cov.get_parameter_context(name)
                 #just dealing with time series data for now make a sequence
@@ -77,18 +76,17 @@ class Handler(BaseHandler):
                         pass
                     attrs['long_name'] = pc.long_name
                     data = self.cov.get_parameter_values(name, tdoa=slice_)
+                    data = numpy.array(data) 
                     if isinstance(pc.param_type, QuantityType):
-                        ndata = numpy.array(data) 
-                        seq[name] = BaseType(name=name, data=ndata, type=ndata.dtype.char, attributes=attrs)
+                        seq[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
                     if isinstance(pc.param_type, ConstantType):
-                        ndata = numpy.array(data)
-                        seq[name] = BaseType(name=name, data=ndata, type=ndata.dtype.char, attributes=attrs)
+                        seq[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
                     if isinstance(pc.param_type, ConstantRangeType):
                         try:
                             col1,col2 = zip(*data)
                         except:
-                            col1 = []
-                            col2 = []
+                            col1 = [d for d in data]
+                            col2 = [d for d in data]
                         name_col1 = "_".join([name,"low"])
                         name_col2 = "_".join([name,"high"])
                         col1 = numpy.array(col1)
@@ -102,7 +100,8 @@ class Handler(BaseHandler):
                     if isinstance(pc.param_type,CategoryType):
                         cat_data = self.transform_categories(pc.param_type.categories, data)
                         cat_data = numpy.array(cat_data)
-                        seq[name] = BaseType(name=name, data=cat_data, type=cat_data.dtype.char, attributes=attrs)
+                        bt = BaseType(name=name, data=cat_data, type=cat_data.dtype.char, attributes=attrs)
+                        seq[name] = bt
                     if isinstance(pc.param_type,ArrayType):
                         data = numpy.array(data)
                         ttype = numpy.dtype.char
@@ -123,7 +122,7 @@ class Handler(BaseHandler):
                         else:
                             log.exception("only handle list and string objects")
                     if isinstance(pc.param_type,RecordType):
-                        print "rc data", data
+                        #print "rc data", data
                         keys = []
                         values = []
                         for ddict in data:
@@ -131,11 +130,12 @@ class Handler(BaseHandler):
                                 keys.append(k)
                                 values.append(v)
                         keys = numpy.array(keys)
-                        ttype = numpy.dtype.char
+                        ttype = keys.dtype.char
                         if self.is_str(keys) == True:
                             ttype = 's'
                         seq[name+"_keys"] = BaseType(name=name+"_keys", data=keys, type=ttype, attributes=attrs)
                         values = numpy.array(values)
+                        ttype = values.dtype.char
                         if self.is_str(values) == True:
                             ttype = 's'
                         seq[name+"_values"] = BaseType(name=name+"_values", data=values, type=ttype, attributes=attrs)
