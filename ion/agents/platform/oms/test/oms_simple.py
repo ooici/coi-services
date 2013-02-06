@@ -153,8 +153,8 @@ if __name__ == "__main__":  # pragma: no cover
         from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
         oms = OmsClientFactory.create_instance(uri)
         print "ping() = %s"  % oms.ping()
-        map = oms.getPlatformMap()
-        print "getPlatformMap() = %s" % map
+        map = oms.get_platform_map()
+        print "get_platform_map() = %s" % map
         nodes = NetworkUtil.create_node_network(map)
         if not '' in nodes:
             print "platform map does not include '' to indicate root platforms."
@@ -170,8 +170,8 @@ if __name__ == "__main__":  # pragma: no cover
     retval = proxy.hello.ping()
     print "ping() = %s"  % retval
 
-    retval = proxy.config.getPlatformMap()
-    print "getPlatformMap() = %s" % retval
+    retval = proxy.config.get_platform_map()
+    print "get_platform_map() = %s" % retval
 
     nodes = NetworkUtil.create_node_network(retval)
     if not '' in nodes:
@@ -210,7 +210,7 @@ $ date
 Mon Oct 29 11:59:56 PDT 2012
 $ bin/python ion/agents/platform/oms/test/oms_simple.py
 ping() = pong
-getPlatformMap() = [['LJ01A', 'LV01A'], ['LJ01B', 'LV01B'], ['LJ01C', 'LV01C'], ['LJ01D', 'MJ01C'], ['LJ03A', 'LV03A'], ['LV01A', 'Node1A'], ['LV01B', 'Node1B'], ['LV01C', 'Node1C'], ['LV03A', 'Node3A'], ['MJ01A', 'Node1A'], ['MJ01B', 'LV01B'], ['MJ01C', 'Node1D'], ['MJ03A', 'Node3A'], ['MJ03B', 'Node3B'], ['MJ03C', 'Node3B'], ['MJ03D', 'Node3B'], ['MJ03E', 'Node3B'], ['MJ03F', 'Node3B'], ['Node1A', 'ShoreStation'], ['Node1B', 'Node1A'], ['Node1C', 'Node1B'], ['Node1D', 'Node1C'], ['Node3A', 'Node5A'], ['Node3B', 'Node3A'], ['Node5A', 'ShoreStation'], ['PC01A', 'LV01A'], ['PC01B', 'LV01C'], ['PC03A', 'LV03A'], ['SC01A', 'PC01A'], ['SC01B', 'PC01B'], ['SC03A', 'PC03A'], ['SF01A', 'SC01A'], ['SF01B', 'SC01B'], ['SF03A', 'SC03A'], ['ShoreStation', '']]
+get_platform_map() = [['LJ01A', 'LV01A'], ['LJ01B', 'LV01B'], ['LJ01C', 'LV01C'], ['LJ01D', 'MJ01C'], ['LJ03A', 'LV03A'], ['LV01A', 'Node1A'], ['LV01B', 'Node1B'], ['LV01C', 'Node1C'], ['LV03A', 'Node3A'], ['MJ01A', 'Node1A'], ['MJ01B', 'LV01B'], ['MJ01C', 'Node1D'], ['MJ03A', 'Node3A'], ['MJ03B', 'Node3B'], ['MJ03C', 'Node3B'], ['MJ03D', 'Node3B'], ['MJ03E', 'Node3B'], ['MJ03F', 'Node3B'], ['Node1A', 'ShoreStation'], ['Node1B', 'Node1A'], ['Node1C', 'Node1B'], ['Node1D', 'Node1C'], ['Node3A', 'Node5A'], ['Node3B', 'Node3A'], ['Node5A', 'ShoreStation'], ['PC01A', 'LV01A'], ['PC01B', 'LV01C'], ['PC03A', 'LV03A'], ['SC01A', 'PC01A'], ['SC01B', 'PC01B'], ['SC03A', 'PC03A'], ['SF01A', 'SC01A'], ['SF01B', 'SC01B'], ['SF03A', 'SC03A'], ['ShoreStation', '']]
 topology =
 ShoreStation
     Node1A

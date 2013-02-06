@@ -54,7 +54,7 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getPlatformMap(self):
+    def get_platform_map(self):
         """
         Returns platform map. This is the network object model in the OMS.
 
@@ -62,14 +62,14 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getRootPlatformID(self):
+    def get_root_platform_id(self):
         """
         Returns the ID of the root platform in the network.
         @retval the ID of the root platform in the network.
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getSubplatformIDs(self, platform_id):
+    def get_subplatform_ids(self, platform_id):
         """
         Returns the IDs of the sub-platforms of the given platform.
         @retval     {platform_id: [sub_platform_id, ...]}
@@ -78,7 +78,7 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getPlatformTypes(self):
+    def get_platform_types(self):
         """
         Returns the types of platforms in the network
 
@@ -87,7 +87,7 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getPlatformMetadata(self, platform_id):
+    def get_platform_metadata(self, platform_id):
         """
         Returns the metadata for a requested platform.
 
@@ -98,7 +98,7 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getPlatformAttributes(self, platform_id):
+    def get_platform_attributes(self, platform_id):
         """
         Returns the attributes associated to a given platform.
 
@@ -109,19 +109,19 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getPlatformAttributeValues(self, platform_id, attrNames, from_time):
+    def get_platform_attribute_values(self, platform_id, attrNames, from_time):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def setPlatformAttributeValues(self, platform_id, attrs):
+    def set_platform_attribute_values(self, platform_id, attrs):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getPlatformPorts(self, platform_id):
+    def get_platform_ports(self, platform_id):
         """
         Returns information for each port in a given platform.
 
@@ -132,7 +132,7 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def setUpPort(self, platform_id, port_id, attributes):
+    def set_up_platform_port(self, platform_id, port_id, attributes):
         """
         Sets up a port in a platform.
 
@@ -145,9 +145,9 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def turnOnPort(self, platform_id, port_id):
+    def turn_on_platform_port(self, platform_id, port_id):
         """
-        Turns on a port in a platform. The port should have previously set up with setUpPort
+        Turns on a port in a platform. The port should have previously set up with set_up_platform_port
 
         @param platform_id	 	 Platform ID
         @param port_id	 	     PortID ID
@@ -156,7 +156,7 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def turnOffPort(self, platform_id, port_id):
+    def turn_off_platform_port(self, platform_id, port_id):
         """
         Turns off a port in a platform.
 
@@ -167,31 +167,31 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def describeEventTypes(self, event_type_ids):
+    def describe_event_types(self, event_type_ids):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getEventsByPlatformType(self, platform_types):
+    def get_events_by_platform_type(self, platform_types):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def registerEventListener(self, url, event_types):
+    def register_event_listener(self, url, event_types):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def unregisterEventListener(self, url, event_types):
+    def unregister_event_listener(self, url, event_types):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def getRegisteredEventListeners(self):
+    def get_registered_event_listeners(self):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """

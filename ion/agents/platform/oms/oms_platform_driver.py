@@ -134,8 +134,8 @@ class OmsPlatformDriver(PlatformDriver):
     def get_metadata(self):
         """
         """
-        retval = self._oms.getPlatformMetadata(self._platform_id)
-        log.debug("getPlatformMetadata = %s", retval)
+        retval = self._oms.get_platform_metadata(self._platform_id)
+        log.debug("get_platform_metadata = %s", retval)
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
@@ -154,8 +154,8 @@ class OmsPlatformDriver(PlatformDriver):
         # OOIION-631 convert the system time from_time to NTP, which is used by
         # the RSN OMS interface:
         ntp_from_time = ion_ts_2_ntp(from_time)
-        retval = self._oms.getPlatformAttributeValues(self._platform_id, attr_names, ntp_from_time)
-        log.debug("getPlatformAttributeValues = %s", retval)
+        retval = self._oms.get_platform_attribute_values(self._platform_id, attr_names, ntp_from_time)
+        log.debug("get_platform_attribute_values = %s", retval)
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
@@ -291,8 +291,8 @@ class OmsPlatformDriver(PlatformDriver):
             attrs = attrs_dict.items()
 
         # ok, now make the request to RSN OMS:
-        retval = self._oms.setPlatformAttributeValues(self._platform_id, attrs)
-        log.debug("setPlatformAttributeValues = %s", retval)
+        retval = self._oms.set_platform_attribute_values(self._platform_id, attrs)
+        log.debug("set_platform_attribute_values = %s", retval)
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
@@ -396,8 +396,8 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: setting port: port_id=%s attributes=%s",
                   self._platform_id, port_id, attributes)
 
-        response = self._oms.setUpPort(self._platform_id, port_id, attributes)
-        log.debug("%r: setUpPort response: %s",
+        response = self._oms.set_up_platform_port(self._platform_id, port_id, attributes)
+        log.debug("%r: set_up_platform_port response: %s",
             self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
@@ -409,8 +409,8 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: turning on port: port_id=%s",
                   self._platform_id, port_id)
 
-        response = self._oms.turnOnPort(self._platform_id, port_id)
-        log.debug("%r: turnOnPort response: %s",
+        response = self._oms.turn_on_platform_port(self._platform_id, port_id)
+        log.debug("%r: turn_on_platform_port response: %s",
             self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
@@ -422,8 +422,8 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: turning off port: port_id=%s",
                   self._platform_id, port_id)
 
-        response = self._oms.turnOffPort(self._platform_id, port_id)
-        log.debug("%r: turnOffPort response: %s",
+        response = self._oms.turn_off_platform_port(self._platform_id, port_id)
+        log.debug("%r: turn_off_platform_port response: %s",
             self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
@@ -438,15 +438,15 @@ class OmsPlatformDriver(PlatformDriver):
         """
         Registers given url for all event types.
         """
-        result = self._oms.registerEventListener(url, [])
-        log.info("registerEventListener url=%r returned: %s", url, str(result))
+        result = self._oms.register_event_listener(url, [])
+        log.info("register_event_listener url=%r returned: %s", url, str(result))
 
     def _unregister_event_listener(self, url):
         """
         Unregisters given url for all event types.
         """
-        result = self._oms.unregisterEventListener(url, [])
-        log.info("unregisterEventListener url=%r returned: %s", url, str(result))
+        result = self._oms.unregister_event_listener(url, [])
+        log.info("unregister_event_listener url=%r returned: %s", url, str(result))
 
     def start_event_dispatch(self, params):
         # start http server:

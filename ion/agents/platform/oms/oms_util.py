@@ -41,18 +41,18 @@ class RsnOmsUtil(object):
                       rsn_oms.__class__.__name__)
 
         # platform types:
-        platform_types = rsn_oms.config.getPlatformTypes()
+        platform_types = rsn_oms.config.get_platform_types()
         if log.isEnabledFor(logging.DEBUG):
             log.debug("got platform_types %s", str(platform_types))
 
         # platform map:
-        map = rsn_oms.config.getPlatformMap()
+        map = rsn_oms.config.get_platform_map()
         if log.isEnabledFor(logging.DEBUG):
             log.debug("got platform map %s", str(map))
 
         # build topology:
         nodes = NetworkUtil.create_node_network(map)
-        platform_id = rsn_oms.getRootPlatformID()
+        platform_id = rsn_oms.get_root_platform_id()
         assert platform_id
 
         nnode = nodes[platform_id]
@@ -71,9 +71,9 @@ class RsnOmsUtil(object):
 
         def set_attributes(nnode):
             platform_id = nnode.platform_id
-            attr_infos = rsn_oms.getPlatformAttributes(platform_id)
+            attr_infos = rsn_oms.get_platform_attributes(platform_id)
             if not isinstance(attr_infos, dict):
-                log.warn("%r: getPlatformAttributes returned: %s",
+                log.warn("%r: get_platform_attributes returned: %s",
                          platform_id, attr_infos)
                 return
 
@@ -89,9 +89,9 @@ class RsnOmsUtil(object):
 
         def set_ports(nnode):
             platform_id = nnode.platform_id
-            port_infos = rsn_oms.getPlatformPorts(platform_id)
+            port_infos = rsn_oms.get_platform_ports(platform_id)
             if not isinstance(port_infos, dict):
-                log.warn("%r: getPlatformPorts returned: %s",
+                log.warn("%r: get_platform_ports returned: %s",
                          platform_id, port_infos)
                 return
 

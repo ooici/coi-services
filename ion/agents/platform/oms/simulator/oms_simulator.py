@@ -136,26 +136,26 @@ class OmsSimulator(OmsClient):
     def ping(self):
         return "pong"
 
-    def getPlatformMap(self):
+    def get_platform_map(self):
         return self._dummy_root.get_map([])
 
-    def getRootPlatformID(self):
+    def get_root_platform_id(self):
         subplatforms = self._dummy_root.subplatforms
         assert len(subplatforms) == 1
         actual_root = list(subplatforms.itervalues())[0]
         return actual_root.platform_id
 
-    def getSubplatformIDs(self, platform_id):
+    def get_subplatform_ids(self, platform_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         nnode = self._idp[platform_id]
         return {platform_id: list(nnode.subplatforms.iterkeys())}
 
-    def getPlatformTypes(self):
+    def get_platform_types(self):
         return self._platform_types
 
-    def getPlatformMetadata(self, platform_id):
+    def get_platform_metadata(self, platform_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -171,7 +171,7 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: md}
 
-    def getPlatformAttributes(self, platform_id):
+    def get_platform_attributes(self, platform_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -188,7 +188,7 @@ class OmsSimulator(OmsClient):
         return "platform_types: %s\nnetwork:\n%s" % (
             self._platform_types, self._dummy_root.dump())
 
-    def getPlatformAttributeValues(self, platform_id, attrNames, from_time):
+    def get_platform_attribute_values(self, platform_id, attrNames, from_time):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -207,7 +207,7 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: vals}
 
-    def setPlatformAttributeValues(self, platform_id, input_attrs):
+    def set_platform_attribute_values(self, platform_id, input_attrs):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -230,10 +230,10 @@ class OmsSimulator(OmsClient):
                 vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
 
         retval = {platform_id: vals}
-        log.debug("setPlatformAttributeValues returning: %s", str(retval))
+        log.debug("set_platform_attribute_values returning: %s", str(retval))
         return retval
 
-    def getPlatformPorts(self, platform_id):
+    def get_platform_ports(self, platform_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -243,7 +243,7 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: ports}
 
-    def setUpPort(self, platform_id, port_id, attributes):
+    def set_up_platform_port(self, platform_id, port_id, attributes):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -263,11 +263,11 @@ class OmsSimulator(OmsClient):
                 result[key] = val
             else:
                 result[key] = InvalidResponse.ATTRIBUTE_NAME
-                log.warn("setUpPort called with unrecognized attribute: %s"% key)
+                log.warn("set_up_platform_port called with unrecognized attribute: %s"% key)
 
         return {platform_id: {port_id: result}}
 
-    def turnOnPort(self, platform_id, port_id):
+    def turn_on_platform_port(self, platform_id, port_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -283,7 +283,7 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: {port_id: port._on}}
 
-    def turnOffPort(self, platform_id, port_id):
+    def turn_off_platform_port(self, platform_id, port_id):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -299,7 +299,7 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: {port_id: port._on}}
 
-    def describeEventTypes(self, event_type_ids):
+    def describe_event_types(self, event_type_ids):
         if len(event_type_ids) == 0:
             return EventInfo.EVENT_TYPES
 
@@ -312,7 +312,7 @@ class OmsSimulator(OmsClient):
 
         return result
 
-    def getEventsByPlatformType(self, platform_types):
+    def get_events_by_platform_type(self, platform_types):
         if len(platform_types) == 0:
             platform_types = self._platform_types.keys()
 
@@ -334,8 +334,8 @@ class OmsSimulator(OmsClient):
         # TODO implement it; for now always returning True
         return True
 
-    def registerEventListener(self, url, event_types):
-        log.debug("registerEventListener called: url=%r, event_types=%s",
+    def register_event_listener(self, url, event_types):
+        log.debug("register_event_listener called: url=%r, event_types=%s",
                  url, str(event_types))
 
         if not self._validate_event_listener_url(url):
@@ -379,8 +379,8 @@ class OmsSimulator(OmsClient):
 
         return {url: result_list}
 
-    def unregisterEventListener(self, url, event_types):
-        log.debug("unregisterEventListener called: url=%r, event_types=%s",
+    def unregister_event_listener(self, url, event_types):
+        log.debug("unregister_event_listener called: url=%r, event_types=%s",
                  url, str(event_types))
 
         if not url in self._reg_event_listeners:
@@ -434,5 +434,5 @@ class OmsSimulator(OmsClient):
 
         return {url: result_list}
 
-    def getRegisteredEventListeners(self):
+    def get_registered_event_listeners(self):
         return self._reg_event_listeners
