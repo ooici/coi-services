@@ -56,6 +56,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.event                = Event()
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
+        self.i                    = 0
 
         self.purge_queues()
         self.queue_buffer         = []
@@ -91,7 +92,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         if not parameter_dict_id:
             parameter_dict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
 
-        dataset_id = self.dataset_management.create_dataset('test_dataset', parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
+        dataset_id = self.dataset_management.create_dataset('test_dataset_%i'%self.i, parameter_dictionary_id=parameter_dict_id, spatial_domain=sdom, temporal_domain=tdom)
         return dataset_id
     
     def get_datastore(self, dataset_id):
@@ -130,11 +131,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
         '''
         pdict_id             = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         stream_def_id        = self.pubsub_management.create_stream_definition('ctd data', parameter_dictionary_id=pdict_id)
-        stream_id, route     = self.pubsub_management.create_stream('ctd stream', 'xp1', stream_definition_id=stream_def_id)
+        stream_id, route     = self.pubsub_management.create_stream('ctd stream %i' % self.i, 'xp1', stream_definition_id=stream_def_id)
 
         dataset_id = self.create_dataset(pdict_id)
 
         self.get_datastore(dataset_id)
+        self.i += 1
         return stream_id, route, stream_def_id, dataset_id
 
     def publish_hifi(self,stream_id,stream_route,offset=0):
@@ -575,6 +577,38 @@ class TestDMEnd2End(IonIntegrationTestCase):
         granule = DataRetrieverService.retrieve_oob(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
         self.assertTrue((rdt['time'] == np.arange(40)).all())
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_retrieve_cache(self):
+        DataRetrieverService._refresh_interval = 1
+        datasets = [self.make_simple_dataset() for i in xrange(10)]
+        for stream_id, route, stream_def_id, dataset_id in datasets:
+            coverage = DatasetManagementService._get_coverage(dataset_id)
+            coverage.insert_timesteps(10)
+            coverage.set_parameter_values('time', np.arange(10))
+            coverage.set_parameter_values('temp', np.arange(10))
+
+        # Verify cache hit and refresh
+        dataset_ids = [i[3] for i in datasets]
+        self.assertTrue(dataset_ids[0] not in DataRetrieverService._retrieve_cache)
+        DataRetrieverService._get_coverage(dataset_ids[0]) # Hit the chache
+        cov, age = DataRetrieverService._retrieve_cache[dataset_ids[0]]
+        # Verify that it was hit and it's now in there
+        self.assertTrue(dataset_ids[0] in DataRetrieverService._retrieve_cache)
+
+        gevent.sleep(DataRetrieverService._refresh_interval + 0.2)
+
+        DataRetrieverService._get_coverage(dataset_ids[0]) # Hit the chache
+        cov, age2 = DataRetrieverService._retrieve_cache[dataset_ids[0]]
+        self.assertTrue(age2 != age)
+
+        for dataset_id in dataset_ids:
+            DataRetrieverService._get_coverage(dataset_id)
+        
+        self.assertTrue(dataset_ids[0] not in DataRetrieverService._retrieve_cache)
+
+        
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')

@@ -18,13 +18,15 @@ from pyon.util.log import log
 from interface.objects import Replay 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 
+import collections
 import time
 
 class DataRetrieverService(BaseDataRetrieverService):
     REPLAY_PROCESS = 'replay_process'
 
     _refresh_interval = 10
-    _retrieve_cache   = {}
+    _cache_limit      = 5
+    _retrieve_cache   = collections.OrderedDict()
     
     def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
@@ -114,16 +116,16 @@ class DataRetrieverService(BaseDataRetrieverService):
         # Cached get
         retval = None
         try:
-            retval, age = cls._retrieve_cache[dataset_id]
+            retval, age = cls._retrieve_cache.pop(dataset_id)
             if (time.time() - age) > cls._refresh_interval:
                 raise KeyError(dataset_id)
         except KeyError: # Cache hit
             #@TODO: Add in LRU logic (maybe some mem checking too!)
-            if dataset_id not in cls._retrieve_cache:
-                print 'Cache hit for %s' % dataset_id
-                retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
-                age = time.time()
-                cls._retrieve_cache[dataset_id] = (retval, age)
+            if len(cls._retrieve_cache) > cls._cache_limit:
+                cls._retrieve_cache.popitem(0)
+            retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
+        age = time.time()
+        cls._retrieve_cache[dataset_id] = (retval, age)
         return retval
 
     @classmethod
