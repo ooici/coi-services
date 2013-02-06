@@ -393,8 +393,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
         output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
 
-        output_data = output_rdt_transform['absolute_pressure']
-        input_data = input_rdt_to_transform['seafloor_pressure']
+        output_data = output_rdt_transform['seafloor_pressure']
+        input_data = input_rdt_to_transform['absolute_pressure']
 
         log.debug("pres_L1_transform: input_data: %s", input_data)
         log.debug("pres_L1_transform: output_data: %s", output_data)
@@ -848,7 +848,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
     def test_presf_L0_splitter(self):
         '''
-        Test that packets are processed by the ctd_L1_pressure transform
+        Test that packets are processed by the pres_L0_splitter transform
         '''
 
         #---------------------------------------------------------------------------------------------
@@ -938,7 +938,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
     def test_presf_L1(self):
         '''
-        Test that packets are processed by the ctd_L1_pressure transform
+        Test that packets are processed by the pres_L1 transform
         '''
 
         #---------------------------------------------------------------------------------------------
