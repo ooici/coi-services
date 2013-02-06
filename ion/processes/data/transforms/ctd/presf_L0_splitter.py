@@ -2,8 +2,8 @@
 '''
 @author Swarbhanu Chatterjee
 @file ion/processes/data/transforms/ctd/presf_L0_splitter.py
-@description The transform takes the presf_tide_measurement stream as input and outputs the DPD7_out_L0_pressure stream
-(will create this streamdef shortly). It simple maps the input pressure param to an pressure output param
+@description The transform takes the absolute_pressure  as input and outputs the same. It simple maps the
+input absolute_pressure param to an absolute_pressure output param
 (as well as supporting params: time, port_timestamp, driver_timestamp, internal_timestamp, preferred_timestamp,)
 other data parameters are dropped
 '''

@@ -1,8 +1,8 @@
 '''
 @author Swarbhanu Chatterjee
-@file ion/processes/data/transforms/ctd/presf_L0_splitter.py
-@description The transform takes the DPD8_out_L0_pressure stream as input, uses the scaling factor below on the pressure
-param and outputs the DPD8_out_L1_pressure stream (will create this streamdef shortly) with a pressure  param and
+@file ion/processes/data/transforms/ctd/presf_L1.py
+@description The transform takes the absolute_pressure stream as input, uses the scaling factor below on the absolute_pressure
+param and outputs the seafloor_pressure stream with a seafloor_pressure  param and
 supporting params.
 '''
 
