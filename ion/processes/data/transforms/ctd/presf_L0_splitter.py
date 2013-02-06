@@ -62,7 +62,7 @@ class PresfL0SplitterAlgorithm(SimpleGranuleTransformFunction):
 
             cond = key=='time' or key=='port_timestamp' or key=='driver_timestamp'\
                    or  key=='internal_timestamp' or key=='preferred_timestamp' or key=='timestamp'\
-                   or key=='lat' or key=='lon' or key=='absolute_pressure'
+                   or key=='lat' or key=='lon'
 
             if cond and key in out_rdt:
                 out_rdt[key] = value[:]
