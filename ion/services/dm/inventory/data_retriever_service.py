@@ -14,12 +14,14 @@ from pyon.public import PRED, RT
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.util.containers import for_name
 from pyon.util.log import log
+from pyon.event.event import EventSubscriber
 
 from interface.objects import Replay 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 
 import collections
 import time
+import gevent
 
 class DataRetrieverService(BaseDataRetrieverService):
     REPLAY_PROCESS = 'replay_process'
@@ -27,12 +29,27 @@ class DataRetrieverService(BaseDataRetrieverService):
     _refresh_interval = 10
     _cache_limit      = 5
     _retrieve_cache   = collections.OrderedDict()
+    _cache_lock       = gevent.coros.RLock()
     
     def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
+        self.event_subscriber.stop()
         super(DataRetrieverService,self).on_quit()
 
 
+    def on_start(self):
+        self.event_subscriber = EventSubscriber(event_type='DatasetModified', callback=lambda event,m : self._eject_cache(event.dataset_id))
+        self.event_subscriber.start()
+
+
+    @classmethod
+    def _eject_cache(cls, dataset_id):
+        with cls._cache_lock:
+            try:
+                cls._retrieve_cache.pop(dataset_id)
+            except KeyError:
+                pass
+    
     def define_replay(self, dataset_id='', query=None, delivery_format=None, stream_id=''):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         query: 
@@ -115,17 +132,18 @@ class DataRetrieverService(BaseDataRetrieverService):
         '''
         # Cached get
         retval = None
-        try:
-            retval, age = cls._retrieve_cache.pop(dataset_id)
-            if (time.time() - age) > cls._refresh_interval:
-                raise KeyError(dataset_id)
-        except KeyError: # Cache hit
-            #@TODO: Add in LRU logic (maybe some mem checking too!)
-            if len(cls._retrieve_cache) > cls._cache_limit:
-                cls._retrieve_cache.popitem(0)
-            retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
-        age = time.time()
-        cls._retrieve_cache[dataset_id] = (retval, age)
+        with cls._cache_lock:
+            try:
+                retval, age = cls._retrieve_cache.pop(dataset_id)
+                if (time.time() - age) > cls._refresh_interval:
+                    raise KeyError(dataset_id)
+            except KeyError: # Cache hit
+                #@TODO: Add in LRU logic (maybe some mem checking too!)
+                if len(cls._retrieve_cache) > cls._cache_limit:
+                    cls._retrieve_cache.popitem(0)
+                retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
+            age = time.time()
+            cls._retrieve_cache[dataset_id] = (retval, age)
         return retval
 
     @classmethod
@@ -142,7 +160,8 @@ class DataRetrieverService(BaseDataRetrieverService):
             else:
                 rdt = ReplayProcess._coverage_to_granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
         except Exception as e:
-            del cls._retrieve_cache[dataset_id] # Eject it from the cache
+            with cls._cache_lock:
+                del cls._retrieve_cache[dataset_id] # Eject it from the cache
             import traceback
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')

@@ -105,6 +105,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         else:
             log.error('Invalid granule')
 
+    def dataset_changed(self, dataset_id, extents, window):
+        self.event_publisher.publish_event(origin=dataset_id, dataset_id=dataset_id, extents=extents, window=window)
+
     def add_granule(self,stream_id, granule):
         '''
         Appends the granule's data to the coverage and persists it.

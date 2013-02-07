@@ -423,7 +423,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 replay_granule = self.data_retriever.retrieve_last_data_points(dataset_id, 10)
 
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                print rdt['time']
 
                 comp = rdt['time'] == np.arange(10) + 10
                 if not isinstance(comp,bool):
@@ -607,6 +606,26 @@ class TestDMEnd2End(IonIntegrationTestCase):
             DataRetrieverService._get_coverage(dataset_id)
         
         self.assertTrue(dataset_ids[0] not in DataRetrieverService._retrieve_cache)
+
+        stream_id, route, stream_def, dataset_id = datasets[0]
+        self.start_ingestion(stream_id, dataset_id)
+        DataRetrieverService._get_coverage(dataset_id)
+        
+        self.assertTrue(dataset_id in DataRetrieverService._retrieve_cache)
+
+        DataRetrieverService._refresh_interval = 100
+        self.publish_hifi(stream_id,route,1)
+        self.wait_until_we_have_enough_granules(dataset_id, data_size=20)
+            
+ 
+        event = gevent.event.Event()
+        with gevent.Timeout(20):
+            while not event.wait(0.1):
+                if dataset_id not in DataRetrieverService._retrieve_cache:
+                    event.set()
+
+
+        self.assertTrue(event.is_set())
 
         
 
