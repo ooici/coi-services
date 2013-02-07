@@ -19,7 +19,7 @@ from ion.agents.instrument.exceptions import InstrumentStateException
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from ion.agents.instrument.instrument_agent import InstrumentAgent
-from mi.core.instrument.instrument_driver import DriverEvent
+from ion.core.includes.mi import DriverEvent
 
 
 class ExternalDatasetAgent(InstrumentAgent):

@@ -49,7 +49,7 @@ from pyon.ion.resource import PRED, RT
 # MI imports
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
-from mi.core.instrument.instrument_driver import DriverEvent
+from ion.core.includes.mi import DriverEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
