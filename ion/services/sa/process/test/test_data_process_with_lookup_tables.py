@@ -71,7 +71,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
         try:
             instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         except BadRequest as ex:
@@ -101,13 +101,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         # Create InstrumentAgentInstance to hold configuration information
         #-------------------------------
 
-        driver_config = {
-            'dvr_mod' : 'mi.instrument.seabird.sbe37smb.ooicore.driver',
-            'dvr_cls' : 'SBE37Driver',
-            'workdir' : '/tmp/',
-        }
-
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", driver_config = driver_config,
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", 
                                           comms_device_address='sbe37-simulator.oceanobservatories.org',   comms_device_port=4001,  port_agent_work_dir='/tmp/', port_agent_delimeter=['<<','>>'] )
         self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 
