@@ -331,8 +331,6 @@ class VisualizationService(BaseVisualizationService):
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
 
-        dataset_bounds = None
-        dataset_time_bounds = None
         use_direct_access = False
         if visualization_parameters == {}:
             visualization_parameters = None
@@ -434,7 +432,8 @@ class VisualizationService(BaseVisualizationService):
                     if tempTuple[idx] == None:
                         varTuple.append(0.0)
                     else:
-                        varTuple.append(round(float(tempTuple[idx]),4))
+                        # Precision hardcoded for now. Needs to be on a per parameter basis
+                        varTuple.append(round(float(tempTuple[idx]),5))
                 else:
                     varTuple.append(tempTuple[idx])
 

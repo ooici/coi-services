@@ -941,7 +941,7 @@ class UserNotificationService(BaseUserNotificationService):
             ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
 
             if ids and user_id in ids:
-                log.debug("Removing the notification: %s", notif)
+                log.debug("Adding for the user: %s, the notification: %s", user_id, notif)
                 notifications.append(notif)
 
         return notifications
