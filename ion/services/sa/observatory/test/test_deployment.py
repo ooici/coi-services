@@ -64,6 +64,13 @@ class TestDeployment(IonIntegrationTestCase):
                             class_name='logical_transform')
         self.dsmsclient.create_data_process_definition(dpd_obj)
 
+        # deactivate all data processes when tests are complete
+        def killAllDataProcesses():
+            for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
+                self.dsmsclient.deactivate_data_process(proc_id)
+        self.addCleanup(killAllDataProcesses)
+
+
     #@unittest.skip("targeting")
     def test_create_deployment(self):
 

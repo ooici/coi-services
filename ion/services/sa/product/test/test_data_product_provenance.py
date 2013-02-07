@@ -63,6 +63,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                             class_name='logical_transform')
         self.dataprocessclient.create_data_process_definition(dpd_obj)
 
+        # deactivate all data processes when tests are complete
+        def killAllDataProcesses():
+            for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
+                self.dataprocessclient.deactivate_data_process(proc_id)
+        self.addCleanup(killAllDataProcesses)
+
 
     #@unittest.skip('not ready')
     def test_get_provenance(self):
