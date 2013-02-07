@@ -231,6 +231,9 @@ class UserNotificationTest(PyonTestCase):
         self.mock_rr_client.update = mocksignature(self.mock_rr_client.update)
         self.mock_rr_client.update.return_value = ''
 
+        self.mock_rr_client.find_subjects = mocksignature(self.mock_rr_client.find_subjects)
+        self.mock_rr_client.find_subjects.return_value = [], ''
+
         #-------------------------------------------------------------------------------------------------------------------
         # execution
         #-------------------------------------------------------------------------------------------------------------------
