@@ -8,9 +8,9 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict, get_ion_ts
-from pyon.public import IonObject, RT, OT, PRED, Container, CFG
+from pyon.public import IonObject, RT, OT, PRED, Container
 from pyon.core.exception import NotFound, BadRequest
-from pyon.core.bootstrap import get_sys_name
+from pyon.core.bootstrap import get_sys_name, CFG
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient

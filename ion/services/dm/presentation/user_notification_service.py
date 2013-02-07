@@ -8,7 +8,9 @@
 """
 
 from pyon.core.exception import BadRequest, IonException, NotFound
+from pyon.core.bootstrap import CFG
 from pyon.util.log import log
+from pyon.public import RT, PRED, get_sys_name, Container, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
