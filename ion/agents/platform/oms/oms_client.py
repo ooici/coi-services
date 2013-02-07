@@ -12,18 +12,29 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
+class NormalResponse(object):
+    INSTRUMENT_DISCONNECTED       = 'OK_INSTRUMENT_DISCONNECTED'
+
 class InvalidResponse(object):
     PLATFORM_ID                   = 'INVALID_PLATFORM_ID'
     ATTRIBUTE_NAME                = 'INVALID_ATTRIBUTE_NAME'
-    ATTRIBUTE_VALUE_OUT_OF_RANGE  = 'ATTRIBUTE_VALUE_OUT_OF_RANGE'
-    ATTRIBUTE_NOT_WRITABLE        = 'ATTRIBUTE_NOT_WRITABLE'
+    ATTRIBUTE_VALUE_OUT_OF_RANGE  = 'ERROR_ATTRIBUTE_VALUE_OUT_OF_RANGE'
+    ATTRIBUTE_NOT_WRITABLE        = 'ERROR_ATTRIBUTE_NOT_WRITABLE'
     PORT_ID                       = 'INVALID_PORT_ID'
+    PORT_IS_ON                    = 'ERROR_PORT_IS_ON'
+
+    INSTRUMENT_ID                 = 'INVALID_INSTRUMENT_ID'
+    INSTRUMENT_ALREADY_CONNECTED  = 'ERROR_INSTRUMENT_ALREADY_CONNECTED'
+    INSTRUMENT_NOT_CONNECTED      = 'ERROR_INSTRUMENT_NOT_CONNECTED'
+    MISSING_INSTRUMENT_ATTRIBUTE  = 'MISSING_INSTRUMENT_ATTRIBUTE'
+    INVALID_INSTRUMENT_ATTRIBUTE  = 'INVALID_INSTRUMENT_ATTRIBUTE'
 
     PLATFORM_TYPE                 = 'INVALID_PLATFORM_TYPE'
     EVENT_LISTENER_URL            = 'INVALID_EVENT_LISTENER_URL'
     EVENT_TYPE                    = 'INVALID_EVENT_TYPE'
 
-VALID_PORT_ATTRIBUTES = [
+# required attributes for instrument connection:
+REQUIRED_INSTRUMENT_ATTRIBUTES = [
     'maxCurrentDraw', 'initCurrent', 'dataThroughput', 'instrumentType'
 ]
 
@@ -34,10 +45,11 @@ class OmsClient(object):
 
     See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
 
-    Note that the real OMS interface uses "handlers" for grouping operations
-    (for example, "ping" is actually a method of the "hello" handler). Here we
-    define all operations at the base level. As a simple trick to emulate the
-    "handler" mechanism, corresponding properties are defined as self.
+    Note that a preliminary implementation of the real OMS interface used
+    "handlers" for grouping operations (for example, "ping" is actually a
+    method of the "hello" handler). Here we define all operations at the
+    base level. As a simple mechanism to emulate the "handler" mechanism,
+    corresponding properties are defined as `self`.
     """
 
     @property
@@ -132,22 +144,47 @@ class OmsClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def set_up_platform_port(self, platform_id, port_id, attributes):
+    def connect_instrument(self, platform_id, port_id, instrument_id, attributes):
         """
-        Sets up a port in a platform.
+        Adds an instrument to a platform port.
 
         @param platform_id	 	 Platform ID
-        @param port_id	 	     PortID ID
+        @param port_id	 	     Port ID
+        @param instrument_id	 Instrument ID
         @param attributes	 	 {'maxCurrentDraw': value, 'initCurrent': value,
                                  'dataThroughput': value, 'instrumentType': value}
 
-        @retval TBD
+        @retval
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    def disconnect_instrument(self, platform_id, port_id, instrument_id):
+        """
+        Removes an instrument from a platform port.
+
+        @param platform_id	 	 Platform ID
+        @param port_id	 	     Port ID
+        @param instrument_id	 Instrument ID
+
+        @retval
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    def get_connected_instruments(self, platform_id, port_id):
+        """
+        Retrieves the IDs of the instruments connected to a platform port.
+
+        @param platform_id	 	 Platform ID
+        @param port_id	 	     Port ID
+
+        @retval
         """
         raise NotImplementedError()  #pragma: no cover
 
     def turn_on_platform_port(self, platform_id, port_id):
         """
-        Turns on a port in a platform. The port should have previously set up with set_up_platform_port
+        Turns on a port in a platform. This operation should be called after the
+        instruments to be associated with the port have been added (see connect_instrument).
 
         @param platform_id	 	 Platform ID
         @param port_id	 	     PortID ID

@@ -83,7 +83,9 @@ class PlatformAgentState(BaseEnum):
 class PlatformAgentEvent(ResourceAgentEvent):
     GET_METADATA              = 'PLATFORM_AGENT_GET_METADATA'
     GET_PORTS                 = 'PLATFORM_AGENT_GET_PORTS'
-    SET_UP_PORT               = 'PLATFORM_AGENT_SET_UP_PORT'
+    CONNECT_INSTRUMENT        = 'PLATFORM_AGENT_CONNECT_INSTRUMENT'
+    DISCONNECT_INSTRUMENT     = 'PLATFORM_AGENT_DISCONNECT_INSTRUMENT'
+    GET_CONNECTED_INSTRUMENTS = 'PLATFORM_AGENT_GET_CONNECTED_INSTRUMENTS'
     TURN_ON_PORT              = 'PLATFORM_AGENT_TURN_ON_PORT'
     TURN_OFF_PORT             = 'PLATFORM_AGENT_TURN_OFF_PORT'
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
@@ -109,7 +111,11 @@ class PlatformAgentCapability(BaseEnum):
 
     GET_METADATA              = PlatformAgentEvent.GET_METADATA
     GET_PORTS                 = PlatformAgentEvent.GET_PORTS
-    SET_UP_PORT               = PlatformAgentEvent.SET_UP_PORT
+
+    CONNECT_INSTRUMENT        = PlatformAgentEvent.CONNECT_INSTRUMENT
+    DISCONNECT_INSTRUMENT     = PlatformAgentEvent.DISCONNECT_INSTRUMENT
+    GET_CONNECTED_INSTRUMENTS = PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS
+
     TURN_ON_PORT              = PlatformAgentEvent.TURN_ON_PORT
     TURN_OFF_PORT             = PlatformAgentEvent.TURN_OFF_PORT
     GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
@@ -742,25 +748,6 @@ class PlatformAgent(ResourceAgent):
         except Exception as e:
             log.error("Error while publishing platform event: %s", str(e))
 
-    ##########################################################################
-    # TBD
-    ##########################################################################
-
-    def add_instrument(self, instrument_config):
-        # TODO addition of instruments TBD in general
-        pass
-
-    def add_instruments(self):
-        # TODO this is just a sketch; not all operations will necessarily happen
-        # in this same call.
-        # query resource registry to find all instruments
-#        for instr in my_instruments:
-#            launch_instrument_agent(...)
-#            launch_port_agent(...)
-#            activate_instrument(...)
-        pass
-
-
     ##############################################################
     # supporting routines dealing with sub-platforms
     ##############################################################
@@ -1339,9 +1326,9 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
-    def _handler_set_up_port(self, *args, **kwargs):
+    def _handler_connect_instrument(self, *args, **kwargs):
         """
-        Sets up attributes for a given port in this platform.
+        Connects an instrument to a given port in this platform.
         """
         if log.isEnabledFor(logging.TRACE):
             log.trace("%r/%s args=%s kwargs=%s",
@@ -1349,13 +1336,57 @@ class PlatformAgent(ResourceAgent):
 
         port_id = kwargs.get('port_id', None)
         if port_id is None:
-            raise BadRequest('set_up_port missing port_id argument.')
+            raise BadRequest('connect_instrument: missing port_id argument.')
+
+        instrument_id = kwargs.get('instrument_id', None)
+        if instrument_id is None:
+            raise BadRequest('connect_instrument: missing instrument_id argument.')
 
         attributes = kwargs.get('attributes', None)
         if attributes is None:
-            raise BadRequest('set_up_port missing attributes argument.')
+            raise BadRequest('connect_instrument: missing attributes argument.')
 
-        result = self._plat_driver.set_up_port(port_id, attributes)
+        result = self._plat_driver.connect_instrument(port_id, instrument_id, attributes)
+
+        next_state = self.get_agent_state()
+
+        return (next_state, result)
+
+    def _handler_disconnect_instrument(self, *args, **kwargs):
+        """
+        Disconnects an instrument from a given port in this platform.
+        """
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise BadRequest('disconnect_instrument: missing port_id argument.')
+
+        instrument_id = kwargs.get('instrument_id', None)
+        if instrument_id is None:
+            raise BadRequest('disconnect_instrument: missing instrument_id argument.')
+
+        result = self._plat_driver.disconnect_instrument(port_id, instrument_id)
+
+        next_state = self.get_agent_state()
+
+        return (next_state, result)
+
+    def _handler_get_connected_instruments(self, *args, **kwargs):
+        """
+        Gets the connected instruments to a given port in this platform.
+        """
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise BadRequest('get_connected_instruments: missing port_id argument.')
+
+        result = self._plat_driver.get_connected_instruments(port_id)
 
         next_state = self.get_agent_state()
 
@@ -1512,7 +1543,9 @@ class PlatformAgent(ResourceAgent):
         for state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             self._fsm.add_handler(state, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
-            self._fsm.add_handler(state, PlatformAgentEvent.SET_UP_PORT, self._handler_set_up_port)
+            self._fsm.add_handler(state, PlatformAgentEvent.CONNECT_INSTRUMENT, self._handler_connect_instrument)
+            self._fsm.add_handler(state, PlatformAgentEvent.DISCONNECT_INSTRUMENT, self._handler_disconnect_instrument)
+            self._fsm.add_handler(state, PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS, self._handler_get_connected_instruments)
             self._fsm.add_handler(state, PlatformAgentEvent.TURN_ON_PORT, self._handler_turn_on_port)
             self._fsm.add_handler(state, PlatformAgentEvent.TURN_OFF_PORT, self._handler_turn_off_port)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)

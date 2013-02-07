@@ -98,6 +98,8 @@ network:
     ports:
     - port_id: Node1A_port_1
       ip: Node1A_port_1_IP
+      instruments:
+      - instrument_id: Node1A_port_1_instrument_1
     - port_id: Node1A_port_2
       ip: Node1A_port_2_IP
     subplatforms:
@@ -219,6 +221,8 @@ network:
           ports:
           - port_id: Node1D_port_1
             ip: Node1D_port_1_IP
+            instruments:
+            - instrument_id: Node1D_port_1_instrument_1
           - port_id: Node1D_port_2
             ip: Node1D_port_2_IP
           subplatforms:

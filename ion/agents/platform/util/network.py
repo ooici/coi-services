@@ -60,13 +60,18 @@ class AttrDef(object):
 class PortDef(object):
     """
     Represents the definition of a platform port.
+
+    self._port_id
+    self._comms = {'ip': ip}
+    self._attrs = { attr_id: AttrDef, ... }
+    self._instruments = { instrument_id: InstrumentDef, ... }
+
     """
     def __init__(self, port_id, ip):
         self._port_id = port_id
         self._comms = {'ip': ip}
         self._attrs = {}
-
-        self._on = False
+        self._instruments = {}
 
     def __repr__(self):
         return "PortDef{id=%s, comms=%s, attrs=%s}" % (
@@ -82,7 +87,22 @@ class PortDef(object):
 
     @property
     def attrs(self):
+        """
+        Attributes of this port.
+        """
         return self._attrs
+
+    @property
+    def instruments(self):
+        """
+        Instruments of this port.
+        """
+        return self._instruments
+
+    def add_instrument(self, instrument):
+        if instrument.instrument_id in self._instruments:
+            raise Exception('%s: duplicate instrument ID' % instrument.instrument_id)
+        self._instruments[instrument.instrument_id] = instrument
 
     def diff(self, other):
         """
@@ -99,6 +119,57 @@ class PortDef(object):
 
         if self.attrs != other.attrs:
             return "Port attributes are different: %r != %r" % (
+                self.attrs, other.attrs)
+
+        # compare instruments:
+        instrument_ids = set(self.instruments.iterkeys())
+        other_instrument_ids = set(other.instruments.iterkeys())
+        if instrument_ids != other_instrument_ids:
+            return "port_id=%r: instrument IDs are different: %r != %r" % (
+                self.port_id, instrument_ids, other_instrument_ids)
+        for instrument_id, instrument in self.instruments.iteritems():
+            other_instrument = other.instruments[instrument_id]
+            diff = instrument.diff(other_instrument)
+            if diff:
+                return diff
+
+        return None
+
+
+class InstrumentDef(object):
+    """
+    Represents the definition of an instrument.
+    """
+    def __init__(self, instrument_id):
+        self._instrument_id = instrument_id
+        self._attrs = {}
+
+    def __repr__(self):
+        return "InstrumentDef{id=%s, attrs=%s}" % (
+            self.instrument_id, self.attrs)
+
+    @property
+    def instrument_id(self):
+        return self._instrument_id
+
+    @property
+    def attrs(self):
+        """
+        Attributes of this instrument.
+        """
+        return self._attrs
+
+    def diff(self, other):
+        """
+        Returns None if the two instruments are the same.
+        Otherwise, returns a message describing the first difference.
+        """
+        if self.instrument_id != other.instrument_id:
+            return "Instrument IDs are different: %r != %r" % (
+                self.instrument_id, other.instrument_id)
+
+        if self.attrs != other.attrs:
+            return "Instrument attributes are different: %r != %r" % (
                 self.attrs, other.attrs)
 
         return None
@@ -134,28 +205,10 @@ class NNode(object):
             raise Exception('%s: duplicate port ID' % port.port_id)
         self._ports[port.port_id] = port
 
-    def set_ports(self, ports):
-        self._ports = {}
-        for port_info in ports:
-            assert 'port_id' in port_info
-            assert 'ip' in port_info
-            port_id = port_info['port_id']
-            port_ip = port_info['ip']
-            self.add_port(PortDef(port_id, port_ip))
-
     def add_attribute(self, attr):
         if attr.attr_id in self._attrs:
             raise Exception('%s: duplicate attribute ID' % attr.attr_id)
         self._attrs[attr.attr_id] = attr
-
-    def set_attributes(self, attributes):
-        self._attrs = {}
-        for attr_defn in attributes:
-            assert 'attr_id' in attr_defn
-            assert 'monitorCycleSeconds' in attr_defn
-            assert 'units' in attr_defn
-            attr_id = attr_defn['attr_id']
-            self.add_attribute(AttrDef(attr_id, attr_defn))
 
     @property
     def platform_id(self):

@@ -18,6 +18,7 @@ from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
 
 from ion.agents.platform.oms.oms_client import InvalidResponse
+from ion.agents.platform.oms.oms_client import NormalResponse
 
 
 class HelperTestMixin:
@@ -39,8 +40,16 @@ class HelperTestMixin:
         cls.INVALID_ATTR_VALUE = "9876"  # out of range
 
         cls.PORT_ID = 'Node1A_port_1'
-        cls.PORT_ATTR_NAME = 'maxCurrentDraw'
-        cls.VALID_PORT_ATTR_VALUE = 12345
+        cls.INSTRUMENT_ID = 'Node1A_port_1_instrument_1'
+        cls.INSTRUMENT_ATTR_NAME = 'maxCurrentDraw'
+        cls.VALID_INSTRUMENT_ATTR_VALUE = 12345
+
+        cls.INSTRUMENT_ATTRIBUTES_AND_VALUES = {
+            'maxCurrentDraw' : 12345,
+            'initCurrent'    : 23456,
+            'dataThroughput' : 34567,
+            'instrumentType' : "FOO_INSTRUMENT_TYPE"
+        }
 
         import os
         if os.getenv('SMALL_PLATFORM_NETWORK') is not None:
@@ -52,6 +61,7 @@ class HelperTestMixin:
             cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
 
             cls.PORT_ID = 'Node1D_port_1'
+            cls.INSTRUMENT_ID = 'Node1D_port_1_instrument_1'
 
     def _verify_valid_platform_id(self, platform_id, dic):
         """
@@ -133,3 +143,30 @@ class HelperTestMixin:
         self.assertTrue(port_id in dic)
         val = dic[port_id]
         self.assertEquals(InvalidResponse.PORT_ID, val)
+
+    def _verify_valid_instrument_id(self, instrument_id, dic):
+        """
+        verifies the instrument_id is an entry in the dict with a
+        valid value. Returns dic[instrument_id].
+        """
+        self.assertTrue(instrument_id in dic)
+        val = dic[instrument_id]
+        self.assertNotEquals(InvalidResponse.INSTRUMENT_ID, val)
+        return val
+
+    def _verify_invalid_instrument_id(self, instrument_id, dic):
+        """
+        verifies the instrument_id is an entry in the dict with a
+        value equal to InvalidResponse.INSTRUMENT_ID.
+        """
+        self.assertTrue(instrument_id in dic)
+        val = dic[instrument_id]
+        self.assertEquals(InvalidResponse.INSTRUMENT_ID, val)
+
+    def _verify_instrument_disconnected(self, instrument_id, result):
+        """
+        verifies the result is equal to NormalResponse.INSTRUMENT_DISCONNECTED.
+        """
+        expected = NormalResponse.INSTRUMENT_DISCONNECTED
+        self.assertEquals(expected, result, "instrument_id=%r: expecting %r but "
+                    "got result=%r" % (instrument_id, expected, result))

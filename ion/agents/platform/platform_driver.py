@@ -132,15 +132,43 @@ class PlatformDriver(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def set_up_port(self, port_id, attributes):
+    def connect_instrument(self, port_id, instrument_id, attributes):
         """
         To be implemented by subclass.
-        Sets up a port in this platform.
+        Connects an instrument to a port in this platform.
 
         @param port_id      Port ID
+        @param instrument_id Instrument ID
         @param attributes   Attribute dictionary
 
-        @retval The resulting configuration of the port.
+        @retval The resulting configuration for the instrument.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    def disconnect_instrument(self, port_id, instrument_id):
+        """
+        To be implemented by subclass.
+        Disconnects an instrument from a port in this platform.
+
+        @param port_id      Port ID
+        @param instrument_id Instrument ID
+
+        @retval
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    def get_connected_instruments(self, port_id):
+        """
+        To be implemented by subclass.
+        Retrieves the IDs of the instruments connected to a port.
+
+        @param port_id      Port ID
+
+        @retval
 
         @raise PlatformConnectionException
         """

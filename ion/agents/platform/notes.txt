@@ -5,6 +5,15 @@ some occasionaly updated developer notes
 2013-02-06:
 - systematic renaming in RSN-OMS interface operations to follow general CI
   coding guidelines: use underscore.
+- set_up_platform_port removed (formerly named setUpPort).
+- Instruments:
+  Added InstrumentDef class in netwok.py. A PortDef includes the nominal
+  list of "connectable" instruments (TODO: this may not be needed). The
+  actual "connected" instruments are operated via the new commands
+  CONNECT_INSTRUMENT, DISCONNECT_INSTRUMENT and GET_CONNECTED_INSTRUMENTS.
+  These haven beem added to PlatformAgent, including corresponding support
+  in driver and simulator (where the connected instruments per-port
+  are maintained in a simple set).
 
 2013-02-03:
 - more consistent handling of provided platform configuration (in particular,

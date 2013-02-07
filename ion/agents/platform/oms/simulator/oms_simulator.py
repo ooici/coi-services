@@ -11,9 +11,14 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 from ion.agents.platform.oms.oms_client import OmsClient
-from ion.agents.platform.oms.oms_client import VALID_PORT_ATTRIBUTES
+from ion.agents.platform.oms.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
+from ion.agents.platform.oms.oms_client import NormalResponse
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.util.network import NNode
+from ion.agents.platform.util.network import AttrDef
+from ion.agents.platform.util.network import PortDef
+from ion.agents.platform.util.network import InstrumentDef
+
 from ion.agents.platform.oms.simulator.oms_events import EventInfo
 from ion.agents.platform.oms.simulator.oms_events import EventNotifier
 from ion.agents.platform.oms.simulator.oms_events import EventGenerator
@@ -27,6 +32,10 @@ from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
 
 
+# search for "dynamic state" for places where we maintain dynamic state
+# associated with the platform network.
+
+
 class OmsSimulator(OmsClient):
     """
     Implementation of OmsClient for testing purposes.
@@ -38,8 +47,6 @@ class OmsSimulator(OmsClient):
         self._get_platform_types(pyobj)
 
         self._build_network(pyobj)
-
-        self._next_value = 990000
 
         # registered event listeners: {url: [(event_type, reg_time), ...], ...},
         # where reg_time is the NTP time of (latest) registration.
@@ -105,6 +112,40 @@ class OmsSimulator(OmsClient):
             self._idp[platform_id] = pn
             return pn
 
+        def build_and_add_ports_to_node(ports, pn):
+            for port_info in ports:
+                assert 'port_id' in port_info
+                assert 'ip' in port_info
+                port_id = port_info['port_id']
+                port_ip = port_info['ip']
+                port = PortDef(port_id, port_ip)
+                if 'instruments' in port_info:
+                    for instrument in port_info['instruments']:
+                        instrument_id = instrument['instrument_id']
+                        if instrument_id in port.instruments:
+                            raise Exception('port_id=%r: duplicate instrument ID %r' % (
+                                port_id, instrument_id))
+                        port.add_instrument(InstrumentDef(instrument_id))
+                pn.add_port(port)
+
+                ######################################################
+                # dynamic state (note that these members are NOT part of the
+                # PortDef class definition, but added here for convenience):
+
+                # is port turned on?
+                port._is_on = False  # is port turned on?
+
+                # the set of instrument_ids added to the port
+                port._added_instruments = set()
+
+        def build_and_add_attrs_to_node(attrs, pn):
+            for attr_defn in attrs:
+                assert 'attr_id' in attr_defn
+                assert 'monitorCycleSeconds' in attr_defn
+                assert 'units' in attr_defn
+                attr_id = attr_defn['attr_id']
+                pn.add_attribute(AttrDef(attr_id, attr_defn))
+
         def build_node(platObj, parent_node):
             assert 'platform_id' in platObj
             assert 'platform_types' in platObj
@@ -116,8 +157,8 @@ class OmsSimulator(OmsClient):
             attrs = platObj['attrs'] if 'attrs' in platObj else []
             pn = create_node(platform_id, platform_types)
             parent_node.add_subplatform(pn)
-            pn.set_ports(ports)
-            pn.set_attributes(attrs)
+            build_and_add_ports_to_node(ports, pn)
+            build_and_add_attrs_to_node(attrs, pn)
             if 'subplatforms' in platObj:
                 for subplat in platObj['subplatforms']:
                     subplat_id = subplat['platform_id']
@@ -243,27 +284,87 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: ports}
 
-    def set_up_platform_port(self, platform_id, port_id, attributes):
+    def connect_instrument(self, platform_id, port_id, instrument_id, attributes):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         if port_id not in self._idp[platform_id].ports :
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
-        port_attrs = self._idp[platform_id].get_port(port_id).attrs
+        port = self._idp[platform_id].get_port(port_id)
+
+        result = None
+        if instrument_id not in port.instruments:
+            result = InvalidResponse.INSTRUMENT_ID
+        elif instrument_id in port._added_instruments:
+            result = InvalidResponse.INSTRUMENT_ALREADY_CONNECTED
+        elif port._is_on:
+            # TODO: confirm that port must be OFF so instrument can be connected
+            result = InvalidResponse.PORT_IS_ON
+
+        if result is None:
+            # verify required attributes are provided:
+            for key in REQUIRED_INSTRUMENT_ATTRIBUTES:
+                if not key in attributes:
+                    result = InvalidResponse.MISSING_INSTRUMENT_ATTRIBUTE
+                    log.warn("connect_instrument called with missing attribute: %s"% key)
+                    break
+
+        if result is None:
+            # verify given attributes are recognized:
+            for key in attributes.iterkeys():
+                if not key in REQUIRED_INSTRUMENT_ATTRIBUTES:
+                    result = InvalidResponse.INVALID_INSTRUMENT_ATTRIBUTE
+                    log.warn("connect_instrument called with invalid attribute: %s"% key)
+                    break
+
+        if result is None:
+            # NOTE: values simply accepted without any validation
+            attrs = port.instruments[instrument_id].attrs
+            result = {}
+            for key, val in attributes.iteritems():
+                assert key in REQUIRED_INSTRUMENT_ATTRIBUTES
+                attrs[key] = val  # set the value of the attribute:
+                result[key] = val # in the result, indicate that the value was set
+
+            port._added_instruments.add(instrument_id)
+
+        return {platform_id: {port_id: {instrument_id: result}}}
+
+    def disconnect_instrument(self, platform_id, port_id, instrument_id):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        if port_id not in self._idp[platform_id].ports :
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
+
+        port = self._idp[platform_id].get_port(port_id)
+
+        if instrument_id not in port.instruments:
+            result = InvalidResponse.INSTRUMENT_ID
+        elif instrument_id not in port._added_instruments:
+            result = InvalidResponse.INSTRUMENT_NOT_CONNECTED
+        elif port._is_on:
+            # TODO: confirm that port must be OFF so instrument can be disconnected
+            result = InvalidResponse.PORT_IS_ON
+        else:
+            port._added_instruments.remove(instrument_id)
+            result = NormalResponse.INSTRUMENT_DISCONNECTED
+
+        return {platform_id: {port_id: {instrument_id: result}}}
+
+    def get_connected_instruments(self, platform_id, port_id):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        if port_id not in self._idp[platform_id].ports :
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
+
+        port = self._idp[platform_id].get_port(port_id)
 
         result = {}
-        for key, val in attributes.iteritems():
-            if key in VALID_PORT_ATTRIBUTES:
-                # 1. set the value of the port attribute:
-                # TODO validate the value
-                port_attrs[key] = val
-
-                # 2. in the result, indicate that the value was set:
-                result[key] = val
-            else:
-                result[key] = InvalidResponse.ATTRIBUTE_NAME
-                log.warn("set_up_platform_port called with unrecognized attribute: %s"% key)
+        for instrument_id in port._added_instruments:
+            result[instrument_id] = port.instruments[instrument_id].attrs
 
         return {platform_id: {port_id: result}}
 
@@ -275,13 +376,13 @@ class OmsSimulator(OmsClient):
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
         port = self._idp[platform_id].get_port(port_id)
-        if port._on:
+        if port._is_on:
             log.warn("port %s in platform %s already turned on." % (port_id, platform_id))
         else:
-            port._on = True
+            port._is_on = True
             log.info("port %s in platform %s turned on." % (port_id, platform_id))
 
-        return {platform_id: {port_id: port._on}}
+        return {platform_id: {port_id: port._is_on}}
 
     def turn_off_platform_port(self, platform_id, port_id):
         if platform_id not in self._idp:
@@ -291,13 +392,13 @@ class OmsSimulator(OmsClient):
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
         port = self._idp[platform_id].get_port(port_id)
-        if not port._on:
+        if not port._is_on:
             log.warn("port %s in platform %s already turned off." % (port_id, platform_id))
         else:
-            port._on = False
+            port._is_on = False
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
 
-        return {platform_id: {port_id: port._on}}
+        return {platform_id: {port_id: port._is_on}}
 
     def describe_event_types(self, event_type_ids):
         if len(event_type_ids) == 0:

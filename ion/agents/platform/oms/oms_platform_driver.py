@@ -375,9 +375,10 @@ class OmsPlatformDriver(PlatformDriver):
         """
         Verifies the presence of port_id in the dic.
 
+        @param port_id  The ID to verify
         @param dic Dictionary returned by _oms
 
-        @retval dic[port_id]
+        @return dic[port_id]
         """
         if not port_id in dic:
             msg = "unexpected: dic does not contain entry for %r" % port_id
@@ -392,16 +393,66 @@ class OmsPlatformDriver(PlatformDriver):
         else:
             return dic[port_id]
 
-    def set_up_port(self, port_id, attributes):
-        log.debug("%r: setting port: port_id=%s attributes=%s",
-                  self._platform_id, port_id, attributes)
+    def _verify_instrument_id_in_response(self, port_id, instrument_id, dic):
+        """
+        Verifies the presence of instrument_id in the dic.
 
-        response = self._oms.set_up_platform_port(self._platform_id, port_id, attributes)
-        log.debug("%r: set_up_platform_port response: %s",
+        @param port_id        Used for error reporting
+        @param instrument_id  The ID to verify
+        @param dic            Dictionary returned by _oms
+
+        @return dic[instrument_id]
+        """
+        if not instrument_id in dic:
+            msg = "unexpected: dic does not contain entry for %r" % instrument_id
+            log.error(msg)
+            raise PlatformException(msg=msg)
+
+        if dic[instrument_id] == InvalidResponse.INSTRUMENT_ID:
+            msg = "%r: port_id=%r: response reports invalid instrument_id for" \
+                  " %r" % (self._platform_id, port_id, instrument_id)
+            log.error(msg)
+            raise PlatformException(msg=msg)
+        else:
+            return dic[instrument_id]
+
+    def connect_instrument(self, port_id, instrument_id, attributes):
+        log.debug("%r: connect_instrument: port_id=%r instrument_id=%r attributes=%s",
+                  self._platform_id, port_id, instrument_id, attributes)
+
+        response = self._oms.connect_instrument(self._platform_id, port_id, instrument_id, attributes)
+        log.debug("%r: connect_instrument response: %s",
             self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
         self._verify_port_id_in_response(port_id, dic_plat)
+
+        return dic_plat  # note: return the dic for the platform
+
+    def disconnect_instrument(self, port_id, instrument_id):
+        log.debug("%r: disconnect_instrument: port_id=%r instrument_id=%r",
+                  self._platform_id, port_id, instrument_id)
+
+        response = self._oms.disconnect_instrument(self._platform_id, port_id, instrument_id)
+        log.debug("%r: disconnect_instrument response: %s",
+            self._platform_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        port_dic = self._verify_port_id_in_response(port_id, dic_plat)
+        self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
+
+        return dic_plat  # note: return the dic for the platform
+
+    def get_connected_instruments(self, port_id):
+        log.debug("%r: get_connected_instruments: port_id=%s",
+                  self._platform_id, port_id)
+
+        response = self._oms.get_connected_instruments(self._platform_id, port_id)
+        log.debug("%r: port_id=%r: get_connected_instruments response: %s",
+            self._platform_id, port_id, response)
+
+        dic_plat = self._verify_platform_id_in_response(response)
+        port_dic = self._verify_port_id_in_response(port_id, dic_plat)
 
         return dic_plat  # note: return the dic for the platform
 

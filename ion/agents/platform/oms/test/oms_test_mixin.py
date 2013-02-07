@@ -29,6 +29,7 @@ import yaml
 BOGUS_PLATFORM_ID = 'bogus_plat_id'
 BOGUS_ATTR_NAMES = ['bogus_attr1', 'bogus_attr2']
 BOGUS_PORT_ID = 'bogus_port_id'
+BOGUS_INSTRUMENT_ID = 'bogus_instrument_id'
 BOGUS_EVENT_TYPE = "bogus_event_type"
 
 
@@ -173,44 +174,57 @@ class OmsTestMixin(HelperTestMixin):
         log.info("get_platform_ports = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
-    def test_am_set_up_platform_port(self):
+    def test_am_connect_instrument(self):
         platform_id = self.PLATFORM_ID
         port_id = self.PORT_ID
-        # TODO proper attributes and values
-        valid_attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
+        instrument_id = self.INSTRUMENT_ID
+        # TODO proper values
+        attributes = {'maxCurrentDraw': 1, 'initCurrent': 2,
                       'dataThroughput': 3, 'instrumentType': 'FOO'}
-        invalid_attributes = {'invalid' : 'dummy'}
-        all_attributes = valid_attributes.copy()
-        all_attributes.update(invalid_attributes)
-        retval = self.oms.set_up_platform_port(platform_id, port_id, all_attributes)
-        log.info("set_up_platform_port = %s" % retval)
+        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        log.info("connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
-        port_val = self._verify_valid_port_id(port_id, ports)
-        self.assertIsInstance(port_val, dict)
-        for attr_name in all_attributes:
-            self.assertTrue(attr_name in port_val)
-            attr_val = port_val[attr_name]
-            if attr_name in valid_attributes:
-                self.assertTrue(attr_val is not None)  # TODO more specific check
-            else:
-                self.assertEquals(InvalidResponse.ATTRIBUTE_NAME, attr_val)
+        port_dic = self._verify_valid_port_id(port_id, ports)
+        self.assertIsInstance(port_dic, dict)
+        instr_val = self._verify_valid_instrument_id(instrument_id, port_dic)
+        self.assertIsInstance(instr_val, dict)
+        for attr_name in attributes:
+            self.assertTrue(attr_name in instr_val)
+            attr_val = instr_val[attr_name]
+            self.assertEquals(attributes[attr_name], attr_val,
+                "value given %s different from value received %s" % (
+                    attributes[attr_name], attr_val))
 
-    def test_am_set_up_platform_port_invalid_platform_id(self):
+    def test_am_connect_instrument_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
         port_id = self.PORT_ID
+        instrument_id = self.INSTRUMENT_ID
         attributes = {}
-        retval = self.oms.set_up_platform_port(platform_id, port_id, attributes)
-        log.info("set_up_platform_port = %s" % retval)
+        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        log.info("connect_instrument = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
-    def test_am_set_up_platform_port_invalid_port_id(self):
+    def test_am_connect_instrument_invalid_port_id(self):
         platform_id = self.PLATFORM_ID
         port_id = BOGUS_PORT_ID
+        instrument_id = self.INSTRUMENT_ID
         attributes = {}
-        retval = self.oms.set_up_platform_port(platform_id, port_id, attributes)
-        log.info("set_up_platform_port = %s" % retval)
+        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        log.info("connect_instrument = %s" % retval)
         ports = self._verify_valid_platform_id(platform_id, retval)
         self._verify_invalid_port_id(port_id, ports)
+
+    def test_am_connect_instrument_invalid_instrument_id(self):
+        platform_id = self.PLATFORM_ID
+        port_id = self.PORT_ID
+        instrument_id = BOGUS_INSTRUMENT_ID
+        attributes = {}
+        retval = self.oms.connect_instrument(platform_id, port_id, instrument_id, attributes)
+        log.info("connect_instrument = %s" % retval)
+        ports = self._verify_valid_platform_id(platform_id, retval)
+        port_dic = self._verify_valid_port_id(port_id, ports)
+        self.assertIsInstance(port_dic, dict)
+        self._verify_invalid_instrument_id(instrument_id, port_dic)
 
     def test_an_turn_on_platform_port(self):
         platform_id = self.PLATFORM_ID

@@ -12,6 +12,9 @@ __license__ = 'Apache 2.0'
 
 
 from ion.agents.platform.util.network import NNode
+from ion.agents.platform.util.network import AttrDef
+from ion.agents.platform.util.network import PortDef
+from ion.agents.platform.util.network import InstrumentDef
 from ion.agents.platform.util.network import NetworkDefinition
 
 # serialization/deserialization based on YAML
@@ -86,6 +89,30 @@ class NetworkUtil(object):
                 ndef._nodes[platform_id] = pn
                 return pn
 
+            def build_and_add_ports_to_node(ports, pn):
+                for port_info in ports:
+                    assert 'port_id' in port_info
+                    assert 'ip' in port_info
+                    port_id = port_info['port_id']
+                    port_ip = port_info['ip']
+                    port = PortDef(port_id, port_ip)
+                    if 'instruments' in port_info:
+                        for instrument in port_info['instruments']:
+                            instrument_id = instrument['instrument_id']
+                            if instrument_id in port.instruments:
+                                raise Exception('port_id=%r: duplicate instrument ID %r' % (
+                                    port_id, instrument_id))
+                            port.add_instrument(InstrumentDef(instrument_id))
+                    pn.add_port(port)
+
+            def build_and_add_attrs_to_node(attrs, pn):
+                for attr_defn in attrs:
+                    assert 'attr_id' in attr_defn
+                    assert 'monitorCycleSeconds' in attr_defn
+                    assert 'units' in attr_defn
+                    attr_id = attr_defn['attr_id']
+                    pn.add_attribute(AttrDef(attr_id, attr_defn))
+
             def build_node(platObj, parent_node):
                 assert 'platform_id' in platObj
                 assert 'platform_types' in platObj
@@ -97,8 +124,8 @@ class NetworkUtil(object):
                 attrs = platObj['attrs'] if 'attrs' in platObj else []
                 pn = create_node(platform_id, platform_types)
                 parent_node.add_subplatform(pn)
-                pn.set_ports(ports)
-                pn.set_attributes(attrs)
+                build_and_add_ports_to_node(ports, pn)
+                build_and_add_attrs_to_node(attrs, pn)
                 if 'subplatforms' in platObj:
                     for subplat in platObj['subplatforms']:
                         subplat_id = subplat['platform_id']
@@ -174,6 +201,12 @@ class NetworkUtil(object):
                     port_ip = '%s_IP' % port_id
                     lines.append('  - port_id: %s' % port_id)
                     lines.append('    ip: %s '     % port_ip)
+
+                    # instruments
+                    if len(port.instruments):
+                        lines.append('    instruments:')
+                        for instrument_id, instrument in port.instruments.iteritems():
+                            lines.append('    - instrument_id: %s' % instrument_id)
 
             if nnode.subplatforms:
                 lines.append('  subplatforms:')

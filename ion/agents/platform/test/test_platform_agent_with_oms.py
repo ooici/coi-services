@@ -16,6 +16,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_commands
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_event_dispatch
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_connect_disconnect_instrument
 #
 
 
@@ -318,23 +319,67 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         # TODO verify possible subset of required entries in the dict.
         log.info("GET_PORTS = %s", md)
 
-    def _set_up_port(self):
-        # TODO real settings and corresp verification
-
+    def _connect_instrument(self):
+        #
+        # TODO more realistic settings for the connection
+        #
         port_id = self.PORT_ID
-        port_attrName = self.PORT_ATTR_NAME
+        instrument_id = self.INSTRUMENT_ID
+        instrument_attributes = self.INSTRUMENT_ATTRIBUTES_AND_VALUES
 
         kwargs = dict(
             port_id = port_id,
-            attributes = { port_attrName: self.VALID_PORT_ATTR_VALUE }
+            instrument_id = instrument_id,
+            attributes = instrument_attributes
         )
-        cmd = AgentCommand(command=PlatformAgentEvent.SET_UP_PORT, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.CONNECT_INSTRUMENT, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         result = retval.result
-        log.info("SET_UP_PORT = %s", result)
+        log.info("CONNECT_INSTRUMENT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
-        self.assertTrue(port_attrName in result[port_id])
+        self.assertIsInstance(result[port_id], dict)
+        self.assertTrue(instrument_id in result[port_id])
+        returned_attrs = result[port_id][instrument_id]
+        self.assertIsInstance(returned_attrs, dict)
+        for attrName in instrument_attributes:
+            self.assertTrue(attrName in returned_attrs)
+
+    def _get_connected_instruments(self):
+        port_id = self.PORT_ID
+
+        kwargs = dict(
+            port_id = port_id,
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("GET_CONNECTED_INSTRUMENTS = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(port_id in result)
+        self.assertIsInstance(result[port_id], dict)
+        instrument_id = self.INSTRUMENT_ID
+        self.assertTrue(instrument_id in result[port_id])
+
+    def _disconnect_instrument(self):
+        # TODO real settings and corresp verification
+
+        port_id = self.PORT_ID
+        instrument_id = self.INSTRUMENT_ID
+
+        kwargs = dict(
+            port_id = port_id,
+            instrument_id = instrument_id
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.DISCONNECT_INSTRUMENT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("DISCONNECT_INSTRUMENT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(port_id in result)
+        self.assertIsInstance(result[port_id], dict)
+        self.assertTrue(instrument_id in result[port_id])
+        self._verify_instrument_disconnected(instrument_id, result[port_id][instrument_id])
 
     def _turn_on_port(self):
         # TODO real settings and corresp verification
@@ -512,7 +557,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
-            PlatformAgentEvent.SET_UP_PORT,
+
+            PlatformAgentEvent.CONNECT_INSTRUMENT,
+            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
+            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
+
             PlatformAgentEvent.TURN_ON_PORT,
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
@@ -675,7 +724,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.CLEAR,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
-            PlatformAgentEvent.SET_UP_PORT,
+
+            PlatformAgentEvent.CONNECT_INSTRUMENT,
+            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
+            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
+
             PlatformAgentEvent.TURN_ON_PORT,
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
@@ -743,7 +796,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds_monitoring = [
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
-            PlatformAgentEvent.SET_UP_PORT,
+
+            PlatformAgentEvent.CONNECT_INSTRUMENT,
+            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
+            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
+
             PlatformAgentEvent.TURN_ON_PORT,
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
@@ -823,11 +880,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._get_resource()
         self._set_resource()
 
-        self._set_up_port()
-        self._turn_on_port()
-
-        self._turn_off_port()
-
         self._go_inactive()
         self._reset()
 
@@ -859,6 +911,28 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._start_event_dispatch()
         self._wait_for_an_event()
         self._stop_event_dispatch()
+
+        self._go_inactive()
+        self._reset()
+
+    def test_connect_disconnect_instrument(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._connect_instrument()
+        self._turn_on_port()
+
+        self._get_connected_instruments()
+
+        self._turn_off_port()
+        self._disconnect_instrument()
+
+        self._turn_off_port()
 
         self._go_inactive()
         self._reset()
