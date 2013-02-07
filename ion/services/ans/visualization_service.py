@@ -113,7 +113,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def _process_visualization_message(self, messages):
+    def _process_visualization_message(self, messages, callback, reqId):
 
         gdt_description = None
         gdt_content = []
@@ -184,12 +184,17 @@ class VisualizationService(BaseVisualizationService):
             gdt = gviz_api.DataTable(gdt_description)
             gdt.LoadData(gdt_content)
 
-            return gdt.ToJSonResponse()
+            # return the json version of the table
+            #return gdt.ToJSonResponse()
+            if callback == '':
+                return gdt.ToJSonResponse(req_id = reqId)
+            else:
+                return callback + "(\"" + gdt.ToJSonResponse(req_id = reqId) + "\")"
 
         return None
 
 
-    def get_realtime_visualization_data(self, query_token=''):
+    def get_realtime_visualization_data(self, query_token='', callback='', tqx=""):
         """This operation returns a block of visualization data for displaying data product in real time. This operation requires a
         user specific token which was provided from a previous request to the init_realtime_visualization operation.
 
@@ -197,6 +202,19 @@ class VisualizationService(BaseVisualizationService):
         @retval datatable    str
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
+
+        print " >>>>>>>>>>>>>>> QUERY TOKEN : ", query_token
+        print " >>>>>>>>>>>>>>> callback : ", callback
+        print ">>>>>>>>>>>>>>>  TQX : ", tqx
+
+        reqId = 0
+        # If a reqId was passed in tqx, extract it
+        if tqx:
+            tqx_param_list = tqx.split(";")
+            for param in tqx_param_list:
+                key, value = param.split(":")
+                if key == 'reqId':
+                    reqId = value
 
         ret_val = []
         if not query_token:
@@ -216,7 +234,7 @@ class VisualizationService(BaseVisualizationService):
             msgs[x].ack()
 
         # Different messages should get processed differently. Ret val will be decided by the viz product type
-        ret_val = self._process_visualization_message(msgs)
+        ret_val = self._process_visualization_message(msgs, callback, reqId)
 
         #except Exception, e:
         #    raise e
