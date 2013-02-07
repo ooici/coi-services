@@ -398,6 +398,14 @@ class UserNotificationService(BaseUserNotificationService):
         self.clients.resource_registry.update(notification_request)
 
         #-------------------------------------------------------------------------------------------------------------------
+        # Find users who are interested in the notification and update the notification in the list maintained by the UserInfo object
+        #-------------------------------------------------------------------------------------------------------------------
+        user_ids, _ = self.clients.resource_registry.find_subjects(RT.UserInfo, PRED.hasNotification, notification_id, True)
+
+        for user_id in user_ids:
+            self.update_user_info_object(user_id, notification_request, old_notification)
+
+        #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
         #-------------------------------------------------------------------------------------------------------------------
         log.info("(delete notification) Publishing ReloadUserInfoEvent for notification_id: %s", notification_id)
@@ -582,6 +590,11 @@ class UserNotificationService(BaseUserNotificationService):
 
         if self.user_info.has_key(user_info_id):
             notifications = self.user_info[user_info_id]['notifications']
+
+            for notif in notifications:
+                # remove notifications that have expired
+                if notif.temporal_bounds.end_datetime != '':
+                    notifications.remove(notif)
 
             return notifications
 
@@ -870,6 +883,10 @@ class UserNotificationService(BaseUserNotificationService):
 
         notifs = self.clients.resource_registry.read_mult(object_ids)
 
+        for notif in notifs:
+            # remove notifications that have expired
+            if notif.temporal_bounds.end_datetime != '':
+                notifs.remove(notif)
 
         if include_nonactive:
             # Add active or retired notification
