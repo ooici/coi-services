@@ -445,7 +445,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("RDT parsed: %s", str(rdt.pretty_print()) )
         temp_vals = rdt['temp']
-        self.assertEquals(len(temp_vals) == 10)
+        self.assertEquals(len(temp_vals) , 10)
 
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
@@ -454,7 +454,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("RDT raw: %s", str(rdt.pretty_print()) )
 
         raw_vals = rdt['raw']
-        self.assertEquals(len(raw_vals) == 10)
+        self.assertEquals(len(raw_vals) , 10)
 
 
         print "l4-ci-sa-rq-138"
