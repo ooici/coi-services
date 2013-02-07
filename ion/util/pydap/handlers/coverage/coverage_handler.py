@@ -19,18 +19,6 @@ class Handler(BaseHandler):
     def __init__(self, filepath):
         self.filepath = filepath
     
-    def is_basestring(self, data):
-        for d in data:
-            if not isinstance(d, basestring):
-                return False
-        return True
-    
-    def is_list(self, data):
-        for d in data:
-            if not isinstance(d, (list,tuple)):
-                return False
-        return True
-
     def parse_constraints(self, environ):
         base = os.path.split(self.filepath)
         cov = SimplexCoverage.load(base[0], base[1],mode='r')
@@ -96,17 +84,19 @@ class Handler(BaseHandler):
                     if isinstance(pc.param_type,CategoryType):
                         seq[name] = BaseType(name=name, data=data, type=self.get_numpy_type(data), attributes=attrs)
                     if isinstance(pc.param_type,ArrayType):
-                        #np defaults string array to type 'O' which is object which pydap does nto support
                         #TODO: make recursive
-                        if self.is_basestring(data) == True:
-                            seq[name] = BaseType(name=name, data=data, type=self.get_numpy_type(data), attributes=attrs)
-                        elif self.is_list(data):
-                            for x,lst in enumerate(data):
-                                nname = "_".join([name, str(x)])
-                                idata = np.array(lst)
-                                seq[nname] = BaseType(name=nname, data=idata, type=self.get_numpy_type(data), attributes=attrs)
-                        else:
-                            log.exception("only handle list and string objects")
+                        try:
+                            ttype = self.get_numpy_type(data)
+                            if ttype == 'S':
+                                seq[name] = BaseType(name=name, data=data, type=ttype, attributes=attrs)
+                        except TypeNotSupportedError:
+                            if self.is_collection(data):
+                                for x,idata in enumerate(data):
+                                    nname = "_".join([name, str(x)])
+                                    seq[nname] = BaseType(name=nname, data=idata, type=self.get_numpy_type(idata), attributes=attrs)
+                            else:
+                                log.exception("only handle list or string objects")
+                                raise TypeNotSupportedError()
                     if isinstance(pc.param_type,RecordType):
                         keys = []
                         values = []
@@ -132,8 +122,22 @@ class Handler(BaseHandler):
     def get_numpy_type(self, data):
         result = data.dtype.char
         if self.is_basestring(data) == True:
-            result = 's'
+            result = 'S'
+        if result not in ('d', 'f', 'h', 'i','b','H','I','B','S'):
+            raise TypeNotSupportedError()
         return result
+
+    def is_basestring(self, data):
+        for d in data:
+            if not isinstance(d, basestring):
+                return False
+        return True
+    
+    def is_collection(self, data):
+        for d in data:
+            if not isinstance(d, (list,tuple,np.ndarray)):
+                return False
+        return True
 
 
 
@@ -158,4 +162,6 @@ class Handler(BaseHandler):
             slice_ = slice(slice_.start, slice_.stop+1, slice_.step)
         
         return slice_
-        
+
+class TypeNotSupportedError(Exception):
+    pass

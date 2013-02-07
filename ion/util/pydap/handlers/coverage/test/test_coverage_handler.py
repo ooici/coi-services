@@ -70,6 +70,26 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         port = CFG.get_safe('container.pydap_gateway.web_server.port', '8001')
         self.request_url = "http://"+host+":"+str(port)+os.sep+os.path.basename(self.filename)
     
+    def test_parse_constraints_array_list(self):
+        input_data = [["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"]]
+        #input_data = [["larry"], ["bob"], ["sally"], ["jennifer"], ["fred"]]
+        self.cov.set_parameter_values('array',value=input_data)
+        dataset = open_url(self.request_url)
+        for i,data in enumerate(input_data):
+            result = []
+            for d in dataset['data']['array_'+str(i)]:
+                result.append(d)
+            self.assertEqual(result, data)
+    
+    def test_parse_constraints_array_string(self):
+        input_data = ["larry", "bob", "sally", "jennifer", "fred"]
+        self.cov.set_parameter_values('array',value=input_data)
+        dataset = open_url(self.request_url)
+        result = []
+        for d in dataset['data']['array']:
+            result.append(d)
+        self.assertEqual(result, input_data)
+    
     def test_parse_constraints_time(self):
         dataset = open_url(self.request_url)
         result = []
@@ -128,14 +148,6 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
             result.append(d)
         self.assertEqual(result, test_data_two)
     
-    def test_parse_constraints_array_string(self):
-        input_data = ["larry", "bob", "sally", "jennifer", "fred"]
-        self.cov.set_parameter_values('array',value=input_data)
-        dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['array']:
-            result.append(d)
-        self.assertEqual(result, input_data)
     
     def test_parse_constraints_record(self):
         input_data = [{'key1':'value1'}, {'key2':'value2'}, {'key3':'value3'}, {'key4':'value4'}, {'key5':'value5'}]
@@ -157,6 +169,7 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         for d in dataset['data']['record_values']:
             result.append(d)
         self.assertEqual(result, values)
+    
     def tearDown(self):
         self.cov.close()
 
@@ -212,18 +225,17 @@ def _make_coverage(path):
     rec_ctxt.fill_value = 0x0
     pdict.add_context(rec_ctxt)
     
+    rec_ctxt = ParameterContext('record', param_type=RecordType())
+    rec_ctxt.long_name = 'example of a parameter of type RecordType, will be filled with dictionaries'
+    pdict.add_context(rec_ctxt)
+    
     serial_ctxt = ParameterContext('array', param_type=ArrayType())
     serial_ctxt.uom = 'unknown'
     serial_ctxt.fill_value = 0x0
     pdict.add_context(serial_ctxt)
     
-    rec_ctxt = ParameterContext('record', param_type=RecordType())
-    rec_ctxt.long_name = 'example of a parameter of type RecordType, will be filled with dictionaries'
-    pdict.add_context(rec_ctxt)
-    
     guid = create_guid()
     cov = SimplexCoverage(path, guid, name="sample_cov", parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
-    
     
     return (cov,path+os.sep+guid)
 
