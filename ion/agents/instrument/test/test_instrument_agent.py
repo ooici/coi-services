@@ -53,8 +53,7 @@ from pyon.agent.agent import ResourceAgentEvent
 # Driver imports.
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
-from mi.core.instrument.instrument_driver import DriverProtocolState
-from mi.core.instrument.instrument_driver import DriverConnectionState
+from ion.core.includes.mi import DriverProtocolState, DriverConnectionState
 
 # Objects and clients.
 from interface.objects import AgentCommand
@@ -65,9 +64,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
 # MI imports.
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from mi.instrument.seabird.sbe37smb.ooicore.driver import PACKET_CONFIG
+from ion.core.includes.mi import SBE37ProtocolEvent, SBE37Parameter
 
 # Alarms.
 from pyon.public import IonObject
