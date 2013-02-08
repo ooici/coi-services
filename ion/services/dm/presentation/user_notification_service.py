@@ -537,17 +537,41 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None):
+    def publish_event_object(self, event=None):
         """
-        Publish a general event at a certain time using the UNS
+        This service operation would publish the given event from an event object.
 
-        @param event Event
+        @param event    !Event
+        @retval event   !Event
+        """
+        event_object = self.event_publisher.publish_event_object(event_object=event)
+        log.info("The publish_event_obj(event) method of UNS was used to publish the event: %s", event_object )
+
+    def publish_event(self, event_type='', origin='', origin_type='', sub_type='', description='', event_attrs=None):
+        """
+        This service operation assembles a new Event object based on event_type 
+        (e.g. via the pyon Event publisher) with optional additional attributes from a event_attrs
+        dict of arbitrary attributes.
+        
+        
+        @param event_type   str
+        @param origin       str
+        @param origin_type  str
+        @param sub_type     str
+        @param description  str
+        @param event_attrs  str
+        @retval event       !Event
         """
 
-        self.event_publisher.publish_event( event_msg = event,
-            origin=event.origin,
-            event_type = event.type_)
-        log.info("The publish_event() method of UNS was used to publish an event.")
+        event = self.event_publisher.publish_event(
+            event_type = event_type,
+            origin = origin,
+            origin_type = origin_type,
+            sub_type = sub_type,
+            description = description,
+            event_attrs = event_attrs
+            )
+        log.info("The publish_event() method of UNS was used to publish an event: %s", event)
 
     def get_recent_events(self, resource_id='', limit = 100):
         """
