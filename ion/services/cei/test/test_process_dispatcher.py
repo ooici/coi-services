@@ -730,6 +730,10 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
                 process_schedule, configuration={"bad": o})
         self.assertTrue(ar.exception.message.startswith("bad configuration"))
 
+    def test_cancel_notfound(self):
+        with self.assertRaises(NotFound):
+            self.pd_cli.cancel_process("not-a-real-process-id")
+
     def test_create_invalid_definition(self):
         # create process definition missing module and class
         # verifies L4-CI-CEI-RQ137
@@ -1049,42 +1053,53 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
-    def test_restart(self):
-
-        # create a process with RestartMode.ALWAYS -- will restart on any exit
+    def _add_test_process(self, restart_mode=None):
         process_schedule = ProcessSchedule()
-        process_schedule.restart_mode = ProcessRestartMode.ALWAYS
-        pid1 = self.pd_cli.create_process(self.process_definition_id)
+        if restart_mode is not None:
+            process_schedule.restart_mode = restart_mode
+        pid = self.pd_cli.create_process(self.process_definition_id)
+
+        pid_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
+        config = {'process': {'listen_name': pid_listen_name}}
+
+        self.pd_cli.schedule_process(self.process_definition_id,
+            process_schedule, process_id=pid, configuration=config)
+
+        client = TestClient(to_name=pid_listen_name)
+        return pid, client
+
+    def test_restart(self):
         self.waiter.start()
 
-        pid1_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
-        config = {'process': {'listen_name': pid1_listen_name}}
+        restartable_pids = []
+        nonrestartable_pids = []
+        clients = {}
+        # start 10 processes with RestartMode.ALWAYS
+        for _ in range(10):
+            pid, client = self._add_test_process(ProcessRestartMode.ALWAYS)
+            restartable_pids.append(pid)
+            clients[pid] = client
 
-        self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, process_id=pid1, configuration=config)
+        # and 10 processes with RestartMode.ABNORMAL
+        for _ in range(10):
+            pid, client = self._add_test_process(ProcessRestartMode.ABNORMAL)
+            restartable_pids.append(pid)
+            clients[pid] = client
 
-        self.waiter.await_state_event(pid1, ProcessStateEnum.RUNNING)
+        # and 10 with RestartMode.NEVER
+        for _ in range(10):
+            pid, client = self._add_test_process(ProcessRestartMode.NEVER)
+            nonrestartable_pids.append(pid)
+            clients[pid] = client
 
-        # and one with RestartMode.NEVER -- will never restart
-        process_schedule = ProcessSchedule()
-        process_schedule.restart_mode = ProcessRestartMode.NEVER
-        pid2 = self.pd_cli.create_process(self.process_definition_id)
+        all_pids = restartable_pids + nonrestartable_pids
 
-        pid2_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
-        config = {'process': {'listen_name': pid2_listen_name}}
+        self.waiter.await_many_state_events(all_pids, ProcessStateEnum.RUNNING)
 
-        self.pd_cli.schedule_process(self.process_definition_id,
-            process_schedule, process_id=pid2, configuration=config)
-
-        self.waiter.await_state_event(pid2, ProcessStateEnum.RUNNING)
-
-        test_client1 = TestClient(to_name=pid1_listen_name)
-        self.assertFalse(test_client1.is_restart())
-        self.assertEqual(test_client1.count(), 1)
-
-        test_client2 = TestClient(to_name=pid2_listen_name)
-        self.assertFalse(test_client2.is_restart())
-        self.assertEqual(test_client2.count(), 1)
+        for pid in all_pids:
+            client = clients[pid]
+            self.assertFalse(client.is_restart())
+            self.assertEqual(client.count(), 1)
 
         # now kill the whole eeagent and restart it. processes should
         # show up as FAILED in the next heartbeat.
@@ -1094,21 +1109,29 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self._kill_eeagent(self._initial_eea_pid)
 
         # manually kill the processes to simulate a real container failure
-        self.container.terminate_process(pid1)
-        self.container.terminate_process(pid2)
+        for pid in all_pids:
+            self.container.terminate_process(pid)
 
         self._start_eeagent(self.node1_id, resource_id=resource_id,
             persistence_dir=persistence_dir)
 
-        self.waiter.await_state_event(pid1, ProcessStateEnum.RUNNING)
+        # wait for restartables to restart
+        self.waiter.await_many_state_events(restartable_pids, ProcessStateEnum.RUNNING)
 
-        # query the process again. it should have restart mode config
-        self.assertTrue(test_client1.is_restart())
-        self.assertEqual(test_client1.count(), 1)
+        # query the processes again. it should have restart mode config
+        for pid in restartable_pids:
+            client = clients[pid]
+            self.assertTrue(client.is_restart())
+            self.assertEqual(client.count(), 1)
 
-        # meanwhile proc2 should not have restarted
-        proc2 = self.pd_cli.read_process(pid2)
-        self.assertEqual(proc2.process_state, ProcessStateEnum.FAILED)
+        # meanwhile some procs should not have restarted
+        for pid in nonrestartable_pids:
+            proc = self.pd_cli.read_process(pid)
+            self.assertEqual(proc.process_state, ProcessStateEnum.FAILED)
+
+        # guard against extraneous events we were receiving as part of a bug:
+        # processes restarting again after they were already restarted
+        self.waiter.await_nothing(timeout=5)
 
     def test_idempotency(self):
         # ensure every operation can be safely retried

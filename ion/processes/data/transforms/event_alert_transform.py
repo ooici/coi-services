@@ -17,7 +17,7 @@ from interface.objects import DeviceStatusType, DeviceStatusEvent, DeviceCommsEv
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 import gevent
 from gevent import queue
-import datetime, time
+import datetime, time, numpy
 
 class EventAlertTransform(TransformEventListener):
 
@@ -212,6 +212,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         '''
 
         log.debug("DemoStreamAlertTransform received a packet!: %s" % msg)
+        log.debug("type of packet received by transform: %s", type(msg))
 
         #-------------------------------------------------------------------------------------
         # Set up the config to use to pass info to the transform algorithm
@@ -324,6 +325,7 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
 
         log.debug("Values unravelled: %s" % values)
         log.debug("Time names unravelled: %s" % time_names)
+        log.debug("Transform got the rdt here: %s", rdt)
 
         indexes = [l for l in xrange(len(time_names))]
 
@@ -331,8 +333,12 @@ class AlertTransformAlgorithm(SimpleGranuleTransformFunction):
             if val < valid_values[0] or val > valid_values[1]:
                 bad_values.append(val)
                 arr = rdt[time_names[index]]
-                bad_value_times.append(arr[index])
-
+                log.debug("In the stream alert transform, got the arr here: %s", arr)
+                if isinstance(arr, numpy.ndarray):
+                    bad_value_times.append(arr[index])
+                else:
+                    # Since we do not want the transform to crash because a granule came in that did not have the values of the preferred time filled as expected
+                    bad_value_times.append(None)
         log.debug("Returning bad_values: %s, bad_value_times: %s and the origin: %s" % (bad_values, bad_value_times, origin))
 
         # return the list of bad values and their timestamps

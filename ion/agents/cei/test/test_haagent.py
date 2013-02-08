@@ -203,6 +203,24 @@ class BaseHighAvailabilityAgentTest(IonIntegrationTestCase):
 
         raise Exception("Took more than %s to get to ha state %s" % (timeout, want_state))
 
+    def await_pyon_ha_state(self, want_state, timeout=20):
+        for i in range(0, timeout):
+            try:
+                result = self.haa_client.dump().result
+                service_id = result.get('service_id')
+                service = self.container.resource_registry.read(service_id)
+
+                if service.state == want_state:
+                    return
+                else:
+                    log.debug("want state %s, got state %s") % (want_state, service.state)
+
+            except Exception:
+                log.exception("Problem getting HA status, trying again...")
+                gevent.sleep(1)
+
+        raise Exception("Took more than %s to get to pyon ha state %s" % (timeout, want_state))
+
 
 @attr('INT', group='cei')
 class HighAvailabilityAgentTest(BaseHighAvailabilityAgentTest):
@@ -231,10 +249,7 @@ class HighAvailabilityAgentTest(BaseHighAvailabilityAgentTest):
         self.await_ha_state('STEADY')
 
         # Ensure Service object has the correct state
-        result = self.haa_client.dump().result
-        service_id = result.get('service_id')
-        service = self.container.resource_registry.read(service_id)
-        self.assertEqual(service.state, ServiceStateEnum.STEADY)
+        self.await_pyon_ha_state(ServiceStateEnum.STEADY)
 
         # verifies L4-CI-CEI-RQ122 and L4-CI-CEI-RQ124
 

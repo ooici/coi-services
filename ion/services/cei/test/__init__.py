@@ -37,6 +37,10 @@ class ProcessStateWaiter(object):
         assert state in ProcessStateEnum._str_map, "process state %s unknown!" % state
         state_str = ProcessStateEnum._str_map.get(state)
 
+        # stick the pid into a container if it is only one
+        if pid is not None and not isinstance(pid, (list, tuple)):
+            pid = (pid,)
+
         while 1:
             if datetime.now() - start_time > timedelta(seconds=timeout):
                 raise AssertionError("Waiter timeout! Waited %s seconds for process %s state %s" % (timeout, pid, state_str))
@@ -46,11 +50,39 @@ class ProcessStateWaiter(object):
                 raise AssertionError("Event timeout! Waited %s seconds for process %s state %s" % (timeout, pid, state_str))
             log.debug("Got event: %s", event)
 
-            if (pid is None or event.origin == pid) and (state is None or event.state == state):
+            if (pid is None or event.origin in pid) and (state is None or event.state == state):
                 return event
 
             elif strict:
                 raise AssertionError("Got unexpected event %s. Expected state %s for process %s" % (event, state_str, pid))
+
+    def await_many_state_events(self, pids, state=None, timeout=30, strict=False):
+        pid_set = set(pids)
+        while pid_set:
+            event = self.await_state_event(tuple(pid_set), state, timeout=timeout, strict=strict)
+            pid_set.remove(event.origin)
+
+    def await_nothing(self, pid=None, timeout=10):
+        start_time = datetime.now()
+
+        # stick the pid into a container if it is only one
+        if pid is not None and not isinstance(pid, (list, tuple)):
+            pid = (pid,)
+
+        while 1:
+            timeleft = timedelta(seconds=timeout) - (datetime.now() - start_time)
+            timeleft_seconds = timeleft.total_seconds()
+            if timeleft_seconds <= 0:
+                return
+            try:
+                event = self.event_queue.get(timeout=timeleft_seconds)
+                if pid is None or event.origin in pid:
+                    state_str = ProcessStateEnum._str_map.get(event.state, str(event.state))
+                    raise AssertionError("Expected no event, but got state %s for process %s" % (state_str, event.origin))
+
+            except queue.Empty:
+                return
+
 
 def get_dashi_uri_from_cfg(config=None):
     if config is None:

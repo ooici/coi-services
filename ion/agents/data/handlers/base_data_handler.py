@@ -18,7 +18,7 @@ from pyon.event.event import EventPublisher
 
 from interface.objects import Granule, Attachment, AttachmentType
 
-from mi.core.instrument.instrument_driver import DriverParameter, DriverEvent
+from ion.core.includes.mi import DriverParameter, DriverEvent
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient

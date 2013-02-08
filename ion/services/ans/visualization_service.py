@@ -23,6 +23,7 @@ import ntplib
 import time
 import gevent
 import base64
+import numpy
 from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
@@ -112,7 +113,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def _process_visualization_message(self, messages):
+    def _process_visualization_message(self, messages, callback, reqId):
 
         gdt_description = None
         gdt_content = []
@@ -167,7 +168,7 @@ class VisualizationService(BaseVisualizationService):
                         for idx in range(1,len(tempTuple)):
                             # some silly numpy format won't go away so need to cast numbers to floats
                             if(gdt_description[idx][1] == 'number'):
-                                varTuple.append((float)(tempTuple[idx]))
+                                varTuple.append(float(tempTuple[idx]))
                             else:
                                 varTuple.append(tempTuple[idx])
 
@@ -183,12 +184,17 @@ class VisualizationService(BaseVisualizationService):
             gdt = gviz_api.DataTable(gdt_description)
             gdt.LoadData(gdt_content)
 
-            return gdt.ToJSonResponse()
+            # return the json version of the table
+            #return gdt.ToJSonResponse()
+            if callback == '':
+                return gdt.ToJSonResponse(req_id = reqId)
+            else:
+                return callback + "(\"" + gdt.ToJSonResponse(req_id = reqId) + "\")"
 
         return None
 
 
-    def get_realtime_visualization_data(self, query_token=''):
+    def get_realtime_visualization_data(self, query_token='', callback='', tqx=""):
         """This operation returns a block of visualization data for displaying data product in real time. This operation requires a
         user specific token which was provided from a previous request to the init_realtime_visualization operation.
 
@@ -196,6 +202,19 @@ class VisualizationService(BaseVisualizationService):
         @retval datatable    str
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
+
+        print " >>>>>>>>>>>>>>> QUERY TOKEN : ", query_token
+        print " >>>>>>>>>>>>>>> callback : ", callback
+        print ">>>>>>>>>>>>>>>  TQX : ", tqx
+
+        reqId = 0
+        # If a reqId was passed in tqx, extract it
+        if tqx:
+            tqx_param_list = tqx.split(";")
+            for param in tqx_param_list:
+                key, value = param.split(":")
+                if key == 'reqId':
+                    reqId = value
 
         ret_val = []
         if not query_token:
@@ -215,7 +234,7 @@ class VisualizationService(BaseVisualizationService):
             msgs[x].ack()
 
         # Different messages should get processed differently. Ret val will be decided by the viz product type
-        ret_val = self._process_visualization_message(msgs)
+        ret_val = self._process_visualization_message(msgs, callback, reqId)
 
         #except Exception, e:
         #    raise e
@@ -330,8 +349,6 @@ class VisualizationService(BaseVisualizationService):
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
 
-        dataset_bounds = None
-        dataset_time_bounds = None
         use_direct_access = False
         if visualization_parameters == {}:
             visualization_parameters = None
@@ -433,12 +450,12 @@ class VisualizationService(BaseVisualizationService):
                     if tempTuple[idx] == None:
                         varTuple.append(0.0)
                     else:
-                        varTuple.append(float(tempTuple[idx]))
+                        # Precision hardcoded for now. Needs to be on a per parameter basis
+                        varTuple.append(round(float(tempTuple[idx]),5))
                 else:
                     varTuple.append(tempTuple[idx])
 
             gdt_content.append(varTuple)
-
 
         # now generate the Google datatable out of the description and content
         gdt = gviz_api.DataTable(gdt_description)
@@ -466,7 +483,8 @@ class VisualizationService(BaseVisualizationService):
         query = None
         image_name = None
         if visualization_parameters :
-            query = {'parameters':[]}
+            #query = {'parameters':[]}
+            query = {}
             # Error check and damage control. Definitely need time
             if 'parameters' in visualization_parameters:
                 if not 'time' in visualization_parameters['parameters']:
