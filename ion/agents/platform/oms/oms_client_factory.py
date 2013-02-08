@@ -16,6 +16,9 @@ from pyon.public import log
 from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
 import xmlrpclib
 import os
+import yaml
+
+_OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/oms/oms_uri_aliases.yml'
 
 
 class OmsClientFactory(object):
@@ -23,61 +26,45 @@ class OmsClientFactory(object):
     Provides an OmsClient implementation.
     """
 
+    uri_aliases = None
+
+    @classmethod
+    def _load_uri_aliases(cls):
+        try:
+            cls.uri_aliases = yaml.load(file(_OMS_URI_ALIASES_FILENAME))
+            log.debug("Loaded OMS URI aliases = %s" % cls.uri_aliases)
+        except Exception as e:
+            log.warn("Cannot loaded %s: %s" % (_OMS_URI_ALIASES_FILENAME, e))
+            cls.uri_aliases = {}
+
     @classmethod
     def create_instance(cls, uri=None):
         """
         Creates an OmsClient instance.
 
-        @param uri URI to connect to the OMS server. If None (the
-          default) the value of the OMS environment variable is used.
-
-        Special values:
-        "embsimulator": OmsSimulator instance created and returned
-        "localsimulator": connect to OmsSimulator via XMP/RPC on http://localhost:7700/
-        "simulator": connect to OmsSimulator via XMP/RPC on http://rsn-oms-simulator.oceanobservatories.org:7700/
-        "rsn": connect to real OMS server on http://alice:1234@10.180.80.10:9021/
-
-        Any other value is used as given to try connection with XML/RPC server.
-        If the parameter is None and the environment variable OMS is not
-        defined, a OmsSimulator instance created and returned.
+        @param uri URI to connect to the RSN OMS server or simulator.
+        If None (the default) the value of the OMS environment variable is used
+        as argument. If not defined or if the resulting argument is "embsimulator"
+        then an OmsSimulator instance is created and returned. Otherwise, the
+        argument is looked up in the OMS URI aliases file and if found the
+        corresponding URI is used for the connection. Otherwise, the given
+        argument (or value of the OMS environment variable) is used as given
+        to try the connection with corresponding XML/RPC server.
         """
 
+        if cls.uri_aliases is None:
+            cls._load_uri_aliases()
+
         if uri is None:
-            uri = os.getenv('OMS')
+            uri = os.getenv('OMS', 'embsimulator')
 
-        instance = None
-        if uri:
-            if "embsimulator" == uri:
-                # "embedded" simulator, so instantiate OmsSimulator here:
-                log.debug("Will use embedded OmsSimulator instance")
-                instance = OmsSimulator()
-
-            elif "localsimulator" == uri:
-                # connect with OmsSimulator via XML/RPC on local host
-                uri = "http://localhost:7700/"
-                log.debug("Will connect to OmsSimulator via XMP/RPC on %s", uri)
-
-            elif "simulator" == uri:
-                # connect with OmsSimulator via XML/RPC on oceanobservatories host
-                uri = "http://rsn-oms-simulator.oceanobservatories.org:7700/"
-                log.debug("Will connect to OmsSimulator via XMP/RPC on %s", uri)
-
-            elif "rsn" == uri:
-                # connect to real OMS server on RSN
-                uri ="http://alice:1234@10.180.80.10:9021/"
-                log.debug("Will connect to real OMS server on %s", uri)
-
-            #else: just use whatever URI was given.
-
-        else:
-            # use "embedded" simulator
-            log.debug("OMS not defined; will use embedded OmsSimulator instance")
+        if "embsimulator" == uri:
+            # "embedded" simulator, so instantiate OmsSimulator here:
+            log.debug("Will use embedded OmsSimulator instance")
             instance = OmsSimulator()
-
-        if (not instance) and uri:
+        else:
             log.debug("Creating xmlrpclib.ServerProxy: uri=%s", uri)
             instance = xmlrpclib.ServerProxy(uri, allow_none=True)
             log.debug("Created xmlrpclib.ServerProxy: uri=%s", uri)
 
-        assert instance is not None, "instance must be created here"
         return instance
