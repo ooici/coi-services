@@ -544,8 +544,10 @@ class UserNotificationService(BaseUserNotificationService):
         @param event    !Event
         @retval event   !Event
         """
-        event_object = self.event_publisher.publish_event_object(event_object=event)
-        log.info("The publish_event_obj(event) method of UNS was used to publish the event: %s", event_object )
+        event = self.event_publisher.publish_event_object(event_object=event)
+        log.info("The publish_event_obj(event) method of UNS was used to publish the event: %s", event )
+
+        return event
 
     def publish_event(self, event_type='', origin='', origin_type='', sub_type='', description='', event_attrs=None):
         """
@@ -559,7 +561,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param origin_type  str
         @param sub_type     str
         @param description  str
-        @param event_attrs  str
+        @param event_attrs  dict
         @retval event       !Event
         """
 
@@ -569,9 +571,11 @@ class UserNotificationService(BaseUserNotificationService):
             origin_type = origin_type,
             sub_type = sub_type,
             description = description,
-            event_attrs = event_attrs
+            **event_attrs
             )
         log.info("The publish_event() method of UNS was used to publish an event: %s", event)
+
+        return event
 
     def get_recent_events(self, resource_id='', limit = 100):
         """

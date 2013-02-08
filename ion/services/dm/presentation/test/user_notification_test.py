@@ -1555,7 +1555,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_publish_event_object(self):
-        # Test the publish_event method of UNS
+        # Test the publish_event_object() method of UNS
 
         event_recvd_count = 0
         #--------------------------------------------------------------------------------
@@ -1603,6 +1603,61 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.publish_event_object(event=event_1)
         self.unsc.publish_event_object(event=event_with_ts_created)
+
+        ar.wait(timeout=10)
+
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_publish_event(self):
+        # Test the publish_event() method of UNS
+
+        type = "PlatformTelemetryEvent"
+        origin= "origin_1"
+        origin_type='origin_type_1'
+        sub_type= 'sub_type_1'
+        event_attrs = {'status': 'OK'}
+
+#        log.debug("event_attrs: %s", event_attrs)
+
+        # create async result to wait on in test
+        ar = gevent.event.AsyncResult()
+
+        #--------------------------------------------------------------------------------
+        # Set up a subscriber to listen for that event
+        #--------------------------------------------------------------------------------
+        def received_event(result, event, headers):
+            log.debug("received the event in the test: %s" % event)
+
+            #--------------------------------------------------------------------------------
+            # check that the event was published
+            #--------------------------------------------------------------------------------
+            self.assertEquals(event.origin, "origin_1")
+            self.assertEquals(event.type_, 'PlatformTelemetryEvent')
+            self.assertEquals(event.origin_type, 'origin_type_1')
+            self.assertNotEquals(event.ts_created, '')
+            self.assertEquals(event.sub_type, 'sub_type_1')
+
+            result.set(True)
+
+        event_subscriber = EventSubscriber( event_type = 'PlatformTelemetryEvent',
+            origin="origin_1",
+            callback=lambda m, h: received_event(ar, m, h))
+        event_subscriber.start()
+        self.addCleanup(event_subscriber.stop)
+
+        #--------------------------------------------------------------------------------
+        # Use the UNS publish_event
+        #--------------------------------------------------------------------------------
+
+        self.unsc.publish_event(
+            event_type=type,
+            origin=origin,
+            origin_type=origin_type,
+            sub_type=sub_type,
+            description="a description",
+            event_attrs = event_attrs
+        )
 
         ar.wait(timeout=10)
 
