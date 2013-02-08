@@ -265,7 +265,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             # since the notification has not been registered yet, register it and get the id
             notification.temporal_bounds = TemporalBounds()
-            notification.temporal_bounds.start_datetime = self.makeEpochTime(self.__now())
+            notification.temporal_bounds.start_datetime = get_ion_ts()
             notification.temporal_bounds.end_datetime = ''
 
             notification_id, _ = self.clients.resource_registry.create(notification)
@@ -396,7 +396,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the resource registry
         #-------------------------------------------------------------------------------------------------------------------
 
-        notification_request.temporal_bounds.end_datetime = self.makeEpochTime(self.__now())
+        notification_request.temporal_bounds.end_datetime = get_ion_ts()
 
         self.clients.resource_registry.update(notification_request)
 
@@ -590,7 +590,7 @@ class UserNotificationService(BaseUserNotificationService):
         @retval events list of Event objects
         """
 
-        now = self.makeEpochTime(datetime.utcnow())
+        now = get_ion_ts()
         events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=True)
 
         ret = IonObject(OT.ComputedListValue)
@@ -671,22 +671,6 @@ class UserNotificationService(BaseUserNotificationService):
             pids.append(pid)
 
         return pids
-
-    @staticmethod
-    def makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time Python datetime object
-        @retval seconds_since_epoch int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch
-
 
     def process_batch(self, start_time = '', end_time = ''):
         """

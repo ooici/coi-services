@@ -243,7 +243,7 @@ class UserNotificationTest(PyonTestCase):
 
         self.mock_rr_client.read.assert_called_once_with(notification_id, '')
 
-        notification_request.temporal_bounds.end_datetime = self.user_notification.makeEpochTime(now())
+        notification_request.temporal_bounds.end_datetime = get_ion_ts()
         self.mock_rr_client.update.assert_called_once_with(notification_request)
 
 @attr('INT', group='dm')
@@ -1818,21 +1818,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(events_for_message), self.number_event_published)
         self.assertEquals(times, times_of_events_published)
         self.assertEquals(origins_of_events, Set(['instrument_1', 'instrument_2']))
-
-    @staticmethod
-    def makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time: Python datetime object
-        @return: seconds_since_epoch:: int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
