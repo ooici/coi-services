@@ -544,7 +544,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param event Event
         """
 
-        self.event_publisher._publish_event( event_msg = event,
+        self.event_publisher.publish_event( event_msg = event,
             origin=event.origin,
             event_type = event.type_)
         log.info("The publish_event() method of UNS was used to publish an event.")
