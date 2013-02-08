@@ -10,6 +10,7 @@
 from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.core.bootstrap import CFG
 from pyon.util.log import log
+from pyon.util.containers import get_ion_ts
 from pyon.public import RT, PRED, get_sys_name, Container, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
@@ -145,7 +146,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_publisher = EventPublisher()
         self.datastore = self.container.datastore_manager.get_datastore('events')
 
-        self.start_time = UserNotificationService.makeEpochTime(self.__now())
+        self.start_time = get_ion_ts()
 
         #------------------------------------------------------------------------------------
         # Create an event subscriber for Reload User Info events
@@ -212,7 +213,9 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         def process(event_msg, headers):
-            self.end_time = UserNotificationService.makeEpochTime(self.__now())
+            self.end_time = get_ion_ts()
+
+            log.debug("process_batch being called with start_time = %s, end_time = %s", self.start_time, self.end_time)
 
             # run the process_batch() method
             self.process_batch(start_time=self.start_time, end_time=self.end_time)

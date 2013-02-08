@@ -1684,16 +1684,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.unsc.set_process_batch_key(process_batch_key = newkey)
 
         #--------------------------------------------------------------------------------
-        # Set up a time for the scheduler to trigger timer events
-        #--------------------------------------------------------------------------------
-        # Trigger the timer event 10 seconds later from now
-#        time_now = datetime.utcnow() + timedelta(seconds=15)
-#        times_of_day =[{'hour': str(time_now.hour),'minute' : str(time_now.minute), 'second':str(time_now.second) }]
-
-        times_of_day =[{'hour': '0','minute' : '0', 'second': '0' }]
-
-
-        #--------------------------------------------------------------------------------
         # Publish the events that the user will later be notified about
         #--------------------------------------------------------------------------------
         event_publisher = EventPublisher()
@@ -1768,10 +1758,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up the scheduler to publish daily events that should kick off process_batch()
         #--------------------------------------------------------------------------------
+
+        # Set up a time for the scheduler to trigger timer events
+        # Trigger the timer event 15 seconds later from now
+        time_now = datetime.utcnow() + timedelta(seconds=15)
+        times_of_day =[{'hour': str(time_now.hour),'minute' : str(time_now.minute), 'second':str(time_now.second) }]
+
         sid = self.ssclient.create_time_of_day_timer(   times_of_day=times_of_day,
-#            expires=get_ion_ts(),
+            expires=time.time()+25200+60,
             event_origin= newkey,
             event_subtype="")
+
+        log.debug("created the timer id: %s", sid)
+
         def cleanup_timer(scheduler, schedule_id):
             """
             Do a friendly cancel of the scheduled event.
