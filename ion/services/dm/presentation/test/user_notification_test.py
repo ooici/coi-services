@@ -1554,16 +1554,19 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_publish_event(self):
+    def test_publish_event_object(self):
         # Test the publish_event method of UNS
 
+        event_recvd_count = 0
         #--------------------------------------------------------------------------------
         # Create an event object
         #--------------------------------------------------------------------------------
-        event = DeviceEvent(  origin= "origin_1",
+        event_1 = DeviceEvent(  origin= "origin_1",
             origin_type='origin_type_1',
-            sub_type= 'sub_type_1',
-            ts_created = 2)
+            sub_type= 'sub_type_1')
+
+        event_with_ts_created = event_1
+        event_with_ts_created.ts_created = get_ion_ts()
 
         # create async result to wait on in test
         ar = gevent.event.AsyncResult()
@@ -1571,7 +1574,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Set up a subscriber to listen for that event
         #--------------------------------------------------------------------------------
-        def received_event(result, event, headers):
+        def received_event(result, event_recvd_count, event, headers):
             log.debug("received the event in the test: %s" % event)
 
             #--------------------------------------------------------------------------------
@@ -1580,14 +1583,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(event.origin, "origin_1")
             self.assertEquals(event.type_, 'DeviceEvent')
             self.assertEquals(event.origin_type, 'origin_type_1')
-            self.assertEquals(event.ts_created, 2)
+            self.assertNotEquals(event.ts_created, '')
             self.assertEquals(event.sub_type, 'sub_type_1')
 
-            result.set(True)
+            event_recvd_count += 1
+
+            if event_recvd_count == 2:
+                result.set(True)
 
         event_subscriber = EventSubscriber( event_type = 'DeviceEvent',
             origin="origin_1",
-            callback=lambda m, h: received_event(ar, m, h))
+            callback=lambda m, h: received_event(ar, event_recvd_count, m, h))
         event_subscriber.start()
         self.addCleanup(event_subscriber.stop)
 
@@ -1595,7 +1601,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Use the UNS publish_event
         #--------------------------------------------------------------------------------
 
-        self.unsc.publish_event(event=event)
+        self.unsc.publish_event_object(event=event_1)
+        self.unsc.publish_event_object(event=event_with_ts_created)
 
         ar.wait(timeout=10)
 
