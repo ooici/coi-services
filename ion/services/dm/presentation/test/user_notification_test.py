@@ -1687,8 +1687,11 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Set up a time for the scheduler to trigger timer events
         #--------------------------------------------------------------------------------
         # Trigger the timer event 10 seconds later from now
-        time_now = datetime.utcnow() + timedelta(seconds=15)
-        times_of_day =[{'hour': str(time_now.hour),'minute' : str(time_now.minute), 'second':str(time_now.second) }]
+#        time_now = datetime.utcnow() + timedelta(seconds=15)
+#        times_of_day =[{'hour': str(time_now.hour),'minute' : str(time_now.minute), 'second':str(time_now.second) }]
+
+        times_of_day =[{'hour': '0','minute' : '0', 'second': '0' }]
+
 
         #--------------------------------------------------------------------------------
         # Publish the events that the user will later be notified about
@@ -1766,7 +1769,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Set up the scheduler to publish daily events that should kick off process_batch()
         #--------------------------------------------------------------------------------
         sid = self.ssclient.create_time_of_day_timer(   times_of_day=times_of_day,
-            expires=time.time()+25200+60,
+#            expires=get_ion_ts(),
             event_origin= newkey,
             event_subtype="")
         def cleanup_timer(scheduler, schedule_id):
@@ -1915,8 +1918,9 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         def publish_events():
             x = 0
             for i in xrange(10):
-                event_publisher_1.publish_event(origin='my_unique_test_recent_events_origin', ts_created = i)
-                event_publisher_2.publish_event(origin='Another_recent_events_origin', ts_created = i)
+                t = get_ion_ts()
+                event_publisher_1.publish_event(origin='my_unique_test_recent_events_origin', ts_created = t)
+                event_publisher_2.publish_event(origin='Another_recent_events_origin', ts_created = t)
                 x += 1
             self.event.set()
 
