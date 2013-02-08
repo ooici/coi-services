@@ -14,6 +14,10 @@ __license__ = 'Apache 2.0'
 
 class NormalResponse(object):
     INSTRUMENT_DISCONNECTED       = 'OK_INSTRUMENT_DISCONNECTED'
+    PORT_TURNED_ON                = 'OK_PORT_TURNED_ON'
+    PORT_ALREADY_ON               = 'OK_PORT_ALREADY_ON'
+    PORT_TURNED_OFF               = 'OK_PORT_TURNED_OFF'
+    PORT_ALREADY_OFF              = 'OK_PORT_ALREADY_OFF'
 
 class InvalidResponse(object):
     PLATFORM_ID                   = 'INVALID_PLATFORM_ID'
@@ -71,22 +75,6 @@ class OmsClient(object):
         Returns platform map. This is the network object model in the OMS.
 
         @retval [(platform_id, parent_platform_id), ...]
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def get_root_platform_id(self):
-        """
-        Returns the ID of the root platform in the network.
-        @retval the ID of the root platform in the network.
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def get_subplatform_ids(self, platform_id):
-        """
-        Returns the IDs of the sub-platforms of the given platform.
-        @retval     {platform_id: [sub_platform_id, ...]}
-                    Dict with single entry for the desired platform with list
-                    of IDs of the corresponding sub-platforms. ||
         """
         raise NotImplementedError()  #pragma: no cover
 

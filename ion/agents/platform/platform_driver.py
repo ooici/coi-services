@@ -200,15 +200,6 @@ class PlatformDriver(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def get_subplatform_ids(self):
-        """
-        Gets the IDs of the subplatforms of this driver's associated
-        platform. This is based on self._nnode, which should have been
-        assigned by a call to go_active.
-        """
-        assert self._nnode is not None, "go_active should have been called first"
-        return self._nnode.subplatforms.keys()
-
     def destroy(self):
         """
         Stops all activity done by the driver. Nothing done in this class.

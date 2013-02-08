@@ -52,10 +52,10 @@ class RsnOmsUtil(object):
 
         # build topology:
         nodes = NetworkUtil.create_node_network(map)
-        platform_id = rsn_oms.get_root_platform_id()
-        assert platform_id
-
-        nnode = nodes[platform_id]
+        dummy_root = nodes['']
+        root_nnode = nodes[dummy_root.subplatforms.keys()[0]]
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("topology's root platform_id=%r", root_nnode.platform_id)
 
         # now, populate the attributes and ports for the platforms
 
@@ -105,13 +105,9 @@ class RsnOmsUtil(object):
                 nnode.add_port(port)
 
         # call the recursive routine
-        build_attributes_and_ports(nnode)
+        build_attributes_and_ports(root_nnode)
 
         # we got our whole network including platform attributes and ports.
-
-        # prepare the dummy_root:
-        assert '' in nodes, "platform map from RSN OMS expected to have entry with '' as parent"
-        dummy_root = nodes['']
 
         # and finally create and return NetworkDefinition:
         ndef = NetworkDefinition()

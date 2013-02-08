@@ -253,8 +253,7 @@ class PlatformAgent(ResourceAgent):
         @raises PlatformException if the verification fails for some reason.
         """
         if log.isEnabledFor(logging.TRACE):
-            log.trace("%r: plat_config=%s ",
-                self._platform_id, str(self._plat_config))
+            log.trace("_pre_initialize: plat_config=%s", str(self._plat_config))
 
         if not self._plat_config:
             msg = "'platform_config' entry not provided in agent configuration"
@@ -272,7 +271,10 @@ class PlatformAgent(ResourceAgent):
                 log.error(msg)
                 raise PlatformException(msg)
 
+        self._platform_id = self._plat_config['platform_id']
         driver_config = self._plat_config['driver_config']
+        self._network_definition_ser = self._plat_config['network_definition']
+
         for k in ['dvr_mod', 'dvr_cls']:
             if not k in driver_config:
                 msg = "%r: '%s' key not given in driver_config=%s" % (
@@ -280,17 +282,22 @@ class PlatformAgent(ResourceAgent):
                 log.error(msg)
                 raise PlatformException(msg)
 
-        self._network_definition_ser = self._plat_config['network_definition']
         self._network_definition = NetworkUtil.deserialize_network_definition(
             self._network_definition_ser)
-        self._nnode = self._network_definition.root
+
+        # verify the given platform_id is contained in the NetworkDefinition:
+        if not self._platform_id in self._network_definition.nodes:
+            msg = "%r: this platform_id not found in network definition." % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg)
+
+        self._nnode = self._network_definition.nodes[self._platform_id]
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
-        self._platform_id = self._plat_config['platform_id']
         if 'agent_streamconfig_map' in self._plat_config:
             self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
 
@@ -454,8 +461,7 @@ class PlatformAgent(ResourceAgent):
         self._plat_driver = driver
         self._plat_driver.set_event_listener(self.evt_recv)
 
-        if self._network_definition:
-            self._plat_driver.set_nnode(self._network_definition.nodes[self._platform_id])
+        self._plat_driver.set_nnode(self._nnode)
 
         log.debug("%r: driver created: %s",
             self._platform_id, str(driver))
@@ -465,8 +471,9 @@ class PlatformAgent(ResourceAgent):
 
     def _do_initialize(self):
         """
-        Does the main initialize sequence, which includes activation of the
-        driver and launch of the sub-platforms
+        Does the main initialize sequence, which includes creation
+        of publishers and activation of the driver, but excludes the launch
+        of the sub-platforms.
         """
         self._pre_initialize()
         self._construct_data_publishers()
@@ -475,22 +482,45 @@ class PlatformAgent(ResourceAgent):
 
     def _do_go_active(self):
         """
+        Any activation actions at this platform (excluding sub-platforms).
+        Nothing done at the moment.
+        """
+        pass
+
+    def _do_go_inactive(self):
+        """
+        Any desactivation actions at this platform (excluding sub-platforms).
         Nothing done at the moment.
         """
         pass
 
     def _go_inactive(self):
         """
-        Nothing done at the moment
+        Issues GO_INACTIVE to sub-platforms and then processes the command at
+        this platform.
+        """
+        self._subplatforms_go_inactive()
+        self._do_go_inactive()
+        result = None
+        return result
+
+    def _do_run(self):
+        """
+        Any actions at this platform (excluding sub-platforms) for the
+        COMMAND state.
+        Nothing done at the moment.
         """
         pass
 
     def _run(self):
         """
         Prepares this particular platform agent for the COMMAND state.
-        Currently, nothing is done here.
         """
-        pass
+        # first myself, then sub-platforms
+        self._do_run()
+        self._subplatforms_run()
+        result = None
+        return result
 
     def _verify_got_network_definition(self):
         if not self._network_definition:
@@ -858,18 +888,23 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: _initialize_subplatform %r  retval = %s",
                 self._platform_id, subplatform_id, str(retval))
 
+    def _get_subplatform_ids(self):
+        """
+        Gets the IDs of my sub-platforms.
+        """
+        return self._nnode.subplatforms.keys()
+
     def _subplatforms_launch(self):
         """
         Launches all my sub-platforms storing the corresponding
         ResourceAgentClient objects in _pa_clients.
         """
         self._pa_clients.clear()
-        subplatform_ids = self._plat_driver.get_subplatform_ids()
+        subplatform_ids = self._get_subplatform_ids()
         if len(subplatform_ids):
-            if self._parent_platform_id is None:
-                log.debug("%r: I'm the root platform", self._platform_id)
-            log.debug("%r: launching subplatforms %s",
-                self._platform_id, str(subplatform_ids))
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("%r: launching subplatforms %s",
+                    self._platform_id, str(subplatform_ids))
             for subplatform_id in subplatform_ids:
                 self._launch_platform_agent(subplatform_id)
 
@@ -882,7 +917,7 @@ class PlatformAgent(ResourceAgent):
                each sub-platform to create the command to be executed.
         @param expected_state
         """
-        subplatform_ids = self._plat_driver.get_subplatform_ids()
+        subplatform_ids = self._get_subplatform_ids()
         assert subplatform_ids == self._pa_clients.keys()
 
         if not len(subplatform_ids):
@@ -954,20 +989,9 @@ class PlatformAgent(ResourceAgent):
         log.info("%r: _initializing with provided platform_config...",
                  self._plat_config['platform_id'])
 
-        # TODO remove the following if block, which is there while
-        # we transition the configuration to on_init using self.CFG and not
-        # any more via parameter to this operation:
-#        if not self._plat_config:
-#            self._plat_config = kwargs.get('plat_config', None)
-#            self._plat_config_processed = False
-#            log.info("_initialize: self._plat_config set from initialize's plat_config param: %s",
-#                     self._plat_config)
-#        else:
-#            log.info("%r: _initialize: self._plat_config already set.",
-#                     self._plat_config['platform_id'])
-        ################################### end of block to be removed
-
         self._do_initialize()
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _do_initialize completed.", self._platform_id)
 
         # done with the initialization for this particular agent; and now
         # we have information to launch the sub-platform agents:
@@ -1063,12 +1087,9 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = None
         next_state = PlatformAgentState.INACTIVE
 
-        # first sub-platforms, then myself
-        self._subplatforms_go_inactive()
-        self._go_inactive()
+        result = self._go_inactive()
 
         return (next_state, result)
 
@@ -1079,12 +1100,9 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = None
         next_state = PlatformAgentState.COMMAND
 
-        # first myself, then sub-platforms
-        self._run()
-        self._subplatforms_run()
+        result = self._run()
 
         return (next_state, result)
 
@@ -1436,7 +1454,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._plat_driver.get_subplatform_ids()
+        result = self._get_subplatform_ids()
 
         next_state = self.get_agent_state()
 

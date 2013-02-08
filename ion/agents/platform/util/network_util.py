@@ -6,6 +6,7 @@
 @author  Carlos Rueda
 @brief   Utilities related with platform network serialization/deserialization.
 """
+from ion.agents.platform.exceptions import PlatformDefinitionException
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
@@ -31,10 +32,17 @@ class NetworkUtil(object):
         """
         Creates a node network according to the given map (this map is
         the format used by the CI-OMS interface to represent the topology).
+        Various verifications are performed here resulting in an exception
+        being thrown if the definition is invalid:
+         - no duplicate platform_id
+         - dummy root (with id '') is present
+         - only one regular root node.
 
         @param map [(platform_id, parent_platform_id), ...]
 
         @return { platform_id: NNode }
+
+        @raise PlatformDefinitionException
         """
         nodes = {}
         for platform_id, parent_platform_id in map:
@@ -46,8 +54,23 @@ class NetworkUtil(object):
 
             if not platform_id in nodes:
                 nodes[platform_id] = NNode(platform_id)
+                nodes[parent_platform_id].add_subplatform(nodes[platform_id])
+            else:
+                # we have a tuple with duplicate platform_id. Only accept it if
+                # the corresponding parent_platform_id is repeated with the same
+                # value. (Note that the node's parent object is already assigned)
+                if nodes[platform_id].parent.platform_id != parent_platform_id:
+                    raise PlatformDefinitionException(
+                        "Duplicate tuple for platform_id=%r but different "
+                        "parent_platform_ids: %r and %r" % (
+                            platform_id,
+                            nodes[platform_id].parent.platform_id, parent_platform_id))
 
-            nodes[parent_platform_id].add_subplatform(nodes[platform_id])
+        if not '' in nodes:
+            raise PlatformDefinitionException("Expecting dummy root in node network dict")
+        dummy_root = nodes['']
+        if len(dummy_root.subplatforms) != 1:
+            raise PlatformDefinitionException("Expecting a single root in node network dict")
 
         return nodes
 

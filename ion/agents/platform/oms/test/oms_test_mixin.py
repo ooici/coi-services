@@ -17,7 +17,7 @@ log = Logger.get_logger()
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
-from ion.agents.platform.oms.oms_client import InvalidResponse
+from ion.agents.platform.oms.oms_client import InvalidResponse, NormalResponse
 
 import time
 import ntplib
@@ -48,20 +48,15 @@ class OmsTestMixin(HelperTestMixin):
     def test_ab_get_platform_map(self):
         platform_map = self.oms.config.get_platform_map()
         self.assertIsInstance(platform_map, list)
+        roots = []
         for pair in platform_map:
             self.assertIsInstance(pair, (tuple, list))
-
-    def test_ab_get_root_platform_id(self):
-        platform_id = self.oms.config.get_root_platform_id()
-        self.assertEquals("ShoreStation", platform_id)
-
-    def test_ab_get_subplatform_ids(self):
-        platform_id = self.PLATFORM_ID
-        retval = self.oms.config.get_subplatform_ids(platform_id)
-        log.info("get_subplatform_ids(%r) = %s" % (platform_id,  retval))
-        subplatform_ids = self._verify_valid_platform_id(platform_id, retval)
-        self.assertIsInstance(subplatform_ids, list)
-        self.assertTrue(x in subplatform_ids for x in self.SUBPLATFORM_IDS)
+            self.assertEquals(len(pair), 2)
+            plat, parent = pair
+            if parent == '':
+                roots.append(plat)
+        self.assertEquals(len(roots), 1)
+        self.assertEquals("ShoreStation", roots[0])
 
     def test_ac_get_platform_types(self):
         retval = self.oms.config.get_platform_types()
@@ -234,8 +229,7 @@ class OmsTestMixin(HelperTestMixin):
             log.info("turn_on_platform_port(%s,%s) = %s" % (platform_id, port_id, retval))
             portRes = self._verify_valid_platform_id(platform_id, retval)
             res = self._verify_valid_port_id(port_id, portRes)
-            self.assertIsInstance(res, bool)
-            self.assertTrue(res)
+            self.assertEquals(res, NormalResponse.PORT_TURNED_ON)
 
     def test_an_turn_on_platform_port_invalid_platform_id(self):
         # use valid for get_platform_ports
@@ -257,8 +251,7 @@ class OmsTestMixin(HelperTestMixin):
             log.info("turn_off_platform_port(%s,%s) = %s" % (platform_id, port_id, retval))
             portRes = self._verify_valid_platform_id(platform_id, retval)
             res = self._verify_valid_port_id(port_id, portRes)
-            self.assertIsInstance(res, bool)
-            self.assertFalse(res)
+            self.assertEquals(res, NormalResponse.PORT_TURNED_OFF)
 
     def test_ao_turn_off_platform_port_invalid_platform_id(self):
         # use valid for get_platform_ports

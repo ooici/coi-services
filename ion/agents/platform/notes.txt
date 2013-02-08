@@ -2,6 +2,14 @@ platform agent framework
 
 some occasionaly updated developer notes
 
+2013-02-07:
+- Removed redundant operations from CI-OMS interface: get_root_platform_id and
+  get_subplatform_ids (get_platform_map is enough), and adjusted some others
+  for better consistency. Fixed recently introduces bug in PlatformAgent of
+  assigning the network definition's root to _nnode instead of the particular
+  node corresponding to the given platform_id. Other adjustments for consistency.
+  More verifications regarding platform network map and corresp unit tests.
+
 2013-02-06:
 - systematic renaming in RSN-OMS interface operations to follow general CI
   coding guidelines: use underscore.

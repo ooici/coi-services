@@ -180,19 +180,6 @@ class OmsSimulator(OmsClient):
     def get_platform_map(self):
         return self._dummy_root.get_map([])
 
-    def get_root_platform_id(self):
-        subplatforms = self._dummy_root.subplatforms
-        assert len(subplatforms) == 1
-        actual_root = list(subplatforms.itervalues())[0]
-        return actual_root.platform_id
-
-    def get_subplatform_ids(self, platform_id):
-        if platform_id not in self._idp:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        nnode = self._idp[platform_id]
-        return {platform_id: list(nnode.subplatforms.iterkeys())}
-
     def get_platform_types(self):
         return self._platform_types
 
@@ -377,12 +364,14 @@ class OmsSimulator(OmsClient):
 
         port = self._idp[platform_id].get_port(port_id)
         if port._is_on:
+            result = NormalResponse.PORT_ALREADY_ON
             log.warn("port %s in platform %s already turned on." % (port_id, platform_id))
         else:
             port._is_on = True
+            result = NormalResponse.PORT_TURNED_ON
             log.info("port %s in platform %s turned on." % (port_id, platform_id))
 
-        return {platform_id: {port_id: port._is_on}}
+        return {platform_id: {port_id: result}}
 
     def turn_off_platform_port(self, platform_id, port_id):
         if platform_id not in self._idp:
@@ -393,12 +382,14 @@ class OmsSimulator(OmsClient):
 
         port = self._idp[platform_id].get_port(port_id)
         if not port._is_on:
+            result = NormalResponse.PORT_ALREADY_OFF
             log.warn("port %s in platform %s already turned off." % (port_id, platform_id))
         else:
             port._is_on = False
+            result = NormalResponse.PORT_TURNED_OFF
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
 
-        return {platform_id: {port_id: port._is_on}}
+        return {platform_id: {port_id: result}}
 
     def describe_event_types(self, event_type_ids):
         if len(event_type_ids) == 0:

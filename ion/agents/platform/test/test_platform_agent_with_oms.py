@@ -6,6 +6,7 @@
 @author  Carlos Rueda
 @brief   Test cases for R2 platform agent interacting with OMS
 """
+from ion.agents.platform.oms.oms_client import NormalResponse
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
@@ -395,7 +396,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         log.info("TURN_ON_PORT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
-        self.assertIsInstance(result[port_id], bool)
+        self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_ON)
 
     def _turn_off_port(self):
         # TODO real settings and corresp verification
@@ -411,7 +412,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         log.info("TURN_OFF_PORT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
-        self.assertIsInstance(result[port_id], bool)
+        self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_OFF)
 
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
@@ -931,8 +932,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._turn_off_port()
         self._disconnect_instrument()
-
-        self._turn_off_port()
 
         self._go_inactive()
         self._reset()
