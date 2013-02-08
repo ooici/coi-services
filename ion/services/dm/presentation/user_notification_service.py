@@ -545,7 +545,7 @@ class UserNotificationService(BaseUserNotificationService):
         @retval event   !Event
         """
         event = self.event_publisher.publish_event_object(event_object=event)
-        log.info("The publish_event_obj(event) method of UNS was used to publish the event: %s", event )
+        log.info("The publish_event_object(event) method of UNS was used to publish the event: %s", event )
 
         return event
 

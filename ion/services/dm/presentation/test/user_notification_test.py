@@ -1506,12 +1506,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher_1 = EventPublisher("PlatformEvent")
         event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
+        min_datetime = get_ion_ts()
+
         for i in xrange(10):
-            event_publisher_1.publish_event(origin='my_special_find_events_origin', ts_created = i)
-            event_publisher_2.publish_event(origin='another_origin', ts_created = i)
+            event_publisher_1.publish_event(origin='my_special_find_events_origin', ts_created = get_ion_ts())
+            event_publisher_2.publish_event(origin='another_origin', ts_created = get_ion_ts())
+
+        max_datetime = get_ion_ts()
 
         def poller():
-            events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= 4, max_datetime=7)
+            events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= min_datetime, max_datetime=max_datetime)
             return len(events) >= 4
 
         success = self.event_poll(poller, 10)
@@ -1529,13 +1533,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_publisher_1 = EventPublisher("PlatformEvent")
         event_publisher_2 = EventPublisher("ReloadUserInfoEvent")
 
+        min_time = get_ion_ts()
+
         for i in xrange(10):
-            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = i)
-            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = i)
+            event_publisher_1.publish_event(origin='Some_Resource_Agent_ID1', ts_created = get_ion_ts())
+            event_publisher_2.publish_event(origin='Some_Resource_Agent_ID2', ts_created = get_ion_ts())
+
+        max_time = get_ion_ts()
 
         # allow elastic search to populate the indexes. This gives enough time for the reload of user_info
         def poller():
-            events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=4, max_time=7)
+            events = self.unsc.find_events_extended(origin='Some_Resource_Agent_ID1', min_time=min_time, max_time=max_time)
             return len(events) >= 4
 
         success = self.event_poll(poller, 10)
@@ -1618,8 +1626,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         sub_type= 'sub_type_1'
         event_attrs = {'status': 'OK'}
 
-#        log.debug("event_attrs: %s", event_attrs)
-
         # create async result to wait on in test
         ar = gevent.event.AsyncResult()
 
@@ -1695,8 +1701,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         def publish_events():
             for i in xrange(3):
-                t = now()
-                t = UserNotificationIntTest.makeEpochTime(t)
+                t = get_ion_ts()
 
                 event_publisher.publish_event( ts_created= t ,
                     origin="instrument_1",
