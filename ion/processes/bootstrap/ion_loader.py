@@ -1319,13 +1319,13 @@ Reason: %s
                 if res_id not in context_ids:
                     context_ids[res_id] = 0
                 else:
-                    print 'Duplicate: %s (%s)' % (name, i)
+                    log.warning( 'Duplicate: %s (%s)' , name, i)
                 context_ids[self.resource_ids[i]] = 0
             except KeyError:
                 pass
 
         if not context_ids:
-            print 'No valid parameters: %s' % row['name']
+            log.warning( 'No valid parameters: %s' , row['name'])
             return
         dataset_management = self._get_service_client('dataset_management')
         try:
@@ -1339,13 +1339,9 @@ Reason: %s
 
 
     def _load_ParameterDefs(self, row):
-        try:
-            if row['SKIP']:
-                self._conflict_report(row['ID'], row['Name'], row['SKIP'])
-                return
-        except:
-            print '>>>>>>>>>> ', row.keys()
-            raise
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['Name'], row['SKIP'])
+            return
         name          = row['Name']
         ptype         = row['Parameter Type']
         encoding      = row['Value Encoding']
@@ -1368,7 +1364,7 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         except:
-            print row
+            log.exception('Could not load the following parameter definition: %s', row)
             return
         
 
