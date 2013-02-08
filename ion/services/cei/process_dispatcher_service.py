@@ -701,9 +701,13 @@ class PDLocalBackend(object):
                     process_id, str(e))
             process.process_state = ProcessStateEnum.TERMINATED
 
-            self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
-                origin=process_id, origin_type="DispatchedProcess",
-                state=ProcessStateEnum.TERMINATED)
+            try:
+                self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+                    origin=process_id, origin_type="DispatchedProcess",
+                    state=ProcessStateEnum.TERMINATED)
+            except BadRequest, e:
+                log.warn(e)
+
         else:
             raise NotFound("process %s unknown" % (process_id,))
 

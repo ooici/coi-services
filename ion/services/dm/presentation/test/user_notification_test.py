@@ -8,9 +8,9 @@
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict, get_ion_ts
-from pyon.public import IonObject, RT, OT, PRED, Container, CFG
+from pyon.public import IonObject, RT, OT, PRED, Container
 from pyon.core.exception import NotFound, BadRequest
-from pyon.core.bootstrap import get_sys_name
+from pyon.core.bootstrap import get_sys_name, CFG
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -107,7 +107,6 @@ class UserNotificationTest(PyonTestCase):
         self.user_notification.notifications = {}
 
         self.user_notification.event_processor.add_notification_for_user = mocksignature(self.user_notification.event_processor.add_notification_for_user)
-        self.user_notification.update_user_info_dictionary = mocksignature(self.user_notification.update_user_info_dictionary)
         self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
 
         self.user_notification._notification_in_notifications = mocksignature(self.user_notification._notification_in_notifications)
@@ -175,13 +174,9 @@ class UserNotificationTest(PyonTestCase):
 #        self.user_notification.update_user_info_object = mocksignature(self.user_notification.update_user_info_object)
 #        self.user_notification.update_user_info_object.return_value = 'user'
 #
-#        self.user_notification.update_user_info_dictionary = mocksignature(self.user_notification.update_user_info_dictionary)
-#        self.user_notification.update_user_info_dictionary.return_value = ''
-#
 #        self.user_notification.notifications = []
 #
 #        self.user_notification._update_notification_in_notifications_dict = mocksignature(self.user_notification._update_notification_in_notifications_dict)
-#        self.user_notification.update_user_info_dictionary.return_value = ''
 #
 #        self.user_notification.event_publisher.publish_event = mocksignature(self.user_notification.event_publisher.publish_event)
 #
@@ -208,7 +203,6 @@ class UserNotificationTest(PyonTestCase):
 #        #-------------------------------------------------------------------------------------------------------------------
 #
 #        self.user_notification.update_user_info_object.assert_called_once_with(user_id, notification, notification)
-#        self.user_notification.update_user_info_dictionary.assert_called_once_with('user_id_1', notification, notification)
 
 
     def test_delete_user_notification(self):
@@ -573,30 +567,45 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         self.unsc.create_notification(notification=notification_request_2, user_id=user_id_1)
 
+        proc1 = self.container.proc_manager.procs_by_name['user_notification']
+
+        def found_user_info_dicts(proc1,*args, **kwargs):
+            reloaded_user_info = proc1.user_info
+            reloaded_reverse_user_info = proc1.reverse_user_info
+
+            notifications = proc1.user_info[user_id_1]['notifications']
+            origins = []
+            event_types = []
+
+            log.debug("Within the poll, got notifications here :%s", notifications)
+
+            if notifications:
+                for notific in notifications:
+                    self.assertTrue(notific._id != '')
+                    origins.append(notific.origin)
+                    event_types.append(notific.event_type)
+
+            if set(origins) == set(['instrument_1', 'instrument_2']) and set(event_types) == set(['ResourceLifecycleEvent', 'DetectionEvent']):
+                return reloaded_user_info, reloaded_reverse_user_info
+            else:
+                return None
+
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, proc1)
+
         # Check in UNS ------------>
-        self.assertEquals(proc1.user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
+        self.assertEquals(reloaded_user_info[user_id_1]['user_contact'].email, 'user_1@gmail.com' )
 
-        notifications = proc1.user_info[user_id_1]['notifications']
-        origins = []
-        event_types = []
-        for notific in notifications:
-            origins.append(notific.origin)
-            event_types.append(notific.event_type)
+        self.assertEquals(reloaded_reverse_user_info['event_origin']['instrument_1'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_origin']['instrument_2']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(set(origins), set(['instrument_1', 'instrument_2']))
-        self.assertEquals(set(event_types), set(['ResourceLifecycleEvent', 'DetectionEvent']))
+        self.assertEquals(reloaded_reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_type']['DetectionEvent']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(proc1.reverse_user_info['event_origin']['instrument_1'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_origin']['instrument_2']), set([user_id_2, user_id_1]))
+        self.assertEquals(reloaded_reverse_user_info['event_subtype']['subtype_1'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_subtype']['subtype_2']), set([user_id_2, user_id_1]))
 
-        self.assertEquals(proc1.reverse_user_info['event_type']['ResourceLifecycleEvent'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_type']['DetectionEvent']), set([user_id_2, user_id_1]))
-
-        self.assertEquals(proc1.reverse_user_info['event_subtype']['subtype_1'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_subtype']['subtype_2']), set([user_id_2, user_id_1]))
-
-        self.assertEquals(proc1.reverse_user_info['event_origin_type']['type_1'], [user_id_1])
-        self.assertEquals(set(proc1.reverse_user_info['event_origin_type']['type_2']), set([user_id_2, user_id_1]))
+        self.assertEquals(reloaded_reverse_user_info['event_origin_type']['type_1'], [user_id_1])
+        self.assertEquals(set(reloaded_reverse_user_info['event_origin_type']['type_2']), set([user_id_2, user_id_1]))
 
         log.debug("The event processor received the notification topics after another create_notification() for the first user")
         log.debug("Verified that the event processor correctly updated its user info dictionaries")
@@ -1989,10 +1998,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(res_notifs), 2)
 
         for notific in res_notifs:
+
+            notific_in_db = self.rrc.read(notific._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notific.origin, data_product_id)
             self.assertEquals(notific.temporal_bounds.end_datetime, '')
             self.assertTrue(notific.origin_type == 'type_1' or  notific.origin_type =='type_2')
             self.assertEquals(notific.event_type, 'ResourceLifecycleEvent')
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertEquals(notific_in_db.temporal_bounds.end_datetime, '')
+            self.assertTrue(notific_in_db.origin_type == 'type_1' or  notific_in_db.origin_type =='type_2')
+            self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
+
 
         #--------------------------------------------------------------------------------------
         # Use UNS to get the all subscriptions --- including retired
@@ -2001,9 +2020,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         for notific in res_notifs:
             log.debug("notif.origin_type:: %s", notific.origin_type)
+
+            notific_in_db = self.rrc.read(notific._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notific.origin, data_product_id)
             self.assertTrue(notific.origin_type in ['type_1', 'type_2', 'type_3', 'type_4'])
             self.assertTrue(notific.event_type in ['ResourceLifecycleEvent', 'DetectionEvent'])
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertTrue(notific_in_db.origin_type in ['type_1', 'type_2', 'type_3', 'type_4'])
+            self.assertTrue(notific_in_db.event_type in ['ResourceLifecycleEvent', 'DetectionEvent'])
+
 
         self.assertEquals(len(res_notifs), 4)
 
@@ -2134,19 +2162,38 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         for notif in n_for_user_1:
             log.debug("notif_active::: %s" % notif)
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notif.origin, data_product_id)
             self.assertEquals(notif.temporal_bounds.end_datetime, '')
             self.assertEquals(notif.origin_type, 'active_1')
             self.assertEquals(notif.event_type, 'ResourceLifecycleEvent')
 
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertEquals(notific_in_db.temporal_bounds.end_datetime, '')
+            self.assertEquals(notific_in_db.origin_type, 'active_1')
+            self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
+
+
         n_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=False)
         self.assertEquals(len(n_for_user_2), 1)
 
         for notif in n_for_user_2:
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notif.origin, data_product_id)
             self.assertEquals(notif.temporal_bounds.end_datetime, '')
             self.assertEquals(notif.origin_type, 'active_2')
             self.assertEquals(notif.event_type, 'ResourceLifecycleEvent')
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertEquals(notific_in_db.temporal_bounds.end_datetime, '')
+            self.assertEquals(notific_in_db.origin_type, 'active_2')
+            self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
 
 
         #--------------------------------------------------------------------------------------
@@ -2159,17 +2206,34 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         for notif in notifs_for_user_1:
             log.debug("notif.origin_type:: %s", notif.origin_type)
             log.debug("notif::: %s", notif)
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertEquals(notif.origin, data_product_id)
             self.assertTrue(notif.origin_type == 'active_1' or notif.origin_type == 'past_1')
             self.assertTrue(notif.event_type== 'ResourceLifecycleEvent' or notif.event_type=='DetectionEvent')
+
+            self.assertEquals(notific_in_db.origin, data_product_id)
+            self.assertTrue(notific_in_db.origin_type == 'active_1' or notific_in_db.origin_type == 'past_1')
+            self.assertTrue(notific_in_db.event_type== 'ResourceLifecycleEvent' or notific_in_db.event_type=='DetectionEvent')
+
 
         notifs_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=True)
 
         for notif in notifs_for_user_2:
             self.assertEquals(notif.origin, data_product_id)
             log.debug("notif_past::: %s" % notif)
+
+            notific_in_db = self.rrc.read(notif._id)
+            self.assertTrue(notific_in_db)
+
             self.assertTrue(notif.origin_type == 'active_2' or notif.origin_type == 'past_2')
             self.assertTrue(notif.event_type== 'ResourceLifecycleEvent' or notif.event_type=='DetectionEvent')
+
+            self.assertTrue(notific_in_db.origin_type == 'active_2' or notific_in_db.origin_type == 'past_2')
+            self.assertTrue(notific_in_db.event_type== 'ResourceLifecycleEvent' or notific_in_db.event_type=='DetectionEvent')
+
         log.debug("number of returned notif object for user 2: %s", len(notifs_for_user_2))
 
 

@@ -14,7 +14,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from ion.core.includes.mi import SBE37ProtocolEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 
@@ -229,8 +229,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                   name='agent007',
                                   description="SBE37IMAgent",
-                                  driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                  driver_class="SBE37Driver",
+                                  driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg",
                                   stream_configurations = [raw_config, parsed_config])
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
         print  'new InstrumentAgent id = %s' % instAgent_id
@@ -445,7 +444,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("RDT parsed: %s", str(rdt.pretty_print()) )
         temp_vals = rdt['temp']
-        self.assertTrue(len(temp_vals) == 10)
+        self.assertEquals(len(temp_vals) , 10)
 
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
@@ -454,7 +453,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("RDT raw: %s", str(rdt.pretty_print()) )
 
         raw_vals = rdt['raw']
-        self.assertTrue(len(raw_vals) == 10)
+        self.assertEquals(len(raw_vals) , 10)
 
 
         print "l4-ci-sa-rq-138"
