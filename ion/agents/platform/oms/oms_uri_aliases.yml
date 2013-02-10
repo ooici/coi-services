@@ -2,11 +2,12 @@
 # URI aliases used by OmsClientFactory
 #
 
-# see oms_simulator_server.py to see how to launch simulator as an external
-# process locally
+# See oms_simulator_server.py to launch simulator as an external process.
+
+# simulator running locally
 localsimulator: http://localhost:7700/
 
-# simulator deployment on OOICI not recently updated as of Feb 2013
+# simulator deployment on OOICI
 simulator: http://rsn-oms-simulator.oceanobservatories.org:7700/
 
 # actual RSN OMS server as late 2012

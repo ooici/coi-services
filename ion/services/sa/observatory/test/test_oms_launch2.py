@@ -54,6 +54,7 @@ from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from unittest import skip
+import os
 
 # The ID of the base platform for this test .
 # These Ids and names should correspond to corresponding entries in network.yml,
@@ -63,10 +64,14 @@ from unittest import skip
 # the test does not take too long.
 BASE_PLATFORM_ID = 'Node1D'
 
+# By default, test against "embedded" simulator. The OMS environment variable
+# can be used to indicate a different RSN OMS server endpoint. Some aliases for
+# the "oms_uri" parameter include "localsimulator" and "simulator".
+# See OmsClientFactory.
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
     'dvr_cls': 'OmsPlatformDriver',
-    'oms_uri': 'embsimulator'
+    'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
 # TIMEOUT: timeout for each execute_agent call.

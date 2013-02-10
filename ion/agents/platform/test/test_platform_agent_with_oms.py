@@ -56,15 +56,19 @@ from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 from gevent.event import AsyncResult
 from mock import patch
 
+import os
 import time
 from nose.plugins.attrib import attr
 
 
-# note that we use an "embedded" simulator
+# By default, test against "embedded" simulator. The OMS environment variable
+# can be used to indicate a different RSN OMS server endpoint. Some aliases for
+# the "oms_uri" parameter include "localsimulator" and "simulator".
+# See OmsClientFactory.
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
     'dvr_cls': 'OmsPlatformDriver',
-    'oms_uri': 'embsimulator',
+    'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
 # Agent parameters.

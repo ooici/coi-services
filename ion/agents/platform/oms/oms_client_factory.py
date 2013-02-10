@@ -12,6 +12,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+import logging
 
 from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
 import xmlrpclib
@@ -26,16 +27,17 @@ class OmsClientFactory(object):
     Provides an OmsClient implementation.
     """
 
-    uri_aliases = None
+    _uri_aliases = None
 
     @classmethod
     def _load_uri_aliases(cls):
         try:
-            cls.uri_aliases = yaml.load(file(_OMS_URI_ALIASES_FILENAME))
-            log.debug("Loaded OMS URI aliases = %s" % cls.uri_aliases)
+            cls._uri_aliases = yaml.load(file(_OMS_URI_ALIASES_FILENAME))
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("Loaded OMS URI aliases = %s" % cls._uri_aliases)
         except Exception as e:
             log.warn("Cannot loaded %s: %s" % (_OMS_URI_ALIASES_FILENAME, e))
-            cls.uri_aliases = {}
+            cls._uri_aliases = {}
 
     @classmethod
     def create_instance(cls, uri=None):
@@ -52,7 +54,7 @@ class OmsClientFactory(object):
         to try the connection with corresponding XML/RPC server.
         """
 
-        if cls.uri_aliases is None:
+        if cls._uri_aliases is None:
             cls._load_uri_aliases()
 
         if uri is None:
@@ -60,11 +62,15 @@ class OmsClientFactory(object):
 
         if "embsimulator" == uri:
             # "embedded" simulator, so instantiate OmsSimulator here:
-            log.debug("Will use embedded OmsSimulator instance")
+            log.debug("Using embedded OmsSimulator instance")
             instance = OmsSimulator()
         else:
-            log.debug("Creating xmlrpclib.ServerProxy: uri=%s", uri)
+            # try alias resolution and then create ServerProxy instance:
+            uri = cls._uri_aliases.get(uri, uri)
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("Creating xmlrpclib.ServerProxy: uri=%s", uri)
             instance = xmlrpclib.ServerProxy(uri, allow_none=True)
-            log.debug("Created xmlrpclib.ServerProxy: uri=%s", uri)
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("Created xmlrpclib.ServerProxy: uri=%s", uri)
 
         return instance
