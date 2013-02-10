@@ -5,12 +5,12 @@ from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model import SimplexCoverage, QuantityType
+from coverage_model import SimplexCoverage
 
 from xml.dom.minidom import parse, parseString
 from zipfile import ZipFile
 
-
+#import numpy as np
 import base64
 import os
 import urllib
@@ -54,7 +54,7 @@ class RegistrationProcess(StandaloneProcess):
         except: # We don't re-raise to prevent clients from bombing out...
             log.exception('Problem registering dataset')
             log.error('Failed to register dataset for coverage path %s' % coverage_path)
-
+    
     def create_symlink(self, coverage_path, pydap_path):
         paths = os.path.split(coverage_path)
         os.symlink(coverage_path, pydap_path + paths[1])
@@ -69,14 +69,27 @@ class RegistrationProcess(StandaloneProcess):
 
         with open(self.datasets_xml_path, 'w') as f:
             dom1.writexml(f)
+    
+    def get_errdap_name_map(self, names):
+        result = {}
+        for name in names:
+            if 'lon' in name:
+                result[name] = 'longitude'
+            elif 'lat' in name:
+                result[name] = 'latitude'
+            else:
+                result[name] = name
+        return result
 
     def get_dataset_xml(self, coverage_path, product_name=''):
-
+        #http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html
         result = ''
 
         paths = os.path.split(coverage_path)
         cov = SimplexCoverage.load(coverage_path)
         doc = xml.dom.minidom.Document()
+        
+#        erd_type_map = {'d':'double', 'f':"float", 'h':'short', 'i':'int', 'l':'int', 'q':'int', 'b':'byte', 'b':'char', 'S':'String'} 
         
         #Get lists of variables with unique sets of dimensions.
         #Datasets can only have variables with the same sets of dimensions
@@ -87,8 +100,9 @@ class RegistrationProcess(StandaloneProcess):
         datasets = {}
         for key in cov.list_parameters():
             pc = cov.get_parameter_context(key)
-            if not isinstance(pc.param_type, QuantityType):
-                continue
+            #if not isinstance(pc.param_type, QuantityType):
+            #if key not in ["time","lat","lon", "density"]:
+            #    continue
             param = cov.get_parameter(key)
             dims = (cov.temporal_parameter_name,)
             if len(param.shape) == 2:
@@ -98,21 +112,22 @@ class RegistrationProcess(StandaloneProcess):
                 datasets[dims] = []
 
             datasets[dims].append(key)
+        
 
         index = 0
         if not datasets:
             raise BadRequest('Attempting to register a dimensionless dataset. The coverage (%s) has no dimension(s).\n%s' %( coverage_path, cov))
         
         for dims, vars in datasets.iteritems():
+            erd_name_map = self.get_errdap_name_map(vars) 
+            
             if len(vars)==1:
                 raise BadRequest('A dataset needs a proper range, not just the temporal dimension. %s\n%s' %( coverage_path, cov))
 
             if not (len(dims) == 1 and dims[0] == vars[0]):
                 dataset_element = doc.createElement('dataset')
-                #options for cdm_data_type are Point,Profile,TimeSeries,TimeSeriesProfile,Trajectory,TrajectoryProfile,Other
-                #just dealing with Grid data so hardcode for now
-                #TODO: add dynamic data type based on data
-                dataset_element.setAttribute('type', 'EDDGridFromDap')
+                #dataset_element.setAttribute('type', 'EDDGridFromDap')
+                dataset_element.setAttribute('type', 'EDDTableFromDapSequence')
                 dataset_element.setAttribute('datasetID', '{0}_{1}'.format(paths[1], index))
                 dataset_element.setAttribute('active', 'True')
 
@@ -125,6 +140,26 @@ class RegistrationProcess(StandaloneProcess):
                 text_node = doc.createTextNode('5')
                 reload_element.appendChild(text_node)
                 dataset_element.appendChild(reload_element)
+                
+                outer_element = doc.createElement('outerSequenceName')
+                text_node = doc.createTextNode('data')
+                outer_element.appendChild(text_node)
+                dataset_element.appendChild(outer_element)
+                
+                skip_element = doc.createElement('skipDapperSpacerRows')
+                text_node = doc.createTextNode('false')
+                skip_element.appendChild(text_node)
+                dataset_element.appendChild(skip_element)
+                
+                gtlt_element = doc.createElement('sourceCanConstrainStringGTLT')
+                text_node = doc.createTextNode('true')
+                gtlt_element.appendChild(text_node)
+                dataset_element.appendChild(gtlt_element)
+                
+                eqne_element = doc.createElement('sourceCanConstrainStringEQNE')
+                text_node = doc.createTextNode('true')
+                eqne_element.appendChild(text_node)
+                dataset_element.appendChild(eqne_element)
 
                 add_attributes_element = doc.createElement('addAttributes')
 
@@ -132,9 +167,12 @@ class RegistrationProcess(StandaloneProcess):
                 atts['title'] = product_name or urllib.unquote(cov.name)
                 atts['infoUrl'] = self.pydap_url + paths[1]
                 atts['institution'] = 'OOI'
-                atts['Metadata_Conventions'] = "COARDS, CF-1.6, Unidata Dataset Discovery v1.0"
-                atts['license'] = 'the license'
+                atts['Conventions'] = "COARDS, CF-1.6, Unidata Dataset Discovery v1.0"
+                atts['license'] = '[standard]'
                 atts['summary'] = cov.name
+                atts['cdm_data_type'] = 'Point'
+                atts['subsetVariables'] = ','.join([erd_name_map[v] for v in vars])
+                atts['standard_name_vocabulary'] = 'CF-12'
                 
                 try:
                     lat_min,lat_max = cov.get_data_bounds("lat")
@@ -168,84 +206,21 @@ class RegistrationProcess(StandaloneProcess):
 
                     units = var.uom
 
-                    if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
-                        data_element = doc.createElement('dataVariable')
-                        source_name_element = doc.createElement('sourceName')
-                        text_node = doc.createTextNode(var.name)
-                        source_name_element.appendChild(text_node)
-                        data_element.appendChild(source_name_element)
-
-                        destination_name_element = doc.createElement('destinationName')
-                        text_node = doc.createTextNode(var.name)
-                        destination_name_element.appendChild(text_node)
-                        data_element.appendChild(destination_name_element)
-
-                        add_attributes_element = doc.createElement('addAttributes')
-                        if not var.attributes is None:
-                            for key, val in var.attributes.iteritems():
-                                att_element = doc.createElement('att')
-                                att_element.setAttribute('name', key)
-                                text_node = doc.createTextNode(val)
-                                att_element.appendChild(text_node)
-                                add_attributes_element.appendChild(att_element)
-
-                        att_element = doc.createElement('att')
-                        att_element.setAttribute('name', 'ioos_category')
-                        text_node = doc.createTextNode(self.get_ioos_category(var.name, units))
-                        att_element.appendChild(text_node)
-                        add_attributes_element.appendChild(att_element)
-
-                        att_element = doc.createElement('att')
-                        att_element.setAttribute('name', 'long_name')
-                        long_name = ""
-                        if var.long_name is not None:
-                            long_name = var.long_name
-                            text_node = doc.createTextNode(long_name)
-                            att_element.appendChild(text_node)
-                            add_attributes_element.appendChild(att_element)
-                        
-                        att_element = doc.createElement('att')
-                        standard_name = ""
-                        if var.standard_name is not None:
-                            standard_name = var.standard_name
-                            att_element.setAttribute('name', 'standard_name')
-                            text_node = doc.createTextNode(standard_name)
-                            att_element.appendChild(text_node)
-                            add_attributes_element.appendChild(att_element)
-                        
-                        att_element = doc.createElement('att')
-                        att_element.setAttribute('name', 'units')
-                        units = ""
-                        if units is not None:
-                            units = var.uom
-                            text_node = doc.createTextNode(units)
-                            att_element.appendChild(text_node)
-                            add_attributes_element.appendChild(att_element)
-
-                        data_element.appendChild(add_attributes_element)
-                        dataset_element.appendChild(data_element)
-
-
-                for dim_name in dims: #axisVariable
-                    param = cov.get_parameter(dim_name)
-                    dim = param.context
-
-                    units = var.uom
-
-                    axis_element = doc.createElement('axisVariable')
+                    #if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
+                    data_element = doc.createElement('dataVariable')
                     source_name_element = doc.createElement('sourceName')
-                    text_node = doc.createTextNode(dim.name)
+                    text_node = doc.createTextNode(var.name)
                     source_name_element.appendChild(text_node)
-                    axis_element.appendChild(source_name_element)
+                    data_element.appendChild(source_name_element)
 
                     destination_name_element = doc.createElement('destinationName')
-                    text_node = doc.createTextNode(dim.name)
+                    text_node = doc.createTextNode(erd_name_map[var.name])
                     destination_name_element.appendChild(text_node)
-                    axis_element.appendChild(destination_name_element)
-
+                    data_element.appendChild(destination_name_element)
+                    
                     add_attributes_element = doc.createElement('addAttributes')
-                    if not dim.attributes is None:
-                        for key, val in dim.attributes.iteritems():
+                    if not var.attributes is None:
+                        for key, val in var.attributes.iteritems():
                             att_element = doc.createElement('att')
                             att_element.setAttribute('name', key)
                             text_node = doc.createTextNode(val)
@@ -254,19 +229,45 @@ class RegistrationProcess(StandaloneProcess):
 
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', 'ioos_category')
-                    text_node = doc.createTextNode(self.get_ioos_category(dim.name, units))
+                    text_node = doc.createTextNode(self.get_ioos_category(var.name, units))
                     att_element.appendChild(text_node)
                     add_attributes_element.appendChild(att_element)
 
-                    axis_element.appendChild(add_attributes_element)
+                    att_element = doc.createElement('att')
+                    att_element.setAttribute('name', 'long_name')
+                    long_name = ""
+                    if var.long_name is not None:
+                        long_name = var.long_name
+                        text_node = doc.createTextNode(long_name)
+                        att_element.appendChild(text_node)
+                        add_attributes_element.appendChild(att_element)
+                    
+                    att_element = doc.createElement('att')
+                    standard_name = ""
+                    if var.standard_name is not None:
+                        standard_name = var.standard_name
+                        att_element.setAttribute('name', 'standard_name')
+                        text_node = doc.createTextNode(standard_name)
+                        att_element.appendChild(text_node)
+                        add_attributes_element.appendChild(att_element)
+                    
+                    att_element = doc.createElement('att')
+                    att_element.setAttribute('name', 'units')
+                    units = ""
+                    if units is not None:
+                        units = var.uom
+                        text_node = doc.createTextNode(units)
+                        att_element.appendChild(text_node)
+                        add_attributes_element.appendChild(att_element)
 
-                    dataset_element.appendChild(axis_element)
+                    data_element.appendChild(add_attributes_element)
+                    dataset_element.appendChild(data_element)
 
                 index += 1
                 #bug with prettyxml
                 #http://ronrothman.com/public/leftbraned/xml-dom-minidom-toprettyxml-and-silly-whitespace/
-                #result += dataset_element.toprettyxml() + '\n'
-                result += dataset_element.toxml() + '\n'
+                result += dataset_element.toprettyxml() + '\n'
+                #result += dataset_element.toxml() + '\n'
 
         cov.close()
 
