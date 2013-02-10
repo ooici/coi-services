@@ -7,7 +7,7 @@ import inspect, collections, ast, simplejson, json, sys, time, traceback, string
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
-from pyon.public import IonObject, Container, ProcessRPCClient
+from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict
 from pyon.core.governance.governance_controller import DEFAULT_ACTOR_ID
@@ -96,7 +96,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
             log.info("Starting service gateway on %s:%s", self.server_hostname, self.server_port)
             self.start_service(self.server_hostname, self.server_port)
 
-        self.user_role_event_subscriber = EventSubscriber(event_type="UserRoleModifiedEvent", origin_type="Org",
+        self.user_role_event_subscriber = EventSubscriber(event_type=OT.UserRoleModifiedEvent, origin_type="Org",
             callback=self.user_role_event_callback)
         self.user_role_event_subscriber.start()
 
@@ -143,7 +143,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         """
         user_role_event = args[0]
         org_id = user_role_event.origin
-        actor_id = user_role_event.user_id
+        actor_id = user_role_event.actor_id
         role_name = user_role_event.role_name
         log.debug("User Role modified: %s %s %s" % (org_id, actor_id, role_name))
 

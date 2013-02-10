@@ -389,7 +389,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #now try creating a new user with a valid actor
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
 
         #User without OPERATOR or MANAGER role should not be allowed
@@ -438,7 +438,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #now try creating a new user with a valid actor
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
@@ -505,7 +505,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now create user with proper credentials
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
 
         #Build the message headers used with this user
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
@@ -663,7 +663,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now create user with proper credentials
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
 
         #Build the message headers used with this user
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
@@ -905,7 +905,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now create user with proper credentials
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
 
         #Create a second Org
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
@@ -987,14 +987,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First make a acquire resource request with an non-enrolled user.
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=self.system_actor._id, provider=org2_id, resource=ia_list[0]._id )
+            sap = IonObject(OT.AcquireResourceProposal,consumer=self.system_actor._id, provider=org2_id, resource_id=ia_list[0]._id )
             sap_response = self.org_client.negotiate(sap, headers=self.system_actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_enrolled',cm.exception.message)
 
 
         #Make a proposal to acquire a resource with an enrolled user that has the right role but the resource is not shared the Org
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -1010,13 +1010,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #First try to acquire the resource exclusively but it should fail since the user cannot do this without first
         #having had acquired the resource
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_acquired',cm.exception.message)
 
 
         #Make a proposal to acquire a resource with an enrolled user that has the right role and is now shared
-        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.system_actor_header)
@@ -1065,7 +1065,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
         self.assertEquals(len(events_r), 3)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.COUNTER])
-        self.assertEqual(events_r[-1][2].resource, ia_list[0]._id)
+        self.assertEqual(events_r[-1][2].resource_id, ia_list[0]._id)
 
 
         #Manager approves Instrument resource proposal
@@ -1114,7 +1114,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         invalid_expiration = cur_time +  ( 13 * 60 * 60 * 1000 ) # 12 hours from now
 
         #Now try to acquire the resource exclusively for longer than 12 hours
-        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id,
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id,
                     expiration=invalid_expiration)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
@@ -1126,7 +1126,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         cur_time = int(get_ion_ts())
         valid_expiration = cur_time +  ( 20 * 60 * 1000 ) # 12 hours from now
 
-        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id,
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id,
                     expiration=valid_expiration)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
@@ -1139,7 +1139,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now try to acquire the resource exclusively again - should fail
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: not is_resource_acquired_exclusively',cm.exception.message)
 
@@ -1174,7 +1174,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Attempt to acquire the same resource from the ION Org which is not sharing it - should fail
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=self.ion_org._id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=self.ion_org._id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -1187,7 +1187,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Make a proposal to acquire a resource with an enrolled user that does not have the right role
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id )
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id )
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: has_role',cm.exception.message)
 
@@ -1197,7 +1197,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
         self.assertEquals(len(events_r), 6)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
-        self.assertEqual(events_r[-1][2].resource, ia_list[0]._id)
+        self.assertEqual(events_r[-1][2].resource_id, ia_list[0]._id)
 
 
     @attr('LOCOINT')
@@ -1218,7 +1218,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Create user
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.debug( "user id=" + actor_id)
+        log.debug( "actor id=" + actor_id)
 
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
 
@@ -1347,7 +1347,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Make a proposal to acquire a resource with an enrolled user that has the right role - but the resource is not shared
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=inst_obj_id)
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=inst_obj_id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -1355,7 +1355,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.share_resource(org_id=org2_id, resource_id=inst_obj_id, headers=self.system_actor_header  )
 
         #Renegotiate the proposal
-        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=inst_obj_id)
+        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=inst_obj_id)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         #Have the Org accept the proposal
@@ -1393,7 +1393,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         cur_time = int(get_ion_ts())
         two_hour_expiration = cur_time +  ( 2 * 60 * 60 * 1000 ) # 2 hours from now
 
-        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=inst_obj_id,
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=inst_obj_id,
                     expiration=two_hour_expiration)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
