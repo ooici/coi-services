@@ -35,23 +35,7 @@ class TestPydapCoverageHandlerUnit(IonUnitTestCase):
         dataset = self._handler.parse_constraints(environ)
         cols = dataset['data'].keys()
         params = self.cov.list_parameters()
-        expanded_params = self._expand_parameters(params)
-        #order matters
-        self.assertEquals(cols, expanded_params)
-    
-    def _expand_parameters(self, params):    
-        result = []
-        for param_name in params:
-            pc = self.cov.get_parameter_context(param_name)
-            if isinstance(pc.param_type, ConstantRangeType):
-                result.append(param_name+"_low")
-                result.append(param_name+"_high")
-            elif isinstance(pc.param_type,RecordType):
-                result.append(param_name+"_keys")
-                result.append(param_name+"_values")
-            else:
-                result.append(param_name)
-        return result
+        self.assertEquals(cols, params)
 
 @attr('INT', group='dm')
 class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
@@ -70,106 +54,79 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         port = CFG.get_safe('container.pydap_gateway.web_server.port', '8001')
         self.request_url = "http://"+host+":"+str(port)+os.sep+os.path.basename(self.filename)
     
-    def test_parse_constraints_array_list(self):
-        input_data = [["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"], ["larry", "mike", "bob", "harry", "sally"]]
-        #input_data = [["larry"], ["bob"], ["sally"], ["jennifer"], ["fred"]]
+    def test_parse_constraints_record(self):
+        input_data = [{'key1':'value1'}, {'key2':'value2'}, {'key3':'value3'}, {'key4':'value4'}, {'key5':'value5'}]
+        test_data = [] 
+        for ddict in input_data:
+            d = ['_'.join([k,v]) for k,v in ddict.iteritems()]
+            test_data = test_data + d
+        self.cov.set_parameter_values('record',value=input_data)
+        dataset = open_url(self.request_url)
+        result = [d for d in dataset['data']['record']]
+        self.assertEqual(test_data, result) 
+
+    def test_parse_constraints_array_float(self):
+        input_data = np.sin(np.arange(self.nt) * 2 * np.pi /60)
         self.cov.set_parameter_values('array',value=input_data)
         dataset = open_url(self.request_url)
-        for i,data in enumerate(input_data):
-            result = []
-            for d in dataset['data']['array_'+str(i)]:
-                result.append(d)
-            self.assertEqual(result, data)
+        result = np.asanyarray([d for d in dataset['data']['array']])
+        self.assertTrue(np.array_equal(result, input_data))
+    
+    def test_parse_constraints_array_int(self):
+        input_data = np.arange(self.nt) + 1
+        self.cov.set_parameter_values('array',value=input_data)
+        dataset = open_url(self.request_url)
+        result = np.asanyarray([d for d in dataset['data']['array']])
+        self.assertTrue(np.array_equal(result, input_data))
     
     def test_parse_constraints_array_string(self):
         input_data = ["larry", "bob", "sally", "jennifer", "fred"]
         self.cov.set_parameter_values('array',value=input_data)
         dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['array']:
-            result.append(d)
+        result = [d for d in dataset['data']['array']]
         self.assertEqual(result, input_data)
     
-    def test_parse_constraints_time(self):
-        dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['time']:
-            result.append(d)
-        self.assertEqual(result, self.time_data)
-    
     def test_parse_constraints_quantity(self):
-        test_data = [4, 7, 2, 3, 9]
-        self.cov.set_parameter_values('quantity', value=test_data)
+        input_data = np.arange(self.nt)
+        self.cov.set_parameter_values('quantity', value=input_data)
         dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['quantity']:
-            result.append(d)
-        self.assertEqual(result, test_data)
+        result = np.asanyarray([d for d in dataset['data']['quantity']])
+        self.assertTrue(np.array_equal(result, input_data))
     
     def test_parse_constraints_constant(self):
         test_data = [30] * self.nt
         self.cov.set_parameter_values('constant', value=test_data)
         dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['constant']:
-            result.append(d)
-        self.assertEqual(result, test_data)
+        result = np.asanyarray([d for d in dataset['data']['constant']])
+        self.assertTrue(np.array_equal(result, test_data))
     
     def test_parse_constraints_boolean(self):
-        test_data = [True,False,True,True,False]
+        test_data = np.asanyarray([True,False,True,True,False])
         self.cov.set_parameter_values('boolean',value=test_data)
         dataset = open_url(self.request_url)
         result = []
-        for d in dataset['data']['boolean']:
-            result.append(d)
-        self.assertEqual(result, test_data)
+        result = np.asanyarray([d for d in dataset['data']['boolean']])
+        self.assertTrue(np.array_equal(result, test_data))
     
     def test_parse_constraints_category(self):
         test_data = ["apple","lemon","apple","banana", "lemon"]
         self.cov.set_parameter_values('category',value=test_data)
         dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['category']:
-            result.append(d)
+        result = [d for d in dataset['data']['category']]
         self.assertEqual(result, test_data)
     
     def test_parse_constraints_range(self):
-        input_data = (45.0,60.0)
-        test_data_one = [input_data[0]] * self.nt
-        test_data_two = [input_data[1]] * self.nt
-        self.cov.set_parameter_values('range',value=input_data)
+        range_ele = (45.0,60.0)
+        self.cov.set_parameter_values('range',value=range_ele)
         dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['range_low']:
-            result.append(d)
-        self.assertEqual(result, test_data_one)
-        result = []
-        for d in dataset['data']['range_high']:
-            result.append(d)
-        self.assertEqual(result, test_data_two)
-    
-    
-    def test_parse_constraints_record(self):
-        input_data = [{'key1':'value1'}, {'key2':'value2'}, {'key3':'value3'}, {'key4':'value4'}, {'key5':'value5'}]
-        keys = []
+        input_data = [range_ele] * self.nt
+        test_data = []
         for d in input_data:
-            for k in d.keys():
-                keys.append(k)
-        values = []
-        for d in input_data:
-            for k in d.values():
-                values.append(k)
-        self.cov.set_parameter_values('record',value=input_data)
-        dataset = open_url(self.request_url)
-        result = []
-        for d in dataset['data']['record_keys']:
-            result.append(d)
-        self.assertEqual(result, keys)
-        result = []
-        for d in dataset['data']['record_values']:
-            result.append(d)
-        self.assertEqual(result, values)
-    
+            f = [str(d[0]),str(d[1])]
+            test_data.append('_'.join(f))
+        result = [d for d in dataset['data']['range']]
+        self.assertEqual(result, test_data)
+
     def tearDown(self):
         self.cov.close()
 
@@ -227,6 +184,7 @@ def _make_coverage(path):
     
     rec_ctxt = ParameterContext('record', param_type=RecordType())
     rec_ctxt.long_name = 'example of a parameter of type RecordType, will be filled with dictionaries'
+    rec_ctxt.fill_value = 0x0
     pdict.add_context(rec_ctxt)
     
     serial_ctxt = ParameterContext('array', param_type=ArrayType())
@@ -235,6 +193,7 @@ def _make_coverage(path):
     pdict.add_context(serial_ctxt)
     
     guid = create_guid()
+    guid = guid.replace("-", "")
     cov = SimplexCoverage(path, guid, name="sample_cov", parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
     
     return (cov,path+os.sep+guid)
