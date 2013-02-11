@@ -2253,8 +2253,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(n_for_user_2), 1)
 
         for notif in n_for_user_1:
-            log.debug("notif_active for user_1::: %s" % notif)
-
             notific_in_db = self.rrc.read(notif._id)
             self.assertTrue(notific_in_db)
 
@@ -2269,8 +2267,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
 
         for notif in n_for_user_2:
-            log.debug("notif_active for user_2::: %s" % notif)
-
             notific_in_db = self.rrc.read(notif._id)
             self.assertTrue(notific_in_db)
 
@@ -2298,9 +2294,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(len(notifs_for_user_2), 2)
 
         for notif in notifs_for_user_1:
-            log.debug("notif.origin_type:: %s", notif.origin_type)
-            log.debug("notif::: %s", notif)
-
             notific_in_db = self.rrc.read(notif._id)
             self.assertTrue(notific_in_db)
 
@@ -2316,7 +2309,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         for notif in notifs_for_user_2:
             self.assertEquals(notif.origin, data_product_id)
-            log.debug("notif_past::: %s" % notif)
 
             notific_in_db = self.rrc.read(notif._id)
             self.assertTrue(notific_in_db)

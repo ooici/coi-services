@@ -884,7 +884,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
         ret_vals = self.discovery.parse(search_origin)
-        log.debug("For include_nonactive: %s, returned results: %s",include_nonactive, ret_vals)
 
         notifications_all = set()
         notifications_active = set()
@@ -894,12 +893,11 @@ class UserNotificationService(BaseUserNotificationService):
             if item['_type'] == 'NotificationRequest':
                 object_ids.append(item['_id'])
 
-        log.debug("For include_nonactive: %s, number of object_ids: %s, object_ids: %s", include_nonactive, len(object_ids), object_ids)
-
         notifs = self.clients.resource_registry.read_mult(object_ids)
 
+        log.debug("Got %s notifications here. But they include both active and past notifications", len(notifs))
+
         if include_nonactive:
-            log.debug("Got the number of notifs: %s", len(notifs))
             # Add active or retired notification
             notifications_all.update(notifs)
         else:
@@ -921,12 +919,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Get the notifications whose origin field has the provided resource_id
         notifs = self._get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
-        if include_nonactive:
-            log.debug("(including both active and past notifs): UNS fetched the following the notifications subscribed to the resource_id: %s --> %s. "
-                      "They are %s in number", resource_id, notifs, len(notifs))
-        else:
-            log.debug("(including only active): UNS fetched the following the notifications subscribed to the resource_id: %s --> %s. "
-                      "They are %s in number.", resource_id, notifs, len(notifs))
+
+        log.debug("For include_nonactive= %s, UNS fetched the following the notifications subscribed to the resource_id: %s --> %s. "
+                      "They are %s in number", include_nonactive,resource_id, notifs, len(notifs))
 
         if not user_id:
             return notifs
@@ -940,17 +935,12 @@ class UserNotificationService(BaseUserNotificationService):
             notif_id = notif._id
             # Find if the user is associated with this notification request
             ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
-
             log.debug("Got the following users: %s, associated with the notification: %s", ids, notif_id)
 
             if ids and user_id in ids:
-                log.debug("Adding for the user: %s, the notification: %s", user_id, notif)
                 notifications.append(notif)
 
-        if include_nonactive:
-            log.debug("(including both active and past notifs): UNS fetched the following %s notifications subscribed to %s --> %s", len(notifications),user_id, notifications)
-        else:
-            log.debug("(including only active): UNS fetched the following %s notifications subscribed to %s --> %s", len(notifications), user_id, notifications)
+        log.debug("For include_nonactive = %s, UNS fetched the following %s notifications subscribed to %s --> %s", include_nonactive,len(notifications),user_id, notifications)
 
         return notifications
 
