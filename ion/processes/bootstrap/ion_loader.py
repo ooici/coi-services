@@ -87,7 +87,8 @@ TESTED_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-expor
 CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates'
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
-MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
+MASTER_KEY = "0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE"
+MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=%s&output=xls" % MASTER_KEY
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
 TESTED_KEY="0AgGScp7mjYjydHBEVnM1d2tIUDUtOWZNSElxaVEySW"
