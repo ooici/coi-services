@@ -31,6 +31,11 @@ class HelperTestMixin:
         """
         Sets some various IDs from network.yml, which is used by the OMS
         simulator, and ad hoc values for testing.
+
+        The PLAT_NETWORK environment variable can be used to faciliate
+        testing against a smaller newtork. Possibe values include:
+            PLAT_NETWORK=small  - small network but with children
+            PLAT_NETWORK=single - network with a single platform (no children)
         """
         cls.PLATFORM_ID = 'Node1A'
         cls.SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
@@ -51,17 +56,35 @@ class HelperTestMixin:
             'instrumentType' : "FOO_INSTRUMENT_TYPE"
         }
 
+        # PLAT_NETWORK: This env variable helps use a smaller network locally.
         import os
-        if os.getenv('SMALL_PLATFORM_NETWORK') is not None:
-            # This env variable helps use a smaller network locally.
-            print("SMALL_PLATFORM_NETWORK")
+        plat_network_size = os.getenv('PLAT_NETWORK', None)
+        if "small" == plat_network_size:
+            #
+            # small network but with children.
+            #
             cls.PLATFORM_ID = 'Node1D'
+            print("PLAT_NETWORK=small -> using base platform: %r" % cls.PLATFORM_ID)
             cls.SUBPLATFORM_IDS = ['MJ01C']
             cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
             cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
 
             cls.PORT_ID = 'Node1D_port_1'
             cls.INSTRUMENT_ID = 'Node1D_port_1_instrument_1'
+        elif "single" == plat_network_size:
+            #
+            # network with just a single platform (no children).
+            #
+            cls.PLATFORM_ID = 'LJ01D'
+            print("PLAT_NETWORK=single -> using base platform: %r" % cls.PLATFORM_ID)
+            cls.SUBPLATFORM_IDS = []
+            cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
+            cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
+
+            cls.PORT_ID = 'LJ01D_port_1'
+            cls.INSTRUMENT_ID = 'LJ01D_port_1_instrument_1'
+        else:
+            print("PLAT_NETWORK undefined -> using base platform: %r" % cls.PLATFORM_ID)
 
     def _verify_valid_platform_id(self, platform_id, dic):
         """
