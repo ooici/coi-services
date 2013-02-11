@@ -10,6 +10,7 @@
 from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.core.bootstrap import CFG
 from pyon.util.log import log
+from pyon.util.containers import get_ion_ts
 from pyon.public import RT, PRED, get_sys_name, Container, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
@@ -145,7 +146,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_publisher = EventPublisher()
         self.datastore = self.container.datastore_manager.get_datastore('events')
 
-        self.start_time = UserNotificationService.makeEpochTime(self.__now())
+        self.start_time = get_ion_ts()
 
         #------------------------------------------------------------------------------------
         # Create an event subscriber for Reload User Info events
@@ -212,7 +213,9 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         def process(event_msg, headers):
-            self.end_time = UserNotificationService.makeEpochTime(self.__now())
+            self.end_time = get_ion_ts()
+
+            log.debug("process_batch being called with start_time = %s, end_time = %s", self.start_time, self.end_time)
 
             # run the process_batch() method
             self.process_batch(start_time=self.start_time, end_time=self.end_time)
@@ -262,7 +265,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             # since the notification has not been registered yet, register it and get the id
             notification.temporal_bounds = TemporalBounds()
-            notification.temporal_bounds.start_datetime = self.makeEpochTime(self.__now())
+            notification.temporal_bounds.start_datetime = get_ion_ts()
             notification.temporal_bounds.end_datetime = ''
 
             notification_id, _ = self.clients.resource_registry.create(notification)
@@ -393,7 +396,7 @@ class UserNotificationService(BaseUserNotificationService):
         # Update the resource registry
         #-------------------------------------------------------------------------------------------------------------------
 
-        notification_request.temporal_bounds.end_datetime = self.makeEpochTime(self.__now())
+        notification_request.temporal_bounds.end_datetime = get_ion_ts()
 
         self.clients.resource_registry.update(notification_request)
 
@@ -537,17 +540,45 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None):
+    def publish_event_object(self, event=None):
         """
-        Publish a general event at a certain time using the UNS
+        This service operation would publish the given event from an event object.
 
-        @param event Event
+        @param event    !Event
+        @retval event   !Event
+        """
+        event = self.event_publisher.publish_event_object(event_object=event)
+        log.info("The publish_event_object(event) method of UNS was used to publish the event: %s", event )
+
+        return event
+
+    def publish_event(self, event_type='', origin='', origin_type='', sub_type='', description='', event_attrs=None):
+        """
+        This service operation assembles a new Event object based on event_type 
+        (e.g. via the pyon Event publisher) with optional additional attributes from a event_attrs
+        dict of arbitrary attributes.
+        
+        
+        @param event_type   str
+        @param origin       str
+        @param origin_type  str
+        @param sub_type     str
+        @param description  str
+        @param event_attrs  dict
+        @retval event       !Event
         """
 
-        self.event_publisher._publish_event( event_msg = event,
-            origin=event.origin,
-            event_type = event.type_)
-        log.info("The publish_event() method of UNS was used to publish an event.")
+        event = self.event_publisher.publish_event(
+            event_type = event_type,
+            origin = origin,
+            origin_type = origin_type,
+            sub_type = sub_type,
+            description = description,
+            **event_attrs
+            )
+        log.info("The publish_event() method of UNS was used to publish an event: %s", event)
+
+        return event
 
     def get_recent_events(self, resource_id='', limit = 100):
         """
@@ -559,7 +590,7 @@ class UserNotificationService(BaseUserNotificationService):
         @retval events list of Event objects
         """
 
-        now = self.makeEpochTime(datetime.utcnow())
+        now = get_ion_ts()
         events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=True)
 
         ret = IonObject(OT.ComputedListValue)
@@ -640,22 +671,6 @@ class UserNotificationService(BaseUserNotificationService):
             pids.append(pid)
 
         return pids
-
-    @staticmethod
-    def makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time Python datetime object
-        @retval seconds_since_epoch int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch
-
 
     def process_batch(self, start_time = '', end_time = ''):
         """
