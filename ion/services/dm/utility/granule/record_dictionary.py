@@ -78,6 +78,19 @@ class RecordDictionaryTool(object):
         self._setup_params()
 
     @classmethod
+    def get_paramval(cls, ptype, domain, values):
+        paramval = get_value_class(ptype, domain_set=domain)
+        if isinstance(ptype,ParameterFunctionType):
+            paramval.memoized_values = values
+        else:
+            paramval[:] = values
+        paramval.storage._storage.flags.writeable = False
+        return paramval
+
+
+
+
+    @classmethod
     def load_from_granule(cls, g):
         if isinstance(g.param_dictionary, str):
             instance = cls(stream_definition_id=g.param_dictionary, locator=g.locator)
@@ -96,10 +109,7 @@ class RecordDictionaryTool(object):
             key = instance._pdict.key_from_ord(k)
             if v is not None:
                 ptype = instance._pdict.get_context(key).param_type
-                paramval = get_value_class(ptype, domain_set = instance.domain)
-                paramval[:] = v
-                paramval.storage._storage.flags.writeable = False
-
+                paramval = cls.get_paramval(ptype, instance.domain, v)
                 instance._rd[key] = paramval
         
         return instance
@@ -174,12 +184,7 @@ class RecordDictionaryTool(object):
                 validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
         dom = self.domain
-        if isinstance(context.param_type, ParameterFunctionType):
-            paramval = np.empty(self._shp, dtype='float32') #@TODO FIX THIS!!!
-        else:
-            paramval = get_value_class(context.param_type, domain_set = dom)
-        paramval[:] = vals
-        paramval.storage._storage.flags.writeable = False
+        paramval = self.get_paramval(context.param_type, dom, vals)
         self._rd[name] = paramval
 
     def _reshape_const(self):
@@ -192,6 +197,9 @@ class RecordDictionaryTool(object):
         Get an item by nick name from the record dictionary.
         """
         if self._rd[name] is not None:
+            context = self._pdict.get_context(name)
+            if isinstance(context.param_type, ParameterFunctionType):
+                return self._rd[name].memoized_values[:]
             return self._rd[name][:]
         else:
             return None
