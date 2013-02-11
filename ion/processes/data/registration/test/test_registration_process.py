@@ -8,6 +8,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from xml.dom.minidom import parseString
 from coverage_model import SimplexCoverage, QuantityType
 import unittest
+import os
 
 @attr('INT')
 class RegistrationProcessTest(IonIntegrationTestCase):
