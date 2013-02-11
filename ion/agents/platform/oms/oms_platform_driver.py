@@ -18,10 +18,11 @@ from ion.agents.platform.platform_driver import PlatformDriver
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
-from ion.agents.platform.oms.oms_resource_monitor import OmsResourceMonitor
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_client import InvalidResponse
 from ion.agents.platform.oms.oms_event_listener import OmsEventListener
+
+from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import Attr
 from ion.agents.platform.util.network import Port
@@ -54,12 +55,6 @@ class OmsPlatformDriver(PlatformDriver):
         self._oms = OmsClientFactory.create_instance(oms_uri)
         log.debug("%r: OmsClient instance created: %s",
             self._platform_id, self._oms)
-
-        # TODO set-up configuration for notification of events associated
-        # with values retrieved during platform resource monitoring
-
-        # _monitors: dict { attr_id: OmsResourceMonitor }
-        self._monitors = {}
 
         # we can instantiate this here as the the actual http server is
         # started via corresponding method.
@@ -186,35 +181,20 @@ class OmsPlatformDriver(PlatformDriver):
         log.info("%r: for platform_id=%r device_obj=%s",
                     self._platform_id, platform_id, device_obj)
 
-        if isinstance(device_obj, dict):
-            attrs = device_obj['platform_monitor_attributes']
-            for attr_obj in attrs:
-                attr = Attr(attr_obj['id'], {
-                    'name': attr_obj['id'],
-                    'monitorCycleSeconds': attr_obj['monitor_rate'],
-                    'units': attr_obj['units'],
-                    })
-                nnode.add_attribute(attr)
+        assert isinstance(device_obj, dict)
+        attrs = device_obj['platform_monitor_attributes']
+        for attr_obj in attrs:
+            attr = Attr(attr_obj['id'], {
+                'name': attr_obj['id'],
+                'monitorCycleSeconds': attr_obj['monitor_rate'],
+                'units': attr_obj['units'],
+                })
+            nnode.add_attribute(attr)
 
-            ports = device_obj['ports']
-            for port_obj in ports:
-                port = Port(port_obj['port_id'], port_obj['ip_address'])
-                nnode.add_port(port)
-        else:
-            # using ION objects.
-            attrs = device_obj.platform_monitor_attributes
-            for attr_obj in attrs:
-                attr = Attr(attr_obj.id, {
-                    'name': attr_obj.name,
-                    'monitorCycleSeconds': attr_obj.monitor_rate,
-                    'units': attr_obj.units,
-                    })
-                nnode.add_attribute(attr)
-
-            ports = device_obj.ports
-            for port_obj in ports:
-                port = Port(port_obj.port_id, port_obj.ip_address)
-                nnode.add_port(port)
+        ports = device_obj['ports']
+        for port_obj in ports:
+            port = Port(port_obj['port_id'], port_obj['ip_address'])
+            nnode.add_port(port)
 
     def _build_network_definition_using_oms(self):
         """
@@ -234,7 +214,7 @@ class OmsPlatformDriver(PlatformDriver):
             Returns the root NNode according to self._platform_id and the OMS'
             getPlatformMap response.
             """
-            nodes = NNode.create_network(map)
+            nodes = NetworkUtil.create_node_network(map)
             if not self._platform_id in nodes:
                 msg = "platform map does not contain entry for %r" % self._platform_id
                 log.error(msg)
@@ -486,62 +466,6 @@ class OmsPlatformDriver(PlatformDriver):
         attr_info = self._verify_platform_id_in_response(attrs)
 
         return attr_info
-
-    def start_resource_monitoring(self):
-        """
-        Starts greenlets to periodically retrieve values of the attributes
-        associated with my platform, and do corresponding event notifications.
-        """
-        log.debug("%r: start_resource_monitoring", self._platform_id)
-
-        attr_info = self._get_platform_attributes()
-
-        if not attr_info:
-            # no attributes to monitor.
-            log.debug("%r: NOT starting resource monitoring", self._platform_id)
-            return
-
-        log.debug("%r: starting resource monitoring: attr_info=%s",
-                  self._platform_id, str(attr_info))
-
-        #
-        # TODO attribute grouping so one single greenlet is launched for a
-        # group of attributes having same or similar monitoring rate. For
-        # simplicity at the moment, start a greenlet per attribute.
-        #
-
-        for attr_id, attr_defn in attr_info.iteritems():
-            log.debug("%r: dispatching resource monitoring for attr_id=%r attr_defn=%s",
-                      self._platform_id, attr_id, attr_defn)
-            if 'monitorCycleSeconds' in attr_defn:
-                self._start_monitor_greenlet(attr_id, attr_defn)
-            else:
-                log.warn(
-                    "%r: unexpected: attribute info does not contain %r "
-                    "for attribute %r. attr_defn = %s",
-                        self._platform_id,
-                        'monitorCycleSeconds', attr_id, str(attr_defn))
-
-    def _start_monitor_greenlet(self, attr_id, attr_defn):
-        assert 'monitorCycleSeconds' in attr_defn
-        log.debug("%r: _start_monitor_greenlet attr_id=%r attr_defn=%s",
-                  self._platform_id, attr_id, attr_defn)
-        resmon = OmsResourceMonitor(self._oms, self._platform_id,
-                                    attr_id, attr_defn,
-                                    self._notify_driver_event)
-        self._monitors[attr_id] = resmon
-        resmon.start()
-
-    def stop_resource_monitoring(self):
-        """
-        Stops all the monitoring greenlets.
-        """
-#        assert self._oms is not None, "set_oms_client must have been called"
-
-        log.debug("%r: stopping resource monitoring", self._platform_id)
-        for resmon in self._monitors.itervalues():
-            resmon.stop()
-        self._monitors.clear()
 
     ###############################################
     # Ports:

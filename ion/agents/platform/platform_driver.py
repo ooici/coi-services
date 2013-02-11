@@ -13,6 +13,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+import logging
 
 from ion.agents.platform.platform_driver_event import DriverEvent
 
@@ -57,8 +58,10 @@ class PlatformDriver(object):
         """
         Sets the platform topology.
         """
-        log.debug("set_topology: topology=%s", str(topology))
-        log.debug("set_topology: agent_device_map=%s", str(agent_device_map))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug(
+                "set_topology: topology=%s, agent_device_map=%s, agent_streamconfig_map=%s",
+                topology, agent_device_map, agent_streamconfig_map)
         self._topology = topology
         self._agent_device_map = agent_device_map
         self._agent_streamconfig_map = agent_streamconfig_map
@@ -194,27 +197,12 @@ class PlatformDriver(object):
         assert self._nnode is not None, "go_active should have been called first"
         return self._nnode.subplatforms.keys()
 
-    def start_resource_monitoring(self):
-        """
-        To be implemented by subclass.
-        Starts greenlets to periodically retrieve values of the attributes
-        associated with my platform, and do corresponding event notifications.
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def stop_resource_monitoring(self):
-        """
-        To be implemented by subclass.
-        Stops all the monitoring greenlets.
-        """
-        raise NotImplementedError()  #pragma: no cover
-
     def destroy(self):
         """
-        Stops all activity done by the driver. In this base class,
-        this method calls self.stop_resource_monitoring()
+        Stops all activity done by the driver. Nothing done in this class.
+        (previously it stopped resource monitoring).
         """
-        self.stop_resource_monitoring()
+        pass
 
     def _notify_driver_event(self, driver_event):
         """

@@ -12,6 +12,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
+import logging
 
 from pyon.util.containers import get_ion_ts
 from pyon.core.exception import ServerError
@@ -28,6 +29,10 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
+from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+from ion.agents.platform.oms.oms_util import RsnOmsUtil
+from ion.agents.platform.util.network_util import NetworkUtil
+
 from ion.agents.platform.test.helper import HelperTestMixin
 
 from pyon.ion.stream import StandaloneStreamSubscriber
@@ -37,20 +42,13 @@ from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
 from gevent.event import AsyncResult
-from gevent import sleep
 from mock import patch
 
 import time
-import ntplib
-import unittest
-import os
 from nose.plugins.attrib import attr
 
 
-# TIMEOUT: timeout for each execute_agent call.
-# TIMEOUT = 180
-# Carlos: we remove this and use the default patched from CFG
-
+# note that we use an "embedded" simulator
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
     'dvr_cls': 'OmsPlatformDriver',
@@ -87,9 +85,18 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
 
+        # Use the network definition provided by RSN OMS directly.
+        rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
+        network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("NetworkDefinition serialization:\n%s", network_definition_ser)
+
         self.PLATFORM_CONFIG = {
             'platform_id': self.PLATFORM_ID,
             'driver_config': DVR_CONFIG,
+
+            'network_definition' : network_definition_ser
         }
 
         # Start data suscribers, add stop to cleanup.
