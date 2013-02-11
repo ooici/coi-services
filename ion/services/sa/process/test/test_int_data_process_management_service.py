@@ -26,14 +26,10 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from interface.objects import ProcessStateEnum
 from mock import patch
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 import gevent
-from gevent.event import AsyncResult
 from sets import Set
 
 
