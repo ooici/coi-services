@@ -27,6 +27,8 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         self.rp = RegistrationProcess()
         self.rp.on_start()
             
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_get_dataset_to_xml(self):
         dataset_id = self._make_dataset()
         coverage_path = DatasetManagementService()._get_coverage_path(dataset_id)
