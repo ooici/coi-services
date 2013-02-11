@@ -263,9 +263,20 @@ network:
                 read_write: read
                 group: power
                 monitorCycleSeconds: 2
+              - attr_id: Input Bus Current
+                type: float
+                units: Amps
+                min_val: -50
+                max_val: 50
+                precision: 0.1
+                read_write: write  # just for testing
+                group: power
+                monitorCycleSeconds: 5
               ports:
               - port_id: LJ01D_port_1
                 ip: LJ01D_port_1_IP
+                instruments:
+                - instrument_id: LJ01D_port_1_instrument_1
               - port_id: LJ01D_port_2
                 ip: LJ01D_port_2_IP
         - platform_id: LV01C
