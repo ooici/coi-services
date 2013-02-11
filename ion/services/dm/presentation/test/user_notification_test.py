@@ -2100,7 +2100,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Test that the get_subscriptions works correctly
 
         #--------------------------------------------------------------------------------------
-        # Create several users
+        # Create 2 users
         #--------------------------------------------------------------------------------------
 
         user_ids = []
@@ -2137,31 +2137,41 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
 
+        # ACTIVE
+
+        # user 1
         notification_active_1 = NotificationRequest(   name = "notification_1",
             origin=data_product_id,
             origin_type="active_1",
             event_type='ResourceLifecycleEvent')
 
+        # user 2
         notification_active_2 = NotificationRequest(   name = "notification_2",
             origin=data_product_id,
             origin_type="active_2",
             event_type='ResourceLifecycleEvent')
 
+        # wrong origin
         notification_active_3 = NotificationRequest(   name = "notification_2",
             origin='wrong_origin',
             origin_type="active_3",
             event_type='ResourceLifecycleEvent')
 
+        # PAST
+
+        # user 1 - past
         notification_past_1 = NotificationRequest(   name = "notification_3_to_be_retired",
             origin=data_product_id,
             origin_type="past_1",
             event_type='DetectionEvent')
 
+        # user 2 - past
         notification_past_2 = NotificationRequest(   name = "notification_4_to_be_retired",
             origin=data_product_id,
             origin_type="past_2",
             event_type='DetectionEvent')
 
+        # wrong origin - past
         notification_past_3 = NotificationRequest(   name = "notification_4_to_be_retired",
             origin='wrong_origin_2',
             origin_type="past_3",
@@ -2176,13 +2186,23 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         user_id_1 = user_ids[0]
         user_id_2 = user_ids[1]
 
+        #--------------------------------------------------------------------------------------
+        # Create notifications that will stay active for the following users
+        #--------------------------------------------------------------------------------------
+
         # user 1
         notification_id_active_1 =  self.unsc.create_notification(notification=notification_active_1, user_id=user_id_1)
+        # and the  notification below for the wrong origin
         notification_id_active_31 =  self.unsc.create_notification(notification=notification_active_3, user_id=user_id_1)
+
+        #### Therefore, only one active notification for user_1 has been created so far
 
         #user 2
         notification_id_active_2 =  self.unsc.create_notification(notification=notification_active_2, user_id=user_id_2)
+        # below we create notification for a different resource id
         notification_id_active_32 =  self.unsc.create_notification(notification=notification_active_3, user_id=user_id_2)
+
+        #### Therefore, only one active notification for user_2 created so far
 
         # Store the ids for the active notifications in a set
         active_notification_ids.add(notification_id_active_1)
@@ -2190,12 +2210,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         active_notification_ids.add(notification_id_active_31)
         active_notification_ids.add(notification_id_active_32)
 
+        #--------------------------------------------------------------------------------------
+        # Create notifications that will be RETIRED for the following users
+        #--------------------------------------------------------------------------------------
+
         # user 1
         notification_id_past_1 =  self.unsc.create_notification(notification=notification_past_1, user_id=user_id_1)
+        # the one below for a different resource id
         notification_id_past_31 =  self.unsc.create_notification(notification=notification_past_3, user_id=user_id_1)
 
         # user 2
         notification_id_past_2 =  self.unsc.create_notification(notification=notification_past_2, user_id=user_id_2)
+        # the one below for a different resource id
         notification_id_past_32 =  self.unsc.create_notification(notification=notification_past_3, user_id=user_id_2)
 
         # Store the ids for the retired-to-be notifications in a set
@@ -2204,22 +2230,30 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         past_notification_ids.add(notification_id_past_31)
         past_notification_ids.add(notification_id_past_32)
 
-        log.debug("Number of active notification ids: %s" % len(active_notification_ids))
-        log.debug("Number of past notification ids: %s" % len(past_notification_ids))
+        log.debug("Number of active notification ids: %s" % len(active_notification_ids)) # should be 3
+        log.debug("Number of past notification ids: %s" % len(past_notification_ids))     # should be 3
+
+        self.assertEquals(len(active_notification_ids), 3)
+        self.assertEquals(len(past_notification_ids), 3)
 
         # Retire the retired-to-be notifications
         for notific_id in past_notification_ids:
             self.unsc.delete_notification(notification_id=notific_id)
+
+        # now we should be left wih 1 active and 1 past notification FOR THE RELEVANT RESOURCE ID AS ORIGIN for each user
 
         #--------------------------------------------------------------------------------------
         # Use UNS to get the subscriptions
         #--------------------------------------------------------------------------------------
 
         n_for_user_1 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_1, include_nonactive=False)
+        n_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=False)
+
         self.assertEquals(len(n_for_user_1), 1)
+        self.assertEquals(len(n_for_user_2), 1)
 
         for notif in n_for_user_1:
-            log.debug("notif_active::: %s" % notif)
+            log.debug("notif_active for user_1::: %s" % notif)
 
             notific_in_db = self.rrc.read(notif._id)
             self.assertTrue(notific_in_db)
@@ -2234,11 +2268,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertEquals(notific_in_db.origin_type, 'active_1')
             self.assertEquals(notific_in_db.event_type, 'ResourceLifecycleEvent')
 
-
-        n_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=False)
-        self.assertEquals(len(n_for_user_2), 1)
-
         for notif in n_for_user_2:
+            log.debug("notif_active for user_2::: %s" % notif)
 
             notific_in_db = self.rrc.read(notif._id)
             self.assertTrue(notific_in_db)
@@ -2258,8 +2289,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Use UNS to get the all subscriptions --- including retired
         #--------------------------------------------------------------------------------------
         notifs_for_user_1 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_1, include_nonactive=True)
-        self.assertEquals(len(notifs_for_user_1), 2)
+        notifs_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=True)
+
         log.debug("number of returned notif object: %s", len(notifs_for_user_1))
+        self.assertEquals(len(notifs_for_user_1), 2)
+
+        log.debug("number of returned notif object for user 2: %s", len(notifs_for_user_2))
+        self.assertEquals(len(notifs_for_user_2), 2)
 
         for notif in notifs_for_user_1:
             log.debug("notif.origin_type:: %s", notif.origin_type)
@@ -2277,7 +2313,6 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertTrue(notific_in_db.event_type== 'ResourceLifecycleEvent' or notific_in_db.event_type=='DetectionEvent')
 
 
-        notifs_for_user_2 = self.unsc.get_subscriptions(resource_id=data_product_id, user_id = user_id_2, include_nonactive=True)
 
         for notif in notifs_for_user_2:
             self.assertEquals(notif.origin, data_product_id)
@@ -2292,7 +2327,3 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertTrue(notific_in_db.origin_type == 'active_2' or notific_in_db.origin_type == 'past_2')
             self.assertTrue(notific_in_db.event_type== 'ResourceLifecycleEvent' or notific_in_db.event_type=='DetectionEvent')
 
-        log.debug("number of returned notif object for user 2: %s", len(notifs_for_user_2))
-
-
-        self.assertEquals(len(notifs_for_user_2), 2)
