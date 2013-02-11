@@ -1441,15 +1441,67 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         notification_id1 =  self.unsc.create_notification(notification=notification_request_correct, user_id=user_id)
         notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
-        # delete both notifications
-        self.unsc.delete_notification(notification_id1)
+        # Now check the user info object has the notifications
+        user = self.rrc.read(user_id)
+        vars = user.variables
+
+        for var in vars:
+            if var['name'] == 'notifications':
+                self.assertEquals(len(var['value']), 2)
+                for notif in var['value']:
+                    self.assertTrue(notif.name in  ["notification_1", "notification_2"])
+                    self.assertTrue(notif.origin in ["instrument_1", "instrument_2"])
+                    self.assertTrue(notif.origin_type in ["type_1", "type_2"])
+                    self.assertTrue(notif.event_type, ["ResourceLifecycleEvent", "DetectionEvent"])
+
+
+        #--------------------------------------------------------------------------------------
+        # Delete notification 2
+        #--------------------------------------------------------------------------------------
         self.unsc.delete_notification(notification_id2)
 
-        notific_1 = self.rrc.read(notification_id1)
         notific_2 = self.rrc.read(notification_id2)
         # This checks that the notifications have been retired.
-        self.assertNotEquals(notific_1.temporal_bounds.end_datetime, '')
         self.assertNotEquals(notific_2.temporal_bounds.end_datetime, '')
+
+        # Now check the user info object has the notifications
+        user = self.rrc.read(user_id)
+        vars = user.variables
+
+        for var in vars:
+            if var['name'] == 'notifications':
+                self.assertEquals(len(var['value']), 2)
+                for notif in var['value']:
+                    self.assertTrue(notif.name in  ["notification_1", "notification_2"])
+                    if notif.origin == "instrument_2":
+                        self.assertNotEquals(notif.temporal_bounds.end_datetime, '')
+                    elif notif.origin == "instrument_1":
+                        self.assertEquals(notif.temporal_bounds.end_datetime, '')
+                    else:
+                        self.fail("ACHTUNG: A completely different notification is being stored in the user info object")
+
+        #--------------------------------------------------------------------------------------
+        # Delete notification 1
+        #--------------------------------------------------------------------------------------
+        self.unsc.delete_notification(notification_id1)
+        notific_1 = self.rrc.read(notification_id1)
+        self.assertNotEquals(notific_1.temporal_bounds.end_datetime, '')
+
+        # Now check the user info object has the notifications
+        user = self.rrc.read(user_id)
+        vars = user.variables
+
+        for var in vars:
+            if var['name'] == 'notifications':
+                self.assertEquals(len(var['value']), 2)
+                for notif in var['value']:
+                    self.assertTrue(notif.name in  ["notification_1", "notification_2"])
+                    if notif.origin == "instrument_2":
+                        self.assertNotEquals(notif.temporal_bounds.end_datetime, '')
+                    elif notif.origin == "instrument_1":
+                        self.assertNotEquals(notif.temporal_bounds.end_datetime, '')
+                    else:
+                        self.fail("ACHTUNG: A completely different notification is being stored in the user info object")
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -1825,7 +1877,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_get_user_notification(self):
+    def test_get_user_notifications(self):
         # Test that the get_user_notifications() method returns the notifications for a user
 
         #--------------------------------------------------------------------------------------
@@ -1842,7 +1894,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Make notification request objects -- Remember to put names
         #--------------------------------------------------------------------------------------
 
-        notification_request_correct = NotificationRequest(   name = "notification_1",
+        notification_request_1 = NotificationRequest(   name = "notification_1",
             origin="instrument_1",
             origin_type="type_1",
             event_type='ResourceLifecycleEvent')
@@ -1856,20 +1908,15 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create notifications using UNS.
         #--------------------------------------------------------------------------------------
 
-        notification_id1 =  self.unsc.create_notification(notification=notification_request_correct, user_id=user_id)
+        notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
         notification_id2 =  self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         #--------------------------------------------------------------------------------------
         # Get the notifications for the user
         #--------------------------------------------------------------------------------------
 
-        ret= self.unsc.get_user_notifications(user_id)
-
-#        self.assertIsInstance(ret, ComputedListValue)
-#        notifications = ret.value
-#        self.assertEquals(ret.status, ComputedValueAvailability.PROVIDED)
-
-        notifications = ret
+        notifications= self.unsc.get_user_notifications(user_id)
+        self.assertEquals(len(notifications),2)
 
         names = []
         origins = []
@@ -1886,6 +1933,20 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(Set(origin_types), Set(['type_1', 'type_2']) )
         self.assertEquals(Set(event_types), Set(['ResourceLifecycleEvent', 'DetectionEvent']) )
 
+        #--------------------------------------------------------------------------------------
+        # Now delete a notification and verify that it wont get picked up by get_user_notifications()
+        #--------------------------------------------------------------------------------------
+        self.unsc.delete_notification(notification_id=notification_id2)
+
+        # Get the notifications for the user
+        notifications = self.unsc.get_user_notifications(user_id)
+        self.assertEquals(len(notifications),1)
+        notification = notifications[0]
+
+        self.assertEquals(notification.name, 'notification_1' )
+        self.assertEquals(notification.origin, 'instrument_1' )
+        self.assertEquals(notification.origin_type, 'type_1')
+        self.assertEquals(notification.event_type, 'ResourceLifecycleEvent' )
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')

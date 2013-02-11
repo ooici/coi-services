@@ -622,9 +622,12 @@ class UserNotificationService(BaseUserNotificationService):
         if self.user_info.has_key(user_info_id):
             notifications = self.user_info[user_info_id]['notifications']
 
+            log.debug("Got %s notifications, for the user: %s", len(notifications), user_info_id)
+
             for notif in notifications:
                 # remove notifications that have expired
                 if notif.temporal_bounds.end_datetime != '':
+                    log.debug("removing notification: %s", notif)
                     notifications.remove(notif)
 
             return notifications
@@ -842,20 +845,19 @@ class UserNotificationService(BaseUserNotificationService):
         if not user:
             raise BadRequest("No user with the provided user_id: %s" % user_id)
 
-        notifications = []
         for item in user.variables:
             if item['name'] == 'notifications':
-                if old_notification and old_notification in item['value']:
+                for notif in item['value']:
+                    if notif._id == new_notification._id:
+                        log.debug("came here for updating notification")
+                        notifications = item['value']
+                        notifications.remove(notif)
+                        notifications.append(new_notification)
 
-                    notifications = item['value']
-                    # remove the old notification
-                    notifications.remove(old_notification)
-
-                log.debug("came to append the new notification: %s", new_notification)
-                # put in the new notification
-                notifications.append(new_notification)
-
-                item['value'] = notifications
+#                log.debug("came to append the new notification: %s", new_notification)
+#                # put in the new notification
+#                notifications.append(new_notification)
+#                item['value'] = notifications
 
                 break
 
