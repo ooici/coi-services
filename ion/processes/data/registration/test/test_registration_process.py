@@ -50,17 +50,9 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         for n in node:
             if n.nodeType != 3:
                 parameters.append(str(n.childNodes[0].nodeValue))
-        cov_params = self._get_parameters(cov)
+        cov_params = [key for key in cov.list_parameters()]
         self.assertEquals(parameters, cov_params)
         cov.close()
-
-    def _get_parameters(self, cov):
-        result = []
-        for key in cov.list_parameters():
-            pc = cov.get_parameter_context(key)
-            if isinstance(pc.param_type, QuantityType):
-                result.append(key)
-        return result
 
     def _make_dataset(self):
         tdom, sdom = time_series_domain()
