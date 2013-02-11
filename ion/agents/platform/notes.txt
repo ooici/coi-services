@@ -3,6 +3,11 @@ platform agent framework
 some occasionaly updated developer notes
 
 2013-02-10:
+- cancelled PR: https://github.com/ooici/coi-services/pull/514
+  Will continue working on new branch "platform_agent_2.1" in my fork so we can
+  eventually only perform a single big merge in the mainline if convenient.
+
+2013-02-10:
 - re-enable ability to test against simulator running externally.
 - test/helper.py: Environ variable PLAT_NETWORK optionally used to faciliate
   use of smaller network (by default network rooted at Node1A as before):
