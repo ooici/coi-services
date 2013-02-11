@@ -35,14 +35,14 @@ negotiation_rules = {
     OT.AcquireResourceProposal: {
         'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)',
                            'has_role(sap.provider,sap.consumer,"' + INSTRUMENT_OPERATOR_ROLE + '")',
-                           'is_resource_shared(sap.provider,sap.resource)'],
+                           'is_resource_shared(sap.provider,sap.resource_id)'],
         'accept_action': 'acquire_resource(sap)',
         'auto_accept': True
     },
 
     OT.AcquireResourceExclusiveProposal: {
-        'pre_conditions': ['is_resource_acquired(sap.consumer, sap.resource)',
-                           'not is_resource_acquired_exclusively(sap.consumer, sap.resource)'],
+        'pre_conditions': ['is_resource_acquired(sap.consumer, sap.resource_id)',
+                           'not is_resource_acquired_exclusively(sap.consumer, sap.resource_id)'],
         'accept_action': 'acquire_resource(sap)',
         'auto_accept': True
     }
@@ -59,8 +59,9 @@ class OrgManagementService(BaseOrgManagementService):
 
     def on_init(self):
 
-        self.negotiation_handler = Negotiation(self, negotiation_rules)
         self.event_pub = EventPublisher()
+        self.negotiation_handler = Negotiation(self, negotiation_rules, self.event_pub)
+
 
     def _get_root_org_name(self):
         return CFG.get_safe('system.root_org' , "ION")
@@ -396,7 +397,7 @@ class OrgManagementService(BaseOrgManagementService):
         #hardcodng some rules at the moment - could be replaced by a Rules Engine
         if sap.type_ == OT.AcquireResourceExclusiveProposal:
 
-            if self.is_resource_acquired_exclusively(None, sap.resource):
+            if self.is_resource_acquired_exclusively(None, sap.resource_id):
                 #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
                 provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
 
@@ -552,6 +553,9 @@ class OrgManagementService(BaseOrgManagementService):
         member_role = self.find_org_role_by_name(org._id,ORG_MEMBER_ROLE )
         self._add_role_association(org, user, member_role)
 
+        self.event_pub.publish_event(event_type=OT.OrgMembershipGrantedEvent, origin=org._id, origin_type='Org',
+            description='The member has enrolled in the Org', actor_id=user._id )
+
         return True
 
     def cancel_member_enrollment(self, org_id='', user_id=''):
@@ -581,6 +585,10 @@ class OrgManagementService(BaseOrgManagementService):
             raise NotFound("The membership association between the specified user and Org is not found")
 
         self.clients.resource_registry.delete_association(aid)
+
+        self.event_pub.publish_event(event_type=OT.OrgMembershipCancelledEvent, origin=org._id, origin_type='Org',
+            description='The member has cancelled enrollment in the Org', actor_id=user._id )
+
         return True
 
     def is_registered(self, user_id=''):
@@ -680,7 +688,10 @@ class OrgManagementService(BaseOrgManagementService):
         if not self.is_enrolled(org_id,user_id):
             raise BadRequest("The user is not a member of the specified Org (%s)" % org.name)
 
-        return self._add_role_association(org, user, user_role)
+        ret = self._add_role_association(org, user, user_role)
+
+        return ret
+
 
     def _add_role_association(self, org, user, user_role):
 
@@ -688,7 +699,9 @@ class OrgManagementService(BaseOrgManagementService):
         if not aid:
             return False
 
-        self._publish_user_role_modified_event(org, user, user_role, 'GRANT')
+        self.event_pub.publish_event(event_type=OT.UserRoleGrantedEvent, origin=org._id, origin_type='Org',
+            description='Granted the %s role' % user_role.name,
+            actor_id=user._id, role_name=user_role.name )
 
         return True
 
@@ -699,21 +712,11 @@ class OrgManagementService(BaseOrgManagementService):
 
         self.clients.resource_registry.delete_association(aid)
 
-        self._publish_user_role_modified_event(org, user, user_role, 'REVOKE')
+        self.event_pub.publish_event(event_type=OT.UserRoleRevokedEvent, origin=org._id, origin_type='Org',
+            description='Revoked the %s role' % user_role.name,
+            actor_id=user._id, role_name=user_role.name )
 
         return True
-
-    def _publish_user_role_modified_event(self, org, user, user_role, modification):
-        #Sent UserRoleModifiedEvent event
-
-        event_data = dict()
-        event_data['origin_type'] = 'Org'
-        event_data['description'] = 'User Role Modified'
-        event_data['sub_type'] = modification
-        event_data['user_id'] = user._id
-        event_data['role_name'] = user_role.name
-
-        self.event_pub.publish_event(event_type='UserRoleModifiedEvent', origin=org._id, **event_data)
 
     def revoke_role(self, org_id='', user_id='', role_name=''):
         """Revokes a defined Role within an organization to a specific user. Will throw a not NotFound exception
@@ -731,7 +734,9 @@ class OrgManagementService(BaseOrgManagementService):
         user = param_objects['user']
         user_role = param_objects['user_role']
 
-        return self._delete_role_association(org, user, user_role)
+        ret = self._delete_role_association(org, user, user_role)
+
+        return ret
 
     def has_role(self, org_id='', user_id='', role_name=''):
         """Returns True if the specified user_id has the specified role_name in the Org and False if not.
@@ -844,6 +849,9 @@ class OrgManagementService(BaseOrgManagementService):
         if not aid:
             return False
 
+        self.event_pub.publish_event(event_type=OT.ResourceSharedEvent, origin=org._id, origin_type='Org',
+            description='The resource has been shared in the Org', resource_id=resource_id )
+
         return True
 
 
@@ -865,6 +873,10 @@ class OrgManagementService(BaseOrgManagementService):
             raise NotFound("The shared association between the specified resource and Org is not found")
 
         self.clients.resource_registry.delete_association(aid)
+
+        self.event_pub.publish_event(event_type=OT.ResourceUnsharedEvent, origin=org._id, origin_type='Org',
+            description='The resource has been unshared in the Org', resource_id=resource_id )
+
         return True
 
     def is_resource_shared(self, org_id='', resource_id=''):
@@ -906,7 +918,7 @@ class OrgManagementService(BaseOrgManagementService):
         else:
             exclusive = False
 
-        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource, exclusive, sap.expiration)
+        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource_id, exclusive, sap.expiration)
 
         #Create association between the Commitment and the Negotiation objects
         self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
@@ -941,7 +953,8 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.create_association(actor_id, PRED.hasCommitment, commitment_id)
         self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment_id)
 
-        #TODO - publish some kind of event for creating a commitment
+        self.event_pub.publish_event(event_type=OT.ResourceCommitmentCreatedEvent, origin=org_id, origin_type='Org',
+            description='The resource has been committed by the Org', resource_id=resource_id )
 
         return commitment_id
 
@@ -957,7 +970,10 @@ class OrgManagementService(BaseOrgManagementService):
 
         self.clients.resource_registry.retire(commitment_id)
 
-        #TODO - publish some kind of event for releasing a commitment
+        commitment = self.clients.resource_registry.read(commitment_id)
+
+        self.event_pub.publish_event(event_type=OT.ResourceCommitmentReleasedEvent, origin=commitment.provider, origin_type='Org',
+            description='The resource has been uncommitted by the Org', resource_id=commitment.commitment.resource_id )
 
         return True
 

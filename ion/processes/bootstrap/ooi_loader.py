@@ -53,8 +53,9 @@ class OOILoader(object):
                        # Tabs from the mapping spreadsheet
                        'Arrays',
                        'Sites',
+                       'Subsites',
                        'Nodes',
-                       'Platforms',
+                       #'Platforms',
                        'NodeTypes',
                        'PlatformAgentTypes'
                      ]
@@ -112,6 +113,8 @@ class OOILoader(object):
 
         for ot, oo in self.ooi_objects.iteritems():
             log.info("Type %s has %s entries", ot, len(oo))
+            #import pprint
+            #pprint.pprint(oo)
             #log.debug("Type %s has %s attributes", ot, self.ooi_obj_attrs[ot])
             #print ot
             #print "\n".join(sorted(list(self.ooi_obj_attrs[ot])))
@@ -356,12 +359,19 @@ class OOILoader(object):
 
     def _parse_Sites(self, row):
         ooi_rd = row['Reference ID']
-        name = "%s (%s)" % (row['Name'], ooi_rd[4:8])
+        name = row['Full Name']
+        self._add_object_attribute('site',
+            ooi_rd, 'name', name, change_ok=True)
+
+    def _parse_Subsites(self, row):
+        ooi_rd = row['Reference ID']
+        name = row['Full Name']
         self._add_object_attribute('subsite',
             ooi_rd, 'name', name, change_ok=True)
 
     def _parse_Nodes(self, row):
         ooi_rd = row['Reference ID']
+        name=row['Full Name']
         node_entry = dict(
             parent_id=row['Parent Reference ID'],
             platform_id=row['Platform Reference ID'],
@@ -371,19 +381,8 @@ class OOILoader(object):
         )
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
-
-    def _parse_Platforms(self, row):
-        ooi_rd = row['Reference ID']
-        node_entry = dict(
-            name=row['Name'],
-            has_nodes=row['Marine Reference ID'] == row['Site Reference ID'],
-            deployment_date=row['Deployment Date'],
-            controller_type=row['Controller Type'],
-            power_configuration=row['Power Configuration'],
-            terrestrial_link=row['Terrestial Link'],
-        )
         self._add_object_attribute('node',
-            ooi_rd, None, None, change_ok=True, **node_entry)
+            ooi_rd, 'name', name, change_ok=True)
 
         # Determine on which arrays the nodetype is used
         self._add_object_attribute('nodetype',
