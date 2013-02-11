@@ -11,6 +11,9 @@ from ion.agents.platform.oms.oms_client import NormalResponse
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
+# Locally, the following can be prefixed with PLAT_NETWORK=small to exercise
+# a small network (a root and some children) to the testing takes less time
+# but still representative. See HelperTestMixin.
 #
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_state_transitions
@@ -525,8 +528,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         return retval.result
 
     def _start_event_dispatch(self):
-        kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH)
         retval = self._execute_agent(cmd)
         self.assertTrue(retval.result is not None)
         return retval.result

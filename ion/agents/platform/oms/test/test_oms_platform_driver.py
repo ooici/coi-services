@@ -4,7 +4,7 @@
 @package ion.agents.platform.oms.test.test_oms_platform_driver
 @file    ion/agents/platform/oms/test/test_oms_platform_driver.py
 @author  Carlos Rueda
-@brief   Basic OmsPlatformDriver tests
+@brief   Some basic and direct tests to OmsPlatformDriver.
 """
 
 __author__ = 'Carlos Rueda'
@@ -54,7 +54,7 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
             log.debug("NetworkDefinition serialization:\n%s", network_definition_ser)
 
         platform_id = self.PLATFORM_ID
-        self._plat_driver = OmsPlatformDriver(platform_id, DVR_CONFIG)
+        self._plat_driver = OmsPlatformDriver(platform_id)
 
         self._plat_driver.set_nnode(network_definition.nodes[platform_id])
 
@@ -66,12 +66,15 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
     def tearDown(self):
         self._plat_driver.destroy()
 
+    def _configure(self):
+        self._plat_driver.configure(DVR_CONFIG)
+
+    def _connect(self):
+        self._plat_driver.connect()
+
     def _ping(self):
         result = self._plat_driver.ping()
         self.assertEquals("PONG", result)
-
-    def _go_active(self):
-        self._plat_driver.go_active()
 
     def _get_attribute_values(self):
         attrNames = self.ATTR_NAMES
@@ -86,16 +89,16 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
             self.assertTrue(attr_name in attr_values)
 
     def _start_event_dispatch(self):
-        params = {}  # TODO params not used yet
-        self._plat_driver.start_event_dispatch(params)
+        self._plat_driver.start_event_dispatch()
 
     def _stop_event_dispatch(self):
         self._plat_driver.stop_event_dispatch()
 
     def test(self):
 
+        self._configure()
+        self._connect()
         self._ping()
-        self._go_active()
 
         self._get_attribute_values()
 

@@ -632,8 +632,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
         log.debug( 'Base Platform START_MONITORING = %s', str(retval) )
 
         # START_EVENT_DISPATCH
-        kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         self.assertTrue(retval.result is not None)
 

@@ -5,8 +5,8 @@
 @file    ion/agents/platform/platform_driver.py
 @author  Carlos Rueda
 @brief   Base class for platform drivers
-         PRELIMINARY
 """
+from ion.agents.platform.exceptions import PlatformConnectionException
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
@@ -16,6 +16,48 @@ from pyon.public import log
 import logging
 
 from ion.agents.platform.platform_driver_event import DriverEvent
+from ion.agents.platform.exceptions import PlatformDriverException
+
+from ion.agents.instrument.common import BaseEnum
+from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMError
+
+
+class PlatformDriverState(BaseEnum):
+    """
+    Platform driver states
+    """
+    UNCONFIGURED     = 'PLATFORM_DRIVER_STATE_UNCONFIGURED'
+    DISCONNECTED     = 'PLATFORM_DRIVER_STATE_DISCONNECTED'
+    CONNECTING       = 'PLATFORM_DRIVER_STATE_CONNECTING'
+    CONNECTED        = 'PLATFORM_DRIVER_STATE_CONNECTED'
+    DISCONNECTING    = 'PLATFORM_DRIVER_STATE_DISCONNECTING'
+
+
+class PlatformDriverEvent(BaseEnum):
+    """
+    Base events for driver state machines.
+    """
+    ENTER            = 'PLATFORM_DRIVER_EVENT_ENTER'
+    EXIT             = 'PLATFORM_DRIVER_EVENT_EXIT'
+
+    CONFIGURE        = 'PLATFORM_DRIVER_EVENT_CONFIGURE'
+    CONNECT          = 'PLATFORM_DRIVER_EVENT_CONNECT'
+    CONNECTION_LOST  = 'PLATFORM_DRIVER_CONNECTION_LOST'
+    DISCONNECT       = 'PLATFORM_DRIVER_EVENT_DISCONNECT'
+
+    # Events for the CONNECTED state:
+    PING                      = 'PLATFORM_DRIVER_PING'
+    GET_METADATA              = 'PLATFORM_DRIVER_GET_METADATA'
+    GET_ATTRIBUTE_VALUES      = 'PLATFORM_DRIVER_GET_ATTRIBUTE_VALUES'
+    SET_ATTRIBUTE_VALUES      = 'PLATFORM_DRIVER_SET_ATTRIBUTE_VALUES'
+    GET_PORTS                 = 'PLATFORM_DRIVER_GET_PORTS'
+    CONNECT_INSTRUMENT        = 'PLATFORM_DRIVER_CONNECT_INSTRUMENT'
+    DISCONNECT_INSTRUMENT     = 'PLATFORM_DRIVER_DISCONNECT_INSTRUMENT'
+    GET_CONNECTED_INSTRUMENTS = 'PLATFORM_DRIVER_GET_CONNECTED_INSTRUMENTS'
+    TURN_ON_PORT              = 'PLATFORM_DRIVER_TURN_ON_PORT'
+    TURN_OFF_PORT             = 'PLATFORM_DRIVER_TURN_OFF_PORT'
+    START_EVENT_DISPATCH      = 'PLATFORM_DRIVER_START_EVENT_DISPATCH'
+    STOP_EVENT_DISPATCH       = 'PLATFORM_DRIVER_STOP_EVENT_DISPATCH'
 
 
 class PlatformDriver(object):
@@ -23,10 +65,9 @@ class PlatformDriver(object):
     A platform driver handles a particular platform in a platform network.
     """
 
-    def __init__(self, platform_id, driver_config, parent_platform_id=None):
+    def __init__(self, platform_id, parent_platform_id=None):
         """
         @param platform_id ID of my associated platform.
-        @param driver_config Driver configuration.
         @param parent_platform_id Platform ID of my parent, if any.
                     This is mainly used for diagnostic purposes
         """
@@ -34,23 +75,18 @@ class PlatformDriver(object):
         log.debug("%r: PlatformDriver constructor called", platform_id)
 
         self._platform_id = platform_id
-        self._driver_config = driver_config
         self._parent_platform_id = parent_platform_id
 
+        self._driver_config = None
         self._send_event = None
 
         # The root NNode defining the platform network rooted at the platform
         # identified by self._platform_id.
         self._nnode = None
 
-    def set_nnode(self, nnode):
-        """
-        Sets the node definition for this driver.
-        """
-        self._nnode = nnode
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: set_nnode:\n%s",
-                     self._platform_id, self._nnode.dump(include_subplatforms=False))
+        # construct FSM and start it with initial state UNCONFIGURED:
+        self._construct_fsm()
+        self._fsm.start(PlatformDriverState.UNCONFIGURED)
 
     def set_event_listener(self, evt_recv):
         """
@@ -61,6 +97,95 @@ class PlatformDriver(object):
         """
         self._send_event = evt_recv
 
+    def set_nnode(self, nnode):
+        """
+        Sets the node definition for this driver.
+        """
+        self._nnode = nnode
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: set_nnode:\n%s",
+                      self._platform_id, self._nnode.dump(include_subplatforms=False))
+
+    def validate_driver_configuration(self, driver_config):
+        """
+        Called by configure so a subclass can perform any needed additional
+        validation of the provided configuration.
+        Nothing is done in this base class. Note that basic validation is
+        done by PlatformAgent prior to creating/configuring the driver.
+
+        @param driver_config Driver configuration.
+
+        @raise PlatformDriverException Error in driver configuration.
+        """
+
+    def configure(self, driver_config):
+        """
+        Configures this driver. It first calls validate_driver_configuration.
+
+        @param driver_config Driver configuration.
+        """
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: configure: %s" % (self._platform_id, str(driver_config)))
+
+        self.validate_driver_configuration(driver_config)
+        self._driver_config = driver_config
+
+        self.__gen_diagram()
+
+    def _verify_got_nnode(self):
+        if not self._nnode:
+            raise PlatformDriverException("%r: set_nnode must have been called" % self._platform_id)
+
+    def connect(self):
+        """
+        To be implemented by subclass.
+        Establishes communication with the platform device.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    def disconnect(self):
+        """
+        To be implemented by subclass.
+        Ends communication with the platform device.
+
+        @raise PlatformConnectionException
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    def __gen_diagram(self):  # pragma: no cover
+        """
+        **Developer routine**
+        Convenience method for testing/debugging.
+        Generates a dot diagram iff the environment variable GEN_DIAG is
+        defined and this driver corresponds to the root of the network
+        (determined by not having a parent platform ID).
+        """
+        try:
+            import os, tempfile, subprocess
+            if os.getenv("GEN_DIAG", None) is None:
+                return
+            if self._parent_platform_id:
+                # I'm not the root of the network
+                return
+
+            # I'm the root of the network
+            name = self._platform_id
+            base_name = '%s/%s' % (tempfile.gettempdir(), name)
+            dot_name = '%s.dot' % base_name
+            png_name = '%s.png' % base_name
+            print 'generating diagram %r' % dot_name
+            file(dot_name, 'w').write(self._nnode.diagram(style="dot"))
+            print 'generating png %r' % png_name
+            dot_cmd = 'dot -Tpng %s -o %s' % (dot_name, png_name)
+            subprocess.call(dot_cmd.split())
+            print 'opening %r' % png_name
+            open_cmd = 'open %s' % png_name
+            subprocess.call(open_cmd.split())
+        except Exception, e:
+            print "error generating or opening diagram: %s" % str(e)
+
     def ping(self):
         """
         To be implemented by subclass.
@@ -69,14 +194,6 @@ class PlatformDriver(object):
 
         @retval "PONG"
         @raise PlatformConnectionException
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def go_active(self):
-        """
-        Activates the driver.
-
-        @raise PlatformDriverException set_nnode must have been called prior to this call.
         """
         raise NotImplementedError()  #pragma: no cover
 
@@ -205,7 +322,6 @@ class PlatformDriver(object):
         Stops all activity done by the driver. Nothing done in this class.
         (previously it stopped resource monitoring).
         """
-        pass
 
     def _notify_driver_event(self, driver_event):
         """
@@ -225,7 +341,7 @@ class PlatformDriver(object):
             log.warn("self._send_event not set to notify driver_event=%s",
                      str(driver_event))
 
-    def start_event_dispatch(self, params):
+    def start_event_dispatch(self):
         """
         To be implemented by subclass.
         Starts the dispatch of events received from the platform network to do
@@ -239,3 +355,355 @@ class PlatformDriver(object):
         Stops the dispatch of events received from the platform network.
         """
         raise NotImplementedError()  #pragma: no cover
+
+    def get_driver_state(self):
+        """
+        Returns the current FSM state.
+        """
+        return self._fsm.get_current_state()
+
+    ##############################################################
+    # FSM event handlers.
+    ##############################################################
+
+    def _common_state_enter(self, *args, **kwargs):
+        """
+        Common work upon every state entry.
+        Nothing done in this base class.
+        @todo determine what should be done, in particular regarding eventual
+        notification of the platform driver state transition.
+        """
+        state = self.get_driver_state()
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug('%r: driver entering state: %s' % (self._platform_id, state))
+
+        # TODO: publish the platform driver FSM state transition?
+        # event_data = {
+        #     'state': state
+        # }
+        # result = self._event_publisher.publish_event(
+        #     event_type = ?????,
+        #     origin     = ?????,
+        #     **event_data)
+        # if log.isEnabledFor(logging.DEBUG):
+        #     log.debug('%r: PlatformDriver published state change: %s, '
+        #               'time: %s result: %s',
+        #               self._platform_id, state, get_ion_ts(), str(result))
+
+    def _common_state_exit(self, *args, **kwargs):
+        """
+        Common work upon every state exit.
+        Nothing done in this base class.
+        """
+
+    ##############################################################
+    # UNCONFIGURED event handlers.
+    ##############################################################
+
+    def _handler_unconfigured_configure(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        driver_config = kwargs.get('driver_config', None)
+        if driver_config is None:
+            raise FSMError('configure: missing driver_config argument')
+
+        try:
+            result = self.configure(driver_config)
+            next_state = PlatformDriverState.DISCONNECTED
+        except PlatformDriverException as e:
+            result = None
+            next_state = None
+            log.error("Error in platform driver configuration", e)
+
+        return next_state, result
+
+    ##############################################################
+    # DISCONNECTED event handlers.
+    ##############################################################
+
+    def _handler_disconnected_connect(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self.connect()
+        next_state = PlatformDriverState.CONNECTED
+
+        return next_state, result
+
+    ##############################################################
+    # CONNECTED event handlers.
+    ##############################################################
+
+    def _handler_connected_disconnect(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self.disconnect(*args, **kwargs)
+        next_state = PlatformDriverState.DISCONNECTED
+
+        return next_state, result
+
+    def _handler_connected_ping(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = None
+        try:
+            result = self.ping()
+            next_state = None
+        except PlatformConnectionException as e:
+            next_state = PlatformDriverState.DISCONNECTED
+            log.error("Ping failed", e)
+
+        return next_state, result
+
+    def _handler_connected_get_metadata(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self.get_metadata()
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_get_attribute_values(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        attr_names = kwargs.get('attr_names', None)
+        if attr_names is None:
+            raise FSMError('get_attribute_values: missing attr_names argument')
+
+        from_time = kwargs.get('from_time', None)
+        if from_time is None:
+            raise FSMError('get_attribute_values: missing from_time argument')
+
+        result = self.get_attribute_values(attr_names, from_time)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_set_attribute_values(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        attrs = kwargs.get('attrs', None)
+        if attrs is None:
+            raise FSMError('set_attribute_values: missing attrs argument')
+
+        result = self.set_attribute_values(attrs)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_get_ports(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self.get_ports()
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_connect_instrument(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('connect_instrument: missing port_id argument')
+
+        instrument_id = kwargs.get('instrument_id', None)
+        if instrument_id is None:
+            raise FSMError('connect_instrument: missing instrument_id argument')
+
+        attributes = kwargs.get('attributes', None)
+        if attributes is None:
+            raise FSMError('connect_instrument: missing attributes argument')
+
+        result = self.connect_instrument(port_id, instrument_id, attributes)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_disconnected_connect_instrument(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('disconnect_instrument: missing port_id argument')
+
+        instrument_id = kwargs.get('instrument_id', None)
+        if instrument_id is None:
+            raise FSMError('disconnect_instrument: missing instrument_id argument')
+
+        result = self.disconnect_instrument(port_id, instrument_id)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_get_connected_instruments(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('get_connected_instruments: missing port_id argument')
+
+        result = self.get_connected_instruments(port_id)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_turn_on_port(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('turn_on_port: missing port_id argument')
+
+        result = self.turn_on_port(port_id)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_turn_off_port(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('turn_off_port: missing port_id argument')
+
+        result = self.turn_off_port(port_id)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_start_event_dispatch(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self.start_event_dispatch()
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_stop_event_dispatch(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self.stop_event_dispatch()
+        next_state = None
+
+        return next_state, result
+
+    ##############################################################
+    # Platform driver FSM setup
+    ##############################################################
+
+    def _construct_fsm(self):
+        """
+        """
+        log.debug("constructing fsm")
+
+        self._fsm = InstrumentFSM(PlatformDriverState,
+                                  PlatformDriverEvent,
+                                  PlatformDriverEvent.ENTER,
+                                  PlatformDriverEvent.EXIT)
+
+        for state in PlatformDriverState.list():
+            self._fsm.add_handler(state, PlatformDriverEvent.ENTER, self._common_state_enter)
+            self._fsm.add_handler(state, PlatformDriverEvent.EXIT, self._common_state_exit)
+
+        # UNCONFIGURED state event handlers:
+        self._fsm.add_handler(PlatformDriverState.UNCONFIGURED, PlatformDriverEvent.CONFIGURE, self._handler_unconfigured_configure)
+
+        # DISCONNECTED state event handlers:
+        self._fsm.add_handler(PlatformDriverState.DISCONNECTED, PlatformDriverEvent.CONNECT, self._handler_disconnected_connect)
+
+        # CONNECTING state event handlers:
+        # NONE.
+
+        # DISCONNECTING state event handlers:
+        # NONE.
+
+        # CONNECTED state event handlers:
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT, self._handler_connected_disconnect)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECTION_LOST, self._handler_connected_disconnect)
+
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.PING, self._handler_connected_ping)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_METADATA, self._handler_connected_get_metadata)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_ATTRIBUTE_VALUES, self._handler_connected_get_attribute_values)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.SET_ATTRIBUTE_VALUES, self._handler_connected_set_attribute_values)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_PORTS, self._handler_connected_get_ports)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_disconnected_connect_instrument)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, self._handler_connected_get_connected_instruments)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.TURN_ON_PORT, self._handler_connected_turn_on_port)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.TURN_OFF_PORT, self._handler_connected_turn_off_port)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.START_EVENT_DISPATCH, self._handler_connected_start_event_dispatch)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.STOP_EVENT_DISPATCH, self._handler_connected_stop_event_dispatch)

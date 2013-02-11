@@ -4,7 +4,7 @@
 @package ion.agents.platform.oms.oms_platform_driver
 @file    ion/agents/platform/oms/oms_platform_driver.py
 @author  Carlos Rueda
-@brief   Base class for OMS platform drivers.
+@brief   The main RSN OMS platform driver class.
 """
 
 __author__ = 'Carlos Rueda'
@@ -27,33 +27,39 @@ from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
 
 class OmsPlatformDriver(PlatformDriver):
     """
-    Base class for OMS platform drivers.
+    The main RSN OMS platform driver class.
     """
 
-    def __init__(self, platform_id, driver_config, parent_platform_id=None):
+    def __init__(self, platform_id, parent_platform_id=None):
         """
         Creates an OmsPlatformDriver instance.
 
         @param platform_id Corresponding platform ID
-        @param driver_config with required 'oms_uri' entry.
         @param parent_platform_id Platform ID of my parent, if any.
                     This is mainly used for diagnostic purposes
         """
-        PlatformDriver.__init__(self, platform_id, driver_config, parent_platform_id)
+        PlatformDriver.__init__(self, platform_id, parent_platform_id)
 
+        self._rsn_oms = None
+
+        # external event listener: we can instantiate this here as the the
+        # actual http server is started via corresponding method.
+        self._event_listener = OmsEventListener(self._notify_driver_event)
+
+    def validate_driver_configuration(self, driver_config):
         if not 'oms_uri' in driver_config:
             raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
 
-        oms_uri = driver_config['oms_uri']
-        log.debug("%r: creating OmsClient instance with oms_uri=%r",
-            self._platform_id, oms_uri)
-        self._oms = OmsClientFactory.create_instance(oms_uri)
-        log.debug("%r: OmsClient instance created: %s",
-            self._platform_id, self._oms)
+    def configure(self, driver_config):
+        """
+        Nothing special done here, only calls super.configure(driver_config)
 
-        # we can instantiate this here as the the actual http server is
-        # started via corresponding method.
-        self._event_listener = OmsEventListener(self._notify_driver_event)
+        @param driver_config with required 'oms_uri' entry.
+        """
+        PlatformDriver.configure(self, driver_config)
+
+    def _assert_rsn_oms(self):
+        assert self._rsn_oms, "_rsn_oms object required (created via connect() call)"
 
     def ping(self):
         """
@@ -65,8 +71,9 @@ class OmsPlatformDriver(PlatformDriver):
                got unexpected response.
         """
         log.debug("%r: pinging OMS...", self._platform_id)
+        self._assert_rsn_oms()
         try:
-            retval = self._oms.hello.ping()
+            retval = self._rsn_oms.hello.ping()
         except Exception, e:
             raise PlatformConnectionException(msg="Cannot ping %s" % str(e))
 
@@ -75,66 +82,34 @@ class OmsPlatformDriver(PlatformDriver):
 
         return "PONG"
 
-    def _verify_got_nnode(self):
-        if not self._nnode:
-            raise PlatformDriverException("%r: set_nnode must have been called" % self._platform_id)
-
-    def go_active(self):
+    def connect(self):
         """
-        Activates the driver.
-
-        @raise PlatformDriverException set_nnode must have been called prior to this call.
+        Creates an OmsClient instance and does a ping.
         """
 
-        if log.isEnabledFor(logging.DEBUG):
-            # NOTE: The following log.debug DOES NOT show up when running a test
-            # with the pycc plugin (--with-pycc)!  (noticed with test_oms_launch).
-            log.debug("%r: going active..", self._platform_id)
+        oms_uri = self._driver_config['oms_uri']
+        log.debug("%r: creating OmsClient instance with oms_uri=%r",
+                  self._platform_id, oms_uri)
+        self._rsn_oms = OmsClientFactory.create_instance(oms_uri)
+        log.debug("%r: OmsClient instance created: %s",
+                  self._platform_id, self._rsn_oms)
 
-        self._verify_got_nnode()
-
-        # note, we ping the OMS here regardless of the source for the network
-        # definition:
         self.ping()
 
-        self.__gen_diagram()
-
-    def __gen_diagram(self):  # pragma: no cover
+    def disconnect(self):
         """
-        **Developer routine**
-        Convenience method for testing/debugging.
-        Generates a dot diagram iff the environment variable GEN_DIAG is
-        defined and this driver corresponds to the root of the network
-        (determined by not having a parent platform ID).
+        Destroys the OmsClient instance.
         """
-        try:
-            import os, tempfile, subprocess
-            if os.getenv("GEN_DIAG", None) is None:
-                return
-            if self._parent_platform_id:
-                # I'm not the root of the network
-                return
-
-            # I'm the root of the network
-            name = self._platform_id
-            base_name = '%s/%s' % (tempfile.gettempdir(), name)
-            dot_name = '%s.dot' % base_name
-            png_name = '%s.png' % base_name
-            print 'generating diagram %r' % dot_name
-            file(dot_name, 'w').write(self._nnode.diagram(style="dot"))
-            print 'generating png %r' % png_name
-            dot_cmd = 'dot -Tpng %s -o %s' % (dot_name, png_name)
-            subprocess.call(dot_cmd.split())
-            print 'opening %r' % png_name
-            open_cmd = 'open %s' % png_name
-            subprocess.call(open_cmd.split())
-        except Exception, e:
-            print "error generating or opening diagram: %s" % str(e)
+        self._assert_rsn_oms()
+        self._rsn_oms = None
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: OmsClient instance destroyed" % self._platform_id)
 
     def get_metadata(self):
         """
         """
-        retval = self._oms.get_platform_metadata(self._platform_id)
+        self._assert_rsn_oms()
+        retval = self._rsn_oms.get_platform_metadata(self._platform_id)
         log.debug("get_platform_metadata = %s", retval)
 
         if not self._platform_id in retval:
@@ -151,10 +126,12 @@ class OmsPlatformDriver(PlatformDriver):
             log.debug("get_attribute_values: attr_names=%s from_time=%s" % (
                 str(attr_names), from_time))
 
+        self._assert_rsn_oms()
+
         # OOIION-631 convert the system time from_time to NTP, which is used by
         # the RSN OMS interface:
         ntp_from_time = ion_ts_2_ntp(from_time)
-        retval = self._oms.get_platform_attribute_values(self._platform_id, attr_names, ntp_from_time)
+        retval = self._rsn_oms.get_platform_attribute_values(self._platform_id, attr_names, ntp_from_time)
         log.debug("get_platform_attribute_values = %s", retval)
 
         if not self._platform_id in retval:
@@ -275,6 +252,8 @@ class OmsPlatformDriver(PlatformDriver):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("set_attribute_values: attrs = %s" % str(attrs))
 
+        self._assert_rsn_oms()
+
         error_vals = self._validate_set_attribute_values(attrs)
         if len(error_vals) > 0:
             # remove offending attributes for the request below
@@ -291,7 +270,7 @@ class OmsPlatformDriver(PlatformDriver):
             attrs = attrs_dict.items()
 
         # ok, now make the request to RSN OMS:
-        retval = self._oms.set_platform_attribute_values(self._platform_id, attrs)
+        retval = self._rsn_oms.set_platform_attribute_values(self._platform_id, attrs)
         log.debug("set_platform_attribute_values = %s", retval)
 
         if not self._platform_id in retval:
@@ -334,7 +313,7 @@ class OmsPlatformDriver(PlatformDriver):
         """
         Verifies the presence of my platform_id in the response.
 
-        @param response Dictionary returned by _oms
+        @param response Dictionary returned by _rsn_oms
 
         @retval response[self._platform_id]
         """
@@ -376,7 +355,7 @@ class OmsPlatformDriver(PlatformDriver):
         Verifies the presence of port_id in the dic.
 
         @param port_id  The ID to verify
-        @param dic Dictionary returned by _oms
+        @param dic Dictionary returned by _rsn_oms
 
         @return dic[port_id]
         """
@@ -399,7 +378,7 @@ class OmsPlatformDriver(PlatformDriver):
 
         @param port_id        Used for error reporting
         @param instrument_id  The ID to verify
-        @param dic            Dictionary returned by _oms
+        @param dic            Dictionary returned by _rsn_oms
 
         @return dic[instrument_id]
         """
@@ -420,7 +399,9 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: connect_instrument: port_id=%r instrument_id=%r attributes=%s",
                   self._platform_id, port_id, instrument_id, attributes)
 
-        response = self._oms.connect_instrument(self._platform_id, port_id, instrument_id, attributes)
+        self._assert_rsn_oms()
+
+        response = self._rsn_oms.connect_instrument(self._platform_id, port_id, instrument_id, attributes)
         log.debug("%r: connect_instrument response: %s",
             self._platform_id, response)
 
@@ -433,7 +414,9 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: disconnect_instrument: port_id=%r instrument_id=%r",
                   self._platform_id, port_id, instrument_id)
 
-        response = self._oms.disconnect_instrument(self._platform_id, port_id, instrument_id)
+        self._assert_rsn_oms()
+
+        response = self._rsn_oms.disconnect_instrument(self._platform_id, port_id, instrument_id)
         log.debug("%r: disconnect_instrument response: %s",
             self._platform_id, response)
 
@@ -447,7 +430,9 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: get_connected_instruments: port_id=%s",
                   self._platform_id, port_id)
 
-        response = self._oms.get_connected_instruments(self._platform_id, port_id)
+        self._assert_rsn_oms()
+
+        response = self._rsn_oms.get_connected_instruments(self._platform_id, port_id)
         log.debug("%r: port_id=%r: get_connected_instruments response: %s",
             self._platform_id, port_id, response)
 
@@ -460,7 +445,9 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: turning on port: port_id=%s",
                   self._platform_id, port_id)
 
-        response = self._oms.turn_on_platform_port(self._platform_id, port_id)
+        self._assert_rsn_oms()
+
+        response = self._rsn_oms.turn_on_platform_port(self._platform_id, port_id)
         log.debug("%r: turn_on_platform_port response: %s",
             self._platform_id, response)
 
@@ -473,7 +460,9 @@ class OmsPlatformDriver(PlatformDriver):
         log.debug("%r: turning off port: port_id=%s",
                   self._platform_id, port_id)
 
-        response = self._oms.turn_off_platform_port(self._platform_id, port_id)
+        self._assert_rsn_oms()
+
+        response = self._rsn_oms.turn_off_platform_port(self._platform_id, port_id)
         log.debug("%r: turn_off_platform_port response: %s",
             self._platform_id, response)
 
@@ -483,23 +472,24 @@ class OmsPlatformDriver(PlatformDriver):
         return dic_plat  # note: return the dic for the platform
 
     ###############################################
-    # Events:
+    # External event handling:
 
     def _register_event_listener(self, url):
         """
         Registers given url for all event types.
         """
-        result = self._oms.register_event_listener(url, [])
+        result = self._rsn_oms.register_event_listener(url, [])
         log.info("register_event_listener url=%r returned: %s", url, str(result))
 
     def _unregister_event_listener(self, url):
         """
         Unregisters given url for all event types.
         """
-        result = self._oms.unregister_event_listener(url, [])
+        result = self._rsn_oms.unregister_event_listener(url, [])
         log.info("unregister_event_listener url=%r returned: %s", url, str(result))
 
-    def start_event_dispatch(self, params):
+    def start_event_dispatch(self):
+        self._assert_rsn_oms()
         # start http server:
         self._event_listener.start_http_server()
 
@@ -509,6 +499,7 @@ class OmsPlatformDriver(PlatformDriver):
         return "OK"
 
     def stop_event_dispatch(self):
+        self._assert_rsn_oms()
         # unregister my listener:
         self._unregister_event_listener(self._event_listener.url)
 

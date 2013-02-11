@@ -36,6 +36,8 @@ from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
 
+from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
+
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 import numpy
 from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
@@ -252,7 +254,7 @@ class PlatformAgent(ResourceAgent):
 
         @raises PlatformException if the verification fails for some reason.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("_pre_initialize: plat_config=%s", str(self._plat_config))
 
         if not self._plat_config:
@@ -405,7 +407,7 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: No stream_config given in CFG", self._platform_id)
             return
 
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r: stream_info = %s", self._platform_id, stream_info)
 
         for (stream_name, stream_config) in stream_info.iteritems():
@@ -444,13 +446,14 @@ class PlatformAgent(ResourceAgent):
 
         assert self._platform_id is not None, "must know platform_id to create driver"
 
-        log.debug('%r: creating driver: %s',
-            self._platform_id,  driver_config)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug('%r: creating driver: driver_module=%s driver_class=%s' % (
+                self._platform_id, driver_module, driver_class))
 
         try:
             module = __import__(driver_module, fromlist=[driver_class])
             classobj = getattr(module, driver_class)
-            driver = classobj(self._platform_id, driver_config, self._parent_platform_id)
+            driver = classobj(self._platform_id, self._parent_platform_id)
 
         except Exception as e:
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
@@ -460,39 +463,67 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_driver = driver
         self._plat_driver.set_event_listener(self.evt_recv)
-
         self._plat_driver.set_nnode(self._nnode)
 
-        log.debug("%r: driver created: %s",
-            self._platform_id, str(driver))
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: driver created: %s" % (self._platform_id, str(driver)))
+
+    def _driver_event(self, event, **kwargs):
+        """
+        Helper to trigger a driver event.
+        """
+        result = self._plat_driver._fsm.on_event(event, **kwargs)
+        return result
+
+    def _configure_driver(self):
+        """
+        Configures the platform driver object for this platform agent.
+        """
+        driver_config = self._plat_config['driver_config']
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug('%r: configuring driver: %s' % (self._platform_id, driver_config))
+
+        self._driver_event(PlatformDriverEvent.CONFIGURE, driver_config=driver_config)
+
+        self._assert_driver_state(PlatformDriverState.DISCONNECTED)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: driver configured." % self._platform_id)
+
+    def _assert_driver_state(self, state):
+        self._assert_driver()
+        curr_state = self._plat_driver._fsm.get_current_state()
+        assert state == curr_state, \
+            "Assertion failed: expected driver state to be %s but got %s" % (
+                state, curr_state)
 
     def _assert_driver(self):
         assert self._plat_driver is not None, "_create_driver must have been called first"
 
     def _do_initialize(self):
         """
-        Does the main initialize sequence, which includes creation
-        of publishers and activation of the driver, but excludes the launch
+        Does the main initialize sequence, which includes creation of publishers
+        and creation/configuration of the driver, but excludes the launch
         of the sub-platforms.
         """
         self._pre_initialize()
         self._construct_data_publishers()
         self._create_driver()
-        self._plat_driver.go_active()
+        self._configure_driver()
 
     def _do_go_active(self):
         """
         Any activation actions at this platform (excluding sub-platforms).
-        Nothing done at the moment.
+        This base class connects the driver.
         """
-        pass
+        self._driver_event(PlatformDriverEvent.CONNECT)
 
     def _do_go_inactive(self):
         """
         Any desactivation actions at this platform (excluding sub-platforms).
-        Nothing done at the moment.
+        This base class disconnects the driver.
         """
-        pass
+        self._driver_event(PlatformDriverEvent.DISCONNECT)
 
     def _go_inactive(self):
         """
@@ -524,9 +555,8 @@ class PlatformAgent(ResourceAgent):
 
     def _verify_got_network_definition(self):
         if not self._network_definition:
-            msg = "%r: _network_definition must have been set." % self._platform_id
-            log.error(msg)
-            raise PlatformException(msg)
+            raise PlatformException(
+                "%r: _network_definition must have been set." % self._platform_id)
 
     def _start_resource_monitoring(self):
         """
@@ -556,14 +586,16 @@ class PlatformAgent(ResourceAgent):
 
     def _get_attribute_values(self, attr_names, from_time):
         self._assert_driver()
-        result = self._plat_driver.get_attribute_values(attr_names, from_time)
+        kwargs = dict(attr_names=attr_names, from_time=from_time)
+        result = self._driver_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, **kwargs)
         return result
 
     def _stop_resource_monitoring(self):
         """
         Stops resource monitoring.
         """
-        assert self._platform_resource_monitor is not None, "_start_resource_monitoring must have been called first"
+        assert self._platform_resource_monitor is not None, \
+        "_start_resource_monitoring must have been called first"
 
         self._platform_resource_monitor.stop_resource_monitoring()
 
@@ -978,7 +1010,7 @@ class PlatformAgent(ResourceAgent):
     # major operations
     ##############################################################
 
-    def _initialize(self, *args, **kwargs):
+    def _initialize(self):
         """
         Processes the overall INITIALIZE command: does proper initialization
         and launches and initializes sub-platforms, so, the whole network
@@ -1007,8 +1039,8 @@ class PlatformAgent(ResourceAgent):
         result = None
         return result
 
-    def _ping_resource(self, *args, **kwargs):
-        result = self._plat_driver.ping()
+    def _ping_resource(self):
+        result = self._driver_event(PlatformDriverEvent.PING)
         return result
 
     ##############################################################
@@ -1018,11 +1050,11 @@ class PlatformAgent(ResourceAgent):
     def _handler_uninitialized_initialize(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._initialize(*args, **kwargs)
+        result = self._initialize()
         next_state = PlatformAgentState.INACTIVE
 
         return (next_state, result)
@@ -1034,7 +1066,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_inactive_reset(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1050,7 +1082,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_inactive_go_active(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1067,7 +1099,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_idle_reset(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1083,7 +1115,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_idle_go_inactive(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1096,7 +1128,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_idle_run(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1114,7 +1146,7 @@ class PlatformAgent(ResourceAgent):
         """
         Transitions to COMMAND state.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1127,7 +1159,7 @@ class PlatformAgent(ResourceAgent):
         """
         Transitions to IDLE state.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1143,7 +1175,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_command_reset(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1161,7 +1193,7 @@ class PlatformAgent(ResourceAgent):
         """
         Transitions to IDLE state.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1174,7 +1206,7 @@ class PlatformAgent(ResourceAgent):
         """
         Transitions to STOPPED state.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1190,7 +1222,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_get_resource_capabilities(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1217,7 +1249,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_get_resource(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1243,7 +1275,7 @@ class PlatformAgent(ResourceAgent):
     def _handler_set_resource(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1252,8 +1284,8 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('set_resource missing attrs argument.')
 
         try:
-            result = self._plat_driver.set_attribute_values(attrs)
-
+            result = self._driver_event(PlatformDriverEvent.SET_ATTRIBUTE_VALUES,
+                                        **kwargs)
             next_state = self.get_agent_state()
 
         except Exception as ex:
@@ -1266,11 +1298,11 @@ class PlatformAgent(ResourceAgent):
         """
         Pings the driver.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._ping_resource(*args, **kwargs)
+        result = self._ping_resource()
 
         next_state = self.get_agent_state()
 
@@ -1279,16 +1311,12 @@ class PlatformAgent(ResourceAgent):
     def _handler_start_event_dispatch(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        params = kwargs.get('params', None)
-#        if params is None:
-#            raise BadRequest('start_event_dispatch missing params argument.')
-
         try:
-            result = self._plat_driver.start_event_dispatch(params)
+            result = self._driver_event(PlatformDriverEvent.START_EVENT_DISPATCH)
 
             next_state = self.get_agent_state()
 
@@ -1301,13 +1329,12 @@ class PlatformAgent(ResourceAgent):
     def _handler_stop_event_dispatch(self, *args, **kwargs):
         """
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         try:
-            result = self._plat_driver.stop_event_dispatch()
-
+            result = self._driver_event(PlatformDriverEvent.STOP_EVENT_DISPATCH)
             next_state = self.get_agent_state()
 
         except Exception as ex:
@@ -1320,11 +1347,11 @@ class PlatformAgent(ResourceAgent):
         """
         Gets platform's metadata
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._plat_driver.get_metadata()
+        result = self._driver_event(PlatformDriverEvent.GET_METADATA)
 
         next_state = self.get_agent_state()
 
@@ -1334,11 +1361,11 @@ class PlatformAgent(ResourceAgent):
         """
         Gets info about platform's ports
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._plat_driver.get_ports()
+        result = self._driver_event(PlatformDriverEvent.GET_PORTS)
 
         next_state = self.get_agent_state()
 
@@ -1348,7 +1375,7 @@ class PlatformAgent(ResourceAgent):
         """
         Connects an instrument to a given port in this platform.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1364,7 +1391,8 @@ class PlatformAgent(ResourceAgent):
         if attributes is None:
             raise BadRequest('connect_instrument: missing attributes argument.')
 
-        result = self._plat_driver.connect_instrument(port_id, instrument_id, attributes)
+        result = self._driver_event(PlatformDriverEvent.CONNECT_INSTRUMENT,
+                                    **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1374,7 +1402,7 @@ class PlatformAgent(ResourceAgent):
         """
         Disconnects an instrument from a given port in this platform.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1386,7 +1414,8 @@ class PlatformAgent(ResourceAgent):
         if instrument_id is None:
             raise BadRequest('disconnect_instrument: missing instrument_id argument.')
 
-        result = self._plat_driver.disconnect_instrument(port_id, instrument_id)
+        result = self._driver_event(PlatformDriverEvent.DISCONNECT_INSTRUMENT,
+                                    **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1396,7 +1425,7 @@ class PlatformAgent(ResourceAgent):
         """
         Gets the connected instruments to a given port in this platform.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1404,7 +1433,8 @@ class PlatformAgent(ResourceAgent):
         if port_id is None:
             raise BadRequest('get_connected_instruments: missing port_id argument.')
 
-        result = self._plat_driver.get_connected_instruments(port_id)
+        result = self._driver_event(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
+                                    **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1414,7 +1444,7 @@ class PlatformAgent(ResourceAgent):
         """
         Turns on a given port in this platform.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1422,7 +1452,7 @@ class PlatformAgent(ResourceAgent):
         if port_id is None:
             raise BadRequest('turn_on_port missing port_id argument.')
 
-        result = self._plat_driver.turn_on_port(port_id)
+        result = self._driver_event(PlatformDriverEvent.TURN_ON_PORT, **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1432,7 +1462,7 @@ class PlatformAgent(ResourceAgent):
         """
         Turns off a given port in this platform.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1440,7 +1470,7 @@ class PlatformAgent(ResourceAgent):
         if port_id is None:
             raise BadRequest('turn_off_port missing port_id argument.')
 
-        result = self._plat_driver.turn_off_port(port_id)
+        result = self._driver_event(PlatformDriverEvent.TURN_OFF_PORT, **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1450,7 +1480,7 @@ class PlatformAgent(ResourceAgent):
         """
         Gets the IDs of my direct subplatforms.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1468,7 +1498,7 @@ class PlatformAgent(ResourceAgent):
         """
         Starts resource monitoring and transitions to MONITORING state.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
@@ -1487,7 +1517,7 @@ class PlatformAgent(ResourceAgent):
         """
         Stops resource monitoring and transitions to COMMAND state.
         """
-        if log.isEnabledFor(logging.TRACE):
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
