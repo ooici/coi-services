@@ -13,6 +13,8 @@ from ion.util.pydap.handlers.coverage.coverage_handler import Handler
 from pydap.client import open_url
 from pyon.public import CFG
 from pyon.util.file_sys import FileSystem
+import unittest
+
 
 @attr('UNIT', group='dm')
 class TestPydapCoverageHandlerUnit(IonUnitTestCase):
@@ -30,6 +32,8 @@ class TestPydapCoverageHandlerUnit(IonUnitTestCase):
         self.cov.insert_timesteps(self.nt)
     
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_meta(self):
         environ = {'pydap.headers': [], 'pydap.ce': (None, [])}
         dataset = self._handler.parse_constraints(environ)
@@ -54,6 +58,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         port = CFG.get_safe('container.pydap_gateway.web_server.port', '8001')
         self.request_url = "http://"+host+":"+str(port)+os.sep+os.path.basename(self.filename)
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_record(self):
         input_data = [{'key1':'value1'}, {'key2':'value2'}, {'key3':'value3'}, {'key4':'value4'}, {'key5':'value5'}]
         test_data = [] 
@@ -65,6 +71,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = [d for d in dataset['data']['record']]
         self.assertEqual(test_data, result) 
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_array_float(self):
         input_data = np.sin(np.arange(self.nt) * 2 * np.pi /60)
         self.cov.set_parameter_values('array',value=input_data)
@@ -72,6 +80,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = np.asanyarray([d for d in dataset['data']['array']])
         self.assertTrue(np.array_equal(result, input_data))
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_array_int(self):
         input_data = np.arange(self.nt) + 1
         self.cov.set_parameter_values('array',value=input_data)
@@ -79,6 +89,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = np.asanyarray([d for d in dataset['data']['array']])
         self.assertTrue(np.array_equal(result, input_data))
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_array_string(self):
         input_data = ["larry", "bob", "sally", "jennifer", "fred"]
         self.cov.set_parameter_values('array',value=input_data)
@@ -86,6 +98,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = [d for d in dataset['data']['array']]
         self.assertEqual(result, input_data)
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_quantity(self):
         input_data = np.arange(self.nt)
         self.cov.set_parameter_values('quantity', value=input_data)
@@ -93,6 +107,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = np.asanyarray([d for d in dataset['data']['quantity']])
         self.assertTrue(np.array_equal(result, input_data))
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_constant(self):
         test_data = [30] * self.nt
         self.cov.set_parameter_values('constant', value=test_data)
@@ -100,6 +116,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = np.asanyarray([d for d in dataset['data']['constant']])
         self.assertTrue(np.array_equal(result, test_data))
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_boolean(self):
         test_data = np.asanyarray([True,False,True,True,False])
         self.cov.set_parameter_values('boolean',value=test_data)
@@ -108,6 +126,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = np.asanyarray([d for d in dataset['data']['boolean']])
         self.assertTrue(np.array_equal(result, test_data))
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_category(self):
         test_data = ["apple","lemon","apple","banana", "lemon"]
         self.cov.set_parameter_values('category',value=test_data)
@@ -115,6 +135,8 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
         result = [d for d in dataset['data']['category']]
         self.assertEqual(result, test_data)
     
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_range(self):
         range_ele = (45.0,60.0)
         self.cov.set_parameter_values('range',value=range_ele)
