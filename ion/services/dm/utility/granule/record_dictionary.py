@@ -21,6 +21,7 @@ from interface.objects import Granule
 
 from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
+from coverage_model.parameter_types import ParameterFunctionType
 
 import numpy as np
 import msgpack
@@ -173,7 +174,10 @@ class RecordDictionaryTool(object):
                 validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
         dom = self.domain
-        paramval = get_value_class(context.param_type, domain_set = dom)
+        if isinstance(context.param_type, ParameterFunctionType):
+            paramval = np.empty(self._shp, dtype='float32') #@TODO FIX THIS!!!
+        else:
+            paramval = get_value_class(context.param_type, domain_set = dom)
         paramval[:] = vals
         paramval.storage._storage.flags.writeable = False
         self._rd[name] = paramval

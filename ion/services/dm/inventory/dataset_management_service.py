@@ -29,7 +29,6 @@ import os
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
     DEFAULT_VIEW      = 'manifest/by_dataset'
-    _view_coverage_cache = {}
     
     def __init__(self, *args, **kwargs):
         super(DatasetManagementService, self).__init__(*args,**kwargs)
