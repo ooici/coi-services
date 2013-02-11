@@ -62,7 +62,7 @@ ant clean
 sh scripts/cc-cleanup.sh
 
 echo -e "\n\n=== BOOTSTRAPPING ===\n"
-python bootstrap.py
+python bootstrap.py -v 1.7
 
 echo -e "\n\n=== BUILDING OUT ===\n"
 bin/buildout
