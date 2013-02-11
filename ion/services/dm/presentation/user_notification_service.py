@@ -853,11 +853,6 @@ class UserNotificationService(BaseUserNotificationService):
                         notifications.remove(notif)
                         notifications.append(new_notification)
 
-#                log.debug("came to append the new notification: %s", new_notification)
-#                # put in the new notification
-#                notifications.append(new_notification)
-#                item['value'] = notifications
-
                 break
 
         #------------------------------------------------------------------------------------
