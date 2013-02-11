@@ -352,7 +352,7 @@ class UserNotificationService(BaseUserNotificationService):
 #        # Update the UserInfo object
 #        #------------------------------------------------------------------------------------
 #
-#        user = self.update_user_info_object(user_id, notification, old_notification)
+#        user = self.update_user_info_object(user_id, notification)
 #
 #        #-------------------------------------------------------------------------------------------------------------------
 #        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
@@ -390,7 +390,6 @@ class UserNotificationService(BaseUserNotificationService):
         # Stop the event subscriber for the notification
         #-------------------------------------------------------------------------------------------------------------------
         notification_request = self.clients.resource_registry.read(notification_id)
-        old_notification = notification_request
 
         #-------------------------------------------------------------------------------------------------------------------
         # Update the resource registry
@@ -399,6 +398,14 @@ class UserNotificationService(BaseUserNotificationService):
         notification_request.temporal_bounds.end_datetime = get_ion_ts()
 
         self.clients.resource_registry.update(notification_request)
+
+        #-------------------------------------------------------------------------------------------------------------------
+        # Find users who are interested in the notification and update the notification in the list maintained by the UserInfo object
+        #-------------------------------------------------------------------------------------------------------------------
+        user_ids, _ = self.clients.resource_registry.find_subjects(RT.UserInfo, PRED.hasNotification, notification_id, True)
+
+        for user_id in user_ids:
+            self.update_user_info_object(user_id, notification_request)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -614,6 +621,14 @@ class UserNotificationService(BaseUserNotificationService):
         if self.user_info.has_key(user_info_id):
             notifications = self.user_info[user_info_id]['notifications']
 
+            log.debug("Got %s notifications, for the user: %s", len(notifications), user_info_id)
+
+            for notif in notifications:
+                # remove notifications that have expired
+                if notif.temporal_bounds.end_datetime != '':
+                    log.debug("removing notification: %s", notif)
+                    notifications.remove(notif)
+
             return notifications
 
 #            ret = IonObject(OT.ComputedListValue)
@@ -811,7 +826,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
 
-    def update_user_info_object(self, user_id, new_notification, old_notification):
+    def update_user_info_object(self, user_id, new_notification):
         """
         Update the UserInfo object. If the passed in parameter, od_notification, is None, it does not need to remove the old notification
 
@@ -829,20 +844,14 @@ class UserNotificationService(BaseUserNotificationService):
         if not user:
             raise BadRequest("No user with the provided user_id: %s" % user_id)
 
-        notifications = []
         for item in user.variables:
             if item['name'] == 'notifications':
-                if old_notification and old_notification in item['value']:
-
-                    notifications = item['value']
-                    # remove the old notification
-                    notifications.remove(old_notification)
-
-                log.debug("came to append the new notification: %s", new_notification)
-                # put in the new notification
-                notifications.append(new_notification)
-
-                item['value'] = notifications
+                for notif in item['value']:
+                    if notif._id == new_notification._id:
+                        log.debug("came here for updating notification")
+                        notifications = item['value']
+                        notifications.remove(notif)
+                        notifications.append(new_notification)
 
                 break
 
@@ -871,7 +880,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
         ret_vals = self.discovery.parse(search_origin)
-        log.debug("Returned results: %s", ret_vals)
 
         notifications_all = set()
         notifications_active = set()
@@ -881,15 +889,13 @@ class UserNotificationService(BaseUserNotificationService):
             if item['_type'] == 'NotificationRequest':
                 object_ids.append(item['_id'])
 
-        log.debug("object_ids: %s", object_ids)
-
         notifs = self.clients.resource_registry.read_mult(object_ids)
 
+        log.debug("Got %s notifications here. But they include both active and past notifications", len(notifs))
 
         if include_nonactive:
             # Add active or retired notification
             notifications_all.update(notifs)
-
         else:
             for notif in notifs:
                 if notif.temporal_bounds.end_datetime == '':
@@ -909,7 +915,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Get the notifications whose origin field has the provided resource_id
         notifs = self._get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
-        log.debug("UNS fetched the following the notifications subscribed to %s::", notifs)
+
+        log.debug("For include_nonactive= %s, UNS fetched the following the notifications subscribed to the resource_id: %s --> %s. "
+                      "They are %s in number", include_nonactive,resource_id, notifs, len(notifs))
 
         if not user_id:
             return notifs
@@ -923,10 +931,12 @@ class UserNotificationService(BaseUserNotificationService):
             notif_id = notif._id
             # Find if the user is associated with this notification request
             ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
+            log.debug("Got the following users: %s, associated with the notification: %s", ids, notif_id)
 
             if ids and user_id in ids:
-                log.debug("Adding for the user: %s, the notification: %s", user_id, notif)
                 notifications.append(notif)
+
+        log.debug("For include_nonactive = %s, UNS fetched the following %s notifications subscribed to %s --> %s", include_nonactive,len(notifications),user_id, notifications)
 
         return notifications
 
