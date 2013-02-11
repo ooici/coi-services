@@ -898,15 +898,10 @@ class UserNotificationService(BaseUserNotificationService):
 
         notifs = self.clients.resource_registry.read_mult(object_ids)
 
-        for notif in notifs:
-            # remove notifications that have expired
-            if notif.temporal_bounds.end_datetime != '':
-                notifs.remove(notif)
-
         if include_nonactive:
+            log.debug("Got the number of notifs: %s", len(notifs))
             # Add active or retired notification
             notifications_all.update(notifs)
-
         else:
             for notif in notifs:
                 if notif.temporal_bounds.end_datetime == '':
