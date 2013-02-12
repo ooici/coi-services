@@ -1856,6 +1856,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = 0 #todo: use ia_client
         return ret
 
+    def get_autosample_duration(self, instrument_device_id):
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
+        if ia_client:
+            ret.value = 0 #todo: use ia_client
+        return ret
+
 
     # def get_uptime(self, device_id): - common to both instrument and platform, see below
 
