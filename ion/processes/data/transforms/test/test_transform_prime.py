@@ -8,11 +8,13 @@
 from ion.services.dm.utility.granule_utils import time_series_domain
 from pyon.util.int_test import IonIntegrationTestCase
 from coverage_model import ParameterDictionary, ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprExpression, ParameterFunctionType, VariabilityEnum, PythonExpression
-from interface.objects import DataProcessDefinition, DataProduct
+from interface.objects import DataProcessDefinition, DataProduct, DataProducer
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+
+from pyon.public import PRED
 
 from nose.plugins.attrib import attr
 
@@ -148,26 +150,48 @@ class TestTransformPrime(IonIntegrationTestCase):
         pdict_id = self.dataset_management.create_parameter_dictionary('L1_SBE37', parameter_context_ids=param_context_ids, temporal_context='time')
         return pdict_id
 
+
+    def _stream_definition(self,name,pdict_id):
+        return self.pubsub_management.create_stream_definition(name, parameter_dictionary_id=pdict_id)
+
+
+    def _data_product(self, name, stream_def):
+        tdom, sdom = time_series_domain()
+        dp_obj = DataProduct(name=name, description='blah', spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
+        dp_id = self.data_product_management.create_data_product(dp_obj, stream_def)
+        return dp_id
+
+    def _data_process(self, proc_def_id, input_products, output_product, stream_def):
+        fake_producer = DataProducer(name='fake_producer')
+
+        fake_producer_id, _  = self.container.resource_registry.create(fake_producer)
+
+        self.data_process_management.assign_stream_definition_to_data_process_definition(stream_def,proc_def_id,binding='output')
+        
+        data_process_id = self.data_process_management.create_data_process(proc_def_id, input_products, {'output':output_product})
+        self.container.resource_registry.create_association(subject=data_process_id, predicate=PRED.hasDataProducer, object=fake_producer_id)
+
+        self.data_process_management.activate_data_process(data_process_id)
+
+    def _fake_producer(self):
+        if not hasattr(self, 'producer'):
+            self.fake_producer_id,_ = self.container.resource_registry.create(DataProducer(name='fake_producer'))
+        return self.fake_producer_id
+
+
+
     def test_prime(self):
         proc_def_id = self._create_proc_def()
 
         incoming_pdict_id = self._L0_pdict()
         outgoing_pdict_id = self._L1_pdict()
 
-        incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream', parameter_dictionary_id=incoming_pdict_id)
-        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream', parameter_dictionary_id=outgoing_pdict_id)
+        incoming_stream_def_id = self._stream_definition('L0_stream_def', incoming_pdict_id)
+        outgoing_stream_def_id = self._stream_definition('L1_stream_def', outgoing_pdict_id)
 
-        tdom, sdom = time_series_domain()
-        L0_data_product = DataProduct(name='L0_SBE37_DataProduct', description='blah', spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
-        L1_data_product = DataProduct(name='L1_SBE37_DataProduct', description='blah', spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
+        L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id)
+        L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
 
-        L0_data_product_id = self.data_product_management.create_data_product(L0_data_product, incoming_stream_def_id)
-        L1_data_product_id = self.data_product_management.create_data_product(L1_data_product, outgoing_stream_def_id)
-
-        self.data_process_management.assign_stream_definition_to_data_process_definition(outgoing_stream_def_id,proc_def_id,binding='output')
-        output_products = {'output':L1_data_product_id}
-
-        self.data_process_management.create_data_process(proc_def_id, [L0_data_product_id], output_products)
-        self.data_process_management.activate_data_process(proc_def_id)
-
+        self._data_process(proc_def_id, [L0_data_product_id], L1_data_product_id, outgoing_stream_def_id)
+    
 
