@@ -12,7 +12,7 @@ from pyon.core.bootstrap import CFG
 from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
 from pyon.public import RT, PRED, get_sys_name, Container, OT, IonObject
-from pyon.event.event import EventPublisher, EventSubscriber
+from pyon.event.event import EventPublisher, EventSubscriber, EventRepository
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -111,9 +111,6 @@ class UserNotificationService(BaseUserNotificationService):
         # Get the event Repository
         #---------------------------------------------------------------------------------------------------
 
-        self.event_repo = self.container.instance.event_repository
-
-
 #        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
         self.ION_NOTIFICATION_EMAIL_ADDRESS = CFG.get_safe('server.smtp.sender')
 
@@ -145,6 +142,7 @@ class UserNotificationService(BaseUserNotificationService):
         self.process_dispatcher = ProcessDispatcherServiceClient()
         self.event_publisher = EventPublisher()
         self.datastore = self.container.datastore_manager.get_datastore('events')
+        self.event_repo = EventRepository()
 
         self.start_time = get_ion_ts()
 
@@ -458,42 +456,10 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         """
 
-        # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
-        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
-        # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
-        # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
-        if limit > -1:
-            opts = dict(
-                startkey = [origin, type or 0, min_datetime or 0],
-                endkey   = [origin, type or {}, max_datetime or {}],
-                descending = descending,
-                limit = limit,
-                include_docs = True
-            )
+        event_tuples = self.event_repo.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
 
-        else:
-            opts = dict(
-                startkey = [origin, type or 0, min_datetime or 0],
-                endkey   = [origin, type or {}, max_datetime or {}],
-                descending = descending,
-                include_docs = True
-            )
-        if descending:
-            t = opts['startkey']
-            opts['startkey'] = opts['endkey']
-            opts['endkey'] = t
-
-        results = self.datastore.query_view('event/by_origintype',opts=opts)
-
-        events = []
-        for res in results:
-            event_obj = res['doc']
-            events.append(event_obj)
-
+        events = [item[2] for item in event_tuples]
         log.debug("(find_events) UNS found the following relevant events: %s", events)
-
-        if limit > 0:
-            return events[:limit]
 
         return events
 
