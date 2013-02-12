@@ -17,6 +17,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from pyon.public import log, IonObject
 from pyon.public import RT, PRED
 from pyon.util.context import LocalContextMixin
@@ -55,6 +56,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
         self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
         self.dataset_management = self.datasetclient
+        self.processdispatchclient = ProcessDispatcherServiceClient(node = self.container.node)
 
 
     def test_lookupTableProcessing(self):
@@ -252,6 +254,9 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             self.fail("failed to create new data process: %s" %ex)
 
         log.debug("TestDataProcessWithLookupTable: create L0 all data_process return")
+
+        data_process= self.rrclient.read(ctd_l0_all_data_process_id)
+        self.addCleanup(self.processdispatchclient.cancel_process, data_process.process_id)
 
         contents = "this is the lookup table  contents for L0 Conductivity - Temperature - Pressure: Data Process , replace with a file..."
         att = IonObject(RT.Attachment, name='processLookupTable',content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
