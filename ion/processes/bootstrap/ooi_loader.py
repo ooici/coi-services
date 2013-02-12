@@ -195,8 +195,8 @@ class OOILoader(object):
             msg = "invalid_rd: %s is not a data product reference designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
-        self._add_object_attribute('data_product',
-            ooi_rd.rd, row['Attribute'], row['AttributeValue'],
+        self._add_object_attribute('data_product_type',
+            row['Data_Product_Identifier'], row['Attribute'], row['AttributeValue'],
             mapping={},
             Data_Product_Name=row['Data_Product_Name'], Data_Product_Level=row['Data_Product_Level'])
 
@@ -333,14 +333,18 @@ class OOILoader(object):
             refid, 'data_product_list', dpl, value_is_list=True)
 
     def _parse_DataProductSpreadsheet(self, row):
-        # Adds a list of instrument class to data product
-        key = row['Data_Product_Identifier'] + "_" + row['Data_Product_Level1']
-        entry = dict(
-            data_product_name=row['Data_Product_Name'],
+        dp_types = self.ooi_objects['data_product_type']
+        dp_type = row['Data_Product_Identifier']
+        dpt_obj = dp_types.get(dp_type, {})
+        key = dp_type + "_" + row['Data_Product_Level1']
+        entry = dpt_obj.copy()
+        entry.update(dict(
+            name=row['Data_Product_Name'],
+            level=row['Data_Product_Level1'],
             units=row['Units'],
             dps=row['DPS_DCN_s_'],
             diagrams=row['Processing_Flow_Diagram_DCN_s_'],
-        )
+        ))
         self._add_object_attribute('data_product',
             key, None, None, **entry)
         self._add_object_attribute('data_product',
