@@ -1571,6 +1571,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         def poller():
             events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= min_datetime, max_datetime=max_datetime)
+            log.debug("(UNS) got events: %s", events)
             return len(events) >= 4
 
         success = self.event_poll(poller, 10)

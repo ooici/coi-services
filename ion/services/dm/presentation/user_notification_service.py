@@ -456,8 +456,9 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         """
 
-        events = self.event_repo.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
+        event_tuples = self.event_repo.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
 
+        events = [item[2] for item in event_tuples]
         log.debug("(find_events) UNS found the following relevant events: %s", events)
 
         return events
