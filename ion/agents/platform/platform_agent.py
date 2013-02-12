@@ -82,7 +82,23 @@ class PlatformAgentState(BaseEnum):
     MONITORING        = 'PLATFORM_AGENT_STATE_MONITORING'
 
 
-class PlatformAgentEvent(ResourceAgentEvent):
+class PlatformAgentEvent(BaseEnum):
+    ENTER                     = ResourceAgentEvent.ENTER
+    EXIT                      = ResourceAgentEvent.EXIT
+
+    INITIALIZE                = ResourceAgentEvent.INITIALIZE
+    RESET                     = ResourceAgentEvent.RESET
+    GO_ACTIVE                 = ResourceAgentEvent.GO_ACTIVE
+    GO_INACTIVE               = ResourceAgentEvent.GO_INACTIVE
+    RUN                       = ResourceAgentEvent.RUN
+    CLEAR                     = ResourceAgentEvent.CLEAR
+    PAUSE                     = ResourceAgentEvent.PAUSE
+    RESUME                    = ResourceAgentEvent.RESUME
+    GET_RESOURCE_CAPABILITIES = ResourceAgentEvent.GET_RESOURCE_CAPABILITIES
+    PING_RESOURCE             = ResourceAgentEvent.PING_RESOURCE
+    GET_RESOURCE              = ResourceAgentEvent.GET_RESOURCE
+    SET_RESOURCE              = ResourceAgentEvent.SET_RESOURCE
+
     GET_METADATA              = 'PLATFORM_AGENT_GET_METADATA'
     GET_PORTS                 = 'PLATFORM_AGENT_GET_PORTS'
     CONNECT_INSTRUMENT        = 'PLATFORM_AGENT_CONNECT_INSTRUMENT'
@@ -294,6 +310,7 @@ class PlatformAgent(ResourceAgent):
             raise PlatformException(msg)
 
         self._nnode = self._network_definition.nodes[self._platform_id]
+        assert self._nnode.platform_id == self._platform_id
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
@@ -453,7 +470,7 @@ class PlatformAgent(ResourceAgent):
         try:
             module = __import__(driver_module, fromlist=[driver_class])
             classobj = getattr(module, driver_class)
-            driver = classobj(self._platform_id, self._parent_platform_id)
+            driver = classobj(self._nnode, self.evt_recv)
 
         except Exception as e:
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
@@ -462,8 +479,6 @@ class PlatformAgent(ResourceAgent):
             raise CannotInstantiateDriverException(msg=msg, reason=e)
 
         self._plat_driver = driver
-        self._plat_driver.set_event_listener(self.evt_recv)
-        self._plat_driver.set_nnode(self._nnode)
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: driver created: %s" % (self._platform_id, str(driver)))
@@ -926,6 +941,14 @@ class PlatformAgent(ResourceAgent):
         """
         return self._nnode.subplatforms.keys()
 
+    def _get_ports(self):
+        ports = {}
+        for port_id, port in self._nnode.ports.iteritems():
+            ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _get_ports: %s", self._platform_id, ports)
+        return ports
+
     def _subplatforms_launch(self):
         """
         Launches all my sub-platforms storing the corresponding
@@ -1365,7 +1388,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._driver_event(PlatformDriverEvent.GET_PORTS)
+        result = self._get_ports()
 
         next_state = self.get_agent_state()
 

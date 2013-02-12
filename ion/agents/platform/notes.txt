@@ -9,6 +9,7 @@ some occasionaly updated developer notes
   CIDEVSA-455_platform_state_model, fix_OOIION-631_use_system_time,
   fix_OOIION-674_set_resource_type_to_PlatformDevice, plat_coverage,
   platform_agent_2.1
+- some additional code clean-up
 
 2013-02-10:
 - cancelled PR: https://github.com/ooici/coi-services/pull/514

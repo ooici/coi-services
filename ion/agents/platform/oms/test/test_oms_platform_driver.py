@@ -54,11 +54,8 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
             log.debug("NetworkDefinition serialization:\n%s", network_definition_ser)
 
         platform_id = self.PLATFORM_ID
-        self._plat_driver = OmsPlatformDriver(platform_id)
-
-        self._plat_driver.set_nnode(network_definition.nodes[platform_id])
-
-        self._plat_driver.set_event_listener(self.evt_recv)
+        nnode = network_definition.nodes[platform_id]
+        self._plat_driver = OmsPlatformDriver(nnode, self.evt_recv)
 
     def evt_recv(self, driver_event):
         log.debug('GOT driver_event=%s', str(driver_event))
