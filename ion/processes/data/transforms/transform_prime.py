@@ -11,6 +11,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 
 class TransformPrime(TransformDataProcess):
+    binding=['output']
     '''
     Transforms which have an incoming stream and an outgoing stream.
 

@@ -5,12 +5,14 @@
 @file ion/processes/data/transforms/test/test_transform_prime.py
 '''
 
+from ion.services.dm.utility.granule_utils import time_series_domain
 from pyon.util.int_test import IonIntegrationTestCase
 from coverage_model import ParameterDictionary, ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprExpression, ParameterFunctionType, VariabilityEnum, PythonExpression
-from interface.objects import DataProcessDefinition
+from interface.objects import DataProcessDefinition, DataProduct
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 
 from nose.plugins.attrib import attr
 
@@ -26,6 +28,8 @@ class TestTransformPrime(IonIntegrationTestCase):
         self.dataset_management      = DatasetManagementServiceClient()
         self.data_process_management = DataProcessManagementServiceClient()
         self.pubsub_management       = PubsubManagementServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
+
 
     def _create_proc_def(self):
         dpd_obj = DataProcessDefinition(
@@ -145,10 +149,25 @@ class TestTransformPrime(IonIntegrationTestCase):
         return pdict_id
 
     def test_prime(self):
-        proc_def = self._create_proc_def()
+        proc_def_id = self._create_proc_def()
 
-        incoming_pdict = self._L0_pdict()
-        outgoing_pdict = self._L1_pdict()
+        incoming_pdict_id = self._L0_pdict()
+        outgoing_pdict_id = self._L1_pdict()
 
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream', parameter_dictionary_id=incoming_pdict_id)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream', parameter_dictionary_id=outgoing_pdict_id)
+
+        tdom, sdom = time_series_domain()
+        L0_data_product = DataProduct(name='L0_SBE37_DataProduct', description='blah', spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
+        L1_data_product = DataProduct(name='L1_SBE37_DataProduct', description='blah', spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
+
+        L0_data_product_id = self.data_product_management.create_data_product(L0_data_product, incoming_stream_def_id)
+        L1_data_product_id = self.data_product_management.create_data_product(L1_data_product, outgoing_stream_def_id)
+
+        self.data_process_management.assign_stream_definition_to_data_process_definition(outgoing_stream_def_id,proc_def_id,binding='output')
+        output_products = {'output':L1_data_product_id}
+
+        self.data_process_management.create_data_process(proc_def_id, [L0_data_product_id], output_products)
+        self.data_process_management.activate_data_process(proc_def_id)
 
 
