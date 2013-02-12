@@ -206,6 +206,20 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
         return datastore
 
+    def check_computed_attributes_of_extended_instrument(self, extended_instrument):
+
+        # Verify that computed attributes exist for the extended instrument
+        self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.autosample_duration, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.last_calibration_datetime, ComputedFloatValue)
+
+        self.assertIsInstance(extended_instrument.computed.power_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.communications_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.data_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.location_status_roll_up, ComputedIntValue)
+
+
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -516,6 +530,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
 
+        # Verify that computed attributes exist for the extended instrument
+        self.check_computed_attributes_of_extended_instrument(extended_instrument)
+
+        # Verify the computed attribute for user notification requests
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
         self.assertEqual(notification.origin, instDevice_id)
@@ -582,6 +600,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug( "For user_2: extended_instrument computed user_notification_requests %s", extended_instrument.computed.user_notification_requests.value)
 
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
+
+        self.check_computed_attributes_of_extended_instrument(extended_instrument)
 
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
