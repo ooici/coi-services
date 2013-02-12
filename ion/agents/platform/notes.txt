@@ -5,6 +5,10 @@ some occasionaly updated developer notes
 2013-02-12:
 - As R2.1 is not yet to come, renamed branch "platform_agent_2.1" to
   "platform_agent_R2C4"
+- Removed unneeded local and remote branches CIDEVSA-450_resource_monitor_refactoring,
+  CIDEVSA-455_platform_state_model, fix_OOIION-631_use_system_time,
+  fix_OOIION-674_set_resource_type_to_PlatformDevice, plat_coverage,
+  platform_agent_2.1
 
 2013-02-10:
 - cancelled PR: https://github.com/ooici/coi-services/pull/514
