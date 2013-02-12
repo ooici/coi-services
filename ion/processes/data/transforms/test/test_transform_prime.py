@@ -1,0 +1,154 @@
+#!/usr/bin/env python
+'''
+@author Luke Campbell <LCampbell at ASAScience dot com>
+@date Tue Feb 12 09:54:27 EST 2013
+@file ion/processes/data/transforms/test/test_transform_prime.py
+'''
+
+from pyon.util.int_test import IonIntegrationTestCase
+from coverage_model import ParameterDictionary, ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprExpression, ParameterFunctionType, VariabilityEnum, PythonExpression
+from interface.objects import DataProcessDefinition
+from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+
+from nose.plugins.attrib import attr
+
+import numpy as np
+
+@attr('INT',group='dm')
+class TestTransformPrime(IonIntegrationTestCase):
+    def setUp(self):
+        self._start_container()
+
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml') # Because hey why not?!
+
+        self.dataset_management      = DatasetManagementServiceClient()
+        self.data_process_management = DataProcessManagementServiceClient()
+        self.pubsub_management       = PubsubManagementServiceClient()
+
+    def _create_proc_def(self):
+        dpd_obj = DataProcessDefinition(
+            name='Optimus',
+            description='It\'s a transformer',
+            module='ion.processes.data.transforms.transform_prime',
+            class_name='TransformPrime')
+        return self.data_process_management.create_data_process_definition(dpd_obj)
+    
+
+    def _L0_pdict(self):
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt.fill_value = -9999
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump(), parameter_type='quantity<int64>', unit_of_measure=t_ctxt.uom)
+
+        lat_ctxt = ParameterContext('lat', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))))
+        lat_ctxt.axis = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = -9999
+        lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=lat_ctxt.uom)
+
+        lon_ctxt = ParameterContext('lon', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))))
+        lon_ctxt.axis = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = -9999
+        lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=lon_ctxt.uom)
+
+
+        temp_ctxt = ParameterContext('TEMPWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt.fill_value = -9999
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='TEMPWAT_L0', parameter_context=temp_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=temp_ctxt.uom)
+
+        # Conductivity - values expected to be the decimal results of conversion from hex
+        cond_ctxt = ParameterContext('CONDWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        cond_ctxt.uom = 'S m-1'
+        cond_ctxt.fill_value = -9999
+        cond_ctxt_id = self.dataset_management.create_parameter_context(name='CONDWAT_L0', parameter_context=cond_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=cond_ctxt.uom)
+
+        # Pressure - values expected to be the decimal results of conversion from hex
+        press_ctxt = ParameterContext('PRESWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        press_ctxt.uom = 'dbar'
+        press_ctxt.fill_value = -9999
+        press_ctxt_id = self.dataset_management.create_parameter_context(name='PRESWAT_L0', parameter_context=press_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=press_ctxt.uom)
+
+
+        context_ids = [t_ctxt_id, lat_ctxt_id, lon_ctxt_id, temp_ctxt_id, cond_ctxt_id, press_ctxt_id]
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('L0 SBE37', parameter_context_ids=context_ids, temporal_context='time')
+
+        return pdict_id
+
+
+    def _L1_pdict(self):
+        pdict_id = self._L0_pdict()
+        param_context_ids = self.dataset_management.read_parameter_contexts(pdict_id,id_only=True)
+
+
+        # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
+        tl1_func = '(TEMPWAT_L0 / 10000) - 10'
+        tl1_pmap = {'TEMPWAT_L0':'TEMPWAT_L0'}
+        expr = NumexprExpression(tl1_func, tl1_pmap)
+        tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(expression=expr), variability=VariabilityEnum.TEMPORAL)
+        tempL1_ctxt.uom = 'deg_C'
+        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name=tempL1_ctxt.name, parameter_context=tempL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=tempL1_ctxt.uom)
+        param_context_ids.append(tempL1_ctxt_id)
+
+        # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
+        cl1_func = '(CONDWAT_L0 / 100000) - 0.5'
+        cl1_pmap = {'CONDWAT_L0':'CONDWAT_L0'}
+        expr = NumexprExpression(cl1_func, cl1_pmap)
+        condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(expression=expr), variability=VariabilityEnum.TEMPORAL)
+        condL1_ctxt.uom = 'S m-1'
+        condL1_ctxt_id = self.dataset_management.create_parameter_context(name=condL1_ctxt.name, parameter_context=condL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=condL1_ctxt.uom)
+        param_context_ids.append(condL1_ctxt_id)
+                
+
+        # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
+        #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
+        pl1_func = '(PRESWAT_L0 * 679.34040721 / (0.85 * 65536)) - (0.05 * 679.34040721)'
+        pl1_pmap = {'PRESWAT_L0':'PRESWAT_L0'}
+        expr = NumexprExpression(pl1_func, pl1_pmap)
+        presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(expression=expr), variability=VariabilityEnum.TEMPORAL)
+        presL1_ctxt.uom = 'S m-1'
+        presL1_ctxt_id = self.dataset_management.create_parameter_context(name=presL1_ctxt.name, parameter_context=presL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=presL1_ctxt.uom)
+        param_context_ids.append(presL1_ctxt_id)
+
+        # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
+        #       https://code.google.com/p/python-gsw/ & http://pypi.python.org/pypi/gsw/3.0.1
+
+        # PRACSAL = gsw.SP_from_C((CONDWAT_L1 * 10), TEMPWAT_L1, PRESWAT_L1)
+        owner = 'gsw'
+        sal_func = 'SP_from_C'
+        sal_arglist = [NumexprExpression('C*10', {'C':'CONDWAT_L1'}), 'TEMPWAT_L1', 'PRESWAT_L1']
+        sal_kwargmap = None
+        expr = PythonExpression(owner, sal_func, sal_arglist, sal_kwargmap)
+        sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
+        sal_ctxt.uom = 'g kg-1'
+        sal_ctxt_id = self.dataset_management.create_parameter_context(name=sal_ctxt.name, parameter_context=sal_ctxt.dump(), parameter_type='pfunc', unit_of_measure=sal_ctxt.uom)
+        param_context_ids.append(sal_ctxt_id)
+
+        # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
+        # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
+        # DENSITY = gsw.rho(absolute_salinity, conservative_temperature, PRESWAT_L1)
+        owner = 'gsw'
+        abs_sal_expr = PythonExpression(owner, 'SA_from_SP', ['PRACSAL', 'PRESWAT_L1', 'lon','lat'], None)
+        cons_temp_expr = PythonExpression(owner, 'CT_from_t', [abs_sal_expr, 'TEMPWAT_L1', 'PRESWAT_L1'], None)
+        dens_expr = PythonExpression(owner, 'rho', [abs_sal_expr, cons_temp_expr, 'PRESWAT_L1'], None)
+        dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_expr), variability=VariabilityEnum.TEMPORAL)
+        dens_ctxt.uom = 'kg m-3'
+        dens_ctxt_id = self.dataset_management.create_parameter_context(name=dens_ctxt.name, parameter_context=dens_ctxt.dump(), parameter_type='pfunc', unit_of_measure=dens_ctxt.uom)
+        param_context_ids.append(dens_ctxt_id)
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('L1_SBE37', parameter_context_ids=param_context_ids, temporal_context='time')
+        return pdict_id
+
+    def test_prime(self):
+        proc_def = self._create_proc_def()
+
+        incoming_pdict = self._L0_pdict()
+        outgoing_pdict = self._L1_pdict()
+
+
+
