@@ -203,8 +203,14 @@ class RegistrationProcess(StandaloneProcess):
                 for var_name in vars:
                     param = cov.get_parameter(var_name)
                     var = param.context
-
-                    units = var.uom
+                    
+                    units = "unknown"
+                    try:
+                        units = var.uom
+                    except:
+                        pass
+                    if units is None:
+                        units = "unknown"
 
                     #if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
                     data_element = doc.createElement('dataVariable')
@@ -251,14 +257,12 @@ class RegistrationProcess(StandaloneProcess):
                         att_element.appendChild(text_node)
                         add_attributes_element.appendChild(att_element)
                     
+
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', 'units')
-                    units = ""
-                    if units is not None:
-                        units = var.uom
-                        text_node = doc.createTextNode(units)
-                        att_element.appendChild(text_node)
-                        add_attributes_element.appendChild(att_element)
+                    text_node = doc.createTextNode(units)
+                    att_element.appendChild(text_node)
+                    add_attributes_element.appendChild(att_element)
 
                     data_element.appendChild(add_attributes_element)
                     dataset_element.appendChild(data_element)

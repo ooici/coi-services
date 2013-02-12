@@ -93,8 +93,8 @@ class Handler(BaseHandler):
                             data = np.asanyarray(['None' for d in data])
                         dataset[seq_name][name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
                     if isinstance(pc.param_type,BooleanType):
-                        boolean_values = np.asanyarray(data, dtype='int8')
-                        dataset[seq_name][name] = BaseType(name=name, data=boolean_values, type=boolean_values.dtype.char, attributes=attrs)
+                        boolean_values = np.asanyarray(data, dtype='int32')
+                        dataset[seq_name][name] = BaseType(name=name, data=boolean_values, type=self.get_numpy_type(boolean_values), attributes=attrs)
                     if isinstance(pc.param_type,CategoryType):
                         dataset[seq_name][name] = BaseType(name=name, data=data, type=self.get_numpy_type(data), attributes=attrs)
                     if isinstance(pc.param_type,ArrayType):
