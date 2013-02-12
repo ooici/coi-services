@@ -9,7 +9,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
-from ion.services.dm.utility.types import get_fill_value, get_parameter_type
+from ion.services.dm.utility.types import get_fill_value, get_parameter_type, get_unit
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_values import get_value_class
@@ -24,6 +24,8 @@ from pyon.ion.stream import StandaloneStreamPublisher
 
 from interface.objects import DataProduct
 from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType
+
+from udunitspy.udunits2 import UdunitsError
 
 import numpy as np
 import gevent
@@ -56,7 +58,6 @@ class TestTypes(PyonTestCase):
 
         testval = comp_val or value_array
         actual = rdt2['test']
-
 
         if isinstance(testval, basestring):
             self.assertEquals(testval, actual)
@@ -119,6 +120,8 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
 
         self.rdt_to_granule(context,['hi'] * 20)
+
+
 
 
     def test_category_type(self):
@@ -272,8 +275,6 @@ class TestTypes(PyonTestCase):
 
         self.assertRaises(TypeError, get_fill_value,fill_value, encoding, ptype)
 
-
-
     def test_record_type(self):
         ptype = 'record<>'
         encoding = ''
@@ -291,6 +292,10 @@ class TestTypes(PyonTestCase):
 
     def test_bad_ptype(self):
         self.assertRaises(TypeError, get_parameter_type, 'flimsy','','')
+
+    def test_bad_units(self):
+        self.assertRaises(UdunitsError, get_unit, 'something')
+    
 
 
 @attr('EXHAUSTIVE')

@@ -10,6 +10,7 @@ from coverage_model.parameter_types import QuantityType, ArrayType
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType
 
+from udunitspy.udunits2 import Unit
 
 import ast
 import numpy as np
@@ -131,4 +132,8 @@ def get_record_type():
 
 def get_string_type():
     return get_array_type()
+
+def get_unit(uom):
+    return Unit(uom)
+
 

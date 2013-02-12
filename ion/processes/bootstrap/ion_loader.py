@@ -54,7 +54,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import get_parameter_type, get_fill_value
+from ion.services.dm.utility.types import get_parameter_type, get_fill_value, get_unit
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
@@ -62,9 +62,8 @@ from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 
-
 from interface import objects
-
+from udunitspy.udunits2 import UdunitsError
 import logging
 import simplejson as json
 import ast
@@ -1367,7 +1366,16 @@ Reason: %s
         long_name     = row['Long Name']
         references    = row['Reference URLS']
         description   = row['Description']
+        
+        #validate unit of measure
+        try:
+            get_unit(uom)
+        except UdunitsError, e:
+            log.exception(e.message)
+            self._conflict_report(row['ID'], row['Name'], e.message)
+            return 
 
+        #validate parameter type
         try:
             param_type = get_parameter_type(ptype, encoding,code_set)
             context = ParameterContext(name=name, param_type=param_type)
