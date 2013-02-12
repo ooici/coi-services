@@ -25,7 +25,7 @@ from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
 
 #Initialize the flask app
-app = Flask(__name__)
+service_gateway_app = Flask(__name__)
 
 #Retain a module level reference to the service class for use with Process RPC calls below
 service_gateway_instance = None
@@ -96,17 +96,23 @@ class ServiceGatewayService(BaseServiceGatewayService):
             log.info("Starting service gateway on %s:%s", self.server_hostname, self.server_port)
             self.start_service(self.server_hostname, self.server_port)
 
+        #Configure  subscriptions for user_cache events
         self.user_role_event_subscriber = EventSubscriber(event_type=OT.UserRoleModifiedEvent, origin_type="Org",
             callback=self.user_role_event_callback)
         self.user_role_event_subscriber.start()
 
-
+        self.user_role_reset_subscriber = EventSubscriber(event_type=OT.UserRoleCacheResetEvent,
+            callback=self.user_role_reset_callback)
+        self.user_role_reset_subscriber.start()
 
     def on_quit(self):
         self.stop_service()
 
         if self.user_role_event_subscriber is not None:
             self.user_role_event_subscriber.stop()
+
+        if self.user_role_reset_subscriber is not None:
+            self.user_role_reset_subscriber.stop()
 
 
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
@@ -115,7 +121,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         if self.http_server is not None:
             self.stop_service()
 
-        self.http_server = WSGIServer((hostname, port), app, log=self.web_logging)
+        self.http_server = WSGIServer((hostname, port), service_gateway_app, log=self.web_logging)
         self.http_server.start()
 
         return True
@@ -139,7 +145,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
 
     def user_role_event_callback(self, *args, **kwargs):
         """
-        This method is a callback function for receiving User Role Modified Events.
+        This method is a callback function for receiving Events when User Roles are modified.
         """
         user_role_event = args[0]
         org_id = user_role_event.origin
@@ -152,15 +158,19 @@ class ServiceGatewayService(BaseServiceGatewayService):
             log.debug('Evicting user from the user_data_cache: %s' % actor_id)
             service_gateway_instance.user_data_cache.evict(actor_id)
 
+    def user_role_reset_callback(self, *args, **kwargs):
+        '''
+        This method is a callback function for when an event is received to clear the user data cache
+        '''
+        self.user_data_cache.clear()
 
-
-@app.errorhandler(403)
+@service_gateway_app.errorhandler(403)
 def custom_403(error):
     return json_response({GATEWAY_ERROR: "The request has been denied since it did not originate from a trusted originator."})
 
 
 #Checks to see if the remote_addr in the request is in the list of specified trusted addresses, if any.
-@app.before_request
+@service_gateway_app.before_request
 def is_trusted_request():
 
     if request.remote_addr is not None:
@@ -181,7 +191,7 @@ def is_trusted_request():
 #
 # Probably should make this service smarter to respond to the mime type in the request data ( ie. json vs text )
 #
-@app.route('/ion-service/<service_name>/<operation>', methods=['GET','POST'])
+@service_gateway_app.route('/ion-service/<service_name>/<operation>', methods=['GET','POST'])
 def process_gateway_request(service_name, operation):
 
 
@@ -256,7 +266,7 @@ def process_gateway_request(service_name, operation):
 #Example:
 # curl -d 'payload={"agentRequest": { "agentId": "121ab46344cb3b30112", "agentOp": "execute",
 # "params": { "command": ["AgentCommand",  {"command": "reset"}]  } }' http://localhost:5000/ion-agent/121ab46344cb3b30112/execute
-@app.route('/ion-agent/<resource_id>/<operation>', methods=['POST'])
+@service_gateway_app.route('/ion-agent/<resource_id>/<operation>', methods=['POST'])
 def process_gateway_agent_request(resource_id, operation):
 
     try:
@@ -313,7 +323,7 @@ def process_gateway_agent_request(resource_id, operation):
 #Private implementation of standard flask jsonify to specify the use of an encoder to walk ION objects
 def json_response(response_data):
 
-    return app.response_class(simplejson.dumps(response_data, default=ion_object_encoder,
+    return service_gateway_app.response_class(simplejson.dumps(response_data, default=ion_object_encoder,
         indent=None if request.is_xhr else 2), mimetype='application/json')
 
 def gateway_json_response(response_data):
@@ -321,7 +331,7 @@ def gateway_json_response(response_data):
     if request.args.has_key(RETURN_FORMAT_PARAM):
         return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
         if return_format == RETURN_FORMAT_RAW_JSON:
-            return app.response_class(response_data, mimetype='application/json')
+            return service_gateway_app.response_class(response_data, mimetype='application/json')
 
     return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
@@ -356,7 +366,7 @@ def build_error_response(e):
     if request.args.has_key(RETURN_FORMAT_PARAM):
         return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
         if return_format == RETURN_FORMAT_RAW_JSON:
-            return app.response_class(result, mimetype='application/json')
+            return service_gateway_app.response_class(result, mimetype='application/json')
 
     return json_response({'data': {GATEWAY_ERROR: result }} )
 
@@ -531,7 +541,7 @@ def convert_unicode(data):
 # http://hostname:port/ion-service/list_resource_types?type=TaskableResource
 #
 
-@app.route('/ion-service/org_roles/<actor_id>', methods=['GET','POST'])
+@service_gateway_app.route('/ion-service/org_roles/<actor_id>', methods=['GET','POST'])
 def list_org_roles(actor_id):
 
     try:
@@ -542,7 +552,7 @@ def list_org_roles(actor_id):
         return build_error_response(e)
 
 
-@app.route('/ion-service/list_resource_types', methods=['GET','POST'])
+@service_gateway_app.route('/ion-service/list_resource_types', methods=['GET','POST'])
 def list_resource_types():
     try:
         #Validate requesting user and expiry and add governance headers
@@ -567,7 +577,7 @@ def list_resource_types():
 
 
 #Returns a json object for a specified resource type with all default values.
-@app.route('/ion-service/resource_type_schema/<resource_type>')
+@service_gateway_app.route('/ion-service/resource_type_schema/<resource_type>')
 def get_resource_schema(resource_type):
     try:
         #Validate requesting user and expiry and add governance headers
@@ -600,7 +610,7 @@ def get_resource_schema(resource_type):
 
 
 # Get attachment for a specific attachment id
-@app.route('/ion-service/attachment/<attachment_id>', methods=['GET','POST'])
+@service_gateway_app.route('/ion-service/attachment/<attachment_id>', methods=['GET','POST'])
 def get_attachment(attachment_id):
 
     try:
@@ -608,7 +618,7 @@ def get_attachment(attachment_id):
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         attachment = rr_client.read_attachment(attachment_id, include_content=True)
 
-        return app.response_class(attachment.content,mimetype=attachment.content_type)
+        return service_gateway_app.response_class(attachment.content,mimetype=attachment.content_type)
 
 
     except Exception, e:
@@ -617,7 +627,7 @@ def get_attachment(attachment_id):
 
 # Get a visualization image for a specific data product
 #TODO - will need to update this to handle parameters to pass on to the Vis service and to use proper return keys
-@app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
+@service_gateway_app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
 def get_visualization_image(data_product_id, img_name):
 
     # Create client to interface with the viz service
@@ -628,10 +638,10 @@ def get_visualization_image(data_product_id, img_name):
     #TODO - add additional query string parameters as needed to dict
 
     image_info = vs_cli.get_visualization_image(data_product_id, visualization_params)
-    return app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
+    return service_gateway_app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
 
 # Get version information about this copy of coi-services
-@app.route('/version')
+@service_gateway_app.route('/version')
 def get_version_info():
     import pkg_resources
 
@@ -659,7 +669,7 @@ def get_version_info():
 
 #This example calls the resource registry with an id passed in as part of the URL
 #http://hostname:port/ion-service/resource/c1b6fa6aadbd4eb696a9407a39adbdc8
-@app.route('/ion-service/rest/resource/<resource_id>')
+@service_gateway_app.route('/ion-service/rest/resource/<resource_id>')
 def get_resource(resource_id):
 
     try:
@@ -682,7 +692,7 @@ def get_resource(resource_id):
 
 #Example operation to return a list of resources of a specific type like
 #http://hostname:port/ion-service/find_resources/BankAccount
-@app.route('/ion-service/rest/find_resources/<resource_type>')
+@service_gateway_app.route('/ion-service/rest/find_resources/<resource_type>')
 def list_resources_by_type(resource_type):
     try:
         client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
@@ -705,7 +715,7 @@ def list_resources_by_type(resource_type):
 #Below are example restful calls to stuff for testing... all should be removed at some point
 
 #http://hostname:port/ion-service/run_bank_client
-@app.route('/ion-service/run_bank_client')
+@service_gateway_app.route('/ion-service/run_bank_client')
 def create_accounts():
     from examples.bank.bank_client import run_client
     run_client(Container.instance, process=service_gateway_instance)

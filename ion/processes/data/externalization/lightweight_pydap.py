@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-
+import pydap.lib
+#erddap does not parse new style sequences unless server broadcasts itself as 2.15
+#https://github.com/BobSimons/erddap/blob/master/WEB-INF/classes/dods/dap/DSequence.java#L422
+pydap.lib.__dap__ = (2,15)
 from pyon.ion.process import SimpleProcess
 from pyon.util.file_sys import FileSystem
 from logging import getLogger
 from pydap.wsgi.file import make_app
 from gevent.wsgi import WSGIServer
 from pyon.util.log import log
-from traceback import print_exc
 
 class LightweightPyDAP(SimpleProcess):
     def on_start(self):
@@ -18,7 +20,6 @@ class LightweightPyDAP(SimpleProcess):
             self.pydap_data_path = self.CFG.get_safe('server.pydap.data_path', 'RESOURCE:ext/pydap')
 
             self.pydap_data_path = FileSystem.get_extended_url(self.pydap_data_path)
-
             self.app = make_app(None, self.pydap_data_path, 'ion/core/static/templates/')
             self.log = getLogger('pydap')
             self.log.write = self.log.info
