@@ -11,17 +11,21 @@ from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from webtest import TestApp
 
-from pyon.core.registry import get_message_class_in_parm_type, getextends
-from ion.services.coi.service_gateway_service import ServiceGatewayService, app, convert_unicode, GATEWAY_RESPONSE, \
+from pyon.core.registry import getextends
+from ion.services.coi.service_gateway_service import service_gateway_app, service_gateway_instance, convert_unicode, GATEWAY_RESPONSE, \
             GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, GATEWAY_ERROR_TRACE
 
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
+from interface.services.coi.iorg_management_service import OrgManagementServiceClient
+from pyon.event.event import EventPublisher
 from pyon.util.containers import DictDiffer
 from pyon.util.log import log
+from pyon.public import OT
 
 import unittest
 import os
+import gevent
 
 USER1_CERTIFICATE =  """-----BEGIN CERTIFICATE-----
 MIIEMzCCAxugAwIBAgICBQAwDQYJKoZIhvcNAQEFBQAwajETMBEGCgmSJomT8ixkARkWA29yZzEX
@@ -61,7 +65,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         # Stop the web server as it is not needed.
         self.service_gateway_service.stop_service()
 
-        self.test_app = TestApp(app)
+        self.test_app = TestApp(service_gateway_app)
 
     def tearDown(self):
         self._stop_container()
@@ -262,6 +266,8 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertEqual(len(response_data),2 )
         self.assertEqual(len(response_data[0]), 0 )
 
+        id_client.delete_actor_identity(actor_id)
+
 
     def test_get_resource_schema(self):
 
@@ -329,5 +335,86 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn('ORG_MANAGER', response_data['ION'])
         self.assertIn('ORG_MEMBER', response_data['ION'])
 
+    def test_user_role_cache(self):
 
+
+        #Create a user
+        id_client = IdentityManagementServiceClient(node=self.container.node)
+
+        actor_id, valid_until, registered = id_client.signon(USER1_CERTIFICATE, True)
+
+        #Make a request with this new user  to get it into the cache
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True&requester=' + actor_id)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+
+        #Check the contents of the user role cache for this user
+        service_gateway_user_cache = self.container.proc_manager.procs_by_name['service_gateway'].user_data_cache
+        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+
+        role_header = service_gateway_user_cache.get(actor_id)
+        self.assertIn('ION', role_header)
+        self.assertEqual(len(role_header['ION']), 1)
+        self.assertIn('ORG_MEMBER', role_header['ION'])
+
+        org_client = OrgManagementServiceClient(node=self.container.node)
+
+        ion_org = org_client.find_org()
+        manager_role = org_client.find_org_role_by_name(org_id=ion_org._id, role_name='ORG_MANAGER')
+
+        org_client.grant_role(org_id=ion_org._id, user_id=actor_id, role_name='ORG_MANAGER')
+
+        #Just allow some time for event processing on slower platforms
+        gevent.sleep(2)
+
+        #The user should be evicted from the cache due to a change in roles
+        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
+
+        #Do it again to check for new roles
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True&requester=' + actor_id)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+
+        #Check the contents of the user role cache for this user
+        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+
+        role_header = service_gateway_user_cache.get(actor_id)
+        self.assertIn('ION', role_header)
+        self.assertEqual(len(role_header['ION']), 2)
+        self.assertIn('ORG_MEMBER', role_header['ION'])
+        self.assertIn('ORG_MANAGER', role_header['ION'])
+
+        #Now flush the user_role_cache and make sure it was flushed
+        event_publisher = EventPublisher()
+        event_publisher.publish_event(event_type=OT.UserRoleCacheResetEvent)
+
+        #Just allow some time for event processing on slower platforms
+        gevent.sleep(2)
+
+        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
+        self.assertEqual(service_gateway_user_cache.size(), 0)
+
+        #Change the role once again and see if it is there again
+        org_client.revoke_role(org_id=ion_org._id, user_id=actor_id, role_name='ORG_MANAGER')
+
+        #Just allow some time for event processing on slower platforms
+        gevent.sleep(2)
+
+        #The user should still not be there
+        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
+
+        #Do it again to check for new roles
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True&requester=' + actor_id)
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+
+        #Check the contents of the user role cache for this user
+        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+
+        role_header = service_gateway_user_cache.get(actor_id)
+        self.assertIn('ION', role_header)
+        self.assertEqual(len(role_header['ION']), 1)
+        self.assertIn('ORG_MEMBER', role_header['ION'])
+
+        id_client.delete_actor_identity(actor_id)
 

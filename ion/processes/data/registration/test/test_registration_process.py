@@ -7,6 +7,8 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from ion.services.dm.utility.granule_utils import time_series_domain
 from xml.dom.minidom import parseString
 from coverage_model import SimplexCoverage, QuantityType
+import unittest
+import os
 
 @attr('INT')
 class RegistrationProcessTest(IonIntegrationTestCase):
@@ -27,6 +29,8 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         self.rp = RegistrationProcess()
         self.rp.on_start()
             
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_get_dataset_to_xml(self):
         dataset_id = self._make_dataset()
         coverage_path = DatasetManagementService()._get_coverage_path(dataset_id)
@@ -50,17 +54,9 @@ class RegistrationProcessTest(IonIntegrationTestCase):
         for n in node:
             if n.nodeType != 3:
                 parameters.append(str(n.childNodes[0].nodeValue))
-        cov_params = self._get_parameters(cov)
+        cov_params = [key for key in cov.list_parameters()]
         self.assertEquals(parameters, cov_params)
         cov.close()
-
-    def _get_parameters(self, cov):
-        result = []
-        for key in cov.list_parameters():
-            pc = cov.get_parameter_context(key)
-            if isinstance(pc.param_type, QuantityType):
-                result.append(key)
-        return result
 
     def _make_dataset(self):
         tdom, sdom = time_series_domain()

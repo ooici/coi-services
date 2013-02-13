@@ -981,6 +981,7 @@ class IONLoader(ImmediateProcess):
             fakerow = {}
             fakerow[COL_ID] = ooi_id + "_PM"
             fakerow['pm/name'] = ooi_obj['name']
+            fakerow['pm/description'] = "Node Type: %s" % ooi_id
             fakerow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
 
@@ -1274,7 +1275,8 @@ class IONLoader(ImmediateProcess):
 
             fakerow = {}
             fakerow[COL_ID] = ooi_id
-            fakerow['is/name'] = ooi_id
+            fakerow['is/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['Class_Name'], nodes[ooi_id[:14]]['name'])
+            fakerow['is/description'] = "Instrument: %s" % ooi_id
             fakerow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
@@ -1820,6 +1822,7 @@ Reason: %s
 
     def _load_DataProduct_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
+        data_products = self.ooi_loader.get_type_assets("data_product")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             const_id1 = ''
@@ -1834,6 +1837,7 @@ Reason: %s
             fakerow = {}
             fakerow[COL_ID] = ooi_id + "_DPIDP"
             fakerow['dp/name'] = "Data Product parsed for device " + ooi_id
+            fakerow['dp/description'] = "Data Product (device, parsed) for: " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['contact_ids'] = ''
             fakerow['geo_constraint_id'] = const_id1
@@ -1846,6 +1850,7 @@ Reason: %s
             fakerow = {}
             fakerow[COL_ID] = ooi_id + "_DPIDR"
             fakerow['dp/name'] = "Data Product raw for device " + ooi_id
+            fakerow['dp/description'] = "Data Product (device, raw) for: " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['contact_ids'] = ''
             fakerow['geo_constraint_id'] = const_id1
@@ -1855,23 +1860,17 @@ Reason: %s
             self._load_DataProduct(fakerow, do_bulk=self.bulk)
 
             # (3) Site Data Product - parsed
-            fakerow = {}
-            fakerow[COL_ID] = ooi_id + "_DPISP"
-            fakerow['dp/name'] = "Data Product parsed for site " + ooi_id
-            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
-            fakerow['contact_ids'] = ''
-            fakerow['geo_constraint_id'] = const_id1
-            fakerow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            fakerow['available_formats'] = ''
-            fakerow['stream_def_id'] = ''
-            self._load_DataProduct(fakerow, do_bulk=self.bulk)
-
             data_product_list = ooi_obj.get('data_product_list', [])
             for dp_id in data_product_list:
+                dp_obj = data_products[dp_id]
+
                 # (4*) Site Data Product DPS - Level
                 fakerow = {}
                 fakerow[COL_ID] = ooi_id + "_" + dp_id + "_DPID"
-                fakerow['dp/name'] = "Data Product for site " + ooi_id + " DPS " + dp_id
+                fakerow['dp/name'] = "%s %s at %s" % (dp_obj['name'], dp_obj['level'], ooi_id)
+
+                #"Data Product for site " + ooi_id + " DPS " + dp_id
+                fakerow['dp/description'] = "Data Product DPS %s level %s for site %s: " % (dp_id,  dp_obj['level'], ooi_id)
                 fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
                 fakerow['contact_ids'] = ''
                 fakerow['geo_constraint_id'] = const_id1
