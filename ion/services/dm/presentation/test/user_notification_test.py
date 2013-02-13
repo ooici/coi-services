@@ -1755,7 +1755,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_attrs = {'status': 'OK'}
 
         # create async result to wait on in test
-        ar = gevent.event.AsyncResult()
+        ar_1 = gevent.event.AsyncResult()
+        ar_2 = gevent.event.AsyncResult()
 
         #--------------------------------------------------------------------------------
         # Set up a subscriber to listen for that event
@@ -1774,11 +1775,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
             result.set(True)
 
-        event_subscriber = EventSubscriber( event_type = 'PlatformTelemetryEvent',
+        event_subscriber_1 = EventSubscriber( event_type = 'PlatformTelemetryEvent',
             origin="origin_1",
-            callback=lambda m, h: received_event(ar, m, h))
-        event_subscriber.start()
-        self.addCleanup(event_subscriber.stop)
+            callback=lambda m, h: received_event(ar_1, m, h))
+        event_subscriber_1.start()
+        self.addCleanup(event_subscriber_1.stop)
+
+        event_subscriber_2 = EventSubscriber( event_type = 'PlatformTelemetryEvent',
+            origin="origin_1",
+            callback=lambda m, h: received_event(ar_2, m, h))
+        event_subscriber_2.start()
+        self.addCleanup(event_subscriber_2.stop)
 
         #--------------------------------------------------------------------------------
         # Use the UNS publish_event
@@ -1793,7 +1800,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_attrs = event_attrs
         )
 
-        ar.wait(timeout=10)
+        ar_1.wait(timeout=10)
+
+        # Not passing the event_attrs this time
+        self.unsc.publish_event(
+            event_type=type,
+            origin=origin,
+            origin_type=origin_type,
+            sub_type=sub_type,
+            description="a description"
+        )
+
+        ar_2.wait(timeout=10)
 
 
     @attr('LOCOINT')
