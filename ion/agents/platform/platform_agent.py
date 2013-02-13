@@ -157,7 +157,7 @@ class PlatformAgent(ResourceAgent):
     COMMAND_EVENT_TYPE = "DeviceCommandEvent" #TODO how this works?
 
     # Override to set specific origin type
-    ORIGIN_TYPE = "PlatformDevice"  #TODO how this works?
+    ORIGIN_TYPE = "PlatformDevice"
 
     def __init__(self):
         log.info("PlatformAgent constructor called")
