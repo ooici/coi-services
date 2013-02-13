@@ -15,12 +15,59 @@ __license__ = 'Apache 2.0'
 # simulator, which uses a regular threading.Thread when run as a separate
 # process, so we avoid gevent monkey-patching issues.
 
+import hashlib
 
-class AttrDef(object):
+
+class NDefBase(object):
+    """
+    A convenient base class for the components of a network definition
+    """
+    def __init__(self):
+        self._checksum = None
+
+    def diff(self, other):
+        """
+        Returns None if this and the other object are the same.
+        Otherwise, returns a message describing the first difference.
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    @property
+    def checksum(self):
+        """
+        Gets the last value computed by compute_checksum,
+        which is called if it has not been called yet.
+
+        @return SHA1 hash value as string of hexadecimal digits.
+        """
+        if not self._checksum:
+            self._checksum = self.compute_checksum()
+        return self._checksum
+
+    def compute_checksum(self):
+        """
+        Computes the checksum for this object, updating the cached value for
+        future calls to checksum().
+        @return SHA1 hash value as string of hexadecimal digits
+        """
+        self._checksum = self._compute_checksum()
+        return self._checksum
+        
+    def _compute_checksum(self):
+        """
+        Subclasses implement this method to compute the checksum for
+        this object.
+        @return SHA1 hash value as string of hexadecimal digits
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+
+class AttrDef(NDefBase):
     """
     Represents the definition of a platform attribute.
     """
     def __init__(self, attr_id, defn):
+        NDefBase.__init__(self)
         self._attr_id = attr_id
         self._defn = defn
 
@@ -42,10 +89,6 @@ class AttrDef(object):
         return self._writable
 
     def diff(self, other):
-        """
-        Returns None if the two attributes are the same.
-        Otherwise, returns a message describing the first difference.
-        """
         if self.attr_id != other.attr_id:
             return "Attribute IDs are different: %r != %r" % (
                 self.attr_id, other.attr_id)
@@ -56,41 +99,46 @@ class AttrDef(object):
 
         return None
 
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
+    
+        hash_obj.update("attribute_id=%s" % self.attr_id)
+    
+        # properties:
+        hash_obj.update("attribute_properties:")
+        for key in sorted(self.defn.keys()):
+            val = self.defn[key]
+            hash_obj.update("%s=%s;" % (key, val))
+    
+        return hash_obj.hexdigest()
+        
 
-class PortDef(object):
+class PortDef(NDefBase):
     """
     Represents the definition of a platform port.
 
     self._port_id
-    self._comms = {'ip': ip}
-    self._attrs = { attr_id: AttrDef, ... }
+    self._network = value of the network associated to the port, eg., "10.30.78.x"
     self._instruments = { instrument_id: InstrumentDef, ... }
 
     """
-    def __init__(self, port_id, ip):
+    def __init__(self, port_id, network):
+        NDefBase.__init__(self)
         self._port_id = port_id
-        self._comms = {'ip': ip}
-        self._attrs = {}
+        self._network = network
         self._instruments = {}
 
     def __repr__(self):
-        return "PortDef{id=%s, comms=%s, attrs=%s}" % (
-            self._port_id, self._comms, self._attrs)
+        return "PortDef{id=%s, network=%s}" % (
+            self._port_id, self._network)
 
     @property
     def port_id(self):
         return self._port_id
 
     @property
-    def comms(self):
-        return self._comms
-
-    @property
-    def attrs(self):
-        """
-        Attributes of this port.
-        """
-        return self._attrs
+    def network(self):
+        return self._network
 
     @property
     def instruments(self):
@@ -113,13 +161,9 @@ class PortDef(object):
             return "Port IDs are different: %r != %r" % (
                 self.port_id, other.port_id)
 
-        if self.comms != other.comms:
-            return "Port comms are different: %r != %r" % (
-                self.comms, other.comms)
-
-        if self.attrs != other.attrs:
-            return "Port attributes are different: %r != %r" % (
-                self.attrs, other.attrs)
+        if self.network != other.network:
+            return "Port network values are different: %r != %r" % (
+                self.network, other.network)
 
         # compare instruments:
         instrument_ids = set(self.instruments.iterkeys())
@@ -135,12 +179,30 @@ class PortDef(object):
 
         return None
 
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
 
-class InstrumentDef(object):
+        # id:
+        hash_obj.update("port_id=%s;" % self.port_id)
+
+        # network:
+        hash_obj.update("port_network:")
+
+        # instruments:
+        hash_obj.update("port_instruments:")
+        for key in sorted(self.instruments.keys()):
+            instrument = self.instruments[key]
+            hash_obj.update(instrument.compute_checksum())
+
+        return hash_obj.hexdigest()
+
+
+class InstrumentDef(NDefBase):
     """
     Represents the definition of an instrument.
     """
     def __init__(self, instrument_id):
+        NDefBase.__init__(self)
         self._instrument_id = instrument_id
         self._attrs = {}
 
@@ -174,8 +236,19 @@ class InstrumentDef(object):
 
         return None
 
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
 
-class NNode(object):
+        hash_obj.update("instrument_id=%s;" % self.instrument_id)
+        hash_obj.update("instrument_attributes:")
+        for key in sorted(self.attrs.keys()):
+            val = self.attrs[key]
+            hash_obj.update("%s=%s;" % (key, val))
+
+        return hash_obj.hexdigest()
+
+
+class NNode(NDefBase):
     """
     Platform node for purposes of representing the network.
 
@@ -189,6 +262,7 @@ class NNode(object):
     """
 
     def __init__(self, platform_id, platform_types=None):
+        NDefBase.__init__(self)
         self._platform_id = platform_id
         self._platform_types = platform_types or []
         self._name = None
@@ -409,6 +483,10 @@ class NNode(object):
             return "platform names are different: %r != %r" % (
                 self.name, other.name)
 
+        if self.platform_types != other.platform_types:
+            return "platform types are different: %r != %r" % (
+                self.platform_types, other.platform_types)
+
         # compare parents:
         if (self.parent is None) != (other.parent is None):
             return "platform parents are different: %r != %r" % (
@@ -457,8 +535,41 @@ class NNode(object):
 
         return None
 
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
 
-class NetworkDefinition(object):
+        # update with checksum of sub-platforms:
+        hash_obj.update("subplatforms:")
+        for key in sorted(self.subplatforms.keys()):
+            subplatform = self.subplatforms[key]
+            hash_obj.update(subplatform.compute_checksum())
+
+        # now, with info about the platform itself.
+
+        # id:
+        hash_obj.update("platform_id=%s;" % self.platform_id)
+
+        # platform_types:
+        hash_obj.update("platform_types:")
+        for platform_type in sorted(self.platform_types):
+            hash_obj.update("%s;" % platform_type)
+
+        # attributes:
+        hash_obj.update("platform_attributes:")
+        for key in sorted(self.attrs.keys()):
+            attr = self.attrs[key]
+            hash_obj.update(attr.compute_checksum())
+
+        # ports:
+        hash_obj.update("platform_ports:")
+        for key in sorted(self.ports.keys()):
+            port = self.ports[key]
+            hash_obj.update(port.compute_checksum())
+
+        return hash_obj.hexdigest()
+
+
+class NetworkDefinition(NDefBase):
     """
     Represents a platform network definition in terms of platform types and
     topology, including attributes and ports associated with the platforms.
@@ -468,6 +579,7 @@ class NetworkDefinition(object):
     """
 
     def __init__(self):
+        NDefBase.__init__(self)
         self._platform_types = {}
         self._nodes = {}
 
@@ -526,3 +638,17 @@ class NetworkDefinition(object):
             return self.root.diff(other.root)
         else:
             return None
+
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
+
+        # platform_types:
+        hash_obj.update("platform_types:")
+        for key in sorted(self.platform_types.keys()):
+            platform_type = self.platform_types[key]
+            hash_obj.update("%s=%s;" % (key, platform_type))
+
+        # root NNode:
+        hash_obj.update("root_platform=%s;" % self.root.compute_checksum())
+
+        return hash_obj.hexdigest()

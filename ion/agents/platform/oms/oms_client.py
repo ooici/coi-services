@@ -221,3 +221,9 @@ class OmsClient(object):
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
+
+    def get_checksum(self, platform_id):
+        """
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
+        """
+        raise NotImplementedError()  #pragma: no cover

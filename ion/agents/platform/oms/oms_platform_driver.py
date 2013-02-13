@@ -490,3 +490,19 @@ class OmsPlatformDriver(PlatformDriver):
         self._event_listener.stop_http_server()
 
         return "OK"
+
+    ##############################################################
+    # sync/checksum
+    ##############################################################
+
+    def get_checksum(self):
+        """
+        Returns the checksum associated to this platform.
+
+        @return SHA1 hash value as string of hexadecimal digits.
+        """
+        log.debug("%r: get_checksum...", self._platform_id)
+        self._assert_rsn_oms()
+        response = self._rsn_oms.get_checksum(self._platform_id)
+        dic_plat = self._verify_platform_id_in_response(response)
+        return dic_plat  # note: return the dic for the platform

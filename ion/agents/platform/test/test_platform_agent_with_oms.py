@@ -6,7 +6,6 @@
 @author  Carlos Rueda
 @brief   Test cases for R2 platform agent interacting with OMS
 """
-from ion.agents.platform.oms.oms_client import NormalResponse
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
@@ -21,6 +20,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_connect_disconnect_instrument
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_check_sync
 #
 
 
@@ -47,6 +47,7 @@ from ion.agents.platform.platform_agent_launcher import LauncherFactory
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
+from ion.agents.platform.oms.oms_client import NormalResponse
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
@@ -546,6 +547,13 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(retval.result is not None)
         return retval.result
 
+    def _check_sync(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.CHECK_SYNC)
+        retval = self._execute_agent(cmd)
+        log.info("CHECK_SYNC result: %s", retval.result)
+        self.assertTrue(retval.result is not None)
+        return retval.result
+
     def test_capabilities(self):
 
         agt_cmds_all = [
@@ -578,6 +586,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
             PlatformAgentEvent.START_MONITORING,
             PlatformAgentEvent.STOP_MONITORING,
+
+            PlatformAgentEvent.CHECK_SYNC,
         ]
 
 
@@ -748,6 +758,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.STOP_EVENT_DISPATCH,
 
             PlatformAgentEvent.START_MONITORING,
+
+            PlatformAgentEvent.CHECK_SYNC,
         ]
 
         res_cmds_command = [
@@ -820,6 +832,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.STOP_EVENT_DISPATCH,
 
             PlatformAgentEvent.STOP_MONITORING,
+
+            PlatformAgentEvent.CHECK_SYNC,
         ]
 
         res_cmds_command = [
@@ -941,3 +955,18 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._go_inactive()
         self._reset()
+
+    def test_check_sync(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._check_sync()
+
+        self._go_inactive()
+        self._reset()
+

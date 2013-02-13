@@ -159,9 +159,7 @@ class OmsTestMixin(HelperTestMixin):
         ports = self._get_platform_ports(platform_id)
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
-            self.assertTrue('attrs' in info)
-            self.assertTrue('comms' in info)
-            self.assertTrue('ip' in info['comms'])
+            self.assertTrue('network' in info)
 
     def test_ak_get_platform_ports_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID
@@ -499,3 +497,8 @@ class OmsTestMixin(HelperTestMixin):
             self._unregister_event_listener(url, [event_type_id])
 
         self._get_registered_event_listeners()
+
+    def test_get_checksum(self):
+        platform_id = self.PLATFORM_ID
+        retval = self.oms.get_checksum(platform_id)
+        log.info("get_checksum = %s" % retval)

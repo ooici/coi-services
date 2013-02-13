@@ -101,7 +101,7 @@ class RsnOmsUtil(object):
             assert platform_id in port_infos
             ports = port_infos[platform_id]
             for port_id, dic in ports.iteritems():
-                port = PortDef(port_id, dic['comms']['ip'])
+                port = PortDef(port_id, dic['network'])
                 nnode.add_port(port)
 
         # call the recursive routine

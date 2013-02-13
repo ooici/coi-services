@@ -115,10 +115,10 @@ class OmsSimulator(OmsClient):
         def build_and_add_ports_to_node(ports, pn):
             for port_info in ports:
                 assert 'port_id' in port_info
-                assert 'ip' in port_info
+                assert 'network' in port_info
                 port_id = port_info['port_id']
-                port_ip = port_info['ip']
-                port = PortDef(port_id, port_ip)
+                network = port_info['network']
+                port = PortDef(port_id, network)
                 if 'instruments' in port_info:
                     for instrument in port_info['instruments']:
                         instrument_id = instrument['instrument_id']
@@ -133,7 +133,7 @@ class OmsSimulator(OmsClient):
                 # PortDef class definition, but added here for convenience):
 
                 # is port turned on?
-                port._is_on = False  # is port turned on?
+                port._is_on = False
 
                 # the set of instrument_ids added to the port
                 port._added_instruments = set()
@@ -267,7 +267,7 @@ class OmsSimulator(OmsClient):
 
         ports = {}
         for port_id, port in self._idp[platform_id].ports.iteritems():
-            ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+            ports[port_id] = {'network': port.network}
 
         return {platform_id: ports}
 
@@ -528,3 +528,12 @@ class OmsSimulator(OmsClient):
 
     def get_registered_event_listeners(self):
         return self._reg_event_listeners
+
+    def get_checksum(self, platform_id):
+        if platform_id not in self._idp:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        nnode = self._idp[platform_id]
+        checksum = nnode.checksum
+
+        return {platform_id: checksum}

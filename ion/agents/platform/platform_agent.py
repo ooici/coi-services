@@ -47,7 +47,6 @@ from ion.agents.instrument.instrument_fsm import InstrumentFSM
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
 from ion.agents.platform.platform_resource_monitor import PlatformResourceMonitor
-from ion.agents.platform.util.network import NNode, AttrDef, PortDef
 
 from coverage_model.parameter import ParameterDictionary
 from interface.objects import StreamRoute
@@ -112,6 +111,8 @@ class PlatformAgentEvent(BaseEnum):
     START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
     STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
 
+    CHECK_SYNC                = 'PLATFORM_AGENT_CHECK_SYNC'
+
 
 class PlatformAgentCapability(BaseEnum):
     INITIALIZE                = PlatformAgentEvent.INITIALIZE
@@ -143,6 +144,8 @@ class PlatformAgentCapability(BaseEnum):
 
     START_MONITORING          = PlatformAgentEvent.START_MONITORING
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
+
+    CHECK_SYNC                = PlatformAgentEvent.CHECK_SYNC
 
 
 class PlatformAgent(ResourceAgent):
@@ -483,7 +486,7 @@ class PlatformAgent(ResourceAgent):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: driver created: %s" % (self._platform_id, str(driver)))
 
-    def _driver_event(self, event, **kwargs):
+    def _trigger_driver_event(self, event, **kwargs):
         """
         Helper to trigger a driver event.
         """
@@ -498,7 +501,7 @@ class PlatformAgent(ResourceAgent):
         if log.isEnabledFor(logging.DEBUG):
             log.debug('%r: configuring driver: %s' % (self._platform_id, driver_config))
 
-        self._driver_event(PlatformDriverEvent.CONFIGURE, driver_config=driver_config)
+        self._trigger_driver_event(PlatformDriverEvent.CONFIGURE, driver_config=driver_config)
 
         self._assert_driver_state(PlatformDriverState.DISCONNECTED)
 
@@ -531,14 +534,14 @@ class PlatformAgent(ResourceAgent):
         Any activation actions at this platform (excluding sub-platforms).
         This base class connects the driver.
         """
-        self._driver_event(PlatformDriverEvent.CONNECT)
+        self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
     def _do_go_inactive(self):
         """
         Any desactivation actions at this platform (excluding sub-platforms).
         This base class disconnects the driver.
         """
-        self._driver_event(PlatformDriverEvent.DISCONNECT)
+        self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
 
     def _go_inactive(self):
         """
@@ -602,7 +605,7 @@ class PlatformAgent(ResourceAgent):
     def _get_attribute_values(self, attr_names, from_time):
         self._assert_driver()
         kwargs = dict(attr_names=attr_names, from_time=from_time)
-        result = self._driver_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, **kwargs)
+        result = self._trigger_driver_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, **kwargs)
         return result
 
     def _stop_resource_monitoring(self):
@@ -944,7 +947,7 @@ class PlatformAgent(ResourceAgent):
     def _get_ports(self):
         ports = {}
         for port_id, port in self._nnode.ports.iteritems():
-            ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+            ports[port_id] = {'network': port.network}
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: _get_ports: %s", self._platform_id, ports)
         return ports
@@ -1063,7 +1066,7 @@ class PlatformAgent(ResourceAgent):
         return result
 
     def _ping_resource(self):
-        result = self._driver_event(PlatformDriverEvent.PING)
+        result = self._trigger_driver_event(PlatformDriverEvent.PING)
         return result
 
     ##############################################################
@@ -1307,7 +1310,7 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('set_resource missing attrs argument.')
 
         try:
-            result = self._driver_event(PlatformDriverEvent.SET_ATTRIBUTE_VALUES,
+            result = self._trigger_driver_event(PlatformDriverEvent.SET_ATTRIBUTE_VALUES,
                                         **kwargs)
             next_state = self.get_agent_state()
 
@@ -1339,7 +1342,7 @@ class PlatformAgent(ResourceAgent):
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         try:
-            result = self._driver_event(PlatformDriverEvent.START_EVENT_DISPATCH)
+            result = self._trigger_driver_event(PlatformDriverEvent.START_EVENT_DISPATCH)
 
             next_state = self.get_agent_state()
 
@@ -1357,7 +1360,7 @@ class PlatformAgent(ResourceAgent):
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         try:
-            result = self._driver_event(PlatformDriverEvent.STOP_EVENT_DISPATCH)
+            result = self._trigger_driver_event(PlatformDriverEvent.STOP_EVENT_DISPATCH)
             next_state = self.get_agent_state()
 
         except Exception as ex:
@@ -1374,7 +1377,7 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._driver_event(PlatformDriverEvent.GET_METADATA)
+        result = self._trigger_driver_event(PlatformDriverEvent.GET_METADATA)
 
         next_state = self.get_agent_state()
 
@@ -1414,7 +1417,7 @@ class PlatformAgent(ResourceAgent):
         if attributes is None:
             raise BadRequest('connect_instrument: missing attributes argument.')
 
-        result = self._driver_event(PlatformDriverEvent.CONNECT_INSTRUMENT,
+        result = self._trigger_driver_event(PlatformDriverEvent.CONNECT_INSTRUMENT,
                                     **kwargs)
 
         next_state = self.get_agent_state()
@@ -1437,7 +1440,7 @@ class PlatformAgent(ResourceAgent):
         if instrument_id is None:
             raise BadRequest('disconnect_instrument: missing instrument_id argument.')
 
-        result = self._driver_event(PlatformDriverEvent.DISCONNECT_INSTRUMENT,
+        result = self._trigger_driver_event(PlatformDriverEvent.DISCONNECT_INSTRUMENT,
                                     **kwargs)
 
         next_state = self.get_agent_state()
@@ -1456,7 +1459,7 @@ class PlatformAgent(ResourceAgent):
         if port_id is None:
             raise BadRequest('get_connected_instruments: missing port_id argument.')
 
-        result = self._driver_event(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
+        result = self._trigger_driver_event(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
                                     **kwargs)
 
         next_state = self.get_agent_state()
@@ -1475,7 +1478,7 @@ class PlatformAgent(ResourceAgent):
         if port_id is None:
             raise BadRequest('turn_on_port missing port_id argument.')
 
-        result = self._driver_event(PlatformDriverEvent.TURN_ON_PORT, **kwargs)
+        result = self._trigger_driver_event(PlatformDriverEvent.TURN_ON_PORT, **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1493,7 +1496,7 @@ class PlatformAgent(ResourceAgent):
         if port_id is None:
             raise BadRequest('turn_off_port missing port_id argument.')
 
-        result = self._driver_event(PlatformDriverEvent.TURN_OFF_PORT, **kwargs)
+        result = self._trigger_driver_event(PlatformDriverEvent.TURN_OFF_PORT, **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1554,6 +1557,64 @@ class PlatformAgent(ResourceAgent):
             raise
 
         return (next_state, result)
+
+    ##############################################################
+    # sync/checksum
+    ##############################################################
+
+    def _check_sync(self):
+        """
+        This will be the main operation related with checking that the
+        information on this platform agent (and sub-platforms) is consistent
+        with the information in the external network rooted at the
+        corresponding platform, then publishing relevant notification events.
+
+        For the moment, it only tries to do the following:
+        - gets the checksum reported by the external platform
+        - compares it with the local checksum
+        - if equal ...
+        - if different ...
+
+        @todo complete implementation
+
+        @return TODO
+        """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _check_sync: getting external checksum..." % self._platform_id)
+
+        external_checksum = self._trigger_driver_event(PlatformDriverEvent.GET_CHECKSUM)
+        local_checksum = self._nnode.checksum
+
+        if external_checksum == local_checksum:
+            result = "OK: checksum for platform_id=%r: %s" % (
+                self._platform_id, local_checksum)
+        else:
+            result = "ERROR: different external and local checksums for " \
+                     "platform_id=%r: %s != %s" % (self._platform_id,
+                     external_checksum, local_checksum)
+
+            # TODO
+            # - determine what sub-components are in disagreement
+            # - publish relevant event(s)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _check_sync: result: %s" % (self._platform_id, result))
+
+        return result
+
+    def _handler_check_sync(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        next_state = None
+
+        result = self._check_sync()
+
+        return next_state, result
 
     ##############################################################
     # FSM setup.
@@ -1626,3 +1687,4 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.START_EVENT_DISPATCH, self._handler_start_event_dispatch)
             self._fsm.add_handler(state, PlatformAgentEvent.STOP_EVENT_DISPATCH, self._handler_stop_event_dispatch)
+            self._fsm.add_handler(state, PlatformAgentEvent.CHECK_SYNC, self._handler_check_sync)

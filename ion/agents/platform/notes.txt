@@ -10,6 +10,9 @@ some occasionaly updated developer notes
   fix_OOIION-674_set_resource_type_to_PlatformDevice, plat_coverage,
   platform_agent_2.1
 - some additional code clean-up
+- Simplified PortDef: a direct 'network' property. (comms and attrs removed.)
+- Added sketch for command CHECK_SYNC (tentative name), currently with preliminary
+  compute_checksum operation and comparison between external and local checksums.
 
 2013-02-10:
 - cancelled PR: https://github.com/ooici/coi-services/pull/514

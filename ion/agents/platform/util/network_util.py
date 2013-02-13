@@ -6,7 +6,6 @@
 @author  Carlos Rueda
 @brief   Utilities related with platform network serialization/deserialization.
 """
-from ion.agents.platform.exceptions import PlatformDefinitionException
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
@@ -17,6 +16,7 @@ from ion.agents.platform.util.network import AttrDef
 from ion.agents.platform.util.network import PortDef
 from ion.agents.platform.util.network import InstrumentDef
 from ion.agents.platform.util.network import NetworkDefinition
+from ion.agents.platform.exceptions import PlatformDefinitionException
 
 # serialization/deserialization based on YAML
 import yaml
@@ -115,10 +115,10 @@ class NetworkUtil(object):
             def build_and_add_ports_to_node(ports, pn):
                 for port_info in ports:
                     assert 'port_id' in port_info
-                    assert 'ip' in port_info
+                    assert 'network' in port_info
                     port_id = port_info['port_id']
-                    port_ip = port_info['ip']
-                    port = PortDef(port_id, port_ip)
+                    network = port_info['network']
+                    port = PortDef(port_id, network)
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']
@@ -212,18 +212,17 @@ class NetworkUtil(object):
             if len(nnode.attrs):
                 lines.append('  attrs:')
                 for attr_id, attr in nnode.attrs.iteritems():
-                    lines.append('  - attr_id: %s'   % attr_id)
+                    lines.append('  - attr_id: %s' % attr_id)
                     for k, v in attr.defn.iteritems():
                         if k != "attr_id":
-                            lines.append('    %s: %s'      % (k ,v))
+                            lines.append('    %s: %s' % (k, v))
 
             # ports
             if len(nnode.ports):
                 lines.append('  ports:')
                 for port_id, port in nnode.ports.iteritems():
-                    port_ip = '%s_IP' % port_id
                     lines.append('  - port_id: %s' % port_id)
-                    lines.append('    ip: %s '     % port_ip)
+                    lines.append('    network: %s' % port.network)
 
                     # instruments
                     if len(port.instruments):

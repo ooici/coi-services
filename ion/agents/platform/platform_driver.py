@@ -6,7 +6,6 @@
 @author  Carlos Rueda
 @brief   Base class for platform drivers
 """
-from ion.agents.platform.exceptions import PlatformConnectionException
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
@@ -20,6 +19,7 @@ from ion.agents.platform.exceptions import PlatformDriverException
 
 from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMError
+from ion.agents.platform.exceptions import PlatformConnectionException
 
 
 class PlatformDriverState(BaseEnum):
@@ -57,6 +57,7 @@ class PlatformDriverEvent(BaseEnum):
     TURN_OFF_PORT             = 'PLATFORM_DRIVER_TURN_OFF_PORT'
     START_EVENT_DISPATCH      = 'PLATFORM_DRIVER_START_EVENT_DISPATCH'
     STOP_EVENT_DISPATCH       = 'PLATFORM_DRIVER_STOP_EVENT_DISPATCH'
+    GET_CHECKSUM              = 'PLATFORM_DRIVER_GET_CHECKSUM'
 
 
 class PlatformDriver(object):
@@ -337,6 +338,16 @@ class PlatformDriver(object):
         """
         To be implemented by subclass.
         Stops the dispatch of events received from the platform network.
+        """
+        raise NotImplementedError()  #pragma: no cover
+
+    def get_checksum(self):
+        """
+        To be implemented by subclass.
+        Returns the checksum for this platform.
+
+        @return SHA1 hash value as string of hexadecimal digits.
+        @raise PlatformConnectionException
         """
         raise NotImplementedError()  #pragma: no cover
 
@@ -632,6 +643,19 @@ class PlatformDriver(object):
 
         return next_state, result
 
+    def _handler_connected_get_checksum(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self.get_checksum()
+        next_state = None
+
+        return next_state, result
+
     ##############################################################
     # Platform driver FSM setup
     ##############################################################
@@ -677,3 +701,4 @@ class PlatformDriver(object):
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.TURN_OFF_PORT, self._handler_connected_turn_off_port)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.START_EVENT_DISPATCH, self._handler_connected_start_event_dispatch)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.STOP_EVENT_DISPATCH, self._handler_connected_stop_event_dispatch)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CHECKSUM, self._handler_connected_get_checksum)
