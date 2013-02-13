@@ -5,35 +5,11 @@
 @file ion/services/dm/presentation/test/user_notification_test.py
 @description Unit and Integration test implementations for the user notification service class.
 '''
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.unit_test import PyonTestCase
-from pyon.util.containers import DotDict, get_ion_ts
-from pyon.public import IonObject, RT, OT, PRED, Container
-from pyon.core.exception import NotFound, BadRequest
-from pyon.core.bootstrap import get_sys_name, CFG
-from ion.services.dm.utility.granule_utils import time_series_domain
-from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.dm.idiscovery_service import DiscoveryServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
-from interface.objects import DeviceEvent, NotificationPreferences, NotificationDeliveryModeEnum
-from pyon.util.context import LocalContextMixin
-from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
+
 from nose.plugins.attrib import attr
 import unittest
-from pyon.util.log import log
-from pyon.event.event import EventPublisher, EventSubscriber
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest, TemporalBounds
-from ion.services.dm.inventory.index_management_service import IndexManagementService
-from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 import os, time, uuid
 from gevent import event, queue
 from gevent.timeout import Timeout
@@ -41,6 +17,34 @@ from gevent.event import Event
 import elasticpy as ep
 from datetime import datetime, timedelta
 from sets import Set
+
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
+from pyon.util.containers import DotDict, get_ion_ts
+from pyon.public import IonObject, RT, OT, PRED, Container
+from pyon.core.exception import NotFound, BadRequest
+from pyon.core.bootstrap import get_sys_name, CFG
+from pyon.util.context import LocalContextMixin
+from pyon.util.log import log
+from pyon.event.event import EventPublisher, EventSubscriber
+
+from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.presentation.user_notification_service import UserNotificationService
+from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
+
+from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
+from interface.objects import DeviceEvent, NotificationPreferences, NotificationDeliveryModeEnum
+from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
+from interface.objects import NotificationRequest, TemporalBounds, DeviceStatusType
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
@@ -248,6 +252,77 @@ class UserNotificationTest(PyonTestCase):
 
         notification_request.temporal_bounds.end_datetime = get_ion_ts()
         self.mock_rr_client.update.assert_called_once_with(notification_request)
+
+
+@attr('UNIT', group='evt')
+class UserNotificationEventsTest(PyonTestCase):
+    def _load_mock_events(self, event_list):
+        for cnt, event_entry in enumerate(event_list):
+            origin = event_entry.get('o', None)
+            origin_type = event_entry.get('ot', None)
+            sub_type = event_entry.get('st', None)
+            attr = event_entry.get('attr', {})
+            evt_obj = IonObject(event_entry['et'], origin=origin, origin_type=origin_type, sub_type=sub_type, ts_created=get_ion_ts(), **attr)
+            evt_obj._id = str(cnt)
+            self.events.append(evt_obj)
+
+    def setUp(self):
+        self.events = []
+        self.uns = UserNotificationService()
+        self.uns.find_events = Mock()
+        def side_effect(origin=None, limit=None, **kwargs):
+            evt_list = [(evt._id, None, evt) for evt in reversed(self.events) if evt.origin == origin]
+            if limit:
+                evt_list = evt_list[:limit]
+            return evt_list
+        self.uns.find_events.side_effect = side_effect
+
+    event_list1 = [
+        dict(et='ResourceLifecycleEvent', o='ID_1', ot='InstrumentDevice', st='DEPLOYED_AVAILABLE',
+            attr=dict(new_state="DEPLOYED_AVAILABLE",
+                  old_state="DEPLOYED_PRIVATE",
+                  resource_type="",
+                  transition_event="")),
+
+        dict(et='ResourceModifiedEvent', o='ID_1', ot='InstrumentDevice', st='CREATE',
+            attr=dict(mod_type=1)),
+
+        dict(et='ResourceAgentStateEvent', o='ID_1', ot='', st='',
+            attr=dict(state="RESOURCE_AGENT_STATE_UNINITIALIZED")),
+
+        dict(et='ResourceAgentResourceStateEvent', o='ID_1', ot='', st='',
+            attr=dict(state="DRIVER_STATE_UNCONFIGURED")),
+
+        dict(et='ResourceAgentResourceConfigEvent', o='ID_1', ot='', st='',
+            attr=dict(config={'CCALDATE':[0,1,2], 'CG': -0.987093, 'CH': 0.1417895})),
+
+        dict(et='ResourceAgentCommandEvent', o='ID_1', ot='', st='',
+            attr=dict(args=[],
+                kwargs={},
+                command="execute_resource",
+                execute_command="DRIVER_EVENT_STOP_AUTOSAMPLE",
+                result=None)),
+
+       dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
+            attr=dict(state=DeviceStatusType.OK,
+                description="Event to deliver the status of instrument.")),
+    ]
+
+    def test_get_recent_events(self):
+        self._load_mock_events(self.event_list1)
+
+        res_list = self.uns.get_recent_events(resource_id="ID_1")
+        self.assertEquals(res_list.status, ComputedValueAvailability.PROVIDED)
+        self.assertEquals(len(res_list.value), len(self.event_list1))
+
+        event_list = [event for (x,y,event,event_computed) in res_list.value]
+        event_computed_list = [event_computed for (x,y,event,event_computed) in res_list.value]
+
+        self.assertTrue(all([eca.event_id == event_list[i]._id for (i, eca) in enumerate(event_computed_list)]))
+
+        #import pprint
+        #pprint.pprint([eca.__dict__ for eca in event_computed_list])
+
 
 @attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
