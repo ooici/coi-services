@@ -257,22 +257,20 @@ class UserNotificationService(BaseUserNotificationService):
         # Persist Notification object as a resource if it has already not been persisted
         #---------------------------------------------------------------------------------------------------
 
-        # if the notification has already been registered, simply use the old id
+        # since the notification has not been registered yet, register it and get the id
+        notification.temporal_bounds = TemporalBounds()
+        notification.temporal_bounds.start_datetime = get_ion_ts()
+        notification.temporal_bounds.end_datetime = ''
 
+        # if the notification has already been registered, simply use the old id
         notification_id = self._notification_in_notifications(notification, self.notifications)
 
         if not notification_id:
-
-            # since the notification has not been registered yet, register it and get the id
-            notification.temporal_bounds = TemporalBounds()
-            notification.temporal_bounds.start_datetime = get_ion_ts()
-            notification.temporal_bounds.end_datetime = ''
-
             notification_id, _ = self.clients.resource_registry.create(notification)
-
             self.notifications[notification_id] = notification
         else:
             log.debug("Notification object has already been created in resource registry before. No new id to be generated.")
+
 
         # Link the user and the notification with a hasNotification association
         assocs= self.clients.resource_registry.find_associations(subject=user_id,
