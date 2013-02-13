@@ -174,7 +174,7 @@ def custom_403(error):
 def is_trusted_request():
 
     if request.remote_addr is not None:
-        log.debug("Request from: " + request.remote_addr)
+        log.debug("%s from: %s: %s", request.method, request.remote_addr, request.url)
 
     if not service_gateway_instance.is_trusted_address(request.remote_addr):
         abort(403)
