@@ -834,7 +834,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                         proc1.q.queue.clear()
                         return reloaded_user_info, reloaded_reverse_user_info
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes, 3)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes, 3)
         notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         self.assertIsNotNone(reloaded_user_info)
@@ -866,7 +866,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes, 1)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes, 1)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 
@@ -1644,6 +1644,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         def poller():
             events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= min_datetime, max_datetime=max_datetime)
+            log.debug("(UNS) got events: %s", events)
             return len(events) >= 4
 
         success = self.event_poll(poller, 10)
