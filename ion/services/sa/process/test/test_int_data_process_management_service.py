@@ -377,19 +377,18 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
         #-------------------------------
 
-        uns = UserNotificationServiceClient(node = self.container.node)
+        self.event_repo = self.container.event_repository
 
-        def data_process_running(process_id):
-            recent_events = uns.get_recent_events(resource_id=process_id)
-            for evt in recent_events.value:
-                cond = evt.type_ == 'ProcessLifecycleEvent' and evt.origin_type == 'DispatchedProcess'
+        def data_process_running(event_repo, process_id):
+            event_tuples = event_repo.find_events(resource_id=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
+            recent_events = [tuple[2] for tuple in event_tuples]
+            for evt in recent_events:
+                log.debug("Got an event with event_state: %s. While ProcessStateEnum.RUNNING would be: %s", evt.state, ProcessStateEnum.RUNNING)
+                if evt.state == ProcessStateEnum.RUNNING:
+                    return True
+            return False
 
-                # if it is the right event, check the state to see if it is running
-                if cond:
-                    log.debug("came here for the event: %s", evt.state)
-                    return evt.state == ProcessStateEnum.RUNNING
-
-        poll(data_process_running, data_process.process_id)
+        poll(data_process_running, self.event_repo, data_process.process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed

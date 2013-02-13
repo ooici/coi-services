@@ -574,6 +574,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param event_attrs  dict
         @retval event       !Event
         """
+        event_attrs = event_attrs or {}
 
         event = self.event_publisher.publish_event(
             event_type = event_type,
