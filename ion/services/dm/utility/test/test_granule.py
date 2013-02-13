@@ -94,6 +94,19 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.addCleanup(self.pubsub_management.delete_stream_definition, filtered_stream_def_id)
         rdt = RecordDictionaryTool(stream_definition_id=filtered_stream_def_id)
         self.assertEquals(rdt._available_fields,['time','temp'])
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+        with self.assertRaises(KeyError):
+            rdt['pressure'] = np.arange(20)
+
+        granule = rdt.to_granule()
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+
+        self.assertEquals(rdt._available_fields, rdt2._available_fields)
+        self.assertEquals(rdt.fields, rdt2.fields)
+        for k,v in rdt.iteritems():
+            self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
+
 
 
         

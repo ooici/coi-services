@@ -64,7 +64,7 @@ class RecordDictionaryTool(object):
         elif stream_definition_id:
             stream_def_obj = RecordDictionaryTool.pdict_from_stream_def(stream_definition_id)
             pdict = stream_def_obj.parameter_dictionary
-            self._available_fields = stream_def_obj.available_fields
+            self._available_fields = stream_def_obj.available_fields or None
             self._pdict = ParameterDictionary.load(pdict)
             self._stream_def = stream_definition_id
         
@@ -92,14 +92,13 @@ class RecordDictionaryTool(object):
 
 
 
-
     @classmethod
     def load_from_granule(cls, g):
         if isinstance(g.param_dictionary, str):
             instance = cls(stream_definition_id=g.param_dictionary, locator=g.locator)
             stream_def_obj = RecordDictionaryTool.pdict_from_stream_def(g.param_dictionary)
             pdict = stream_def_obj.parameter_dictionary
-            instance._available_fields = stream_def_obj.available_fields
+            instance._available_fields = stream_def_obj.available_fields or None
             instance._pdict = ParameterDictionary.load(pdict)
         
         else:
@@ -143,7 +142,9 @@ class RecordDictionaryTool(object):
 
     @property
     def fields(self):
-        return self._rd.keys()
+        if self._available_fields is not None:
+            return list(set(self._available_fields).intersection(self._pdict.keys()))
+        return self._pdict.keys()
 
     @property
     def domain(self):
@@ -158,8 +159,9 @@ class RecordDictionaryTool(object):
         """
         Set a parameter
         """
-        if name not in self._rd:
+        if name not in self.fields:
             raise KeyError(name)
+
         if vals is None:
             self._rd[name] = None
             return
@@ -201,6 +203,8 @@ class RecordDictionaryTool(object):
         """
         Get an item by nick name from the record dictionary.
         """
+        if self._available_fields and name not in self._available_fields:
+            raise KeyError(name)
         if self._rd[name] is not None:
             context = self._pdict.get_context(name)
             if isinstance(context.param_type, ParameterFunctionType):
@@ -212,6 +216,8 @@ class RecordDictionaryTool(object):
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """
         for k,v in self._rd.iteritems():
+            if self._available_fields and k not in self._available_fields:
+                continue
             if v is not None:
                 yield k,v
 
@@ -229,6 +235,8 @@ class RecordDictionaryTool(object):
 
     def __contains__(self, key):
         """ D.__contains__(k) -> True if D has a key k, else False """
+        if self._available_fields:
+            return key in self._rd and key in self._available_fields
         return key in self._rd
 
     def __delitem__(self, y):
@@ -292,37 +300,6 @@ class RecordDictionaryTool(object):
         flat = serializer.serialize(granule)
         byte_stream = msgpack.packb(flat, default=encode_ion)
         return len(byte_stream)
-
-    @classmethod
-    def append(cls, rdt1, rdt2):
-        assert rdt1.fields == rdt2.fields
-        sd = rdt1._stream_def or rdt2._stream_def
-        if sd:
-            nrdt = cls(stream_definition_id=sd)
-        else:
-            nrdt = cls(param_dictionary=rdt1._pdict)
-        
-        for k in rdt1.fields:
-            x = rdt1[k]
-            y = rdt2[k]
-            if x is None and y is None:
-                continue
-
-            if x is None:
-                X = np.empty(rdt1._shp, dtype=rdt1._pdict.get_context(k).param_type.value_encoding)
-                X.fill(rdt1._pdict.get_context(k).fill_value)
-            else:
-                X = x
-
-            if y is None:
-                Y = np.empty(rdt1._shp, dtype=rdt2._pdict.get_context(k).param_type.value_encoding)
-                Y.fill(rdt2._pdict.get_context(k).fill_value)
-            else:
-                Y = y
-
-            nrdt[k] = np.append(X,Y)
-
-        return nrdt
 
     
     @staticmethod
