@@ -822,6 +822,7 @@ class PlatformAgent(ResourceAgent):
         try:
             self._event_publisher.publish_event(
                 event_type='DeviceEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=origin,
                 **event_data)
 

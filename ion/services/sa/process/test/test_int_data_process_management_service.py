@@ -13,6 +13,7 @@ from pyon.public import CFG, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.poller import poll
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -22,13 +23,11 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from interface.objects import ProcessStateEnum
 from mock import patch
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 import gevent
 from sets import Set
@@ -370,7 +369,27 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
+
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+        data_process = self.rrclient.read(ctd_l0_all_data_process_id)
+
+        #-------------------------------
+        # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
+        #-------------------------------
+
+        uns = UserNotificationServiceClient(node = self.container.node)
+
+        def data_process_running(process_id):
+            recent_events = uns.get_recent_events(resource_id=process_id)
+            for evt in recent_events.value:
+                cond = evt.type_ == 'ProcessLifecycleEvent' and evt.origin_type == 'DispatchedProcess'
+
+                # if it is the right event, check the state to see if it is running
+                if cond:
+                    log.debug("came here for the event: %s", evt.state)
+                    return evt.state == ProcessStateEnum.RUNNING
+
+        poll(data_process_running, data_process.process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed

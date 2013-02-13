@@ -59,6 +59,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         self.purge_queues()
         self.queue_buffer         = []
+        self.streams = []
+        self.addCleanup(self.stop_all_ingestion)
 
     def purge_queues(self):
         xn = self.container.ex_manager.create_xn_queue('science_granule_ingestion')
@@ -165,6 +167,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
         ingest_config_id = self.get_ingestion_config()
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
     
+    def stop_ingestion(self, stream_id):
+        ingest_config_id = self.get_ingestion_config()
+        self.ingestion_management.unpersist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id)
+        
+    def stop_all_ingestion(self):
+        try:
+            [self.stop_ingestion(sid) for sid in self.streams]
+        except:
+            pass
+
     def validate_granule_subscription(self, msg, route, stream_id):
         '''
         Validation for granule format
@@ -294,6 +306,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         b = rdt['time'] == np.arange(5)
         self.assertTrue(b.all() if not isinstance(b,bool) else b)
+        self.streams.append(stream_id)
+        self.stop_ingestion(stream_id)
 
     @unittest.skip('Doesnt work')
     @attr('LOCOINT')
@@ -404,6 +418,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
         for i in rdt['salinity']:
             self.assertNotEquals(i,0)
+        self.streams.append(ctd_stream_id)
+        self.stop_ingestion(ctd_stream_id)
 
     def test_last_granule(self):
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
@@ -444,6 +460,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         success = poll(verify_points)
 
         self.assertTrue(success)
+        self.streams.append(stream_id)
+        self.stop_ingestion(stream_id)
 
     def test_replay_with_parameters(self):
         #--------------------------------------------------------------------------------
@@ -497,7 +515,9 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(extents['time']>=20)
         self.assertTrue(extents['temp']>=20)
 
-
+        self.streams.append(stream_id)
+        self.stop_ingestion(stream_id)
+        
 
     def test_repersist_data(self):
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
@@ -525,6 +545,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
                 gevent.sleep(1)
 
         self.assertTrue(success)
+        self.streams.append(stream_id)
+        self.stop_ingestion(stream_id)
 
 
     @attr('LOCOINT')
