@@ -6,6 +6,8 @@
 '''
 
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.utility.granule import RecordDictionaryTool
+from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.util.int_test import IonIntegrationTestCase
 from coverage_model import ParameterDictionary, ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprExpression, ParameterFunctionType, VariabilityEnum, PythonExpression
 from interface.objects import DataProcessDefinition, DataProduct, DataProducer
@@ -180,6 +182,16 @@ class TestTransformPrime(IonIntegrationTestCase):
 
 
 
+    def _publisher(self, data_product_id):
+        stream_ids, _ = self.container.resource_registry.find_resources(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        stream_id = stream_ids[0]
+
+        route = self.pubsub_management.read_stream_route(stream_id)
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        return publisher
+
+
     def test_prime(self):
         proc_def_id = self._create_proc_def()
 
@@ -193,5 +205,17 @@ class TestTransformPrime(IonIntegrationTestCase):
         L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
 
         self._data_process(proc_def_id, [L0_data_product_id], L1_data_product_id, outgoing_stream_def_id)
+
+        publisher = self._publisher(L0_data_product_id)
+        
+        rdt = RecordDictionaryTool(stream_definition_id=incoming_stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['lat'] = 40.992469
+        rdt['lon'] = -71.727069
+        rdt['TEMPWAT_L0'] = np.arange([35]* 20)
+        #rdt['CONDWAT_L0'] = np.arange(
+
+        publisher.publish(rdt.to_granule())
     
 
+        
