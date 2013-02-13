@@ -777,8 +777,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         log.debug("start_external_dataset_agent_instance: agent_config %s ", str(dataset_agent_instance_obj.dataset_agent_config))
 
+        # Setting the restart mode
+        schedule = ProcessSchedule()
+        schedule.restart_mode = ProcessRestartMode.ABNORMAL
+
         pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
-                                                               schedule=None,
+                                                               schedule=schedule,
                                                                configuration=dataset_agent_instance_obj.dataset_agent_config)
         log.debug("start_external_dataset_agent_instance: schedule_process %s", pid)
 

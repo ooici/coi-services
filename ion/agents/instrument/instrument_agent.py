@@ -70,11 +70,10 @@ from interface.objects import StreamAlertAlarmEvent
 from interface.objects import StreamAllClearAlarmEvent
 
 # MI imports
-from mi.core.instrument.instrument_driver import DriverEvent
-from mi.core.instrument.instrument_driver import DriverAsyncEvent
-from mi.core.instrument.instrument_driver import DriverProtocolState
-from mi.core.instrument.instrument_driver import DriverParameter
-from mi.core.instrument.data_particle import DataParticle
+from ion.core.includes.mi import DriverEvent
+from ion.core.includes.mi import DriverAsyncEvent
+from ion.core.includes.mi import DriverProtocolState
+from ion.core.includes.mi import DriverParameter
 from interface.objects import StreamRoute
 from interface.objects import AgentCommand
 
@@ -792,6 +791,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceStateEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver state change event.',
@@ -808,6 +808,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceConfigEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver config change event.',
@@ -883,6 +884,7 @@ class InstrumentAgent(ResourceAgent):
                             self._event_publisher.publish_event(
                                 event_data['event_type'],
                                 origin=self._resource_id,
+                                origin_type=self.ORIGIN_TYPE,
                                 **event_data)
         
     def _publish_stream_buffer(self, stream_name):
@@ -1007,6 +1009,7 @@ class InstrumentAgent(ResourceAgent):
             
             self._event_publisher.publish_event(
                 event_type='ResourceAgentErrorEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver error event.',
@@ -1026,6 +1029,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentAsyncResultEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver result event.',

@@ -11,7 +11,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter, SBE37ProtocolEvent
+from ion.core.includes.mi import SBE37Parameter, SBE37ProtocolEvent
 
 from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -147,8 +147,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         instAgent_obj = IonObject(RT.InstrumentAgent,
                                     name='agent007',
                                     description="SBE37IMAgent",
-                                    driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver",
-                                    driver_class="SBE37Driver",
+                                    driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg",
                                     stream_configurations = [raw_config, parsed_config] )
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
@@ -547,6 +546,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
 
+        data_process = self.rrclient.read(ctd_l0_all_data_process_id)
+        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
 
         #-------------------------------------------------------------------------------------
         # L1 Conductivity: Create the data process
@@ -554,6 +555,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_conductivity_dprocdef_id, [self.ctd_l0_conductivity_output_dp_id], {'conductivity':self.ctd_l1_conductivity_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
 
+        data_process = self.rrclient.read(l1_conductivity_data_process_id)
+        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
 
         #-------------------------------------------------------------------------------------
         # L1 Pressure: Create the data process
@@ -561,11 +564,17 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         l1_pressure_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_pressure_dprocdef_id, [self.ctd_l0_pressure_output_dp_id], {'pressure':self.ctd_l1_pressure_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
 
+        data_process = self.rrclient.read(l1_pressure_data_process_id)
+        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+
         #-------------------------------------------------------------------------------------
         # L1 Temperature: Create the data process
         #-------------------------------------------------------------------------------------
         l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L1_temperature_dprocdef_id, [self.ctd_l0_temperature_output_dp_id], {'temperature':self.ctd_l1_temperature_output_dp_id})
         self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
+
+        data_process = self.rrclient.read(l1_temperature_all_data_process_id)
+        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
 
         #-------------------------------------------------------------------------------------
         # L2 Salinity: Create the data process
@@ -573,11 +582,17 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], {'salinity':self.ctd_l2_salinity_output_dp_id})
         self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
 
+        data_process = self.rrclient.read(l2_salinity_all_data_process_id)
+        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+
         #-------------------------------------------------------------------------------------
         # L2 Density: Create the data process
         #-------------------------------------------------------------------------------------
         l2_density_all_data_process_id = self.dataprocessclient.create_data_process(self.ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], {'density':self.ctd_l2_density_output_dp_id})
         self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
+
+        data_process = self.rrclient.read(l2_density_all_data_process_id)
+        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
 
         #-------------------------------------------------------------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client

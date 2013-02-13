@@ -54,7 +54,7 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from ion.core.includes.mi import SBE37ProtocolEvent
 
 # IA config imports.
 from ion.agents.instrument.test.test_instrument_agent import DRV_MOD

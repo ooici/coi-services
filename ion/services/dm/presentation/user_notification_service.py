@@ -7,14 +7,16 @@
 @description Implementation of the UserNotificationService
 """
 
-from pyon.core.exception import BadRequest, IonException
-from pyon.public import RT, PRED, get_sys_name, CFG, OT, IonObject
+from pyon.core.exception import BadRequest, IonException, NotFound
+from pyon.core.bootstrap import CFG
 from pyon.util.log import log
+from pyon.util.containers import get_ion_ts
+from pyon.public import RT, PRED, get_sys_name, Container, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue
+from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue, DeviceStatusType
 
 import string
 import time
@@ -144,7 +146,39 @@ class UserNotificationService(BaseUserNotificationService):
         self.event_publisher = EventPublisher()
         self.datastore = self.container.datastore_manager.get_datastore('events')
 
-        self.start_time = UserNotificationService.makeEpochTime(self.__now())
+        self.start_time = get_ion_ts()
+
+        #------------------------------------------------------------------------------------
+        # Create an event subscriber for Reload User Info events
+        #------------------------------------------------------------------------------------
+
+        def reload_user_info(event_msg, headers):
+            '''
+            Callback method for the subscriber to ReloadUserInfoEvent
+            '''
+
+            notification_id =  event_msg.notification_id
+            log.debug("(UNS instance received a ReloadNotificationEvent. The relevant notification_id is %s" % notification_id)
+
+            try:
+                self.user_info = self.load_user_info()
+            except NotFound:
+                log.warning("ElasticSearch has not yet loaded the user_index.")
+
+            self.reverse_user_info =  calculate_reverse_user_info(self.user_info)
+
+            log.debug("(UNS instance) After a reload, the user_info: %s" % self.user_info)
+            log.debug("(UNS instance) The recalculated reverse_user_info: %s" % self.reverse_user_info)
+
+        # the subscriber for the ReloadUSerInfoEvent
+        self.reload_user_info_subscriber = EventSubscriber(
+            event_type="ReloadUserInfoEvent",
+            origin='UserNotificationService',
+            callback=reload_user_info
+        )
+        self.reload_user_info_subscriber.start()
+        # For cleanup of the subscriber
+        self._subscribers.append(self.reload_user_info_subscriber)
 
     def on_quit(self):
         """
@@ -179,7 +213,9 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         def process(event_msg, headers):
-            self.end_time = UserNotificationService.makeEpochTime(self.__now())
+            self.end_time = get_ion_ts()
+
+            log.debug("process_batch being called with start_time = %s, end_time = %s", self.start_time, self.end_time)
 
             # run the process_batch() method
             self.process_batch(start_time=self.start_time, end_time=self.end_time)
@@ -191,8 +227,8 @@ class UserNotificationService(BaseUserNotificationService):
         """
         self.batch_processing_subscriber = EventSubscriber(
             event_type="ResourceEvent",
-            queue_name='user_notification',
             origin=process_batch_key,
+            queue_name='user_notification',
             callback=process
         )
         self.batch_processing_subscriber.start()
@@ -229,7 +265,7 @@ class UserNotificationService(BaseUserNotificationService):
 
             # since the notification has not been registered yet, register it and get the id
             notification.temporal_bounds = TemporalBounds()
-            notification.temporal_bounds.start_datetime = self.makeEpochTime(self.__now())
+            notification.temporal_bounds.start_datetime = get_ion_ts()
             notification.temporal_bounds.end_datetime = ''
 
             notification_id, _ = self.clients.resource_registry.create(notification)
@@ -255,9 +291,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Update the user info object with the notification
         self.event_processor.add_notification_for_user(new_notification=notification, user_id=user_id)
-
-        # Update the user info and the reverse user info dictionaries
-        self.update_user_info_dictionary(user_id=user_id, new_notification=notification, old_notification=None)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -319,13 +352,7 @@ class UserNotificationService(BaseUserNotificationService):
 #        # Update the UserInfo object
 #        #------------------------------------------------------------------------------------
 #
-#        user = self.update_user_info_object(user_id, notification, old_notification)
-#
-#        #------------------------------------------------------------------------------------
-#        # Update the user_info dictionary maintained by UNS
-#        #------------------------------------------------------------------------------------
-#
-#        self.update_user_info_dictionary(user_id, notification, old_notification)
+#        user = self.update_user_info_object(user_id, notification)
 #
 #        #-------------------------------------------------------------------------------------------------------------------
 #        # Generate an event that can be picked by notification workers so that they can update their user_info dictionary
@@ -363,22 +390,22 @@ class UserNotificationService(BaseUserNotificationService):
         # Stop the event subscriber for the notification
         #-------------------------------------------------------------------------------------------------------------------
         notification_request = self.clients.resource_registry.read(notification_id)
-        old_notification = notification_request
 
         #-------------------------------------------------------------------------------------------------------------------
         # Update the resource registry
         #-------------------------------------------------------------------------------------------------------------------
 
-        notification_request.temporal_bounds.end_datetime = self.makeEpochTime(self.__now())
+        notification_request.temporal_bounds.end_datetime = get_ion_ts()
 
         self.clients.resource_registry.update(notification_request)
 
         #-------------------------------------------------------------------------------------------------------------------
-        # Update the user info dictionaries
+        # Find users who are interested in the notification and update the notification in the list maintained by the UserInfo object
         #-------------------------------------------------------------------------------------------------------------------
+        user_ids, _ = self.clients.resource_registry.find_subjects(RT.UserInfo, PRED.hasNotification, notification_id, True)
 
-        for user_id in self.user_info.iterkeys():
-            self.update_user_info_dictionary(user_id, notification_request, old_notification)
+        for user_id in user_ids:
+            self.update_user_info_object(user_id, notification_request)
 
         #-------------------------------------------------------------------------------------------------------------------
         # Generate an event that can be picked by a notification worker so that it can update its user_info dictionary
@@ -432,7 +459,7 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
-        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
+        # If the operator does not want to set a limit for the search results in find_events, and does not therefore
         # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
         # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
         if limit > -1:
@@ -520,39 +547,115 @@ class UserNotificationService(BaseUserNotificationService):
 
         return events
 
-    def publish_event(self, event=None):
+    def publish_event_object(self, event=None):
         """
-        Publish a general event at a certain time using the UNS
+        This service operation would publish the given event from an event object.
 
-        @param event Event
+        @param event    !Event
+        @retval event   !Event
         """
+        event = self.event_publisher.publish_event_object(event_object=event)
+        log.info("The publish_event_object(event) method of UNS was used to publish the event: %s", event )
 
-        self.event_publisher._publish_event( event_msg = event,
-            origin=event.origin,
-            event_type = event.type_)
-        log.info("The publish_event() method of UNS was used to publish an event.")
+        return event
+
+    def publish_event(self, event_type='', origin='', origin_type='', sub_type='', description='', event_attrs=None):
+        """
+        This service operation assembles a new Event object based on event_type 
+        (e.g. via the pyon Event publisher) with optional additional attributes from a event_attrs
+        dict of arbitrary attributes.
+        
+        
+        @param event_type   str
+        @param origin       str
+        @param origin_type  str
+        @param sub_type     str
+        @param description  str
+        @param event_attrs  dict
+        @retval event       !Event
+        """
+        event_attrs = event_attrs or {}
+
+        event = self.event_publisher.publish_event(
+            event_type = event_type,
+            origin = origin,
+            origin_type = origin_type,
+            sub_type = sub_type,
+            description = description,
+            **event_attrs
+            )
+        log.info("The publish_event() method of UNS was used to publish an event: %s", event)
+
+        return event
 
     def get_recent_events(self, resource_id='', limit = 100):
         """
-        Get recent events
-
+        Get recent events for use in extended resource computed attribute
         @param resource_id str
         @param limit int
-
-        @retval events list of Event objects
+        @retval ComputedListValue with value list of 4-tuple with Event objects
         """
 
-        now = self.makeEpochTime(datetime.utcnow())
-        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=True)
+        now = get_ion_ts()
+        events = self.find_events(origin=resource_id, limit=limit, max_datetime=now, descending=True)
 
-        ret = IonObject(OT.ComputedListValue)
+        ret = IonObject(OT.ComputedEventListValue)
         if events:
             ret.value = events
+            ret.computed_list = [self._get_event_computed_attributes(event) for event in events]
             ret.status = ComputedValueAvailability.PROVIDED
         else:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
 
         return ret
+
+    def _get_event_computed_attributes(self, event):
+        """
+        @param event any Event to compute attributes for
+        @retval an EventComputedAttributes object for given event
+        """
+        evt_computed = IonObject(OT.EventComputedAttributes)
+        evt_computed.event_id = event._id
+        evt_computed.ts_computed = get_ion_ts()
+
+        try:
+            summary = self._get_event_summary(event)
+            evt_computed.event_summary = summary
+
+            spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
+            evt_computed.special_attributes = ", ".join(spc_attrs)
+        except Exception as ex:
+            log.exception("Error computing EventComputedAttributes for event %s" % event)
+
+        return evt_computed
+
+    def _get_event_summary(self, event):
+        event_types = [event.type_] + event.base_types
+        summary = ""
+        if "ResourceLifecycleEvent" in event_types:
+            summary = "Resource %s (type %s) lifecycle state now: %s" % (event.origin, event.origin_type, event.new_state)
+        elif "ResourceModifiedEvent" in event_types:
+            summary = "Resource %s (type %s) modified: %s" % (event.origin, event.origin_type, event.sub_type)
+        elif "ResourceAgentStateEvent" in event_types:
+            summary = "Agent for resource %s (type %s) now in agent state: %s" % (event.origin, event.origin_type, event.state)
+        elif "ResourceAgentResourceStateEvent" in event_types:
+            summary = "Agent for resource %s (type %s) now in resource state: %s" % (event.origin, event.origin_type, event.state)
+        elif "ResourceAgentConfigEvent" in event_types:
+            summary = "Resource agent %s (type %s) agent config set: %s" % (event.origin, event.origin_type, event.config)
+        elif "ResourceAgentResourceConfigEvent" in event_types:
+            summary = "Resource agent %s (type %s) resource config set: %s" % (event.origin, event.origin_type, event.config)
+        elif "ResourceAgentCommandEvent" in event_types:
+            summary = "Resource agent %s (type %s) command %s (%s) executed. Result=%s" % (event.origin, event.origin_type, event.execute_command, event.command, event.result)
+        elif "DeviceStatusEvent" in event_types:
+            summary = "Resource %s (type %s) %s status change: %s" % (event.origin, event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.state,"???"))
+        elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
+            summary = event.description
+
+#        if event.description and summary:
+#            summary = summary + ". " + event.description
+#        elif event.description:
+#            summary = event.description
+        return summary
 
     def get_user_notifications(self, user_info_id=''):
         """
@@ -565,6 +668,14 @@ class UserNotificationService(BaseUserNotificationService):
 
         if self.user_info.has_key(user_info_id):
             notifications = self.user_info[user_info_id]['notifications']
+
+            log.debug("Got %s notifications, for the user: %s", len(notifications), user_info_id)
+
+            for notif in notifications:
+                # remove notifications that have expired
+                if notif.temporal_bounds.end_datetime != '':
+                    log.debug("removing notification: %s", notif)
+                    notifications.remove(notif)
 
             return notifications
 
@@ -623,22 +734,6 @@ class UserNotificationService(BaseUserNotificationService):
             pids.append(pid)
 
         return pids
-
-    @staticmethod
-    def makeEpochTime(date_time):
-        """
-        provides the seconds since epoch give a python datetime object.
-
-        @param date_time Python datetime object
-        @retval seconds_since_epoch int
-        """
-        date_time = date_time.isoformat().split('.')[0].replace('T',' ')
-        #'2009-07-04 18:30:47'
-        pattern = '%Y-%m-%d %H:%M:%S'
-        seconds_since_epoch = int(time.mktime(time.strptime(date_time, pattern)))
-
-        return seconds_since_epoch
-
 
     def process_batch(self, start_time = '', end_time = ''):
         """
@@ -779,7 +874,7 @@ class UserNotificationService(BaseUserNotificationService):
 
         smtp_client.sendmail(smtp_sender, [msg_recipient], msg.as_string())
 
-    def update_user_info_object(self, user_id, new_notification, old_notification):
+    def update_user_info_object(self, user_id, new_notification):
         """
         Update the UserInfo object. If the passed in parameter, od_notification, is None, it does not need to remove the old notification
 
@@ -797,20 +892,14 @@ class UserNotificationService(BaseUserNotificationService):
         if not user:
             raise BadRequest("No user with the provided user_id: %s" % user_id)
 
-        notifications = []
         for item in user.variables:
             if item['name'] == 'notifications':
-                if old_notification and old_notification in item['value']:
-
-                    notifications = item['value']
-                    # remove the old notification
-                    notifications.remove(old_notification)
-
-                log.debug("came to append the new notification: %s", new_notification)
-                # put in the new notification
-                notifications.append(new_notification)
-
-                item['value'] = notifications
+                for notif in item['value']:
+                    if notif._id == new_notification._id:
+                        log.debug("came here for updating notification")
+                        notifications = item['value']
+                        notifications.remove(notif)
+                        notifications.append(new_notification)
 
                 break
 
@@ -824,41 +913,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         return user
 
-    def update_user_info_dictionary(self, user_id, new_notification, old_notification):
-
-        notifications = []
-        notification_preferences = None
-        user = self.clients.resource_registry.read(user_id)
-
-        #------------------------------------------------------------------------------------
-        # If there was a previous notification which is being updated, check the dictionaries and update there
-        #------------------------------------------------------------------------------------
-        if old_notification:
-            # Remove the old notifications
-            if old_notification in self.user_info[user_id]['notifications']:
-
-                # remove from notifications list
-                self.user_info[user_id]['notifications'].remove(old_notification)
-
-        # find the already existing notifications for the user
-        if self.user_info.has_key(user_id):
-            notifications = self.user_info[user_id]['notifications']
-
-        #------------------------------------------------------------------------------------
-        # update the user info - contact information, notifications
-        #------------------------------------------------------------------------------------
-        notifications.append(new_notification)
-
-        # Get the user's notification preferences
-        for item in user.variables:
-            if item['name'] == 'notification_preferences':
-                notification_preferences = item['value']
-
-        self.user_info[user_id] = {'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
-
-        log.debug("self.user_info::: %s" , self.user_info)
-
-        self.reverse_user_info = calculate_reverse_user_info(self.user_info)
 
     def _get_subscriptions(self, resource_id='', include_nonactive=False):
         """
@@ -874,7 +928,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
         ret_vals = self.discovery.parse(search_origin)
-        log.debug("Returned results: %s", ret_vals)
 
         notifications_all = set()
         notifications_active = set()
@@ -884,15 +937,13 @@ class UserNotificationService(BaseUserNotificationService):
             if item['_type'] == 'NotificationRequest':
                 object_ids.append(item['_id'])
 
-        log.debug("object_ids: %s", object_ids)
-
         notifs = self.clients.resource_registry.read_mult(object_ids)
 
+        log.debug("Got %s notifications here. But they include both active and past notifications", len(notifs))
 
         if include_nonactive:
             # Add active or retired notification
             notifications_all.update(notifs)
-
         else:
             for notif in notifs:
                 if notif.temporal_bounds.end_datetime == '':
@@ -912,7 +963,9 @@ class UserNotificationService(BaseUserNotificationService):
 
         # Get the notifications whose origin field has the provided resource_id
         notifs = self._get_subscriptions(resource_id=resource_id, include_nonactive=include_nonactive)
-        log.debug("UNS fetched the following the notifications subscribed to %s::", notifs)
+
+        log.debug("For include_nonactive= %s, UNS fetched the following the notifications subscribed to the resource_id: %s --> %s. "
+                      "They are %s in number", include_nonactive,resource_id, notifs, len(notifs))
 
         if not user_id:
             return notifs
@@ -926,10 +979,12 @@ class UserNotificationService(BaseUserNotificationService):
             notif_id = notif._id
             # Find if the user is associated with this notification request
             ids, _ = self.clients.resource_registry.find_subjects( subject_type = RT.UserInfo, object=notif_id, predicate=PRED.hasNotification, id_only=True)
+            log.debug("Got the following users: %s, associated with the notification: %s", ids, notif_id)
 
             if ids and user_id in ids:
-                log.debug("Adding for the user: %s, the notification: %s", user_id, notif)
                 notifications.append(notif)
+
+        log.debug("For include_nonactive = %s, UNS fetched the following %s notifications subscribed to %s --> %s", include_nonactive,len(notifications),user_id, notifications)
 
         return notifications
 
@@ -975,3 +1030,31 @@ class UserNotificationService(BaseUserNotificationService):
                 notifications[id] = new_notification
                 break
 
+
+    def load_user_info(self):
+        '''
+        Method to load the user info dictionary used by the notification workers and the UNS
+
+        @retval user_info dict
+        '''
+
+        users, _ = self.clients.resource_registry.find_resources(restype= RT.UserInfo)
+
+        user_info = {}
+
+        if not users:
+            return {}
+
+        for user in users:
+            notifications = []
+            notification_preferences = None
+            for variable in user.variables:
+                if variable['name'] == 'notifications':
+                    notifications = variable['value']
+
+                if variable['name'] == 'notification_preferences':
+                    notification_preferences = variable['value']
+
+            user_info[user._id] = { 'user_contact' : user.contact, 'notifications' : notifications, 'notification_preferences' : notification_preferences}
+
+        return user_info

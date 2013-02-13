@@ -13,6 +13,7 @@ from pyon.public import CFG, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.poller import poll
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -22,13 +23,11 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from interface.objects import ProcessStateEnum
 from mock import patch
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 import gevent
 from sets import Set
@@ -214,7 +213,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # Create InstrumentAgent
         #-------------------------------
-        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_module="mi.instrument.seabird.sbe37smb.ooicore.driver", driver_class="SBE37Driver" )
+        instAgent_obj = IonObject(RT.InstrumentAgent, name='agent007', description="SBE37IMAgent", driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
@@ -370,7 +369,26 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
+
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+        data_process = self.rrclient.read(ctd_l0_all_data_process_id)
+
+        #-------------------------------
+        # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
+        #-------------------------------
+
+        self.event_repo = self.container.event_repository
+
+        def data_process_running(event_repo, process_id):
+            event_tuples = event_repo.find_events(resource_id=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
+            recent_events = [tuple[2] for tuple in event_tuples]
+            for evt in recent_events:
+                log.debug("Got an event with event_state: %s. While ProcessStateEnum.RUNNING would be: %s", evt.state, ProcessStateEnum.RUNNING)
+                if evt.state == ProcessStateEnum.RUNNING:
+                    return True
+            return False
+
+        poll(data_process_running, self.event_repo, data_process.process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed

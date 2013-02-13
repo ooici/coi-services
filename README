@@ -2,9 +2,9 @@
 Ocean Observatories Initiative Cyberinfrastructure (OOI CI)
 Integrated Observatory Network (ION)
 
-coi-servives - ION COI services
+coi-services - ION Release 2 system and services
 
-(C) UC Regents, 2010-2011
+(C) UC Regents, 2010-2013
 ===========================================================
 
 This is the repository that defines the COI services.
@@ -84,7 +84,7 @@ PACKAGE DEPENDENCIES
 ====================
 
 Use Buildout to install the python package dependencies (including pyon itself) with:
-    > python bootstrap.py
+    > python bootstrap.py -v 1.7
     > bin/buildout
 
 ** Add following to your .bashrc profile on Macs if buildout fails to

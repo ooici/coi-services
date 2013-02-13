@@ -53,8 +53,9 @@ class OOILoader(object):
                        # Tabs from the mapping spreadsheet
                        'Arrays',
                        'Sites',
+                       'Subsites',
                        'Nodes',
-                       'Platforms',
+                       #'Platforms',
                        'NodeTypes',
                        'PlatformAgentTypes'
                      ]
@@ -112,6 +113,8 @@ class OOILoader(object):
 
         for ot, oo in self.ooi_objects.iteritems():
             log.info("Type %s has %s entries", ot, len(oo))
+            #import pprint
+            #pprint.pprint(oo)
             #log.debug("Type %s has %s attributes", ot, self.ooi_obj_attrs[ot])
             #print ot
             #print "\n".join(sorted(list(self.ooi_obj_attrs[ot])))
@@ -192,8 +195,8 @@ class OOILoader(object):
             msg = "invalid_rd: %s is not a data product reference designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
-        self._add_object_attribute('data_product',
-            ooi_rd.rd, row['Attribute'], row['AttributeValue'],
+        self._add_object_attribute('data_product_type',
+            row['Data_Product_Identifier'], row['Attribute'], row['AttributeValue'],
             mapping={},
             Data_Product_Name=row['Data_Product_Name'], Data_Product_Level=row['Data_Product_Level'])
 
@@ -330,14 +333,18 @@ class OOILoader(object):
             refid, 'data_product_list', dpl, value_is_list=True)
 
     def _parse_DataProductSpreadsheet(self, row):
-        # Adds a list of instrument class to data product
-        key = row['Data_Product_Identifier'] + "_" + row['Data_Product_Level1']
-        entry = dict(
-            data_product_name=row['Data_Product_Name'],
+        dp_types = self.ooi_objects['data_product_type']
+        dp_type = row['Data_Product_Identifier']
+        dpt_obj = dp_types.get(dp_type, {})
+        key = dp_type + "_" + row['Data_Product_Level1']
+        entry = dpt_obj.copy()
+        entry.update(dict(
+            name=row['Data_Product_Name'],
+            level=row['Data_Product_Level1'],
             units=row['Units'],
             dps=row['DPS_DCN_s_'],
             diagrams=row['Processing_Flow_Diagram_DCN_s_'],
-        )
+        ))
         self._add_object_attribute('data_product',
             key, None, None, **entry)
         self._add_object_attribute('data_product',
@@ -356,12 +363,19 @@ class OOILoader(object):
 
     def _parse_Sites(self, row):
         ooi_rd = row['Reference ID']
-        name = "%s (%s)" % (row['Name'], ooi_rd[4:8])
+        name = row['Full Name']
+        self._add_object_attribute('site',
+            ooi_rd, 'name', name, change_ok=True)
+
+    def _parse_Subsites(self, row):
+        ooi_rd = row['Reference ID']
+        name = row['Full Name']
         self._add_object_attribute('subsite',
             ooi_rd, 'name', name, change_ok=True)
 
     def _parse_Nodes(self, row):
         ooi_rd = row['Reference ID']
+        name=row['Full Name']
         node_entry = dict(
             parent_id=row['Parent Reference ID'],
             platform_id=row['Platform Reference ID'],
@@ -371,19 +385,8 @@ class OOILoader(object):
         )
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
-
-    def _parse_Platforms(self, row):
-        ooi_rd = row['Reference ID']
-        node_entry = dict(
-            name=row['Name'],
-            has_nodes=row['Marine Reference ID'] == row['Site Reference ID'],
-            deployment_date=row['Deployment Date'],
-            controller_type=row['Controller Type'],
-            power_configuration=row['Power Configuration'],
-            terrestrial_link=row['Terrestial Link'],
-        )
         self._add_object_attribute('node',
-            ooi_rd, None, None, change_ok=True, **node_entry)
+            ooi_rd, 'name', name, change_ok=True)
 
         # Determine on which arrays the nodetype is used
         self._add_object_attribute('nodetype',
