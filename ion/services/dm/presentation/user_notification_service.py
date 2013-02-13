@@ -16,7 +16,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue, ResourceModificationType
+from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue, DeviceStatusType
 
 import string
 import time
@@ -645,6 +645,8 @@ class UserNotificationService(BaseUserNotificationService):
             summary = "Resource agent %s (type %s) resource config set: %s" % (event.origin, event.origin_type, event.config)
         elif "ResourceAgentCommandEvent" in event_types:
             summary = "Resource agent %s (type %s) command %s (%s) executed. Result=%s" % (event.origin, event.origin_type, event.execute_command, event.command, event.result)
+        elif "DeviceStatusEvent" in event_types:
+            summary = "Resource %s (type %s) %s status change: %s" % (event.origin, event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.state,"???"))
         else:
             summary = "Resource %s event %s" % (event.origin, event.type_)
         return summary
