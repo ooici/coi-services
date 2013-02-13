@@ -271,7 +271,7 @@ class UserNotificationEventsTest(PyonTestCase):
         self.uns = UserNotificationService()
         self.uns.find_events = Mock()
         def side_effect(origin=None, limit=None, **kwargs):
-            evt_list = [(evt._id, None, evt) for evt in reversed(self.events) if evt.origin == origin]
+            evt_list = [evt for evt in reversed(self.events) if evt.origin == origin]
             if limit:
                 evt_list = evt_list[:limit]
             return evt_list
@@ -287,16 +287,16 @@ class UserNotificationEventsTest(PyonTestCase):
         dict(et='ResourceModifiedEvent', o='ID_1', ot='InstrumentDevice', st='CREATE',
             attr=dict(mod_type=1)),
 
-        dict(et='ResourceAgentStateEvent', o='ID_1', ot='', st='',
+        dict(et='ResourceAgentStateEvent', o='ID_1', ot='InstrumentDevice', st='',
             attr=dict(state="RESOURCE_AGENT_STATE_UNINITIALIZED")),
 
-        dict(et='ResourceAgentResourceStateEvent', o='ID_1', ot='', st='',
+        dict(et='ResourceAgentResourceStateEvent', o='ID_1', ot='InstrumentDevice', st='',
             attr=dict(state="DRIVER_STATE_UNCONFIGURED")),
 
-        dict(et='ResourceAgentResourceConfigEvent', o='ID_1', ot='', st='',
+        dict(et='ResourceAgentResourceConfigEvent', o='ID_1', ot='InstrumentDevice', st='',
             attr=dict(config={'CCALDATE':[0,1,2], 'CG': -0.987093, 'CH': 0.1417895})),
 
-        dict(et='ResourceAgentCommandEvent', o='ID_1', ot='', st='',
+        dict(et='ResourceAgentCommandEvent', o='ID_1', ot='InstrumentDevice', st='',
             attr=dict(args=[],
                 kwargs={},
                 command="execute_resource",
@@ -315,13 +315,11 @@ class UserNotificationEventsTest(PyonTestCase):
         self.assertEquals(res_list.status, ComputedValueAvailability.PROVIDED)
         self.assertEquals(len(res_list.value), len(self.event_list1))
 
-        event_list = [event for (x,y,event,event_computed) in res_list.value]
-        event_computed_list = [event_computed for (x,y,event,event_computed) in res_list.value]
-
-        self.assertTrue(all([eca.event_id == event_list[i]._id for (i, eca) in enumerate(event_computed_list)]))
+        self.assertTrue(all([eca.event_id == res_list.value[i]._id for (i, eca) in enumerate(res_list.computed_list)]))
+        self.assertTrue(all([eca.event_summary for eca in res_list.computed_list]))
 
         #import pprint
-        #pprint.pprint([eca.__dict__ for eca in event_computed_list])
+        #pprint.pprint([eca.__dict__ for eca in res_list.computed_list])
 
 
 @attr('INT', group='dm')

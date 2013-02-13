@@ -459,7 +459,7 @@ class UserNotificationService(BaseUserNotificationService):
         """
 
         # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
-        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
+        # If the operator does not want to set a limit for the search results in find_events, and does not therefore
         # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
         # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
         if limit > -1:
@@ -598,10 +598,10 @@ class UserNotificationService(BaseUserNotificationService):
         now = get_ion_ts()
         events = self.find_events(origin=resource_id, limit=limit, max_datetime=now, descending=True)
 
-        ret = IonObject(OT.ComputedListValue)
+        ret = IonObject(OT.ComputedEventListValue)
         if events:
-            # events is a list of 3-tuples - make it a similar list of 4-tuples
-            ret.value = [(x,y,event,self._get_event_computed_attributes(event)) for (x,y,event) in events]
+            ret.value = events
+            ret.computed_list = [self._get_event_computed_attributes(event) for event in events]
             ret.status = ComputedValueAvailability.PROVIDED
         else:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
@@ -621,7 +621,7 @@ class UserNotificationService(BaseUserNotificationService):
             summary = self._get_event_summary(event)
             evt_computed.event_summary = summary
 
-            spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'ts', 'origin', 'origin_type', 'description', 'ts_created', 'base_types', 'sub_type']]
+            spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
             evt_computed.special_attributes = ", ".join(spc_attrs)
         except Exception as ex:
             log.exception("Error computing EventComputedAttributes for event %s" % event)
@@ -632,7 +632,7 @@ class UserNotificationService(BaseUserNotificationService):
         event_types = [event.type_] + event.base_types
         summary = ""
         if "ResourceLifecycleEvent" in event_types:
-            summary = "Resource %s (type %s) lifecycle state changed to %s from %s" % (event.origin, event.origin_type, event.new_state, event.old_state)
+            summary = "Resource %s (type %s) lifecycle state now: %s" % (event.origin, event.origin_type, event.new_state)
         elif "ResourceModifiedEvent" in event_types:
             summary = "Resource %s (type %s) modified: %s" % (event.origin, event.origin_type, event.sub_type)
         elif "ResourceAgentStateEvent" in event_types:
@@ -647,8 +647,13 @@ class UserNotificationService(BaseUserNotificationService):
             summary = "Resource agent %s (type %s) command %s (%s) executed. Result=%s" % (event.origin, event.origin_type, event.execute_command, event.command, event.result)
         elif "DeviceStatusEvent" in event_types:
             summary = "Resource %s (type %s) %s status change: %s" % (event.origin, event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.state,"???"))
-        else:
-            summary = "Resource %s event %s" % (event.origin, event.type_)
+        elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
+            summary = event.description
+
+#        if event.description and summary:
+#            summary = summary + ". " + event.description
+#        elif event.description:
+#            summary = event.description
         return summary
 
     def get_user_notifications(self, user_info_id=''):
