@@ -329,20 +329,23 @@ class TestOmsLaunch(IonIntegrationTestCase):
         associated to the given platform.
         """
         # TODO complete the clean-up of this method
-        port_dict = dict((n, p.comms) for (n, p) in nnode.ports.iteritems())
 
         port_objs = []
         port_dicts = []
-        for port_id, comms in port_dict.iteritems():
-            log.debug("platform_id=%r: preparing port=%r", platform_id, port_id)
-            ip_address = comms['ip']
+        for port_id, network in nnode.ports.iteritems():
+            log.debug("platform_id=%r: preparing port=%r network=%s",
+                      platform_id, port_id, network)
 
+            #
+            # Note: the name "IP" address has been changed to "network" address
+            # in the CI-OMS interface spec.
+            #
             plat_port_obj = IonObject(OT.PlatformPort,
-                port_id=port_id,
-                ip_address=ip_address)
+                                      port_id=port_id,
+                                      ip_address=network)
 
             plat_port_dict = dict(port_id=port_id,
-                ip_address=ip_address)
+                                  network=network)
 
             port_objs.append(plat_port_obj)
 
