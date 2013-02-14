@@ -48,6 +48,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.assertEquals(rdt, self.rdt)
         self.assertEquals(m.data_producer_id, self.data_producer_id)
         self.assertEquals(m.provider_metadata_update, self.provider_metadata_update)
+        self.assertNotEqual(m.creation_timestamp, None)
         self.event.set()
 
 

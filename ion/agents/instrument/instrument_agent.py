@@ -791,6 +791,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceStateEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver state change event.',
@@ -807,6 +808,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceConfigEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver config change event.',
@@ -882,6 +884,7 @@ class InstrumentAgent(ResourceAgent):
                             self._event_publisher.publish_event(
                                 event_data['event_type'],
                                 origin=self._resource_id,
+                                origin_type=self.ORIGIN_TYPE,
                                 **event_data)
         
     def _publish_stream_buffer(self, stream_name):
@@ -1006,6 +1009,7 @@ class InstrumentAgent(ResourceAgent):
             
             self._event_publisher.publish_event(
                 event_type='ResourceAgentErrorEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver error event.',
@@ -1025,6 +1029,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentAsyncResultEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver result event.',

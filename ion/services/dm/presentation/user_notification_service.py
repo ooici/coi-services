@@ -16,7 +16,7 @@ from pyon.event.event import EventPublisher, EventSubscriber
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue
+from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue, DeviceStatusType
 
 import string
 import time
@@ -110,9 +110,6 @@ class UserNotificationService(BaseUserNotificationService):
         #---------------------------------------------------------------------------------------------------
         # Get the event Repository
         #---------------------------------------------------------------------------------------------------
-
-        self.event_repo = self.container.instance.event_repository
-
 
 #        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
         self.ION_NOTIFICATION_EMAIL_ADDRESS = CFG.get_safe('server.smtp.sender')
@@ -458,42 +455,10 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         """
 
-        # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
-        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
-        # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
-        # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
-        if limit > -1:
-            opts = dict(
-                startkey = [origin, type or 0, min_datetime or 0],
-                endkey   = [origin, type or {}, max_datetime or {}],
-                descending = descending,
-                limit = limit,
-                include_docs = True
-            )
+        event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
 
-        else:
-            opts = dict(
-                startkey = [origin, type or 0, min_datetime or 0],
-                endkey   = [origin, type or {}, max_datetime or {}],
-                descending = descending,
-                include_docs = True
-            )
-        if descending:
-            t = opts['startkey']
-            opts['startkey'] = opts['endkey']
-            opts['endkey'] = t
-
-        results = self.datastore.query_view('event/by_origintype',opts=opts)
-
-        events = []
-        for res in results:
-            event_obj = res['doc']
-            events.append(event_obj)
-
+        events = [item[2] for item in event_tuples]
         log.debug("(find_events) UNS found the following relevant events: %s", events)
-
-        if limit > 0:
-            return events[:limit]
 
         return events
 
@@ -574,6 +539,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param event_attrs  dict
         @retval event       !Event
         """
+        event_attrs = event_attrs or {}
 
         event = self.event_publisher.publish_event(
             event_type = event_type,
@@ -589,25 +555,72 @@ class UserNotificationService(BaseUserNotificationService):
 
     def get_recent_events(self, resource_id='', limit = 100):
         """
-        Get recent events
-
+        Get recent events for use in extended resource computed attribute
         @param resource_id str
         @param limit int
-
-        @retval events list of Event objects
+        @retval ComputedListValue with value list of 4-tuple with Event objects
         """
 
         now = get_ion_ts()
-        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=True)
+        events = self.find_events(origin=resource_id, limit=limit, max_datetime=now, descending=True)
 
-        ret = IonObject(OT.ComputedListValue)
+        ret = IonObject(OT.ComputedEventListValue)
         if events:
             ret.value = events
+            ret.computed_list = [self._get_event_computed_attributes(event) for event in events]
             ret.status = ComputedValueAvailability.PROVIDED
         else:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
 
         return ret
+
+    def _get_event_computed_attributes(self, event):
+        """
+        @param event any Event to compute attributes for
+        @retval an EventComputedAttributes object for given event
+        """
+        evt_computed = IonObject(OT.EventComputedAttributes)
+        evt_computed.event_id = event._id
+        evt_computed.ts_computed = get_ion_ts()
+
+        try:
+            summary = self._get_event_summary(event)
+            evt_computed.event_summary = summary
+
+            spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
+            evt_computed.special_attributes = ", ".join(spc_attrs)
+        except Exception as ex:
+            log.exception("Error computing EventComputedAttributes for event %s" % event)
+
+        return evt_computed
+
+    def _get_event_summary(self, event):
+        event_types = [event.type_] + event.base_types
+        summary = ""
+        if "ResourceLifecycleEvent" in event_types:
+            summary = "Resource %s (type %s) lifecycle state now: %s" % (event.origin, event.origin_type, event.new_state)
+        elif "ResourceModifiedEvent" in event_types:
+            summary = "Resource %s (type %s) modified: %s" % (event.origin, event.origin_type, event.sub_type)
+        elif "ResourceAgentStateEvent" in event_types:
+            summary = "Agent for resource %s (type %s) now in agent state: %s" % (event.origin, event.origin_type, event.state)
+        elif "ResourceAgentResourceStateEvent" in event_types:
+            summary = "Agent for resource %s (type %s) now in resource state: %s" % (event.origin, event.origin_type, event.state)
+        elif "ResourceAgentConfigEvent" in event_types:
+            summary = "Resource agent %s (type %s) agent config set: %s" % (event.origin, event.origin_type, event.config)
+        elif "ResourceAgentResourceConfigEvent" in event_types:
+            summary = "Resource agent %s (type %s) resource config set: %s" % (event.origin, event.origin_type, event.config)
+        elif "ResourceAgentCommandEvent" in event_types:
+            summary = "Resource agent %s (type %s) command %s (%s) executed. Result=%s" % (event.origin, event.origin_type, event.execute_command, event.command, event.result)
+        elif "DeviceStatusEvent" in event_types:
+            summary = "Resource %s (type %s) %s status change: %s" % (event.origin, event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.state,"???"))
+        elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
+            summary = event.description
+
+#        if event.description and summary:
+#            summary = summary + ". " + event.description
+#        elif event.description:
+#            summary = event.description
+        return summary
 
     def get_user_notifications(self, user_info_id=''):
         """

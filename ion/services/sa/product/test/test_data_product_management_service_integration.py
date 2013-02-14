@@ -97,14 +97,17 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.exchange_points.append(self.exchange_point)
 
         pid = self.process_dispatcher.schedule_process(self.process_definitions['ingestion_worker'],configuration=config)
+        log.debug("the ingestion worker process id: %s", pid)
         self.pids.append(pid)
 
         self.addCleanup(self.cleaning_up)
 
     def cleaning_up(self):
         for pid in self.pids:
+            log.debug("number of pids to be terminated: %s", len(self.pids))
             try:
-                self.container.proc_manager.terminate_process(pid)
+                self.process_dispatcher.cancel_process(pid)
+                log.debug("Terminated the process: %s", pid)
             except:
                 log.debug("could not terminate the process id: %s" % pid)
         IngestionManagementIntTest.clean_subscriptions()
@@ -343,3 +346,4 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound):
             dp_obj = self.rrclient.read(dp_id)
+

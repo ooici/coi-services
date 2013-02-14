@@ -413,14 +413,6 @@ class LoadSystemPolicy(ImmediateProcess):
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </SubjectMatch>
                     </Subject>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
                 </Subjects>
 
             </Target>
@@ -643,6 +635,14 @@ class LoadSystemPolicy(ImmediateProcess):
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </SubjectMatch>
                     </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
                 </Subjects>
             </Target>
 
@@ -838,8 +838,6 @@ class LoadSystemPolicy(ImmediateProcess):
 
         #Add precondition policies for the Instrument Agents
 
-        #TODO - these process names may not seem correct!!!
-
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_resource',
                 policy_content='check_execute_resource', headers=sa_user_header )
 
@@ -854,8 +852,6 @@ class LoadSystemPolicy(ImmediateProcess):
 
         #Add precondition policies for the Platform Agents
 
-        #TODO - these process names do not seem correct!!!
-
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='execute_resource',
             policy_content='check_execute_resource', headers=sa_user_header )
 
@@ -867,10 +863,16 @@ class LoadSystemPolicy(ImmediateProcess):
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='ping_resource',
             policy_content='check_ping_resource', headers=sa_user_header )
 
+
         #Add precondition policies for IMS Direct Access operations
+
         pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='request_direct_access',
-            policy_content='check_exclusive_commitment', headers=sa_user_header )
+            policy_content='check_exclusive_resource_commitment', headers=sa_user_header )
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='stop_direct_access',
-            policy_content='check_exclusive_commitment', headers=sa_user_header )
+            policy_content='check_exclusive_resource_commitment', headers=sa_user_header )
 
+        #Add precondition policies for IMS lifecyle operations
+
+       # pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_instrument_device_lifecycle',
+       #    policy_content='check_is_resource_owner_or_has_shared_commitment', headers=sa_user_header )
