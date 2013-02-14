@@ -957,28 +957,103 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     ##
     ##
-    ##  DIRECT ACCESS
+    ##  PRECONDITION FUNCTIONS
     ##
     ##
 
-    def check_exclusive_commitment(self, msg,  headers):
+    def _get_resource_commitment_header_values(self, headers):
+        '''
+        Internal function ...not to be called outside of this module
+        '''
+        if headers.has_key('op'):
+            op = headers['op']
+        else:
+            op = "Unknown operation"
+
+        if headers.has_key('ion-actor-id'):
+            actor_id = headers['ion-actor-id']
+        else:
+            raise Inconsistent('(%s) has been denied since the ion-actor-id can not be found in the message headers'% (op))
+
+        if headers.has_key('resource-id'):
+            resource_id = headers['resource-id']
+        else:
+            raise Inconsistent('(%s) has been denied since the resource-id can not be found in the message headers'% (op))
+
+        return op, actor_id, resource_id
+
+    def check_is_resource_owner(self, msg, headers):
+
+        try:
+            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        owners =  self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasOwner, object_type=actor_id, id_only=True)
+
+        if actor_id not in owners:
+            return False, '(%s) has been denied since the user %s is not the owner of the resource %s' % (op, actor_id, resource_id)
+
+
+        return True, ''
+
+    def check_shared_resource_commitment(self, msg,  headers):
         """
         This function is used for governance validation for the request_direct_access and stop_direct_access operation.
         """
 
-        actor_id = headers['ion-actor-id']
-        resource_id = msg['instrument_device_id']
+        try:
+            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
+        except Inconsistent, ex:
+            return False, ex.message
 
         commitment_status =  self.container.governance_controller.has_resource_commitments(actor_id, resource_id)
 
         if not commitment_status.shared:
-            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (actor_id, resource_id)
+            return False, '(%s) has been denied since the user %s has not acquired the resource %s' % (op, actor_id, resource_id)
+
+        return True, ''
+
+    def check_is_resource_owner_or_has_shared_commitment(self, msg,  headers):
+
+        try:
+            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        if self.check_is_resource_owner(msg, headers) or self.check_shared_resource_commitment(msg, headers):
+            return True, ''
+
+        return False, '(%s) has been denied since the user %s is not the owner or has not acquired the resource %s' % (op, actor_id, resource_id)
+
+
+
+
+    def check_exclusive_resource_commitment(self, msg,  headers):
+        """
+        This function is used for governance validation for the request_direct_access and stop_direct_access operation.
+        """
+        try:
+            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        commitment_status =  self.container.governance_controller.has_resource_commitments(actor_id, resource_id)
+
+        if not commitment_status.shared:
+            return False, '(%s) has been denied since the user %s has not acquired the resource %s' % (op, actor_id, resource_id)
 
         #Look for any active commitments that are exclusive - and only allow for exclusive commitment
         if not commitment_status.exclusive:
-            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (actor_id, resource_id)
+            return False, '(%s) has been denied since the user %s has not acquired the resource %s exclusively' % (op, actor_id, resource_id)
 
         return True, ''
+
+    ##
+    ##
+    ##  DIRECT ACCESS
+    ##
+    ##
 
     def request_direct_access(self, instrument_device_id=''):
         """
