@@ -381,7 +381,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.event_repo = self.container.event_repository
 
         def data_process_running(event_repo, process_id):
-            event_tuples = event_repo.find_events(resource_id=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
+            event_tuples = event_repo.find_events(origin=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
             recent_events = [tuple[2] for tuple in event_tuples]
             for evt in recent_events:
                 log.debug("Got an event with event_state: %s. While ProcessStateEnum.RUNNING would be: %s", evt.state, ProcessStateEnum.RUNNING)
