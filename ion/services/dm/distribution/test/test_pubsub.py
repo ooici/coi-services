@@ -68,6 +68,23 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.assertFalse(self.resource_registry.find_associations(subject=stream_definition_id, predicate=PRED.hasParameterDictionary, object=pdict.identifier, id_only=True))
 
 
+        # Test comparisons
+        in_stream_definition_id = self.pubsub_management.create_stream_definition('L0 products', parameter_dictionary=pdict.identifier, available_fields=['time','temp','conductivity','pressure'])
+        self.addCleanup(self.pubsub_management.delete_stream_definition, in_stream_definition_id)
+
+        out_stream_definition_id = in_stream_definition_id
+        self.assertTrue(self.pubsub_management.compare_stream_definition(in_stream_definition_id, out_stream_definition_id))
+        self.assertTrue(self.pubsub_management.compatible_stream_definitions(in_stream_definition_id, out_stream_definition_id))
+
+        out_stream_definition_id = self.pubsub_management.create_stream_definition('L2 Products', parameter_dictionary=pdict.identifier, available_fields=['time','salinity','density'])
+        self.addCleanup(self.pubsub_management.delete_stream_definition, out_stream_definition_id)
+        self.assertFalse(self.pubsub_management.compare_stream_definition(in_stream_definition_id, out_stream_definition_id))
+
+        self.assertTrue(self.pubsub_management.compatible_stream_definitions(in_stream_definition_id, out_stream_definition_id))
+
+
+
+
     def publish_on_stream(self, stream_id, msg):
         stream = self.pubsub_management.read_stream(stream_id)
         stream_route = stream.stream_route
