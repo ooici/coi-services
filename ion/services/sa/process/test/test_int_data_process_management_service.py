@@ -372,6 +372,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         data_process = self.rrclient.read(ctd_l0_all_data_process_id)
+        self.addCleanup(self.process_dispatcher.cancel_process, data_process.process_id)
 
         #-------------------------------
         # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
