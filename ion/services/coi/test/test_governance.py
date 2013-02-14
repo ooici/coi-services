@@ -33,7 +33,7 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 
 ORG2 = 'Org2'
 
@@ -1387,7 +1387,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
+        self.assertIn('(request_direct_access) has been denied',cm.exception.message)
 
         #Request to access the resource exclusively for two hours
         cur_time = int(get_ion_ts())
@@ -1412,7 +1412,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Try to Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
+        self.assertIn('(request_direct_access) has been denied',cm.exception.message)
 
         #The agent related functions should not be allowed for a user that is not an Org Manager
         with self.assertRaises(Unauthorized) as cm:
@@ -1536,3 +1536,101 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.execute_agent(cmd, headers=actor_header)
         retval = ia_client.get_agent_state(headers=actor_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    @patch.dict(CFG, {'system':{'load_policy':True}})
+    def test_instrument_lifecycle_policy(self):
+
+
+        #Make sure that the system policies have been loaded
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
+        log.debug('Begin testing with policies')
+
+        #Create user
+        actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
+        log.debug( "actor id=" + actor_id)
+
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #Create a second Org
+        org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
+        org2_id = self.org_client.create_org(org2, headers=self.system_actor_header)
+
+        org2 = self.org_client.find_org(ORG2)
+        self.assertEqual(org2_id, org2._id)
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),2)
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+
+        #Create Instrument Operator Role and add it to the second Org
+        inst_operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, label='Instrument Operator', description='Instrument Operator')
+        self.org_client.add_user_role(org2_id, inst_operator_role, headers=self.system_actor_header)
+
+        #Create Instrument Operator Role and add it to the second Org
+        obs_operator_role = IonObject(RT.UserRole, name=OBSERVATORY_OPERATOR_ROLE, label='Observatory Operator', description='Observatory Operator')
+        self.org_client.add_user_role(org2_id, obs_operator_role, headers=self.system_actor_header)
+
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),4)
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
+
+        self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
+
+        #Refresh header with updated roles
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #Attempt to Create Test InstrumentDevice as Org Member
+        inst_dev = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')
+
+        #Should be denied without being the proper role
+        with self.assertRaises(Unauthorized) as cm:
+            inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=actor_header)
+        self.assertIn('instrument_management(create_instrument_device) has been denied',cm.exception.message)
+
+
+        #Grant the role of Instrument Operator to the user
+        self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+        #Refresh header with updated roles
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #Should be allowed
+        inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=actor_header)
+
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEqual(inst_dev_obj.lcstate, LCS.DRAFT_PRIVATE)
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=self.anonymous_user_headers)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=actor_header)
+        self.assertIn( 'Device is not associated with any Org',cm.exception.message)
+
+        self.org_client.share_resource(org2_id, inst_dev_id, headers=self.system_actor_header)
+
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=actor_header)
+
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+
+
+
+
+        #Clean up
+        self.ims_client.delete_instrument_device(inst_dev_id, headers=actor_header)
+
+        #Clean up
+        self.id_client.delete_actor_identity(actor_id,headers=self.system_actor_header )
+
+

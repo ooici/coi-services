@@ -8,6 +8,7 @@
 from pyon.public import log
 from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.poller import poll
 from pyon.event.event import EventPublisher, EventSubscriber
 from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -18,6 +19,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import ProcessDefinition
 import gevent, unittest, os
+from gevent.event import AsyncResult
 import datetime, time
 import random, numpy
 from datetime import timedelta, datetime
@@ -442,9 +444,21 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # Again do not publish any granules for some time. This should generate a DeviceCommsEvent for the communication status
         #-------------------------------------------------------------------------------------
-        now = TransformPrototypeIntTest.makeEpochTime(datetime.utcnow())
-        events_in_db = self.user_notification.find_events(origin='instrument_1',limit=100, max_datetime=now, descending=True)
 
+        ar = gevent.event.AsyncResult()
+        def poller(ar, method, *args):
+            events_in_db = method(*args)
+            if len(events_in_db) > 0:
+                ar.set(events_in_db)
+                return True
+            else:
+                return False
+
+        poll(poller, ar, self.user_notification.find_events, 'instrument_1')
+
+#        events_in_db = self.user_notification.find_events(origin='instrument_1')
+
+        events_in_db = ar.get(10)
         log.debug("events::: %s" % events_in_db)
 
         bad_data_events = []

@@ -693,7 +693,7 @@ def get_resource(resource_id):
 #Example operation to return a list of resources of a specific type like
 #http://hostname:port/ion-service/find_resources/BankAccount
 @service_gateway_app.route('/ion-service/rest/find_resources/<resource_type>')
-def list_resources_by_type(resource_type):
+def find_resources_by_type(resource_type):
     try:
         client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
 
