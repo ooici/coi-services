@@ -843,7 +843,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # read back the registered notification request objects
         notification_request_correct = self.rrc.read(notification_id_1)
 
-        self.assertEquals(reloaded_user_info[user_id]['notifications'], [notification_request_correct] )
+        self.assertEquals(reloaded_user_info[user_id]['notifications'][0].name, "notification_1" )
         self.assertEquals(reloaded_user_info[user_id]['notification_preferences'].delivery_mode, notification_preferences.delivery_mode )
         self.assertEquals(reloaded_user_info[user_id]['notification_preferences'].delivery_enabled, notification_preferences.delivery_enabled )
 
