@@ -2471,3 +2471,87 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             self.assertTrue(notific_in_db.origin_type == 'active_2' or notific_in_db.origin_type == 'past_2')
             self.assertTrue(notific_in_db.event_type== 'ResourceLifecycleEvent' or notific_in_db.event_type=='DetectionEvent')
 
+    @attr('LOCOINT')
+    @unittest.skipIf(not use_es, 'No ElasticSearch')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_delete_then_create_subscription(self):
+
+    # Test that the get_subscriptions works correctly after deleting a previous and then creating the same on again
+
+        #--------------------------------------------------------------------------------------
+        # create user with email address in RR
+        #--------------------------------------------------------------------------------------
+
+        user = UserInfo()
+        user.name = 'user_1'
+        user.contact.email = 'user_1@gmail.com'
+
+        user_id, _ = self.rrc.create(user)
+
+        #--------------------------------------------------------------------------------------
+        # Make a data product
+        #--------------------------------------------------------------------------------------
+        data_product_management = DataProductManagementServiceClient()
+        dataset_management = DatasetManagementServiceClient()
+        pubsub = PubsubManagementServiceClient()
+
+        pdict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        streamdef_id = pubsub.create_stream_definition(name="test_subscriptions", parameter_dictionary_id=pdict_id)
+
+        tdom, sdom = time_series_domain()
+        tdom, sdom = tdom.dump(), sdom.dump()
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+
+        data_product_id = data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=streamdef_id)
+
+        #--------------------------------------------------------------------------------------
+        # Make notification request objects - Remember to put names
+        #--------------------------------------------------------------------------------------
+
+        notification_request_1 = NotificationRequest(   name = "notification_1",
+            origin=data_product_id,
+            origin_type="type_1",
+            event_type='ResourceLifecycleEvent')
+
+        notification_id1 =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+
+        gevent.sleep(10)
+
+        notifs = self.unsc.get_subscriptions(resource_id='instrument_1')
+
+        self.assertEquals(len(notifs), 1)
+        notif = notifs[0]
+
+        self.assertEquals(notif.origin, data_product_id)
+        self.assertEquals(notif.event_type, "ResourceLifecycleEvent")
+        self.assertEquals(notif.name, "notification_1")
+
+        # Now delete the notification
+        self.unsc.delete_notification(notification_id1)
+
+        notifs = self.unsc.get_subscriptions(resource_id='instrument_1')
+
+        self.assertEquals(len(notifs), 0)
+
+        # Now use create notification using the same notification object of old
+
+        new_notif_id =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
+
+        self.assertEquals(new_notif_id, notification_id1)
+        notifs = self.unsc.get_subscriptions(resource_id='instrument_1')
+
+        self.assertEquals(len(notifs), 1)
+        notif = notifs[0]
+
+        self.assertEquals(notif.origin, data_product_id)
+        self.assertEquals(notif.event_type, "ResourceLifecycleEvent")
+        self.assertEquals(notif.name, "notification_1")
+
+
+
+
