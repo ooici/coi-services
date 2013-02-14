@@ -2523,7 +2523,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         gevent.sleep(10)
 
-        notifs = self.unsc.get_subscriptions(resource_id='instrument_1')
+        notifs = self.unsc.get_subscriptions(resource_id=data_product_id)
 
         self.assertEquals(len(notifs), 1)
         notif = notifs[0]
@@ -2544,7 +2544,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         new_notif_id =  self.unsc.create_notification(notification=notification_request_1, user_id=user_id)
 
         self.assertEquals(new_notif_id, notification_id1)
-        notifs = self.unsc.get_subscriptions(resource_id='instrument_1')
+        notifs = self.unsc.get_subscriptions(resource_id=data_product_id)
 
         self.assertEquals(len(notifs), 1)
         notif = notifs[0]
