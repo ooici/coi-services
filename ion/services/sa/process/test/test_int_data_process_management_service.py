@@ -30,6 +30,7 @@ from interface.objects import ProcessStateEnum
 from mock import patch
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 import gevent
+from gevent.event import AsyncResult
 from sets import Set
 
 
@@ -379,16 +380,21 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.event_repo = self.container.event_repository
 
+        ar = gevent.event.AsyncResult()
+
         def data_process_running(event_repo, process_id):
             event_tuples = event_repo.find_events(resource_id=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
             recent_events = [tuple[2] for tuple in event_tuples]
             for evt in recent_events:
                 log.debug("Got an event with event_state: %s. While ProcessStateEnum.RUNNING would be: %s", evt.state, ProcessStateEnum.RUNNING)
                 if evt.state == ProcessStateEnum.RUNNING:
+                    ar.set(True)
                     return True
             return False
 
         poll(data_process_running, self.event_repo, data_process.process_id)
+
+        ar.wait(10)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
