@@ -108,7 +108,7 @@ if __name__ == "__main__":  # pragma: no cover
     oss = OmsSimulatorServer(host, port, thread=True)
     sim = oss.oms_simulator
 
-    log.info("network.dump():\n   |%s" % sim.dump().replace('\n', '\n   |'))
+    log.info("network._dump():\n   |%s" % sim._dump().replace('\n', '\n   |'))
     log.info("network.get_map() = %s\n" % sim.config.get_platform_map())
 
     log.info("Methods:\n\t%s", "\n\t".join(oss.methods))

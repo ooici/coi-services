@@ -130,12 +130,12 @@ if __name__ == "__main__":  # pragma: no cover
 
     def gen_diagrams(name, nnode):
         yml_name = '%s.yml' % name
-        file(yml_name, 'w').write(nnode.yaml())
+        file(yml_name, 'w').write(NetworkUtil._gen_yaml(nnode))
         dot_name = '%s.dot' % name
         pml_name = '%s.puml' % name
-        file(dot_name, 'w').write(nnode.diagram(style="dot"))
-        file(pml_name, 'w').write(nnode.diagram(style="plantuml"))
-        print "topology =\n%s" % nnode.dump(only_topology=True)
+        file(dot_name, 'w').write(NetworkUtil._gen_diagram(nnode, style="dot"))
+        file(pml_name, 'w').write(NetworkUtil._gen_diagram(nnode, style="plantuml"))
+        print "topology =\n%s" % NetworkUtil._dump_nnode(nnode, only_topology=True)
         try:
             dot_cmd = 'dot -Tpng %s.dot -o %s.png' % (name,name)
             open_cmd = 'open %s.png' % name

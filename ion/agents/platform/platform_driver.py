@@ -20,6 +20,7 @@ from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMError
 from ion.agents.platform.exceptions import PlatformConnectionException
+from ion.agents.platform.util.network_util import NetworkUtil
 
 
 class PlatformDriverState(BaseEnum):
@@ -92,7 +93,7 @@ class PlatformDriver(object):
             log.debug("%r: PlatformDriver constructor called: nnode:\n%s\n"
                       "_platform_attributes=%s",
                       self._platform_id,
-                      self._nnode.dump(include_subplatforms=False),
+                      NetworkUtil._dump_nnode(self._nnode, include_subplatforms=False),
                       self._platform_attributes)
 
         self._driver_config = None
@@ -132,8 +133,6 @@ class PlatformDriver(object):
         self.validate_driver_configuration(driver_config)
         self._driver_config = driver_config
 
-        self.__gen_diagram()
-
     def connect(self):
         """
         To be implemented by subclass.
@@ -151,38 +150,6 @@ class PlatformDriver(object):
         @raise PlatformConnectionException
         """
         raise NotImplementedError()  #pragma: no cover
-
-    def __gen_diagram(self):  # pragma: no cover
-        """
-        **Developer routine**
-        Convenience method for testing/debugging.
-        Generates a dot diagram iff the environment variable GEN_DIAG is
-        defined and this driver corresponds to the root of the network
-        (determined by not having a parent platform ID).
-        """
-        try:
-            import os, tempfile, subprocess
-            if os.getenv("GEN_DIAG", None) is None:
-                return
-            if self._parent_platform_id:
-                # I'm not the root of the network
-                return
-
-            # I'm the root of the network
-            name = self._platform_id
-            base_name = '%s/%s' % (tempfile.gettempdir(), name)
-            dot_name = '%s.dot' % base_name
-            png_name = '%s.png' % base_name
-            print 'generating diagram %r' % dot_name
-            file(dot_name, 'w').write(self._nnode.diagram(style="dot"))
-            print 'generating png %r' % png_name
-            dot_cmd = 'dot -Tpng %s -o %s' % (dot_name, png_name)
-            subprocess.call(dot_cmd.split())
-            print 'opening %r' % png_name
-            open_cmd = 'open %s' % png_name
-            subprocess.call(open_cmd.split())
-        except Exception, e:
-            print "error generating or opening diagram: %s" % str(e)
 
     def ping(self):
         """

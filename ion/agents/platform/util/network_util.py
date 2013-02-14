@@ -242,3 +242,163 @@ class NetworkUtil(object):
                 result += NetworkUtil.serialize_node(sub_platform, next_level)
 
         return result
+
+    @staticmethod
+    def _dump_nnode(nnode, indent_level=0, only_topology=False,
+                    include_subplatforms=True):  # pragma: no cover
+        """
+        **Developer routine**
+        Indented string representation mainly for logging purposes.
+
+        @param indent_level To create an indented string. 0 by default.
+        @param only_topology True to only print the topology; False to also
+               include attributes and ports. False by default.
+        @param include_subplatforms True to also dump the subplatforms (with
+               incremented indentation level). True by default.
+        """
+        s = ""
+        indent = "    " * indent_level
+        if nnode.platform_id:
+            if only_topology:
+                s = "%s%s\n" % (indent, nnode.platform_id)
+            else:
+                s = "%s%s\n" % (indent, str(nnode).replace('\n', '\n%s' % indent))
+            indent_level += 1
+
+        if include_subplatforms:
+            for sub_platform in nnode.subplatforms.itervalues():
+                s += NetworkUtil._dump_nnode(sub_platform, indent_level, only_topology)
+
+        return s
+
+    @staticmethod
+    def _gen_diagram(nnode, style="dot", root=True):  # pragma: no cover
+        """
+        **Developer routine**
+        String representation that can be processed by Graphviz tools or
+        plantuml.
+
+        @param nnode  Nnode
+        @param style  one of "dot", "plantuml" (by default, "dot")
+        @param root   True (the default) to include appropriate preamble
+        """
+
+        # for plantuml, use a simple "activity" diagram. The (*) will be for
+        # the the node with platform_id == '' (aka the "dummy root")
+
+        arrow = "-->" if style == "plantuml" else "->"
+        body = ""
+        if style == "plantuml" and nnode.platform_id == '':
+            parent_str = "(*)"
+        else:
+            parent_str = nnode.platform_id
+
+        if parent_str:
+            for sub_platform in nnode.subplatforms.itervalues():
+                body += '\t"%s" %s "%s"\n' % (parent_str,
+                                          arrow,
+                                          sub_platform.platform_id)
+
+        for sub_platform in nnode.subplatforms.itervalues():
+            body += NetworkUtil._gen_diagram(sub_platform, style=style, root=False)
+
+        result = body
+        if root:
+            if style == "dot":
+                result = 'digraph G {\n'
+                if nnode.platform_id:
+                    result += '\t"%s"\n' % nnode.platform_id
+                result += '%s}\n' % body
+            elif style == "plantuml":
+                result = "%s\n" % body
+
+        return result
+
+    @staticmethod
+    def _gen_open_diagram(nnode):  # pragma: no cover
+        """
+        **Developer routine**
+        Convenience method for testing/debugging.
+        Does nothing if the environment variable GEN_DIAG is not defined.
+        Generates a dot diagram, the corresponding PNG using 'dot' and also
+        opens the PNG using 'open' OS commands. All errors are simply ignored.
+        """
+        try:
+            import os, tempfile, subprocess
+            if os.getenv("GEN_DIAG", None) is None:
+                return
+
+            name = nnode.platform_id
+            base_name = '%s/%s' % (tempfile.gettempdir(), name)
+            dot_name = '%s.dot' % base_name
+            png_name = '%s.png' % base_name
+            print 'generating diagram %r' % dot_name
+            file(dot_name, 'w').write(nnode.diagram(style="dot"))
+            dot_cmd = 'dot -Tpng %s -o %s' % (dot_name, png_name)
+            print 'running: %s' % dot_cmd
+            subprocess.call(dot_cmd.split())
+            print 'opening %r' % png_name
+            open_cmd = 'open %s' % png_name
+            subprocess.call(open_cmd.split())
+        except Exception, e:
+            print "error generating or opening diagram: %s" % str(e)
+
+    @staticmethod
+    def _gen_yaml(nnode, level=0):  # pragma: no cover
+        """
+        **Developer routine**
+        This is old - can be deleted.
+        Partial string representation of the given NNode in yaml.
+        *NOTE*: Very ad hoc, just to help capture some of the real info from
+        the RSN OMS interface into network.yml (the file used by the simulator)
+        along with values for testing purposes.
+        """
+        # TODO delete this method
+
+        result = ""
+        next_level = level
+        if nnode.platform_id:
+            pid = nnode.platform_id
+            lines = []
+            if level == 0:
+                lines.append('network:')
+
+            lines.append('- platform_id: %s' % pid)
+            lines.append('  platform_types: []')
+
+            lines.append('  attrs:')
+            write_attr = False
+            for i in range(2):
+                read_write = "write" if write_attr else "read"
+                write_attr = not write_attr
+
+                # attr_id here is the "ref_id" in the CI-OMS interface spec
+                attr_id = '%s_attr_%d' % (pid, i + 1)
+
+                lines.append('  - attr_id: %s' % attr_id)
+                lines.append('    type: int')
+                lines.append('    units: xyz')
+                lines.append('    min_val: -2')
+                lines.append('    max_val: 10')
+                lines.append('    read_write: %s' % read_write)
+                lines.append('    group: power')
+                lines.append('    monitorCycleSeconds: 5')
+
+            lines.append('  ports:')
+            for i in range(2):
+                port_id = '%s_port_%d' % (pid, i + 1)
+                lines.append('  - port_id: %s' % port_id)
+                lines.append('    ip: %s_IP' % port_id)
+
+            if nnode.subplatforms:
+                lines.append('  subplatforms:')
+
+            nl = "\n" + ("  " * level)
+            result += nl + nl.join(lines)
+            next_level = level + 1
+
+        if nnode.subplatforms:
+            for sub_platform in nnode.subplatforms.itervalues():
+                result += NetworkUtil._gen_yaml(sub_platform, next_level)
+
+        return result

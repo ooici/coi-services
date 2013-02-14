@@ -18,6 +18,7 @@ from ion.agents.platform.util.network import NNode
 from ion.agents.platform.util.network import AttrDef
 from ion.agents.platform.util.network import PortDef
 from ion.agents.platform.util.network import InstrumentDef
+from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.agents.platform.oms.simulator.oms_events import EventInfo
 from ion.agents.platform.oms.simulator.oms_events import EventNotifier
@@ -211,10 +212,13 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: ret_infos}
 
-    def dump(self):
-        """string representation of the network"""
+    def _dump(self):  # pragma: no cover
+        """
+        *developer utility*
+        string representation of the network
+        """
         return "platform_types: %s\nnetwork:\n%s" % (
-            self._platform_types, self._dummy_root.dump())
+            self._platform_types, NetworkUtil._dump_nnode(self._dummy_root))
 
     def get_platform_attribute_values(self, platform_id, attrNames, from_time):
         if platform_id not in self._idp:

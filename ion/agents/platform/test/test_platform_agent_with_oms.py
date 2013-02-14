@@ -104,12 +104,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def setUpClass(cls):
         HelperTestMixin.setUpClass()
 
-    def setUp(self):
-        self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-
-        self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
@@ -117,14 +111,20 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("NetworkDefinition serialization:\n%s", network_definition_ser)
 
-        self.PLATFORM_CONFIG = {
-            'platform_id': self.PLATFORM_ID,
+        cls.PLATFORM_CONFIG = {
+            'platform_id': cls.PLATFORM_ID,
             'driver_config': DVR_CONFIG,
 
             'network_definition' : network_definition_ser
         }
 
-        self._network_definition = network_definition
+        NetworkUtil._gen_open_diagram(network_definition.nodes[cls.PLATFORM_ID])
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
 
         # Start data subscribers, add stop to cleanup.
         # Define stream_config.

@@ -2,6 +2,10 @@ platform agent framework
 
 some occasionaly updated developer notes
 
+2013-02-14:
+- moved utility method from platform driver to network_util
+- moved utility methods from NNode to class NetworkUtil
+
 2013-02-12:
 - As R2.1 is not yet to come, renamed branch "platform_agent_2.1" to
   "platform_agent_R2C4"
