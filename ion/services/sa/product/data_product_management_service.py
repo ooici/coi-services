@@ -296,6 +296,14 @@ class DataProductManagementService(BaseDataProductManagementService):
 #            self.data_product.unlink_data_set(data_product_id, dataset_id)
 
 
+    def get_data_product_stream_definition(self, data_product_id=''):
+        self.read_data_product(data_product_id)
+        streams, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        for stream in streams:
+            stream_defs, _ = self.clients.resource_registry.find_objects(subject=stream, predicate=PRED.hasStreamDefinition, id_only=True)
+            if stream_defs:
+                return stream_defs[0]
+    
     def get_data_product_provenance(self, data_product_id=''):
 
         # Retrieve information that characterizes how this data was produced

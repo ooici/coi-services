@@ -235,6 +235,30 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
 #        self.assertTrue(len(events) > 0)
 
+    def test_data_product_stream_def(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='Simulated CTD data', parameter_dictionary_id=pdict_id)
+
+        tdom, sdom = time_series_domain()
+
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+
+
+        dp_obj = IonObject(RT.DataProduct,
+            name='DP1',
+            description='some new dp',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+        dp_id = self.dpsc_cli.create_data_product(data_product= dp_obj,
+            stream_definition_id=ctd_stream_def_id)
+
+        stream_def_id = self.dpsc_cli.get_data_product_stream_definition(dp_id)
+        self.assertEquals(ctd_stream_def_id, stream_def_id)
+
+
+
     def test_activate_suspend_data_product(self):
 
         #------------------------------------------------------------------------------------------------
