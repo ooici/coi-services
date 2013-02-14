@@ -156,6 +156,14 @@ class BaseHighAvailabilityAgentTest(IonIntegrationTestCase):
         self.container.terminate_process(self._haa_pid)
 
     def tearDown(self):
+
+
+        new_policy = {'preserve_n': 0}
+        self.haa_client.reconfigure_policy(new_policy)
+
+        self.assertEqual(len(self.get_running_procs()), 0)
+        self.await_ha_state('STEADY')
+
         self.waiter.stop()
         try:
             self._kill_haagent()
@@ -546,6 +554,23 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
             gevent.sleep(2)
             self._web_glet.kill()
 
+    def await_ha_state(self, want_state, timeout=20):
+
+        for i in range(0, timeout):
+            try:
+                status = self.haa_client.status().result
+                if status == want_state:
+                    return
+                else:
+                    procs = self.get_running_procs()
+                    num_procs = len(procs)
+                    log.debug("assert wants state %s, got state %s, with %s procs" % (want_state,status, num_procs))
+            except Exception:
+                log.exception("Problem getting HA status, trying again...")
+                gevent.sleep(1)
+
+        raise Exception("Took more than %s to get to ha state %s" % (timeout, want_state))
+
     @needs_epu
     def setUp(self):
         self._start_container()
@@ -619,6 +644,22 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
         self.haa_client = HighAvailabilityAgentClient(self._haa_pyon_client)
 
     def tearDown(self):
+        new_policy = { 'metric': 'app_attributes:ml',
+                        'sample_period': 600,
+                        'sample_function': 'Average',
+                        'cooldown_period': 0,
+                        'scale_up_threshold': 2.0,
+                        'scale_up_n_processes': 1,
+                        'scale_down_threshold': 1.0,
+                        'scale_down_n_processes': 1,
+                        'maximum_processes': 0,
+                        'minimum_processes': 0,
+                    }
+        self.haa_client.reconfigure_policy(new_policy)
+
+        self.waiter.await_state_event(state=ProcessStateEnum.TERMINATED)
+        self.assertEqual(len(self.get_running_procs()), 0)
+
         self.waiter.stop()
         self.container.terminate_process(self._haa_pid)
         self._stop_webserver()
@@ -654,15 +695,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
-        for i in range(0, 5):
-            status = self.haa_client.status().result
-            try:
-                self.assertEqual(status, 'STEADY')
-                break
-            except:
-                gevent.sleep(1)
-        else:
-            assert False, "HA Service took too long to get to state STEADY"
+        self.await_ha_state('STEADY')
 
         # Set ml for each proc such that we scale up
         upids = self._get_managed_upids()
@@ -684,15 +717,7 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self.assertEqual(len(self.get_running_procs()), 2)
 
-        for i in range(0, 5):
-            status = self.haa_client.status().result
-            try:
-                self.assertEqual(status, 'STEADY')
-                break
-            except:
-                gevent.sleep(1)
-        else:
-            assert False, "HA Service took too long to get to state STEADY"
+        self.await_ha_state('STEADY')
 
         # Set ml so we scale down
         upids = self._get_managed_upids()
@@ -705,12 +730,4 @@ class HighAvailabilityAgentSensorPolicyTest(IonIntegrationTestCase):
 
         self.assertEqual(len(self.get_running_procs()), 1)
 
-        for i in range(0, 5):
-            status = self.haa_client.status().result
-            try:
-                self.assertEqual(status, 'STEADY')
-                break
-            except:
-                gevent.sleep(1)
-        else:
-            assert False, "HA Service took too long to get to state STEADY"
+        self.await_ha_state('STEADY')
