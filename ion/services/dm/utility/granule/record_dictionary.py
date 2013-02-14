@@ -24,6 +24,7 @@ from coverage_model.parameter_values import AbstractParameterValue, ConstantValu
 
 import numpy as np
 import msgpack
+import time
 
 class RecordDictionaryTool(object):
     """
@@ -48,6 +49,7 @@ class RecordDictionaryTool(object):
     _shp         = None
     _locator     = None
     _stream_def  = None
+    _creation_timestamp = None
     _dirty_shape = False
 
     def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
@@ -90,6 +92,9 @@ class RecordDictionaryTool(object):
        
         if g.domain:
             instance._shp = (g.domain[0],)
+
+        if g.creation_timestamp:
+            instance._creation_timestamp = g.creation_timestamp
         
         for k,v in g.record_dictionary.iteritems():
             key = instance._pdict.key_from_ord(k)
@@ -118,6 +123,7 @@ class RecordDictionaryTool(object):
         granule.domain = self.domain.shape
         granule.data_producer_id=data_producer_id
         granule.provider_metadata_update=provider_metadata_update
+        granule.creation_timestamp = time.time()
         return granule
 
 
