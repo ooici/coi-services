@@ -49,6 +49,7 @@ class RecordDictionaryTool(object):
     _shp         = None
     _locator     = None
     _stream_def  = None
+    _creation_timestamp = None
     _dirty_shape = False
 
     def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
@@ -91,6 +92,9 @@ class RecordDictionaryTool(object):
        
         if g.domain:
             instance._shp = (g.domain[0],)
+
+        if g.creation_timestamp:
+            instance._creation_timestamp = g.creation_timestamp
         
         for k,v in g.record_dictionary.iteritems():
             key = instance._pdict.key_from_ord(k)
