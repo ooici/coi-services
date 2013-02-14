@@ -354,10 +354,10 @@ class UserNotificationEventsTest(PyonTestCase):
         self.assertEquals(len(res_list.value), len(self.event_list1))
 
         self.assertTrue(all([eca.event_id == res_list.value[i]._id for (i, eca) in enumerate(res_list.computed_list)]))
-        #self.assertTrue(all([eca.event_summary for eca in res_list.computed_list]))
+        self.assertTrue(all([eca.event_summary for eca in res_list.computed_list]))
 
-        import pprint
-        pprint.pprint([eca.__dict__ for eca in res_list.computed_list])
+        #import pprint
+        #pprint.pprint([eca.__dict__ for eca in res_list.computed_list])
 
 
 @attr('INT', group='dm')
