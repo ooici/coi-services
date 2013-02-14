@@ -24,6 +24,7 @@ from coverage_model.parameter_values import AbstractParameterValue, ConstantValu
 
 import numpy as np
 import msgpack
+import time
 
 class RecordDictionaryTool(object):
     """
@@ -118,6 +119,7 @@ class RecordDictionaryTool(object):
         granule.domain = self.domain.shape
         granule.data_producer_id=data_producer_id
         granule.provider_metadata_update=provider_metadata_update
+        granule.creation_timestamp = time.time()
         return granule
 
 
