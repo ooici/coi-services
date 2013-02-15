@@ -378,7 +378,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
 
             #get the  parameter dictionary for this stream
-            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.DataSet, True)
+            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.Dataset, True)
             #One data set per product ...for now.
             if not dataset_ids:
                 raise NotFound("No Dataset attached to this Data Product " + str(product_id))

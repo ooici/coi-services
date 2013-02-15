@@ -88,7 +88,7 @@ def process_index():
             "<li>Devices: <a href='/list/PlatformDevice'>PlatformDevice</a>, <a href='/list/InstrumentDevice'>InstrumentDevice</a>, <a href='/list/SensorDevice'>SensorDevice</a></li>",
             "<li>Models: <a href='/list/PlatformModel'>PlatformModel</a>, <a href='/list/InstrumentModel'>InstrumentModel</a>, <a href='/list/SensorModel'>SensorModel</a></li>",
             "<li>Agents: <a href='/list/PlatformAgent'>PlatformAgent</a>, <a href='/list/PlatformAgentInstance'>PlatformAgentInstance</a>, <a href='/list/InstrumentAgent'>InstrumentAgent</a>, <a href='/list/InstrumentAgentInstance'>InstrumentAgentInstance</a></li>",
-            "<li>Data: <a href='/list/DataProduct'>DataProduct</a>, <a href='/list/DataSet'>DataSet</a>, <a href='/list/Stream'>Stream</a></li>",
+            "<li>Data: <a href='/list/DataProduct'>DataProduct</a>, <a href='/list/Dataset'>Dataset</a>, <a href='/list/Stream'>Stream</a></li>",
             "<li>Process: <a href='/list/DataProcessDefinition'>Data Process Definition</a>, <a href='/list/DataProcess'>DataProcess</a>, <a href='/list/ProcessDefinition'>Process Definition</a></li>",
             "</ul></li>",
             #"<li><a href='/dir'><b>Browse ION Directory</b></a></li>",

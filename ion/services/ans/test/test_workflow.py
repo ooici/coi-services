@@ -171,7 +171,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         print "persisting the output product"
         #self.dataproductclient.activate_data_product_persistence(workflow_product_id)
-        dataset_ids,_ = self.rrclient.find_objects(workflow_product_id, PRED.hasDataset, RT.DataSet, True)
+        dataset_ids,_ = self.rrclient.find_objects(workflow_product_id, PRED.hasDataset, RT.Dataset, True)
         assertions(len(dataset_ids) == 1 )
         dataset_id = dataset_ids[0]
 
@@ -267,7 +267,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         """
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
-        ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.Dataset, True)
         retrieved_granule = self.data_retriever.retrieve(ds_ids[0])
 
         #Validate the data from each of the messages along the way
@@ -333,7 +333,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         # Check to see if ingestion worked. Extract the granules from data_retrieval.
         # First find the dataset associated with the output dp product
-        ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.rrclient.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasDataset, RT.Dataset, True)
         retrieved_granule = self.data_retriever.retrieve_last_data_points(ds_ids[0], 10)
 
         #Validate the data from each of the messages along the way

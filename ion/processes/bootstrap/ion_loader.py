@@ -1824,7 +1824,7 @@ Reason: %s
             res_id = self._create_bulk_resource(res_obj, row[COL_ID])
             self._resource_assign_owner(headers, res_obj)
             # Create and associate Stream
-            # Create and associate DataSet
+            # Create and associate Dataset
         else:
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]

@@ -137,7 +137,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # remove dataset associations
         #--------------------------------------------------------------------------------
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
 
 #        for dataset_id in dataset_ids:
 #            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
@@ -490,7 +490,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
         return dataset_ids[0]
 
     def _get_stream_id(self, data_product_id=''):
