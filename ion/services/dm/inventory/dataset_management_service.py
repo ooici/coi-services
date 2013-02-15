@@ -16,7 +16,7 @@ from pyon.util.log import log
 from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDictionary, GridDomain, ParameterContext
 from ion.util.time_utils import TimeUtils
 
-from interface.objects import ParameterContextResource, ParameterDictionaryResource
+from interface.objects import ParameterContext as ParameterContextResource, ParameterDictionary as ParameterDictionaryResource
 from interface.objects import DataSet
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
@@ -144,7 +144,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_parameter_context(self, name='', parameter_context=None, description='', parameter_type='', value_encoding='', unit_of_measure=''):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=False)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
                 if r.name == name and self._compare_pc(r.parameter_context, parameter_context):
@@ -173,7 +173,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def read_parameter_context_by_name(self, name='', id_only=False):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=id_only)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
@@ -181,7 +181,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_parameter_dictionary(self, name='', parameter_context_ids=None, temporal_context='', description=''):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=True)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=True)
         if len(res):
             context_ids,_ = self.clients.resource_registry.find_objects(subject=res[0], predicate=PRED.hasParameterContext, id_only=True)
             context_ids.sort()
@@ -216,7 +216,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return pcs
 
     def read_parameter_dictionary_by_name(self, name='', id_only=False):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=id_only)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
