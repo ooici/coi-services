@@ -27,13 +27,13 @@ class Test(IonUnitTestCase):
 
         # small valid map:
         plat_map = [('R', ''), ('a', 'R'), ]
-        nodes = NetworkUtil.create_node_network(plat_map)
-        for p, q in plat_map: self.assertTrue(p in nodes and q in nodes)
+        pnodes = NetworkUtil.create_node_network(plat_map)
+        for p, q in plat_map: self.assertTrue(p in pnodes and q in pnodes)
 
         # duplicate 'a' but valid (same parent)
         plat_map = [('R', ''), ('a', 'R'), ('a', 'R')]
         NetworkUtil.create_node_network(plat_map)
-        for p, q in plat_map: self.assertTrue(p in nodes and q in nodes)
+        for p, q in plat_map: self.assertTrue(p in pnodes and q in pnodes)
 
         with self.assertRaises(PlatformDefinitionException):
             # invalid empty map

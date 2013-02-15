@@ -18,9 +18,9 @@ __license__ = 'Apache 2.0'
 import hashlib
 
 
-class NDefBase(object):
+class BaseNode(object):
     """
-    A convenient base class for the components of a network definition
+    A convenient base class for the components of a platform network.
     """
     def __init__(self):
         self._checksum = None
@@ -47,7 +47,9 @@ class NDefBase(object):
     def compute_checksum(self):
         """
         Computes the checksum for this object, updating the cached value for
-        future calls to checksum().
+        future calls to checksum(). Subclasses do not need overwrite this
+        method.
+
         @return SHA1 hash value as string of hexadecimal digits
         """
         self._checksum = self._compute_checksum()
@@ -56,25 +58,27 @@ class NDefBase(object):
     def _compute_checksum(self):
         """
         Subclasses implement this method to compute the checksum for
-        this object.
+        this object. For any checksum computation of subcomponents,
+        the implementation should call compute_checksum on the subcomponent.
+
         @return SHA1 hash value as string of hexadecimal digits
         """
         raise NotImplementedError()  #pragma: no cover
 
 
-class AttrDef(NDefBase):
+class AttrNode(BaseNode):
     """
-    Represents the definition of a platform attribute.
+    Represents a platform attribute.
     """
     def __init__(self, attr_id, defn):
-        NDefBase.__init__(self)
+        BaseNode.__init__(self)
         self._attr_id = attr_id
         self._defn = defn
 
         self._writable = 'read_write' in defn and defn['read_write'].lower().find("write") >= 0
 
     def __repr__(self):
-        return "AttrDef{id=%s, defn=%s}" % (self.attr_id, self.defn)
+        return "AttrNode{id=%s, defn=%s}" % (self.attr_id, self.defn)
 
     @property
     def attr_id(self):
@@ -113,23 +117,23 @@ class AttrDef(NDefBase):
         return hash_obj.hexdigest()
         
 
-class PortDef(NDefBase):
+class PortNode(BaseNode):
     """
-    Represents the definition of a platform port.
+    Represents a platform port.
 
     self._port_id
     self._network = value of the network associated to the port, eg., "10.30.78.x"
-    self._instruments = { instrument_id: InstrumentDef, ... }
+    self._instruments = { instrument_id: InstrumentNode, ... }
 
     """
     def __init__(self, port_id, network):
-        NDefBase.__init__(self)
+        BaseNode.__init__(self)
         self._port_id = port_id
         self._network = network
         self._instruments = {}
 
     def __repr__(self):
-        return "PortDef{id=%s, network=%s}" % (
+        return "PortNode{id=%s, network=%s}" % (
             self._port_id, self._network)
 
     @property
@@ -151,6 +155,11 @@ class PortDef(NDefBase):
         if instrument.instrument_id in self._instruments:
             raise Exception('%s: duplicate instrument ID' % instrument.instrument_id)
         self._instruments[instrument.instrument_id] = instrument
+
+    def remove_instrument(self, instrument_id):
+        if instrument_id not in self._instruments:
+            raise Exception('%s: Not such instrument ID' % instrument_id)
+        del self._instruments[instrument_id]
 
     def diff(self, other):
         """
@@ -186,7 +195,7 @@ class PortDef(NDefBase):
         hash_obj.update("port_id=%s;" % self.port_id)
 
         # network:
-        hash_obj.update("port_network:")
+        hash_obj.update("port_network=%s;" % self.network)
 
         # instruments:
         hash_obj.update("port_instruments:")
@@ -197,17 +206,17 @@ class PortDef(NDefBase):
         return hash_obj.hexdigest()
 
 
-class InstrumentDef(NDefBase):
+class InstrumentNode(BaseNode):
     """
-    Represents the definition of an instrument.
+    Represents an instrument in a port.
     """
-    def __init__(self, instrument_id):
-        NDefBase.__init__(self)
+    def __init__(self, instrument_id, attrs=None):
+        BaseNode.__init__(self)
         self._instrument_id = instrument_id
-        self._attrs = {}
+        self._attrs = attrs or {}
 
     def __repr__(self):
-        return "InstrumentDef{id=%s, attrs=%s}" % (
+        return "InstrumentNode{id=%s, attrs=%s}" % (
             self.instrument_id, self.attrs)
 
     @property
@@ -248,21 +257,21 @@ class InstrumentDef(NDefBase):
         return hash_obj.hexdigest()
 
 
-class NNode(NDefBase):
+class PlatformNode(BaseNode):
     """
     Platform node for purposes of representing the network.
 
     self._platform_id
     self._platform_types = [type, ...]
-    self._attrs = { attr_id: AttrDef, ... }
-    self._ports = { port_id: PortDef, ... }
-    self._subplatforms = { platform_id: NNode, ...}
-    self._parent = None | NNode
+    self._attrs = { attr_id: AttrNode, ... }
+    self._ports = { port_id: PortNode, ... }
+    self._subplatforms = { platform_id: PlatformNode, ...}
+    self._parent = None | PlatformNode
 
     """
 
     def __init__(self, platform_id, platform_types=None):
-        NDefBase.__init__(self)
+        BaseNode.__init__(self)
         self._platform_id = platform_id
         self._platform_types = platform_types or []
         self._name = None
@@ -345,8 +354,8 @@ class NNode(NDefBase):
 
     def diff(self, other):
         """
-        Returns None if the two nodes represent the same topology and same
-        attributes and ports.
+        Returns None if the two PlatformNode's represent the same topology and
+        same attributes and ports.
         Otherwise, returns a message describing the first difference.
         """
         if self.platform_id != other.platform_id:
@@ -443,7 +452,7 @@ class NNode(NDefBase):
         return hash_obj.hexdigest()
 
 
-class NetworkDefinition(NDefBase):
+class NetworkDefinition(BaseNode):
     """
     Represents a platform network definition in terms of platform types and
     topology, including attributes and ports associated with the platforms.
@@ -453,11 +462,11 @@ class NetworkDefinition(NDefBase):
     """
 
     def __init__(self):
-        NDefBase.__init__(self)
+        BaseNode.__init__(self)
         self._platform_types = {}
-        self._nodes = {}
+        self._pnodes = {}
 
-        # _dummy_root is a dummy NNode having as children the actual roots in
+        # _dummy_root is a dummy PlatformNode having as children the actual roots in
         # the network.
         self._dummy_root = None
 
@@ -471,22 +480,22 @@ class NetworkDefinition(NDefBase):
         return self._platform_types
 
     @property
-    def nodes(self):
+    def pnodes(self):
         """
-        Returns a dict of all NNodes in the network indexed by the platform ID.
+        Returns a dict of all PlatformNodes in the network indexed by the platform ID.
 
-        @return {platform_id : NNode} map
+        @return {platform_id : PlatformNode} map
         """
-        return self._nodes
+        return self._pnodes
 
     @property
     def root(self):
         """
-        Returns the root NNode. Can be None if there is no such root or there
-        are multiple root nodes. The expected normal situation is to have
-        single root.
+        Returns the root PlatformNode. Can be None if there is no such root or
+        there are multiple root PlatformNode's. The expected normal situation
+        is to have single root.
 
-        @return the root NNode.
+        @return the root PlatformNode.
         """
         root = None
         if self._dummy_root and len(self._dummy_root.subplatforms) == 1:
@@ -522,7 +531,7 @@ class NetworkDefinition(NDefBase):
             platform_type = self.platform_types[key]
             hash_obj.update("%s=%s;" % (key, platform_type))
 
-        # root NNode:
+        # root PlatformNode:
         hash_obj.update("root_platform=%s;" % self.root.compute_checksum())
 
         return hash_obj.hexdigest()

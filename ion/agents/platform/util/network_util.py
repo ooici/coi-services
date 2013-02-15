@@ -11,10 +11,10 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from ion.agents.platform.util.network import NNode
-from ion.agents.platform.util.network import AttrDef
-from ion.agents.platform.util.network import PortDef
-from ion.agents.platform.util.network import InstrumentDef
+from ion.agents.platform.util.network import PlatformNode
+from ion.agents.platform.util.network import AttrNode
+from ion.agents.platform.util.network import PortNode
+from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network import NetworkDefinition
 from ion.agents.platform.exceptions import PlatformDefinitionException
 
@@ -24,7 +24,7 @@ import yaml
 
 class NetworkUtil(object):
     """
-    Various utilities including creation of NNode and NetworkDefinition objects.
+    Various utilities including creation of PlatformNode and NetworkDefinition objects.
     """
 
     @staticmethod
@@ -40,39 +40,39 @@ class NetworkUtil(object):
 
         @param map [(platform_id, parent_platform_id), ...]
 
-        @return { platform_id: NNode }
+        @return { platform_id: PlatformNode }
 
         @raise PlatformDefinitionException
         """
-        nodes = {}
+        pnodes = {}
         for platform_id, parent_platform_id in map:
             if parent_platform_id is None:
                 parent_platform_id = ''
 
-            if not parent_platform_id in nodes:
-                nodes[parent_platform_id] = NNode(parent_platform_id)
+            if not parent_platform_id in pnodes:
+                pnodes[parent_platform_id] = PlatformNode(parent_platform_id)
 
-            if not platform_id in nodes:
-                nodes[platform_id] = NNode(platform_id)
-                nodes[parent_platform_id].add_subplatform(nodes[platform_id])
+            if not platform_id in pnodes:
+                pnodes[platform_id] = PlatformNode(platform_id)
+                pnodes[parent_platform_id].add_subplatform(pnodes[platform_id])
             else:
                 # we have a tuple with duplicate platform_id. Only accept it if
                 # the corresponding parent_platform_id is repeated with the same
                 # value. (Note that the node's parent object is already assigned)
-                if nodes[platform_id].parent.platform_id != parent_platform_id:
+                if pnodes[platform_id].parent.platform_id != parent_platform_id:
                     raise PlatformDefinitionException(
                         "Duplicate tuple for platform_id=%r but different "
                         "parent_platform_ids: %r and %r" % (
                             platform_id,
-                            nodes[platform_id].parent.platform_id, parent_platform_id))
+                            pnodes[platform_id].parent.platform_id, parent_platform_id))
 
-        if not '' in nodes:
+        if not '' in pnodes:
             raise PlatformDefinitionException("Expecting dummy root in node network dict")
-        dummy_root = nodes['']
+        dummy_root = pnodes['']
         if len(dummy_root.subplatforms) != 1:
             raise PlatformDefinitionException("Expecting a single root in node network dict")
 
-        return nodes
+        return pnodes
 
     @staticmethod
     def deserialize_network_definition(ser):
@@ -102,14 +102,14 @@ class NetworkUtil(object):
         def _build_network(pyobj):
             """
             Constructs:
-              - ndef._nodes: {platform_id : NNode} dict
+              - ndef._pnodes: {platform_id : PlatformNode} dict
             """
             assert 'network' in pyobj
 
             def create_node(platform_id, platform_types=None):
-                assert not platform_id in ndef._nodes
-                pn = NNode(platform_id, platform_types)
-                ndef._nodes[platform_id] = pn
+                assert not platform_id in ndef.pnodes
+                pn = PlatformNode(platform_id, platform_types)
+                ndef.pnodes[platform_id] = pn
                 return pn
 
             def build_and_add_ports_to_node(ports, pn):
@@ -118,14 +118,14 @@ class NetworkUtil(object):
                     assert 'network' in port_info
                     port_id = port_info['port_id']
                     network = port_info['network']
-                    port = PortDef(port_id, network)
+                    port = PortNode(port_id, network)
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']
                             if instrument_id in port.instruments:
                                 raise Exception('port_id=%r: duplicate instrument ID %r' % (
                                     port_id, instrument_id))
-                            port.add_instrument(InstrumentDef(instrument_id))
+                            port.add_instrument(InstrumentNode(instrument_id))
                     pn.add_port(port)
 
             def build_and_add_attrs_to_node(attrs, pn):
@@ -134,7 +134,7 @@ class NetworkUtil(object):
                     assert 'monitorCycleSeconds' in attr_defn
                     assert 'units' in attr_defn
                     attr_id = attr_defn['attr_id']
-                    pn.add_attribute(AttrDef(attr_id, attr_defn))
+                    pn.add_attribute(AttrNode(attr_id, attr_defn))
 
             def build_node(platObj, parent_node):
                 assert 'platform_id' in platObj
@@ -158,7 +158,7 @@ class NetworkUtil(object):
                         build_node(subplat, pn)
                 return pn
 
-            ndef._nodes = {}
+            ndef._pnodes = {}
 
             ndef._dummy_root = create_node(platform_id='')
 
@@ -183,44 +183,44 @@ class NetworkUtil(object):
         for platform_type, description in ndef.platform_types.iteritems():
             ser += "  - platform_type: %s\n" % platform_type
             ser += "    description: %s\n" % description
-        ser += "\n%s" % NetworkUtil.serialize_node(ndef.root)
+        ser += "\n%s" % NetworkUtil.serialize_pnode(ndef.root)
 
         return ser
 
     @staticmethod
-    def serialize_node(nnode, level=0):
+    def serialize_pnode(pnode, level=0):
         """
-        Returns a serialization of the given a NNode object.
+        Returns a serialization of the given a PlatformNode object.
 
-        @param nnode The NNode to serialize
+        @param pnode The PlatformNode to serialize
         @param level Indentation level (0 by default)
         @return string with the serialization
         """
 
         result = ""
         next_level = level
-        if nnode.platform_id:
-            pid = nnode.platform_id
+        if pnode.platform_id:
+            pid = pnode.platform_id
             lines = []
             if level == 0:
                 lines.append('network:')
 
             lines.append('- platform_id: %s' % pid)
-            lines.append('  platform_types: %s' % nnode.platform_types)
+            lines.append('  platform_types: %s' % pnode.platform_types)
 
             # attributes:
-            if len(nnode.attrs):
+            if len(pnode.attrs):
                 lines.append('  attrs:')
-                for attr_id, attr in nnode.attrs.iteritems():
+                for attr_id, attr in pnode.attrs.iteritems():
                     lines.append('  - attr_id: %s' % attr_id)
                     for k, v in attr.defn.iteritems():
                         if k != "attr_id":
                             lines.append('    %s: %s' % (k, v))
 
             # ports
-            if len(nnode.ports):
+            if len(pnode.ports):
                 lines.append('  ports:')
-                for port_id, port in nnode.ports.iteritems():
+                for port_id, port in pnode.ports.iteritems():
                     lines.append('  - port_id: %s' % port_id)
                     lines.append('    network: %s' % port.network)
 
@@ -230,21 +230,21 @@ class NetworkUtil(object):
                         for instrument_id, instrument in port.instruments.iteritems():
                             lines.append('    - instrument_id: %s' % instrument_id)
 
-            if nnode.subplatforms:
+            if pnode.subplatforms:
                 lines.append('  subplatforms:')
 
             nl = "\n" + ("  " * level)
             result += nl + nl.join(lines)
             next_level = level + 1
 
-        if nnode.subplatforms:
-            for sub_platform in nnode.subplatforms.itervalues():
-                result += NetworkUtil.serialize_node(sub_platform, next_level)
+        if pnode.subplatforms:
+            for sub_platform in pnode.subplatforms.itervalues():
+                result += NetworkUtil.serialize_pnode(sub_platform, next_level)
 
         return result
 
     @staticmethod
-    def _dump_nnode(nnode, indent_level=0, only_topology=False,
+    def _dump_pnode(pnode, indent_level=0, only_topology=False,
                     include_subplatforms=True):  # pragma: no cover
         """
         **Developer routine**
@@ -258,27 +258,27 @@ class NetworkUtil(object):
         """
         s = ""
         indent = "    " * indent_level
-        if nnode.platform_id:
+        if pnode.platform_id:
             if only_topology:
-                s = "%s%s\n" % (indent, nnode.platform_id)
+                s = "%s%s\n" % (indent, pnode.platform_id)
             else:
-                s = "%s%s\n" % (indent, str(nnode).replace('\n', '\n%s' % indent))
+                s = "%s%s\n" % (indent, str(pnode).replace('\n', '\n%s' % indent))
             indent_level += 1
 
         if include_subplatforms:
-            for sub_platform in nnode.subplatforms.itervalues():
-                s += NetworkUtil._dump_nnode(sub_platform, indent_level, only_topology)
+            for sub_platform in pnode.subplatforms.itervalues():
+                s += NetworkUtil._dump_pnode(sub_platform, indent_level, only_topology)
 
         return s
 
     @staticmethod
-    def _gen_diagram(nnode, style="dot", root=True):  # pragma: no cover
+    def _gen_diagram(pnode, style="dot", root=True):  # pragma: no cover
         """
         **Developer routine**
         String representation that can be processed by Graphviz tools or
         plantuml.
 
-        @param nnode  Nnode
+        @param pnode  PlatformNode
         @param style  one of "dot", "plantuml" (by default, "dot")
         @param root   True (the default) to include appropriate preamble
         """
@@ -288,26 +288,26 @@ class NetworkUtil(object):
 
         arrow = "-->" if style == "plantuml" else "->"
         body = ""
-        if style == "plantuml" and nnode.platform_id == '':
+        if style == "plantuml" and pnode.platform_id == '':
             parent_str = "(*)"
         else:
-            parent_str = nnode.platform_id
+            parent_str = pnode.platform_id
 
         if parent_str:
-            for sub_platform in nnode.subplatforms.itervalues():
+            for sub_platform in pnode.subplatforms.itervalues():
                 body += '\t"%s" %s "%s"\n' % (parent_str,
                                           arrow,
                                           sub_platform.platform_id)
 
-        for sub_platform in nnode.subplatforms.itervalues():
+        for sub_platform in pnode.subplatforms.itervalues():
             body += NetworkUtil._gen_diagram(sub_platform, style=style, root=False)
 
         result = body
         if root:
             if style == "dot":
                 result = 'digraph G {\n'
-                if nnode.platform_id:
-                    result += '\t"%s"\n' % nnode.platform_id
+                if pnode.platform_id:
+                    result += '\t"%s"\n' % pnode.platform_id
                 result += '%s}\n' % body
             elif style == "plantuml":
                 result = "%s\n" % body
@@ -315,25 +315,28 @@ class NetworkUtil(object):
         return result
 
     @staticmethod
-    def _gen_open_diagram(nnode):  # pragma: no cover
+    def _gen_open_diagram(pnode):  # pragma: no cover
         """
         **Developer routine**
         Convenience method for testing/debugging.
         Does nothing if the environment variable GEN_DIAG is not defined.
-        Generates a dot diagram, the corresponding PNG using 'dot' and also
-        opens the PNG using 'open' OS commands. All errors are simply ignored.
+        Generates a yaml, a dot diagram and corresponding PNG using 'dot' and
+        also opens the PNG using 'open' OS commands. All errors are simply ignored.
         """
         try:
             import os, tempfile, subprocess
             if os.getenv("GEN_DIAG", None) is None:
                 return
 
-            name = nnode.platform_id
+            name = pnode.platform_id
             base_name = '%s/%s' % (tempfile.gettempdir(), name)
+            yml_name = '%s.yml' % base_name
             dot_name = '%s.dot' % base_name
             png_name = '%s.png' % base_name
+            print 'generating yml %r' % yml_name
+            file(yml_name, 'w').write(NetworkUtil.serialize_pnode(pnode))
             print 'generating diagram %r' % dot_name
-            file(dot_name, 'w').write(nnode.diagram(style="dot"))
+            file(dot_name, 'w').write(NetworkUtil._gen_diagram(pnode, style="dot"))
             dot_cmd = 'dot -Tpng %s -o %s' % (dot_name, png_name)
             print 'running: %s' % dot_cmd
             subprocess.call(dot_cmd.split())
@@ -344,11 +347,11 @@ class NetworkUtil(object):
             print "error generating or opening diagram: %s" % str(e)
 
     @staticmethod
-    def _gen_yaml(nnode, level=0):  # pragma: no cover
+    def _gen_yaml(pnode, level=0):  # pragma: no cover
         """
         **Developer routine**
         This is old - can be deleted.
-        Partial string representation of the given NNode in yaml.
+        Partial string representation of the given PlatformNode in yaml.
         *NOTE*: Very ad hoc, just to help capture some of the real info from
         the RSN OMS interface into network.yml (the file used by the simulator)
         along with values for testing purposes.
@@ -357,8 +360,8 @@ class NetworkUtil(object):
 
         result = ""
         next_level = level
-        if nnode.platform_id:
-            pid = nnode.platform_id
+        if pnode.platform_id:
+            pid = pnode.platform_id
             lines = []
             if level == 0:
                 lines.append('network:')
@@ -390,15 +393,15 @@ class NetworkUtil(object):
                 lines.append('  - port_id: %s' % port_id)
                 lines.append('    ip: %s_IP' % port_id)
 
-            if nnode.subplatforms:
+            if pnode.subplatforms:
                 lines.append('  subplatforms:')
 
             nl = "\n" + ("  " * level)
             result += nl + nl.join(lines)
             next_level = level + 1
 
-        if nnode.subplatforms:
-            for sub_platform in nnode.subplatforms.itervalues():
+        if pnode.subplatforms:
+            for sub_platform in pnode.subplatforms.itervalues():
                 result += NetworkUtil._gen_yaml(sub_platform, next_level)
 
         return result

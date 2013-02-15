@@ -170,21 +170,21 @@ class HelperTestMixin:
     def _verify_valid_instrument_id(self, instrument_id, dic):
         """
         verifies the instrument_id is an entry in the dict with a
-        valid value. Returns dic[instrument_id].
+        valid value (a dict). Returns dic[instrument_id].
         """
         self.assertTrue(instrument_id in dic)
         val = dic[instrument_id]
-        self.assertNotEquals(InvalidResponse.INSTRUMENT_ID, val)
+        self.assertTrue(isinstance(val, dict))
         return val
 
     def _verify_invalid_instrument_id(self, instrument_id, dic):
         """
         verifies the instrument_id is an entry in the dict with a
-        value equal to InvalidResponse.INSTRUMENT_ID.
+        value that is not a dict.
         """
         self.assertTrue(instrument_id in dic)
         val = dic[instrument_id]
-        self.assertEquals(InvalidResponse.INSTRUMENT_ID, val)
+        self.assertFalse(isinstance(val, dict))
 
     def _verify_instrument_disconnected(self, instrument_id, result):
         """

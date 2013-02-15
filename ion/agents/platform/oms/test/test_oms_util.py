@@ -40,10 +40,10 @@ class Test(IonIntegrationTestCase):
     def test_build_network_definition(self):
         ndef = RsnOmsUtil.build_network_definition(self._rsn_oms)
 
-        if log.isEnabledFor(logging.DEBUG):
+        if log.isEnabledFor(logging.TRACE):
             # serialize object to string
             serialization = NetworkUtil.serialize_network_definition(ndef)
-            log.debug("NetworkDefinition serialization:\n%s", serialization)
+            log.trace("NetworkDefinition serialization:\n%s", serialization)
 
         if not isinstance(self._rsn_oms, OmsSimulator):
             # OK, no more tests if we are not using the embedded simulator
@@ -54,16 +54,33 @@ class Test(IonIntegrationTestCase):
 
         self.assertTrue("UPS" in ndef.platform_types)
 
-        nnode = ndef.root
+        pnode = ndef.root
 
-        self.assertEqual(nnode.platform_id, "ShoreStation")
-        self.assertTrue("ShoreStation_attr_1" in nnode.attrs)
-        self.assertTrue("ShoreStation_port_1" in nnode.ports)
+        self.assertEqual(pnode.platform_id, "ShoreStation")
+        self.assertTrue("ShoreStation_attr_1" in pnode.attrs)
+        self.assertTrue("ShoreStation_port_1" in pnode.ports)
 
-        sub_nnodes = nnode.subplatforms
-        self.assertTrue("L3-UPS1" in sub_nnodes)
-        self.assertTrue("Node1A" in sub_nnodes)
-        self.assertTrue("input_voltage" in sub_nnodes["Node1A"].attrs)
-        self.assertTrue("Node1A_port_1" in sub_nnodes["Node1A"].ports)
+        sub_pnodes = pnode.subplatforms
+        self.assertTrue("L3-UPS1" in sub_pnodes)
+        self.assertTrue("Node1A" in sub_pnodes)
+        self.assertTrue("input_voltage" in sub_pnodes["Node1A"].attrs)
+        self.assertTrue("Node1A_port_1" in sub_pnodes["Node1A"].ports)
 
+    def test_checksum(self):
+        # platform_id = "Node1D"
+        platform_id = "LJ01D"
 
+        # get checksum for this platform ID from RSN OMS:
+        res = self._rsn_oms.get_checksum(platform_id)
+        checksum = res[platform_id]
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("_rsn_oms: checksum     : %s", checksum)
+
+        # build network definition using RSN OMS and get checksum for the
+        # corresponding PlatformNode:
+        ndef = RsnOmsUtil.build_network_definition(self._rsn_oms)
+        pnode = ndef.pnodes[platform_id]
+
+        # verify the checksums match:
+        self.assertEquals(pnode.checksum, checksum)

@@ -178,7 +178,7 @@ class PlatformAgent(ResourceAgent):
 
         self._network_definition_ser = None  # string
         self._network_definition = None  # NetworkDefinition object
-        self._nnode = None  # NNode object corresponding to this platform
+        self._pnode = None  # PlatformNode object corresponding to this platform
 
         self._agent_streamconfig_map = None
 
@@ -304,16 +304,16 @@ class PlatformAgent(ResourceAgent):
             self._network_definition_ser)
 
         # verify the given platform_id is contained in the NetworkDefinition:
-        if not self._platform_id in self._network_definition.nodes:
+        if not self._platform_id in self._network_definition.pnodes:
             msg = "%r: this platform_id not found in network definition." % self._platform_id
             log.error(msg)
             raise PlatformException(msg)
 
-        self._nnode = self._network_definition.nodes[self._platform_id]
-        assert self._nnode.platform_id == self._platform_id
+        self._pnode = self._network_definition.pnodes[self._platform_id]
+        assert self._pnode.platform_id == self._platform_id
 
         self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
-                                         in self._nnode.attrs.itervalues())
+                                         in self._pnode.attrs.itervalues())
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
@@ -473,7 +473,7 @@ class PlatformAgent(ResourceAgent):
         try:
             module = __import__(driver_module, fromlist=[driver_class])
             classobj = getattr(module, driver_class)
-            driver = classobj(self._nnode, self.evt_recv)
+            driver = classobj(self._pnode, self.evt_recv)
 
         except Exception as e:
             msg = '%r: could not import/construct driver: module=%s, class=%s' % (
@@ -924,11 +924,11 @@ class PlatformAgent(ResourceAgent):
         """
         Gets the IDs of my sub-platforms.
         """
-        return self._nnode.subplatforms.keys()
+        return self._pnode.subplatforms.keys()
 
     def _get_ports(self):
         ports = {}
-        for port_id, port in self._nnode.ports.iteritems():
+        for port_id, port in self._pnode.ports.iteritems():
             ports[port_id] = {'network': port.network}
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: _get_ports: %s", self._platform_id, ports)
@@ -1566,7 +1566,7 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: _check_sync: getting external checksum..." % self._platform_id)
 
         external_checksum = self._trigger_driver_event(PlatformDriverEvent.GET_CHECKSUM)
-        local_checksum = self._nnode.checksum
+        local_checksum = self._pnode.checksum
 
         if external_checksum == local_checksum:
             result = "OK: checksum for platform_id=%r: %s" % (

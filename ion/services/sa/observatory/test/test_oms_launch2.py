@@ -167,11 +167,12 @@ class TestOmsLaunch(IonIntegrationTestCase):
             self.fail("failed to create new PLatformModel: %s" %ex)
         log.debug( 'new PlatformModel id = %s', self.platformModel_id)
 
-    def _traverse(self, nnode, platform_id, parent_platform_objs=None):
+    def _traverse(self, pnode, platform_id, parent_platform_objs=None):
         """
         Recursive routine that repeatedly calls _prepare_platform to build
         the object dictionary for each platform.
 
+        @param pnode PlatformNode
         @param platform_id ID of the platform to be visited
         @param parent_platform_objs dict of objects associated to parent
                         platform, if any.
@@ -181,26 +182,27 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         log.info("Starting _traverse for %r", platform_id)
 
-        plat_objs = self._prepare_platform(nnode, platform_id, parent_platform_objs)
+        plat_objs = self._prepare_platform(pnode, platform_id, parent_platform_objs)
 
         self.all_platforms[platform_id] = plat_objs
 
         # now, traverse the children:
-        for sub_nnode in nnode.subplatforms.itervalues():
-            subplatform_id = sub_nnode.platform_id
-            self._traverse(sub_nnode, subplatform_id, plat_objs)
+        for sub_pnode in pnode.subplatforms.itervalues():
+            subplatform_id = sub_pnode.platform_id
+            self._traverse(sub_pnode, subplatform_id, plat_objs)
 
         return plat_objs
 
-    def _prepare_platform(self, nnode, platform_id, parent_platform_objs):
+    def _prepare_platform(self, pnode, platform_id, parent_platform_objs):
         """
-        This routine generalizes the manual construction currently done in
+        This routine generalizes the manual construction originally done in
         test_oms_launch.py. It is called by the recursive _traverse method so
         all platforms starting from a given base platform are prepared.
 
         Note: For simplicity in this test, sites are organized in the same
         hierarchical way as the platforms themselves.
 
+        @param pnode PlatformNode
         @param platform_id ID of the platform to be visited
         @param parent_platform_objs dict of objects associated to parent
                         platform, if any.
@@ -223,9 +225,9 @@ class TestOmsLaunch(IonIntegrationTestCase):
                 object=site_id)
 
         # prepare platform attributes and ports:
-        monitor_attribute_objs, monitor_attribute_dicts = self._prepare_platform_attributes(nnode, platform_id)
+        monitor_attribute_objs, monitor_attribute_dicts = self._prepare_platform_attributes(pnode, platform_id)
 
-        port_objs, port_dicts = self._prepare_platform_ports(nnode, platform_id)
+        port_objs, port_dicts = self._prepare_platform_ports(pnode, platform_id)
 
         device__obj = IonObject(RT.PlatformDevice,
             name='%s_PlatformDevice' % platform_id,
@@ -293,13 +295,13 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         return plat_objs
 
-    def _prepare_platform_attributes(self, nnode, platform_id):
+    def _prepare_platform_attributes(self, pnode, platform_id):
         """
         Returns the list of PlatformMonitorAttributes objects corresponding to
         the attributes associated to the given platform.
         """
         # TODO complete the clean-up of this method
-        ret_infos = dict((n, a.defn) for (n, a) in nnode.attrs.iteritems())
+        ret_infos = dict((n, a.defn) for (n, a) in pnode.attrs.iteritems())
 
         monitor_attribute_objs = []
         monitor_attribute_dicts = []
@@ -323,7 +325,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         return monitor_attribute_objs, monitor_attribute_dicts
 
-    def _prepare_platform_ports(self, nnode, platform_id):
+    def _prepare_platform_ports(self, pnode, platform_id):
         """
         Returns the list of PlatformPort objects corresponding to the ports
         associated to the given platform.
@@ -332,7 +334,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
         port_objs = []
         port_dicts = []
-        for port_id, network in nnode.ports.iteritems():
+        for port_id, network in pnode.ports.iteritems():
             log.debug("platform_id=%r: preparing port=%r network=%s",
                       platform_id, port_id, network)
 
@@ -540,8 +542,8 @@ class TestOmsLaunch(IonIntegrationTestCase):
         # and trigger the traversal of the branch rooted at that base platform
         # to create corresponding ION objects and configuration dictionaries:
 
-        nnode = self._network_definition.nodes[base_platform_id]
-        base_platform_objs = self._traverse(nnode, base_platform_id)
+        pnode = self._network_definition.pnodes[base_platform_id]
+        base_platform_objs = self._traverse(pnode, base_platform_id)
 
         # now that most of the topology information is there, add the
         # PlatformAgentInstance elements

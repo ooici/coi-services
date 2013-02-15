@@ -118,7 +118,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             'network_definition' : network_definition_ser
         }
 
-        NetworkUtil._gen_open_diagram(network_definition.nodes[cls.PLATFORM_ID])
+        NetworkUtil._gen_open_diagram(network_definition.pnodes[cls.PLATFORM_ID])
 
     def setUp(self):
         self._start_container()

@@ -16,7 +16,8 @@ import logging
 
 from ion.agents.platform.util.network import NetworkDefinition
 from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.platform.util.network import AttrDef, PortDef
+from ion.agents.platform.util.network import AttrNode, PortNode
+from ion.agents.platform.util.network import InstrumentNode
 
 
 class RsnOmsUtil(object):
@@ -29,8 +30,8 @@ class RsnOmsUtil(object):
         """
         Creates and returns a NetworkDefinition object reflecting the platform
         network definition reported by the RSN OMS Client object.
-        The returned object will have as root the NNode corresponding to the
-        actual root of the whole newtork. You can use the `nodes` property to
+        The returned object will have as root the PlatformNode corresponding to the
+        actual root of the whole newtork. You can use the `pnodes` property to
         access any node.
 
         @param rsn_oms RSN OMS Client object.
@@ -51,67 +52,83 @@ class RsnOmsUtil(object):
             log.debug("got platform map %s", str(map))
 
         # build topology:
-        nodes = NetworkUtil.create_node_network(map)
-        dummy_root = nodes['']
-        root_nnode = nodes[dummy_root.subplatforms.keys()[0]]
+        pnodes = NetworkUtil.create_node_network(map)
+        dummy_root = pnodes['']
+        root_pnode = pnodes[dummy_root.subplatforms.keys()[0]]
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("topology's root platform_id=%r", root_nnode.platform_id)
+            log.debug("topology's root platform_id=%r", root_pnode.platform_id)
 
         # now, populate the attributes and ports for the platforms
 
-        def build_attributes_and_ports(nnode):
+        def build_attributes_and_ports(pnode):
             """
-            Recursive routine to call set_attributes and set_ports on each nnode.
+            Recursive routine to call set_attributes and set_ports on each pnode.
             """
-            set_attributes(nnode)
-            set_ports(nnode)
+            set_attributes(pnode)
+            set_ports(pnode)
 
-            for sub_platform_id, sub_nnode in nnode.subplatforms.iteritems():
-                build_attributes_and_ports(sub_nnode)
+            for sub_platform_id, sub_pnode in pnode.subplatforms.iteritems():
+                build_attributes_and_ports(sub_pnode)
 
-        def set_attributes(nnode):
-            platform_id = nnode.platform_id
+        def set_attributes(pnode):
+            platform_id = pnode.platform_id
             attr_infos = rsn_oms.get_platform_attributes(platform_id)
             if not isinstance(attr_infos, dict):
                 log.warn("%r: get_platform_attributes returned: %s",
                          platform_id, attr_infos)
                 return
 
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("%r: attr_infos: %s", platform_id, attr_infos)
+            if log.isEnabledFor(logging.TRACE):
+                log.trace("%r: attr_infos: %s", platform_id, attr_infos)
 
             assert platform_id in attr_infos
 
             ret_infos = attr_infos[platform_id]
             for attrName, attr_defn in ret_infos.iteritems():
-                attr = AttrDef(attrName, attr_defn)
-                nnode.add_attribute(attr)
+                attr = AttrNode(attrName, attr_defn)
+                pnode.add_attribute(attr)
 
-        def set_ports(nnode):
-            platform_id = nnode.platform_id
+        def set_ports(pnode):
+            platform_id = pnode.platform_id
             port_infos = rsn_oms.get_platform_ports(platform_id)
             if not isinstance(port_infos, dict):
                 log.warn("%r: get_platform_ports returned: %s",
                          platform_id, port_infos)
                 return
 
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("%r: port_infos: %s", platform_id, port_infos)
+            if log.isEnabledFor(logging.TRACE):
+                log.trace("%r: port_infos: %s", platform_id, port_infos)
 
             assert platform_id in port_infos
             ports = port_infos[platform_id]
             for port_id, dic in ports.iteritems():
-                port = PortDef(port_id, dic['network'])
-                nnode.add_port(port)
+                port = PortNode(port_id, dic['network'])
+                pnode.add_port(port)
+
+                # add connected instruments:
+                instrs_res = rsn_oms.get_connected_instruments(platform_id, port_id)
+                if not isinstance(instrs_res, dict):
+                    log.warn("%r: port_id=%r: get_connected_instruments "
+                             "returned: %s" % (platform_id, port_id, instrs_res))
+                    continue
+
+                if log.isEnabledFor(logging.TRACE):
+                    log.trace("%r: port_id=%r: get_connected_instruments "
+                              "returned: %s" % (platform_id, port_id, instrs_res))
+                assert platform_id in instrs_res
+                assert port_id in instrs_res[platform_id]
+                instr = instrs_res[platform_id][port_id]
+                for instrument_id, attrs in instr.iteritems():
+                    port.add_instrument(InstrumentNode(instrument_id, attrs))
 
         # call the recursive routine
-        build_attributes_and_ports(root_nnode)
+        build_attributes_and_ports(root_pnode)
 
         # we got our whole network including platform attributes and ports.
 
         # and finally create and return NetworkDefinition:
         ndef = NetworkDefinition()
         ndef._platform_types = platform_types
-        ndef._nodes = nodes
+        ndef._pnodes = pnodes
         ndef._dummy_root = dummy_root
         return ndef

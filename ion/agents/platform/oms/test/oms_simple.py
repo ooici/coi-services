@@ -128,14 +128,14 @@ attributeNames = [
 # Main program
 if __name__ == "__main__":  # pragma: no cover
 
-    def gen_diagrams(name, nnode):
+    def gen_diagrams(name, pnode):
         yml_name = '%s.yml' % name
-        file(yml_name, 'w').write(NetworkUtil._gen_yaml(nnode))
+        file(yml_name, 'w').write(NetworkUtil._gen_yaml(pnode))
         dot_name = '%s.dot' % name
         pml_name = '%s.puml' % name
-        file(dot_name, 'w').write(NetworkUtil._gen_diagram(nnode, style="dot"))
-        file(pml_name, 'w').write(NetworkUtil._gen_diagram(nnode, style="plantuml"))
-        print "topology =\n%s" % NetworkUtil._dump_nnode(nnode, only_topology=True)
+        file(dot_name, 'w').write(NetworkUtil._gen_diagram(pnode, style="dot"))
+        file(pml_name, 'w').write(NetworkUtil._gen_diagram(pnode, style="plantuml"))
+        print "topology =\n%s" % NetworkUtil._dump_pnode(pnode, only_topology=True)
         try:
             dot_cmd = 'dot -Tpng %s.dot -o %s.png' % (name,name)
             open_cmd = 'open %s.png' % name
@@ -155,11 +155,11 @@ if __name__ == "__main__":  # pragma: no cover
         print "ping() = %s"  % oms.ping()
         map = oms.get_platform_map()
         print "get_platform_map() = %s" % map
-        nodes = NetworkUtil.create_node_network(map)
-        if not '' in nodes:
+        pnodes = NetworkUtil.create_node_network(map)
+        if not '' in pnodes:
             print "platform map does not include '' to indicate root platforms."
         else:
-            dummy_root = nodes['']
+            dummy_root = pnodes['']
             gen_diagrams('sim_topology', dummy_root)
         sys.exit()
     #####
@@ -173,11 +173,11 @@ if __name__ == "__main__":  # pragma: no cover
     retval = proxy.config.get_platform_map()
     print "get_platform_map() = %s" % retval
 
-    nodes = NetworkUtil.create_node_network(retval)
-    if not '' in nodes:
+    pnodes = NetworkUtil.create_node_network(retval)
+    if not '' in pnodes:
         print "platform map does not include '' to indicate root platforms."
     else:
-        dummy_root = nodes['']
+        dummy_root = pnodes['']
         gen_diagrams('oms_topology', dummy_root)
 
     #

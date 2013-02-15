@@ -14,10 +14,10 @@ from ion.agents.platform.oms.oms_client import OmsClient
 from ion.agents.platform.oms.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
 from ion.agents.platform.oms.oms_client import NormalResponse
 from ion.agents.platform.oms.oms_client import InvalidResponse
-from ion.agents.platform.util.network import NNode
-from ion.agents.platform.util.network import AttrDef
-from ion.agents.platform.util.network import PortDef
-from ion.agents.platform.util.network import InstrumentDef
+from ion.agents.platform.util.network import PlatformNode
+from ion.agents.platform.util.network import AttrNode
+from ion.agents.platform.util.network import PortNode
+from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.agents.platform.oms.simulator.oms_events import EventInfo
@@ -100,7 +100,7 @@ class OmsSimulator(OmsClient):
     def _build_network(self, pyobj):
         """
         Constructs:
-          - self._idp: {platform_id : NNode} map
+          - self._idp: {platform_id : PlatformNode} map
           - self._dummy_root: The "dummy" root node; its children are the actual roots.
         """
         assert 'network' in pyobj
@@ -109,7 +109,7 @@ class OmsSimulator(OmsClient):
 
         def create_node(platform_id, platform_types=None):
             assert not platform_id in self._idp
-            pn = NNode(platform_id, platform_types)
+            pn = PlatformNode(platform_id, platform_types)
             self._idp[platform_id] = pn
             return pn
 
@@ -119,25 +119,22 @@ class OmsSimulator(OmsClient):
                 assert 'network' in port_info
                 port_id = port_info['port_id']
                 network = port_info['network']
-                port = PortDef(port_id, network)
+                port = PortNode(port_id, network)
                 if 'instruments' in port_info:
                     for instrument in port_info['instruments']:
                         instrument_id = instrument['instrument_id']
                         if instrument_id in port.instruments:
                             raise Exception('port_id=%r: duplicate instrument ID %r' % (
                                 port_id, instrument_id))
-                        port.add_instrument(InstrumentDef(instrument_id))
+                        port.add_instrument(InstrumentNode(instrument_id))
                 pn.add_port(port)
 
                 ######################################################
                 # dynamic state (note that these members are NOT part of the
-                # PortDef class definition, but added here for convenience):
+                # PortNode class definition, but added here for convenience):
 
                 # is port turned on?
                 port._is_on = False
-
-                # the set of instrument_ids added to the port
-                port._added_instruments = set()
 
         def build_and_add_attrs_to_node(attrs, pn):
             for attr_defn in attrs:
@@ -145,7 +142,7 @@ class OmsSimulator(OmsClient):
                 assert 'monitorCycleSeconds' in attr_defn
                 assert 'units' in attr_defn
                 attr_id = attr_defn['attr_id']
-                pn.add_attribute(AttrDef(attr_id, attr_defn))
+                pn.add_attribute(AttrNode(attr_id, attr_defn))
 
         def build_node(platObj, parent_node):
             assert 'platform_id' in platObj
@@ -188,15 +185,15 @@ class OmsSimulator(OmsClient):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        nnode = self._idp[platform_id]
+        pnode = self._idp[platform_id]
 
         # TODO capture/include appropriate elements
         md = {}
-        if nnode.name:
-            md['name'] = nnode.name
-        if nnode.parent:
-            md['parent_platform_id'] = nnode.parent.platform_id
-        md['platform_types'] = nnode.platform_types
+        if pnode.name:
+            md['name'] = pnode.name
+        if pnode.parent:
+            md['parent_platform_id'] = pnode.parent.platform_id
+        md['platform_types'] = pnode.platform_types
 
         return {platform_id: md}
 
@@ -218,7 +215,7 @@ class OmsSimulator(OmsClient):
         string representation of the network
         """
         return "platform_types: %s\nnetwork:\n%s" % (
-            self._platform_types, NetworkUtil._dump_nnode(self._dummy_root))
+            self._platform_types, NetworkUtil._dump_pnode(self._dummy_root))
 
     def get_platform_attribute_values(self, platform_id, attrNames, from_time):
         if platform_id not in self._idp:
@@ -285,9 +282,7 @@ class OmsSimulator(OmsClient):
         port = self._idp[platform_id].get_port(port_id)
 
         result = None
-        if instrument_id not in port.instruments:
-            result = InvalidResponse.INSTRUMENT_ID
-        elif instrument_id in port._added_instruments:
+        if instrument_id in port.instruments:
             result = InvalidResponse.INSTRUMENT_ALREADY_CONNECTED
         elif port._is_on:
             # TODO: confirm that port must be OFF so instrument can be connected
@@ -311,14 +306,13 @@ class OmsSimulator(OmsClient):
 
         if result is None:
             # NOTE: values simply accepted without any validation
-            attrs = port.instruments[instrument_id].attrs
+            connected_instrument = InstrumentNode(instrument_id)
+            port.add_instrument(connected_instrument)
+            attrs = connected_instrument.attrs
             result = {}
             for key, val in attributes.iteritems():
-                assert key in REQUIRED_INSTRUMENT_ATTRIBUTES
                 attrs[key] = val  # set the value of the attribute:
                 result[key] = val # in the result, indicate that the value was set
-
-            port._added_instruments.add(instrument_id)
 
         return {platform_id: {port_id: {instrument_id: result}}}
 
@@ -332,14 +326,12 @@ class OmsSimulator(OmsClient):
         port = self._idp[platform_id].get_port(port_id)
 
         if instrument_id not in port.instruments:
-            result = InvalidResponse.INSTRUMENT_ID
-        elif instrument_id not in port._added_instruments:
             result = InvalidResponse.INSTRUMENT_NOT_CONNECTED
         elif port._is_on:
             # TODO: confirm that port must be OFF so instrument can be disconnected
             result = InvalidResponse.PORT_IS_ON
         else:
-            port._added_instruments.remove(instrument_id)
+            port.remove_instrument(instrument_id)
             result = NormalResponse.INSTRUMENT_DISCONNECTED
 
         return {platform_id: {port_id: {instrument_id: result}}}
@@ -354,7 +346,7 @@ class OmsSimulator(OmsClient):
         port = self._idp[platform_id].get_port(port_id)
 
         result = {}
-        for instrument_id in port._added_instruments:
+        for instrument_id in port.instruments:
             result[instrument_id] = port.instruments[instrument_id].attrs
 
         return {platform_id: {port_id: result}}
@@ -537,7 +529,7 @@ class OmsSimulator(OmsClient):
         if platform_id not in self._idp:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        nnode = self._idp[platform_id]
-        checksum = nnode.checksum
+        pnode = self._idp[platform_id]
+        checksum = pnode.checksum
 
         return {platform_id: checksum}
