@@ -2,9 +2,9 @@
 Ocean Observatories Initiative Cyberinfrastructure (OOI CI)
 Integrated Observatory Network (ION)
 
-coi-servives - ION COI services
+coi-services - ION Release 2 system and services
 
-(C) UC Regents, 2010-2011
+(C) UC Regents, 2010-2013
 ===========================================================
 
 This is the repository that defines the COI services.

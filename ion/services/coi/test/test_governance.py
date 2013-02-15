@@ -33,7 +33,8 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
+from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 
 ORG2 = 'Org2'
 
@@ -142,6 +143,134 @@ TEST_BOUNDARY_POLICY_TEXT = '''
         '''
 
 
+@attr('INT', group='coi')
+class TestGovernanceHeaders(IonIntegrationTestCase):
+    def setUp(self):
+
+        # Start container
+        self._start_container()
+
+        #Load a deploy file
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        #Instantiate a process to represent the test
+        process=GovernanceTestProcess()
+
+        self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+
+        #Get info on the ION System Actor
+        self.system_actor = self.container.governance_controller.get_system_actor()
+        log.info('system actor:' + self.system_actor._id)
+
+        self.system_actor_header = self.container.governance_controller.get_system_actor_header()
+
+        self.resource_id_header_value = ''
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    def test_governance_message_headers(self):
+        '''
+        This test is used to make sure the ION endpoint code is properly setting the
+        '''
+
+        #Get function pointer to send function
+        old_send = BidirectionalEndpointUnit._send
+
+        # make new send to patch on that duplicates send
+        def patched_send(*args, **kwargs):
+
+            #Only duplicate the message send from the initial client call
+            msg_headers = kwargs['headers']
+
+            self.resource_id_header_value = ''
+
+            if msg_headers.has_key('resource-id'):
+                self.resource_id_header_value = msg_headers['resource-id']
+
+            return old_send(*args, **kwargs)
+
+        # patch it into place with auto-cleanup to try to interogate the message headers
+        patcher = patch('pyon.net.endpoint.BidirectionalEndpointUnit._send', patched_send)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        # Instantiate an object
+        obj = IonObject("UserInfo", name="name")
+
+        # Can't call update with object that hasn't been persisted
+        with self.assertRaises(BadRequest) as cm:
+            self.rr_client.update(obj)
+        self.assertTrue(cm.exception.message.startswith("Object does not have required '_id' or '_rev' attribute"))
+
+        self.resource_id_header_value = ''
+
+        # Persist object and read it back
+        obj_id, obj_rev = self.rr_client.create(obj)
+        log.debug('The id of the created object is %s', obj_id)
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        self.resource_id_header_value = ''
+        read_obj = self.rr_client.read(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Cannot create object with _id and _rev fields pre-set
+        self.resource_id_header_value = ''
+        with self.assertRaises(BadRequest) as cm:
+            self.rr_client.create(read_obj)
+        self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        # Update object
+        read_obj.name = "John Doe"
+        self.resource_id_header_value = ''
+        self.rr_client.update(read_obj)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Update should fail with revision mismatch
+        self.resource_id_header_value = ''
+        with self.assertRaises(Conflict) as cm:
+            self.rr_client.update(read_obj)
+        self.assertTrue(cm.exception.message.startswith("Object not based on most current version"))
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Re-read and update object
+        self.resource_id_header_value = ''
+        read_obj = self.rr_client.read(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        self.resource_id_header_value = ''
+        self.rr_client.update(read_obj)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        #Create second object
+        obj = IonObject("UserInfo", name="Babs Smith")
+
+        self.resource_id_header_value = ''
+
+        # Persist object and read it back
+        obj2_id, obj2_rev = self.rr_client.create(obj)
+        log.debug('The id of the created object is %s', obj_id)
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        #Test for multi-read
+        self.resource_id_header_value = ''
+        objs = self.rr_client.read_mult([obj_id, obj2_id])
+
+        self.assertAlmostEquals(self.resource_id_header_value, [obj_id, obj2_id])
+        self.assertEqual(len(objs),2)
+
+        # Delete object
+        self.resource_id_header_value = ''
+        self.rr_client.delete(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+
+        # Delete object
+        self.resource_id_header_value = ''
+        self.rr_client.delete(obj2_id)
+        self.assertEqual(self.resource_id_header_value, obj2_id )
+
+
 class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
@@ -235,7 +364,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Clean up the non user actor
         self.rr_client.delete(self.apache_actor._id, headers=self.system_actor_header)
-
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1387,7 +1515,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
+        self.assertIn('(request_direct_access) has been denied',cm.exception.message)
 
         #Request to access the resource exclusively for two hours
         cur_time = int(get_ion_ts())
@@ -1412,7 +1540,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Try to Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
+        self.assertIn('(request_direct_access) has been denied',cm.exception.message)
 
         #The agent related functions should not be allowed for a user that is not an Org Manager
         with self.assertRaises(Unauthorized) as cm:
@@ -1536,3 +1664,101 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.execute_agent(cmd, headers=actor_header)
         retval = ia_client.get_agent_state(headers=actor_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    @patch.dict(CFG, {'system':{'load_policy':True}})
+    def test_instrument_lifecycle_policy(self):
+
+
+        #Make sure that the system policies have been loaded
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
+        log.debug('Begin testing with policies')
+
+        #Create user
+        actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
+        log.debug( "actor id=" + actor_id)
+
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #Create a second Org
+        org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
+        org2_id = self.org_client.create_org(org2, headers=self.system_actor_header)
+
+        org2 = self.org_client.find_org(ORG2)
+        self.assertEqual(org2_id, org2._id)
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),2)
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+
+        #Create Instrument Operator Role and add it to the second Org
+        inst_operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, label='Instrument Operator', description='Instrument Operator')
+        self.org_client.add_user_role(org2_id, inst_operator_role, headers=self.system_actor_header)
+
+        #Create Instrument Operator Role and add it to the second Org
+        obs_operator_role = IonObject(RT.UserRole, name=OBSERVATORY_OPERATOR_ROLE, label='Observatory Operator', description='Observatory Operator')
+        self.org_client.add_user_role(org2_id, obs_operator_role, headers=self.system_actor_header)
+
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),4)
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
+
+        self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
+
+        #Refresh header with updated roles
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #Attempt to Create Test InstrumentDevice as Org Member
+        inst_dev = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')
+
+        #Should be denied without being the proper role
+        with self.assertRaises(Unauthorized) as cm:
+            inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=actor_header)
+        self.assertIn('instrument_management(create_instrument_device) has been denied',cm.exception.message)
+
+
+        #Grant the role of Instrument Operator to the user
+        self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+        #Refresh header with updated roles
+        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+
+        #Should be allowed
+        inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=actor_header)
+
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEqual(inst_dev_obj.lcstate, LCS.DRAFT_PRIVATE)
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=self.anonymous_user_headers)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=actor_header)
+        self.assertIn( 'Device is not associated with any Org',cm.exception.message)
+
+        self.org_client.share_resource(org2_id, inst_dev_id, headers=self.system_actor_header)
+
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=actor_header)
+
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+
+
+
+
+        #Clean up
+        self.ims_client.delete_instrument_device(inst_dev_id, headers=actor_header)
+
+        #Clean up
+        self.id_client.delete_actor_identity(actor_id,headers=self.system_actor_header )
+
+

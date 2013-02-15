@@ -7,26 +7,27 @@
 @description Implementation of the UserNotificationService
 """
 
+import pprint
+import string
+import time
+from email.mime.text import MIMEText
+from datetime import datetime
+
 from pyon.core.exception import BadRequest, IonException, NotFound
 from pyon.core.bootstrap import CFG
 from pyon.util.log import log
 from pyon.util.containers import get_ion_ts
 from pyon.public import RT, PRED, get_sys_name, Container, OT, IonObject
 from pyon.event.event import EventPublisher, EventSubscriber
+from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
+from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_to_human_readable
+
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
-from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue
-
-import string
-import time
-from email.mime.text import MIMEText
-from datetime import datetime
-
-from interface.objects import ProcessDefinition, TemporalBounds 
+from interface.objects import ComputedValueAvailability, NotificationDeliveryModeEnum, ComputedListValue, DeviceStatusType
+from interface.objects import ProcessDefinition, TemporalBounds
 from interface.services.dm.iuser_notification_service import BaseUserNotificationService
-from ion.services.dm.utility.uns_utility_methods import setting_up_smtp_client
-from ion.services.dm.utility.uns_utility_methods import calculate_reverse_user_info, _convert_to_human_readable
 
 
 """
@@ -110,9 +111,6 @@ class UserNotificationService(BaseUserNotificationService):
         #---------------------------------------------------------------------------------------------------
         # Get the event Repository
         #---------------------------------------------------------------------------------------------------
-
-        self.event_repo = self.container.instance.event_repository
-
 
 #        self.ION_NOTIFICATION_EMAIL_ADDRESS = 'data_alerts@oceanobservatories.org'
         self.ION_NOTIFICATION_EMAIL_ADDRESS = CFG.get_safe('server.smtp.sender')
@@ -458,42 +456,10 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         """
 
-        # The reason for the if-else below is that couchdb query_view does not support passing in Null or -1 for limit
-        # If the opreator does not want to set a limit for the search results in find_events, and does not therefore
-        # provide a limit, one has to just omit it from the opts dictionary and pass that into the query_view() method.
-        # Passing a null or negative for the limit to query view through opts results in a ServerError so we cannot do that.
-        if limit > -1:
-            opts = dict(
-                startkey = [origin, type or 0, min_datetime or 0],
-                endkey   = [origin, type or {}, max_datetime or {}],
-                descending = descending,
-                limit = limit,
-                include_docs = True
-            )
+        event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
 
-        else:
-            opts = dict(
-                startkey = [origin, type or 0, min_datetime or 0],
-                endkey   = [origin, type or {}, max_datetime or {}],
-                descending = descending,
-                include_docs = True
-            )
-        if descending:
-            t = opts['startkey']
-            opts['startkey'] = opts['endkey']
-            opts['endkey'] = t
-
-        results = self.datastore.query_view('event/by_origintype',opts=opts)
-
-        events = []
-        for res in results:
-            event_obj = res['doc']
-            events.append(event_obj)
-
+        events = [item[2] for item in event_tuples]
         log.debug("(find_events) UNS found the following relevant events: %s", events)
-
-        if limit > 0:
-            return events[:limit]
 
         return events
 
@@ -574,6 +540,7 @@ class UserNotificationService(BaseUserNotificationService):
         @param event_attrs  dict
         @retval event       !Event
         """
+        event_attrs = event_attrs or {}
 
         event = self.event_publisher.publish_event(
             event_type = event_type,
@@ -589,25 +556,99 @@ class UserNotificationService(BaseUserNotificationService):
 
     def get_recent_events(self, resource_id='', limit = 100):
         """
-        Get recent events
-
+        Get recent events for use in extended resource computed attribute
         @param resource_id str
         @param limit int
-
-        @retval events list of Event objects
+        @retval ComputedListValue with value list of 4-tuple with Event objects
         """
 
         now = get_ion_ts()
-        events = self.find_events(origin=resource_id,limit=limit, max_datetime=now, descending=True)
+        events = self.find_events(origin=resource_id, limit=limit, max_datetime=now, descending=True)
 
-        ret = IonObject(OT.ComputedListValue)
+        ret = IonObject(OT.ComputedEventListValue)
         if events:
             ret.value = events
+            ret.computed_list = [self._get_event_computed_attributes(event) for event in events]
             ret.status = ComputedValueAvailability.PROVIDED
         else:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
 
         return ret
+
+    def _get_event_computed_attributes(self, event):
+        """
+        @param event any Event to compute attributes for
+        @retval an EventComputedAttributes object for given event
+        """
+        evt_computed = IonObject(OT.EventComputedAttributes)
+        evt_computed.event_id = event._id
+        evt_computed.ts_computed = get_ion_ts()
+
+        try:
+            summary = self._get_event_summary(event)
+            evt_computed.event_summary = summary
+
+            spc_attrs = ["%s:%s" % (k, str(getattr(event, k))[:50]) for k in sorted(event.__dict__.keys()) if k not in ['_id', '_rev', 'type_', 'origin', 'origin_type', 'ts_created', 'base_types']]
+            evt_computed.special_attributes = ", ".join(spc_attrs)
+
+            evt_computed.event_attributes_formatted = pprint.pformat(event.__dict__)
+        except Exception as ex:
+            log.exception("Error computing EventComputedAttributes for event %s" % event)
+
+        return evt_computed
+
+    def _get_event_summary(self, event):
+        event_types = [event.type_] + event.base_types
+        summary = ""
+        if "ResourceLifecycleEvent" in event_types:
+            summary = "%s lifecycle state change: %s" % (event.origin_type, event.new_state)
+        elif "ResourceModifiedEvent" in event_types:
+            summary = "%s modified: %s" % (event.origin_type, event.sub_type)
+
+        elif "ResourceAgentStateEvent" in event_types:
+            summary = "%s agent state change: %s" % (event.origin_type, event.state)
+        elif "ResourceAgentResourceStateEvent" in event_types:
+            summary = "%s agent resource state change: %s" % (event.origin_type, event.state)
+        elif "ResourceAgentConfigEvent" in event_types:
+            summary = "%s agent config set: %s" % (event.origin_type, event.config)
+        elif "ResourceAgentResourceConfigEvent" in event_types:
+            summary = "%s agent resource config set: %s" % (event.origin_type, event.config)
+        elif "ResourceAgentCommandEvent" in event_types:
+            summary = "%s agent command '%s(%s)' succeeded: %s" % (event.origin_type, event.command, event.execute_command, "" if event.result is None else event.result)
+        elif "ResourceAgentErrorEvent" in event_types:
+            summary = "%s agent command '%s(%s)' failed: %s:%s (%s)" % (event.origin_type, event.command, event.execute_command, event.error_type, event.error_msg, event.error_code)
+        elif "ResourceAgentAsyncResultEvent" in event_types:
+            summary = "%s agent async command '%s(%s)' succeeded: %s" % (event.origin_type, event.command, event.desc, "" if event.result is None else event.result)
+
+        elif "ResourceAgentResourceCommandEvent" in event_types:
+            summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)
+        elif "DeviceStatusEvent" in event_types:
+            summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.state,"???"))
+        elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
+            summary = "Operator entered: %s" % event.description
+
+        elif "OrgMembershipGrantedEvent" in event_types:
+            summary = "Joined Org '%s' as member" % (event.org_name)
+        elif "OrgMembershipCancelledEvent" in event_types:
+            summary = "Cancelled Org '%s' membership" % (event.org_name)
+        elif "UserRoleGrantedEvent" in event_types:
+            summary = "Granted %s in Org '%s'" % (event.role_name, event.org_name)
+        elif "UserRoleRevokedEvent" in event_types:
+            summary = "Revoked %s in Org '%s'" % (event.role_name, event.org_name)
+        elif "ResourceSharedEvent" in event_types:
+            summary = "%s shared in Org: '%s'" % (event.sub_type, event.org_name)
+        elif "ResourceUnsharedEvent" in event_types:
+            summary = "%s unshared in Org: '%s'" % (event.sub_type, event.org_name)
+        elif "ResourceCommitmentCreatedEvent" in event_types:
+            summary = "%s commitment created in Org: '%s'" % (event.commitment_type, event.org_name)
+        elif "ResourceCommitmentReleasedEvent" in event_types:
+            summary = "%s commitment released in Org: '%s'" % (event.commitment_type, event.org_name)
+
+#        if event.description and summary:
+#            summary = summary + ". " + event.description
+#        elif event.description:
+#            summary = event.description
+        return summary
 
     def get_user_notifications(self, user_info_id=''):
         """
