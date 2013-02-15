@@ -386,11 +386,10 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             for evt in recent_events:
                 log.debug("Got an event with event_state: %s. While ProcessStateEnum.RUNNING would be: %s", evt.state, ProcessStateEnum.RUNNING)
                 if evt.state == ProcessStateEnum.RUNNING:
-                    log.debug("Caught the event here: %s", evt)
                     return True
             return False
 
-        poll(data_process_running, self.event_repo, data_process.process_id, timeout = 60)
+        poll(data_process_running, self.event_repo, data_process.process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
