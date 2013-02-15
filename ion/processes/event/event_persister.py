@@ -67,12 +67,20 @@ class EventPersister(StandaloneProcess):
         # Event.wait returns False on timeout (and True when set in on_quit), so we use this to both exit cleanly and do our timeout in a loop
         while not self._terminate_persist.wait(timeout=persist_interval):
             try:
+                if self.events_to_persist:
+                    # There was an error last time and we need to retry
+                    log.info("Retry persisting %s events" % len(self.events_to_persist))
+                    self._persist_events(self.events_to_persist)
+                    self.events_to_persist = None
+
                 self.events_to_persist = [self.event_queue.get() for x in xrange(self.event_queue.qsize())]
 
                 self._persist_events(self.events_to_persist)
                 self.events_to_persist = None
             except Exception as ex:
-                log.exception("Failed to persist received events")
+                # Note: Persisting events may fail occasionally during test runs (when the "events" datastore is force
+                # deleted and recreated). We'll log and keep retrying forever.
+                log.exception("Failed to persist %s received events" % len(self.events_to_persist))
                 return False
 
     def _persist_events(self, event_list):
