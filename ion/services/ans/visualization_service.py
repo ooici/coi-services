@@ -397,7 +397,7 @@ class VisualizationService(BaseVisualizationService):
                     use_direct_access = False
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
         if ds_ids is None or not ds_ids:
             raise NotFound("Could not find dataset associated with data product")
@@ -504,7 +504,7 @@ class VisualizationService(BaseVisualizationService):
                 image_name = visualization_parameters['image_name']
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
         if ds_ids is None or not ds_ids:
             log.warn("Specified dataproduct does not have an associated dataset")
@@ -684,7 +684,7 @@ class VisualizationService(BaseVisualizationService):
             raise BadRequest("The data_product_id parameter is missing")
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
         if ds_ids is None or not ds_ids:
             log.warn("Specified dataproduct does not have an associated dataset")

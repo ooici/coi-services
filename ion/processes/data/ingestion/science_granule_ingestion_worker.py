@@ -48,7 +48,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         Adds a new dataset to the internal cache of the ingestion worker
         '''
         rr_client = ResourceRegistryServiceClient()
-        datasets, _ = rr_client.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasStream,object=stream_id,id_only=True)
+        datasets, _ = rr_client.find_subjects(subject_type=RT.Dataset,predicate=PRED.hasStream,object=stream_id,id_only=True)
         if datasets:
             return datasets[0]
         return None

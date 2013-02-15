@@ -39,7 +39,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         #create data producer resource and associate to this external_dataset_id
         data_producer_obj = IonObject(RT.DataProducer,name=data_set_obj.name,
-            description="Primary DataProducer for ExternalDataSet %s" % data_set_obj.name,
+            description="Primary DataProducer for ExternalDataset %s" % data_set_obj.name,
             producer_context=producer_context_obj, is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 

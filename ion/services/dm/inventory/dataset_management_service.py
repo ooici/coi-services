@@ -17,7 +17,7 @@ from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDict
 from ion.util.time_utils import TimeUtils
 
 from interface.objects import ParameterContext as ParameterContextResource, ParameterDictionary as ParameterDictionaryResource
-from interface.objects import DataSet
+from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
@@ -54,7 +54,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
             parameter_dict = parameter_dict.dump()
 
-        dataset                      = DataSet()
+        dataset                      = Dataset()
         dataset.description          = description
         dataset.name                 = name
         dataset.primary_view_key     = stream_id or None
@@ -79,7 +79,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def read_dataset(self, dataset_id=''):
         retval = self.clients.resource_registry.read(dataset_id)
-        validate_is_instance(retval,DataSet)
+        validate_is_instance(retval,Dataset)
         return retval
 
     def update_dataset(self, dataset=None):
