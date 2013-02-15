@@ -312,6 +312,9 @@ class PlatformAgent(ResourceAgent):
         self._nnode = self._network_definition.nodes[self._platform_id]
         assert self._nnode.platform_id == self._platform_id
 
+        self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
+                                         in self._nnode.attrs.itervalues())
+
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
@@ -568,36 +571,17 @@ class PlatformAgent(ResourceAgent):
         result = None
         return result
 
-    def _verify_got_network_definition(self):
-        if not self._network_definition:
-            raise PlatformException(
-                "%r: _network_definition must have been set." % self._platform_id)
-
     def _start_resource_monitoring(self):
         """
         Starts resource monitoring.
         """
         self._assert_driver()
 
-        attr_info = self._get_platform_attributes()
-        if not attr_info:
-            # warning should have been generated already.
-            return
-
         self._platform_resource_monitor = PlatformResourceMonitor(
-            self._platform_id, attr_info, self._get_attribute_values, self.evt_recv
-        )
+            self._platform_id, self._platform_attributes,
+            self._get_attribute_values, self.evt_recv)
 
         self._platform_resource_monitor.start_resource_monitoring()
-
-    def _get_platform_attributes(self):
-        self._verify_got_network_definition()
-
-        nnode = self._network_definition.nodes[self._platform_id]
-        attr_info = dict((attr.attr_id, attr.defn) for attr in nnode.attrs.itervalues())
-        log.debug("%r: from _network_definition got attr_info=%s",
-              self._platform_id, attr_info)
-        return attr_info
 
     def _get_attribute_values(self, attr_names, from_time):
         self._assert_driver()
