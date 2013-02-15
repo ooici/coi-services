@@ -372,6 +372,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         data_process = self.rrclient.read(ctd_l0_all_data_process_id)
+        self.addCleanup(self.process_dispatcher.cancel_process, data_process.process_id)
 
         #-------------------------------
         # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
@@ -380,7 +381,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.event_repo = self.container.event_repository
 
         def data_process_running(event_repo, process_id):
-            event_tuples = event_repo.find_events(resource_id=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
+            event_tuples = event_repo.find_events(origin=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
             recent_events = [tuple[2] for tuple in event_tuples]
             for evt in recent_events:
                 log.debug("Got an event with event_state: %s. While ProcessStateEnum.RUNNING would be: %s", evt.state, ProcessStateEnum.RUNNING)

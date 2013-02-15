@@ -287,6 +287,30 @@ class UserNotificationEventsTest(PyonTestCase):
         dict(et='ResourceModifiedEvent', o='ID_1', ot='InstrumentDevice', st='CREATE',
             attr=dict(mod_type=1)),
 
+        dict(et='ResourceSharedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(resource_id="ResID_1", org_name="Org_Name")),
+
+        dict(et='ResourceUnsharedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(resource_id="ResID_1", org_name="Org_Name")),
+
+        dict(et='OrgMembershipGrantedEvent', o='ID_1', ot='Org', st='',
+            attr=dict(org_name="Org_Name")),
+
+        dict(et='OrgMembershipCancelledEvent', o='ID_1', ot='Org', st='',
+            attr=dict(org_name="Org_Name")),
+
+        dict(et='UserRoleGrantedEvent', o='ID_1', ot='Org', st='OBSERVATORY_OPERATOR',
+            attr=dict(actor_id="ActorID_1", org_name="Org_Name", role_name="OBSERVATORY_OPERATOR")),
+
+        dict(et='UserRoleRevokedEvent', o='ID_1', ot='Org', st='OBSERVATORY_OPERATOR',
+            attr=dict(actor_id="ActorID_1", org_name="Org_Name", role_name="OBSERVATORY_OPERATOR")),
+
+        dict(et='ResourceCommitmentCreatedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(org_name="Org_Name", commitment_id="ComID_1", commitment_type="ResourceCommitment")),
+
+        dict(et='ResourceCommitmentReleasedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(org_name="Org_Name", commitment_id="ComID_1", commitment_type="ResourceCommitment")),
+
         dict(et='ResourceAgentStateEvent', o='ID_1', ot='InstrumentDevice', st='',
             attr=dict(state="RESOURCE_AGENT_STATE_UNINITIALIZED")),
 
@@ -301,6 +325,20 @@ class UserNotificationEventsTest(PyonTestCase):
                 kwargs={},
                 command="execute_resource",
                 execute_command="DRIVER_EVENT_STOP_AUTOSAMPLE",
+                result=None)),
+
+        dict(et='ResourceAgentErrorEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(args=[],
+                kwargs={},
+                command="execute_resource",
+                execute_command="DRIVER_EVENT_STOP_AUTOSAMPLE",
+                error_type="BadRequest",
+                error_msg="Could not delete XYZ",
+                error_code=401)),
+
+        dict(et='ResourceAgentAsyncResultEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(command="execute_resource",
+                desc="DRIVER_EVENT_STOP_AUTOSAMPLE",
                 result=None)),
 
        dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
