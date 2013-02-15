@@ -23,7 +23,6 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.core.exception import BadRequest
 
 from pyon.core.bootstrap import get_obj_registry
-from pyon.core.object import IonObjectDeserializer
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
@@ -203,8 +202,6 @@ class PlatformAgent(ResourceAgent):
 
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
-
-        self.deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
 
         self._launcher = LauncherFactory.createLauncher()
         log.debug("launcher created: %s", str(type(self._launcher)))
