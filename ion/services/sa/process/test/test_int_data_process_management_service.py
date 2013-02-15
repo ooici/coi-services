@@ -380,8 +380,12 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
         #-------------------------------
 
-        gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
-        gate.await(10)
+        def poller(process_id):
+            gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
+            return gate.await(0.2) # checks the process gate at 0.2 second wait increments
+
+        # Will poll using the default timeout of 10 seconds
+        poll(poller, process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
