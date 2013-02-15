@@ -34,6 +34,7 @@ from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
+from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 
 ORG2 = 'Org2'
 
@@ -142,6 +143,134 @@ TEST_BOUNDARY_POLICY_TEXT = '''
         '''
 
 
+@attr('INT', group='coi')
+class TestGovernanceHeaders(IonIntegrationTestCase):
+    def setUp(self):
+
+        # Start container
+        self._start_container()
+
+        #Load a deploy file
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        #Instantiate a process to represent the test
+        process=GovernanceTestProcess()
+
+        self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+
+        #Get info on the ION System Actor
+        self.system_actor = self.container.governance_controller.get_system_actor()
+        log.info('system actor:' + self.system_actor._id)
+
+        self.system_actor_header = self.container.governance_controller.get_system_actor_header()
+
+        self.resource_id_header_value = ''
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    def test_governance_message_headers(self):
+        '''
+        This test is used to make sure the ION endpoint code is properly setting the
+        '''
+
+        #Get function pointer to send function
+        old_send = BidirectionalEndpointUnit._send
+
+        # make new send to patch on that duplicates send
+        def patched_send(*args, **kwargs):
+
+            #Only duplicate the message send from the initial client call
+            msg_headers = kwargs['headers']
+
+            self.resource_id_header_value = ''
+
+            if msg_headers.has_key('resource-id'):
+                self.resource_id_header_value = msg_headers['resource-id']
+
+            return old_send(*args, **kwargs)
+
+        # patch it into place with auto-cleanup to try to interogate the message headers
+        patcher = patch('pyon.net.endpoint.BidirectionalEndpointUnit._send', patched_send)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        # Instantiate an object
+        obj = IonObject("UserInfo", name="name")
+
+        # Can't call update with object that hasn't been persisted
+        with self.assertRaises(BadRequest) as cm:
+            self.rr_client.update(obj)
+        self.assertTrue(cm.exception.message.startswith("Object does not have required '_id' or '_rev' attribute"))
+
+        self.resource_id_header_value = ''
+
+        # Persist object and read it back
+        obj_id, obj_rev = self.rr_client.create(obj)
+        log.debug('The id of the created object is %s', obj_id)
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        self.resource_id_header_value = ''
+        read_obj = self.rr_client.read(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Cannot create object with _id and _rev fields pre-set
+        self.resource_id_header_value = ''
+        with self.assertRaises(BadRequest) as cm:
+            self.rr_client.create(read_obj)
+        self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        # Update object
+        read_obj.name = "John Doe"
+        self.resource_id_header_value = ''
+        self.rr_client.update(read_obj)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Update should fail with revision mismatch
+        self.resource_id_header_value = ''
+        with self.assertRaises(Conflict) as cm:
+            self.rr_client.update(read_obj)
+        self.assertTrue(cm.exception.message.startswith("Object not based on most current version"))
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Re-read and update object
+        self.resource_id_header_value = ''
+        read_obj = self.rr_client.read(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        self.resource_id_header_value = ''
+        self.rr_client.update(read_obj)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        #Create second object
+        obj = IonObject("UserInfo", name="Babs Smith")
+
+        self.resource_id_header_value = ''
+
+        # Persist object and read it back
+        obj2_id, obj2_rev = self.rr_client.create(obj)
+        log.debug('The id of the created object is %s', obj_id)
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        #Test for multi-read
+        self.resource_id_header_value = ''
+        objs = self.rr_client.read_mult([obj_id, obj2_id])
+
+        self.assertAlmostEquals(self.resource_id_header_value, [obj_id, obj2_id])
+        self.assertEqual(len(objs),2)
+
+        # Delete object
+        self.resource_id_header_value = ''
+        self.rr_client.delete(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+
+        # Delete object
+        self.resource_id_header_value = ''
+        self.rr_client.delete(obj2_id)
+        self.assertEqual(self.resource_id_header_value, obj2_id )
+
+
 class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
@@ -235,7 +364,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Clean up the non user actor
         self.rr_client.delete(self.apache_actor._id, headers=self.system_actor_header)
-
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')

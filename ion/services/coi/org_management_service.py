@@ -554,7 +554,7 @@ class OrgManagementService(BaseOrgManagementService):
         self._add_role_association(org, user, member_role)
 
         self.event_pub.publish_event(event_type=OT.OrgMembershipGrantedEvent, origin=org._id, origin_type='Org',
-            description='The member has enrolled in the Org', actor_id=user._id )
+            description='The member has enrolled in the Org', actor_id=user._id, org_name=org.name )
 
         return True
 
@@ -587,7 +587,7 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.delete_association(aid)
 
         self.event_pub.publish_event(event_type=OT.OrgMembershipCancelledEvent, origin=org._id, origin_type='Org',
-            description='The member has cancelled enrollment in the Org', actor_id=user._id )
+            description='The member has cancelled enrollment in the Org', actor_id=user._id, org_name=org.name )
 
         return True
 
@@ -699,9 +699,9 @@ class OrgManagementService(BaseOrgManagementService):
         if not aid:
             return False
 
-        self.event_pub.publish_event(event_type=OT.UserRoleGrantedEvent, origin=org._id, origin_type='Org',
+        self.event_pub.publish_event(event_type=OT.UserRoleGrantedEvent, origin=org._id, origin_type='Org', sub_type=user_role.name,
             description='Granted the %s role' % user_role.name,
-            actor_id=user._id, role_name=user_role.name )
+            actor_id=user._id, role_name=user_role.name, org_name=org.name )
 
         return True
 
@@ -712,9 +712,9 @@ class OrgManagementService(BaseOrgManagementService):
 
         self.clients.resource_registry.delete_association(aid)
 
-        self.event_pub.publish_event(event_type=OT.UserRoleRevokedEvent, origin=org._id, origin_type='Org',
+        self.event_pub.publish_event(event_type=OT.UserRoleRevokedEvent, origin=org._id, origin_type='Org', sub_type=user_role.name,
             description='Revoked the %s role' % user_role.name,
-            actor_id=user._id, role_name=user_role.name )
+            actor_id=user._id, role_name=user_role.name, org_name=org.name )
 
         return True
 
@@ -849,8 +849,8 @@ class OrgManagementService(BaseOrgManagementService):
         if not aid:
             return False
 
-        self.event_pub.publish_event(event_type=OT.ResourceSharedEvent, origin=org._id, origin_type='Org',
-            description='The resource has been shared in the Org', resource_id=resource_id )
+        self.event_pub.publish_event(event_type=OT.ResourceSharedEvent, origin=org._id, origin_type='Org', sub_type=resource.type_,
+            description='The resource has been shared in the Org', resource_id=resource_id, org_name=org.name )
 
         return True
 
@@ -874,8 +874,8 @@ class OrgManagementService(BaseOrgManagementService):
 
         self.clients.resource_registry.delete_association(aid)
 
-        self.event_pub.publish_event(event_type=OT.ResourceUnsharedEvent, origin=org._id, origin_type='Org',
-            description='The resource has been unshared in the Org', resource_id=resource_id )
+        self.event_pub.publish_event(event_type=OT.ResourceUnsharedEvent, origin=org._id, origin_type='Org', sub_type=resource.type_,
+            description='The resource has been unshared in the Org', resource_id=resource_id, org_name=org.name )
 
         return True
 
@@ -938,6 +938,8 @@ class OrgManagementService(BaseOrgManagementService):
         @throws NotFound    object with specified id does not exist
         """
         param_objects = self._validate_parameters(org_id=org_id, user_id=actor_id, resource_id=resource_id)
+        org = param_objects['org']
+        resource = param_objects['resource']
 
         res_commitment = IonObject(OT.ResourceCommitment, resource_id=resource_id, exclusive=exclusive)
 
@@ -953,8 +955,9 @@ class OrgManagementService(BaseOrgManagementService):
         self.clients.resource_registry.create_association(actor_id, PRED.hasCommitment, commitment_id)
         self.clients.resource_registry.create_association(resource_id, PRED.hasCommitment, commitment_id)
 
-        self.event_pub.publish_event(event_type=OT.ResourceCommitmentCreatedEvent, origin=org_id, origin_type='Org',
-            description='The resource has been committed by the Org', resource_id=resource_id )
+        self.event_pub.publish_event(event_type=OT.ResourceCommitmentCreatedEvent, origin=org_id, origin_type='Org', sub_type=resource.type_,
+            description='The resource has been committed by the Org', resource_id=resource_id, org_name=org.name,
+            commitment_id=commitment._id, commitment_type=commitment.commitment.type_)
 
         return commitment_id
 
@@ -972,8 +975,9 @@ class OrgManagementService(BaseOrgManagementService):
 
         commitment = self.clients.resource_registry.read(commitment_id)
 
-        self.event_pub.publish_event(event_type=OT.ResourceCommitmentReleasedEvent, origin=commitment.provider, origin_type='Org',
-            description='The resource has been uncommitted by the Org', resource_id=commitment.commitment.resource_id )
+        self.event_pub.publish_event(event_type=OT.ResourceCommitmentReleasedEvent, origin=commitment.provider, origin_type='Org', sub_type='',
+            description='The resource has been uncommitted by the Org', resource_id=commitment.commitment.resource_id,
+            commitment_id=commitment._id, commitment_type=commitment.commitment.type_ )
 
         return True
 

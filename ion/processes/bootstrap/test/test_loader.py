@@ -37,12 +37,20 @@ class TestLoader(IonIntegrationTestCase):
         self.assert_can_load("BASE,BETA", loadui=True, ui_path='candidate')
 
     @attr('PRELOAD')
-    def test_demo_valid(self):
+    def test_alpha_valid(self):
         """ make sure R2_DEMO scenario in master google doc
             is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,R2_DEMO", path='master')
+        self.assert_can_load("BASE,BETA,ALPHA_SYS", path='master')
+
+    @attr('PRELOAD')
+    def test_beta_valid(self):
+        """ make sure R2_DEMO scenario in master google doc
+            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            NOTE: test will pass/fail based on current google doc, not just code changes.
+        """
+        self.assert_can_load("BASE,BETA,BETA_SYS", path='master')
 
     @attr('PRELOAD')
     def test_devs_valid(self):
