@@ -380,12 +380,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
         #-------------------------------
 
-        def poller(process_id):
-            gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
-            return gate.await(0.2) # checks the process gate at 0.2 second wait increments
-
-        # Will poll using the default timeout of 10 seconds
-        poll(poller, process_id)
+        gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
+        self.assertTrue(gate.await(30), "The data process (%s) did not spawn in 30 seconds" % process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
@@ -406,9 +402,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         input_subscription_id = ctd_l0_all_data_process.input_subscription_id
         subs = self.rrclient.read(input_subscription_id)
         self.assertTrue(subs.activated)
-
-        process_obj = self.process_dispatcher.read_process(ctd_l0_all_data_process.process_id)
-        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
 
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
