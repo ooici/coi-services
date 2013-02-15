@@ -15,13 +15,13 @@ from pyon.util.containers import create_unique_identifier
 from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_not_none, validate_true
 from pyon.ion.resource import ExtendedResourceContainer
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, TransformFunction
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
-
+from pyon.util.arg_check import validate_is_instance
 from ion.util.module_uploader import RegisterModulePreparerPy
 import os
 import pwd
@@ -101,6 +101,36 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return uploader_obj.get_destination_url()
 
+    @classmethod
+    def _cmp_transform_function(cls, tf1, tf2):
+        return tf1.module        == tf2.module and \
+               tf1.cls           == tf2.cls    and \
+               tf1.uri           == tf2.uri    and \
+               tf1.function_type == tf2.function_type
+
+    def create_transform_function(self, transform_function=''):
+        '''
+        Creates a new transform function
+        '''
+        tfs, _ = self.clients.resource_registry.find_resources(name=transform_function.name, restype=RT.TransformFunction, id_only=False)
+        if len(tfs):
+            for tf in tfs:
+                if self._cmp_transform_function(transform_function, tf):
+                    return tf._id
+            raise BadRequest('An existing TransformFunction with name %s exists with a different definition' % transform_function.name)
+
+        tf_id, rev = self.clients.resource_registry.create(transform_function)
+        return tf_id
+
+    def read_transform_function(self, transform_function_id=''):
+        tf = self.clients.resource_registry.read(transform_function_id)
+        validate_is_instance(tf,TransformFunction, 'Resource %s is not a TransformFunction: %s' %(transform_function_id, type(tf)))
+        return tf
+
+    def delete_transform_function(self, transform_function_id):
+        self.read_transform_function(transform_function_id)
+        self.clients.resource_registry.delete(transform_function_id)
+        
     def create_data_process_definition(self, data_process_definition=None):
 
         result, _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
