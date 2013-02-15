@@ -34,7 +34,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product   = DataProductImpl(self.clients)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary=None, exchange_point=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -49,7 +49,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # If the stream definition has a parameter dictionary, use that
         validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to register a data product')
         stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
-        parameter_dictionary = stream_def_obj.parameter_dictionary or parameter_dictionary
+        parameter_dictionary = stream_def_obj.parameter_dictionary 
         validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
         exchange_point = exchange_point or 'science_data'
