@@ -5,35 +5,11 @@
 @file ion/services/dm/presentation/test/user_notification_test.py
 @description Unit and Integration test implementations for the user notification service class.
 '''
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.unit_test import PyonTestCase
-from pyon.util.containers import DotDict, get_ion_ts
-from pyon.public import IonObject, RT, OT, PRED, Container
-from pyon.core.exception import NotFound, BadRequest
-from pyon.core.bootstrap import get_sys_name, CFG
-from ion.services.dm.utility.granule_utils import time_series_domain
-from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.dm.idiscovery_service import DiscoveryServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-from ion.services.dm.presentation.user_notification_service import UserNotificationService
-from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
-from interface.objects import DeviceEvent, NotificationPreferences, NotificationDeliveryModeEnum
-from pyon.util.context import LocalContextMixin
-from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
+
 from nose.plugins.attrib import attr
 import unittest
-from pyon.util.log import log
-from pyon.event.event import EventPublisher, EventSubscriber
 import gevent
 from mock import Mock, mocksignature
-from interface.objects import NotificationRequest, TemporalBounds
-from ion.services.dm.inventory.index_management_service import IndexManagementService
-from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
-from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 import os, time, uuid
 from gevent import event, queue
 from gevent.timeout import Timeout
@@ -41,6 +17,34 @@ from gevent.event import Event
 import elasticpy as ep
 from datetime import datetime, timedelta
 from sets import Set
+
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
+from pyon.util.containers import DotDict, get_ion_ts
+from pyon.public import IonObject, RT, OT, PRED, Container
+from pyon.core.exception import NotFound, BadRequest
+from pyon.core.bootstrap import get_sys_name, CFG
+from pyon.util.context import LocalContextMixin
+from pyon.util.log import log
+from pyon.event.event import EventPublisher, EventSubscriber
+
+from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.presentation.user_notification_service import UserNotificationService
+from ion.services.dm.inventory.index_management_service import IndexManagementService
+from ion.services.dm.presentation.user_notification_service import EmailEventProcessor
+
+from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.idiscovery_service import DiscoveryServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.objects import UserInfo, DeliveryConfig, ComputedListValue, ComputedValueAvailability
+from interface.objects import DeviceEvent, NotificationPreferences, NotificationDeliveryModeEnum
+from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
+from interface.objects import NotificationRequest, TemporalBounds, DeviceStatusType
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
@@ -248,6 +252,113 @@ class UserNotificationTest(PyonTestCase):
 
         notification_request.temporal_bounds.end_datetime = get_ion_ts()
         self.mock_rr_client.update.assert_called_once_with(notification_request)
+
+
+@attr('UNIT', group='evt')
+class UserNotificationEventsTest(PyonTestCase):
+    def _load_mock_events(self, event_list):
+        for cnt, event_entry in enumerate(event_list):
+            origin = event_entry.get('o', None)
+            origin_type = event_entry.get('ot', None)
+            sub_type = event_entry.get('st', None)
+            attr = event_entry.get('attr', {})
+            evt_obj = IonObject(event_entry['et'], origin=origin, origin_type=origin_type, sub_type=sub_type, ts_created=get_ion_ts(), **attr)
+            evt_obj._id = str(cnt)
+            self.events.append(evt_obj)
+
+    def setUp(self):
+        self.events = []
+        self.uns = UserNotificationService()
+        self.uns.find_events = Mock()
+        def side_effect(origin=None, limit=None, **kwargs):
+            evt_list = [evt for evt in reversed(self.events) if evt.origin == origin]
+            if limit:
+                evt_list = evt_list[:limit]
+            return evt_list
+        self.uns.find_events.side_effect = side_effect
+
+    event_list1 = [
+        dict(et='ResourceLifecycleEvent', o='ID_1', ot='InstrumentDevice', st='DEPLOYED_AVAILABLE',
+            attr=dict(new_state="DEPLOYED_AVAILABLE",
+                  old_state="DEPLOYED_PRIVATE",
+                  resource_type="",
+                  transition_event="")),
+
+        dict(et='ResourceModifiedEvent', o='ID_1', ot='InstrumentDevice', st='CREATE',
+            attr=dict(mod_type=1)),
+
+        dict(et='ResourceSharedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(resource_id="ResID_1", org_name="Org_Name")),
+
+        dict(et='ResourceUnsharedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(resource_id="ResID_1", org_name="Org_Name")),
+
+        dict(et='OrgMembershipGrantedEvent', o='ID_1', ot='Org', st='',
+            attr=dict(org_name="Org_Name")),
+
+        dict(et='OrgMembershipCancelledEvent', o='ID_1', ot='Org', st='',
+            attr=dict(org_name="Org_Name")),
+
+        dict(et='UserRoleGrantedEvent', o='ID_1', ot='Org', st='OBSERVATORY_OPERATOR',
+            attr=dict(actor_id="ActorID_1", org_name="Org_Name", role_name="OBSERVATORY_OPERATOR")),
+
+        dict(et='UserRoleRevokedEvent', o='ID_1', ot='Org', st='OBSERVATORY_OPERATOR',
+            attr=dict(actor_id="ActorID_1", org_name="Org_Name", role_name="OBSERVATORY_OPERATOR")),
+
+        dict(et='ResourceCommitmentCreatedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(org_name="Org_Name", commitment_id="ComID_1", commitment_type="ResourceCommitment")),
+
+        dict(et='ResourceCommitmentReleasedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict(org_name="Org_Name", commitment_id="ComID_1", commitment_type="ResourceCommitment")),
+
+        dict(et='ResourceAgentStateEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(state="RESOURCE_AGENT_STATE_UNINITIALIZED")),
+
+        dict(et='ResourceAgentResourceStateEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(state="DRIVER_STATE_UNCONFIGURED")),
+
+        dict(et='ResourceAgentResourceConfigEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(config={'CCALDATE':[0,1,2], 'CG': -0.987093, 'CH': 0.1417895})),
+
+        dict(et='ResourceAgentCommandEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(args=[],
+                kwargs={},
+                command="execute_resource",
+                execute_command="DRIVER_EVENT_STOP_AUTOSAMPLE",
+                result=None)),
+
+        dict(et='ResourceAgentErrorEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(args=[],
+                kwargs={},
+                command="execute_resource",
+                execute_command="DRIVER_EVENT_STOP_AUTOSAMPLE",
+                error_type="BadRequest",
+                error_msg="Could not delete XYZ",
+                error_code=401)),
+
+        dict(et='ResourceAgentAsyncResultEvent', o='ID_1', ot='InstrumentDevice', st='',
+            attr=dict(command="execute_resource",
+                desc="DRIVER_EVENT_STOP_AUTOSAMPLE",
+                result=None)),
+
+       dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
+            attr=dict(state=DeviceStatusType.OK,
+                description="Event to deliver the status of instrument.")),
+    ]
+
+    def test_get_recent_events(self):
+        self._load_mock_events(self.event_list1)
+
+        res_list = self.uns.get_recent_events(resource_id="ID_1")
+        self.assertEquals(res_list.status, ComputedValueAvailability.PROVIDED)
+        self.assertEquals(len(res_list.value), len(self.event_list1))
+
+        self.assertTrue(all([eca.event_id == res_list.value[i]._id for (i, eca) in enumerate(res_list.computed_list)]))
+        self.assertTrue(all([eca.event_summary for eca in res_list.computed_list]))
+
+        #import pprint
+        #pprint.pprint([eca.__dict__ for eca in res_list.computed_list])
+
 
 @attr('INT', group='dm')
 class UserNotificationIntTest(IonIntegrationTestCase):
@@ -761,7 +872,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                         proc1.q.queue.clear()
                         return reloaded_user_info, reloaded_reverse_user_info
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes, 3)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes, 3)
         notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         self.assertIsNotNone(reloaded_user_info)
@@ -793,7 +904,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(9, found_user_info_dicts, processes, 1)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes, 1)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 
@@ -1571,6 +1682,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
         def poller():
             events = self.unsc.find_events(origin='my_special_find_events_origin', type = 'PlatformEvent', min_datetime= min_datetime, max_datetime=max_datetime)
+            log.debug("(UNS) got events: %s", events)
             return len(events) >= 4
 
         success = self.event_poll(poller, 10)
@@ -1682,7 +1794,8 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         event_attrs = {'status': 'OK'}
 
         # create async result to wait on in test
-        ar = gevent.event.AsyncResult()
+        ar_1 = gevent.event.AsyncResult()
+        ar_2 = gevent.event.AsyncResult()
 
         #--------------------------------------------------------------------------------
         # Set up a subscriber to listen for that event
@@ -1701,11 +1814,17 @@ class UserNotificationIntTest(IonIntegrationTestCase):
 
             result.set(True)
 
-        event_subscriber = EventSubscriber( event_type = 'PlatformTelemetryEvent',
+        event_subscriber_1 = EventSubscriber( event_type = 'PlatformTelemetryEvent',
             origin="origin_1",
-            callback=lambda m, h: received_event(ar, m, h))
-        event_subscriber.start()
-        self.addCleanup(event_subscriber.stop)
+            callback=lambda m, h: received_event(ar_1, m, h))
+        event_subscriber_1.start()
+        self.addCleanup(event_subscriber_1.stop)
+
+        event_subscriber_2 = EventSubscriber( event_type = 'PlatformTelemetryEvent',
+            origin="origin_1",
+            callback=lambda m, h: received_event(ar_2, m, h))
+        event_subscriber_2.start()
+        self.addCleanup(event_subscriber_2.stop)
 
         #--------------------------------------------------------------------------------
         # Use the UNS publish_event
@@ -1720,7 +1839,18 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             event_attrs = event_attrs
         )
 
-        ar.wait(timeout=10)
+        ar_1.wait(timeout=10)
+
+        # Not passing the event_attrs this time
+        self.unsc.publish_event(
+            event_type=type,
+            origin=origin,
+            origin_type=origin_type,
+            sub_type=sub_type,
+            description="a description"
+        )
+
+        ar_2.wait(timeout=10)
 
 
     @attr('LOCOINT')
