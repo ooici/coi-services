@@ -22,7 +22,6 @@ from pyon.agent.agent import ResourceAgentClient
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
 
-from pyon.core.bootstrap import get_obj_registry
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
@@ -1405,7 +1404,7 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('connect_instrument: missing attributes argument.')
 
         result = self._trigger_driver_event(PlatformDriverEvent.CONNECT_INSTRUMENT,
-                                    **kwargs)
+                                            **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1428,7 +1427,7 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('disconnect_instrument: missing instrument_id argument.')
 
         result = self._trigger_driver_event(PlatformDriverEvent.DISCONNECT_INSTRUMENT,
-                                    **kwargs)
+                                            **kwargs)
 
         next_state = self.get_agent_state()
 
@@ -1447,7 +1446,7 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('get_connected_instruments: missing port_id argument.')
 
         result = self._trigger_driver_event(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
-                                    **kwargs)
+                                            **kwargs)
 
         next_state = self.get_agent_state()
 

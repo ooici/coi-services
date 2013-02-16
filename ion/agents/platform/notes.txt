@@ -3,7 +3,7 @@ platform agent framework
 some occasionaly updated developer notes
 
 2013-02-15:
-- Adjustments over checksum implementation, tests now running.
+- more progress on checksum implementation, but still incomplete.
   Note: instead of using the checksum property on the platform network nodes,
   compute_checksum is called. This seems appropriate in general as the
   computation is apparently not very costly on the memory representation
@@ -11,6 +11,13 @@ some occasionaly updated developer notes
   such representation. However, a real RSN OMS implementation should probably
   use some caching mechanism along with appropriate invalidation upon
   changes to the platform network information.
+- For purposes of keeping up-to-date the "local image" of the platform network
+  state at the platform agent/driver level --such that successful checksum verification
+  is maintained (see test_check_sync in test_platform_agent_with_oms.py)--
+  the following operations were adjusted: CONNECT_INSTRUMENT and DISCONNECT_INSTRUMENT.
+  TODO NOTE: several other operations still to be adjusted.
+- Since they can be used in general, moved NormalResponse and InvalidResponse
+  from oms_client to new module ion.agents.platform.responses
 - Renamings in network definition classes for more consistent use of "node"
   concept.
 - OmsSimulator now uses NetworkUtil to parse the simulated network definition.

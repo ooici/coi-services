@@ -12,8 +12,7 @@ __license__ = 'Apache 2.0'
 
 from ion.agents.platform.oms.oms_client import OmsClient
 from ion.agents.platform.oms.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
-from ion.agents.platform.oms.oms_client import NormalResponse
-from ion.agents.platform.oms.oms_client import InvalidResponse
+from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network_util import NetworkUtil
 

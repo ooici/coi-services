@@ -17,7 +17,7 @@ log = Logger.get_logger()
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
-from ion.agents.platform.oms.oms_client import InvalidResponse, NormalResponse
+from ion.agents.platform.responses import NormalResponse, InvalidResponse
 
 import time
 import ntplib

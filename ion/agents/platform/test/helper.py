@@ -17,8 +17,7 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
 
-from ion.agents.platform.oms.oms_client import InvalidResponse
-from ion.agents.platform.oms.oms_client import NormalResponse
+from ion.agents.platform.responses import NormalResponse, InvalidResponse
 
 
 class HelperTestMixin:

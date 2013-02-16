@@ -47,7 +47,7 @@ from ion.agents.platform.platform_agent_launcher import LauncherFactory
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
 from ion.agents.platform.oms.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.platform.oms.oms_client import NormalResponse
+from ion.agents.platform.responses import NormalResponse
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
@@ -551,6 +551,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         log.info("CHECK_SYNC result: %s", retval.result)
         self.assertTrue(retval.result is not None)
+        self.assertEquals(retval.result[0:3], "OK:")
         return retval.result
 
     def test_capabilities(self):
@@ -964,6 +965,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._go_active()
         self._run()
 
+        self._check_sync()
+
+        self._connect_instrument()
+        self._check_sync()
+
+        self._disconnect_instrument()
         self._check_sync()
 
         self._go_inactive()

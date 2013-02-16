@@ -15,11 +15,12 @@ from pyon.public import log
 import logging
 
 from ion.agents.platform.platform_driver import PlatformDriver
+from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
-from ion.agents.platform.oms.oms_client import InvalidResponse
+from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.oms.oms_event_listener import OmsEventListener
 
 from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
@@ -386,7 +387,16 @@ class OmsPlatformDriver(PlatformDriver):
             self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
-        self._verify_port_id_in_response(port_id, dic_plat)
+        port_dic = self._verify_port_id_in_response(port_id, dic_plat)
+        instr_res = self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
+
+        # update local image if instrument was actually connected in this call:
+        if isinstance(instr_res, dict):
+            attrs = instr_res
+            instrumentNode = InstrumentNode(instrument_id, attrs)
+            self._pnode.ports[port_id].add_instrument(instrumentNode)
+            log.debug("%r: port_id=%s connect_instrument: local image updated: %s",
+                      self._platform_id, port_id, instrument_id)
 
         return dic_plat  # note: return the dic for the platform
 
@@ -398,11 +408,17 @@ class OmsPlatformDriver(PlatformDriver):
 
         response = self._rsn_oms.disconnect_instrument(self._platform_id, port_id, instrument_id)
         log.debug("%r: disconnect_instrument response: %s",
-            self._platform_id, response)
+                  self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
         port_dic = self._verify_port_id_in_response(port_id, dic_plat)
-        self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
+        instr_res = self._verify_instrument_id_in_response(port_id, instrument_id, port_dic)
+
+        # update local image if instrument was actually disconnected in this call:
+        if instr_res == NormalResponse.INSTRUMENT_DISCONNECTED:
+            del self._pnode.ports[port_id].instruments[instrument_id]
+            log.debug("%r: port_id=%s disconnect_instrument: local image updated: %s",
+                      self._platform_id, port_id, instrument_id)
 
         return dic_plat  # note: return the dic for the platform
 
