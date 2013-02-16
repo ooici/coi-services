@@ -30,6 +30,10 @@ class BootstrapCore(BootstrapPlugin):
         sys_actor = ActorIdentity(name=actor_name, description="ION System Agent")
         process.container.resource_registry.create(sys_actor)
 
+        webauth_actor_name = get_safe(config, "system.web_authentication_actor", "web_authentication")
+        web_auth_actor = ActorIdentity(name=webauth_actor_name, description="Web Authentication Actor")
+        process.container.resource_registry.create(web_auth_actor)
+
         # Store all resource types
 
         # Store all event types
