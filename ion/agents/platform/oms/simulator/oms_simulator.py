@@ -418,10 +418,16 @@ class OmsSimulator(OmsClient):
         return self._reg_event_listeners
 
     def get_checksum(self, platform_id):
+        """
+        @note the checksum is always computed, which is fine for the simulator.
+        A more realistic and presumably more efficient implementation would
+        exploit some caching mechanism along with appropriate invalidation
+        upon modifications to the platform information.
+        """
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         pnode = self._pnodes[platform_id]
-        checksum = pnode.checksum
+        checksum = pnode.compute_checksum()
 
         return {platform_id: checksum}

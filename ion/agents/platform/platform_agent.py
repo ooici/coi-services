@@ -1571,7 +1571,7 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: _check_sync: getting external checksum..." % self._platform_id)
 
         external_checksum = self._trigger_driver_event(PlatformDriverEvent.GET_CHECKSUM)
-        local_checksum = self._pnode.checksum
+        local_checksum = self._pnode.compute_checksum()
 
         if external_checksum == local_checksum:
             result = "OK: checksum for platform_id=%r: %s" % (

@@ -4,6 +4,13 @@ some occasionaly updated developer notes
 
 2013-02-15:
 - Adjustments over checksum implementation, tests now running.
+  Note: instead of using the checksum property on the platform network nodes,
+  compute_checksum is called. This seems appropriate in general as the
+  computation is apparently not very costly on the memory representation
+  provided by the BaseNode classes. In particular, the simulator also relies on
+  such representation. However, a real RSN OMS implementation should probably
+  use some caching mechanism along with appropriate invalidation upon
+  changes to the platform network information.
 - Renamings in network definition classes for more consistent use of "node"
   concept.
 - OmsSimulator now uses NetworkUtil to parse the simulated network definition.

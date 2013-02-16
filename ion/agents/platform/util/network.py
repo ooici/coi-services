@@ -23,6 +23,7 @@ class BaseNode(object):
     A convenient base class for the components of a platform network.
     """
     def __init__(self):
+        # cached value for the checksum property.
         self._checksum = None
 
     def diff(self, other):
@@ -30,13 +31,22 @@ class BaseNode(object):
         Returns None if this and the other object are the same.
         Otherwise, returns a message describing the first difference.
         """
-        raise NotImplementedError()  #pragma: no cover
+        raise NotImplementedError()  # pragma: no cover
 
     @property
     def checksum(self):
         """
-        Gets the last value computed by compute_checksum,
-        which is called if it has not been called yet.
+        Gets the last value computed by compute_checksum, if any.
+        If no such value is available (for example, compute_checksum hasn't
+        been called yet, or the cached checksum has been invalidated), then
+        this method calls compute_checksum to obtain the checksum.
+
+        @note Unless client code has good control about the changes done on
+        instances of this class (including changes in children nodes), that is,
+        by making sure to invalidate the corresponding cached values upon any
+        changes, the use of this property is *not* recommended; instead call
+        compute_checksum, which always compute the checksum based on the
+        current state of the node and its children.
 
         @return SHA1 hash value as string of hexadecimal digits.
         """
@@ -47,8 +57,8 @@ class BaseNode(object):
     def compute_checksum(self):
         """
         Computes the checksum for this object, updating the cached value for
-        future calls to checksum(). Subclasses do not need overwrite this
-        method.
+        future calls to the checksum property. Subclasses do not need
+        overwrite this method.
 
         @return SHA1 hash value as string of hexadecimal digits
         """
@@ -63,7 +73,7 @@ class BaseNode(object):
 
         @return SHA1 hash value as string of hexadecimal digits
         """
-        raise NotImplementedError()  #pragma: no cover
+        raise NotImplementedError()  # pragma: no cover
 
 
 class AttrNode(BaseNode):
