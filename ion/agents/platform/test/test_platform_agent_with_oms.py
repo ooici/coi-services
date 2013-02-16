@@ -348,11 +348,10 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
         self.assertIsInstance(result[port_id], dict)
-        self.assertTrue(instrument_id in result[port_id])
-        returned_attrs = result[port_id][instrument_id]
-        self.assertIsInstance(returned_attrs, dict)
-        for attrName in instrument_attributes:
-            self.assertTrue(attrName in returned_attrs)
+        returned_attrs = self._verify_valid_instrument_id(instrument_id, result[port_id])
+        if isinstance(returned_attrs, dict):
+            for attrName in instrument_attributes:
+                self.assertTrue(attrName in returned_attrs)
 
     def _get_connected_instruments(self):
         port_id = self.PORT_ID

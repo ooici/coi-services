@@ -75,8 +75,6 @@ class AttrNode(BaseNode):
         self._attr_id = attr_id
         self._defn = defn
 
-        self._writable = 'read_write' in defn and defn['read_write'].lower().find("write") >= 0
-
     def __repr__(self):
         return "AttrNode{id=%s, defn=%s}" % (self.attr_id, self.defn)
 
@@ -90,7 +88,7 @@ class AttrNode(BaseNode):
 
     @property
     def writable(self):
-        return self._writable
+        return self.defn.get('read_write', '').lower().find("write") >= 0
 
     def diff(self, other):
         if self.attr_id != other.attr_id:
@@ -131,6 +129,7 @@ class PortNode(BaseNode):
         self._port_id = port_id
         self._network = network
         self._instruments = {}
+        self._is_on = False
 
     def __repr__(self):
         return "PortNode{id=%s, network=%s}" % (
@@ -143,6 +142,13 @@ class PortNode(BaseNode):
     @property
     def network(self):
         return self._network
+
+    @property
+    def is_on(self):
+        return self._is_on
+
+    def set_on(self, on):
+        self._is_on = on
 
     @property
     def instruments(self):
@@ -174,6 +180,10 @@ class PortNode(BaseNode):
             return "Port network values are different: %r != %r" % (
                 self.network, other.network)
 
+        if self.is_on != other.is_on:
+            return "Port is_on values are different: %r != %r" % (
+                self.is_on, other.is_on)
+
         # compare instruments:
         instrument_ids = set(self.instruments.iterkeys())
         other_instrument_ids = set(other.instruments.iterkeys())
@@ -196,6 +206,9 @@ class PortNode(BaseNode):
 
         # network:
         hash_obj.update("port_network=%s;" % self.network)
+
+        # is_on:
+        hash_obj.update("port_is_on=%s;" % self.is_on)
 
         # instruments:
         hash_obj.update("port_instruments:")
@@ -501,6 +514,12 @@ class NetworkDefinition(BaseNode):
         if self._dummy_root and len(self._dummy_root.subplatforms) == 1:
             root = self._dummy_root.subplatforms.values()[0]
         return root
+
+    def get_map(self):
+        """
+        Helper for getting the list of (platform_id, parent_platform_id) pairs.
+        """
+        return self._dummy_root.get_map([])
 
     def diff(self, other):
         """

@@ -63,7 +63,7 @@ class OmsPlatformDriver(PlatformDriver):
         PlatformDriver.configure(self, driver_config)
 
     def _assert_rsn_oms(self):
-        assert self._rsn_oms, "_rsn_oms object required (created via connect() call)"
+        assert self._rsn_oms is not None, "_rsn_oms object required (created via connect() call)"
 
     def ping(self):
         """
@@ -83,6 +83,9 @@ class OmsPlatformDriver(PlatformDriver):
 
         if retval is None or retval.upper() != "PONG":
             raise PlatformConnectionException(msg="Unexpected ping response: %r" % retval)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: ping completed: response: %s" %(self._platform_id, retval))
 
         return "PONG"
 

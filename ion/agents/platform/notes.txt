@@ -6,6 +6,8 @@ some occasionaly updated developer notes
 - Adjustments over checksum implementation, tests now running.
 - Renamings in network definition classes for more consistent use of "node"
   concept.
+- OmsSimulator now uses NetworkUtil to parse the simulated network definition.
+
 
 2013-02-14:
 - moved utility method from platform driver to network_util

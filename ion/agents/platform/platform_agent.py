@@ -325,6 +325,9 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_config_processed = True
 
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            log.debug("%r: _plat_config_processed complete" % self._platform_id)
+
     ##############################################################
     # Governance interfaces
     ##############################################################
@@ -387,6 +390,8 @@ class PlatformAgent(ResourceAgent):
             self._construct_data_publishers_using_agent_streamconfig_map()
         else:
             self._construct_data_publishers_using_CFG_stream_config()
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            log.debug("%r: _construct_data_publishers complete" % self._platform_id)
 
     def _construct_data_publishers_using_agent_streamconfig_map(self):
         log.debug("%r: _agent_streamconfig_map = %s",

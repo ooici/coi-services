@@ -23,6 +23,7 @@ from ion.agents.platform.oms.simulator.logger import Logger
 log = Logger.get_logger()
 
 from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.util.network_util import NetworkUtil
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from threading import Thread
 
@@ -108,7 +109,8 @@ if __name__ == "__main__":  # pragma: no cover
     oss = OmsSimulatorServer(host, port, thread=True)
     sim = oss.oms_simulator
 
-    log.info("network._dump():\n   |%s" % sim._dump().replace('\n', '\n   |'))
+    ser = NetworkUtil.serialize_network_definition(sim._ndef)
+    log.info("network serialization:\n   %s" % ser.replace('\n', '\n   '))
     log.info("network.get_map() = %s\n" % sim.config.get_platform_map())
 
     log.info("Methods:\n\t%s", "\n\t".join(oss.methods))

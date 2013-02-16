@@ -119,6 +119,7 @@ class NetworkUtil(object):
                     port_id = port_info['port_id']
                     network = port_info['network']
                     port = PortNode(port_id, network)
+                    port.set_on(port_info.get('is_on', False))
                     if 'instruments' in port_info:
                         for instrument in port_info['instruments']:
                             instrument_id = instrument['instrument_id']

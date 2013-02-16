@@ -180,13 +180,13 @@ class OmsTestMixin(HelperTestMixin):
         port_dic = self._verify_valid_port_id(port_id, ports)
         self.assertIsInstance(port_dic, dict)
         instr_val = self._verify_valid_instrument_id(instrument_id, port_dic)
-        self.assertIsInstance(instr_val, dict)
-        for attr_name in attributes:
-            self.assertTrue(attr_name in instr_val)
-            attr_val = instr_val[attr_name]
-            self.assertEquals(attributes[attr_name], attr_val,
-                "value given %s different from value received %s" % (
-                    attributes[attr_name], attr_val))
+        if isinstance(instr_val, dict):
+            for attr_name in attributes:
+                self.assertTrue(attr_name in instr_val)
+                attr_val = instr_val[attr_name]
+                self.assertEquals(attributes[attr_name], attr_val,
+                    "value given %s different from value received %s" % (
+                        attributes[attr_name], attr_val))
 
     def test_am_connect_instrument_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID

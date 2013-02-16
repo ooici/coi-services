@@ -169,12 +169,17 @@ class HelperTestMixin:
 
     def _verify_valid_instrument_id(self, instrument_id, dic):
         """
-        verifies the instrument_id is an entry in the dict with a
-        valid value (a dict). Returns dic[instrument_id].
+        verifies the instrument_id is an entry in the dict with a valid value,
+        either a dict or InvalidResponse.INSTRUMENT_ALREADY_CONNECTED.
+        Returns dic[instrument_id].
         """
         self.assertTrue(instrument_id in dic)
         val = dic[instrument_id]
-        self.assertTrue(isinstance(val, dict))
+        self.assertTrue(
+            isinstance(val, dict) or
+            val == InvalidResponse.INSTRUMENT_ALREADY_CONNECTED,
+            "%r: val should be a dict but is: %s" % (
+                instrument_id, str(val)))
         return val
 
     def _verify_invalid_instrument_id(self, instrument_id, dic):
