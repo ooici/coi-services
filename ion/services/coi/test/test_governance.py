@@ -554,7 +554,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),2) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),3) #Should include the ION System Actor, Web auth actor and non-user actor from setup as well.
 
         log.debug('Begin testing with policies')
 
@@ -571,7 +571,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),3) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),4) #Should include the ION System Actor and non-user actor from setup as well.
 
         #Now enroll the user as a member of the Second Org
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
@@ -596,7 +596,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now try to hit the RR with a real user and should noe bw allowed
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=actor_header)
-        self.assertEqual(len(users),3) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),4) #Should include the ION System Actor and non-user actor from setup as well.
 
         #TODO - figure out how to right a XACML rule to be a member of the specific Org as well
 
@@ -665,7 +665,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'org_management(find_enrolled_users) has been denied',cm.exception.message)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),3)  # WIll include the ION system actor and the non user actor from setup
+        self.assertEqual(len(users),4)  # WIll include the ION system actor and the non user actor from setup
 
         #Create a second Org
         with self.assertRaises(NotFound) as nf:
@@ -797,7 +797,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         actor_header = self.container.governance_controller.get_actor_header(actor_id)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),3)  # WIll include the ION system actor and the non user actor from setup
+        self.assertEqual(len(users),4)  # WIll include the ION system actor and the non user actor from setup
 
         ## test_org_roles and policies
 
