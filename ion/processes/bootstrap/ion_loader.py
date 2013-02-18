@@ -123,6 +123,7 @@ DEFAULT_CATEGORIES = [
 #    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
+    'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
     'DataProductLink',
@@ -1750,6 +1751,13 @@ Reason: %s
         # package as needed by agent instance
         return { 'ports': port_dicts,
                  'platform_monitor_attributes': attribute_dicts }
+
+
+
+    def _load_TransformFunction(self,row):
+        res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
+
+
 
 
     def _load_DataProcessDefinition(self, row):
