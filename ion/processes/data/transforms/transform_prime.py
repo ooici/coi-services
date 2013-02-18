@@ -8,7 +8,9 @@
 from ion.core.process.transform import TransformDataProcess
 from coverage_model import ParameterDictionary
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
-
+from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from coverage_model import QuantityType, get_value_class
+from coverage_model.parameter_types import ParameterFunctionType
 
 class TransformPrime(TransformDataProcess):
     binding=['output']
@@ -26,17 +28,14 @@ class TransformPrime(TransformDataProcess):
     def on_start(self):
         TransformDataProcess.on_start(self)
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
-
     
-    def _get_pdict(self, stream_id):
-        stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
-        pdict = stream_def.parameter_dictionary
-        return pdict
-
     def recv_packet(self, msg, stream_route, stream_id):
-        incoming_pdict_dump = self._get_pdict(stream_id)
-        outgoing_pdict_dump = self._get_pdict(self.CFG.process.stream_id)
-       
+        stream_def_in = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        incoming_pdict_dump = stream_def_in.parameter_dictionary
+        
+        stream_def_out = self.pubsub_management.read_stream_definition(stream_id=self.CFG.process.stream_id)
+        outgoing_pdict_dump = stream_def_out.parameter_dictionary
+        
         incoming_pdict = ParameterDictionary.load(incoming_pdict_dump)
         outgoing_pdict = ParameterDictionary.load(outgoing_pdict_dump)
 
@@ -47,4 +46,27 @@ class TransformPrime(TransformDataProcess):
         print "Outgoing: "
         for key in outgoing_pdict.keys():
             print '\t', key
+        
+        #merge incoming and outgoing parameter dictionaries
+        #loop through the record dictionary output stream def
+        #get the parameter context for foreach pdict associated with the pdict in the available fields
+        #get the domain for the value class
+        #get the Parameter value by using the parameter context
 
+        merged_pdict = dict(incoming_pdict.items(), outgoing_pdict.items())
+        for key in merged_pdict.keys():
+            print '\t', key
+        #rdt = RecordDictionaryTool(stream_definition_id=stream_def_out.id)
+        rdt_in = RecordDictionaryTool.load_from_granule(msg)
+        for key,pdict in merged_pdict.iteritems():
+            if isinstance(pdict, ParameterFunctionType):
+                #apply transform
+                pcontext = pdict.get_context(key)
+                pv = get_value_class(pcontext, rdt_in.domain)
+                rdt_in._rd[key] = pv[:]
+            
+            
+            #elif key in rdt._available_fields and isinstance(pdict, QuantityType):
+                
+    #def execute_transform(self, granule):
+        
