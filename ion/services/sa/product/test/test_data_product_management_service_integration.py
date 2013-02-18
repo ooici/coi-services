@@ -158,6 +158,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         dp_id = self.dpsc_cli.create_data_product( data_product= dp_obj,
                                             stream_definition_id=ctd_stream_def_id)
+        self.dpsc_cli.activate_data_product_persistence(dp_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertIsNotNone(dp_obj)
@@ -173,6 +174,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             spatial_domain = sdom.dump())
 
         dp_id2 = self.dpsc_cli.create_data_product(dp_obj, ctd_stream_def_id)
+        self.dpsc_cli.activate_data_product_persistence(dp_id2)
         log.debug('new dp_id = %s' % dp_id2)
 
         #------------------------------------------------------------------------------------------------
@@ -297,6 +299,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dp_id = self.dpsc_cli.create_data_product(data_product= dp_obj,
             stream_definition_id=ctd_stream_def_id)
 
+        #------------------------------------------------------------------------------------------------
+        # test activate and suspend data product persistence
+        #------------------------------------------------------------------------------------------------
+        self.dpsc_cli.activate_data_product_persistence(dp_id)
+        
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertIsNotNone(dp_obj)
 
@@ -305,10 +312,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             raise NotFound("Data Product %s dataset  does not exist" % str(dp_id))
         self.get_datastore(dataset_ids[0])
 
-        #------------------------------------------------------------------------------------------------
-        # test activate and suspend data product persistence
-        #------------------------------------------------------------------------------------------------
-        self.dpsc_cli.activate_data_product_persistence(dp_id)
 
         # Check that the streams associated with the data product are persisted with
         stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)

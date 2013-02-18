@@ -299,6 +299,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         print  'new dp_id = %s' % data_product_id1
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
@@ -312,10 +313,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
         print  'Data set for data_product_id1 = %s' % dataset_ids[0]
         self.parsed_dataset = dataset_ids[0]
-        #create the datastore at the beginning of each int test that persists data
-        self.get_datastore(self.parsed_dataset)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)

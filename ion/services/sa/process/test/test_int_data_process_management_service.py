@@ -29,6 +29,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType
 from mock import patch
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 import gevent
 from sets import Set
 
@@ -372,24 +373,15 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
         data_process = self.rrclient.read(ctd_l0_all_data_process_id)
-        self.addCleanup(self.process_dispatcher.cancel_process, data_process.process_id)
+        process_id = data_process.process_id
+        self.addCleanup(self.process_dispatcher.cancel_process, process_id)
 
         #-------------------------------
         # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
         #-------------------------------
 
-        self.event_repo = self.container.event_repository
-
-        def data_process_running(event_repo, process_id):
-            event_tuples = event_repo.find_events(origin=process_id, event_type='ProcessLifecycleEvent', origin_type= 'DispatchedProcess')
-            recent_events = [tuple[2] for tuple in event_tuples]
-            for evt in recent_events:
-                log.debug("Got an event with event_state: %s. While ProcessStateEnum.RUNNING would be: %s", evt.state, ProcessStateEnum.RUNNING)
-                if evt.state == ProcessStateEnum.RUNNING:
-                    return True
-            return False
-
-        poll(data_process_running, self.event_repo, data_process.process_id)
+        gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
+        self.assertTrue(gate.await(30), "The data process (%s) did not spawn in 30 seconds" % process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
@@ -410,9 +402,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         input_subscription_id = ctd_l0_all_data_process.input_subscription_id
         subs = self.rrclient.read(input_subscription_id)
         self.assertTrue(subs.activated)
-
-        process_obj = self.process_dispatcher.read_process(ctd_l0_all_data_process.process_id)
-        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
 
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)

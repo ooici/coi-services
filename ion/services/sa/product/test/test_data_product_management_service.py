@@ -84,8 +84,7 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
 
         # test call
         dp_id = self.data_product_management_service.create_data_product(data_product=dp_obj,
-                stream_definition_id='a stream def id',
-                parameter_dictionary=parameter_dictionary)
+                stream_definition_id='a stream def id')
 
 
 

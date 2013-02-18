@@ -358,6 +358,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
+        self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
 
 
 
@@ -370,9 +371,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         log.debug( 'Data set for data_product_id1 = %s', dataset_ids[0])
         self.parsed_dataset = dataset_ids[0]
         #create the datastore at the beginning of each int test that persists data
-        self._get_datastore(self.parsed_dataset)
 
-        self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
 
 
         dp_obj = IonObject(RT.DataProduct,
@@ -382,8 +381,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                            spatial_domain = sdom)
 
         data_product_id2 = self.DP.create_data_product(data_product=dp_obj,
-                                                       stream_definition_id=raw_stream_def_id,
-                                                       parameter_dictionary=rpdict_id)
+                                                       stream_definition_id=raw_stream_def_id)
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)

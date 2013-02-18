@@ -270,6 +270,7 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         print  'new dp_id = %s' % data_product_id1
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
@@ -286,7 +287,6 @@ class TestDriverEgg(IonIntegrationTestCase):
         #create the datastore at the beginning of each int test that persists data
         self.get_datastore(self.parsed_dataset)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the raw data',
