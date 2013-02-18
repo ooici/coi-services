@@ -395,8 +395,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                            spatial_domain = sdom)
 
         data_product_id2 = self.DP.create_data_product(data_product=dp_obj,
-                                                       stream_definition_id=raw_stream_def_id,
-                                                       parameter_dictionary=rpdict_id)
+                                                       stream_definition_id=raw_stream_def_id)
         log.debug( 'new dp_id = %s', str(data_product_id2))
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
