@@ -9,7 +9,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from pyon.ion.stream import StandaloneStreamPublisher
 from pyon.util.int_test import IonIntegrationTestCase
-from coverage_model import ParameterDictionary, ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprExpression, ParameterFunctionType, VariabilityEnum, PythonExpression
+from coverage_model import ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
 from interface.objects import DataProcessDefinition, DataProduct, DataProducer
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -97,17 +97,18 @@ class TestTransformPrime(IonIntegrationTestCase):
         # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
         tl1_func = '(TEMPWAT_L0 / 10000) - 10'
         tl1_pmap = {'TEMPWAT_L0':'TEMPWAT_L0'}
-        expr = NumexprExpression(tl1_func, tl1_pmap)
-        tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(expression=expr), variability=VariabilityEnum.TEMPORAL)
+        func = NumexprFunction('TEMPWAT_L1', tl1_func, tl1_pmap)
+        tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=func), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
+
         tempL1_ctxt_id = self.dataset_management.create_parameter_context(name=tempL1_ctxt.name, parameter_context=tempL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=tempL1_ctxt.uom)
         param_context_ids.append(tempL1_ctxt_id)
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
         cl1_func = '(CONDWAT_L0 / 100000) - 0.5'
         cl1_pmap = {'CONDWAT_L0':'CONDWAT_L0'}
-        expr = NumexprExpression(cl1_func, cl1_pmap)
-        condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(expression=expr), variability=VariabilityEnum.TEMPORAL)
+        func = NumexprFunction('CONDWAT_L1', cl1_func, cl1_pmap)
+        condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=func), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
         condL1_ctxt_id = self.dataset_management.create_parameter_context(name=condL1_ctxt.name, parameter_context=condL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=condL1_ctxt.uom)
         param_context_ids.append(condL1_ctxt_id)
@@ -117,8 +118,8 @@ class TestTransformPrime(IonIntegrationTestCase):
         #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
         pl1_func = '(PRESWAT_L0 * 679.34040721 / (0.85 * 65536)) - (0.05 * 679.34040721)'
         pl1_pmap = {'PRESWAT_L0':'PRESWAT_L0'}
-        expr = NumexprExpression(pl1_func, pl1_pmap)
-        presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(expression=expr), variability=VariabilityEnum.TEMPORAL)
+        func = NumexprFunction('PRESWAT_L1', pl1_func, pl1_pmap)
+        presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=func), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
         presL1_ctxt_id = self.dataset_management.create_parameter_context(name=presL1_ctxt.name, parameter_context=presL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=presL1_ctxt.uom)
         param_context_ids.append(presL1_ctxt_id)
@@ -129,11 +130,12 @@ class TestTransformPrime(IonIntegrationTestCase):
         # PRACSAL = gsw.SP_from_C((CONDWAT_L1 * 10), TEMPWAT_L1, PRESWAT_L1)
         owner = 'gsw'
         sal_func = 'SP_from_C'
-        sal_arglist = [NumexprExpression('C*10', {'C':'CONDWAT_L1'}), 'TEMPWAT_L1', 'PRESWAT_L1']
+        sal_arglist = [NumexprFunction('CONDWAT_L1*10', 'C*10', {'C':'CONDWAT_L1'}), 'TEMPWAT_L1', 'PRESWAT_L1']
         sal_kwargmap = None
-        expr = PythonExpression(owner, sal_func, sal_arglist, sal_kwargmap)
-        sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
+        func = PythonFunction('PRACSAL', owner, sal_func, sal_arglist, sal_kwargmap)
+        sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(func), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
+
         sal_ctxt_id = self.dataset_management.create_parameter_context(name=sal_ctxt.name, parameter_context=sal_ctxt.dump(), parameter_type='pfunc', unit_of_measure=sal_ctxt.uom)
         param_context_ids.append(sal_ctxt_id)
 
@@ -141,11 +143,12 @@ class TestTransformPrime(IonIntegrationTestCase):
         # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
         # DENSITY = gsw.rho(absolute_salinity, conservative_temperature, PRESWAT_L1)
         owner = 'gsw'
-        abs_sal_expr = PythonExpression(owner, 'SA_from_SP', ['PRACSAL', 'PRESWAT_L1', 'lon','lat'], None)
-        cons_temp_expr = PythonExpression(owner, 'CT_from_t', [abs_sal_expr, 'TEMPWAT_L1', 'PRESWAT_L1'], None)
-        dens_expr = PythonExpression(owner, 'rho', [abs_sal_expr, cons_temp_expr, 'PRESWAT_L1'], None)
-        dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_expr), variability=VariabilityEnum.TEMPORAL)
+        abs_sal_func = PythonFunction('abs_sal', owner, 'SA_from_SP', ['PRACSAL', 'PRESWAT_L1', 'lon','lat'], None)
+        cons_temp_func = PythonFunction('cons_temp', owner, 'CT_from_t', [abs_sal_func, 'TEMPWAT_L1', 'PRESWAT_L1'], None)
+        dens_func = PythonFunction('DENSITY', owner, 'rho', [abs_sal_func, cons_temp_func, 'PRESWAT_L1'], None)
+        dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_func), variability=VariabilityEnum.TEMPORAL)
         dens_ctxt.uom = 'kg m-3'
+
         dens_ctxt_id = self.dataset_management.create_parameter_context(name=dens_ctxt.name, parameter_context=dens_ctxt.dump(), parameter_type='pfunc', unit_of_measure=dens_ctxt.uom)
         param_context_ids.append(dens_ctxt_id)
 
