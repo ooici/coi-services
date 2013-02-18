@@ -896,8 +896,7 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
             spatial_domain=sdom)
 
         dproduct_id = dpms_cli.create_data_product(data_product=dprod,
-            stream_definition_id=streamdef_id,
-            parameter_dictionary=pdict_id)
+            stream_definition_id=streamdef_id)
 
         dams_cli.assign_data_product(input_resource_id=ds_id, data_product_id=dproduct_id)  # , create_stream=True)
 
