@@ -371,6 +371,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         log.debug( 'new dp_id = %s', data_product_id1)
 
         self.DAMS.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
+        self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
 
 
 
@@ -383,9 +384,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         log.debug( 'Data set for data_product_id1 = %s', dataset_ids[0])
         self.parsed_dataset = dataset_ids[0]
         #create the datastore at the beginning of each int test that persists data
-        self._get_datastore(self.parsed_dataset)
 
-        self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
 
 
         dp_obj = IonObject(RT.DataProduct,
