@@ -1932,8 +1932,33 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
     def get_autosample_duration(self, instrument_device_id):
+        log.debug("came here to run this method: %s", instrument_device_id)
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
+
+        log.debug("got the instrument agent client: %s", ia_client)
+
         if ia_client:
+            # Calculate the value to put in
+
+            # Find events in the event repo that were published when changes of state occurred for the instrument
+            # The Instrument Agent publishes events of a particular type and origin_type. So we query the events db for those.
+            event_tuples = self.container.event_repository.find_events(origin=instrument_device_id, event_type='ResourceAgentResourceStateEvent', origin_type= 'InstrumentDevice')
+
+            log.debug("got the event tuples here: %s", event_tuples)
+
+            recent_events = [tuple[2] for tuple in event_tuples]
+
+            ts_acquire_sample = None
+            for evt in recent_events:
+                log.debug("Got an event with event_state: %s", evt.state)
+                if evt.state == DriverState.ACQUIRE_SAMPLE:
+                    ts_acquire_sample = evt.ts_created
+
+
+
+
+
+
             ret.value = 0 #todo: use ia_client
         return ret
 
