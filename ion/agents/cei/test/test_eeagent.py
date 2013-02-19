@@ -18,13 +18,15 @@ import SimpleHTTPServer
 from pyon.service.service import BaseService
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
+from pyon.util.unit_test import PyonTestCase
+from pyon.util.containers import DotDict
 from pyon.public import log
 from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.core.exception import Timeout
 
 from interface.services.icontainer_agent import ContainerAgentClient
 
-from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient
+from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient, HeartBeater
 
 
 class FakeProcess(LocalContextMixin):
@@ -709,6 +711,38 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
         proc = get_proc_for_upid(state, u_pid)
+
+@attr('UNIT', group='cei')
+class HeartbeaterMockTest(PyonTestCase):
+    """Tests which mock out parts of the EE Agent
+    """
+
+    def setUp(self):
+
+        self.cfg = DotDict()
+        self.cfg.eeagent = DotDict()
+        self.cfg.eeagent.heartbeat = 1
+        self.factory = Mock()
+
+        self.process_id = 'fake'
+        self.process = Mock()
+
+        self.heartbeater = HeartBeater(self.cfg, self.factory, self.process_id, self.process)
+
+    def tearDown(self):
+        pass
+
+    def test_heartbeater_waits_for_start(self):
+
+        self.heartbeater.beat = Mock()
+
+        self.heartbeater.poll()
+        self.assertFalse(self.heartbeater.beat.called)
+
+        self.heartbeater._started = True
+
+        self.heartbeater.poll()
+        self.assertTrue(self.heartbeater.beat.called)
 
 
 def get_this_directory():
