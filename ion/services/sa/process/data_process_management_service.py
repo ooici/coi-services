@@ -283,9 +283,16 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self._manage_attachments()
 
-        self._create_subscriptions(dproc, in_data_product_ids)
+        queue_name = self._create_subscription(dproc, in_data_product_ids)
 
-        pid = self._launch_data_process(dproc.name, data_process_definition_id, configuration)
+        pid = self._launch_data_process(
+                queue_name=queue_name,
+                data_process_definition_id=data_process_definition_id,
+                out_data_product_ids=out_data_product_ids,
+                configuration=configuration)
+
+        self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=pid)
+
 
         return dproc_id
     # ------------------------------------------------------------------------------------------------
@@ -729,14 +736,47 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def _manage_attachments(self):
         pass
 
-    def _create_subscriptions(self, dproc, in_data_product_ids):
+    def _create_subscription(self, dproc, in_data_product_ids):
         stream_ids = [self._get_stream_from_dp(i) for i in in_data_product_ids]
         #@TODO Maybe associate a data process with an exchange point but in the mean time: 
-        subscription_id = self.clients.pubsub_management.create_subscription(name='sub_' % dproc.name, stream_ids=stream_ids)
+        queue_name = 'sub_%s' % dproc.name
+        subscription_id = self.clients.pubsub_management.create_subscription(name=queue_name, stream_ids=stream_ids)
         self.clients.resource_registry.create_association(subject=dproc._id, predicate=PRED.hasSubscription, object=subscription_id)
+        return queue_name
 
-    def _launch_data_process(self, process_name, data_process_definition_id='', configuration={}):
-        pass
+    def _get_process_definition(self, data_process_definition_id=''):
+        process_definition_id = ''
+        if data_process_definition_id:
+            process_definitions, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, id_only=True)
+            if process_definitions:
+                process_definition_id = process_definitions[0]
+        else:
+            process_definitions, _ = self.clients.resource_registry.find_resources(name='transform_data_process', restype=RT.ProcessDefinition,id_only=True)
+            if process_definitions:
+                process_definition_id = process_definitions[0]
+            else:
+                process_definition = ProcessDefinition()
+                process_definition.name = 'transform_data_process'
+                process_definition.executable['module'] = 'ion.processes.data.transforms.transform_prime'
+                process_definition.executable['class'] = 'TransformPrime'
+                process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition)
+        return process_definition_id
+
+    def _launch_data_process(self, queue_name='', data_process_definition_id='', out_data_product_ids=[], configuration={}):
+        process_definition_id = self._get_process_definition(data_process_definition_id)
+
+        out_streams = {}
+        for dp_id in out_data_product_ids:
+            stream_id = self._get_stream_from_dp(dp_id)
+            out_streams[stream_id] = stream_id
+
+        return self._launch_process(queue_name, out_streams, process_definition_id, configuration)
+
+
+
+
+
+
 
     def _validator(self, in_data_product_id, out_data_product_id):
         return True
