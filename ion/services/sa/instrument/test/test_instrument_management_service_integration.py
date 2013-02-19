@@ -21,7 +21,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType, StreamConfiguration
-from interface.objects import ComputedIntValue, ComputedFloatValue
+from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 
 from pyon.public import RT, PRED, CFG
 from nose.plugins.attrib import attr
@@ -162,6 +162,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertIsInstance(extended_instrument.computed.autosample_duration, ComputedIntValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_calibration_datetime, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
 
         self.assertIsInstance(extended_instrument.computed.power_status_roll_up, ComputedIntValue)
         self.assertIsInstance(extended_instrument.computed.communications_status_roll_up, ComputedIntValue)
