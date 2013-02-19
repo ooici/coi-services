@@ -23,6 +23,7 @@ from pyon.util.containers import current_time_millis
 
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
+from interface.objects import Attachment
 
 #Initialize the flask app
 service_gateway_app = Flask(__name__)
@@ -610,7 +611,7 @@ def get_resource_schema(resource_type):
 
 
 # Get attachment for a specific attachment id
-@service_gateway_app.route('/ion-service/attachment/<attachment_id>', methods=['GET','POST'])
+@service_gateway_app.route('/ion-service/attachment/<attachment_id>', methods=['GET'])
 def get_attachment(attachment_id):
 
     try:
@@ -624,6 +625,31 @@ def get_attachment(attachment_id):
     except Exception, e:
         return build_error_response(e)
 
+@service_gateway_app.route('/ion-service/attachment', methods=['POST'])
+def create_attachment():
+
+    try:
+        resource_id        = str(request.form['resource_id'])       # unicode coming in
+        fil                = request.files['file']
+        content            = fil.read()
+
+        # build attachment
+        attachment         = Attachment(name=request.form['attachment_name'],
+                                        description=request.form['attachment_description'],
+                                        attachment_type=int(request.form['attachment_type']),       # this is unicode coming in
+                                        content_type=request.form['attachment_content_type'],
+                                        content=content)
+
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        ret = rr_client.create_attachment(resource_id, attachment=attachment)
+
+        ret_obj = {'attachment_id': ret}
+
+        return json_response(ret_obj)
+
+    except Exception, e:
+        log.exception("Error creating attachment")
+        return build_error_response(e)
 
 # Get a visualization image for a specific data product
 #TODO - will need to update this to handle parameters to pass on to the Vis service and to use proper return keys
