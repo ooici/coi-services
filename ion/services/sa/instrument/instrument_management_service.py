@@ -7,7 +7,7 @@ __author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
 import os
 import pwd
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import tempfile
 
@@ -1965,8 +1965,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
 
-    # def get_uptime(self, device_id): - common to both instrument and platform, see below
+#    def get_uptime(self, device_id): - common to both instrument and platform, see below
 
+    def get_uptime(self, device_id):
+        """
+        @Tim: Lets just consider this value how long the agent has been in Auto-sample mode.
+        If someone take it out of auto-sample, but leaves the drover up, the clock resets the next time
+        its in Auto-sample mode again.
+        """
+        #@todo: The uptime and autosample_duration attributes as defined in email threads appear to be duplicates except
+        # todo(contd): that the autosample duration is an attribute with an int value while the uptime is one with a string value
+        ret = self.get_autosample_duration(device_id)
+        sec = timedelta(seconds = ret.value)
+        d = datetime(1,1,1) + sec
+
+        return "%s days, %s hours, %s minutes" %(d.day-1, d.hour, d.minute)
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
@@ -2048,14 +2061,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return extended_platform
 
-    # The actual initiation of the deployment, calculated from when the deployment was activated
-    def get_uptime(self, device_id):
-        #used by both instrument device, platform device
-#        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
-#        if ia_client:
-#            ret.value = 45.5 #todo: use ia_client
-#        return ret
-        return "0 days, 0 hours, 0 minutes"
 
     def get_data_product_parameters_set(self, resource_id=''):
         # return the set of data product with the processing_level_code as the key to identify
