@@ -110,6 +110,13 @@ class TestCtdTransforms(IonUnitTestCase):
         L2_dens = self.tx_L2_D.execute(packet)
         log.debug("L2 dens: %s" % L2_dens)
 
+    def test_pressure_algorithm(self):
+
+
+
+
+        pass
+
 @attr('LOCOINT')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
 @attr('INT', group='dm')
@@ -408,10 +415,17 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         out_density = output_rdt_transform['density']
 
-        #-----------------------------------------------------------------------------
-        # Check that the output data from the transform has the correct density values
-        #-----------------------------------------------------------------------------
-        self.assertTrue(numpy.array_equal(dens_value, out_density))
+        log.debug("density output from the transform: %s", out_density)
+        log.debug("values of density expected from the transform: %s", dens_value)
+
+        numpy.testing.assert_array_almost_equal(out_density, dens_value, decimal=3)
+
+#        #-----------------------------------------------------------------------------
+#        # Check that the output data from the transform has the correct density values
+#        #-----------------------------------------------------------------------------
+#        for item in zip(out_density.tolist(), dens_value.tolist()):
+#            if isinstance(item[0], int) or isinstance(item[0], float):
+#                self.assertEquals(item[0], item[1])
 
     def check_salinity_algorithm_execution(self, publish_granule, granule_from_transform):
 
