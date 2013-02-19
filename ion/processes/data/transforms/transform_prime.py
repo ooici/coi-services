@@ -52,17 +52,25 @@ class TransformPrime(TransformDataProcess):
         
 
         merged_pdict = dict([(k,v) for k,v in incoming_pdict.iteritems()] + [(k,v) for k,v in outgoing_pdict.iteritems()])
-        rdt = RecordDictionaryTool.load_from_granule(msg)
-        #print >> sys.stderr, "available_fields", rdt._available_fields
-        #rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
-        #print >> sys.stderr, "available_fields", rdt_out._available_fields
+        rdt_in = RecordDictionaryTool.load_from_granule(msg)
+        rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
+        print >> sys.stderr, "available_fields", rdt_in._available_fields
+        print >> sys.stderr, "available_fields", rdt_out._available_fields
         for key,pctup in merged_pdict.iteritems():
             n,pc = pctup
-            print >> sys.stderr, "param_type", pc.param_type
+            print >> sys.stderr, key,"param_type", pc.param_type
+            #if function then a transform is applied to calculate values
             if isinstance(pc.param_type, ParameterFunctionType):
                 #apply transform
-                pv = get_value_class(pc.param_type, rdt.domain)
-                rdt._rd[key] = pv[:]
-        return rdt 
+                pv = get_value_class(pc.param_type, rdt_in.domain)
+                #transform should be on the outgoing stream
+                if key in rdt_out._available_fields:
+                    rdt_out._rd[key] = pv[:]
+            else:
+                #field exists in both the in and the out stream so pass it along to the output stream
+                if key in rdt_in._available_fields and key in rdt_out._available_fields:
+                    #pass through
+                    rdt_out._rd[key] = rdt_in._rd[key]
+        return rdt_out 
 
 
