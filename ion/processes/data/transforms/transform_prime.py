@@ -9,7 +9,7 @@ from ion.core.process.transform import TransformDataProcess
 from coverage_model import ParameterDictionary
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
-from coverage_model import QuantityType, get_value_class
+from coverage_model import get_value_class
 from coverage_model.parameter_types import ParameterFunctionType
 
 class TransformPrime(TransformDataProcess):
@@ -39,6 +39,8 @@ class TransformPrime(TransformDataProcess):
         pass
 
     def execute_transform(self, msg, stream_id):
+        import sys
+        
         stream_def_in = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         incoming_pdict_dump = stream_def_in.parameter_dictionary
         
@@ -47,16 +49,20 @@ class TransformPrime(TransformDataProcess):
         
         incoming_pdict = ParameterDictionary.load(incoming_pdict_dump)
         outgoing_pdict = ParameterDictionary.load(outgoing_pdict_dump)
+        
 
-        merged_pdict = dict(incoming_pdict.items(), outgoing_pdict.items())
-        import sys
-        for key in merged_pdict.keys():
-            print >> sys.stderr, '\t', key
+        merged_pdict = dict([(k,v) for k,v in incoming_pdict.iteritems()] + [(k,v) for k,v in outgoing_pdict.iteritems()])
         rdt = RecordDictionaryTool.load_from_granule(msg)
-        for key,pdict in merged_pdict.iteritems():
-            if isinstance(pdict, ParameterFunctionType):
+        #print >> sys.stderr, "available_fields", rdt._available_fields
+        #rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
+        #print >> sys.stderr, "available_fields", rdt_out._available_fields
+        for key,pctup in merged_pdict.iteritems():
+            n,pc = pctup
+            print >> sys.stderr, "param_type", pc.param_type
+            if isinstance(pc.param_type, ParameterFunctionType):
                 #apply transform
-                pcontext = pdict.get_context(key)
-                pv = get_value_class(pcontext, rdt.domain)
+                pv = get_value_class(pc.param_type, rdt.domain)
                 rdt._rd[key] = pv[:]
         return rdt 
+
+
