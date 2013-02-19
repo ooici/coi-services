@@ -22,6 +22,7 @@ from nose.plugins.attrib import attr
 
 import numpy as np
 
+
 @attr('INT',group='dm')
 class TestTransformPrime(IonIntegrationTestCase):
     def setUp(self):
@@ -193,7 +194,7 @@ class TestTransformPrime(IonIntegrationTestCase):
 
         publisher = StandaloneStreamPublisher(stream_id, route)
         return publisher
-
+    
 
     def test_prime(self):
         proc_def_id = self._create_proc_def()
@@ -220,5 +221,36 @@ class TestTransformPrime(IonIntegrationTestCase):
 
         publisher.publish(rdt.to_granule())
     
+    def test_execute_transform(self):
+        proc_def_id = self._create_proc_def()
 
+        incoming_pdict_id = self._L0_pdict()
+        outgoing_pdict_id = self._L1_pdict()
+
+        incoming_stream_def_id = self._stream_definition('L0_stream_def', incoming_pdict_id)
+        outgoing_stream_def_id = self._stream_definition('L1_stream_def', outgoing_pdict_id)
+
+        L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id)
+        L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
+
+        self._data_process(proc_def_id, [L0_data_product_id], L1_data_product_id, outgoing_stream_def_id)
         
+        stream_ids, _ = self.container.resource_registry.find_resources(subject=L0_data_product_id, predicate=PRED.hasStream, id_only=True)
+        stream_id = stream_ids[0]
+        
+        rdt = RecordDictionaryTool(stream_definition_id=incoming_stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['lat'] = 40.992469
+        rdt['lon'] = -71.727069
+        rdt['TEMPWAT_L0'] = np.arange([35]* 20)
+        msg = rdt.to_granule()
+
+        from ion.services.dm.utility.granule.record_dictionary import TransformPrime
+        tp = TransformPrime()
+        rdt_out = tp.execute_transform(msg, stream_id)
+        
+        import sys
+        print >> sys.stderr, rdt_out
+
+
+
