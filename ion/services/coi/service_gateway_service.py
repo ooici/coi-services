@@ -629,7 +629,7 @@ def get_attachment(attachment_id):
 def create_attachment():
 
     try:
-        resource_id        = str(request.form['resource_id'])       # unicode coming in
+        resource_id        = str(request.form.get('resource_id', ''))       # unicode coming in
         fil                = request.files['file']
         content            = fil.read()
 
@@ -641,7 +641,7 @@ def create_attachment():
                                         content=content)
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        ret = rr_client.create_attachment(resource_id, attachment=attachment)
+        ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment)
 
         ret_obj = {'attachment_id': ret}
 
