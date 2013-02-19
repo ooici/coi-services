@@ -20,7 +20,8 @@ from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
 from pyon.public import RT, PRED, OT
-
+from pyon.util.containers import get_ion_ts
+from pyon.agent.agent import ResourceAgentState
 from coverage_model.parameter import ParameterDictionary
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -1932,34 +1933,35 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
     def get_autosample_duration(self, instrument_device_id):
-        log.debug("came here to run this method: %s", instrument_device_id)
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
 
-        log.debug("got the instrument agent client: %s", ia_client)
-
         if ia_client:
-            # Calculate the value to put in
-
             # Find events in the event repo that were published when changes of state occurred for the instrument
-            # The Instrument Agent publishes events of a particular type and origin_type. So we query the events db for those.
-            event_tuples = self.container.event_repository.find_events(origin=instrument_device_id, event_type='ResourceAgentResourceStateEvent', origin_type= 'InstrumentDevice')
-
-            log.debug("got the event tuples here: %s", event_tuples)
+            # The Instrument Agent publishes events of a particular type and origin_type. So we query the events db for those.ResourceAgentStateEvent
+            event_tuples = self.container.event_repository.find_events(origin=instrument_device_id, event_type='ResourceAgentStateEvent', descending=True)
 
             recent_events = [tuple[2] for tuple in event_tuples]
 
-            ts_acquire_sample = None
+            # We assume below that the events have been sorted in time, with most recent events first in the list
             for evt in recent_events:
                 log.debug("Got an event with event_state: %s", evt.state)
-                if evt.state == DriverState.ACQUIRE_SAMPLE:
-                    ts_acquire_sample = evt.ts_created
+                # These below are the possible new event states while taking the instrument off streaming mode
+                # This is info got from possible actions to wind down the instrument that one can take in the UI when the instrument is already streaming
+                not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
 
+                if evt.state == ResourceAgentState.STREAMING: # "RESOURCE_AGENT_STATE_STREAMING"
+                    current_time = get_ion_ts()
+                    ret.value = current_time - evt.ts_created
+                    log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
+                    log.debug("Returning the computed attribute: %s", ret)
+                    return ret
+                elif evt.state in not_streaming_states:
+                    log.debug("Got a most recent event state that : %s", evt.state)
+                    # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
+                    ret.value = 0
+                    return ret
 
-
-
-
-
-            ret.value = 0 #todo: use ia_client
+            ret.value = 0
         return ret
 
 
