@@ -6,6 +6,7 @@ from pyon.core.exception import Unauthorized, NotFound
 from pyon.core import bootstrap
 from pyon.public import IonObject, log
 from pyon.util.containers import get_safe
+from pyon.agent.simple_agent import SimpleResourceAgentClient
 from pyon.net.endpoint import Publisher
 
 from interface.objects import AgentCommand
@@ -58,12 +59,14 @@ class ExecutionEngineAgent(SimpleResourceAgent):
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)
 
+
         interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
         if interval > 0:
-            self.heartbeater = HeartBeater(self.CFG, self._factory, self.resource_id, log=log)
+            self.heartbeater = HeartBeater(self.CFG, self._factory, self.resource_id, self, log=log)
             self.heartbeater.poll()
             self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
         else:
+            print "PDA: no heartbeat"
             self.heartbeat_thread = None
 
     def on_quit(self):
@@ -93,7 +96,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
 
 
 class HeartBeater(object):
-    def __init__(self, CFG, factory, process_id, log=logging):
+    def __init__(self, CFG, factory, process_id, process, log=logging):
 
         self._log = log
         self._log.log(logging.DEBUG, "Starting the heartbeat thread")
@@ -102,7 +105,9 @@ class HeartBeater(object):
         self._interval = int(CFG.eeagent.heartbeat)
         self._res = None
         self._done = False
+        self._started = False
         self._factory = factory
+        self.process = process
         self.process_id = process_id
         self._publisher = Publisher()
         self._pd_name = CFG.eeagent.get('heartbeat_queue', 'heartbeat_queue')
@@ -120,7 +125,27 @@ class HeartBeater(object):
         # on state change set the beat time to now
         self._beat_time = datetime.datetime.now()
 
+    @property
+    def _eea_started(self):
+        if self._started:
+            return True
+
+        try:
+            _eea_pyon_client = SimpleResourceAgentClient(self.process_id, process=self.process)
+            eea_client = ExecutionEngineAgentClient(_eea_pyon_client)
+            eea_client.dump_state()
+            self._started = True
+            return True
+        except NotFound:
+            return False
+        except Exception:
+            self._log.exception("Couldn't get eeagent state. Perhaps it is broken?")
+            return False
+
     def poll(self):
+
+        if not self._eea_started:
+            return
 
         now = datetime.datetime.now()
         if now > self._beat_time:
