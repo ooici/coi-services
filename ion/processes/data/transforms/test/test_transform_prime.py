@@ -235,19 +235,22 @@ class TestTransformPrime(IonIntegrationTestCase):
 
         self._data_process(proc_def_id, [L0_data_product_id], L1_data_product_id, outgoing_stream_def_id)
         
-        stream_ids, _ = self.container.resource_registry.find_resources(subject=L0_data_product_id, predicate=PRED.hasStream, id_only=True)
-        stream_id = stream_ids[0]
+        #stream_ids, _ = self.container.resource_registry.find_resources(subject=L0_data_product_id, predicate=PRED.hasStream, id_only=True)
+        stream_ids, _ = self.container.resource_registry.find_objects(L0_data_product_id, PRED.hasStream, None, True)
+        stream_id_in = stream_ids[0]
+        
+        stream_ids, _ = self.container.resource_registry.find_objects(L1_data_product_id, PRED.hasStream, None, True)
+        stream_id_out = stream_ids[0]
         
         rdt = RecordDictionaryTool(stream_definition_id=incoming_stream_def_id)
         rdt['time'] = np.arange(20)
         rdt['lat'] = 40.992469
         rdt['lon'] = -71.727069
-        rdt['TEMPWAT_L0'] = np.arange([35]* 20)
+        #rdt['TEMPWAT_L0'] = np.arange([35]* 20)
+        rdt['TEMPWAT_L0'] = np.array([35]* 20)
         msg = rdt.to_granule()
-
-        from ion.services.dm.utility.granule.record_dictionary import TransformPrime
-        tp = TransformPrime()
-        rdt_out = tp.execute_transform(msg, stream_id)
+        pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'stream_id':stream_id_out}})
+        rdt_out = self.container.proc_manager.procs[pid].execute_transform(msg, stream_id_in)
         
         import sys
         print >> sys.stderr, rdt_out
