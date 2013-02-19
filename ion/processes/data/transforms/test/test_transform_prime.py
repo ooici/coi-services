@@ -156,11 +156,6 @@ class TestTransformPrime(IonIntegrationTestCase):
         pdict_id = self.dataset_management.create_parameter_dictionary('L1_SBE37', parameter_context_ids=param_context_ids, temporal_context='time')
         return pdict_id
 
-
-    def _stream_definition(self,name,pdict_id):
-        return self.pubsub_management.create_stream_definition(name, parameter_dictionary_id=pdict_id)
-
-
     def _data_product(self, name, stream_def):
         tdom, sdom = time_series_domain()
         dp_obj = DataProduct(name=name, description='blah', spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
@@ -201,9 +196,9 @@ class TestTransformPrime(IonIntegrationTestCase):
 
         incoming_pdict_id = self._L0_pdict()
         outgoing_pdict_id = self._L1_pdict()
-
-        incoming_stream_def_id = self._stream_definition('L0_stream_def', incoming_pdict_id)
-        outgoing_stream_def_id = self._stream_definition('L1_stream_def', outgoing_pdict_id)
+    
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream_def', parameter_dictionary_id=incoming_pdict_id, available_fields=['temp', 'conductivity', 'pressure'])
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream_def', parameter_dictionary_id=outgoing_pdict_id, available_fields=[''])
 
         L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id)
         L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
@@ -226,9 +221,9 @@ class TestTransformPrime(IonIntegrationTestCase):
 
         incoming_pdict_id = self._L0_pdict()
         outgoing_pdict_id = self._L1_pdict()
-
-        incoming_stream_def_id = self._stream_definition('L0_stream_def', incoming_pdict_id)
-        outgoing_stream_def_id = self._stream_definition('L1_stream_def', outgoing_pdict_id)
+        
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream_def', parameter_dictionary_id=incoming_pdict_id, available_fields=['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream_def', parameter_dictionary_id=outgoing_pdict_id, available_fields=['PRACSAL', 'DENSITY'])
 
         L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id)
         L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
@@ -243,17 +238,19 @@ class TestTransformPrime(IonIntegrationTestCase):
         stream_id_out = stream_ids[0]
         
         rdt = RecordDictionaryTool(stream_definition_id=incoming_stream_def_id)
-        rdt['time'] = np.arange(20)
+        dt = 20
+        rdt['time'] = np.arange(dt)
         rdt['lat'] = 40.992469
         rdt['lon'] = -71.727069
-        #rdt['TEMPWAT_L0'] = np.arange([35]* 20)
-        rdt['TEMPWAT_L0'] = np.array([35]* 20)
+        rdt['TEMPWAT_L0'] = np.array([35]* dt)
+        rdt['CONDWAT_L0'] = np.sin(np.arange(dt) * 2 * np.pi / 60)
+        rdt['PRESWAT_L0'] = np.array([20]* dt)
+        
         msg = rdt.to_granule()
         pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'stream_id':stream_id_out}})
         rdt_out = self.container.proc_manager.procs[pid].execute_transform(msg, stream_id_in)
         
         import sys
         print >> sys.stderr, rdt_out
-
 
 
