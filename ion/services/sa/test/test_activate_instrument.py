@@ -595,6 +595,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id_2)
         log.debug( "For user_2: extended_instrument %s", str(extended_instrument) )
+        log.debug( "For user_2: extended_instrument.computed: %s", str(extended_instrument.computed) )
         log.debug( "For user_2: extended_instrument computed user_notification_requests %s", extended_instrument.computed.user_notification_requests.value)
 
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
