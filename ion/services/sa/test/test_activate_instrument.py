@@ -210,10 +210,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # Verify that computed attributes exist for the extended instrument
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
-        self.assertIsInstance(extended_instrument.computed.autosample_duration, ComputedIntValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_calibration_datetime, ComputedFloatValue)
-        self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
+        self.assertIsInstance(extended_instrument.computed.uptime, ComputedIntValue)
 
         self.assertIsInstance(extended_instrument.computed.power_status_roll_up, ComputedIntValue)
         self.assertIsInstance(extended_instrument.computed.communications_status_roll_up, ComputedIntValue)

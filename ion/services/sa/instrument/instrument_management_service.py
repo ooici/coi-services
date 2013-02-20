@@ -1932,12 +1932,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = 0 #todo: use ia_client
         return ret
 
-    def get_autosample_duration(self, instrument_device_id):
+    def get_uptime(self, instrument_device_id):
         ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
 
         if ia_client:
             # Find events in the event repo that were published when changes of state occurred for the instrument
-            # The Instrument Agent publishes events of a particular type and origin_type. So we query the events db for those.ResourceAgentStateEvent
+            # The Instrument Agent publishes events of a particular type, ResourceAgentStateEvent, and origin_type. So we query the events db for those.
             event_tuples = self.container.event_repository.find_events(origin=instrument_device_id, event_type='ResourceAgentStateEvent', descending=True)
 
             recent_events = [tuple[2] for tuple in event_tuples]
@@ -1962,54 +1962,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     return ret
 
             ret.value = 0
-        return ret
-
-
-#    def get_uptime(self, device_id): - common to both instrument and platform, see below
-
-    def get_uptime(self, device_id):
-        """
-        @Tim: Lets just consider this value how long the agent has been in Auto-sample mode.
-        If someone take it out of auto-sample, but leaves the drover up, the clock resets the next time
-        its in Auto-sample mode again.
-        """
-        #@todo: The uptime and autosample_duration attributes as defined in email threads appear to be duplicates except
-        # todo(contd): that the autosample duration is an attribute with an int value while the uptime is one with a string value
-
-        ia_client, ret = self.obtain_agent_calculation(device_id, OT.ComputedStringValue)
-
-        if ia_client:
-            # Find events in the event repo that were published when changes of state occurred for the instrument
-            # The Instrument Agent publishes events of a particular type and origin_type. So we query the events db for those.ResourceAgentStateEvent
-            event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
-
-            recent_events = [tuple[2] for tuple in event_tuples]
-
-            # We assume below that the events have been sorted in time, with most recent events first in the list
-            for evt in recent_events:
-                log.debug("Got an event with event_state: %s", evt.state)
-                # These below are the possible new event states while taking the instrument off streaming mode
-                # This is info got from possible actions to wind down the instrument that one can take in the UI when the instrument is already streaming
-                not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
-
-                if evt.state == ResourceAgentState.STREAMING: # "RESOURCE_AGENT_STATE_STREAMING"
-                    current_time = get_ion_ts()
-                    log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
-                    return self._compute_attr(ret, current_time - evt.ts_created)
-                elif evt.state in not_streaming_states:
-                    log.debug("Got a most recent event state which means that the instrument is not in autosample mode: %s", evt.state)
-                    # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
-                    return self._compute_attr(ret, 0)
-
-        return self._compute_attr(ret, 0)
-
-    # An internal method to fill in the ret value for a special use in calculating uptime
-    def _compute_attr(self, ret, value):
-        sec = timedelta(seconds = value)
-        d = datetime(1,1,1) + sec
-
-        ret.value = "%s days, %s hours, %s minutes" %(d.day-1, d.hour, d.minute)
-        log.debug("Returning the computed attribute for uptime with value: %s", ret.value)
         return ret
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
