@@ -13,6 +13,8 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 from pyon.util.unit_test import IonUnitTestCase
+from unittest import skipIf
+import os
 
 from gevent import sleep
 
@@ -21,6 +23,7 @@ from ion.agents.platform.cgsn.cgsn_state import CgsnState
 from ion.agents.platform.cgsn.defs import DclIds, MessageIds
 
 
+@skipIf(os.getenv('CGSN', None) is None, "CGSN env var not defined")
 class Test(IonUnitTestCase):
 
     def setUp(self):
