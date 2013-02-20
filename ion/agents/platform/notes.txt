@@ -2,7 +2,10 @@ Platform Agent Framework
 
 
 2013-02-20
-- module renaming: ion.agents.platform.oms -> ion.agents.platform.rsn
+- renamings:
+  ion.agents.platform.oms -> ion.agents.platform.rsn
+  ion.agents.platform.rsn.oms_platform_driver -> ion.agents.platform.rsn.rsn_platform_driver
+  OmsPlatformDriver -> RsnPlatformDriver
 
 2013-02-19
 - Initial definitions and preliminary tests for CGSN.

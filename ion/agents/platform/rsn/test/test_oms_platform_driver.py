@@ -4,7 +4,7 @@
 @package ion.agents.platform.rsn.test.test_oms_platform_driver
 @file    ion/agents/platform/rsn/test/test_oms_platform_driver.py
 @author  Carlos Rueda
-@brief   Some basic and direct tests to OmsPlatformDriver.
+@brief   Some basic and direct tests to RsnPlatformDriver.
 """
 
 __author__ = 'Carlos Rueda'
@@ -20,7 +20,7 @@ from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 
-from ion.agents.platform.rsn.oms_platform_driver import OmsPlatformDriver
+from ion.agents.platform.rsn.rsn_platform_driver import RsnPlatformDriver
 
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -37,7 +37,7 @@ DVR_CONFIG = {
 
 
 @attr('INT', group='sa')
-class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
+class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
     @classmethod
     def setUpClass(cls):
@@ -55,7 +55,7 @@ class TestOmsPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
         platform_id = self.PLATFORM_ID
         pnode = network_definition.pnodes[platform_id]
-        self._plat_driver = OmsPlatformDriver(pnode, self.evt_recv)
+        self._plat_driver = RsnPlatformDriver(pnode, self.evt_recv)
 
     def evt_recv(self, driver_event):
         log.debug('GOT driver_event=%s', str(driver_event))

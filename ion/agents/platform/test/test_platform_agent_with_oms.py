@@ -70,8 +70,8 @@ from nose.plugins.attrib import attr
 # the "oms_uri" parameter include "localsimulator" and "simulator".
 # See OmsClientFactory.
 DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.rsn.oms_platform_driver',
-    'dvr_cls': 'OmsPlatformDriver',
+    'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
+    'dvr_cls': 'RsnPlatformDriver',
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.rsn.oms_platform_driver
-@file    ion/agents/platform/rsn/oms_platform_driver.py
+@package ion.agents.platform.rsn.rsn_platform_driver
+@file    ion/agents/platform/rsn/rsn_platform_driver.py
 @author  Carlos Rueda
 @brief   The main RSN OMS platform driver class.
 """
@@ -26,14 +26,14 @@ from ion.agents.platform.rsn.oms_event_listener import OmsEventListener
 from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
 
 
-class OmsPlatformDriver(PlatformDriver):
+class RsnPlatformDriver(PlatformDriver):
     """
     The main RSN OMS platform driver class.
     """
 
     def __init__(self, pnode, evt_recv):
         """
-        Creates an OmsPlatformDriver instance.
+        Creates an RsnPlatformDriver instance.
 
         @param pnode     Root PlatformNode defining the platform network rooted at
                          this platform.
