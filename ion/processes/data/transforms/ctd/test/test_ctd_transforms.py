@@ -39,7 +39,6 @@ from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
 @attr('UNIT', group='ctd')
-@unittest.skip('The UNIT tests have to be completely redone')
 class TestCtdTransforms(IonUnitTestCase):
 
     def setUp(self):
@@ -71,6 +70,7 @@ class TestCtdTransforms(IonUnitTestCase):
         self.tx_L2_D = DensityTransform()
         self.tx_L2_D.streams = defaultdict(Mock)
 
+    @unittest.skip('The UNIT tests have to be completely redone')
     def test_transforms(self):
 
         length = 1
@@ -111,11 +111,32 @@ class TestCtdTransforms(IonUnitTestCase):
         log.debug("L2 dens: %s" % L2_dens)
 
     def test_pressure_algorithm(self):
+        """
+        Inputs Output
+        p_psia p_dbar
+        230.6859 159.0523
+        233.8845 161.2577
+        300.9482 207.4965
+        400.2314 275.9498
+        500.3320 344.9668
+        600.3444 413.9229
+        1234.5678 851.2045
+        """
+
+        def algorithm(input_pres):
+            output_pres = input_pres * 0.689475728
+
+            return output_pres
+
+        correct_output = numpy.array([159.0523,161.2577,207.4965,275.9498,344.9668,413.9229,851.2045])
+        input = numpy.array([230.6859, 233.8845, 300.9482,400.2314,500.3320, 600.3444, 1234.5678])
+
+        output = algorithm(input)
+
+        numpy.testing.assert_almost_equal(output, correct_output, decimal=4)
 
 
 
-
-        pass
 
 @attr('LOCOINT')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
