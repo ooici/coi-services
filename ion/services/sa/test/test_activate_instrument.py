@@ -38,7 +38,7 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
-
+from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 import gevent
@@ -205,6 +205,21 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         datastore_name = dataset.datastore_name
         datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
         return datastore
+
+    def check_computed_attributes_of_extended_instrument(self, extended_instrument):
+
+        # Verify that computed attributes exist for the extended instrument
+        self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.autosample_duration, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.last_calibration_datetime, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
+
+        self.assertIsInstance(extended_instrument.computed.power_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.communications_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.data_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.location_status_roll_up, ComputedIntValue)
+
 
 
     @attr('LOCOINT')
@@ -514,6 +529,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
 
+        # Verify that computed attributes exist for the extended instrument
+        self.check_computed_attributes_of_extended_instrument(extended_instrument)
+
+        # Verify the computed attribute for user notification requests
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
         self.assertEqual(notification.origin, instDevice_id)
@@ -577,9 +596,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id_2)
         log.debug( "For user_2: extended_instrument %s", str(extended_instrument) )
+        log.debug( "For user_2: extended_instrument.computed: %s", str(extended_instrument.computed) )
         log.debug( "For user_2: extended_instrument computed user_notification_requests %s", extended_instrument.computed.user_notification_requests.value)
 
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
+
+        self.check_computed_attributes_of_extended_instrument(extended_instrument)
 
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
