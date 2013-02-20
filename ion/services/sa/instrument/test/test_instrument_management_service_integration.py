@@ -21,7 +21,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType, StreamConfiguration
-from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
+from interface.objects import ComputedIntValue, ComputedFloatValue
 
 from pyon.public import RT, PRED, CFG
 from nose.plugins.attrib import attr
