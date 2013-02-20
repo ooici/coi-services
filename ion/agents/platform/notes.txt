@@ -1,6 +1,9 @@
-platform agent framework
+Platform Agent Framework
 
-some occasionaly updated developer notes
+
+2013-02-19
+- Initial definitions and preliminary tests for CGSN.
+  See cgsn/notes.txt
 
 2013-02-15:
 - more progress on checksum implementation, but still incomplete.
