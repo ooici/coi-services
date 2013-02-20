@@ -250,7 +250,7 @@ class PolicyManagementService(BasePolicyManagementService):
         self.clients.resource_registry.delete(policy_id)
 
         #Force a publish since the policy object will have been deleted
-        self._publish_policy_event(policy)
+        self._publish_policy_event(policy, delete_policy=True)
 
     def enable_policy(self, policy_id=''):
         """Sets a flag to enable the use of the policy
@@ -366,24 +366,25 @@ class PolicyManagementService(BasePolicyManagementService):
                 self._publish_policy_event(policy)
 
         except Exception, e:
-            #If this is a delete operation, then don't bother with not finding the object.
+            #If this is a delete operation, then don't bother with not finding the object. Should be handled by
+            #delete_policy operation
             if policy_event.sub_type != 'DELETE':
                 log.error(e)
 
-    def _publish_policy_event(self, policy):
+    def _publish_policy_event(self, policy, delete_policy=False):
 
         if policy.policy_type.type_ == OT.CommonServiceAccessPolicy:
-            self._publish_service_policy_event(policy)
+            self._publish_service_policy_event(policy, delete_policy)
         elif policy.policy_type.type_ == OT.ServiceAccessPolicy or policy.policy_type.type_ == OT.ProcessOperationPreconditionPolicy:
-            self._publish_service_policy_event(policy)
+            self._publish_service_policy_event(policy, delete_policy)
         else:
             #Need to publish an event that a policy has changed for any associated resource
             res_list = self._find_resources_for_policy(policy._id)
             for res in res_list:
-                self._publish_resource_policy_event(policy, res)
+                self._publish_resource_policy_event(policy, res, delete_policy)
 
 
-    def _publish_resource_policy_event(self, policy, resource):
+    def _publish_resource_policy_event(self, policy, resource, delete_policy=False):
         #Sent ResourcePolicyEvent event
 
         if self.event_pub:
@@ -393,16 +394,18 @@ class PolicyManagementService(BasePolicyManagementService):
             event_data['resource_id'] = resource._id
             event_data['resource_type'] = resource.type_
             event_data['resource_name'] = resource.name
+            event_data['sub_type'] = 'DeletePolicy' if delete_policy else ''
 
             self.event_pub.publish_event(event_type='ResourcePolicyEvent', origin=policy._id, **event_data)
 
-    def _publish_service_policy_event(self, policy):
+    def _publish_service_policy_event(self, policy, delete_policy=False):
         #Sent ServicePolicyEvent event
 
         if self.event_pub:
             event_data = dict()
             event_data['origin_type'] = 'Service_Policy'
             event_data['description'] = 'Updated Service Policy'
+            event_data['sub_type'] = 'DeletePolicy' if delete_policy else ''
 
             if policy.policy_type.type_ == OT.ProcessOperationPreconditionPolicy:
                 event_data['op'] =  policy.policy_type.op
