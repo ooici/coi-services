@@ -524,7 +524,7 @@ def convert_unicode(data):
         return str(data)
     elif isinstance(data, collections.Mapping):
         return dict(map(convert_unicode, data.iteritems()))
-    elif isinstance(data, collections.Iterable):
+    elif isinstance(data, collections.Iterable): # @TODO: passing in a dictionary with strings in it will infinite loop here
         return type(data)(map(convert_unicode, data))
     else:
         return data
@@ -629,15 +629,15 @@ def get_attachment(attachment_id):
 def create_attachment():
 
     try:
-        resource_id        = str(request.form.get('resource_id', ''))       # unicode coming in
+        resource_id        = convert_unicode(request.form.get('resource_id', ''))
         fil                = request.files['file']
         content            = fil.read()
 
         # build attachment
-        attachment         = Attachment(name=request.form['attachment_name'],
-                                        description=request.form['attachment_description'],
-                                        attachment_type=int(request.form['attachment_type']),       # this is unicode coming in
-                                        content_type=request.form['attachment_content_type'],
+        attachment         = Attachment(name=convert_unicode(request.form['attachment_name']),
+                                        description=convert_unicode(request.form['attachment_description']),
+                                        attachment_type=int(request.form['attachment_type']),
+                                        content_type=convert_unicode(request.form['attachment_content_type']),
                                         content=content)
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
