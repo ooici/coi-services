@@ -60,7 +60,7 @@ from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
-from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
 
 
 from interface import objects

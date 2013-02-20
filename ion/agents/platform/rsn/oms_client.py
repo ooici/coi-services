@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.oms_client
-@file    ion/agents/platform/oms/oms_client.py
+@package ion.agents.platform.rsn.oms_client
+@file    ion/agents/platform/rsn/oms_client.py
 @author  Carlos Rueda
 @brief   OmsClient captures the CI-OMS interface.
          See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface

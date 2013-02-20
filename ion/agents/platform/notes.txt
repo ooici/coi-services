@@ -1,6 +1,9 @@
 Platform Agent Framework
 
 
+2013-02-20
+- module renaming: ion.agents.platform.oms -> ion.agents.platform.rsn
+
 2013-02-19
 - Initial definitions and preliminary tests for CGSN.
   See cgsn/notes.txt

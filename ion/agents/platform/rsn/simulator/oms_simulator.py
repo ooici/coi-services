@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.oms_simulator
-@file    ion/agents/platform/oms/simulator/oms_simulator.py
+@package ion.agents.platform.rsn.simulator.oms_simulator
+@file    ion/agents/platform/rsn/simulator/oms_simulator.py
 @author  Carlos Rueda
 @brief   OMS simulator
 """
@@ -10,21 +10,21 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-from ion.agents.platform.oms.oms_client import OmsClient
-from ion.agents.platform.oms.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
+from ion.agents.platform.rsn.oms_client import OmsClient
+from ion.agents.platform.rsn.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.util.network_util import NetworkUtil
 
-from ion.agents.platform.oms.simulator.oms_events import EventInfo
-from ion.agents.platform.oms.simulator.oms_events import EventNotifier
-from ion.agents.platform.oms.simulator.oms_events import EventGenerator
-from ion.agents.platform.oms.simulator.oms_values import generate_values
+from ion.agents.platform.rsn.simulator.oms_events import EventInfo
+from ion.agents.platform.rsn.simulator.oms_events import EventNotifier
+from ion.agents.platform.rsn.simulator.oms_events import EventGenerator
+from ion.agents.platform.rsn.simulator.oms_values import generate_values
 
 import time
 import ntplib
 
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
 
@@ -33,7 +33,7 @@ class OmsSimulator(OmsClient):
     Implementation of OmsClient for testing purposes.
     """
 
-    def __init__(self, yaml_filename='ion/agents/platform/oms/simulator/network.yml'):
+    def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml'):
         self._ndef = NetworkUtil.deserialize_network_definition(file(yaml_filename))
         self._platform_types = self._ndef.platform_types
         self._pnodes = self._ndef.pnodes

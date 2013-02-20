@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.oms_simulator_server
-@file    ion/agents/platform/oms/simulator/oms_simulator_server.py
+@package ion.agents.platform.rsn.simulator.oms_simulator_server
+@file    ion/agents/platform/rsn/simulator/oms_simulator_server.py
 @author  Carlos Rueda
 @brief   OMS simulator XML/RPC server. Program intended to be run outside of
          pyon.
 
  USAGE:
-    $ bin/python ion/agents/platform/oms/simulator/oms_simulator_server.py
+    $ bin/python ion/agents/platform/rsn/simulator/oms_simulator_server.py
     ...
     2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :107 <module> Listening on localhost:7700
     2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :108 <module> Enter ^D to exit
@@ -19,10 +19,10 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
-from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
 from ion.agents.platform.util.network_util import NetworkUtil
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from threading import Thread

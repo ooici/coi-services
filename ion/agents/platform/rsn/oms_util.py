@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.oms_util
-@file    ion/agents/platform/oms/oms_util.py
+@package ion.agents.platform.rsn.oms_util
+@file    ion/agents/platform/rsn/oms_util.py
 @author  Carlos Rueda
 @brief   RSN OMS Client based utilities
 """

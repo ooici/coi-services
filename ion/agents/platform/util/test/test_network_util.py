@@ -58,7 +58,7 @@ class Test(IonUnitTestCase):
     def test_serialization_deserialization(self):
         # create NetworkDefinition object by de-serializing the simulated network:
         ndef = NetworkUtil.deserialize_network_definition(
-                file('ion/agents/platform/oms/simulator/network.yml'))
+                file('ion/agents/platform/rsn/simulator/network.yml'))
 
         # serialize object to string
         serialization = NetworkUtil.serialize_network_definition(ndef)
@@ -72,7 +72,7 @@ class Test(IonUnitTestCase):
     def test_compute_checksum(self):
         # create NetworkDefinition object by de-serializing the simulated network:
         ndef = NetworkUtil.deserialize_network_definition(
-                file('ion/agents/platform/oms/simulator/network.yml'))
+                file('ion/agents/platform/rsn/simulator/network.yml'))
 
         checksum = ndef.compute_checksum()
         if log.isEnabledFor(logging.DEBUG):

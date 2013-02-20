@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.test.oms_test_mixin
-@file    ion/agents/platform/oms/test/oms_test_mixin.py
+@package ion.agents.platform.rsn.test.oms_test_mixin
+@file    ion/agents/platform/rsn/test/oms_test_mixin.py
 @author  Carlos Rueda
 @brief   A mixin to facilitate test cases for OMS objects following the
          OMS-CI interface.
@@ -12,7 +12,7 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
 from ion.agents.platform.test.helper import HelperTestMixin

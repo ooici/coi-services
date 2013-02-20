@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.test.test_oms_simulator
-@file    ion/agents/platform/oms/simulator/test/test_oms_simulator.py
+@package ion.agents.platform.rsn.simulator.test.test_oms_simulator
+@file    ion/agents/platform/rsn/simulator/test/test_oms_simulator.py
 @author  Carlos Rueda
 @brief   Test cases for the simulator, by default in embedded form,
          but the OMS environment variable can be used to indicate other.
@@ -13,14 +13,14 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 Logger.set_logger(log)
 
 from pyon.util.unit_test import IonUnitTestCase
 
-from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
-from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
-from ion.agents.platform.oms.test.oms_test_mixin import OmsTestMixin
+from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.test.oms_test_mixin import OmsTestMixin
 
 from nose.plugins.attrib import attr
 

@@ -44,8 +44,8 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
-from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
-from ion.agents.platform.oms.oms_util import RsnOmsUtil
+from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.responses import NormalResponse
 
@@ -70,7 +70,7 @@ from nose.plugins.attrib import attr
 # the "oms_uri" parameter include "localsimulator" and "simulator".
 # See OmsClientFactory.
 DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
+    'dvr_mod': 'ion.agents.platform.rsn.oms_platform_driver',
     'dvr_cls': 'OmsPlatformDriver',
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }

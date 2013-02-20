@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.logger
-@file    ion/agents/platform/oms/simulator/logger.py
+@package ion.agents.platform.rsn.simulator.logger
+@file    ion/agents/platform/rsn/simulator/logger.py
 @author  Carlos Rueda
 @brief   Logger configuration for the OMS simulator.
 """

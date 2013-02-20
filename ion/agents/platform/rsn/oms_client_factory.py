@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.oms_client_factory
-@file    ion/agents/platform/oms/oms_client_factory.py
+@package ion.agents.platform.rsn.oms_client_factory
+@file    ion/agents/platform/rsn/oms_client_factory.py
 @author  Carlos Rueda
 @brief   OMS Client factory.
 """
@@ -14,12 +14,12 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 import logging
 
-from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
 import xmlrpclib
 import os
 import yaml
 
-_OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/oms/oms_uri_aliases.yml'
+_OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/rsn/oms_uri_aliases.yml'
 
 
 class OmsClientFactory(object):

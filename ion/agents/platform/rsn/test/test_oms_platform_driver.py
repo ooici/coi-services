@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.test.test_oms_platform_driver
-@file    ion/agents/platform/oms/test/test_oms_platform_driver.py
+@package ion.agents.platform.rsn.test.test_oms_platform_driver
+@file    ion/agents/platform/rsn/test/test_oms_platform_driver.py
 @author  Carlos Rueda
 @brief   Some basic and direct tests to OmsPlatformDriver.
 """
@@ -16,11 +16,11 @@ import logging
 
 from pyon.util.containers import get_ion_ts
 
-from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
-from ion.agents.platform.oms.oms_util import RsnOmsUtil
+from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 
-from ion.agents.platform.oms.oms_platform_driver import OmsPlatformDriver
+from ion.agents.platform.rsn.oms_platform_driver import OmsPlatformDriver
 
 from pyon.util.int_test import IonIntegrationTestCase
 

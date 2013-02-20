@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.oms_event_listener
-@file    ion/agents/platform/oms/oms_event_listener.py
+@package ion.agents.platform.rsn.oms_event_listener
+@file    ion/agents/platform/rsn/oms_event_listener.py
 @author  Carlos Rueda
 @brief   HTTP server to get RSN OMS event notifications
 """

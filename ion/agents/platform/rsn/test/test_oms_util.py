@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.test.test_oms_util
-@file    ion/agents/platform/oms/test/test_oms_util.py
+@package ion.agents.platform.rsn.test.test_oms_util
+@file    ion/agents/platform/rsn/test/test_oms_util.py
 @author  Carlos Rueda
 @brief   Tests for oms_util
 """
@@ -13,16 +13,16 @@ __license__ = 'Apache 2.0'
 
 # NOTE: If this test is run against the embedded simulator (the default),
 # make sure to keep the verifications in sync upon any changes in
-# ion/agents/platform/oms/simulator/network.yml, which is the file used by
+# ion/agents/platform/rsn/simulator/network.yml, which is the file used by
 # the simulator.
 
 from pyon.public import log
 import logging
 
 from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
-from ion.agents.platform.oms.oms_util import RsnOmsUtil
-from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_util import RsnOmsUtil
+from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
 
 from ion.agents.platform.test.helper import HelperTestMixin
 from pyon.util.int_test import IonIntegrationTestCase

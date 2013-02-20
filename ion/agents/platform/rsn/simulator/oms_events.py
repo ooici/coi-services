@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.oms_events
-@file    ion/agents/platform/oms/simulator/oms_events.py
+@package ion.agents.platform.rsn.simulator.oms_events
+@file    ion/agents/platform/rsn/simulator/oms_events.py
 @author  Carlos Rueda
 @brief   OMS simulator event definitions and supporting functions.
          Demo program included that allows to run both a listener server and a
@@ -21,7 +21,7 @@ import httplib
 import yaml
 import json
 
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
 if not getattr(log, "trace", None):
@@ -258,11 +258,11 @@ if __name__ == "__main__":  # pragma: no cover
 Test program
 
 TERMINAL 1:
-$ bin/python  ion/agents/platform/oms/simulator/oms_events.py listener
+$ bin/python  ion/agents/platform/rsn/simulator/oms_events.py listener
 localhost:8000: listening for event notifications...
 
 TERMINAL 2:
-$ bin/python  ion/agents/platform/oms/simulator/oms_events.py notifier
+$ bin/python  ion/agents/platform/rsn/simulator/oms_events.py notifier
 2013-01-30 20:28:19,128 DEBUG    MainThread oms_simulator  :67 add_listener added listener=http://localhost:8000 for event_type=44.78
 registered listener to event_type='44.78'
 2013-01-30 20:28:19,128 DEBUG    MainThread oms_simulator  :67 add_listener added listener=http://localhost:8000 for event_type=44.77

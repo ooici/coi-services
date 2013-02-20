@@ -48,8 +48,8 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from gevent.event import AsyncResult
 from gevent import sleep
 
-from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
-from ion.agents.platform.oms.oms_util import RsnOmsUtil
+from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -69,7 +69,7 @@ BASE_PLATFORM_ID = 'Node1D'
 # the "oms_uri" parameter include "localsimulator" and "simulator".
 # See OmsClientFactory.
 DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
+    'dvr_mod': 'ion.agents.platform.rsn.oms_platform_driver',
     'dvr_cls': 'OmsPlatformDriver',
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
