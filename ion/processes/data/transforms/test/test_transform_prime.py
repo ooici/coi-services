@@ -15,7 +15,7 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
-
+from coverage_model import utils
 from pyon.public import PRED
 
 from nose.plugins.attrib import attr
@@ -147,6 +147,7 @@ class TestTransformPrime(IonIntegrationTestCase):
         # DENSITY = gsw.rho(absolute_salinity, conservative_temperature, PRESWAT_L1)
         owner = 'gsw'
         abs_sal_func = PythonFunction('abs_sal', owner, 'SA_from_SP', ['PRACSAL', 'PRESWAT_L1', 'lon','lat'], None)
+        #abs_sal_func = PythonFunction('abs_sal', owner, 'SA_from_SP', ['lon','lat'], None)
         cons_temp_func = PythonFunction('cons_temp', owner, 'CT_from_t', [abs_sal_func, 'TEMPWAT_L1', 'PRESWAT_L1'], None)
         dens_func = PythonFunction('DENSITY', owner, 'rho', [abs_sal_func, cons_temp_func, 'PRESWAT_L1'], None)
         dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_func), variability=VariabilityEnum.TEMPORAL)
@@ -192,32 +193,32 @@ class TestTransformPrime(IonIntegrationTestCase):
         publisher = StandaloneStreamPublisher(stream_id, route)
         return publisher
     
+    def _get_param_vals(self, name, slice_, dims):
+        shp = utils.slice_shape(slice_, dims)
+        def _getarr(vmin, shp, vmax=None,):
+            if vmax is None:
+                return np.empty(shp).fill(vmin)
+            return np.arange(vmin, vmax, (vmax - vmin) / int(utils.prod(shp)), dtype='float32').reshape(shp)
 
-    def test_prime(self):
-        proc_def_id = self._create_proc_def()
+        if name == 'LAT':
+            ret = np.empty(shp)
+            ret.fill(45)
+        elif name == 'LON':
+            ret = np.empty(shp)
+            ret.fill(-71)
+        elif name == 'TEMPWAT_L0':
+            ret = _getarr(280000, shp, 350000)
+        elif name == 'CONDWAT_L0':
+            ret = _getarr(100000, shp, 750000)
+        elif name == 'PRESWAT_L0':
+            ret = _getarr(3000, shp, 10000)
+        elif name in self.value_classes: # Non-L0 parameters
+            ret = self.value_classes[name][:]
+        else:
+            return np.zeros(shp)
 
-        incoming_pdict_id = self._L0_pdict()
-        outgoing_pdict_id = self._L1_pdict()
-    
-        incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream_def', parameter_dictionary_id=incoming_pdict_id, available_fields=['temp', 'conductivity', 'pressure'])
-        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream_def', parameter_dictionary_id=outgoing_pdict_id, available_fields=[''])
+        return ret
 
-        L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id)
-        L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
-
-        self._data_process(proc_def_id, [L0_data_product_id], L1_data_product_id, outgoing_stream_def_id)
-
-        publisher = self._publisher(L0_data_product_id)
-        
-        rdt = RecordDictionaryTool(stream_definition_id=incoming_stream_def_id)
-        rdt['time'] = np.arange(20)
-        rdt['lat'] = 40.992469
-        rdt['lon'] = -71.727069
-        rdt['TEMPWAT_L0'] = np.arange([35]* 20)
-        #rdt['CONDWAT_L0'] = np.arange(
-
-        publisher.publish(rdt.to_granule())
-    
     def test_execute_transform(self):
         proc_def_id = self._create_proc_def()
 
@@ -225,7 +226,8 @@ class TestTransformPrime(IonIntegrationTestCase):
         outgoing_pdict_id = self._L1_pdict()
         
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream_def', parameter_dictionary_id=incoming_pdict_id, available_fields=['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
-        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream_def', parameter_dictionary_id=outgoing_pdict_id, available_fields=['PRACSAL', 'DENSITY'])
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream_def', parameter_dictionary_id=outgoing_pdict_id, available_fields=['time', 'PRACSAL', 'DENSITY'])
+
 
         L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id)
         L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
@@ -244,15 +246,15 @@ class TestTransformPrime(IonIntegrationTestCase):
         rdt['time'] = np.arange(dt)
         rdt['lat'] = 40.992469
         rdt['lon'] = -71.727069
-        rdt['TEMPWAT_L0'] = np.array([35]* dt)
-        rdt['CONDWAT_L0'] = np.sin(np.arange(dt) * 2 * np.pi / 60)
-        rdt['PRESWAT_L0'] = np.array([20]* dt)
+        rdt['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
+        rdt['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
+        rdt['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
         
         msg = rdt.to_granule()
         pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'stream_id':stream_id_out}})
         rdt_out = self.container.proc_manager.procs[pid].execute_transform(msg, stream_id_in)
-        
         import sys
-        print >> sys.stderr, rdt_out
+        for k,v in rdt_out.iteritems():
+            print >> sys.stderr, k, v
 
 
