@@ -961,7 +961,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##
     ##
 
-    def _get_resource_commitment_header_values(self, headers):
+    def _get_governance_resource_header_values(self, headers):
         '''
         Internal function ...not to be called outside of this module
         '''
@@ -985,13 +985,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def check_is_resource_owner(self, msg, headers):
 
         try:
-            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
+            op, actor_id, resource_id = self._get_governance_resource_header_values(headers)
         except Inconsistent, ex:
             return False, ex.message
 
-        owners =  self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasOwner, object_type=actor_id, id_only=True)
+        owners =  self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasOwner, object_type=RT.ActorIdentity, id_only=True)
 
-        if actor_id not in owners:
+        if actor_id not in owners[0]:
             return False, '(%s) has been denied since the user %s is not the owner of the resource %s' % (op, actor_id, resource_id)
 
 
@@ -1003,7 +1003,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
 
         try:
-            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
+            op, actor_id, resource_id = self._get_governance_resource_header_values(headers)
         except Inconsistent, ex:
             return False, ex.message
 
@@ -1016,17 +1016,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def check_is_resource_owner_or_has_shared_commitment(self, msg,  headers):
 
-        try:
-            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
-        except Inconsistent, ex:
-            return False, ex.message
-
         if self.check_is_resource_owner(msg, headers) or self.check_shared_resource_commitment(msg, headers):
             return True, ''
 
         return False, '(%s) has been denied since the user %s is not the owner or has not acquired the resource %s' % (op, actor_id, resource_id)
-
-
 
 
     def check_exclusive_resource_commitment(self, msg,  headers):
@@ -1034,7 +1027,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         This function is used for governance validation for the request_direct_access and stop_direct_access operation.
         """
         try:
-            op, actor_id, resource_id = self._get_resource_commitment_header_values(headers)
+            op, actor_id, resource_id = self._get_governance_resource_header_values(headers)
         except Inconsistent, ex:
             return False, ex.message
 
