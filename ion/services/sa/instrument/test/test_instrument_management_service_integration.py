@@ -21,6 +21,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType, StreamConfiguration
+from interface.objects import ComputedIntValue, ComputedFloatValue
 
 from pyon.public import RT, PRED, CFG
 from nose.plugins.attrib import attr
@@ -156,6 +157,18 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
+        # Verify that computed attributes exist for the extended instrument
+        self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.last_calibration_datetime, ComputedFloatValue)
+        self.assertIsInstance(extended_instrument.computed.uptime, ComputedIntValue)
+
+        self.assertIsInstance(extended_instrument.computed.power_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.communications_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.data_status_roll_up, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.location_status_roll_up, ComputedIntValue)
+
+        log.debug("extended_instrument.computed: %s", extended_instrument.computed)
 
         #check model
         inst_model_obj = self.RR.read(instrument_model_id)
