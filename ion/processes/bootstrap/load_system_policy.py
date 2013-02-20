@@ -874,5 +874,5 @@ class LoadSystemPolicy(ImmediateProcess):
 
         #Add precondition policies for IMS lifecyle operations
 
-       # pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_instrument_device_lifecycle',
-       #    policy_content='check_is_resource_owner_or_has_shared_commitment', headers=sa_user_header )
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_instrument_device_lifecycle',
+           policy_content='check_is_resource_owner_or_has_shared_commitment', headers=sa_user_header )
