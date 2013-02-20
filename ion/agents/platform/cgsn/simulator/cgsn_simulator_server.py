@@ -7,10 +7,11 @@
 @brief   CGSN simulator server. Program intended to be run outside of pyon.
 
  USAGE:
-    $ bin/python ion/agents/platform/oms/simulator/oms_simulator_server.py
-    ...
-    2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :107 <module> Listening on localhost:7700
-    2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :108 <module> Enter ^D to exit
+    $ bin/python ion/agents/platform/cgsn/simulator/cgsn_simulator_server.py
+    CgsnSimulatorServer listening on localhost:2221 ...
+    started thread.
+    Listening on localhost:2221
+    Enter ^D to exit
 """
 
 __author__ = 'Carlos Rueda'
