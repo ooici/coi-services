@@ -299,6 +299,56 @@ class TestTransformPrime(IonIntegrationTestCase):
         
         self._validate_transforms(rdt_in, rdt_out)
         self.container.proc_manager.terminate_process(pid)
+    
+    def test_transform_prime_no_available_fields(self):
+        available_fields_in = []
+        available_fields_out = []
+        exchange_pt1 = 'xp1'
+        exchange_pt2 = 'xp2'
+        stream_id_in,stream_id_out,stream_route_in,stream_route_out,stream_def_in_id,stream_def_out_id = self._setup_streams(exchange_pt1, exchange_pt2, available_fields_in, available_fields_out)
+        
+        #launch transform
+        config = {'process':{'routes':{(stream_id_in, stream_id_out):None},'queue_name':exchange_pt1, 'publish_streams':{str(stream_id_out):stream_id_out}, 'process_type':'stream_process'}}
+        pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',config)
+        
+        #create publish
+        publisher = StandaloneStreamPublisher(stream_id_in, stream_route_in)
+        self.container.proc_manager.procs[pid].subscriber.xn.bind(stream_route_in.routing_key, publisher.xp)
+
+        #data
+        rdt_in = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
+        dt = 20
+        rdt_in['time'] = np.arange(dt)
+        rdt_in['lat'] = [40.992469] * dt
+        rdt_in['lon'] = [-71.727069] * dt
+        rdt_in['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
+        rdt_in['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
+        rdt_in['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
+        msg = rdt_in.to_granule()
+        #publish granule to transform and have transform publish it to subsciber
+        
+        #validate transformed data
+        e = gevent.event.Event()
+        def cb(msg, sr, sid):
+            self.assertEqual(sid, stream_id_out)
+            rdt_out = RecordDictionaryTool.load_from_granule(msg)
+            self.assertEquals(set([k for k,v in rdt_out.iteritems()]), set(available_fields_out))
+            for k,v in rdt_out.iteritems():
+                self.assertEquals(rdt_out[k], None)
+            e.set()
+
+        sub = StandaloneStreamSubscriber('stream_subscriber', cb)
+        sub.xn.bind(stream_route_out.routing_key, getattr(self.container.proc_manager.procs[pid], stream_id_out).xp)
+        self.addCleanup(sub.stop)
+        sub.start()
+        
+        #publish msg to transform
+        publisher.publish(msg)
+        
+        #wait to receive msg
+        self.assertTrue(e.wait(4))
+
+        #self.container.proc_manager.terminate_process(pid)
 
     def test_transform_prime(self):
         available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']

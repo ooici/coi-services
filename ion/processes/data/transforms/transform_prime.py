@@ -69,6 +69,8 @@ class TransformPrime(TransformDataProcess):
         rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
         #modify the shape of the rdt out since we are using _rd then _shp will never get set
         rdt_out._shp = rdt_in._shp
+        if rdt_out._available_fields is None: rdt_out._available_fields = []
+        if rdt_in._available_fields is None: rdt_in._available_fields = []
         for key,pctup in merged_pdict.iteritems():
             n,pc = pctup
             #if function then a transform is applied to calculate values
