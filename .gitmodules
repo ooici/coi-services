@@ -17,6 +17,3 @@
 [submodule "extern/eeagent"]
 	path = extern/eeagent
 	url = https://github.com/ooici/eeagent.git
-[submodule "coverage-model"]
-	path = coverage-model
-	url = git@github.com:blazetopher/coverage-model.git

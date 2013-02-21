@@ -36,8 +36,6 @@ class TransformPrime(TransformDataProcess):
         return (stream_def_in, stream_def_out)
 
     def recv_packet(self, msg, stream_route, stream_id):
-        import sys
-        print >> sys.stderr, "recv_packet"
         process_routes = self.CFG.get_safe('process.routes', {})
         for streams,actor in process_routes.iteritems():
             stream_in_id, stream_out_id = streams
@@ -70,6 +68,8 @@ class TransformPrime(TransformDataProcess):
         merged_pdict = dict([(k,v) for k,v in incoming_pdict.iteritems()] + [(k,v) for k,v in outgoing_pdict.iteritems()])
         rdt_in = RecordDictionaryTool.load_from_granule(msg)
         rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
+        #modify the shape of the rdt out since we are using _rd then _shp will never get set
+        rdt_out._shp = rdt_in._shp
         for key,pctup in merged_pdict.iteritems():
             n,pc = pctup
             #if function then a transform is applied to calculate values
