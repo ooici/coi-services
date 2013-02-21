@@ -90,6 +90,14 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.pubsub_management.deactivate_subscription(subscription_id)
         self.pubsub_management.delete_subscription(subscription_id)
 
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.array([None,None,None])
+        self.assertTrue(rdt['time'] is None)
+        
+        rdt['time'] = np.array([None, 1, 2])
+        self.assertEquals(rdt['time'][0], rdt.fill_value('time'))
+
+
     @unittest.skip('TODO: add support back for appending granules')
     def test_granule_append(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
