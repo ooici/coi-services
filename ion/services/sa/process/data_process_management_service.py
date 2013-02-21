@@ -127,7 +127,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         validate_is_instance(tf,TransformFunction, 'Resource %s is not a TransformFunction: %s' %(transform_function_id, type(tf)))
         return tf
 
-    def delete_transform_function(self, transform_function_id):
+    def delete_transform_function(self, transform_function_id=''):
         self.read_transform_function(transform_function_id)
         self.clients.resource_registry.delete(transform_function_id)
         
