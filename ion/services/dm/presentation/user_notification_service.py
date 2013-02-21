@@ -256,21 +256,31 @@ class UserNotificationService(BaseUserNotificationService):
         #---------------------------------------------------------------------------------------------------
 
         # if the notification has already been registered, simply use the old id
-
         notification_id = self._notification_in_notifications(notification, self.notifications)
 
+        # since the notification has not been registered yet, register it and get the id
+
+        temporal_bounds = TemporalBounds()
+        temporal_bounds.start_datetime = get_ion_ts()
+        temporal_bounds.end_datetime = ''
+
         if not notification_id:
-
-            # since the notification has not been registered yet, register it and get the id
-            notification.temporal_bounds = TemporalBounds()
-            notification.temporal_bounds.start_datetime = get_ion_ts()
-            notification.temporal_bounds.end_datetime = ''
-
+            notification.temporal_bounds = temporal_bounds
             notification_id, _ = self.clients.resource_registry.create(notification)
-
             self.notifications[notification_id] = notification
         else:
-            log.debug("Notification object has already been created in resource registry before. No new id to be generated.")
+            log.debug("Notification object has already been created in resource registry before. No new id to be generated. notification_id: %s", notification_id)
+            # Read the old notification already in the resource registry
+            notification = self.clients.resource_registry.read(notification_id)
+
+            # Update the temporal bounds of the old notification resource
+            notification.temporal_bounds = temporal_bounds
+
+            # Update the notification in the resource registry
+            self.clients.resource_registry.update(notification)
+
+            log.debug("The temporal bounds for this resubscribed notification object with id: %s, is: %s", notification_id,notification.temporal_bounds)
+
 
         # Link the user and the notification with a hasNotification association
         assocs= self.clients.resource_registry.find_associations(subject=user_id,
@@ -922,6 +932,9 @@ class UserNotificationService(BaseUserNotificationService):
         search_origin = 'search "origin" is "%s" from "resources_index"' % resource_id
         ret_vals = self.discovery.parse(search_origin)
 
+        log.debug("Using discovery with search_string: %s", search_origin)
+        log.debug("_get_subscriptions() got ret_vals: %s", ret_vals )
+
         notifications_all = set()
         notifications_active = set()
 
@@ -939,7 +952,9 @@ class UserNotificationService(BaseUserNotificationService):
             notifications_all.update(notifs)
         else:
             for notif in notifs:
+                log.debug("Got the end_datetime here: notif.temporal_bounds.end_datetime = %s", notif.temporal_bounds.end_datetime)
                 if notif.temporal_bounds.end_datetime == '':
+                    log.debug("removing the notification: %s", notif._id)
                     # Add the active notification
                     notifications_active.add(notif)
 

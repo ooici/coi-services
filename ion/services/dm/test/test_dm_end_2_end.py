@@ -400,6 +400,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt['time'] = np.arange(10)
         rdt['temp'] = np.random.randn(10) * 10 + 30
         rdt['conductivity'] = np.random.randn(10) * 2 + 10
+        rdt['pressure'] = np.random.randn(10) * 1 + 12
 
         publisher = StandaloneStreamPublisher(ctd_stream_id, route)
         publisher.publish(rdt.to_granule())

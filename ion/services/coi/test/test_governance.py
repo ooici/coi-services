@@ -1187,7 +1187,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
 
-        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
+        gevent.sleep(self.SLEEP_TIME+1)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
@@ -1319,7 +1319,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: has_role',cm.exception.message)
 
-        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
+        gevent.sleep(self.SLEEP_TIME+1)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
@@ -1515,7 +1515,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('(request_direct_access) has been denied',cm.exception.message)
+        self.assertIn('instrument_management(request_direct_access) has been denied',cm.exception.message)
 
         #Request to access the resource exclusively for two hours
         cur_time = int(get_ion_ts())
@@ -1540,7 +1540,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Try to Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('(request_direct_access) has been denied',cm.exception.message)
+        self.assertIn('instrument_management(request_direct_access) has been denied',cm.exception.message)
 
         #The agent related functions should not be allowed for a user that is not an Org Manager
         with self.assertRaises(Unauthorized) as cm:
@@ -1679,10 +1679,20 @@ class TestGovernanceInt(IonIntegrationTestCase):
         log.debug('Begin testing with policies')
 
         #Create user
-        actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.debug( "actor id=" + actor_id)
+        inst_operator_actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
+        log.debug( "actor id=" + inst_operator_actor_id)
 
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        inst_operator_actor_header = self.container.governance_controller.get_actor_header(inst_operator_actor_id)
+
+        #Create a second user to be used as regular member
+        member_actor_obj = IonObject(RT.ActorIdentity, name='org member actor')
+        member_actor_id,_ = self.rr_client.create(member_actor_obj)
+        assert(member_actor_id)
+
+        #Create a thirs user to be used as observatory operator
+        obs_operator_actor_obj = IonObject(RT.ActorIdentity, name='observatory operator actor')
+        obs_operator_actor_id,_ = self.rr_client.create(obs_operator_actor_obj)
+        assert(obs_operator_actor_id)
 
         #Create a second Org
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
@@ -1708,29 +1718,35 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(roles),4)
         self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
 
-        self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
+        self.org_client.enroll_member(org2_id,inst_operator_actor_id, headers=self.system_actor_header)
+        self.org_client.enroll_member(org2_id,member_actor_id, headers=self.system_actor_header)
+        self.org_client.enroll_member(org2_id,obs_operator_actor_id, headers=self.system_actor_header)
+
+
+        #Grant the role of Instrument Operator to the user
+        self.org_client.grant_role(org2_id, inst_operator_actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+        #Grant the role of Observatory Operator to the user
+        self.org_client.grant_role(org2_id, obs_operator_actor_id, OBSERVATORY_OPERATOR_ROLE, headers=self.system_actor_header)
+
 
         #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        inst_operator_actor_header = self.container.governance_controller.get_actor_header(inst_operator_actor_id)
+        member_actor_header = self.container.governance_controller.get_actor_header(member_actor_id)
+        obs_operator_actor_header = self.container.governance_controller.get_actor_header(obs_operator_actor_id)
 
         #Attempt to Create Test InstrumentDevice as Org Member
         inst_dev = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')
 
         #Should be denied without being the proper role
         with self.assertRaises(Unauthorized) as cm:
-            inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=actor_header)
+            inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=member_actor_header)
         self.assertIn('instrument_management(create_instrument_device) has been denied',cm.exception.message)
 
-
-        #Grant the role of Instrument Operator to the user
-        self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
-
-        #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
-
         #Should be allowed
-        inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=actor_header)
+        inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=inst_operator_actor_header)
 
+        #Reads are always allowed anonymously
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
         self.assertEqual(inst_dev_obj.lcstate, LCS.DRAFT_PRIVATE)
 
@@ -1739,26 +1755,101 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=self.anonymous_user_headers)
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
-
-        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
         with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=actor_header)
-        self.assertIn( 'Device is not associated with any Org',cm.exception.message)
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=member_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR - will fail since resource is not shared by an Org
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=inst_operator_actor_header)
+        self.assertIn( 'has not been shared with any Orgs',cm.exception.message)
+
+        #Ensure the resource is shareable
         self.org_client.share_resource(org2_id, inst_dev_id, headers=self.system_actor_header)
 
-        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=actor_header)
+
+        #Successfully advance the Life cycle to planned - this user is owner and Inst operator
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=inst_operator_actor_header)
 
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
         self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
 
+        #Advance the Life cycle to DEVELOP - should fail since not owner or acquried resource
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEVELOP, headers=obs_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+
+        #Have the Obs Operator acquire the resource since not the owner
+        commitment_id = self.org_client.create_resource_commitment(org2_id, obs_operator_actor_id, inst_dev_id)
+
+        #Advance the Life cycle to DEVELOP - should pass governance but fail because of other hard wired preconditions.
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEVELOP, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+
+        #These states are only ever allowed for the Observatory Operator ( or Org Manager)
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.INTEGRATE, headers=inst_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEPLOY, headers=inst_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.RETIRE, headers=inst_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        #These states are only ever allowed for the Observatory Operator ( or Org Manager)
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.INTEGRATE, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEPLOY, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+
+        #Back to testing a few other states with different actors
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=member_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=member_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=inst_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        #Should be able to retire a device anytime
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.RETIRE, headers=obs_operator_actor_header)
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.RETIRED)
 
 
         #Clean up
-        self.ims_client.delete_instrument_device(inst_dev_id, headers=actor_header)
+        self.org_client.release_commitment(commitment_id)
+        self.ims_client.delete_instrument_device(inst_dev_id, headers=inst_operator_actor_header)
 
-        #Clean up
-        self.id_client.delete_actor_identity(actor_id,headers=self.system_actor_header )
-
-
+        self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
+        self.rr_client.delete(member_actor_id, headers=self.system_actor_header)
+        self.rr_client.delete(obs_operator_actor_id, headers=self.system_actor_header)

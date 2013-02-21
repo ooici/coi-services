@@ -161,7 +161,23 @@ class RecordDictionaryTool(object):
     def temporal_parameter(self):
         return self._pdict.temporal_parameter_name
 
+    def fill_value(self,name):
+        return self._pdict.get_context(name).fill_value
+
+    def _replace_hook(self, name,vals):
+        nparray = np.array(vals)
+        np.place(nparray,nparray==np.array(None),self.fill_value(name))
+        try:
+            if (nparray==np.array(self.fill_value(name))).all():
+                return None
+        except AttributeError:
+            return nparray
+        return nparray
+
     def __setitem__(self, name, vals):
+        return self._set(name, self._replace_hook(name,vals))
+
+    def _set(self, name, vals):
         """
         Set a parameter
         """

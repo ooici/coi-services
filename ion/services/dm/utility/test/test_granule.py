@@ -102,11 +102,19 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         granule = rdt.to_granule()
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
-
         self.assertEquals(rdt._available_fields, rdt2._available_fields)
         self.assertEquals(rdt.fields, rdt2.fields)
         for k,v in rdt.iteritems():
             self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
+        
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.array([None,None,None])
+        self.assertTrue(rdt['time'] is None)
+        
+        rdt['time'] = np.array([None, 1, 2])
+        self.assertEquals(rdt['time'][0], rdt.fill_value('time'))
+
+
 
 
 

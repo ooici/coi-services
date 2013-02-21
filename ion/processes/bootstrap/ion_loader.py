@@ -1313,7 +1313,7 @@ class IONLoader(ImmediateProcess):
         log.warn('''
 ------- Conflict Report -------
 Conflict with %s
-Parmater Name: %s
+Parameter Name: %s
 Reason: %s
 -------------------------------''', row_id, name, reason)
 
