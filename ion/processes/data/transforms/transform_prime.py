@@ -22,26 +22,46 @@ class TransformPrime(TransformDataProcess):
       process.exchange_point Route's exchange point.
       process.routing_key    Route's routing key.
       process.queue_name     Name of the queue to listen on.
-      
+      process.routes         streams,actor for each route {(stream_input_id, stream_output_id):actor} 
     Either the stream_id or both the exchange_point and routing_key need to be provided.
     '''    
     def on_start(self):
         TransformDataProcess.on_start(self)
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
     
-    def recv_packet(self, msg, stream_route, stream_id):
-        #rdt = RecordDictionaryTool(stream_definition_id=stream_def_out.id)
-        
-        #publisher = getattr(self, self.CFG.process.stream_id)
-        #publisher.publish(rdt_in.to_granule())
-        #elif key in rdt._available_fields and isinstance(pdict, QuantityType):
-        pass
+    def _get_stream_defs(self, stream_ids):
+        stream_in_id, stream_out_id = stream_ids
+        stream_def_in = self.pubsub_management.read_stream_definition(stream_id=stream_in_id)
+        stream_def_out = self.pubsub_management.read_stream_definition(stream_id=stream_out_id)
+        return (stream_def_in, stream_def_out)
 
-    def execute_transform(self, msg, stream_id):
-        stream_def_in = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+    def recv_packet(self, msg, stream_route, stream_id):
+        import sys
+        print >> sys.stderr, "recv_packet"
+        process_routes = self.CFG.get_safe('process.routes', {})
+        for streams,actor in process_routes.iteritems():
+            stream_in_id, stream_out_id = streams
+            if stream_id == stream_in_id:
+                if actor is None:
+                    rdt_out = self.execute_transform(msg, streams)
+                else:
+                    pass
+                    rdt_out = self.execute_actor(msg, actor, streams)
+                self.publish(rdt_out.to_granule(), stream_out_id)
+
+    def publish(self, msg, stream_out_id):
+        publisher = getattr(self, stream_out_id)
+        publisher.publish(msg)
+   
+    def execute_actor(self, msg, actor, streams):
+        stream_def_in,stream_def_out = self._get_stream_defs(streams)
+        #do the stuff with the actor
+        rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
+        return rdt_out
+
+    def execute_transform(self, msg, streams):
+        stream_def_in,stream_def_out = self._get_stream_defs(streams)
         incoming_pdict_dump = stream_def_in.parameter_dictionary
-        
-        stream_def_out = self.pubsub_management.read_stream_definition(stream_id=self.CFG.process.stream_id)
         outgoing_pdict_dump = stream_def_out.parameter_dictionary
         
         incoming_pdict = ParameterDictionary.load(incoming_pdict_dump)

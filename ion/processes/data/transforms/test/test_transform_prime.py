@@ -7,7 +7,7 @@
 
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.granule import RecordDictionaryTool
-from pyon.ion.stream import StandaloneStreamPublisher
+from pyon.ion.stream import StandaloneStreamPublisher,StandaloneStreamSubscriber
 from pyon.util.int_test import IonIntegrationTestCase
 from coverage_model import ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
 from interface.objects import DataProcessDefinition, DataProduct, DataProducer
@@ -17,7 +17,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from coverage_model import utils
 from pyon.public import PRED
-
+import gevent
 from nose.plugins.attrib import attr
 
 import numpy as np
@@ -157,10 +157,10 @@ class TestTransformPrime(IonIntegrationTestCase):
         pdict_id = self.dataset_management.create_parameter_dictionary('L1_SBE37', parameter_context_ids=param_context_ids, temporal_context='time')
         return pdict_id
 
-    def _data_product(self, name, stream_def):
+    def _data_product(self, name, stream_def, exchange_pt):
         tdom, sdom = time_series_domain()
         dp_obj = DataProduct(name=name, description='blah', spatial_domain=sdom.dump(), temporal_domain=tdom.dump())
-        dp_id = self.data_product_management.create_data_product(dp_obj, stream_def)
+        dp_id = self.data_product_management.create_data_product(dp_obj, stream_def, exchange_pt)
         return dp_id
 
     def _data_process(self, proc_def_id, input_products, output_product, stream_def):
@@ -179,8 +179,6 @@ class TestTransformPrime(IonIntegrationTestCase):
         if not hasattr(self, 'producer'):
             self.fake_producer_id,_ = self.container.resource_registry.create(DataProducer(name='fake_producer'))
         return self.fake_producer_id
-
-
 
     def _publisher(self, data_product_id):
         stream_ids, _ = self.container.resource_registry.find_resources(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
@@ -216,30 +214,40 @@ class TestTransformPrime(IonIntegrationTestCase):
             return np.zeros(shp)
 
         return ret
-
-    def test_execute_transform(self):
+    
+    def _setup_streams(self, exchange_pt1, exchange_pt2, available_fields_in=[], available_fields_out=[]):
         proc_def_id = self._create_proc_def()
 
         incoming_pdict_id = self._L0_pdict()
         outgoing_pdict_id = self._L1_pdict()
         
-        incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream_def', parameter_dictionary_id=incoming_pdict_id, available_fields=['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
-        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream_def', parameter_dictionary_id=outgoing_pdict_id, available_fields=['time', 'PRACSAL', 'DENSITY'])
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('L0_stream_def', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('L1_stream_def', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
 
-
-        L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id)
-        L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id)
+        L0_data_product_id = self._data_product('L0_SBE37', incoming_stream_def_id, exchange_pt1)
+        L1_data_product_id = self._data_product('L1_SBE37', outgoing_stream_def_id, exchange_pt2)
 
         self._data_process(proc_def_id, [L0_data_product_id], L1_data_product_id, outgoing_stream_def_id)
         
-        #stream_ids, _ = self.container.resource_registry.find_resources(subject=L0_data_product_id, predicate=PRED.hasStream, id_only=True)
         stream_ids, _ = self.container.resource_registry.find_objects(L0_data_product_id, PRED.hasStream, None, True)
         stream_id_in = stream_ids[0]
-        
+
         stream_ids, _ = self.container.resource_registry.find_objects(L1_data_product_id, PRED.hasStream, None, True)
         stream_id_out = stream_ids[0]
         
-        rdt = RecordDictionaryTool(stream_definition_id=incoming_stream_def_id)
+        stream_route_in = self.pubsub_management.read_stream_route(stream_id_in)
+        stream_route_out = self.pubsub_management.read_stream_route(stream_id_out)
+
+        return (stream_id_in,stream_id_out,stream_route_in,stream_route_out,incoming_stream_def_id,outgoing_stream_def_id)
+
+    def test_execute_transform(self):
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = ['time', 'PRACSAL', 'DENSITY']
+        exchange_pt1 = 'xp1'
+        exchange_pt2 = 'xp2'
+        stream_id_in,stream_id_out,stream_route_in,stream_route_out,stream_def_in_id,stream_def_out_id = self._setup_streams(exchange_pt1, exchange_pt2, available_fields_in, available_fields_out)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
         dt = 20
         rdt['time'] = np.arange(dt)
         rdt['lat'] = 40.992469
@@ -249,10 +257,54 @@ class TestTransformPrime(IonIntegrationTestCase):
         rdt['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
         
         msg = rdt.to_granule()
-        pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'stream_id':stream_id_out}})
-        rdt_out = self.container.proc_manager.procs[pid].execute_transform(msg, stream_id_in)
-        import sys
+        pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'routes':{(stream_id_in, stream_id_out):None},'stream_id':stream_id_out}})
+        rdt_out = self.container.proc_manager.procs[pid].execute_transform(msg, (stream_id_in,stream_id_out))
         for k,v in rdt_out.iteritems():
-            print >> sys.stderr, k, v
+            self.assertEqual(len(v), dt)        
+        
+        self.container.proc_manager.terminate_process(pid)
 
+    def test_transform_prime(self):
+        import sys
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = ['time', 'PRACSAL', 'DENSITY']
+        exchange_pt1 = 'xp1'
+        exchange_pt2 = 'xp2'
+        stream_id_in,stream_id_out,stream_route_in,stream_route_out,stream_def_in_id,stream_def_out_id = self._setup_streams(exchange_pt1, exchange_pt2, available_fields_in, available_fields_out)
+        
+        #launch transform
+        config = {'process':{'routes':{(stream_id_in, stream_id_out):None},'queue_name':exchange_pt1, 'publish_streams':{str(stream_id_out):stream_id_out}, 'process_type':'stream_process'}}
+        pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',config)
+        
+        publisher = StandaloneStreamPublisher(stream_id_in, stream_route_in)
+        self.container.proc_manager.procs[pid].subscriber.xn.bind(stream_route_in.routing_key, publisher.xp)
 
+        #data
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
+        dt = 20
+        rdt['time'] = np.arange(dt)
+        rdt['lat'] = 40.992469
+        rdt['lon'] = -71.727069
+        rdt['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
+        rdt['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
+        rdt['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
+        msg = rdt.to_granule()
+        #publish granule to transform and have transform publish it to subsciber
+        
+        #setup listener endpoint
+        e = gevent.event.Event()
+        def cb(msg, sr, sid):
+            print >> sys.stderr, "msg", msg
+            self.assertEqual(sid, stream_id_out)
+            #self.assertTrue(isinstance(msg[1], Granule))
+            e.set()
+        sub = StandaloneStreamSubscriber('stream_subscriber', cb)
+        sub.xn.bind(stream_route_out.routing_key, getattr(self.container.proc_manager.procs[pid], stream_id_out).xp)
+        self.addCleanup(sub.stop)
+        sub.start()
+        
+        publisher.publish(msg)
+
+        self.assertTrue(e.wait(4))
+
+        #self.container.proc_manager.terminate_process(pid)
