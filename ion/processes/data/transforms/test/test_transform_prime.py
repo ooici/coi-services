@@ -281,15 +281,19 @@ class TestTransformPrime(IonIntegrationTestCase):
         rdt_in = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
         dt = 20
         rdt_in['time'] = np.arange(dt)
-        rdt_in['lat'] = 40.992469
-        rdt_in['lon'] = -71.727069
+        rdt_in['lat'] = [40.992469] * dt
+        rdt_in['lon'] = [-71.727069] * dt
         rdt_in['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
         rdt_in['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
         rdt_in['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
         
         msg = rdt_in.to_granule()
-        pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'routes':{(stream_id_in, stream_id_out):None},'stream_id':stream_id_out}})
-        rdt_out = self.container.proc_manager.procs[pid].execute_transform(msg, (stream_id_in,stream_id_out))
+        #pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'routes':{(stream_id_in, stream_id_out):None},'stream_id':stream_id_out}})
+        config = {'process':{'routes':{(stream_id_in, stream_id_out):None},'queue_name':exchange_pt1, 'publish_streams':{str(stream_id_out):stream_id_out}, 'process_type':'stream_process'}}
+        pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',config)
+        rdt_out = self.container.proc_manager.procs[pid]._execute_transform(msg, (stream_id_in,stream_id_out))
+        #need below to wrap result in a param val object
+        rdt_out = RecordDictionaryTool.load_from_granule(rdt_out.to_granule())
         for k,v in rdt_out.iteritems():
             self.assertEqual(len(v), dt)        
         

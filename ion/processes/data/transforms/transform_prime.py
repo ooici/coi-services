@@ -41,23 +41,22 @@ class TransformPrime(TransformDataProcess):
             stream_in_id, stream_out_id = streams
             if stream_id == stream_in_id:
                 if actor is None:
-                    rdt_out = self.execute_transform(msg, streams)
+                    rdt_out = self._execute_transform(msg, streams)
                 else:
-                    pass
-                    rdt_out = self.execute_actor(msg, actor, streams)
+                    rdt_out = self._execute_actor(msg, actor, streams)
                 self.publish(rdt_out.to_granule(), stream_out_id)
 
     def publish(self, msg, stream_out_id):
         publisher = getattr(self, stream_out_id)
         publisher.publish(msg)
    
-    def execute_actor(self, msg, actor, streams):
+    def _execute_actor(self, msg, actor, streams):
         stream_def_in,stream_def_out = self._get_stream_defs(streams)
         #do the stuff with the actor
         rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
         return rdt_out
 
-    def execute_transform(self, msg, streams):
+    def _execute_transform(self, msg, streams):
         stream_def_in,stream_def_out = self._get_stream_defs(streams)
         incoming_pdict_dump = stream_def_in.parameter_dictionary
         outgoing_pdict_dump = stream_def_out.parameter_dictionary
@@ -91,8 +90,11 @@ class TransformPrime(TransformDataProcess):
                     return result
                 #set the evaluation callback so it can find values in the input stream
                 pv._pval_callback = pval_callback
-                #transform should be on the outgoing stream
                 if key in rdt_out._available_fields:
+                    #rdt to and from granule wraps result in a paramval so no need
+                    #paramval = rdt_out.get_paramval(pc.param_type, rdt_in.domain, pv[:])
+                    #paramval._pval_callback = pval_callback
+                    #rdt_out._rd[key] = paramval
                     rdt_out._rd[key] = pv[:]
             else:
                 #field exists in both the in and the out stream so pass it along to the output stream
