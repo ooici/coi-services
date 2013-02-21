@@ -128,7 +128,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # remove dataset associations
         #--------------------------------------------------------------------------------
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
 
 #        for dataset_id in dataset_ids:
 #            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
@@ -301,6 +301,14 @@ class DataProductManagementService(BaseDataProductManagementService):
 #            self.data_product.unlink_data_set(data_product_id, dataset_id)
 
 
+    def get_data_product_stream_definition(self, data_product_id=''):
+        self.read_data_product(data_product_id)
+        streams, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        for stream in streams:
+            stream_defs, _ = self.clients.resource_registry.find_objects(subject=stream, predicate=PRED.hasStreamDefinition, id_only=True)
+            if stream_defs:
+                return stream_defs[0]
+    
     def get_data_product_provenance(self, data_product_id=''):
 
         # Retrieve information that characterizes how this data was produced
@@ -495,7 +503,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
         if not dataset_ids:
             raise NotFound('No Dataset is associated with DataProduct %s' % data_product_id)
         return dataset_ids[0]

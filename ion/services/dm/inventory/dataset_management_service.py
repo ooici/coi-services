@@ -16,11 +16,12 @@ from pyon.util.log import log
 from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDictionary, GridDomain, ParameterContext
 from ion.util.time_utils import TimeUtils
 
-from interface.objects import ParameterContextResource, ParameterDictionaryResource
-from interface.objects import DataSet
+from interface.objects import ParameterContext as ParameterContextResource, ParameterDictionary as ParameterDictionaryResource
+from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
+from coverage_model import SimplexCoverage as ViewCoverage
 
 import os
 
@@ -28,6 +29,7 @@ import os
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
     DEFAULT_VIEW      = 'manifest/by_dataset'
+    
     def __init__(self, *args, **kwargs):
         super(DatasetManagementService, self).__init__(*args,**kwargs)
         self.logging_name = '(DatasetManagementService %s)' % (self.name or self.id)
@@ -52,7 +54,7 @@ class DatasetManagementService(BaseDatasetManagementService):
             parameter_dict = self._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
             parameter_dict = parameter_dict.dump()
 
-        dataset                      = DataSet()
+        dataset                      = Dataset()
         dataset.description          = description
         dataset.name                 = name
         dataset.primary_view_key     = stream_id or None
@@ -77,7 +79,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def read_dataset(self, dataset_id=''):
         retval = self.clients.resource_registry.read(dataset_id)
-        validate_is_instance(retval,DataSet)
+        validate_is_instance(retval,Dataset)
         return retval
 
     def update_dataset(self, dataset=None):
@@ -142,7 +144,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_parameter_context(self, name='', parameter_context=None, description='', parameter_type='', value_encoding='', unit_of_measure=''):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=False)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
                 if r.name == name and self._compare_pc(r.parameter_context, parameter_context):
@@ -171,7 +173,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def read_parameter_context_by_name(self, name='', id_only=False):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContextResource, name=name, id_only=id_only)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
@@ -179,7 +181,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_parameter_dictionary(self, name='', parameter_context_ids=None, temporal_context='', description=''):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=True)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=True)
         if len(res):
             context_ids,_ = self.clients.resource_registry.find_objects(subject=res[0], predicate=PRED.hasParameterContext, id_only=True)
             context_ids.sort()
@@ -214,7 +216,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return pcs
 
     def read_parameter_dictionary_by_name(self, name='', id_only=False):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionaryResource, name=name, id_only=id_only)
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
@@ -353,6 +355,12 @@ class DatasetManagementService(BaseDatasetManagementService):
     def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
+        return coverage
+
+    @classmethod
+    def _get_view_coverage(cls, dataset_id, mode='r'):
+        file_root = cls._get_coverage_path(dataset_id)
+        coverage = ViewCoverage(file_root, dataset_id, mode=mode)
         return coverage
 
     @classmethod

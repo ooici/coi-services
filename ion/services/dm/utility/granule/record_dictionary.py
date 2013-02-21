@@ -21,6 +21,7 @@ from interface.objects import Granule
 
 from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
+from coverage_model.parameter_types import ParameterFunctionType
 
 import numpy as np
 import msgpack
@@ -44,13 +45,14 @@ class RecordDictionaryTool(object):
     to use stream definitions in lieu of parameter dictionaries directly.
     """
 
-    _rd          = None
-    _pdict       = None
-    _shp         = None
-    _locator     = None
-    _stream_def  = None
+    _rd                 = None
+    _pdict              = None
+    _shp                = None
+    _locator            = None
+    _stream_def         = None
+    _dirty_shape        = False
+    _available_fields   = None
     _creation_timestamp = None
-    _dirty_shape = False
 
     def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
         """
@@ -62,7 +64,9 @@ class RecordDictionaryTool(object):
             self._pdict = param_dictionary
         
         elif stream_definition_id:
-            pdict = RecordDictionaryTool.pdict_from_stream_def(stream_definition_id)
+            stream_def_obj = RecordDictionaryTool.pdict_from_stream_def(stream_definition_id)
+            pdict = stream_def_obj.parameter_dictionary
+            self._available_fields = stream_def_obj.available_fields or None
             self._pdict = ParameterDictionary.load(pdict)
             self._stream_def = stream_definition_id
         
@@ -79,10 +83,24 @@ class RecordDictionaryTool(object):
         self._setup_params()
 
     @classmethod
+    def get_paramval(cls, ptype, domain, values):
+        paramval = get_value_class(ptype, domain_set=domain)
+        if isinstance(ptype,ParameterFunctionType):
+            paramval.memoized_values = values
+        else:
+            paramval[:] = values
+        paramval.storage._storage.flags.writeable = False
+        return paramval
+
+
+
+    @classmethod
     def load_from_granule(cls, g):
         if isinstance(g.param_dictionary, str):
             instance = cls(stream_definition_id=g.param_dictionary, locator=g.locator)
-            pdict = RecordDictionaryTool.pdict_from_stream_def(g.param_dictionary)
+            stream_def_obj = RecordDictionaryTool.pdict_from_stream_def(g.param_dictionary)
+            pdict = stream_def_obj.parameter_dictionary
+            instance._available_fields = stream_def_obj.available_fields or None
             instance._pdict = ParameterDictionary.load(pdict)
         
         else:
@@ -100,10 +118,7 @@ class RecordDictionaryTool(object):
             key = instance._pdict.key_from_ord(k)
             if v is not None:
                 ptype = instance._pdict.get_context(key).param_type
-                paramval = get_value_class(ptype, domain_set = instance.domain)
-                paramval[:] = v
-                paramval.storage._storage.flags.writeable = False
-
+                paramval = cls.get_paramval(ptype, instance.domain, v)
                 instance._rd[key] = paramval
         
         return instance
@@ -133,7 +148,9 @@ class RecordDictionaryTool(object):
 
     @property
     def fields(self):
-        return self._rd.keys()
+        if self._available_fields is not None:
+            return list(set(self._available_fields).intersection(self._pdict.keys()))
+        return self._pdict.keys()
 
     @property
     def domain(self):
@@ -166,8 +183,9 @@ class RecordDictionaryTool(object):
         """
         Set a parameter
         """
-        if name not in self._rd:
+        if name not in self.fields:
             raise KeyError(name)
+
         if vals is None:
             self._rd[name] = None
             return
@@ -197,9 +215,7 @@ class RecordDictionaryTool(object):
                 validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
         dom = self.domain
-        paramval = get_value_class(context.param_type, domain_set = dom)
-        paramval[:] = vals
-        paramval.storage._storage.flags.writeable = False
+        paramval = self.get_paramval(context.param_type, dom, vals)
         self._rd[name] = paramval
 
     def _reshape_const(self):
@@ -211,7 +227,12 @@ class RecordDictionaryTool(object):
         """
         Get an item by nick name from the record dictionary.
         """
+        if self._available_fields and name not in self._available_fields:
+            raise KeyError(name)
         if self._rd[name] is not None:
+            context = self._pdict.get_context(name)
+            if isinstance(context.param_type, ParameterFunctionType):
+                return self._rd[name].memoized_values[:]
             return self._rd[name][:]
         else:
             return None
@@ -219,6 +240,8 @@ class RecordDictionaryTool(object):
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """
         for k,v in self._rd.iteritems():
+            if self._available_fields and k not in self._available_fields:
+                continue
             if v is not None:
                 yield k,v
 
@@ -236,6 +259,8 @@ class RecordDictionaryTool(object):
 
     def __contains__(self, key):
         """ D.__contains__(k) -> True if D has a key k, else False """
+        if self._available_fields:
+            return key in self._rd and key in self._available_fields
         return key in self._rd
 
     def __delitem__(self, y):
@@ -300,43 +325,12 @@ class RecordDictionaryTool(object):
         byte_stream = msgpack.packb(flat, default=encode_ion)
         return len(byte_stream)
 
-    @classmethod
-    def append(cls, rdt1, rdt2):
-        assert rdt1.fields == rdt2.fields
-        sd = rdt1._stream_def or rdt2._stream_def
-        if sd:
-            nrdt = cls(stream_definition_id=sd)
-        else:
-            nrdt = cls(param_dictionary=rdt1._pdict)
-        
-        for k in rdt1.fields:
-            x = rdt1[k]
-            y = rdt2[k]
-            if x is None and y is None:
-                continue
-
-            if x is None:
-                X = np.empty(rdt1._shp, dtype=rdt1._pdict.get_context(k).param_type.value_encoding)
-                X.fill(rdt1._pdict.get_context(k).fill_value)
-            else:
-                X = x
-
-            if y is None:
-                Y = np.empty(rdt1._shp, dtype=rdt2._pdict.get_context(k).param_type.value_encoding)
-                Y.fill(rdt2._pdict.get_context(k).fill_value)
-            else:
-                Y = y
-
-            nrdt[k] = np.append(X,Y)
-
-        return nrdt
-
     
     @staticmethod
     @memoize_lru(maxsize=100)
     def pdict_from_stream_def(stream_def_id):
         pubsub_cli = PubsubManagementServiceClient()
         stream_def_obj = pubsub_cli.read_stream_definition(stream_def_id)
-        return stream_def_obj.parameter_dictionary
+        return stream_def_obj
 
 

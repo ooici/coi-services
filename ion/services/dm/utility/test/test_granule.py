@@ -19,7 +19,6 @@ from gevent.event import Event
 from nose.plugins.attrib import attr
 
 import numpy as np
-import unittest
 
 @attr('INT',group='dm')
 class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
@@ -58,8 +57,10 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
         pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        self.addCleanup(self.pubsub_management.delete_stream_definition,stream_def_id)
 
         stream_id, route = self.pubsub_management.create_stream('ctd_stream', 'xp1', stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream,stream_id)
         self.xps.append('xp1')
         publisher = StandaloneStreamPublisher(stream_id, route)
 
@@ -89,7 +90,23 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         
         self.pubsub_management.deactivate_subscription(subscription_id)
         self.pubsub_management.delete_subscription(subscription_id)
+        
+        filtered_stream_def_id = self.pubsub_management.create_stream_definition('filtered', parameter_dictionary_id=pdict_id, available_fields=['time', 'temp'])
+        self.addCleanup(self.pubsub_management.delete_stream_definition, filtered_stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition_id=filtered_stream_def_id)
+        self.assertEquals(rdt._available_fields,['time','temp'])
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+        with self.assertRaises(KeyError):
+            rdt['pressure'] = np.arange(20)
 
+        granule = rdt.to_granule()
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        self.assertEquals(rdt._available_fields, rdt2._available_fields)
+        self.assertEquals(rdt.fields, rdt2.fields)
+        for k,v in rdt.iteritems():
+            self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
+        
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.array([None,None,None])
         self.assertTrue(rdt['time'] is None)
@@ -98,24 +115,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.assertEquals(rdt['time'][0], rdt.fill_value('time'))
 
 
-    @unittest.skip('TODO: add support back for appending granules')
-    def test_granule_append(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
 
-        rdt1 = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt1['time'] = np.arange(20)
-        rdt1['temp'] = [6] * 20
+
+
         
-        rdt2 = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt2['time'] = np.arange(20,40)
-        rdt2['temp'] = [7] * 20
-        rdt2['preferred_timestamp'] = ['time'] * 20
-
-        rdt3 = RecordDictionaryTool.append(rdt1, rdt2)
-        self.assertTrue((rdt3['time'] == np.arange(40)).all())
-        self.assertTrue((rdt3['temp'] == np.array([6]*20 + [7]*20)).all())
-        self.assertTrue((rdt3['preferred_timestamp'] == np.array([None] * 20 + ['time'] *20, dtype='|O8')).all())
-        self.assertTrue(rdt3['pressure'] is None)
-
-
