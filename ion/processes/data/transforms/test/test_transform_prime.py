@@ -19,7 +19,7 @@ from coverage_model import utils
 from pyon.public import PRED
 import gevent
 from nose.plugins.attrib import attr
-
+import gsw
 import numpy as np
 import unittest
 
@@ -241,35 +241,64 @@ class TestTransformPrime(IonIntegrationTestCase):
         stream_route_out = self.pubsub_management.read_stream_route(stream_id_out)
 
         return (stream_id_in,stream_id_out,stream_route_in,stream_route_out,incoming_stream_def_id,outgoing_stream_def_id)
-
+    
+    def _validate_transforms(self, rdt_in, rdt_out):
+        #passthrus
+        self.assertTrue(np.allclose(rdt_in['time'], rdt_out['time']))
+        self.assertTrue(np.allclose(rdt_in['lat'], rdt_out['lat']))
+        self.assertTrue(np.allclose(rdt_in['lon'], rdt_out['lon']))
+        self.assertTrue(np.allclose(rdt_in['TEMPWAT_L0'], rdt_out['TEMPWAT_L0']))
+        self.assertTrue(np.allclose(rdt_in['CONDWAT_L0'], rdt_out['CONDWAT_L0']))
+        self.assertTrue(np.allclose(rdt_in['PRESWAT_L0'], rdt_out['PRESWAT_L0']))
+        # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
+        t1 = (rdt_out['TEMPWAT_L0'] / 10000) - 10
+        self.assertTrue(np.allclose(rdt_out['TEMPWAT_L1'], t1))
+        # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
+        c1 = (rdt_out['CONDWAT_L0'] / 100000) - 0.5
+        self.assertTrue(np.allclose(rdt_out['CONDWAT_L1'], c1))
+        # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
+        #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
+        p1 = (rdt_out['PRESWAT_L0'] * 679.34040721 / (0.85 * 65536)) - (0.05 * 679.34040721)
+        self.assertTrue(np.allclose(rdt_out['PRESWAT_L1'], p1))
+        # PRACSAL = gsw.SP_from_C((CONDWAT_L1 * 10), TEMPWAT_L1, PRESWAT_L1)
+        ps = gsw.SP_from_C((rdt_out['CONDWAT_L1'] * 10.), rdt_out['TEMPWAT_L1'], rdt_out['PRESWAT_L1'])
+        self.assertTrue(np.allclose(rdt_out['PRACSAL'], ps))
+        # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
+        # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
+        # DENSITY = gsw.rho(absolute_salinity, conservative_temperature, PRESWAT_L1)
+        abs_sal = gsw.SA_from_SP(rdt_out['PRACSAL'], rdt_out['PRESWAT_L1'], rdt_out['lon'], rdt_out['lat'])
+        cons_temp = gsw.CT_from_t(abs_sal, rdt_out['TEMPWAT_L1'], rdt_out['PRESWAT_L1'])
+        rho = gsw.rho(abs_sal, cons_temp, rdt_out['PRESWAT_L1'])
+        self.assertTrue(np.allclose(rdt_out['DENSITY'], rho))
+    
     def test_execute_transform(self):
         available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
-        available_fields_out = ['time', 'PRACSAL', 'DENSITY']
+        available_fields_out = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0', 'TEMPWAT_L1','CONDWAT_L1','PRESWAT_L1','PRACSAL', 'DENSITY']
         exchange_pt1 = 'xp1'
         exchange_pt2 = 'xp2'
         stream_id_in,stream_id_out,stream_route_in,stream_route_out,stream_def_in_id,stream_def_out_id = self._setup_streams(exchange_pt1, exchange_pt2, available_fields_in, available_fields_out)
 
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
+        rdt_in = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
         dt = 20
-        rdt['time'] = np.arange(dt)
-        rdt['lat'] = 40.992469
-        rdt['lon'] = -71.727069
-        rdt['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
-        rdt['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
-        rdt['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
+        rdt_in['time'] = np.arange(dt)
+        rdt_in['lat'] = 40.992469
+        rdt_in['lon'] = -71.727069
+        rdt_in['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
+        rdt_in['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
+        rdt_in['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
         
-        msg = rdt.to_granule()
+        msg = rdt_in.to_granule()
         pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',{'process':{'routes':{(stream_id_in, stream_id_out):None},'stream_id':stream_id_out}})
         rdt_out = self.container.proc_manager.procs[pid].execute_transform(msg, (stream_id_in,stream_id_out))
         for k,v in rdt_out.iteritems():
             self.assertEqual(len(v), dt)        
         
+        self._validate_transforms(rdt_in, rdt_out)
         self.container.proc_manager.terminate_process(pid)
 
     def test_transform_prime(self):
-        import sys
         available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
-        available_fields_out = ['time', 'PRACSAL', 'DENSITY']
+        available_fields_out = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0', 'TEMPWAT_L1','CONDWAT_L1','PRESWAT_L1','PRACSAL', 'DENSITY']
         exchange_pt1 = 'xp1'
         exchange_pt2 = 'xp2'
         stream_id_in,stream_id_out,stream_route_in,stream_route_out,stream_def_in_id,stream_def_out_id = self._setup_streams(exchange_pt1, exchange_pt2, available_fields_in, available_fields_out)
@@ -278,35 +307,40 @@ class TestTransformPrime(IonIntegrationTestCase):
         config = {'process':{'routes':{(stream_id_in, stream_id_out):None},'queue_name':exchange_pt1, 'publish_streams':{str(stream_id_out):stream_id_out}, 'process_type':'stream_process'}}
         pid = self.container.spawn_process('transform_stream','ion.processes.data.transforms.transform_prime','TransformPrime',config)
         
+        #create publish
         publisher = StandaloneStreamPublisher(stream_id_in, stream_route_in)
         self.container.proc_manager.procs[pid].subscriber.xn.bind(stream_route_in.routing_key, publisher.xp)
 
         #data
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
+        rdt_in = RecordDictionaryTool(stream_definition_id=stream_def_in_id)
         dt = 20
-        rdt['time'] = np.arange(dt)
-        rdt['lat'] = 40.992469
-        rdt['lon'] = -71.727069
-        rdt['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
-        rdt['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
-        rdt['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
-        msg = rdt.to_granule()
+        rdt_in['time'] = np.arange(dt)
+        rdt_in['lat'] = [40.992469] * dt
+        rdt_in['lon'] = [-71.727069] * dt
+        rdt_in['TEMPWAT_L0'] = self._get_param_vals('TEMPWAT_L0', slice(None), (dt,))
+        rdt_in['CONDWAT_L0'] = self._get_param_vals('CONDWAT_L0', slice(None), (dt,))
+        rdt_in['PRESWAT_L0'] = self._get_param_vals('PRESWAT_L0', slice(None), (dt,))
+        msg = rdt_in.to_granule()
         #publish granule to transform and have transform publish it to subsciber
         
-        #setup listener endpoint
+        #validate transformed data
         e = gevent.event.Event()
         def cb(msg, sr, sid):
-            print >> sys.stderr, "msg", msg
             self.assertEqual(sid, stream_id_out)
-            #self.assertTrue(isinstance(msg[1], Granule))
+            rdt_out = RecordDictionaryTool.load_from_granule(msg)
+            self.assertEquals(set([k for k,v in rdt_out.iteritems()]), set(available_fields_out))
+            self._validate_transforms(rdt_in, rdt_out)
             e.set()
+
         sub = StandaloneStreamSubscriber('stream_subscriber', cb)
         sub.xn.bind(stream_route_out.routing_key, getattr(self.container.proc_manager.procs[pid], stream_id_out).xp)
         self.addCleanup(sub.stop)
         sub.start()
         
+        #publish msg to transform
         publisher.publish(msg)
-
+        
+        #wait to receive msg
         self.assertTrue(e.wait(4))
 
         #self.container.proc_manager.terminate_process(pid)
