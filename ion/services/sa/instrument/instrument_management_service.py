@@ -1928,17 +1928,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
                 if evt.state == ResourceAgentState.STREAMING: # "RESOURCE_AGENT_STATE_STREAMING"
                     current_time = get_ion_ts()
-                    ret.value = current_time - evt.ts_created
                     log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
-                    log.debug("Returning the computed attribute: %s", ret)
-                    return ret
+                    return self._convert_to_string(ret, current_time - evt.ts_created)
                 elif evt.state in not_streaming_states:
                     log.debug("Got a most recent event state that : %s", evt.state)
                     # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
-                    ret.value = 0
-                    return ret
+                    return self._convert_to_string(ret, 0)
 
-            ret.value = 0
+            ret = self._convert_to_string(ret, 0)
+
+        return ret
+
+    def _convert_to_string(self, ret, value):
+        sec = timedelta(seconds = value)
+        d = datetime(1,1,1) + sec
+
+        ret.value = "%s days, %s hours, %s minutes" %(d.day-1, d.hour, d.minute)
+        log.debug("Returning the computed attribute for uptime with value: %s", ret.value)
         return ret
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
