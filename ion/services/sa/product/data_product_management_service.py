@@ -503,7 +503,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
         if not dataset_ids:
             raise NotFound('No Dataset is associated with DataProduct %s' % data_product_id)
         return dataset_ids[0]
