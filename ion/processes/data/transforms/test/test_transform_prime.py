@@ -21,8 +21,10 @@ from pyon.public import PRED
 from nose.plugins.attrib import attr
 
 import numpy as np
+import unittest
 
 @attr('INT',group='dm')
+@unittest.skip('Not ready yet')
 class TestTransformPrime(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
