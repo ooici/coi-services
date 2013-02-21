@@ -26,7 +26,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
-from interface.objects import ProcessStateEnum
+from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType
 from mock import patch
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -526,3 +526,23 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound):
             self.rrclient.read(ctd_l0_all_data_process_id)
+
+
+    def test_transform_function_crd(self):
+        tf = TransformFunction(name='simple', module='pyon.ion.process', cls='SimpleProcess')
+
+        tf_id = self.dataprocessclient.create_transform_function(tf)
+        self.assertTrue(tf_id)
+
+        tf2_id = self.dataprocessclient.create_transform_function(tf)
+        self.assertEquals(tf_id, tf2_id)
+
+        tf_obj = self.dataprocessclient.read_transform_function(tf_id)
+        self.assertEquals([tf.name, tf.module, tf.cls, tf.function_type], [tf_obj.name, tf_obj.module, tf_obj.cls, tf_obj.function_type])
+
+        tf.module = 'dev.null'
+        self.assertRaises(BadRequest, self.dataprocessclient.create_transform_function, tf)
+
+        self.dataprocessclient.delete_transform_function(tf_id)
+        self.assertRaises(NotFound, self.dataprocessclient.read_transform_function, tf_id)
+

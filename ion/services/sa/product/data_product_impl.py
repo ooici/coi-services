@@ -61,7 +61,7 @@ class DataProductImpl(ResourceSimpleImpl):
         return self._find_having(PRED.hasDataset, data_set_id)
 
     def find_stemming_data_set(self, data_product_id):
-        return self._find_stemming(data_product_id, PRED.hasDataset, RT.DataSet)
+        return self._find_stemming(data_product_id, PRED.hasDataset, RT.Dataset)
 
     def find_having_stream(self, stream_id):
         return self._find_having(PRED.hasStream, stream_id)
