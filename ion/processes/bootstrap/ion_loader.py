@@ -1611,7 +1611,8 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
-                                            'port':  int(row['comms_server_port']) } }
+                                                    'port':  int(row['comms_server_port']),
+                                                    'cmd_port': int(row['comms_server_cmd_port']) } }
 
         port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
                               'device_port':   int(row['iai/comms_device_port']),

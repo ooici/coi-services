@@ -19,7 +19,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.objects import Granule
 
 
-from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet
+from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
 
@@ -165,6 +165,8 @@ class RecordDictionaryTool(object):
         return self._pdict.get_context(name).fill_value
 
     def _replace_hook(self, name,vals):
+        if not isinstance(self._pdict.get_context(name).param_type, QuantityType):
+            return vals
         nparray = np.array(vals)
         np.place(nparray,nparray==np.array(None),self.fill_value(name))
         try:
