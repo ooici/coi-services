@@ -90,7 +90,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHBEVnM1d2tIUDUtOWZNSElxaVEySWc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AlWnRoFa9JrTdGpqNU9VM19KdktOcHJ5M0xHckFrcnc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1694,18 +1694,28 @@ Reason: %s
         driver_config['dvr_cls'] = platform_agent.driver_class
         driver_config['dvr_mod'] = platform_agent.driver_module
 
-        #TODO: allow child platforms
-        platform_topology = { platform_id: [] }
-
+        # ** previously:
+        # #TODO: allow child platforms
+        # platform_topology = { platform_id: [] }
         #
-        device_dict = self._HACK_get_device_dict(platform_id)
+        # #
+        # device_dict = self._HACK_get_device_dict(platform_id)
+        #
+        # admap = { platform_id: device_dict }
+        # platform_config = { 'platform_id':             platform_id,
+        #                     'platform_topology':       platform_topology,
+        #                     'agent_device_map':        admap,
+        #                     'agent_streamconfig_map':  None,  # can we just omit?
+        #                     'driver_config':           driver_config }
+        #
 
-        admap = { platform_id: device_dict }
+        # ** now using platform network definition
+        network_definition_ser = self._HACK_get_platform_network_definition()
         platform_config = { 'platform_id':             platform_id,
-                            'platform_topology':       platform_topology,
-                            'agent_device_map':        admap,
-                            'agent_streamconfig_map':  None,  # can we just omit?
-                            'driver_config':           driver_config }
+                            'driver_config':           driver_config,
+                            'network_definition' :     network_definition_ser
+        }
+
         agent_config = { 'platform_config': platform_config }
 
 
@@ -1727,6 +1737,19 @@ Reason: %s
     #        agent_config = self._parse_dict(row['agent_config'])
     #        stream_definition = self.resource_objs[row['stream_definition']]
 
+    def _HACK_get_platform_network_definition(self):
+        """
+        Still use the simulator, but here via some utility that provide the
+        network definition in yaml format suitable for the platform
+        configuration.
+        """
+        from ion.agents.platform.rsn.oms_util import RsnOmsUtil
+        from ion.agents.platform.util.network_util import NetworkUtil
+        simulator = OmsClientFactory.create_instance()
+        network_definition = RsnOmsUtil.build_network_definition(simulator)
+        network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
+        return network_definition_ser
+
     def _HACK_get_device_dict(self, platform_id):
         """ TODO: remove from preload and the initial object def.  instead query OmsClient from IMS when the platform agent is started
             TODO: set a property in the agent instance to identify which OmsClient to use (need to support platforms from different Orgs)
@@ -1738,13 +1761,13 @@ Reason: %s
 
         # get network information (from: test_oms_launch2._prepare_platform_ports)
         port_dicts = []
-        platform_port_info = simulator.getPlatformPorts(platform_id)
+        platform_port_info = simulator.get_platform_ports(platform_id)
         for port_id, port in platform_port_info[platform_id].iteritems():
-            port_dicts.append(dict(port_id=port_id, ip_address=port['comms']['ip']))
+            port_dicts.append(dict(port_id=port_id, ip_address=port['network']))
 
         # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
         attribute_dicts = []
-        platform_attribute_info = simulator.getPlatformAttributes(platform_id)
+        platform_attribute_info = simulator.get_platform_attributes(platform_id)
         for name, attribute in platform_attribute_info[platform_id].iteritems():
             attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
 
