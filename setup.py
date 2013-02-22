@@ -45,6 +45,7 @@ setup(  name = 'coi-services',
             'ntplib',
             'xlrd==0.8.0',
             'apscheduler==2.1.0',
+            'utilities',
         ],
         entry_points = """
             [pydap.handler]
