@@ -1910,7 +1910,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return ret
 
     def get_uptime(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
+        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedStringValue)
 
         if ia_client:
             # Find events in the event repo that were published when changes of state occurred for the instrument
