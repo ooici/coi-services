@@ -25,6 +25,7 @@ from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.exceptions import DriverLaunchException
 from ion.agents.instrument.exceptions import NotImplementedException
 from ion.agents.instrument.packet_factory_man import create_packet_builder
+from ion.agents.instrument.driver_client import ZmqDriverClient
 
 PYTHON_PATH = 'bin/python'
 CACHE_DIR = '/tmp'
@@ -268,7 +269,6 @@ class DriverProcess(object):
         # Start client messaging and verify messaging.
         if not self._driver_client:
             try:
-                from mi.core.instrument.zmq_driver_client import ZmqDriverClient
                 driver_client = ZmqDriverClient('localhost', self._command_port, self._event_port)
                 self._driver_client = driver_client
             except Exception, e:
