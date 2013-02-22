@@ -90,10 +90,10 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-#TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydExWY29YVnd3eVBLeWZoYjFfMEZueGc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidHkzTWVJQlpFYlJXSXdXWnRNWGp0TUE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
-TESTED_DOC=MASTER_DOC
+#TESTED_DOC=MASTER_DOC
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
@@ -997,8 +997,7 @@ class IONLoader(ImmediateProcess):
         return False
 
     def _load_PlatformModel(self, row):
-        self._fix_boolean(row, 'pm/ci_onboard','pm/shore_networked')
-        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
+        self._basic_resource_create(row, "PlatformModel", "pm/",
             "instrument_management", "create_platform_model",
             support_bulk=True)
 
@@ -1019,14 +1018,8 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformModel(fakerow)
 
     def _load_InstrumentModel(self, row):
-        self._fix_boolean(row, 'im/mixed_sampling_mode','im/internal_data_storage','im/internal_battery',
-                               'im/integrated_inductive_modem_available','im/required_on_time')
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
-        #raw_stream_def = row['raw_stream_def']
-        #parsed_stream_def = row['parsed_stream_def']
-        #row['im/stream_configuration'] = "{'raw': '%s', 'parsed': '%s'}" % (raw_stream_def, parsed_stream_def)
-
-        res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
+        self._basic_resource_create(row, "InstrumentModel", "im/",
             "instrument_management", "create_instrument_model",
             support_bulk=True)
 
@@ -1485,8 +1478,6 @@ Reason: %s
             self._load_PlatformDevice(fakerow)
 
     def _load_InstrumentDevice(self, row):
-        self._fix_boolean(row, 'id/controllable','id/monitorable','id/message_controllable')
-
         row['id/reference_urls'] = repr(self._get_typed_value(row['id/reference_urls'], targettype="simplelist"))
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
@@ -1558,7 +1549,6 @@ Reason: %s
             self._load_InstrumentDevice(fakerow)
 
     def _load_SensorDevice(self, row):
-        self._fix_boolean(row, 'sd/controllable')
         res_id = self._basic_resource_create(row, "SensorDevice", "sd/",
             "instrument_management", "create_sensor_device",
             support_bulk=True)
