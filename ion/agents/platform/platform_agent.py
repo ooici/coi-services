@@ -258,8 +258,7 @@ class PlatformAgent(ResourceAgent):
             self._plat_driver = None
 
         if self._platform_resource_monitor:
-            self._platform_resource_monitor.destroy()
-            self._platform_resource_monitor = None
+            self._stop_resource_monitoring()
 
         self._unconfigured_params.clear()
 
@@ -578,7 +577,8 @@ class PlatformAgent(ResourceAgent):
         assert self._platform_resource_monitor is not None, \
         "_start_resource_monitoring must have been called first"
 
-        self._platform_resource_monitor.stop_resource_monitoring()
+        self._platform_resource_monitor.destroy()
+        self._platform_resource_monitor = None
 
     def evt_recv(self, driver_event):
         """
