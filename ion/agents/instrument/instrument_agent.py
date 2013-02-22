@@ -43,12 +43,12 @@ import numpy
 import gevent
 
 # MI exceptions
-from mi.core.exceptions import InstrumentTimeoutException
-from mi.core.exceptions import InstrumentParameterException
-from mi.core.exceptions import SampleException
-from mi.core.exceptions import InstrumentStateException
-from mi.core.exceptions import InstrumentProtocolException
-from mi.core.exceptions import InstrumentException
+from ion.core.includes.mi_exceptions import InstrumentTimeoutException
+from ion.core.includes.mi_exceptions import InstrumentParameterException
+from ion.core.includes.mi_exceptions import SampleException
+from ion.core.includes.mi_exceptions import InstrumentStateException
+from ion.core.includes.mi_exceptions import InstrumentProtocolException
+from ion.core.includes.mi_exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess

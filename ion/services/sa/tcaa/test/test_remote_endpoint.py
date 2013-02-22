@@ -57,9 +57,6 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 
-# This import will dynamically load the driver egg.  It is needed for the MI includes below
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-
 from ion.agents.instrument.test.test_instrument_agent import DRV_MOD
 from ion.agents.instrument.test.test_instrument_agent import DRV_CLS
 from ion.agents.instrument.test.test_instrument_agent import DVR_CONFIG
@@ -77,6 +74,9 @@ from ion.agents.instrument.test.test_instrument_agent import IA_CLS
 
 from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
+
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_queued
