@@ -279,7 +279,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dproc.configuration = configuration
         dproc_id, rev = self.clients.resource_registry.create(dproc)
 
-        self._manage_producers()
+        self._manage_producers(dproc_id, out_data_product_ids)
 
         self._manage_attachments()
 
@@ -730,8 +730,20 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             retval[(in_stream_id, out_stream_id)] = actor
         return retval
 
-    def _manage_producers(self):
-        pass
+    def _manage_producers(self, data_process_id, data_product_ids):
+        for data_product_id in data_product_ids:
+            producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, restype=RT.DataProducer, id_only=True)
+            if len(producer_ids):
+                raise BadRequest('Only one DataProducer allowed per DataProduct')
+
+            # Validate the data product
+            self.clients.data_product_management.read_data_product(data_product_id)
+
+            self.clients.data_acquisition_management.assign_data_product(input_resource_id=data_process_id, data_product_id=data_product_id)
+
+            if not self._get_stream_from_dp(data_product_id):
+                raise BadRequest('No Stream was found for this DataProduct')
+
 
     def _manage_attachments(self):
         pass
