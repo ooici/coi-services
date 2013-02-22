@@ -14,7 +14,10 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 
-from ion.core.includes.mi import SBE37ProtocolEvent
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+import ion.agents.instrument.test.test_instrument_agent
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.inventory.index_management_service import IndexManagementService
 

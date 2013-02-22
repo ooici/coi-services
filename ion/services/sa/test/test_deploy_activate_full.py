@@ -26,7 +26,9 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
-from ion.core.includes.mi import SBE37ProtocolEvent
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+import ion.agents.instrument.test.test_instrument_agent
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 import gevent
 import time
