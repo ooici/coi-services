@@ -38,7 +38,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
 
     def on_start(self):
-        self.event_subscriber = EventSubscriber(event_type='DatasetModified', callback=lambda event,m : self._eject_cache(event.dataset_id))
+        self.event_subscriber = EventSubscriber(event_type='DatasetModified', callback=lambda event,m : self._eject_cache(event.origin))
         self.event_subscriber.start()
 
 

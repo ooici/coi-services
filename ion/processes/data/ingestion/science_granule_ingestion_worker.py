@@ -107,7 +107,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             log.error('Invalid granule')
 
     def dataset_changed(self, dataset_id, extents, window):
-        self.event_publisher.publish_event(origin=dataset_id, dataset_id=dataset_id, extents=extents, window=window)
+        self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents, window=window)
 
     def add_granule(self,stream_id, granule):
         '''
@@ -154,7 +154,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 raise CorruptionError(e.message)
 
         start_index = coverage.num_timesteps - elements
-        self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
 
         for k,v in rdt.iteritems():
             slice_ = slice(start_index, None)
@@ -170,5 +169,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                     raise CorruptionError(e.message)
             DatasetManagementService._save_coverage(coverage)
             #coverage.flush()
+        self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
 
 
