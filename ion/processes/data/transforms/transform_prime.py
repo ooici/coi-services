@@ -11,6 +11,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from coverage_model import get_value_class
 from coverage_model.parameter_types import ParameterFunctionType
+from pyon.util.memoize import memoize_lru
 
 class TransformPrime(TransformDataProcess):
     binding=['output']
@@ -29,12 +30,10 @@ class TransformPrime(TransformDataProcess):
         TransformDataProcess.on_start(self)
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
     
-    def _get_stream_defs(self, stream_ids):
-        stream_in_id, stream_out_id = stream_ids
-        stream_def_in = self.pubsub_management.read_stream_definition(stream_id=stream_in_id)
-        stream_def_out = self.pubsub_management.read_stream_definition(stream_id=stream_out_id)
-        return (stream_def_in, stream_def_out)
-
+    @memoize_lru(maxsize=100)
+    def _read_stream_def(self, stream_id):
+        return self.pubsub_management.read_stream_definition(stream_id=stream_id)
+    
     def recv_packet(self, msg, stream_route, stream_id):
         process_routes = self.CFG.get_safe('process.routes', {})
         for streams,actor in process_routes.iteritems():
@@ -51,13 +50,17 @@ class TransformPrime(TransformDataProcess):
         publisher.publish(msg)
    
     def _execute_actor(self, msg, actor, streams):
-        stream_def_in,stream_def_out = self._get_stream_defs(streams)
+        stream_in_id,stream_out_id = streams
+        stream_def_out = self._read_stream_def(stream_out_id)
         #do the stuff with the actor
         rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
         return rdt_out
 
     def _execute_transform(self, msg, streams):
-        stream_def_in,stream_def_out = self._get_stream_defs(streams)
+        stream_in_id,stream_out_id = streams
+        stream_def_in = self._read_stream_def(stream_in_id)
+        stream_def_out = self._read_stream_def(stream_out_id)
+        
         incoming_pdict_dump = stream_def_in.parameter_dictionary
         outgoing_pdict_dump = stream_def_out.parameter_dictionary
         
