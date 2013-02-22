@@ -43,12 +43,12 @@ import numpy
 import gevent
 
 # MI exceptions
-from mi.core.exceptions import InstrumentTimeoutException
-from mi.core.exceptions import InstrumentParameterException
-from mi.core.exceptions import SampleException
-from mi.core.exceptions import InstrumentStateException
-from mi.core.exceptions import InstrumentProtocolException
-from mi.core.exceptions import InstrumentException
+from ion.core.includes.mi_exceptions import InstrumentTimeoutException
+from ion.core.includes.mi_exceptions import InstrumentParameterException
+from ion.core.includes.mi_exceptions import SampleException
+from ion.core.includes.mi_exceptions import InstrumentStateException
+from ion.core.includes.mi_exceptions import InstrumentProtocolException
+from ion.core.includes.mi_exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
@@ -70,10 +70,7 @@ from interface.objects import StreamAlertAlarmEvent
 from interface.objects import StreamAllClearAlarmEvent
 
 # MI imports
-from ion.core.includes.mi import DriverEvent
 from ion.core.includes.mi import DriverAsyncEvent
-from ion.core.includes.mi import DriverProtocolState
-from ion.core.includes.mi import DriverParameter
 from interface.objects import StreamRoute
 from interface.objects import AgentCommand
 
@@ -630,10 +627,8 @@ class InstrumentAgent(ResourceAgent):
         #next_state = InstrumentAgentState.DIRECT_ACCESS
         
         # tell driver to start direct access mode
-        # (dvr_result, next_state) = self._dvr_client.cmd_dvr('execute_start_direct_access')
-        #(next_state, dvr_result) = self.execute_resource(DriverEvent.START_DIRECT)
-        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.START_DIRECT)
-        
+        (next_state, dvr_result) = self._dvr_client.cmd_dvr('start_direct')
+
         return (next_state, result)        
 
     ##############################################################
@@ -702,8 +697,8 @@ class InstrumentAgent(ResourceAgent):
         log.info("Instrument agent requested to stop direct access mode - %s" %self._da_session_close_reason)
         
         # tell driver to stop direct access mode
-        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.STOP_DIRECT)
-        
+        (next_state, dvr_result) = self._dvr_client.cmd_dvr('stop_direct')
+
         # stop DA server
         if (self._da_server):
             self._da_server.stop()
@@ -1402,6 +1397,6 @@ class InstrumentAgent(ResourceAgent):
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
-        self._dvr_client.cmd_dvr('execute_resource', DriverEvent.EXECUTE_DIRECT, data)
-        
+        self._dvr_client.cmd_dvr('execute_direct', data)
+
         

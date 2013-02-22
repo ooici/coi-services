@@ -11,7 +11,10 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
-from ion.core.includes.mi import SBE37Parameter, SBE37ProtocolEvent
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+import ion.agents.instrument.test.test_instrument_agent
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from nose.plugins.attrib import attr
 from ion.services.dm.utility.granule_utils import time_series_domain
