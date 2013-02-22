@@ -1756,7 +1756,7 @@ Reason: %s
 
 
     def _load_TransformFunction(self,row):
-        res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
+        self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
 
 
 
@@ -1841,7 +1841,7 @@ Reason: %s
                 headers=headers)
             self._register_id(row[COL_ID], res_id, res_obj)
 
-            if not self.debug and row['persist_data']=='1':
+            if self._is_true(row['persist_data']):
                 svc_client.activate_data_product_persistence(res_id, headers=headers)
 
         self._resource_assign_org(row, res_id)
@@ -2032,7 +2032,8 @@ Reason: %s
             configuration["in_dp_id"] = in_dp_id
 
         persist_data_flag = False
-        if row["persist_data"] == "TRUE":
+        
+        if self._is_true(row['persist_data']):
             persist_data_flag = True
 
         headers = self._get_op_headers(row)
@@ -2063,9 +2064,16 @@ Reason: %s
         oms.deploy_instrument_site(site_id, deployment_id, headers=headers)
         ims.deploy_instrument_device(device_id, deployment_id, headers=headers)
 
-        if row['activate']=='1':
+        if self._is_true(row['activate']):
             oms.activate_deployment(deployment_id, headers=headers)
 
+    @classmethod
+    def _is_true(cls, value):
+        if isinstance(value,basestring):
+            if value.lower() in ('1','true'):
+                return True
+        return False
+    
     def delete_ooi_assets(self):
         res_ids = []
 
