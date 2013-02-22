@@ -94,9 +94,11 @@ class TestInstrumentDriverProcess(PyonTestCase):
         driver_process.stop()
         self.assertFalse(driver_process.getpid())
 
+    @unittest.skip("Only should be run from MI")
     def test_driver_process_by_class(self):
         """
-        Test the driver launching process for a class and module
+        Test the driver launching process for a class and module.
+        Currently the IDK is the only process that launches using this method
         """
         self.assert_driver_process_launch_success(self._class_driver_config)
 
