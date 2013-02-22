@@ -55,7 +55,7 @@ from ion.agents.port.port_agent_process import PortAgentProcess
 from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType, ProcessSchedule, ProcessRestartMode, ProcessQueueingMode
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, GovernanceHeaderValues
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -967,64 +967,64 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def check_direct_access_policy(self, msg, headers):
 
         try:
-            op, actor_id, actor_roles, resource_id = self.container.governance_controller.get_governance_resource_header_values(headers)
+            gov_values = GovernanceHeaderValues(headers)
         except Inconsistent, ex:
             return False, ex.message
 
         #The system actor can to anything
-        if self.container.governance_controller.is_system_actor(actor_id):
+        if self.container.governance_controller.is_system_actor(gov_values.actor_id):
             return True, ''
 
         #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
-        if not self.container.governance_controller.has_exclusive_resource_commitment(actor_id, resource_id):
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (self.name, op, actor_id)
+        if not self.container.governance_controller.has_exclusive_resource_commitment(gov_values.actor_id, gov_values.resource_id):
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (self.name, gov_values.op, gov_values.actor_id)
 
         return True, ''
 
     def check_device_lifecycle_policy(self, msg, headers):
 
         try:
-            op, actor_id, actor_roles, resource_id = self.container.governance_controller.get_governance_resource_header_values(headers)
+            gov_values = GovernanceHeaderValues(headers)
         except Inconsistent, ex:
             return False, ex.message
 
         #The system actor can to anything
-        if self.container.governance_controller.is_system_actor(actor_id):
+        if self.container.governance_controller.is_system_actor(gov_values.actor_id):
             return True, ''
 
         if msg.has_key('lifecycle_event'):
             lifecycle_event = msg['lifecycle_event']
         else:
-            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (self.name, op))
+            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (self.name, gov_values.op))
 
-        orgs,_ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasResource, resource_id)
+        orgs,_ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasResource, gov_values.resource_id)
         if not orgs:
-            return False, '%s(%s) has been denied since the resource id %s has not been shared with any Orgs' % (self.name, op, resource_id)
+            return False, '%s(%s) has been denied since the resource id %s has not been shared with any Orgs' % (self.name, gov_values.op, gov_values.resource_id)
 
         #Handle these lifecycle transitions first
         if lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE:
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if self.container.governance_controller.has_org_role(actor_roles, org.name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
+                if self.container.governance_controller.has_org_role(gov_values.actor_roles, org.name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
                     return True, ''
 
         else:
 
             #The owner can do any of these other lifecycle transitions
-            is_owner = self.container.governance_controller.is_resource_owner(actor_id, resource_id)
+            is_owner = self.container.governance_controller.is_resource_owner(gov_values.actor_id, gov_values.resource_id)
             if is_owner:
                 return True, ''
 
             #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
-            is_shared = self.container.governance_controller.has_shared_resource_commitment(actor_id, resource_id)
+            is_shared = self.container.governance_controller.has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if self.container.governance_controller.has_org_role(actor_roles, org.name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
+                if self.container.governance_controller.has_org_role(gov_values.actor_roles, org.name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
                     return True, ''
 
-        return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, op, actor_id, lifecycle_event)
+        return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, gov_values.op, gov_values.actor_id, lifecycle_event)
 
 
     ##
