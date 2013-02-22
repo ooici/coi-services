@@ -96,7 +96,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 # Real and simulated devcies we test against.
 DEV_ADDR = CFG.device.sbe37.host
 DEV_PORT = CFG.device.sbe37.port
-#DEV_ADDR = 'localhost' 
+#DEV_ADDR = 'localhost'
 #DEV_ADDR = '67.58.49.220' 
 #DEV_ADDR = '137.110.112.119' # Moxa DHCP in Edward's office.
 #DEV_ADDR = 'sbe37-simulator.oceanobservatories.org' # Simulator addr.
@@ -295,7 +295,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Configure driver to use port agent port number.
         DVR_CONFIG['comms_config'] = {
             'addr' : 'localhost',
-            'port' : port
+            'port' : port,
+            'cmd_port' : CMD_PORT
         }
                         
     def _verify_agent_reset(self):
@@ -1677,10 +1678,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
         
-        cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
-        retval = self._ia_client.execute_resource(cmd)
-        self.assertSampleDict(retval.result['parsed'])
-
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
