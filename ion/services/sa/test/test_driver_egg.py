@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -11,7 +10,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from ion.core.includes.mi import SBE37ProtocolEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate

@@ -27,14 +27,19 @@ from interface.services.cei.ischeduler_service import SchedulerServiceProcessCli
 
 
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
-from ion.core.includes.mi import SBE37Parameter, SBE37ProtocolEvent
-from ion.core.includes.mi import DriverConnectionState
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
+
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+import ion.agents.instrument.test.test_instrument_agent
+from mi.core.instrument.instrument_driver import DriverProtocolState
+from mi.core.instrument.instrument_driver import DriverConnectionState
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 ORG2 = 'Org2'
 

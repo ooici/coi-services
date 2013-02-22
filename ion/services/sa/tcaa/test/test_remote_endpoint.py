@@ -56,7 +56,9 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
-from ion.core.includes.mi import SBE37ProtocolEvent
+
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 from ion.agents.instrument.test.test_instrument_agent import DRV_MOD
 from ion.agents.instrument.test.test_instrument_agent import DRV_CLS
