@@ -21,9 +21,15 @@ class TestLoader(IonIntegrationTestCase):
     def assert_can_load(self, scenarios, loadui=False, loadooi=False,
             path=TESTED_DOC, ui_path='default'):
         """ perform preload for given scenarios and raise exception if there is a problem with the data """
-        config = dict(op="load", scenario=scenarios,
-                attachments="res/preload/r2_ioc/attachments",
-                loadui=loadui, loadooi=loadooi, path=path, ui_path=ui_path)
+        config = dict(op="load",
+                      scenario=scenarios,
+                      attachments="res/preload/r2_ioc/attachments",
+                      loadui=loadui,
+                      loadooi=loadooi,
+                      path=path, ui_path=ui_path,
+                      assets='res/preload/r2_ioc/ooi_assets',
+                      bulk=loadooi,
+                      ooiexclude='DataProduct,DataProductLink')
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
     @attr('PRELOAD')
@@ -35,6 +41,11 @@ class TestLoader(IonIntegrationTestCase):
     def test_ui_candidates_valid(self):
         """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates' """
         self.assert_can_load("BASE,BETA", loadui=True, ui_path='candidate')
+
+    @attr('PRELOAD')
+    def test_assets_valid(self):
+        """ make sure can load asset DB """
+        self.assert_can_load("BASE,BETA,DEVS", path='master', loadooi=True)
 
     @attr('PRELOAD')
     def test_alpha_valid(self):
@@ -136,3 +147,8 @@ class TestLoader(IonIntegrationTestCase):
 
         # check for platform agents
         found_it = self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+
+        # check for platform model boolean values
+        model = self.find_object_by_name('Nose Testing Platform Model', RT.PlatformModel)
+        self.assertEquals(True, model.shore_networked)
+        self.assertNotEqual('str', model.shore_networked.__class__.__name__)
