@@ -839,40 +839,43 @@ class LoadSystemPolicy(ImmediateProcess):
         #Add precondition policies for the Instrument Agents
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_resource',
-                policy_content='check_execute_resource', headers=sa_user_header )
+                policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='set_resource',
-            policy_content='check_set_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='ping_resource',
-            policy_content='check_ping_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         #Add precondition policies for the Platform Agents
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='execute_resource',
-            policy_content='check_execute_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='set_resource',
-            policy_content='check_set_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='ping_resource',
-            policy_content='check_ping_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         #Add precondition policies for IMS Direct Access operations
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='request_direct_access',
-            policy_content='check_exclusive_resource_commitment', headers=sa_user_header )
+            policy_content='check_direct_access_policy', headers=sa_user_header )
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='stop_direct_access',
-            policy_content='check_exclusive_resource_commitment', headers=sa_user_header )
+            policy_content='check_direct_access_policy', headers=sa_user_header )
 
         #Add precondition policies for IMS lifecyle operations
 
-       # pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_instrument_device_lifecycle',
-       #    policy_content='check_is_resource_owner_or_has_shared_commitment', headers=sa_user_header )
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_instrument_device_lifecycle',
+            policy_content='check_device_lifecycle_policy', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_platform_device_lifecycle',
+            policy_content='check_device_lifecycle_policy', headers=sa_user_header )

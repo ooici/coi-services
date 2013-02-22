@@ -20,7 +20,7 @@ from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 
 # Pyon exceptions.
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
@@ -260,54 +260,32 @@ class PlatformAgent(ResourceAgent):
     # Governance interfaces
     ##############################################################
 
-    def check_set_resource(self, msg,  headers):
+    def check_resource_operation_policy(self, msg,  headers):
         '''
-        This function is used for governance validation for the set_resource operation.
+        This function is used for governance validation for certain agent operations.
+        @param msg:
+        @param headers:
+        @return:
         '''
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+
+        try:
+            op, actor_id, actor_roles, resource_id = self.container.governance_controller.get_governance_resource_header_values(headers)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        if self.container.governance_controller.has_org_role(actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
             return True, ''
 
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+        if not self.container.governance_controller.has_org_role(actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
-        com = self._get_resource_commitments(headers['ion-actor-id'])
+        com = self.container.governance_controller.get_resource_commitments(actor_id, resource_id)
         if com is None:
-            return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, op, actor_id, self.resource_id)
 
         return True, ''
 
-    def check_execute_resource(self, msg,  headers):
-        '''
-        This function is used for governance validation for the execute_resource operation.
-        '''
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
-            return True, ''
-
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
-
-        com = self._get_resource_commitments(headers['ion-actor-id'])
-        if com is None:
-            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        return True, ''
-
-    def check_ping_resource(self, msg,  headers):
-        '''
-        This function is used for governance validation for the ping_resource operation.
-        '''
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
-            return True, ''
-
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
-
-        com = self._get_resource_commitments(headers['ion-actor-id'])
-        if com is None:
-            return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        return True, ''
-
+    ##############################################################
 
     def _create_publisher(self, stream_id=None, stream_route=None):
         publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=stream_route)

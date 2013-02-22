@@ -306,7 +306,7 @@ class ExhaustiveParameterTest(IonIntegrationTestCase):
         self.resource_registry       = self.container.resource_registry
         self.data_retriever          = DataRetrieverServiceClient()
 
-        pdicts, _ = self.resource_registry.find_resources(restype='ParameterDictionaryResource', id_only=False)
+        pdicts, _ = self.resource_registry.find_resources(restype='ParameterDictionary', id_only=False)
         self.dp_ids = []
         for pdict in pdicts:
             stream_def_id = self.pubsub_management.create_stream_definition(pdict.name, parameter_dictionary_id=pdict._id)

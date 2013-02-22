@@ -90,7 +90,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHBEVnM1d2tIUDUtOWZNSElxaVEySWc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydExWY29YVnd3eVBLeWZoYjFfMEZueGc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -123,7 +123,7 @@ DEFAULT_CATEGORIES = [
 #    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
-    'TransformFunction',
+   'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
     'DataProductLink',
@@ -1313,7 +1313,7 @@ class IONLoader(ImmediateProcess):
         log.warn('''
 ------- Conflict Report -------
 Conflict with %s
-Parmater Name: %s
+Parameter Name: %s
 Reason: %s
 -------------------------------''', row_id, name, reason)
 
@@ -1611,7 +1611,8 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
-                                            'port':  int(row['comms_server_port']) } }
+                                                    'port':  int(row['comms_server_port']),
+                                                    'cmd_port': int(row['comms_server_cmd_port']) } }
 
         port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
                               'device_port':   int(row['iai/comms_device_port']),

@@ -62,7 +62,7 @@ class PubsubManagementService(BasePubsubManagementService):
             else:
                 raise NotFound('No Stream Definition is associated with this Stream')
         stream_definition = retval or self.clients.resource_registry.read(stream_definition_id)
-        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionaryResource, id_only=True)
+        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary, id_only=True)
         if len(pdicts):
             stream_definition.parameter_dictionary = DatasetManagementService.get_parameter_dictionary(pdicts[0]).dump()
         validate_is_instance(stream_definition,StreamDefinition)

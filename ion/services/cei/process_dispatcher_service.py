@@ -796,9 +796,13 @@ class Notifier(object):
             return
 
         log.debug("Emitting event for process state. process=%s state=%s", process_id, ion_process_state)
-        self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
-            origin=process_id, origin_type="DispatchedProcess",
-            state=ion_process_state)
+        try:
+            self.event_pub.publish_event(event_type="ProcessLifecycleEvent",
+                origin=process_id, origin_type="DispatchedProcess",
+                state=ion_process_state)
+        except Exception:
+            log.exception("Problem emitting event for process state. process=%s state=%s",
+                process_id, ion_process_state)
 
 
 # should be configurable to support multiple process dispatchers?
