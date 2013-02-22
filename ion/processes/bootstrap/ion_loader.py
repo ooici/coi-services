@@ -90,7 +90,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHBEVnM1d2tIUDUtOWZNSElxaVEySWc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydExWY29YVnd3eVBLeWZoYjFfMEZueGc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -123,6 +123,7 @@ DEFAULT_CATEGORIES = [
 #    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
+   'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
     'DataProductLink',
@@ -1610,7 +1611,8 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
-                                            'port':  int(row['comms_server_port']) } }
+                                                    'port':  int(row['comms_server_port']),
+                                                    'cmd_port': int(row['comms_server_cmd_port']) } }
 
         port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
                               'device_port':   int(row['iai/comms_device_port']),
@@ -1752,6 +1754,13 @@ Reason: %s
                  'platform_monitor_attributes': attribute_dicts }
 
 
+
+    def _load_TransformFunction(self,row):
+        res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
+
+
+
+
     def _load_DataProcessDefinition(self, row):
         res_id = self._basic_resource_create(row, "DataProcessDefinition", "dpd/",
                                             "data_process_management", "create_data_process_definition")
@@ -1824,7 +1833,7 @@ Reason: %s
             res_id = self._create_bulk_resource(res_obj, row[COL_ID])
             self._resource_assign_owner(headers, res_obj)
             # Create and associate Stream
-            # Create and associate DataSet
+            # Create and associate Dataset
         else:
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]

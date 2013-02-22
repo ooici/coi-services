@@ -12,7 +12,7 @@ from pyon.core.bootstrap import get_sys_name
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.containers import DotDict
-from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo, ContactInformation, DataSet
+from interface.objects import View, Catalog, ElasticSearchIndex, InstrumentDevice, Site, PlatformDevice, BankAccount, DataProduct, Transform, ProcessDefinition, DataProcess, UserInfo, ContactInformation, Dataset
 from interface.services.dm.idiscovery_service import DiscoveryServiceClient
 from interface.services.dm.iindex_management_service import IndexManagementServiceClient
 from interface.services.dm.icatalog_management_service import CatalogManagementServiceClient
@@ -578,10 +578,10 @@ class DiscoveryIntTest(IonIntegrationTestCase):
     def test_associative_searching(self):
 
         dp_id,_ = self.rr.create(DataProduct('test_foo'))
-        ds_id,_ = self.rr.create(DataSet('test_bar', registered=True))
+        ds_id,_ = self.rr.create(Dataset('test_bar', registered=True))
         self.rr.create_association(subject=dp_id, object=ds_id, predicate='hasDataset')
 
-        search_string = "search 'type_' is 'DataSet' from 'resources_index' and belongs to '%s'" % dp_id
+        search_string = "search 'type_' is 'Dataset' from 'resources_index' and belongs to '%s'" % dp_id
 
         results = self.poll(5, self.discovery.parse,search_string)
         self.assertIsNotNone(results, 'Results not found')

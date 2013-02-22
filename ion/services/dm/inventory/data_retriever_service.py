@@ -14,18 +14,42 @@ from pyon.public import PRED, RT
 from pyon.util.arg_check import validate_is_instance, validate_true
 from pyon.util.containers import for_name
 from pyon.util.log import log
+from pyon.event.event import EventSubscriber
 
 from interface.objects import Replay 
 from interface.services.dm.idata_retriever_service import BaseDataRetrieverService
 
+import collections
+import time
+import gevent
+
 class DataRetrieverService(BaseDataRetrieverService):
     REPLAY_PROCESS = 'replay_process'
 
+    _refresh_interval = 10
+    _cache_limit      = 5
+    _retrieve_cache   = collections.OrderedDict()
+    _cache_lock       = gevent.coros.RLock()
+    
     def on_quit(self): #pragma no cover
         #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
+        self.event_subscriber.stop()
         super(DataRetrieverService,self).on_quit()
 
 
+    def on_start(self):
+        self.event_subscriber = EventSubscriber(event_type='DatasetModified', callback=lambda event,m : self._eject_cache(event.dataset_id))
+        self.event_subscriber.start()
+
+
+    @classmethod
+    def _eject_cache(cls, dataset_id):
+        with cls._cache_lock:
+            try:
+                cls._retrieve_cache.pop(dataset_id)
+            except KeyError:
+                pass
+    
     def define_replay(self, dataset_id='', query=None, delivery_format=None, stream_id=''):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         query: 
@@ -102,23 +126,44 @@ class DataRetrieverService(BaseDataRetrieverService):
         self.clients.resource_registry.delete(replay_id)
 
     @classmethod
+    def _get_coverage(cls,dataset_id):
+        '''
+        Memoized coverage instantiation and management
+        '''
+        # Cached get
+        retval = None
+        with cls._cache_lock:
+            try:
+                retval, age = cls._retrieve_cache.pop(dataset_id)
+                if (time.time() - age) > cls._refresh_interval:
+                    raise KeyError(dataset_id)
+            except KeyError: # Cache miss
+                #@TODO: Add in LRU logic (maybe some mem checking too!)
+                if len(cls._retrieve_cache) > cls._cache_limit:
+                    cls._retrieve_cache.popitem(0)
+                retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
+            age = time.time()
+            cls._retrieve_cache[dataset_id] = (retval, age)
+        return retval
+
+    @classmethod
     def retrieve_oob(cls, dataset_id='', query=None, delivery_format=None):
         query = query or {}
         coverage = None
         try:
-            coverage = DatasetManagementService._get_coverage(dataset_id, mode='r')
+            coverage = cls._get_coverage(dataset_id)
+            if coverage is None:
+                raise BadRequest('no such coverage')
             if coverage.num_timesteps == 0:
                 log.info('Reading from an empty coverage')
                 rdt = RecordDictionaryTool(param_dictionary=coverage.parameter_dictionary)
             else:
                 rdt = ReplayProcess._coverage_to_granule(coverage=coverage, start_time=query.get('start_time', None), end_time=query.get('end_time',None), stride_time=query.get('stride_time',None), parameters=query.get('parameters',None), stream_def_id=delivery_format, tdoa=query.get('tdoa',None))
         except Exception as e:
+            cls._eject_cache(dataset_id)
             import traceback
             traceback.print_exc(e)
             raise BadRequest('Problems reading from the coverage')
-        finally:
-            if coverage is not None:
-                coverage.close(timeout=5)
         return rdt.to_granule()
 
   
@@ -133,31 +178,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         @param kwargs          Keyword Arguments to pass into the transform.
 
         '''
-        if query is None:
-            query = {}
-        if delivery_format is None:
-            delivery_format = {}
-
-        validate_is_instance(query,dict,'Query was improperly formatted.')
-        validate_true(dataset_id, 'No dataset provided')
-        
-
-        replay_instance = ReplayProcess()
-
-        replay_instance.dataset       = self.clients.dataset_management.read_dataset(dataset_id)
-        replay_instance.dataset_id    = dataset_id
-        replay_instance.start_time    = query.get('start_time', None)
-        replay_instance.end_time      = query.get('end_time', None)
-        replay_instance.stride_time   = query.get('stride_time', None)
-        replay_instance.parameters    = query.get('parameters',None)
-        replay_instance.tdoa          = query.get('tdoa',None)
-        replay_instance.stream_def_id = delivery_format
-        replay_instance.container     = self.container
-
-        if replay_instance.tdoa is not None:
-            validate_is_instance(replay_instance.tdoa, slice)
-
-        retrieve_data = replay_instance.execute_retrieve()
+        retrieve_data = self.retrieve_oob(dataset_id=dataset_id,query=query,delivery_format=delivery_format)
 
         if module and cls:
             return self._transform_data(retrieve_data, module, cls, kwargs or {})
