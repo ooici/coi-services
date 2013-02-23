@@ -25,7 +25,7 @@ from ion.agents.instrument.exceptions import DriverLaunchException
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/agents.instrument/test/test_driver_launcher.py
 
-EGG='seabird_sbe37smb_ooicore-0.0.1-py2.7.egg'
+EGG='seabird_sbe37smb_ooicore-0.0.4-py2.7.egg'
 
 @attr('UNIT', group='mi')
 class TestInstrumentDriverProcess(PyonTestCase):
