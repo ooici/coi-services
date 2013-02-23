@@ -656,6 +656,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
         pid = _pagent.get_pid()
         port = _pagent.get_data_port()
+        cmd_port = _pagent.get_command_port()
         log.info("IMS:_start_pagent returned from PortAgentProcess.launch_process pid: %s ", pid)
 
         # Hack to get ready for DEMO.  Further though needs to be put int
@@ -672,6 +673,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
             'addr' : host,
+            'cmd_port' : cmd_port,
             'port' : port
         }
         instrument_agent_instance_obj.driver_config['pagent_pid'] = pid
