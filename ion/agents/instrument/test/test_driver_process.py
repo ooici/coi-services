@@ -25,6 +25,8 @@ from ion.agents.instrument.exceptions import DriverLaunchException
 # Make tests verbose and provide stdout
 # bin/nosetests -s -v ion/agents.instrument/test/test_driver_launcher.py
 
+EGG='seabird_sbe37smb_ooicore-0.0.1-py2.7.egg'
+
 @attr('UNIT', group='mi')
 class TestInstrumentDriverProcess(PyonTestCase):
     """
@@ -50,12 +52,17 @@ class TestInstrumentDriverProcess(PyonTestCase):
             'cmd_port': 5556,
             'evt_port': 5557,
 
-            'dvr_egg': 'seabird_sbe37smb_ooicore-0.0.1-py2.7.egg',
+            'dvr_egg': EGG,
 
             'process_type': [DriverProcessType.EGG]
         }
 
         self._events = []
+
+        try:
+            os.unlink("/tmp/%s" % EGG)
+        except:
+            pass
 
 
         # Add cleanup handler functions.
@@ -106,13 +113,6 @@ class TestInstrumentDriverProcess(PyonTestCase):
         """
         Test the driver launching process for a class and module
         """
-        try:
-            os.unlink("/tmp/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
-        except:
-            """
-            # ignore this exception.
-            """
-
         # remove egg from cache and run.  Verifies download
         self.assert_driver_process_launch_success(self._egg_driver_config)
 
@@ -124,17 +124,9 @@ class TestInstrumentDriverProcess(PyonTestCase):
         Test _check_cache_for_egg  checks the cache for the egg,
         returns path if present locally, or None if not.
         """
-        # Cleanup on isle one!
-        try:
-            os.unlink("/tmp/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
-        except:
-            """
-            # ignore this exception.
-            """
-
         launcher = ZMQEggDriverProcess("DUMMY_VAL")
         self.assertEqual(launcher._check_cache_for_egg("NOT_FOUND_EGG"), None)
-        self.assertEqual(launcher._check_cache_for_egg("seabird_sbe37smb_ooicore-0.0.1-py2.7.egg"), None)
+        self.assertEqual(launcher._check_cache_for_egg(EGG), None)
 
 
     def test_02_get_remote_egg(self):
@@ -151,7 +143,7 @@ class TestInstrumentDriverProcess(PyonTestCase):
             got_exception = True
         self.assertTrue(got_exception)
 
-        self.assertEqual(launcher._get_remote_egg("seabird_sbe37smb_ooicore-0.0.1-py2.7.egg"), "/tmp/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
+        self.assertEqual(launcher._get_remote_egg(EGG), "/tmp/%s" % EGG)
 
 
     def test_03_check_cache_for_egg(self):
@@ -162,15 +154,15 @@ class TestInstrumentDriverProcess(PyonTestCase):
         # Cleanup on isle one!
 
         launcher = ZMQEggDriverProcess("DUMMY_VAL")
+        self.assertEqual(launcher._get_remote_egg(EGG), "/tmp/%s" % EGG)
         self.assertEqual(launcher._check_cache_for_egg("NOT_FOUND_EGG"), None)
-        self.assertEqual(launcher._check_cache_for_egg("seabird_sbe37smb_ooicore-0.0.1-py2.7.egg"), "/tmp/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
+        self.assertEqual(launcher._check_cache_for_egg(EGG), "/tmp/%s" % EGG)
 
     def test_04_get_egg(self):
         """
         Test _get_egg should return a path to a local egg for existing
         eggs, and exception for non-existing in the repo.
         """
-
         launcher = ZMQEggDriverProcess("DUMMY_VAL")
 
         got_exception = False
@@ -179,4 +171,3 @@ class TestInstrumentDriverProcess(PyonTestCase):
         except DriverLaunchException:
             got_exception = True
         self.assertTrue(got_exception)
-        self.assertEqual(launcher._get_egg("seabird_sbe37smb_ooicore-0.0.1-py2.7.egg"), "/tmp/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg")
