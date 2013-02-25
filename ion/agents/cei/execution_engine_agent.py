@@ -2,7 +2,7 @@ import datetime
 import logging
 
 from pyon.agent.simple_agent import SimpleResourceAgent
-from pyon.core.exception import Unauthorized, NotFound
+from pyon.core.exception import Unauthorized, NotFound, Timeout
 from pyon.core import bootstrap
 from pyon.public import IonObject, log
 from pyon.util.containers import get_safe
@@ -135,7 +135,7 @@ class HeartBeater(object):
             eea_client.dump_state()
             self._started = True
             return True
-        except NotFound:
+        except (NotFound, Timeout):
             return False
         except Exception:
             self._log.exception("Couldn't get eeagent state. Perhaps it is broken?")
