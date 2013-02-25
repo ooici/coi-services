@@ -127,16 +127,10 @@ class HeartBeater(object):
         if self._started:
             return True
 
-        try:
-            _eea_pyon_client = SimpleResourceAgentClient(self.process_id, process=self.process)
-            eea_client = ExecutionEngineAgentClient(_eea_pyon_client)
-            eea_client.dump_state()
+        if all(self.process.heartbeat()):
             self._started = True
             return True
-        except (NotFound, Timeout):
-            return False
-        except Exception:
-            self._log.exception("Couldn't get eeagent state. Perhaps it is broken?")
+        else:
             return False
 
     def poll(self):

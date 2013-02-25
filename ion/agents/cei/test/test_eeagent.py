@@ -720,6 +720,9 @@ class HeartbeaterMockTest(PyonTestCase):
     """Tests which mock out parts of the EE Agent
     """
 
+    heartbeater_not_ok = (False, True, True)
+    heartbeater_ok = (True, True, True)
+
     def setUp(self):
 
         self.cfg = DotDict()
@@ -728,7 +731,8 @@ class HeartbeaterMockTest(PyonTestCase):
         self.factory = Mock()
 
         self.process_id = 'fake'
-        self.process = Mock()
+        self.process = DotDict()
+        self.process.heartbeat = Mock(return_value=self.heartbeater_not_ok)
 
         self.heartbeater = HeartBeater(self.cfg, self.factory, self.process_id, self.process)
 
@@ -741,6 +745,8 @@ class HeartbeaterMockTest(PyonTestCase):
 
         self.heartbeater.poll()
         self.assertFalse(self.heartbeater.beat.called)
+
+        self.process.heartbeater = Mock(return_value=self.heartbeater_ok)
 
         self.heartbeater._started = True
 
