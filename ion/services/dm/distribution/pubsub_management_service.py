@@ -20,7 +20,8 @@ from interface.services.dm.ipubsub_management_service import BasePubsubManagemen
 from collections import deque
 import logging
 
-
+from coverage_model.parameter_functions import ParameterFunctionException
+from coverage_model.parameter import ParameterFunctionValidator
 
 dot = logging.getLogger('dot')
 
@@ -89,6 +90,41 @@ class PubsubManagementService(BasePubsubManagementService):
         def1 = self.read_stream_definition(in_stream_definition_id)
         def2 = self.read_stream_definition(out_stream_definition_id)
         return self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
+        
+    def validate_transform(self, in_stream_definition_id, out_stream_definition_id):
+        stream_def_in = self.read_stream_definition(in_stream_definition_id)
+        stream_def_out = self.read_stream_definition(out_stream_definition_id)
+        
+        if not stream_def_in.available_fields:
+            log.info("no available fields on input stream definition")
+            return False
+        
+        incoming_pdict_dump = stream_def_in.parameter_dictionary
+        outgoing_pdict_dump = stream_def_out.parameter_dictionary
+
+        incoming_pdict = ParameterDictionary.load(incoming_pdict_dump)
+        outgoing_pdict = ParameterDictionary.load(outgoing_pdict_dump)
+
+        incoming_ctxt = [pc for name,(n,pc) in incoming_pdict.iteritems()]
+        outgoing_ctxt = [pc for name,(n,pc) in outgoing_pdict.iteritems()]
+        
+        incoming_ctxt_names = [name for name,(n,pc) in incoming_pdict.iteritems()]
+        
+        #test definition available for available field
+        for field in stream_def_in.available_fields:
+            if field not in incoming_ctxt_names:
+                log.info("available field %s not defined as a parameter context" % field)
+                return False
+        
+        pfv = ParameterFunctionValidator(incoming_ctxt, outgoing_ctxt)
+        try:
+            for name in stream_def_out.available_fields:
+                pfv.validate(name)
+        except ParameterFunctionException, e:
+            log.info('validation failed %s to %s is not reachable' % (stream_def_in.available_fields,stream_def_out.available_fields))
+            log.info(e)
+            return False
+        return True
 
     #--------------------------------------------------------------------------------
     

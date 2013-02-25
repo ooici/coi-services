@@ -22,7 +22,8 @@ from gevent.event import Event
 from gevent.queue import Queue, Empty
 from nose.plugins.attrib import attr
 
-import gevent
+from coverage_model import ParameterContext, AxisTypeEnum, QuantityType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
+import numpy as np
 
 @attr('UNIT',group='dm')
 class PubsubManagementUnitTest(PyonTestCase):
@@ -49,7 +50,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         for exchange in self.exchange_cleanup:
             xp = self.container.ex_manager.create_xp(exchange)
             xp.delete()
-
+    
     def test_stream_def_crud(self):
 
         # Test Creation
@@ -82,8 +83,107 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
         self.assertTrue(self.pubsub_management.compatible_stream_definitions(in_stream_definition_id, out_stream_definition_id))
 
+    def test_validate_transform(self):
+        
+        #test no input 
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
+        outgoing_pdict_id = self._get_pdict(['DENSITY', 'PRACSAL', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = []
+        available_fields_out = []
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_0', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_0', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertFalse(result)
+    
+        #test input with no output
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
+        outgoing_pdict_id = self._get_pdict(['DENSITY', 'PRACSAL', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = []
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_1', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_1', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertTrue(result)
+        
+        #test available field missing parameter context definition -- missing PRESWAT_L0
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0'])
+        outgoing_pdict_id = self._get_pdict(['DENSITY', 'PRACSAL', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = ['DENSITY']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_2', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_2', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertFalse(result)
 
+        #test l1 from l0
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
+        outgoing_pdict_id = self._get_pdict(['TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = ['TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_3', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_3', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertTrue(result)
 
+        #test l2 from l0
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
+        outgoing_pdict_id = self._get_pdict(['TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1', 'DENSITY', 'PRACSAL'])
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = ['DENSITY', 'PRACSAL']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_4', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_4', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertTrue(result)
+        
+        #test Ln from L0
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
+        outgoing_pdict_id = self._get_pdict(['DENSITY','PRACSAL','TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = ['DENSITY', 'PRACSAL', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_5', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_5', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertTrue(result)
+        
+        #test L2 from L1
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        outgoing_pdict_id = self._get_pdict(['DENSITY','PRACSAL','TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
+        available_fields_out = ['DENSITY', 'PRACSAL']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_6', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_6', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertTrue(result)
+        
+        #test L1 from L0 missing L0
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon'])
+        outgoing_pdict_id = self._get_pdict(['TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = ['time', 'lat', 'lon']
+        available_fields_out = ['DENSITY', 'PRACSAL']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_7', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_7', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertFalse(result)
+        
+        #test L2 from L0 missing L0
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon'])
+        outgoing_pdict_id = self._get_pdict(['DENSITY', 'PRACSAL', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1'])
+        available_fields_in = ['time', 'lat', 'lon']
+        available_fields_out = ['DENSITY', 'PRACSAL']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_8', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_8', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertFalse(result)
+        
+        #test L2 from L0 missing L1
+        incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
+        outgoing_pdict_id = self._get_pdict(['DENSITY', 'PRACSAL'])
+        available_fields_in = ['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
+        available_fields_out = ['DENSITY', 'PRACSAL']
+        incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_9', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_9', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        self.assertFalse(result)
 
     def publish_on_stream(self, stream_id, msg):
         stream = self.pubsub_management.read_stream(stream_id)
@@ -450,3 +550,105 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.pubsub_management.delete_stream(stream3_id)
         self.pubsub_management.delete_stream(stream4_id)
         self.pubsub_management.delete_stream(stream5_id)
+
+
+
+    def _get_pdict(self, filter_values):
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt.fill_value = -9999
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump(), parameter_type='quantity<int64>', unit_of_measure=t_ctxt.uom)
+
+        lat_ctxt = ParameterContext('lat', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))))
+        lat_ctxt.axis = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt.fill_value = -9999
+        lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=lat_ctxt.uom)
+
+        lon_ctxt = ParameterContext('lon', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))))
+        lon_ctxt.axis = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt.fill_value = -9999
+        lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=lon_ctxt.uom)
+
+
+        temp_ctxt = ParameterContext('TEMPWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt.fill_value = -9999
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='TEMPWAT_L0', parameter_context=temp_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=temp_ctxt.uom)
+
+        # Conductivity - values expected to be the decimal results of conversion from hex
+        cond_ctxt = ParameterContext('CONDWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        cond_ctxt.uom = 'S m-1'
+        cond_ctxt.fill_value = -9999
+        cond_ctxt_id = self.dataset_management.create_parameter_context(name='CONDWAT_L0', parameter_context=cond_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=cond_ctxt.uom)
+
+        # Pressure - values expected to be the decimal results of conversion from hex
+        press_ctxt = ParameterContext('PRESWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        press_ctxt.uom = 'dbar'
+        press_ctxt.fill_value = -9999
+        press_ctxt_id = self.dataset_management.create_parameter_context(name='PRESWAT_L0', parameter_context=press_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=press_ctxt.uom)
+
+
+
+        # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
+        tl1_func = '(TEMPWAT_L0 / 10000) - 10'
+        tl1_pmap = {'TEMPWAT_L0':'TEMPWAT_L0'}
+        func = NumexprFunction('TEMPWAT_L1', tl1_func, tl1_pmap)
+        tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=func), variability=VariabilityEnum.TEMPORAL)
+        tempL1_ctxt.uom = 'deg_C'
+
+        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name=tempL1_ctxt.name, parameter_context=tempL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=tempL1_ctxt.uom)
+
+        # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
+        cl1_func = '(CONDWAT_L0 / 100000) - 0.5'
+        cl1_pmap = {'CONDWAT_L0':'CONDWAT_L0'}
+        func = NumexprFunction('CONDWAT_L1', cl1_func, cl1_pmap)
+        condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=func), variability=VariabilityEnum.TEMPORAL)
+        condL1_ctxt.uom = 'S m-1'
+        condL1_ctxt_id = self.dataset_management.create_parameter_context(name=condL1_ctxt.name, parameter_context=condL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=condL1_ctxt.uom)
+                
+
+        # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
+        #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
+        pl1_func = '(PRESWAT_L0 * 679.34040721 / (0.85 * 65536)) - (0.05 * 679.34040721)'
+        pl1_pmap = {'PRESWAT_L0':'PRESWAT_L0'}
+        func = NumexprFunction('PRESWAT_L1', pl1_func, pl1_pmap)
+        presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=func), variability=VariabilityEnum.TEMPORAL)
+        presL1_ctxt.uom = 'S m-1'
+        presL1_ctxt_id = self.dataset_management.create_parameter_context(name=presL1_ctxt.name, parameter_context=presL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=presL1_ctxt.uom)
+
+        # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
+        #       https://code.google.com/p/python-gsw/ & http://pypi.python.org/pypi/gsw/3.0.1
+
+        # PRACSAL = gsw.SP_from_C((CONDWAT_L1 * 10), TEMPWAT_L1, PRESWAT_L1)
+        owner = 'gsw'
+        sal_func = 'SP_from_C'
+        sal_arglist = [NumexprFunction('CONDWAT_L1*10', 'C*10', {'C':'CONDWAT_L1'}), 'TEMPWAT_L1', 'PRESWAT_L1']
+        sal_kwargmap = None
+        func = PythonFunction('PRACSAL', owner, sal_func, sal_arglist, sal_kwargmap)
+        sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(func), variability=VariabilityEnum.TEMPORAL)
+        sal_ctxt.uom = 'g kg-1'
+
+        sal_ctxt_id = self.dataset_management.create_parameter_context(name=sal_ctxt.name, parameter_context=sal_ctxt.dump(), parameter_type='pfunc', unit_of_measure=sal_ctxt.uom)
+
+        # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
+        # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
+        # DENSITY = gsw.rho(absolute_salinity, conservative_temperature, PRESWAT_L1)
+        owner = 'gsw'
+        abs_sal_func = PythonFunction('abs_sal', owner, 'SA_from_SP', ['PRACSAL', 'PRESWAT_L1', 'lon','lat'], None)
+        #abs_sal_func = PythonFunction('abs_sal', owner, 'SA_from_SP', ['lon','lat'], None)
+        cons_temp_func = PythonFunction('cons_temp', owner, 'CT_from_t', [abs_sal_func, 'TEMPWAT_L1', 'PRESWAT_L1'], None)
+        dens_func = PythonFunction('DENSITY', owner, 'rho', [abs_sal_func, cons_temp_func, 'PRESWAT_L1'], None)
+        dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_func), variability=VariabilityEnum.TEMPORAL)
+        dens_ctxt.uom = 'kg m-3'
+
+        dens_ctxt_id = self.dataset_management.create_parameter_context(name=dens_ctxt.name, parameter_context=dens_ctxt.dump(), parameter_type='pfunc', unit_of_measure=dens_ctxt.uom)
+        
+        ids = [t_ctxt_id, lat_ctxt_id, lon_ctxt_id, temp_ctxt_id, cond_ctxt_id, press_ctxt_id, tempL1_ctxt_id, condL1_ctxt_id, presL1_ctxt_id, sal_ctxt_id, dens_ctxt_id]
+        contexts = [t_ctxt, lat_ctxt, lon_ctxt, temp_ctxt, cond_ctxt, press_ctxt, tempL1_ctxt, condL1_ctxt, presL1_ctxt, sal_ctxt, dens_ctxt]
+        context_ids = [ids[i] for i,ctxt in enumerate(contexts) if ctxt.name in filter_values]
+        pdict_name = '_'.join([ctxt.name for ctxt in contexts if ctxt.name in filter_values])
+
+        pdict_id = self.dataset_management.create_parameter_dictionary(pdict_name, parameter_context_ids=context_ids, temporal_context='time')
+        return pdict_id
