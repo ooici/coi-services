@@ -25,6 +25,7 @@ from ion.agents.instrument.common import BaseEnum
 from ion.agents.instrument.exceptions import DriverLaunchException
 from ion.agents.instrument.exceptions import NotImplementedException
 from ion.agents.instrument.packet_factory_man import create_packet_builder
+from ion.agents.instrument.driver_client import ZmqDriverClient
 
 PYTHON_PATH = 'bin/python'
 CACHE_DIR = '/tmp'
@@ -268,7 +269,6 @@ class DriverProcess(object):
         # Start client messaging and verify messaging.
         if not self._driver_client:
             try:
-                from mi.core.instrument.zmq_driver_client import ZmqDriverClient
                 driver_client = ZmqDriverClient('localhost', self._command_port, self._event_port)
                 self._driver_client = driver_client
             except Exception, e:
@@ -433,9 +433,6 @@ class ZMQEggDriverProcess(DriverProcess):
         3. construct call command
         """
 
-        path = self._get_egg(self.config.get('dvr_egg'))
-        log.debug("_process_command" + str(path))
-
         log.debug("cwd: %s" % os.getcwd())
         driver_package = self.config.get('dvr_egg')
         ppid = os.getpid() if self.test_mode else None
@@ -446,6 +443,9 @@ class ZMQEggDriverProcess(DriverProcess):
             raise DriverLaunchException("missing driver config: driver_package")
         if not os.path.exists(python):
             raise DriverLaunchException("could not find python executable: %s" % python)
+
+        path = self._get_egg(self.config.get('dvr_egg'))
+        log.debug("_process_command" + str(path))
 
         cmd_port_fname = self._driver_command_port_file()
         evt_port_fname = self._driver_event_port_file()

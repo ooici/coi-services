@@ -15,13 +15,13 @@ from pyon.util.containers import create_unique_identifier
 from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_not_none, validate_true
 from pyon.ion.resource import ExtendedResourceContainer
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, TransformFunction, DataProcess
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 
 from ion.services.sa.instrument.data_process_impl import DataProcessImpl
-
+from pyon.util.arg_check import validate_is_instance
 from ion.util.module_uploader import RegisterModulePreparerPy
 import os
 import pwd
@@ -101,6 +101,36 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return uploader_obj.get_destination_url()
 
+    @classmethod
+    def _cmp_transform_function(cls, tf1, tf2):
+        return tf1.module        == tf2.module and \
+               tf1.cls           == tf2.cls    and \
+               tf1.uri           == tf2.uri    and \
+               tf1.function_type == tf2.function_type
+
+    def create_transform_function(self, transform_function=''):
+        '''
+        Creates a new transform function
+        '''
+        tfs, _ = self.clients.resource_registry.find_resources(name=transform_function.name, restype=RT.TransformFunction, id_only=False)
+        if len(tfs):
+            for tf in tfs:
+                if self._cmp_transform_function(transform_function, tf):
+                    return tf._id
+            raise BadRequest('An existing TransformFunction with name %s exists with a different definition' % transform_function.name)
+
+        tf_id, rev = self.clients.resource_registry.create(transform_function)
+        return tf_id
+
+    def read_transform_function(self, transform_function_id=''):
+        tf = self.clients.resource_registry.read(transform_function_id)
+        validate_is_instance(tf,TransformFunction, 'Resource %s is not a TransformFunction: %s' %(transform_function_id, type(tf)))
+        return tf
+
+    def delete_transform_function(self, transform_function_id=''):
+        self.read_transform_function(transform_function_id)
+        self.clients.resource_registry.delete(transform_function_id)
+        
     def create_data_process_definition(self, data_process_definition=None):
 
         result, _ = self.clients.resource_registry.find_resources(RT.DataProcessDefinition, None, data_process_definition.name, True)
@@ -223,6 +253,48 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(association)
 
 
+    def create_data_process2(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
+        '''
+        Creates a DataProcess resource and launches the process.
+        A DataProcess is a process that receives one (or more) data products and produces one (or more) data products.
+
+        @param data_process_definition_id : The Data Process Definition to use, if none is specified the standard TransformDataProcess is used
+        @param in_data_product_ids : A list of input data product identifiers
+        @param out_data_product_ids : A list of output data product identifiers
+        @param configuration : The configuration dictionary for the process, and the routing table:
+
+        The routing table is defined as such:
+            { (in_data_product_id, out_data_product_id) : actor }
+
+        Routes are specified in the configuration dictionary under the item "routes"
+        actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
+        '''
+        configuration = configuration or DotDict()
+        routes = configuration.get_safe('process.routes', {})
+        self.validate_compatibility(in_data_product_ids, out_data_product_ids)
+        configuration.process.routes = self._manage_routes(routes)
+
+        dproc = DataProcess()
+        dproc.name = 'data_process_%s' % self.get_unique_id()
+        dproc.configuration = configuration
+        dproc_id, rev = self.clients.resource_registry.create(dproc)
+
+        self._manage_producers()
+
+        self._manage_attachments()
+
+        queue_name = self._create_subscription(dproc, in_data_product_ids)
+
+        pid = self._launch_data_process(
+                queue_name=queue_name,
+                data_process_definition_id=data_process_definition_id,
+                out_data_product_ids=out_data_product_ids,
+                configuration=configuration)
+
+        self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=pid)
+
+
+        return dproc_id
     # ------------------------------------------------------------------------------------------------
     # Working with DataProcess
 
@@ -636,6 +708,100 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         """
         # TODO: Determine the proper input param
         pass
+
+
+    def _get_stream_from_dp(self, dp_id):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=dp_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids: raise BadRequest('No streams associated with this data product')
+        return stream_ids[0]
+
+
+    def _manage_routes(self, routes):
+        retval = {}
+        for path,actor in routes.iteritems():
+            in_data_product_id, out_data_product_id = path
+            in_stream_id = self._get_stream_from_dp(in_data_product_id)
+            out_stream_id = self._get_stream_from_dp(out_data_product_id)
+            if actor:
+                self.clients.resource_registry.read(actor)
+                if isinstance(actor,TransformFunction):
+                    actor = 'TODO: figure this out' 
+                    
+            retval[(in_stream_id, out_stream_id)] = actor
+        return retval
+
+    def _manage_producers(self):
+        pass
+
+    def _manage_attachments(self):
+        pass
+
+    def _create_subscription(self, dproc, in_data_product_ids):
+        stream_ids = [self._get_stream_from_dp(i) for i in in_data_product_ids]
+        #@TODO Maybe associate a data process with an exchange point but in the mean time: 
+        queue_name = 'sub_%s' % dproc.name
+        subscription_id = self.clients.pubsub_management.create_subscription(name=queue_name, stream_ids=stream_ids)
+        self.clients.resource_registry.create_association(subject=dproc._id, predicate=PRED.hasSubscription, object=subscription_id)
+        return queue_name
+
+    def _get_process_definition(self, data_process_definition_id=''):
+        process_definition_id = ''
+        if data_process_definition_id:
+            process_definitions, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, id_only=True)
+            if process_definitions:
+                process_definition_id = process_definitions[0]
+        else:
+            process_definitions, _ = self.clients.resource_registry.find_resources(name='transform_data_process', restype=RT.ProcessDefinition,id_only=True)
+            if process_definitions:
+                process_definition_id = process_definitions[0]
+            else:
+                process_definition = ProcessDefinition()
+                process_definition.name = 'transform_data_process'
+                process_definition.executable['module'] = 'ion.processes.data.transforms.transform_prime'
+                process_definition.executable['class'] = 'TransformPrime'
+                process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition)
+        return process_definition_id
+
+    def _launch_data_process(self, queue_name='', data_process_definition_id='', out_data_product_ids=[], configuration={}):
+        process_definition_id = self._get_process_definition(data_process_definition_id)
+
+        out_streams = {}
+        for dp_id in out_data_product_ids:
+            stream_id = self._get_stream_from_dp(dp_id)
+            out_streams[stream_id] = stream_id
+
+        return self._launch_process(queue_name, out_streams, process_definition_id, configuration)
+
+
+
+
+
+
+
+    def _validator(self, in_data_product_id, out_data_product_id):
+        return True
+    
+    def validate_compatibility(self, in_data_product_ids=None, out_data_product_ids=None, routes=None):
+        '''
+        Validates compatibility between input and output data products
+        routes are in this form:
+        { (in_data_product_id, out_data_product_id) : actor }
+            if actor is None then the data process is assumed to use parameter functions.
+            if actor is a TransformFunction, the validation is done at runtime
+        '''
+        if len(out_data_product_ids)>1 and not routes:
+            raise BadRequest('Multiple output data products but no routes defined')
+        if len(out_data_product_ids)==1:
+            return all( [self._validator(i, out_data_product_ids[0]) for i in in_data_product_ids] )
+        elif len(out_data_product_ids)>1:
+            for path,actor in routes.iteritems():
+                in_dp_id, out_dp_id = path
+                if not self._validator(in_dp_id, out_dp_id):
+                    return False
+            return True
+        else:
+            raise BadRequest('No input data products specified')
+
 
     def _get_process_producer(self, data_process_id=""):
         producer_objs, _ = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=False)

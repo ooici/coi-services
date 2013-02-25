@@ -144,7 +144,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_subscription(subscription)
 
-        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasStream,object=stream_id,id_only=True)
+        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Dataset,predicate=PRED.hasStream,object=stream_id,id_only=True)
         for dataset_id in datasets:
             self.clients.dataset_management.remove_stream(dataset_id, stream_id)
 

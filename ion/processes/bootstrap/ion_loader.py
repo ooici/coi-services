@@ -90,7 +90,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AlWnRoFa9JrTdGpqNU9VM19KdktOcHJ5M0xHckFrcnc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AlWnRoFa9JrTdHdGemtad0RyNXdNNVJUblFjUmE1ZUE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -123,6 +123,7 @@ DEFAULT_CATEGORIES = [
 #    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
+   'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
     'DataProductLink',
@@ -545,6 +546,34 @@ class IONLoader(ImmediateProcess):
             log.trace('parsing value as %s: %s', targettype, value)
             return ast.literal_eval(value)
 
+    """
+    there is a data representation problem affecting our boolean fields in preload data
+
+    we enter the values "TRUE" and "FALSE" when editing the google doc or CSV files.
+    but when these are accessed as an XLS file downloaded from google,
+    the values are changed to (number) 1 and 0.
+    then we extract the rows from the spreadsheet with our python library,
+    and the values are changed to (string) "1" and "0".
+
+    as many of these values are not yet used by the system,
+    many were just quietly stored as strings in Ion objects
+    (although some did appear in the UI).
+
+    these methods consistently translate the values to python True and False.
+    """
+    def _fix_boolean(self, row, *keys):
+        """ modify the row to have boolean values instead of string or number """
+        for key in keys:
+            row[key] = self._as_boolean(row[key]) if key in row else False
+
+    def _as_boolean(self, value):
+        """ interpret the string or number value as a boolean """
+        if value in ('TRUE', 'True', '1', 1, True):
+            return True
+        if value in ('FALSE', 'False', '0', 0, '', None, False):
+            return False
+        raise iex.BadRequest('expected boolean value, got: ' + value)
+
     def _get_service_client(self, service):
         return get_service_registry().services[service].client(process=self.rpc_sender)
 
@@ -926,11 +955,9 @@ class IONLoader(ImmediateProcess):
 
         user_id = self.resource_ids[row["user_id"]]
         role_name = row["role_name"]
-
         svc_client = self._get_service_client("org_management")
 
-        auto_enroll = self._get_typed_value(row["auto_enroll"], targettype="bool")
-        if auto_enroll:
+        if self._as_boolean(row['auto_enroll']):
             svc_client.enroll_member(org_id, user_id, headers=self._get_system_actor_headers())
 
         if role_name != "ORG_MEMBER":
@@ -970,7 +997,7 @@ class IONLoader(ImmediateProcess):
         return False
 
     def _load_PlatformModel(self, row):
-        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
+        self._basic_resource_create(row, "PlatformModel", "pm/",
             "instrument_management", "create_platform_model",
             support_bulk=True)
 
@@ -992,11 +1019,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
-        #raw_stream_def = row['raw_stream_def']
-        #parsed_stream_def = row['parsed_stream_def']
-        #row['im/stream_configuration'] = "{'raw': '%s', 'parsed': '%s'}" % (raw_stream_def, parsed_stream_def)
-
-        res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
+        self._basic_resource_create(row, "InstrumentModel", "im/",
             "instrument_management", "create_instrument_model",
             support_bulk=True)
 
@@ -1694,7 +1717,7 @@ Reason: %s
         driver_config['dvr_cls'] = platform_agent.driver_class
         driver_config['dvr_mod'] = platform_agent.driver_module
 
-        # ** previously:
+        # ***** previously: *****
         # #TODO: allow child platforms
         # platform_topology = { platform_id: [] }
         #
@@ -1709,7 +1732,7 @@ Reason: %s
         #                     'driver_config':           driver_config }
         #
 
-        # ** now using platform network definition
+        # ***** now using platform network definition
         network_definition_ser = self._HACK_get_platform_network_definition()
         platform_config = { 'platform_id':             platform_id,
                             'driver_config':           driver_config,
@@ -1739,9 +1762,9 @@ Reason: %s
 
     def _HACK_get_platform_network_definition(self):
         """
-        Still use the simulator, but here via some utility that provide the
-        network definition in yaml format suitable for the platform
-        configuration.
+        This replaces _HACK_get_device_dict.
+        Here, we still use the simulator, but via a utility that provides the
+        network definition in yaml format suitable for the platform configuration.
         """
         from ion.agents.platform.rsn.oms_util import RsnOmsUtil
         from ion.agents.platform.util.network_util import NetworkUtil
@@ -1775,6 +1798,10 @@ Reason: %s
         return { 'ports': port_dicts,
                  'platform_monitor_attributes': attribute_dicts }
 
+
+
+    def _load_TransformFunction(self,row):
+        res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
 
     def _load_DataProcessDefinition(self, row):
         res_id = self._basic_resource_create(row, "DataProcessDefinition", "dpd/",
@@ -1824,6 +1851,7 @@ Reason: %s
         res_id = svc_client.activate_data_process(res_id, headers=self._get_system_actor_headers())
 
     def _load_DataProduct(self, row, do_bulk=False):
+        self._fix_boolean(row, 'persist_metadata', 'persist_data')
         tdom, sdom = time_series_domain()
 
         contacts = self._get_contacts(row, field='contact_ids', type='DataProduct')
@@ -1848,7 +1876,7 @@ Reason: %s
             res_id = self._create_bulk_resource(res_obj, row[COL_ID])
             self._resource_assign_owner(headers, res_obj)
             # Create and associate Stream
-            # Create and associate DataSet
+            # Create and associate Dataset
         else:
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]
@@ -1856,7 +1884,7 @@ Reason: %s
                 headers=headers)
             self._register_id(row[COL_ID], res_id, res_obj)
 
-            if not self.debug and row['persist_data']=='1':
+            if not self.debug and row['persist_data']:
                 svc_client.activate_data_product_persistence(res_id, headers=headers)
 
         self._resource_assign_org(row, res_id)
@@ -2046,16 +2074,12 @@ Reason: %s
             configuration = self._get_typed_value(configuration, targettype="dict")
             configuration["in_dp_id"] = in_dp_id
 
-        persist_data_flag = False
-        if row["persist_data"] == "TRUE":
-            persist_data_flag = True
-
         headers = self._get_op_headers(row)
 
         # Create and start the workflow
-        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(
+        workflow_client.create_data_process_workflow(
             workflow_definition_id=workflow_def_id,
-            input_data_product_id=in_dp_id, persist_workflow_data_product=persist_data_flag,
+            input_data_product_id=in_dp_id, persist_workflow_data_product=self._as_boolean(row["persist_data"]),
             configuration=configuration, timeout=30,
             headers=headers)
 
@@ -2078,7 +2102,7 @@ Reason: %s
         oms.deploy_instrument_site(site_id, deployment_id, headers=headers)
         ims.deploy_instrument_device(device_id, deployment_id, headers=headers)
 
-        if row['activate']=='1':
+        if self._as_boolean(row['activate']):
             oms.activate_deployment(deployment_id, headers=headers)
 
     def delete_ooi_assets(self):
