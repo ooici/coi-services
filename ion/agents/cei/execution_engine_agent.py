@@ -66,7 +66,6 @@ class ExecutionEngineAgent(SimpleResourceAgent):
             self.heartbeater.poll()
             self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
         else:
-            print "PDA: no heartbeat"
             self.heartbeat_thread = None
 
     def on_quit(self):
