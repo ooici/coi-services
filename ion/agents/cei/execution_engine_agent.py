@@ -2,11 +2,8 @@ import datetime
 import logging
 
 from pyon.agent.simple_agent import SimpleResourceAgent
-from pyon.core.exception import Unauthorized, NotFound, Timeout
-from pyon.core import bootstrap
-from pyon.public import IonObject, log
-from pyon.util.containers import get_safe
-from pyon.agent.simple_agent import SimpleResourceAgentClient
+from pyon.core.exception import Unauthorized, NotFound
+from pyon.public import log
 from pyon.net.endpoint import Publisher
 
 from interface.objects import AgentCommand
@@ -19,7 +16,7 @@ try:
     from eeagent.eeagent_exceptions import EEAgentUnauthorizedException
     from pidantic.pidantic_exceptions import PIDanticExecutionException
 except ImportError:
-    EEAgentCore = None
+    EEAgentCore = None  # noqa
 
 """
 @package ion.agents.cei.execution_engine_agent
@@ -53,16 +50,16 @@ class ExecutionEngineAgent(SimpleResourceAgent):
             # TODO: Fail fast here?
             log.error("No launch_type.name specified")
 
-        self._factory = get_exe_factory(launch_type_name, self.CFG,
-            pyon_container=self.container, log=log)
+        self._factory = get_exe_factory(
+            launch_type_name, self.CFG, pyon_container=self.container, log=log)
 
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)
 
-
         interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
         if interval > 0:
-            self.heartbeater = HeartBeater(self.CFG, self._factory, self.resource_id, self, log=log)
+            self.heartbeater = HeartBeater(
+                self.CFG, self._factory, self.resource_id, self, log=log)
             self.heartbeater.poll()
             self.heartbeat_thread = looping_call(0.1, self.heartbeater.poll)
         else:
@@ -111,7 +108,8 @@ class HeartBeater(object):
         self._publisher = Publisher()
         self._pd_name = CFG.eeagent.get('heartbeat_queue', 'heartbeat_queue')
 
-        self._factory.set_state_change_callback(self._state_change_callback, None)
+        self._factory.set_state_change_callback(
+            self._state_change_callback, None)
         self._first_beat()
 
     def _first_beat(self):
@@ -154,7 +152,9 @@ class HeartBeater(object):
     def beat(self):
         try:
             beat = make_beat_msg(self._factory, self._CFG)
-            message = dict(beat=beat, eeagent_id=self.process_id, resource_id=self._CFG.agent.resource_id)
+            message = dict(
+                beat=beat, eeagent_id=self.process_id,
+                resource_id=self._CFG.agent.resource_id)
             to_name = self._pd_name
 
             if self._log.isEnabledFor(logging.DEBUG):
@@ -163,7 +163,8 @@ class HeartBeater(object):
                     processes_str = "processes=%d" % len(processes)
                 else:
                     processes_str = ""
-                self._log.debug("Sending heartbeat to %s %s", self._pd_name, processes_str)
+                self._log.debug("Sending heartbeat to %s %s",
+                                self._pd_name, processes_str)
 
             self._publisher.publish(message, to_name=to_name)
         except Exception:
