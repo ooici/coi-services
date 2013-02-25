@@ -1911,24 +1911,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = 0 #todo: use ia_client
         return ret
 
-    def get_uptime(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedStringValue)
+    def get_uptime(self, device_id):
+        ia_client, ret = self.obtain_agent_calculation(device_id, OT.ComputedStringValue)
 
         if ia_client:
-            # Find events in the event repo that were published when changes of state occurred for the instrument
+            # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
             # The Instrument Agent publishes events of a particular type, ResourceAgentStateEvent, and origin_type. So we query the events db for those.
-            event_tuples = self.container.event_repository.find_events(origin=instrument_device_id, event_type='ResourceAgentStateEvent', descending=True)
+
+            # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
+            # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
+            not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
+
+            # Check whether it is a platform or an instrument
+            device = self.RR.read(device_id)
+
+            event_state = ''
+            if device.type_ == 'InstrumentAgent':
+                event_state = ResourceAgentState.STREAMING
+            elif device.type_ == 'PlatformAgent':
+                event_state = ResourceAgentState.MONITORING
+
+            # Get events associated with device from the events db
+            event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
 
             recent_events = [tuple[2] for tuple in event_tuples]
 
             # We assume below that the events have been sorted in time, with most recent events first in the list
             for evt in recent_events:
                 log.debug("Got an event with event_state: %s", evt.state)
-                # These below are the possible new event states while taking the instrument off streaming mode
-                # This is info got from possible actions to wind down the instrument that one can take in the UI when the instrument is already streaming
-                not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
 
-                if evt.state == ResourceAgentState.STREAMING: # "RESOURCE_AGENT_STATE_STREAMING"
+                if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
                     current_time = get_ion_ts()
                     log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
                     return self._convert_to_string(ret, current_time - evt.ts_created)
@@ -1937,9 +1949,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
                     return self._convert_to_string(ret, 0)
 
-            ret = self._convert_to_string(ret, 0)
-
-        return ret
+        return self._convert_to_string(ret, 0)
 
     def _convert_to_string(self, ret, value):
         sec = timedelta(seconds = value)
