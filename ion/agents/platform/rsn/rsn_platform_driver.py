@@ -140,7 +140,6 @@ class RsnPlatformDriver(PlatformDriver):
         # the RSN OMS interface:
         ntp_from_time = ion_ts_2_ntp(from_time)
         retval = self._rsn_oms.get_platform_attribute_values(self._platform_id, attr_names, ntp_from_time)
-        log.debug("get_platform_attribute_values = %s", retval)
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
@@ -150,8 +149,8 @@ class RsnPlatformDriver(PlatformDriver):
 
         # OOIION-631 the reported timestamps are in NTP; do conversion to system time
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("get_attribute_values: response before conversion = %s" %
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("get_attribute_values: response before conversion = %s" %
                       str(attr_values))
 
         conv_attr_values = {}  # the converted dictionary to return
@@ -171,8 +170,8 @@ class RsnPlatformDriver(PlatformDriver):
 
             conv_attr_values[attr_name] = conv_array
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("get_attribute_values: response  after conversion = %s" %
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("get_attribute_values: response  after conversion = %s" %
                       str(conv_attr_values))
 
         return conv_attr_values

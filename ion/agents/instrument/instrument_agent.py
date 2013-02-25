@@ -19,7 +19,7 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, GovernanceHeaderValues
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 from pyon.public import IonObject
 
@@ -253,19 +253,19 @@ class InstrumentAgent(ResourceAgent):
         '''
 
         try:
-            op, actor_id, actor_roles, resource_id = self.container.governance_controller.get_governance_resource_header_values(headers)
+            gov_values = GovernanceHeaderValues(headers, resource_id_required=False)
         except Inconsistent, ex:
             return False, ex.message
 
-        if self.container.governance_controller.has_org_role(actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
+        if self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
             return True, ''
 
-        if not self.container.governance_controller.has_org_role(actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
+        if not self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
-        com = self.container.governance_controller.get_resource_commitments(actor_id, resource_id)
+        com = self.container.governance_controller.get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
         if com is None:
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, op, actor_id, self.resource_id)
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
 
         return True, ''
 

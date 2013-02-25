@@ -283,7 +283,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         # Configure driver to use port agent port number.
         DVR_CONFIG['comms_config'] = {
             'addr' : 'localhost',
-            'port' : port
+            'port' : port,
+            'cmd_port' : CMD_PORT
         }
         self.addCleanup(self._support.stop_pagent)    
                         
@@ -1062,15 +1063,15 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
         # Eigth result is an AgentCommandResult containing a sample.
         result8 = self._results_recv[cmd8.command_id]['result']
-        self.assertIn('parsed',result8.result )
+        self.assertTrue('parsed',result8.result )
         
         # Ninth result is an AgentCommandResult containing a sample.
         result9 = self._results_recv[cmd9.command_id]['result']
-        self.assertIn('parsed',result9.result )
+        self.assertTrue('parsed',result9.result )
 
         # Tenth result is an AgentCommandResult containing a sample.
         result10 = self._results_recv[cmd10.command_id]['result']
-        self.assertIn('parsed',result10.result )
+        self.assertTrue('parsed',result10.result )
 
         # Eleventh result is an empty AgentCommandResult.
         result11 = self._results_recv[cmd11.command_id]['result']
