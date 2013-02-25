@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.oms_simulator
-@file    ion/agents/platform/oms/simulator/oms_simulator.py
+@package ion.agents.platform.rsn.simulator.oms_simulator
+@file    ion/agents/platform/rsn/simulator/oms_simulator.py
 @author  Carlos Rueda
 @brief   OMS simulator
 """
@@ -10,20 +10,21 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-from ion.agents.platform.oms.oms_client import OmsClient
-from ion.agents.platform.oms.oms_client import VALID_PORT_ATTRIBUTES
-from ion.agents.platform.oms.oms_client import InvalidResponse
-from ion.agents.platform.util.network import NNode
-from ion.agents.platform.oms.simulator.oms_events import EventInfo
-from ion.agents.platform.oms.simulator.oms_events import EventNotifier
-from ion.agents.platform.oms.simulator.oms_events import EventGenerator
-from ion.agents.platform.oms.simulator.oms_values import generate_values
+from ion.agents.platform.rsn.oms_client import OmsClient
+from ion.agents.platform.rsn.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
+from ion.agents.platform.responses import NormalResponse, InvalidResponse
+from ion.agents.platform.util.network import InstrumentNode
+from ion.agents.platform.util.network_util import NetworkUtil
 
-import yaml
+from ion.agents.platform.rsn.simulator.oms_events import EventInfo
+from ion.agents.platform.rsn.simulator.oms_events import EventNotifier
+from ion.agents.platform.rsn.simulator.oms_events import EventGenerator
+from ion.agents.platform.rsn.simulator.oms_values import generate_values
+
 import time
 import ntplib
 
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
 
@@ -32,14 +33,10 @@ class OmsSimulator(OmsClient):
     Implementation of OmsClient for testing purposes.
     """
 
-    def __init__(self, yaml_filename='ion/agents/platform/oms/simulator/network.yml'):
-        pyobj = yaml.load(file(yaml_filename))
-
-        self._get_platform_types(pyobj)
-
-        self._build_network(pyobj)
-
-        self._next_value = 990000
+    def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml'):
+        self._ndef = NetworkUtil.deserialize_network_definition(file(yaml_filename))
+        self._platform_types = self._ndef.platform_types
+        self._pnodes = self._ndef.pnodes
 
         # registered event listeners: {url: [(event_type, reg_time), ...], ...},
         # where reg_time is the NTP time of (latest) registration.
@@ -74,108 +71,36 @@ class OmsSimulator(OmsClient):
             self._event_generator.stop()
             self._event_generator = None
 
-    def _get_platform_types(self, pyobj):
-        """
-        Constructs:
-          - self._platform_types: {platform_type : description} map
-        """
-        assert 'platform_types' in pyobj
-        self._platform_types = {}
-        for ptypeObj in pyobj["platform_types"]:
-            assert 'platform_type' in ptypeObj
-            assert 'description' in ptypeObj
-            platform_type = ptypeObj['platform_type']
-            description = ptypeObj['description']
-            self._platform_types[platform_type] = description
-
-
-    def _build_network(self, pyobj):
-        """
-        Constructs:
-          - self._idp: {platform_id : NNode} map
-          - self._dummy_root: The "dummy" root node; its children are the actual roots.
-        """
-        assert 'network' in pyobj
-        self._idp = {}
-        self._dummy_root = None
-
-        def create_node(platform_id, platform_types=None):
-            assert not platform_id in self._idp
-            pn = NNode(platform_id, platform_types)
-            self._idp[platform_id] = pn
-            return pn
-
-        def build_node(platObj, parent_node):
-            assert 'platform_id' in platObj
-            assert 'platform_types' in platObj
-            platform_id = platObj['platform_id']
-            platform_types = platObj['platform_types']
-            for platform_type in platform_types:
-                assert platform_type in self._platform_types
-            ports = platObj['ports'] if 'ports' in platObj else []
-            attrs = platObj['attrs'] if 'attrs' in platObj else []
-            pn = create_node(platform_id, platform_types)
-            parent_node.add_subplatform(pn)
-            pn.set_ports(ports)
-            pn.set_attributes(attrs)
-            if 'subplatforms' in platObj:
-                for subplat in platObj['subplatforms']:
-                    subplat_id = subplat['platform_id']
-                    if subplat_id in pn.subplatforms:
-                        raise Exception('%s: duplicate subplatform ID for parent %s' % (
-                            subplat_id, platform_id))
-                    build_node(subplat, pn)
-            return pn
-
-        self._idp.clear()
-        self._dummy_root = create_node(platform_id='')
-
-        for platObj in pyobj["network"]:
-            build_node(platObj, self._dummy_root)
-
     def ping(self):
         return "pong"
 
-    def getPlatformMap(self):
-        return self._dummy_root.get_map([])
+    def get_platform_map(self):
+        return self._ndef.get_map()
 
-    def getRootPlatformID(self):
-        subplatforms = self._dummy_root.subplatforms
-        assert len(subplatforms) == 1
-        actual_root = list(subplatforms.itervalues())[0]
-        return actual_root.platform_id
-
-    def getSubplatformIDs(self, platform_id):
-        if platform_id not in self._idp:
-            return {platform_id: InvalidResponse.PLATFORM_ID}
-
-        nnode = self._idp[platform_id]
-        return {platform_id: list(nnode.subplatforms.iterkeys())}
-
-    def getPlatformTypes(self):
+    def get_platform_types(self):
         return self._platform_types
 
-    def getPlatformMetadata(self, platform_id):
-        if platform_id not in self._idp:
+    def get_platform_metadata(self, platform_id):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        nnode = self._idp[platform_id]
+        pnode = self._pnodes[platform_id]
 
         # TODO capture/include appropriate elements
         md = {}
-        if nnode.name:
-            md['name'] = nnode.name
-        if nnode.parent:
-            md['parent_platform_id'] = nnode.parent.platform_id
-        md['platform_types'] = nnode.platform_types
+        if pnode.name:
+            md['name'] = pnode.name
+        if pnode.parent:
+            md['parent_platform_id'] = pnode.parent.platform_id
+        md['platform_types'] = pnode.platform_types
 
         return {platform_id: md}
 
-    def getPlatformAttributes(self, platform_id):
-        if platform_id not in self._idp:
+    def get_platform_attributes(self, platform_id):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        attrs = self._idp[platform_id].attrs
+        attrs = self._pnodes[platform_id].attrs
         ret_infos = {}
         for attrName in attrs:
             attr = attrs[attrName]
@@ -183,18 +108,13 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: ret_infos}
 
-    def dump(self):
-        """string representation of the network"""
-        return "platform_types: %s\nnetwork:\n%s" % (
-            self._platform_types, self._dummy_root.dump())
-
-    def getPlatformAttributeValues(self, platform_id, attrNames, from_time):
-        if platform_id not in self._idp:
+    def get_platform_attribute_values(self, platform_id, attrNames, from_time):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         # complete time window until current time:
         to_time = ntplib.system_to_ntp_time(time.time())
-        attrs = self._idp[platform_id].attrs
+        attrs = self._pnodes[platform_id].attrs
         vals = {}
         for attrName in attrNames:
             if attrName in attrs:
@@ -207,14 +127,14 @@ class OmsSimulator(OmsClient):
 
         return {platform_id: vals}
 
-    def setPlatformAttributeValues(self, platform_id, input_attrs):
-        if platform_id not in self._idp:
+    def set_platform_attribute_values(self, platform_id, input_attrs):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         assert isinstance(input_attrs, list)
 
         timestamp = ntplib.system_to_ntp_time(time.time())
-        attrs = self._idp[platform_id].attrs
+        attrs = self._pnodes[platform_id].attrs
         vals = {}
         for (attrName, attrValue) in input_attrs:
             if attrName in attrs:
@@ -230,76 +150,135 @@ class OmsSimulator(OmsClient):
                 vals[attrName] = InvalidResponse.ATTRIBUTE_NAME
 
         retval = {platform_id: vals}
-        log.debug("setPlatformAttributeValues returning: %s", str(retval))
+        log.debug("set_platform_attribute_values returning: %s", str(retval))
         return retval
 
-    def getPlatformPorts(self, platform_id):
-        if platform_id not in self._idp:
+    def get_platform_ports(self, platform_id):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
         ports = {}
-        for port_id, port in self._idp[platform_id].ports.iteritems():
-            ports[port_id] = {'comms': port.comms, 'attrs': port.attrs}
+        for port_id, port in self._pnodes[platform_id].ports.iteritems():
+            ports[port_id] = {'network': port.network}
 
         return {platform_id: ports}
 
-    def setUpPort(self, platform_id, port_id, attributes):
-        if platform_id not in self._idp:
+    def connect_instrument(self, platform_id, port_id, instrument_id, attributes):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        if port_id not in self._idp[platform_id].ports :
+        if port_id not in self._pnodes[platform_id].ports :
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
-        port_attrs = self._idp[platform_id].get_port(port_id).attrs
+        port = self._pnodes[platform_id].get_port(port_id)
+
+        result = None
+        if instrument_id in port.instruments:
+            result = InvalidResponse.INSTRUMENT_ALREADY_CONNECTED
+        elif port.is_on:
+            # TODO: confirm that port must be OFF so instrument can be connected
+            result = InvalidResponse.PORT_IS_ON
+
+        if result is None:
+            # verify required attributes are provided:
+            for key in REQUIRED_INSTRUMENT_ATTRIBUTES:
+                if not key in attributes:
+                    result = InvalidResponse.MISSING_INSTRUMENT_ATTRIBUTE
+                    log.warn("connect_instrument called with missing attribute: %s"% key)
+                    break
+
+        if result is None:
+            # verify given attributes are recognized:
+            for key in attributes.iterkeys():
+                if not key in REQUIRED_INSTRUMENT_ATTRIBUTES:
+                    result = InvalidResponse.INVALID_INSTRUMENT_ATTRIBUTE
+                    log.warn("connect_instrument called with invalid attribute: %s"% key)
+                    break
+
+        if result is None:
+            # NOTE: values simply accepted without any validation
+            connected_instrument = InstrumentNode(instrument_id)
+            port.add_instrument(connected_instrument)
+            attrs = connected_instrument.attrs
+            result = {}
+            for key, val in attributes.iteritems():
+                attrs[key] = val  # set the value of the attribute:
+                result[key] = val # in the result, indicate that the value was set
+
+        return {platform_id: {port_id: {instrument_id: result}}}
+
+    def disconnect_instrument(self, platform_id, port_id, instrument_id):
+        if platform_id not in self._pnodes:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        if port_id not in self._pnodes[platform_id].ports :
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
+
+        port = self._pnodes[platform_id].get_port(port_id)
+
+        if instrument_id not in port.instruments:
+            result = InvalidResponse.INSTRUMENT_NOT_CONNECTED
+        elif port.is_on:
+            # TODO: confirm that port must be OFF so instrument can be disconnected
+            result = InvalidResponse.PORT_IS_ON
+        else:
+            port.remove_instrument(instrument_id)
+            result = NormalResponse.INSTRUMENT_DISCONNECTED
+
+        return {platform_id: {port_id: {instrument_id: result}}}
+
+    def get_connected_instruments(self, platform_id, port_id):
+        if platform_id not in self._pnodes:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        if port_id not in self._pnodes[platform_id].ports :
+            return {platform_id: {port_id: InvalidResponse.PORT_ID}}
+
+        port = self._pnodes[platform_id].get_port(port_id)
 
         result = {}
-        for key, val in attributes.iteritems():
-            if key in VALID_PORT_ATTRIBUTES:
-                # 1. set the value of the port attribute:
-                # TODO validate the value
-                port_attrs[key] = val
-
-                # 2. in the result, indicate that the value was set:
-                result[key] = val
-            else:
-                result[key] = InvalidResponse.ATTRIBUTE_NAME
-                log.warn("setUpPort called with unrecognized attribute: %s"% key)
+        for instrument_id in port.instruments:
+            result[instrument_id] = port.instruments[instrument_id].attrs
 
         return {platform_id: {port_id: result}}
 
-    def turnOnPort(self, platform_id, port_id):
-        if platform_id not in self._idp:
+    def turn_on_platform_port(self, platform_id, port_id):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        if port_id not in self._idp[platform_id].ports :
+        if port_id not in self._pnodes[platform_id].ports :
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
-        port = self._idp[platform_id].get_port(port_id)
-        if port._on:
+        port = self._pnodes[platform_id].get_port(port_id)
+        if port.is_on:
+            result = NormalResponse.PORT_ALREADY_ON
             log.warn("port %s in platform %s already turned on." % (port_id, platform_id))
         else:
-            port._on = True
+            port.set_on(True)
+            result = NormalResponse.PORT_TURNED_ON
             log.info("port %s in platform %s turned on." % (port_id, platform_id))
 
-        return {platform_id: {port_id: port._on}}
+        return {platform_id: {port_id: result}}
 
-    def turnOffPort(self, platform_id, port_id):
-        if platform_id not in self._idp:
+    def turn_off_platform_port(self, platform_id, port_id):
+        if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
-        if port_id not in self._idp[platform_id].ports :
+        if port_id not in self._pnodes[platform_id].ports :
             return {platform_id: {port_id: InvalidResponse.PORT_ID}}
 
-        port = self._idp[platform_id].get_port(port_id)
-        if not port._on:
+        port = self._pnodes[platform_id].get_port(port_id)
+        if not port.is_on:
+            result = NormalResponse.PORT_ALREADY_OFF
             log.warn("port %s in platform %s already turned off." % (port_id, platform_id))
         else:
-            port._on = False
+            port.set_on(False)
+            result = NormalResponse.PORT_TURNED_OFF
             log.info("port %s in platform %s turned off." % (port_id, platform_id))
 
-        return {platform_id: {port_id: port._on}}
+        return {platform_id: {port_id: result}}
 
-    def describeEventTypes(self, event_type_ids):
+    def describe_event_types(self, event_type_ids):
         if len(event_type_ids) == 0:
             return EventInfo.EVENT_TYPES
 
@@ -312,7 +291,7 @@ class OmsSimulator(OmsClient):
 
         return result
 
-    def getEventsByPlatformType(self, platform_types):
+    def get_events_by_platform_type(self, platform_types):
         if len(platform_types) == 0:
             platform_types = self._platform_types.keys()
 
@@ -334,8 +313,8 @@ class OmsSimulator(OmsClient):
         # TODO implement it; for now always returning True
         return True
 
-    def registerEventListener(self, url, event_types):
-        log.debug("registerEventListener called: url=%r, event_types=%s",
+    def register_event_listener(self, url, event_types):
+        log.debug("register_event_listener called: url=%r, event_types=%s",
                  url, str(event_types))
 
         if not self._validate_event_listener_url(url):
@@ -379,8 +358,8 @@ class OmsSimulator(OmsClient):
 
         return {url: result_list}
 
-    def unregisterEventListener(self, url, event_types):
-        log.debug("unregisterEventListener called: url=%r, event_types=%s",
+    def unregister_event_listener(self, url, event_types):
+        log.debug("unregister_event_listener called: url=%r, event_types=%s",
                  url, str(event_types))
 
         if not url in self._reg_event_listeners:
@@ -434,5 +413,20 @@ class OmsSimulator(OmsClient):
 
         return {url: result_list}
 
-    def getRegisteredEventListeners(self):
+    def get_registered_event_listeners(self):
         return self._reg_event_listeners
+
+    def get_checksum(self, platform_id):
+        """
+        @note the checksum is always computed, which is fine for the simulator.
+        A more realistic and presumably more efficient implementation would
+        exploit some caching mechanism along with appropriate invalidation
+        upon modifications to the platform information.
+        """
+        if platform_id not in self._pnodes:
+            return {platform_id: InvalidResponse.PLATFORM_ID}
+
+        pnode = self._pnodes[platform_id]
+        checksum = pnode.compute_checksum()
+
+        return {platform_id: checksum}

@@ -11,24 +11,82 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-# NOTE: No use of any pyon stuff mainly to facilitate use by simulator, which
-# uses a regular threading.Thread, so we avoid gevent monkey-patching issues.
+# NOTE: No use of any pyon stuff in this module mainly to also facilitate use by
+# simulator, which uses a regular threading.Thread when run as a separate
+# process, so we avoid gevent monkey-patching issues.
 
-class Attr(object):
+import hashlib
+
+
+class BaseNode(object):
     """
-    An attribute
+    A convenient base class for the components of a platform network.
+    """
+    def __init__(self):
+        # cached value for the checksum property.
+        self._checksum = None
+
+    def diff(self, other):
+        """
+        Returns None if this and the other object are the same.
+        Otherwise, returns a message describing the first difference.
+        """
+        raise NotImplementedError()  # pragma: no cover
+
+    @property
+    def checksum(self):
+        """
+        Gets the last value computed by compute_checksum, if any.
+        If no such value is available (for example, compute_checksum hasn't
+        been called yet, or the cached checksum has been invalidated), then
+        this method calls compute_checksum to obtain the checksum.
+
+        @note Unless client code has good control about the changes done on
+        instances of this class (including changes in children nodes), that is,
+        by making sure to invalidate the corresponding cached values upon any
+        changes, the use of this property is *not* recommended; instead call
+        compute_checksum, which always compute the checksum based on the
+        current state of the node and its children.
+
+        @return SHA1 hash value as string of hexadecimal digits.
+        """
+        if not self._checksum:
+            self._checksum = self.compute_checksum()
+        return self._checksum
+
+    def compute_checksum(self):
+        """
+        Computes the checksum for this object, updating the cached value for
+        future calls to the checksum property. Subclasses do not need
+        overwrite this method.
+
+        @return SHA1 hash value as string of hexadecimal digits
+        """
+        self._checksum = self._compute_checksum()
+        return self._checksum
+        
+    def _compute_checksum(self):
+        """
+        Subclasses implement this method to compute the checksum for
+        this object. For any checksum computation of subcomponents,
+        the implementation should call compute_checksum on the subcomponent.
+
+        @return SHA1 hash value as string of hexadecimal digits
+        """
+        raise NotImplementedError()  # pragma: no cover
+
+
+class AttrNode(BaseNode):
+    """
+    Represents a platform attribute.
     """
     def __init__(self, attr_id, defn):
+        BaseNode.__init__(self)
         self._attr_id = attr_id
         self._defn = defn
 
-        self._writable = 'read_write' in defn and defn['read_write'].lower().find("write") >= 0
-
-        self._value = defn['value'] if 'value' in defn else None
-
     def __repr__(self):
-        return "Attr{id=%s, defn=%s, value=%s}" % (
-            self.attr_id, self.defn, self.value)
+        return "AttrNode{id=%s, defn=%s}" % (self.attr_id, self.defn)
 
     @property
     def attr_id(self):
@@ -40,55 +98,203 @@ class Attr(object):
 
     @property
     def writable(self):
-        return self._writable
+        return self.defn.get('read_write', '').lower().find("write") >= 0
 
-    @property
-    def value(self):
-        return self._value
+    def diff(self, other):
+        if self.attr_id != other.attr_id:
+            return "Attribute IDs are different: %r != %r" % (
+                self.attr_id, other.attr_id)
 
+        if self.defn != other.defn:
+            return "Attribute definitions are different: %r != %r" % (
+                self.defn, other.defn)
 
-class Port(object):
+        return None
+
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
+    
+        hash_obj.update("attribute_id=%s" % self.attr_id)
+    
+        # properties:
+        hash_obj.update("attribute_properties:")
+        for key in sorted(self.defn.keys()):
+            val = self.defn[key]
+            hash_obj.update("%s=%s;" % (key, val))
+    
+        return hash_obj.hexdigest()
+        
+
+class PortNode(BaseNode):
     """
-    A port in a platform node.
+    Represents a platform port.
+
+    self._port_id
+    self._network = value of the network associated to the port, eg., "10.30.78.x"
+    self._instruments = { instrument_id: InstrumentNode, ... }
+
     """
-    def __init__(self, port_id, ip):
+    def __init__(self, port_id, network):
+        BaseNode.__init__(self)
         self._port_id = port_id
-        self._comms = {'ip': ip}
-        self._attrs = {}
-
-        self._on = False
+        self._network = network
+        self._instruments = {}
+        self._is_on = False
 
     def __repr__(self):
-        return "Port{id=%s, comms=%s, attrs=%s}" % (
-            self._port_id, self._comms, self._attrs)
+        return "PortNode{id=%s, network=%s}" % (
+            self._port_id, self._network)
 
     @property
     def port_id(self):
         return self._port_id
 
     @property
-    def comms(self):
-        return self._comms
+    def network(self):
+        return self._network
+
+    @property
+    def is_on(self):
+        return self._is_on
+
+    def set_on(self, on):
+        self._is_on = on
+
+    @property
+    def instruments(self):
+        """
+        Instruments of this port.
+        """
+        return self._instruments
+
+    def add_instrument(self, instrument):
+        if instrument.instrument_id in self._instruments:
+            raise Exception('%s: duplicate instrument ID' % instrument.instrument_id)
+        self._instruments[instrument.instrument_id] = instrument
+
+    def remove_instrument(self, instrument_id):
+        if instrument_id not in self._instruments:
+            raise Exception('%s: Not such instrument ID' % instrument_id)
+        del self._instruments[instrument_id]
+
+    def diff(self, other):
+        """
+        Returns None if the two ports are the same.
+        Otherwise, returns a message describing the first difference.
+        """
+        if self.port_id != other.port_id:
+            return "Port IDs are different: %r != %r" % (
+                self.port_id, other.port_id)
+
+        if self.network != other.network:
+            return "Port network values are different: %r != %r" % (
+                self.network, other.network)
+
+        if self.is_on != other.is_on:
+            return "Port is_on values are different: %r != %r" % (
+                self.is_on, other.is_on)
+
+        # compare instruments:
+        instrument_ids = set(self.instruments.iterkeys())
+        other_instrument_ids = set(other.instruments.iterkeys())
+        if instrument_ids != other_instrument_ids:
+            return "port_id=%r: instrument IDs are different: %r != %r" % (
+                self.port_id, instrument_ids, other_instrument_ids)
+        for instrument_id, instrument in self.instruments.iteritems():
+            other_instrument = other.instruments[instrument_id]
+            diff = instrument.diff(other_instrument)
+            if diff:
+                return diff
+
+        return None
+
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
+
+        # id:
+        hash_obj.update("port_id=%s;" % self.port_id)
+
+        # network:
+        hash_obj.update("port_network=%s;" % self.network)
+
+        # is_on:
+        hash_obj.update("port_is_on=%s;" % self.is_on)
+
+        # instruments:
+        hash_obj.update("port_instruments:")
+        for key in sorted(self.instruments.keys()):
+            instrument = self.instruments[key]
+            hash_obj.update(instrument.compute_checksum())
+
+        return hash_obj.hexdigest()
+
+
+class InstrumentNode(BaseNode):
+    """
+    Represents an instrument in a port.
+    """
+    def __init__(self, instrument_id, attrs=None):
+        BaseNode.__init__(self)
+        self._instrument_id = instrument_id
+        self._attrs = attrs or {}
+
+    def __repr__(self):
+        return "InstrumentNode{id=%s, attrs=%s}" % (
+            self.instrument_id, self.attrs)
+
+    @property
+    def instrument_id(self):
+        return self._instrument_id
 
     @property
     def attrs(self):
+        """
+        Attributes of this instrument.
+        """
         return self._attrs
 
+    def diff(self, other):
+        """
+        Returns None if the two instruments are the same.
+        Otherwise, returns a message describing the first difference.
+        """
+        if self.instrument_id != other.instrument_id:
+            return "Instrument IDs are different: %r != %r" % (
+                self.instrument_id, other.instrument_id)
 
-class NNode(object):
+        if self.attrs != other.attrs:
+            return "Instrument attributes are different: %r != %r" % (
+                self.attrs, other.attrs)
+
+        return None
+
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
+
+        hash_obj.update("instrument_id=%s;" % self.instrument_id)
+        hash_obj.update("instrument_attributes:")
+        for key in sorted(self.attrs.keys()):
+            val = self.attrs[key]
+            hash_obj.update("%s=%s;" % (key, val))
+
+        return hash_obj.hexdigest()
+
+
+class PlatformNode(BaseNode):
     """
     Platform node for purposes of representing the network.
 
     self._platform_id
     self._platform_types = [type, ...]
-    self._attrs = { attr_id: Attr, ... }
-    self._ports = { port_id: Port, ... }
-    self._subplatforms = { platform_id: NNode, ...}
-    self._parent = None | NNode
+    self._attrs = { attr_id: AttrNode, ... }
+    self._ports = { port_id: PortNode, ... }
+    self._subplatforms = { platform_id: PlatformNode, ...}
+    self._parent = None | PlatformNode
 
     """
 
     def __init__(self, platform_id, platform_types=None):
+        BaseNode.__init__(self)
         self._platform_id = platform_id
         self._platform_types = platform_types or []
         self._name = None
@@ -105,28 +311,10 @@ class NNode(object):
             raise Exception('%s: duplicate port ID' % port.port_id)
         self._ports[port.port_id] = port
 
-    def set_ports(self, ports):
-        self._ports = {}
-        for port_info in ports:
-            assert 'port_id' in port_info
-            assert 'ip' in port_info
-            port_id = port_info['port_id']
-            port_ip = port_info['ip']
-            self.add_port(Port(port_id, port_ip))
-
     def add_attribute(self, attr):
         if attr.attr_id in self._attrs:
             raise Exception('%s: duplicate attribute ID' % attr.attr_id)
         self._attrs[attr.attr_id] = attr
-
-    def set_attributes(self, attributes):
-        self._attrs = {}
-        for attr_defn in attributes:
-            assert 'attr_id' in attr_defn
-            assert 'monitorCycleSeconds' in attr_defn
-            assert 'units' in attr_defn
-            attr_id = attr_defn['attr_id']
-            self.add_attribute(Attr(attr_id, attr_defn))
 
     @property
     def platform_id(self):
@@ -172,8 +360,9 @@ class NNode(object):
             s += "/name=%s" % self.name
         s += "/types=%s" % self.platform_types
         s += ">\n"
-        s += "ports=%s\n"      % list(self.ports.itervalues())
-        s += "attrs=%s\n"      % list(self.attrs.itervalues())
+        s += "ports=%s\n"         % list(self.ports.itervalues())
+        s += "attrs=%s\n"         % list(self.attrs.itervalues())
+        s += "#subplatforms=%d\n" % len(self.subplatforms)
         return s
 
     def get_map(self, pairs):
@@ -186,168 +375,192 @@ class NNode(object):
             sub_platform.get_map(pairs)
         return pairs
 
-    def dump(self, indent_level=0, only_topology=False):
+    def diff(self, other):
         """
-        Indented string representation.
+        Returns None if the two PlatformNode's represent the same topology and
+        same attributes and ports.
+        Otherwise, returns a message describing the first difference.
         """
-        s = ""
-        if self.platform_id:
-            indent = "    " * indent_level
-            if only_topology:
-                s = "%s%s\n" % (indent, self.platform_id)
-            else:
-                s = "%s%s\n" % (indent, str(self).replace('\n', '\n%s' % indent))
-            indent_level += 1
+        if self.platform_id != other.platform_id:
+            return "platform IDs are different: %r != %r" % (
+                self.platform_id, other.platform_id)
 
-        for sub_platform in self.subplatforms.itervalues():
-            s += sub_platform.dump(indent_level, only_topology)
+        if self.name != other.name:
+            return "platform names are different: %r != %r" % (
+                self.name, other.name)
 
-        return s
+        if self.platform_types != other.platform_types:
+            return "platform types are different: %r != %r" % (
+                self.platform_types, other.platform_types)
 
-    def diagram(self, style="dot", root=True):  # pragma: no cover
+        # compare parents:
+        if (self.parent is None) != (other.parent is None):
+            return "platform parents are different: %r != %r" % (
+                self.parent, other.parent)
+        if self.parent is not None and self.parent.platform_id != other.parent.platform_id:
+            return "platform parents are different: %r != %r" % (
+                self.parent.platform_id, other.parent.platform_id)
+
+        # compare attributes:
+        attr_ids = set(self.attrs.iterkeys())
+        other_attr_ids = set(other.attrs.iterkeys())
+        if attr_ids != other_attr_ids:
+            return "platform_id=%r: attribute IDs are different: %r != %r" % (
+                self.platform_id, attr_ids, other_attr_ids)
+        for attr_id, attr in self.attrs.iteritems():
+            other_attr = other.attrs[attr_id]
+            diff = attr.diff(other_attr)
+            if diff:
+                return diff
+
+        # compare ports:
+        port_ids = set(self.ports.iterkeys())
+        other_port_ids = set(other.ports.iterkeys())
+        if port_ids != other_port_ids:
+            return "platform_id=%r: port IDs are different: %r != %r" % (
+                self.platform_id, port_ids, other_port_ids)
+        for port_id, port in self.ports.iteritems():
+            other_port = other.ports[port_id]
+            diff = port.diff(other_port)
+            if diff:
+                return diff
+
+        # compare sub-platforms:
+        subplatform_ids = set(self.subplatforms.iterkeys())
+        other_subplatform_ids = set(other.subplatforms.iterkeys())
+        if subplatform_ids != other_subplatform_ids:
+            return "platform_id=%r: subplatform IDs are different: %r != %r" % (
+                    self.platform_id,
+                    subplatform_ids, other_subplatform_ids)
+
+        for platform_id, node in self.subplatforms.iteritems():
+            other_node = other.subplatforms[platform_id]
+            diff = node.diff(other_node)
+            if diff:
+                return diff
+
+        return None
+
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
+
+        # update with checksum of sub-platforms:
+        hash_obj.update("subplatforms:")
+        for key in sorted(self.subplatforms.keys()):
+            subplatform = self.subplatforms[key]
+            hash_obj.update(subplatform.compute_checksum())
+
+        # now, with info about the platform itself.
+
+        # id:
+        hash_obj.update("platform_id=%s;" % self.platform_id)
+
+        # platform_types:
+        hash_obj.update("platform_types:")
+        for platform_type in sorted(self.platform_types):
+            hash_obj.update("%s;" % platform_type)
+
+        # attributes:
+        hash_obj.update("platform_attributes:")
+        for key in sorted(self.attrs.keys()):
+            attr = self.attrs[key]
+            hash_obj.update(attr.compute_checksum())
+
+        # ports:
+        hash_obj.update("platform_ports:")
+        for key in sorted(self.ports.keys()):
+            port = self.ports[key]
+            hash_obj.update(port.compute_checksum())
+
+        return hash_obj.hexdigest()
+
+
+class NetworkDefinition(BaseNode):
+    """
+    Represents a platform network definition in terms of platform types and
+    topology, including attributes and ports associated with the platforms.
+
+    See NetworkUtil for serialization/deserialization of objects of this type
+    and other associated utilities.
+    """
+
+    def __init__(self):
+        BaseNode.__init__(self)
+        self._platform_types = {}
+        self._pnodes = {}
+
+        # _dummy_root is a dummy PlatformNode having as children the actual roots in
+        # the network.
+        self._dummy_root = None
+
+    @property
+    def platform_types(self):
         """
-        **Developer routine**
+        Returns the platform types in the network.
 
-        String representation that can be processed by Graphviz tools or
-        plantuml.
+        @return {platform_type : description} dict
+        """
+        return self._platform_types
 
-        @param root True (the default) to include appropriate preamble
-        @param style one of "dot", "plantuml" (by default, "dot")
+    @property
+    def pnodes(self):
+        """
+        Returns a dict of all PlatformNodes in the network indexed by the platform ID.
+
+        @return {platform_id : PlatformNode} map
+        """
+        return self._pnodes
+
+    @property
+    def root(self):
+        """
+        Returns the root PlatformNode. Can be None if there is no such root or
+        there are multiple root PlatformNode's. The expected normal situation
+        is to have single root.
+
+        @return the root PlatformNode.
+        """
+        root = None
+        if self._dummy_root and len(self._dummy_root.subplatforms) == 1:
+            root = self._dummy_root.subplatforms.values()[0]
+        return root
+
+    def get_map(self):
+        """
+        Helper for getting the list of (platform_id, parent_platform_id) pairs.
+        """
+        return self._dummy_root.get_map([])
+
+    def diff(self, other):
+        """
+        Returns None if the two objects represent the same network definition.
+        Otherwise, returns a message describing the first difference.
         """
 
-        # for plantuml, use a simple "activity" diagram. The (*) will be for
-        # the the node with platform_id == '' (aka the "dummy root")
+        # compare platform_type definitions:
+        if set(self.platform_types.items()) != set(other.platform_types.items()):
+            return "platform types are different: %r != %r" % (
+                self.platform_types, other.platform_types)
 
-        arrow = "-->" if style == "plantuml" else "->"
-        body = ""
-        if style == "plantuml" and self.platform_id == '':
-            parent_str = "(*)"
+        # compare topology
+        if (self.root is None) != (other.root is None):
+            return "roots are different: %r != %r" % (
+                self.root, other.root)
+        if self.root is not None:
+            return self.root.diff(other.root)
         else:
-            parent_str = self.platform_id
+            return None
 
-        if parent_str:
-            for sub_platform in self.subplatforms.itervalues():
-                body += '\t"%s" %s "%s"\n' % (parent_str,
-                                          arrow,
-                                          sub_platform.platform_id)
+    def _compute_checksum(self):
+        hash_obj = hashlib.sha1()
 
-        for sub_platform in self.subplatforms.itervalues():
-            body += sub_platform.diagram(style=style, root=False)
+        # platform_types:
+        hash_obj.update("platform_types:")
+        for key in sorted(self.platform_types.keys()):
+            platform_type = self.platform_types[key]
+            hash_obj.update("%s=%s;" % (key, platform_type))
 
-        result = body
-        if root:
-            if style == "dot":
-                result = 'digraph G {\n'
-                if self.platform_id:
-                    result += '\t"%s"\n' % self.platform_id
-                result += '%s}\n' % body
-            elif style == "plantuml":
-                result = "%s\n" % body
+        # root PlatformNode:
+        hash_obj.update("root_platform=%s;" % self.root.compute_checksum())
 
-        return result
-
-    def yaml(self, level=0):  # pragma: no cover
-        """
-        **Developer routine**
-
-        Partial string representation in yaml.
-        *NOTE*: Very ad hoc, just to help capture some of the real info from
-        the RSN OMS interface into network.yml (the file used by the simulator)
-        along with values for testing purposes.
-        """
-
-        result = ""
-        next_level = level
-        if self.platform_id:
-            pid = self.platform_id
-            lines = []
-            if level == 0:
-                lines.append('network:')
-
-            lines.append('- platform_id: %s' % pid)
-            lines.append('  platform_types: []')
-
-            lines.append('  attrs:')
-            write_attr = False
-            for i in range(2):
-                read_write = "write" if write_attr else "read"
-                write_attr = not write_attr
-
-                # attr_id here is the "ref_id" in the CI-OMS interface spec
-                attr_id = '%s_attr_%d' % (pid, i + 1)
-
-                lines.append('  - attr_id: %s' % attr_id)
-                lines.append('    type: int')
-                lines.append('    units: xyz')
-                lines.append('    min_val: -2')
-                lines.append('    max_val: 10')
-                lines.append('    read_write: %s' % read_write)
-                lines.append('    group: power')
-                lines.append('    monitorCycleSeconds: 5')
-
-            lines.append('  ports:')
-            for i in range(2):
-                port_id = '%s_port_%d' % (pid, i + 1)
-                lines.append('  - port_id: %s' % port_id)
-                lines.append('    ip: %s_IP' % port_id)
-
-            if self.subplatforms:
-                lines.append('  subplatforms:')
-
-            nl = "\n" + ("  " * level)
-            result += nl + nl.join(lines)
-            next_level = level + 1
-
-        if self.subplatforms:
-            for sub_platform in self.subplatforms.itervalues():
-                result += sub_platform.yaml(next_level)
-
-        return result
-
-    @staticmethod
-    def create_network(map):
-        """
-        Creates a node network according to the given map.
-
-        @param map [(platform_id, parent_platform_id), ...]
-
-        @retval { platform_id: NNode }
-        """
-        nodes = {}
-        for platform_id, parent_platform_id in map:
-            if parent_platform_id is None:
-                parent_platform_id = ''
-
-            if not parent_platform_id in nodes:
-                nodes[parent_platform_id] = NNode(parent_platform_id)
-
-            if not platform_id in nodes:
-                nodes[platform_id] = NNode(platform_id)
-
-            nodes[parent_platform_id].add_subplatform(nodes[platform_id])
-
-        return nodes
-
-#TODO currently unused method -- might be removed.
-#    def diff_topology(self, other):
-#        """
-#        Returns None if the other node represents the same topology as this
-#        node. Otherwise, returns a message describing the first difference.
-#        """
-#        if self.platform_id != other.platform_id:
-#            return "platform IDs are different: %r != %r" % (
-#                self.platform_id, other.platform_id)
-#
-#        subplatform_ids = set(self.subplatforms.iterkeys())
-#        other_subplatform_ids = set(other.subplatforms.iterkeys())
-#        if subplatform_ids != other_subplatform_ids:
-#            return "subplatform IDs are different: %r != %r" % (
-#                    subplatform_ids, other_subplatform_ids)
-#
-#        for platform_id, node in self.subplatforms.iteritems():
-#            other_node = other.subplatforms[platform_id]
-#            diff = node.diff_topology(other_node)
-#            if diff:
-#                return diff
-#
-#        return None
+        return hash_obj.hexdigest()
