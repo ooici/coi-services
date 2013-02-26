@@ -732,7 +732,8 @@ class HeartbeaterMockTest(PyonTestCase):
 
         self.process_id = 'fake'
         self.process = DotDict()
-        self.process.heartbeat = Mock(return_value=self.heartbeater_not_ok)
+        self.process._process = DotDict()
+        self.process._process.heartbeat = Mock(return_value=self.heartbeater_not_ok)
 
         self.heartbeater = HeartBeater(self.cfg, self.factory, self.process_id, self.process)
 
@@ -746,7 +747,7 @@ class HeartbeaterMockTest(PyonTestCase):
         self.heartbeater.poll()
         self.assertFalse(self.heartbeater.beat.called)
 
-        self.process.heartbeater = Mock(return_value=self.heartbeater_ok)
+        self.process._process.heartbeater = Mock(return_value=self.heartbeater_ok)
 
         self.heartbeater._started = True
 
