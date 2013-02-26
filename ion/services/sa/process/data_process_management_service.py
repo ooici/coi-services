@@ -278,6 +278,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dproc.name = 'data_process_%s' % self.get_unique_id()
         dproc.configuration = configuration
         dproc_id, rev = self.clients.resource_registry.create(dproc)
+        dproc._id = dproc_id
+        dproc._rev = rev
 
         self._manage_producers(dproc_id, out_data_product_ids)
 
@@ -731,8 +733,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return retval
 
     def _manage_producers(self, data_process_id, data_product_ids):
+        self.clients.data_acquisition_management.register_process(data_process_id)
         for data_product_id in data_product_ids:
-            producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, restype=RT.DataProducer, id_only=True)
+            producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
             if len(producer_ids):
                 raise BadRequest('Only one DataProducer allowed per DataProduct')
 
