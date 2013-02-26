@@ -26,6 +26,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
     def __init__(self, *args,**kwargs):
         super(ScienceGranuleIngestionWorker, self).__init__(*args, **kwargs)
+        log.trace('initializing object')
         #--------------------------------------------------------------------------------
         # Ingestion Cache
         # - Datasets
@@ -39,6 +40,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
+        log.trace('starting process')
         self.event_publisher = EventPublisher('DatasetModified')
 
 
@@ -102,6 +104,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         '''
         Actual ingestion mechanism
         '''
+        log.trace('received granule')
         debugging = log.isEnabledFor(logging.DEBUG)
         if debugging:
             timer = Timer()
@@ -121,6 +124,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 log.info('Message attempting to be inserted into bad coverage: %s', DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
             if debugging:
                 timer.complete_step('validate')
+                log.trace('receive: validate step')
 
             #--------------------------------------------------------------------------------
             # Coverage determiniation and appending
@@ -141,6 +145,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 return
             if debugging:
                 timer.complete_step('build')
+                log.trace('receive: build step')
 
             #--------------------------------------------------------------------------------
             # Actual persistence
@@ -160,6 +165,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                     raise CorruptionError(e.message)
             if debugging:
                 timer.complete_step('time')
+                log.trace('receive: time step')
 
             start_index = coverage.num_timesteps - elements
 
@@ -177,16 +183,20 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                         raise CorruptionError(e.message)
             if debugging:
                 timer.complete_step('values')
+                log.trace('receive: values step')
             # note indentation change -- perform once per granule, not once per key/value
             DatasetManagementService._save_coverage(coverage)
             if debugging:
                 timer.complete_step('save')
+                log.trace('receive: save step')
 
             self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
             if debugging:
                 timer.complete_step('event')
+                log.trace('receive: event step')
         finally:
             if debugging:
+                log.trace('receive: completion')
                 self.time_stats.add(timer)
                 if self.time_stats.get_count() % REPORT_FREQUENCY == 0:
                     log.debug('ingestion stats for %d operations: %.2f min, %.2f avg, %.2f max, %.3f dev',
