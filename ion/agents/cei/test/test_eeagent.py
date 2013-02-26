@@ -2,7 +2,6 @@ import gevent
 from mock import Mock
 from nose.plugins.attrib import attr
 from nose.plugins.skip import SkipTest
-from gevent import queue
 import os
 import uuid
 import os.path
@@ -43,7 +42,7 @@ def needs_eeagent(test):
     @functools.wraps(test)
     def wrapped(*args, **kwargs):
         try:
-            import eeagent
+            import eeagent  # noqa
             return test(*args, **kwargs)
         except ImportError:
             raise SkipTest("Need eeagent to run this test.")
@@ -58,6 +57,7 @@ class TestProcess(BaseService):
     def on_init(self):
         pass
 
+
 class TestProcessFail(BaseService):
     """Test process to deploy via EEA
     """
@@ -65,6 +65,7 @@ class TestProcessFail(BaseService):
 
     def on_init(self):
         raise Exception("KABOOM")
+
 
 class TestProcessSlowStart(BaseService):
     """Test process to deploy via EEA
@@ -92,36 +93,37 @@ class ExecutionEngineAgentSupdIntTest(IonIntegrationTestCase):
 
         self.agent_config = {
             'eeagent': {
-              'heartbeat': 0,
-              'slots': 100,
-              'name': 'pyon_eeagent',
-              'launch_type': {
-                'name': 'supd',
-                'pyon_directory': os.getcwd(),
-                'supd_directory': self.supd_directory,
-                'supdexe': 'bin/supervisord'
-              },
+                'heartbeat': 0,
+                'slots': 100,
+                'name': 'pyon_eeagent',
+                'launch_type': {
+                    'name': 'supd',
+                    'pyon_directory': os.getcwd(),
+                    'supd_directory': self.supd_directory,
+                    'supdexe': 'bin/supervisord'
+                },
             },
             'agent': {'resource_id': self.resource_id},
             'logging': {
-            'loggers': {
-              'eeagent': {
-                'level': 'DEBUG',
-                'handlers': ['console']
-              }
-            },
-            'root': {
-              'handlers': ['console']
-            },
-          }
+                'loggers': {
+                    'eeagent': {
+                        'level': 'DEBUG',
+                        'handlers': ['console']
+                    }
+                },
+                'root': {
+                    'handlers': ['console']
+                }
+            }
         }
 
         # Start eeagent.
         self._eea_pid = None
 
-        self.container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
-        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
+        self.container_client = ContainerAgentClient(
+            node=self.container.node, name=self.container.name)
+        self._eea_pid = self.container_client.spawn_process(
+            name=self._eea_name,
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=self.agent_config)
         log.info('Agent pid=%s.', str(self._eea_pid))
@@ -184,36 +186,37 @@ class ExecutionEngineAgentPyonSingleIntTest(IonIntegrationTestCase):
 
         self.agent_config = {
             'eeagent': {
-              'heartbeat': 0,
-              'slots': 100,
-              'name': 'pyon_eeagent',
-              'launch_type': {
-                'name': 'pyon_single',
-                'pyon_directory': os.getcwd(),
-                'supd_directory': self.supd_directory,
-                'supdexe': 'bin/supervisord'
-              },
+                'heartbeat': 0,
+                'slots': 100,
+                'name': 'pyon_eeagent',
+                'launch_type': {
+                    'name': 'pyon_single',
+                    'pyon_directory': os.getcwd(),
+                    'supd_directory': self.supd_directory,
+                    'supdexe': 'bin/supervisord'
+                },
             },
             'agent': {'resource_id': self.resource_id},
             'logging': {
-            'loggers': {
-              'eeagent': {
-                'level': 'DEBUG',
-                'handlers': ['console']
-              }
-            },
-            'root': {
-              'handlers': ['console']
-            },
-          }
+                'loggers': {
+                    'eeagent': {
+                        'level': 'DEBUG',
+                        'handlers': ['console']
+                    }
+                },
+                'root': {
+                    'handlers': ['console']
+                },
+            }
         }
 
         # Start eeagent.
         self._eea_pid = None
 
-        self.container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
-        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
+        self.container_client = ContainerAgentClient(
+            node=self.container.node, name=self.container.name)
+        self._eea_pid = self.container_client.spawn_process(
+            name=self._eea_name,
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=self.agent_config)
         log.info('Agent pid=%s.', str(self._eea_pid))
@@ -266,37 +269,38 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.agent_config = {
             'eeagent': {
-              'heartbeat': 0,
-              'slots': 100,
-              'name': 'pyon_eeagent',
-              'launch_type': {
-                'name': 'pyon',
-                'persistence_directory': self.persistence_directory,
-              }
+                'heartbeat': 1,
+                'slots': 100,
+                'name': 'pyon_eeagent',
+                'launch_type': {
+                    'name': 'pyon',
+                    'persistence_directory': self.persistence_directory,
+                }
             },
             'agent': {'resource_id': self.resource_id},
             'logging': {
-            'loggers': {
-              'eeagent': {
-                'level': 'DEBUG',
-                'handlers': ['console']
-              }
-            },
-            'root': {
-              'handlers': ['console']
-            },
-          }
+                'loggers': {
+                    'eeagent': {
+                        'level': 'DEBUG',
+                        'handlers': ['console']
+                    }
+                },
+                'root': {
+                    'handlers': ['console']
+                },
+            }
         }
 
         self._start_eeagent()
 
     def _start_eeagent(self):
-        self.container_client = ContainerAgentClient(node=self.container.node,
-            name=self.container.name)
+        self.container_client = ContainerAgentClient(
+            node=self.container.node, name=self.container.name)
         self.container = self.container_client._get_container_instance()
 
         # Start eeagent.
-        self._eea_pid = self.container_client.spawn_process(name=self._eea_name,
+        self._eea_pid = self.container_client.spawn_process(
+            name=self._eea_name,
             module="ion.agents.cei.execution_engine_agent",
             cls="ExecutionEngineAgent", config=self.agent_config)
         log.info('Agent pid=%s.', str(self._eea_pid))
@@ -474,7 +478,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
 
     @needs_eeagent
     def test_slow_to_start(self):
@@ -504,7 +508,6 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.wait_for_state(upid, [400, 'PENDING'])
         self.eea_client.terminate_process(upid, round)
         self.wait_for_state(upid, [700, 'TERMINATED'])
-
 
     @needs_eeagent
     def test_kill_and_revive(self):
@@ -567,7 +570,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
 
     @needs_eeagent
     def test_whitelist(self):
@@ -621,7 +624,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
 
         # Test wildcard
         self._enable_code_download(whitelist=['*'])
@@ -632,7 +635,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
 
     @needs_eeagent
     def test_caching(self):
@@ -658,23 +661,22 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
 
         # Launch a process, check that webserver is hit
-        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
         self.wait_for_state(u_pid, [500, 'RUNNING'])
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
 
         assert self._webserver.requests == 1
 
-
         # Launch another process, check that webserver is still only hit once
-        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
 
         self.wait_for_state(u_pid, [500, 'RUNNING'])
 
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
 
         assert self._webserver.requests == 1
 
@@ -688,11 +690,11 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
 
         # Test that a module that is already available in tarball won't trigger a download
-        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
         self.wait_for_state(u_pid, [500, 'RUNNING'])
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
 
         assert self._webserver.requests == 1
 
@@ -706,16 +708,20 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         parameters = {'name': proc_name, 'module': module, 'module_uri': module_uri, 'cls': cls}
 
         # Test behaviour of a non existant class with no download
-        response = self.eea_client.launch_process(u_pid, round, run_type, parameters)
+        self.eea_client.launch_process(u_pid, round, run_type, parameters)
         self.wait_for_state(u_pid, [850, 'FAILED'])
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
-        proc = get_proc_for_upid(state, u_pid)
+        get_proc_for_upid(state, u_pid)
+
 
 @attr('UNIT', group='cei')
 class HeartbeaterMockTest(PyonTestCase):
     """Tests which mock out parts of the EE Agent
     """
+
+    heartbeater_not_ok = (False, True, True)
+    heartbeater_ok = (True, True, True)
 
     def setUp(self):
 
@@ -725,7 +731,9 @@ class HeartbeaterMockTest(PyonTestCase):
         self.factory = Mock()
 
         self.process_id = 'fake'
-        self.process = Mock()
+        self.process = DotDict()
+        self.process._process = DotDict()
+        self.process._process.heartbeat = Mock(return_value=self.heartbeater_not_ok)
 
         self.heartbeater = HeartBeater(self.cfg, self.factory, self.process_id, self.process)
 
@@ -738,6 +746,8 @@ class HeartbeaterMockTest(PyonTestCase):
 
         self.heartbeater.poll()
         self.assertFalse(self.heartbeater.beat.called)
+
+        self.process._process.heartbeater = Mock(return_value=self.heartbeater_ok)
 
         self.heartbeater._started = True
 
