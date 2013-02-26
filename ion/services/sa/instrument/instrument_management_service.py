@@ -1918,32 +1918,40 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
             # The Instrument Agent publishes events of a particular type, ResourceAgentStateEvent, and origin_type. So we query the events db for those.
 
-            # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
-            # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
-            not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
-
+            #----------------------------------------------------------------------------------------------
             # Check whether it is a platform or an instrument
+            #----------------------------------------------------------------------------------------------
             device = self.RR.read(device_id)
 
+            #----------------------------------------------------------------------------------------------
+            # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
+            # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
+            #----------------------------------------------------------------------------------------------
             event_state = ''
+            not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
+
             if device.type_ == 'InstrumentAgent':
                 event_state = ResourceAgentState.STREAMING
             elif device.type_ == 'PlatformAgent':
                 event_state = 'PLATFORM_AGENT_STATE_MONITORING'
 
+            #----------------------------------------------------------------------------------------------
             # Get events associated with device from the events db
+            #----------------------------------------------------------------------------------------------
             event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
 
             recent_events = [tuple[2] for tuple in event_tuples]
 
+            #----------------------------------------------------------------------------------------------
             # We assume below that the events have been sorted in time, with most recent events first in the list
+            #----------------------------------------------------------------------------------------------
             for evt in recent_events:
                 log.debug("Got an event with event_state: %s", evt.state)
 
                 if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
                     current_time = get_ion_ts()
                     log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
-                    return self._convert_to_string(ret, current_time - evt.ts_created)
+                    return self._convert_to_string(ret, int(current_time) - int(evt.ts_created) )
                 elif evt.state in not_streaming_states:
                     log.debug("Got a most recent event state that : %s", evt.state)
                     # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
@@ -1952,6 +1960,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self._convert_to_string(ret, 0)
 
     def _convert_to_string(self, ret, value):
+        """
+        A helper method to put it in a string value into a ComputedStringValue object that will be returned
+
+        @param ret ComputedStringValue object
+        @param value int
+        @retval ret The ComputedStringValue with a value that is of type String
+        """
         sec = timedelta(seconds = value)
         d = datetime(1,1,1) + sec
 
