@@ -39,7 +39,6 @@ from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
 @attr('UNIT', group='ctd')
-@unittest.skip('The UNIT tests have to be completely redone')
 class TestCtdTransforms(IonUnitTestCase):
 
     def setUp(self):
@@ -71,6 +70,7 @@ class TestCtdTransforms(IonUnitTestCase):
         self.tx_L2_D = DensityTransform()
         self.tx_L2_D.streams = defaultdict(Mock)
 
+    @unittest.skip('The UNIT tests have to be completely redone')
     def test_transforms(self):
 
         length = 1
@@ -109,6 +109,34 @@ class TestCtdTransforms(IonUnitTestCase):
 
         L2_dens = self.tx_L2_D.execute(packet)
         log.debug("L2 dens: %s" % L2_dens)
+
+    def test_pressure_algorithm(self):
+        """
+        Inputs Output
+        p_psia p_dbar
+        230.6859 159.0523
+        233.8845 161.2577
+        300.9482 207.4965
+        400.2314 275.9498
+        500.3320 344.9668
+        600.3444 413.9229
+        1234.5678 851.2045
+        """
+
+        def algorithm(input_pres):
+            output_pres = input_pres * 0.689475728
+
+            return output_pres
+
+        correct_output = numpy.array([159.0523,161.2577,207.4965,275.9498,344.9668,413.9229,851.2045])
+        input = numpy.array([230.6859, 233.8845, 300.9482,400.2314,500.3320, 600.3444, 1234.5678])
+
+        output = algorithm(input)
+
+        numpy.testing.assert_almost_equal(output, correct_output, decimal=4)
+
+
+
 
 @attr('LOCOINT')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -365,7 +393,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['conductivity']
         input_data = input_rdt_to_transform['conductivity']
 
-        self.assertTrue(((input_data / 100000.0) - 0.5).all() == output_data.all())
+        self.assertTrue(numpy.array_equal(((input_data / 100000.0) - 0.5), output_data))
 
     def check_pres_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -375,7 +403,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['pressure']
         input_data = input_rdt_to_transform['pressure']
 
-        self.assertTrue(input_data.all() == output_data.all())
+        self.assertTrue(numpy.array_equal((input_data/ 100.0) + 0.5,output_data))
 
     def check_temp_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -385,7 +413,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_data = output_rdt_transform['temp']
         input_data = input_rdt_to_transform['temp']
 
-        self.assertTrue(((input_data / 10000.0) - 10).all() == output_data.all())
+        self.assertTrue(numpy.array_equal(((input_data / 10000.0) - 10), output_data))
 
     def check_density_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -408,10 +436,17 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         out_density = output_rdt_transform['density']
 
-        #-----------------------------------------------------------------------------
-        # Check that the output data from the transform has the correct density values
-        #-----------------------------------------------------------------------------
-        self.assertTrue(dens_value.all() == out_density.all())
+        log.debug("density output from the transform: %s", out_density)
+        log.debug("values of density expected from the transform: %s", dens_value)
+
+        numpy.testing.assert_array_almost_equal(out_density, dens_value, decimal=3)
+
+#        #-----------------------------------------------------------------------------
+#        # Check that the output data from the transform has the correct density values
+#        #-----------------------------------------------------------------------------
+#        for item in zip(out_density.tolist(), dens_value.tolist()):
+#            if isinstance(item[0], int) or isinstance(item[0], float):
+#                self.assertEquals(item[0], item[1])
 
     def check_salinity_algorithm_execution(self, publish_granule, granule_from_transform):
 
@@ -432,7 +467,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         #-----------------------------------------------------------------------------
         # Check that the output data from the transform has the correct density values
         #-----------------------------------------------------------------------------
-        self.assertTrue(sal_value.all() == out_salinity.all())
+        self.assertTrue(numpy.array_equal(sal_value, out_salinity))
 
     def check_granule_splitting(self, publish_granule, out_dict):
         '''
@@ -451,9 +486,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         out_pres = out_dict['p']
         out_temp = out_dict['t']
 
-        self.assertTrue(in_cond.all() == out_cond.all())
-        self.assertTrue(in_pressure.all() == out_pres.all())
-        self.assertTrue(in_temp.all() == out_temp.all())
+        self.assertTrue(numpy.array_equal(in_cond,out_cond))
+        self.assertTrue(numpy.array_equal(in_pressure, out_pres))
+        self.assertTrue(numpy.array_equal(in_temp,out_temp))
 
     def test_ctd_L1_pressure(self):
         '''

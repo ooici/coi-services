@@ -1277,9 +1277,22 @@ class InstrumentAgent(ResourceAgent):
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)
                     self.aparam_streams[stream_name] = rdt.fields
                     
-                    alarms = stream_config.get('alarms',None)
-                    if isinstance(alarms, (list,tuple)):
-                        self.aparam_set_alarms(['add'].extend(alarms))
+                    alarm_defs = stream_config.get('alarms',None)
+                    if isinstance(alarm_defs, (list,tuple)):
+                        alarms = []
+                        for x in alarm_defs:
+                            try:
+                                type = x['type']
+                                kwargs = x['kwargs']
+                                a = IonObject(type,**kwargs)
+                                alarms.append(a)
+                            except:
+                                log.error('Instrument agent %s failed to create alarm from def %s', str(x))
+                    
+                        if len(alarms) > 0:
+                            params = ['set']
+                            params.extend(alarms)
+                            self.aparam_set_alarms(params)
                     
     def _start_publisher_greenlets(self):
         """
@@ -1371,7 +1384,10 @@ class InstrumentAgent(ResourceAgent):
                     log.error('Attempted to remove an invalid alarm.')
                     
             self.aparam_alarms = new_alarms
-            
+        
+        for a in self.aparam_alarms:
+            log.info('Instrument agent %s has alarm: %s', self._proc_name, str(a))
+                
         return len(self.aparam_alarms)
         
     ###############################################################################
