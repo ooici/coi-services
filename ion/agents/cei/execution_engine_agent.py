@@ -127,7 +127,7 @@ class HeartBeater(object):
         if self._started:
             return True
 
-        if all(self.process.heartbeat()):
+        if all(self.process._process.heartbeat()):
             self._started = True
             return True
         else:
