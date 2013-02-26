@@ -12,7 +12,7 @@ import sys
 if sys.platform == 'darwin':
     os.environ['C_INCLUDE_PATH'] = '/usr/local/include'
 
-version = '2.0.9-dev'
+version = '2.0.12-dev'
 
 setup(  name = 'coi-services',
         version = version,
@@ -31,7 +31,6 @@ setup(  name = 'coi-services',
         install_requires = [
             'pyzmq==2.2.0',
             'coverage-model',
-            'marine-integrations',
             'pyon',
             'Flask==0.9',
             'python-dateutil==1.5',
@@ -43,9 +42,9 @@ setup(  name = 'coi-services',
             'netCDF4>=1.0',
             'elasticpy==0.11',
             'pyparsing==1.5.6', 
-            'snakefood==1.4',
+            'ntplib',
             'xlrd==0.8.0',
-            'apscheduler==2.1.0',
+            'apscheduler==2.1.0'
         ],
         entry_points = """
             [pydap.handler]

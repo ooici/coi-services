@@ -61,7 +61,7 @@ ELASTICSEARCH_CONTEXT_SCRIPT = 'if(ctx.doc.lcstate == "RETIRED") { ctx.deleted =
 for t in TIME_FIELDS:
     ELASTICSEARCH_CONTEXT_SCRIPT += 'if(ctx.doc.%s) { ctx.doc.%s = Number(ctx.doc.%s) }' %(t,t,t)
 
-ELASTICSEARCH_CONTEXT_SCRIPT += 'if(ctx.doc.type_ == "DataSet") { delete ctx.doc.parameter_dictionary; delete ctx.doc.spatial_domain; delete ctx.doc.temporal_domain; }'
+ELASTICSEARCH_CONTEXT_SCRIPT += 'if(ctx.doc.type_ == "Dataset") { delete ctx.doc.parameter_dictionary; delete ctx.doc.spatial_domain; delete ctx.doc.temporal_domain; }'
 
 
 

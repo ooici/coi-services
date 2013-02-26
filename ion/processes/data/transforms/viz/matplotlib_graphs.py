@@ -105,7 +105,7 @@ class VizTransformMatplotlibGraphs(TransformStreamPublisher, TransformEventListe
         print " >>>>>>>>>>>>>> IN DP ID from cfg : ", in_dp_id
 
         # get the dataset_id associated with the data_product. Need it to do the data retrieval
-        ds_ids,_ = self.rrclient.find_objects(in_dp_id, PRED.hasDataset, RT.DataSet, True)
+        ds_ids,_ = self.rrclient.find_objects(in_dp_id, PRED.hasDataset, RT.Dataset, True)
         if ds_ids is None or not ds_ids:
             return None
 

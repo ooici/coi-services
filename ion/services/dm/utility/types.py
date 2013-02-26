@@ -56,7 +56,7 @@ def get_fill_value(val, encoding, ptype=None):
         matches = re.match(r'\((-?\d+(\.\d*)?), ?(-?\d+(\.\d*)?)\)', val)
         if matches:
             groups = matches.groups()
-            return (groups[0], groups[2])
+            return (get_fill_value(groups[0], encoding), get_fill_value(groups[2], encoding))
         else:
             retval = get_fill_value(val,encoding)
             if retval is not None:

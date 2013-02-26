@@ -56,7 +56,6 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
-from ion.core.includes.mi import SBE37ProtocolEvent
 
 from ion.agents.instrument.test.test_instrument_agent import DRV_MOD
 from ion.agents.instrument.test.test_instrument_agent import DRV_CLS
@@ -75,6 +74,9 @@ from ion.agents.instrument.test.test_instrument_agent import IA_CLS
 
 from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
+
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint
 # bin/nosetests -s -v ion/services/sa/tcaa/test/test_remote_endpoint.py:TestRemoteEndpoint.test_process_queued
@@ -281,7 +283,8 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         # Configure driver to use port agent port number.
         DVR_CONFIG['comms_config'] = {
             'addr' : 'localhost',
-            'port' : port
+            'port' : port,
+            'cmd_port' : CMD_PORT
         }
         self.addCleanup(self._support.stop_pagent)    
                         
@@ -1060,15 +1063,15 @@ class TestRemoteEndpoint(IonIntegrationTestCase):
         
         # Eigth result is an AgentCommandResult containing a sample.
         result8 = self._results_recv[cmd8.command_id]['result']
-        self.assertIn('parsed',result8.result )
+        self.assertTrue('parsed',result8.result )
         
         # Ninth result is an AgentCommandResult containing a sample.
         result9 = self._results_recv[cmd9.command_id]['result']
-        self.assertIn('parsed',result9.result )
+        self.assertTrue('parsed',result9.result )
 
         # Tenth result is an AgentCommandResult containing a sample.
         result10 = self._results_recv[cmd10.command_id]['result']
-        self.assertIn('parsed',result10.result )
+        self.assertTrue('parsed',result10.result )
 
         # Eleventh result is an empty AgentCommandResult.
         result11 = self._results_recv[cmd11.command_id]['result']

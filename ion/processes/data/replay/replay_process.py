@@ -242,7 +242,9 @@ class ReplayProcess(BaseReplayProcess):
             outgoing = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
             fields = self.parameters or outgoing.fields
             for field in fields:
-                outgoing[field] = rdt[field][(i*self.publish_limit) : ((i+1)*self.publish_limit)]
+                v = rdt[field]
+                if v is not None:
+                    outgoing[field] = v[(i*self.publish_limit) : ((i+1)*self.publish_limit)]
             yield outgoing
         coverage.close(timeout=5)
         return 

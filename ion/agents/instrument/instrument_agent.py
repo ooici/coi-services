@@ -19,12 +19,12 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, GovernanceHeaderValues
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 from pyon.public import IonObject
 
 # Pyon exceptions.
-from pyon.core.exception import IonException
+from pyon.core.exception import IonException, Inconsistent
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
 from pyon.core.exception import Timeout
@@ -43,12 +43,12 @@ import numpy
 import gevent
 
 # MI exceptions
-from mi.core.exceptions import InstrumentTimeoutException
-from mi.core.exceptions import InstrumentParameterException
-from mi.core.exceptions import SampleException
-from mi.core.exceptions import InstrumentStateException
-from mi.core.exceptions import InstrumentProtocolException
-from mi.core.exceptions import InstrumentException
+from ion.core.includes.mi_exceptions import InstrumentTimeoutException
+from ion.core.includes.mi_exceptions import InstrumentParameterException
+from ion.core.includes.mi_exceptions import SampleException
+from ion.core.includes.mi_exceptions import InstrumentStateException
+from ion.core.includes.mi_exceptions import InstrumentProtocolException
+from ion.core.includes.mi_exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
@@ -70,10 +70,7 @@ from interface.objects import StreamAlertAlarmEvent
 from interface.objects import StreamAllClearAlarmEvent
 
 # MI imports
-from ion.core.includes.mi import DriverEvent
 from ion.core.includes.mi import DriverAsyncEvent
-from ion.core.includes.mi import DriverProtocolState
-from ion.core.includes.mi import DriverParameter
 from interface.objects import StreamRoute
 from interface.objects import AgentCommand
 
@@ -247,52 +244,28 @@ class InstrumentAgent(ResourceAgent):
     # Governance interfaces
     ##############################################################
 
-    def check_set_resource(self, msg,  headers):
+    def check_resource_operation_policy(self, msg,  headers):
         '''
-        This function is used for governance validation for the set_resource operation.
+        This function is used for governance validation for certain agent operations.
+        @param msg:
+        @param headers:
+        @return:
         '''
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers, resource_id_required=False)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        if self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
             return True, ''
 
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+        if not self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
-        com = self._get_resource_commitments(headers['ion-actor-id'])
+        com = self.container.governance_controller.get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
         if com is None:
-            return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        return True, ''
-
-    def check_execute_resource(self, msg,  headers):
-        '''
-        This function is used for governance validation for the execute_resource operation.
-        '''
-
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
-            return True, ''
-
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
-
-        com = self._get_resource_commitments(headers['ion-actor-id'])
-        if com is None:
-            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        return True, ''
-
-    def check_ping_resource(self, msg,  headers):
-        '''
-        This function is used for governance validation for the ping_resource operation.
-        '''
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
-            return True, ''
-
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
-
-        com = self._get_resource_commitments(headers['ion-actor-id'])
-        if com is None:
-            return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
 
         return True, ''
 
@@ -654,10 +627,8 @@ class InstrumentAgent(ResourceAgent):
         #next_state = InstrumentAgentState.DIRECT_ACCESS
         
         # tell driver to start direct access mode
-        # (dvr_result, next_state) = self._dvr_client.cmd_dvr('execute_start_direct_access')
-        #(next_state, dvr_result) = self.execute_resource(DriverEvent.START_DIRECT)
-        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.START_DIRECT)
-        
+        (next_state, dvr_result) = self._dvr_client.cmd_dvr('start_direct')
+
         return (next_state, result)        
 
     ##############################################################
@@ -726,8 +697,8 @@ class InstrumentAgent(ResourceAgent):
         log.info("Instrument agent requested to stop direct access mode - %s" %self._da_session_close_reason)
         
         # tell driver to stop direct access mode
-        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.STOP_DIRECT)
-        
+        (next_state, dvr_result) = self._dvr_client.cmd_dvr('stop_direct')
+
         # stop DA server
         if (self._da_server):
             self._da_server.stop()
@@ -1426,6 +1397,6 @@ class InstrumentAgent(ResourceAgent):
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
-        self._dvr_client.cmd_dvr('execute_resource', DriverEvent.EXECUTE_DIRECT, data)
-        
+        self._dvr_client.cmd_dvr('execute_direct', data)
+
         
