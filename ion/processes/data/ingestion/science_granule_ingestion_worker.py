@@ -18,6 +18,9 @@ from logging import DEBUG
 from ooi.timer import Timer, Accumulator
 from ooi.logging import TRACE
 
+
+REPORT_FREQUENCY=100
+
 class ScienceGranuleIngestionWorker(TransformStreamListener):
     CACHE_LIMIT=CFG.get_safe('container.ingestion_cache',5)
 
@@ -185,7 +188,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         finally:
             if debugging:
                 self.time_stats.add(timer)
-                if self.time_stats.get_count() > 100:
+                if self.time_stats.get_count() % REPORT_FREQUENCY == 0:
                     log.debug('ingestion stats for %d operations: %.2f min, %.2f avg, %.2f max, %.3f dev',
                         self.time_stats.get_count(), self.time_stats.get_min(), self.time_stats.get_average(),
                         self.time_stats.get_max(), self.time_stats.get_standard_deviation())
