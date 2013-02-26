@@ -269,7 +269,7 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
 
         self.agent_config = {
             'eeagent': {
-                'heartbeat': 0,
+                'heartbeat': 1,
                 'slots': 100,
                 'name': 'pyon_eeagent',
                 'launch_type': {
