@@ -15,7 +15,7 @@ from socket import *
 import select
 import re
 
-from ion.agents.platform.cgsn.defs import MessageIds, CIPOP, CICGINT, EOL
+from ion.agents.platform.cgsn.defs import CICGINT
 
 
 class CgsnSimulator(object):
@@ -62,12 +62,11 @@ class CgsnSimulator(object):
         if m:
             cmd = m.group(1)
             rmsg = "ACK %s" % cmd
-            response = "%i,%i,%i,%i,%s%s" % (src,
-                                             dst,
-                                             CICGINT,
-                                             len(rmsg),
-                                             rmsg,
-                                             EOL)
+            response = "%i,%i,%i,%i,%s" % (src,
+                                           dst,
+                                           CICGINT,
+                                           len(rmsg),
+                                           rmsg)
         else:
             # TODO handle remaining cases
             print "NOT responding anything to request: %r" % recv_data
