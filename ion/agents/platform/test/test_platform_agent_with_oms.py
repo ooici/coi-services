@@ -10,8 +10,24 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
+# Locally, the following can be prefixed with PLAT_NETWORK=small to exercise
+# a small network (a root and some children) to the testing takes less time
+# but still representative. See HelperTestMixin.
+#
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_state_transitions
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_commands
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_event_dispatch
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_connect_disconnect_instrument
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_check_sync
+#
+
 
 from pyon.public import log
+import logging
+
+from pyon.event.event import EventSubscriber
 
 from pyon.util.containers import get_ion_ts
 from pyon.core.exception import ServerError
@@ -28,6 +44,11 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
+from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_util import RsnOmsUtil
+from ion.agents.platform.util.network_util import NetworkUtil
+from ion.agents.platform.responses import NormalResponse
+
 from ion.agents.platform.test.helper import HelperTestMixin
 
 from pyon.ion.stream import StandaloneStreamSubscriber
@@ -37,24 +58,21 @@ from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 from ion.agents.platform.test.adhoc import adhoc_get_stream_names
 
 from gevent.event import AsyncResult
-from gevent import sleep
 from mock import patch
 
-import time
-import ntplib
-import unittest
 import os
+import time
 from nose.plugins.attrib import attr
 
 
-# TIMEOUT: timeout for each execute_agent call.
-# TIMEOUT = 180
-# Carlos: we remove this and use the default patched from CFG
-
+# By default, test against "embedded" simulator. The OMS environment variable
+# can be used to indicate a different RSN OMS server endpoint. Some aliases for
+# the "oms_uri" parameter include "localsimulator" and "simulator".
+# See OmsClientFactory.
 DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.oms.oms_platform_driver',
-    'dvr_cls': 'OmsPlatformDriver',
-    'oms_uri': 'embsimulator',
+    'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
+    'dvr_cls': 'RsnPlatformDriver',
+    'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
 # Agent parameters.
@@ -63,6 +81,11 @@ PA_NAME = 'PlatformAgent001'
 PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
 
+# DATA_TIMEOUT: timeout for reception of data sample
+DATA_TIMEOUT = 25
+
+# EVENT_TIMEOUT: timeout for reception of event
+EVENT_TIMEOUT = 25
 
 class FakeProcess(LocalContextMixin):
     """
@@ -81,18 +104,29 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
     def setUpClass(cls):
         HelperTestMixin.setUpClass()
 
+        # Use the network definition provided by RSN OMS directly.
+        rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
+        network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("NetworkDefinition serialization:\n%s", network_definition_ser)
+
+        cls.PLATFORM_CONFIG = {
+            'platform_id': cls.PLATFORM_ID,
+            'driver_config': DVR_CONFIG,
+
+            'network_definition' : network_definition_ser
+        }
+
+        NetworkUtil._gen_open_diagram(network_definition.pnodes[cls.PLATFORM_ID])
+
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
 
-        self.PLATFORM_CONFIG = {
-            'platform_id': self.PLATFORM_ID,
-            'driver_config': DVR_CONFIG,
-        }
-
-        # Start data suscribers, add stop to cleanup.
+        # Start data subscribers, add stop to cleanup.
         # Define stream_config.
         self._async_data_result = AsyncResult()
         self._data_greenlets = []
@@ -102,6 +136,14 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._start_data_subscribers()
         self.addCleanup(self._stop_data_subscribers)
 
+        # start event subscriber:
+        self._async_event_result = AsyncResult()
+        self._event_subscribers = []
+        self._events_received = []
+        self.addCleanup(self._stop_event_subscribers)
+        self._start_event_subscriber()
+
+
         self._agent_config = {
             'agent'         : {'resource_id': PA_RESOURCE_ID},
             'stream_config' : self._stream_config,
@@ -110,7 +152,8 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             'platform_config': self.PLATFORM_CONFIG
         }
 
-        log.debug("launching with agent_config=%s",  str(self._agent_config))
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("launching with agent_config=%s" % str(self._agent_config))
 
         self._launcher = LauncherFactory.createLauncher()
         self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)
@@ -191,6 +234,45 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
                 self._pubsub_client.delete_subscription(sub.subscription_id)
             sub.stop()
 
+    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
+        """
+        Starts event subscriber for events of given event_type ("DeviceEvent"
+        by default) and given sub_type ("platform_event" by default).
+        """
+
+        def consume_event(evt, *args, **kwargs):
+            # A callback for consuming events.
+            log.info('Event subscriber received evt: %s.', str(evt))
+            self._events_received.append(evt)
+            self._async_event_result.set(evt)
+
+        sub = EventSubscriber(event_type=event_type,
+            sub_type=sub_type,
+            callback=consume_event)
+
+        sub.start()
+        log.info("registered event subscriber for event_type=%r, sub_type=%r",
+            event_type, sub_type)
+
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+    def _stop_event_subscribers(self):
+        """
+        Stops the event subscribers on cleanup.
+        """
+        try:
+            for sub in self._event_subscribers:
+                if hasattr(sub, 'subscription_id'):
+                    try:
+                        self.pubsubcli.deactivate_subscription(sub.subscription_id)
+                    except:
+                        pass
+                    self.pubsubcli.delete_subscription(sub.subscription_id)
+                sub.stop()
+        finally:
+            self._event_subscribers = []
+
     def _get_state(self):
         state = self._pa_client.get_agent_state()
         return state
@@ -246,23 +328,66 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         # TODO verify possible subset of required entries in the dict.
         log.info("GET_PORTS = %s", md)
 
-    def _set_up_port(self):
-        # TODO real settings and corresp verification
-
+    def _connect_instrument(self):
+        #
+        # TODO more realistic settings for the connection
+        #
         port_id = self.PORT_ID
-        port_attrName = self.PORT_ATTR_NAME
+        instrument_id = self.INSTRUMENT_ID
+        instrument_attributes = self.INSTRUMENT_ATTRIBUTES_AND_VALUES
 
         kwargs = dict(
             port_id = port_id,
-            attributes = { port_attrName: self.VALID_PORT_ATTR_VALUE }
+            instrument_id = instrument_id,
+            attributes = instrument_attributes
         )
-        cmd = AgentCommand(command=PlatformAgentEvent.SET_UP_PORT, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.CONNECT_INSTRUMENT, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         result = retval.result
-        log.info("SET_UP_PORT = %s", result)
+        log.info("CONNECT_INSTRUMENT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
-        self.assertTrue(port_attrName in result[port_id])
+        self.assertIsInstance(result[port_id], dict)
+        returned_attrs = self._verify_valid_instrument_id(instrument_id, result[port_id])
+        if isinstance(returned_attrs, dict):
+            for attrName in instrument_attributes:
+                self.assertTrue(attrName in returned_attrs)
+
+    def _get_connected_instruments(self):
+        port_id = self.PORT_ID
+
+        kwargs = dict(
+            port_id = port_id,
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("GET_CONNECTED_INSTRUMENTS = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(port_id in result)
+        self.assertIsInstance(result[port_id], dict)
+        instrument_id = self.INSTRUMENT_ID
+        self.assertTrue(instrument_id in result[port_id])
+
+    def _disconnect_instrument(self):
+        # TODO real settings and corresp verification
+
+        port_id = self.PORT_ID
+        instrument_id = self.INSTRUMENT_ID
+
+        kwargs = dict(
+            port_id = port_id,
+            instrument_id = instrument_id
+        )
+        cmd = AgentCommand(command=PlatformAgentEvent.DISCONNECT_INSTRUMENT, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        result = retval.result
+        log.info("DISCONNECT_INSTRUMENT = %s", result)
+        self.assertIsInstance(result, dict)
+        self.assertTrue(port_id in result)
+        self.assertIsInstance(result[port_id], dict)
+        self.assertTrue(instrument_id in result[port_id])
+        self._verify_instrument_disconnected(instrument_id, result[port_id][instrument_id])
 
     def _turn_on_port(self):
         # TODO real settings and corresp verification
@@ -278,7 +403,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         log.info("TURN_ON_PORT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
-        self.assertIsInstance(result[port_id], bool)
+        self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_ON)
 
     def _turn_off_port(self):
         # TODO real settings and corresp verification
@@ -294,7 +419,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         log.info("TURN_OFF_PORT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
-        self.assertIsInstance(result[port_id], bool)
+        self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_OFF)
 
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
@@ -349,8 +474,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _initialize(self):
         self._assert_state(PlatformAgentState.UNINITIALIZED)
-#        kwargs = dict(plat_config=self.PLATFORM_CONFIG)
-#        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.INACTIVE)
@@ -362,6 +485,33 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _run(self):
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.COMMAND)
+
+    def _pause(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.PAUSE)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.STOPPED)
+
+    def _resume(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.RESUME)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.COMMAND)
+
+    def _start_resource_monitoring(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.MONITORING)
+
+    def _wait_for_a_data_sample(self):
+        log.info("waiting for reception of a data sample...")
+        # just wait for at least one -- see consume_data
+        self._async_data_result.get(timeout=DATA_TIMEOUT)
+        self.assertTrue(len(self._samples_received) >= 1)
+        log.info("Received samples: %s", len(self._samples_received))
+
+    def _stop_resource_monitoring(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
@@ -378,17 +528,17 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         return retval.result
 
     def _start_event_dispatch(self):
-        kwargs = dict(params="TODO set params")
-        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH, kwargs=kwargs)
+        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH)
         retval = self._execute_agent(cmd)
         self.assertTrue(retval.result is not None)
         return retval.result
 
-    def _wait_for_a_data_sample(self):
-        log.info("waiting for reception of a data sample...")
-        self._async_data_result.get(timeout=15)
-        # just wait for at least one -- see consume_data above
-        self.assertTrue(len(self._samples_received) >= 1)
+    def _wait_for_an_event(self):
+        log.info("waiting for reception of an external event...")
+        # just wait for at least one -- see consume_event
+        self._async_event_result.get(timeout=EVENT_TIMEOUT)
+        self.assertTrue(len(self._events_received) >= 1)
+        log.info("Received events: %s", len(self._events_received))
 
     def _stop_event_dispatch(self):
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
@@ -396,10 +546,15 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(retval.result is not None)
         return retval.result
 
-    def test_capabilities(self):
+    def _check_sync(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.CHECK_SYNC)
+        retval = self._execute_agent(cmd)
+        log.info("CHECK_SYNC result: %s", retval.result)
+        self.assertTrue(retval.result is not None)
+        self.assertEquals(retval.result[0:3], "OK:")
+        return retval.result
 
-        #log.info("test_capabilities starting.  Default timeout=%s", TIMEOUT)
-        log.info("test_capabilities starting.  Default timeout=%i", CFG.endpoint.receive.timeout)
+    def test_capabilities(self):
 
         agt_cmds_all = [
             PlatformAgentEvent.INITIALIZE,
@@ -407,6 +562,9 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RUN,
+            PlatformAgentEvent.CLEAR,
+            PlatformAgentEvent.PAUSE,
+            PlatformAgentEvent.RESUME,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
@@ -414,13 +572,22 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
-            PlatformAgentEvent.SET_UP_PORT,
+
+            PlatformAgentEvent.CONNECT_INSTRUMENT,
+            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
+            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
+
             PlatformAgentEvent.TURN_ON_PORT,
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
 
             PlatformAgentEvent.START_EVENT_DISPATCH,
             PlatformAgentEvent.STOP_EVENT_DISPATCH,
+
+            PlatformAgentEvent.START_MONITORING,
+            PlatformAgentEvent.STOP_MONITORING,
+
+            PlatformAgentEvent.CHECK_SYNC,
         ]
 
 
@@ -481,11 +648,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_pars, [])
 
-        self._initialize()
 
         ##################################################################
         # INACTIVE
         ##################################################################
+        self._initialize()
 
         # Get exposed capabilities in current state.
         retval = self._pa_client.get_capabilities()
@@ -519,11 +686,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_pars, [])
 
-        self._go_active()
 
         ##################################################################
         # IDLE
         ##################################################################
+        self._go_active()
 
         # Get exposed capabilities in current state.
         retval = self._pa_client.get_capabilities()
@@ -555,11 +722,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_pars, [])
 
-        self._run()
 
         ##################################################################
         # COMMAND
         ##################################################################
+        self._run()
 
         # Get exposed capabilities in current state.
         retval = self._pa_client.get_capabilities()
@@ -570,9 +737,15 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds_command = [
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.PAUSE,
+            PlatformAgentEvent.CLEAR,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
-            PlatformAgentEvent.SET_UP_PORT,
+
+            PlatformAgentEvent.CONNECT_INSTRUMENT,
+            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
+            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
+
             PlatformAgentEvent.TURN_ON_PORT,
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
@@ -583,6 +756,10 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
             PlatformAgentEvent.START_EVENT_DISPATCH,
             PlatformAgentEvent.STOP_EVENT_DISPATCH,
+
+            PlatformAgentEvent.START_MONITORING,
+
+            PlatformAgentEvent.CHECK_SYNC,
         ]
 
         res_cmds_command = [
@@ -592,6 +769,88 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertItemsEqual(agt_pars, agt_pars_all)
         self.assertItemsEqual(res_cmds, res_cmds_command)
         self.assertItemsEqual(res_pars, res_pars_all)
+
+
+        ##################################################################
+        # STOPPED
+        ##################################################################
+        self._pause()
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+         # Validate capabilities of state STOPPED
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_stopped = [
+            PlatformAgentEvent.RESUME,
+            PlatformAgentEvent.CLEAR,
+            PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+        ]
+
+        res_cmds_command = [
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_stopped)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_pars, res_pars_all)
+
+
+        # back to COMMAND:
+        self._resume()
+
+        ##################################################################
+        # MONITORING
+        ##################################################################
+        self._start_resource_monitoring()
+
+        # Get exposed capabilities in current state.
+        retval = self._pa_client.get_capabilities()
+
+         # Validate capabilities of state MONITORING
+        agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
+
+        agt_cmds_monitoring = [
+            PlatformAgentEvent.GET_METADATA,
+            PlatformAgentEvent.GET_PORTS,
+
+            PlatformAgentEvent.CONNECT_INSTRUMENT,
+            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
+            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
+
+            PlatformAgentEvent.TURN_ON_PORT,
+            PlatformAgentEvent.TURN_OFF_PORT,
+            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
+            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.PING_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE,
+            PlatformAgentEvent.SET_RESOURCE,
+
+            PlatformAgentEvent.START_EVENT_DISPATCH,
+            PlatformAgentEvent.STOP_EVENT_DISPATCH,
+
+            PlatformAgentEvent.STOP_MONITORING,
+
+            PlatformAgentEvent.CHECK_SYNC,
+        ]
+
+        res_cmds_command = [
+        ]
+
+        self.assertItemsEqual(agt_cmds, agt_cmds_monitoring)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_pars, res_pars_all)
+
+        # return to COMMAND state:
+        self._stop_resource_monitoring()
+
+
+        ###################
+        # ALL CAPABILITIES
+        ###################
 
         # Get exposed capabilities in all states as read from state COMMAND.
         retval = self._pa_client.get_capabilities(False)
@@ -607,16 +866,26 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._go_inactive()
         self._reset()
 
-    def test_go_active_and_run(self):
+    def test_some_state_transitions(self):
 
-        #log.info("test_go_active_and_run starting.  Default timeout=%s", TIMEOUT)
-        log.info("test_capabilities starting.  Default timeout=%i", CFG.endpoint.receive.timeout)
-        
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._initialize()   # -> INACTIVE
+        self._reset()        # -> UNINITIALIZED
+        self._initialize()   # -> INACTIVE
+        self._go_active()    # -> IDLE
+        self._reset()        # -> UNINITIALIZED
+        self._initialize()   # -> INACTIVE
+        self._go_active()    # -> IDLE
+        self._run()          # -> COMMAND
+        self._pause()        # -> STOPPED
+        self._resume()       # -> COMMAND
 
+        self._reset()        # -> UNINITIALIZED
+
+    def test_some_commands(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
-
-#        self._ping_resource() skipping this here while the timeout issue
-#                              on r2_light and other builds is investigated.
 
         self._initialize()
         self._go_active()
@@ -632,21 +901,78 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._get_resource()
         self._set_resource()
 
-        self._set_up_port()
-        self._turn_on_port()
+        self._go_inactive()
+        self._reset()
 
-        self._start_event_dispatch()
+    def test_resource_monitoring(self):
 
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._start_resource_monitoring()
         self._wait_for_a_data_sample()
-
-        self._stop_event_dispatch()
-
-        self._turn_off_port()
+        self._stop_resource_monitoring()
 
         self._go_inactive()
         self._reset()
 
-# developer conveniences
-#
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_go_active_and_run
-#
+    def test_event_dispatch(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._start_event_dispatch()
+        self._wait_for_an_event()
+        self._stop_event_dispatch()
+
+        self._go_inactive()
+        self._reset()
+
+    def test_connect_disconnect_instrument(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._connect_instrument()
+        self._turn_on_port()
+
+        self._get_connected_instruments()
+
+        self._turn_off_port()
+        self._disconnect_instrument()
+
+        self._go_inactive()
+        self._reset()
+
+    def test_check_sync(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._check_sync()
+
+        self._connect_instrument()
+        self._check_sync()
+
+        self._disconnect_instrument()
+        self._check_sync()
+
+        self._go_inactive()
+        self._reset()
+

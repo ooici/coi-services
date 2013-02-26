@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.oms_values
-@file    ion/agents/platform/oms/simulator/oms_values.py
+@package ion.agents.platform.rsn.simulator.oms_values
+@file    ion/agents/platform/rsn/simulator/oms_values.py
 @author  Carlos Rueda
 @brief   Platform attribute value generators for the OMS simulator.
 """
@@ -184,7 +184,7 @@ if __name__ == "__main__":  # pragma: no cover
         print("\t%2d: %5.2f -> %+4.3f" % (n, t, val))
 
 """
-$ bin/python  ion/agents/platform/oms/simulator/oms_values.py Node1A other_attr -35 0
+$ bin/python  ion/agents/platform/rsn/simulator/oms_values.py Node1A other_attr -35 0
 Generated 7 values in time window [3561992754.4, 3561992789.4]:
 	 0: 3561992755.00 -> +990000.000
 	 1: 3561992760.00 -> +990001.000
@@ -194,7 +194,7 @@ Generated 7 values in time window [3561992754.4, 3561992789.4]:
 	 5: 3561992780.00 -> +990005.000
 	 6: 3561992785.00 -> +990006.000
 
-$ bin/python  ion/agents/platform/oms/simulator/oms_values.py Node1A input_voltage -35 0
+$ bin/python  ion/agents/platform/rsn/simulator/oms_values.py Node1A input_voltage -35 0
 Generated 7 values in time window [3561992757.86, 3561992792.86]:
 	 0: 3561992760.00 -> -0.000
 	 1: 3561992765.00 -> +433.013
