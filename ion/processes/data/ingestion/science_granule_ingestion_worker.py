@@ -14,8 +14,9 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from interface.objects import Granule
 from ion.core.process.transform import TransformStreamListener
 import collections
-
-
+from logging import DEBUG
+from ooi.timer import Timer, Accumulator
+from ooi.logging import TRACE
 
 class ScienceGranuleIngestionWorker(TransformStreamListener):
     CACHE_LIMIT=CFG.get_safe('container.ingestion_cache',5)
@@ -31,6 +32,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._coverages = collections.OrderedDict()
 
         self._bad_coverages = {}
+        self.time_stats = Accumulator()
+
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
         self.event_publisher = EventPublisher('DatasetModified')
@@ -88,87 +91,107 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         return result
 
 
+    def dataset_changed(self, dataset_id, extents, window):
+        self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents, window=window)
+
     @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
         '''
         Actual ingestion mechanism
         '''
-        if msg == {}:
-            log.error('Received empty message from stream: %s', stream_id)
-            return
-        # Message validation
-        if not isinstance(msg, Granule):
-            log.error('Ingestion received a message that is not a granule. %s' % msg)
-            return
-        rdt = RecordDictionaryTool.load_from_granule(msg)
-        if rdt is not None:
-            self.add_granule(stream_id, rdt)
-        else:
-            log.error('Invalid granule')
-
-    def dataset_changed(self, dataset_id, extents, window):
-        self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents, window=window)
-
-    def add_granule(self,stream_id, granule):
-        '''
-        Appends the granule's data to the coverage and persists it.
-        '''
-        if stream_id in self._bad_coverages:
-            log.info('Message attempting to be inserted into bad coverage: %s' % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
-            
-
-        #--------------------------------------------------------------------------------
-        # Coverage determiniation and appending
-        #--------------------------------------------------------------------------------
-        dataset_id = self.get_dataset(stream_id)
-        if not dataset_id:
-            log.error('No dataset could be determined on this stream: %s', stream_id)
-            return
+        debugging = log.isEnabledFor(logging.DEBUG)
+        if debugging:
+            timer = Timer()
         try:
-            coverage = self.get_coverage(stream_id)
-        except IOError as e:
-            log.error("Couldn't open coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
-            log.exception('IOError')
-            raise CorruptionError(e.message)
-        
-        if not coverage:
-            log.error('Could not persist coverage from granule, coverage is None')
-            return
-        #--------------------------------------------------------------------------------
-        # Actual persistence
-        #-------------------------------------------------------------------------------- 
+            # Message validation
+            if not msg:
+                log.error('Received empty message from stream: %s', stream_id)
+                return
+            if not isinstance(msg, Granule):
+                log.error('Ingestion received a message that is not a granule. %s' % msg)
+                return
+            granule = RecordDictionaryTool.load_from_granule(msg)
+            if rdt is None:
+                log.error('Invalid granule')
+                return
+            if stream_id in self._bad_coverages:
+                log.info('Message attempting to be inserted into bad coverage: %s', DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+            if debugging:
+                timer.complete_step('validate')
 
-        rdt = granule
-        elements = len(rdt)
-        if not elements:
-            return
-        try:
-            coverage.insert_timesteps(elements, oob=False)
-        except IOError as e:
-            log.error("Couldn't insert time steps for coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
-            log.exception('IOError')
+            #--------------------------------------------------------------------------------
+            # Coverage determiniation and appending
+            #--------------------------------------------------------------------------------
+            dataset_id = self.get_dataset(stream_id)
+            if not dataset_id:
+                log.error('No dataset could be determined on this stream: %s', stream_id)
+                return
             try:
-                coverage.close()
-            finally:
-                self._bad_coverages[stream_id] = 1
+                coverage = self.get_coverage(stream_id)
+            except IOError as e:
+                log.error("Couldn't open coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+                log.exception('IOError')
                 raise CorruptionError(e.message)
 
-        start_index = coverage.num_timesteps - elements
+            if not coverage:
+                log.error('Could not persist coverage from granule, coverage is None')
+                return
+            if debugging:
+                timer.complete_step('build')
 
-        for k,v in rdt.iteritems():
-            slice_ = slice(start_index, None)
+            #--------------------------------------------------------------------------------
+            # Actual persistence
+            #--------------------------------------------------------------------------------
+
+            elements = len(granule)
+            if not elements:
+                return
             try:
-                coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+                coverage.insert_timesteps(elements, oob=False)
             except IOError as e:
-                log.error("Couldn't insert values for coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
-                log.exception('IOError')
+                log.error("Couldn't insert time steps for coverage: %s", DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)), exc_info=True)
                 try:
                     coverage.close()
                 finally:
                     self._bad_coverages[stream_id] = 1
                     raise CorruptionError(e.message)
-            DatasetManagementService._save_coverage(coverage)
-            #coverage.flush()
-        self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
+            if debugging:
+                timer.complete_step('time')
 
+            start_index = coverage.num_timesteps - elements
+
+            for k,v in granule.iteritems():
+                slice_ = slice(start_index, None)
+                try:
+                    coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+                except IOError as e:
+                    log.error("Couldn't insert values for coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
+                    log.exception('IOError')
+                    try:
+                        coverage.close()
+                    finally:
+                        self._bad_coverages[stream_id] = 1
+                        raise CorruptionError(e.message)
+            if debugging:
+                timer.complete_step('values')
+            # note indentation change -- perform once per granule, not once per key/value
+            DatasetManagementService._save_coverage(coverage)
+            if debugging:
+                timer.complete_step('save')
+
+            self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
+            if debugging:
+                timer.complete_step('event')
+        finally:
+            if debugging:
+                self.time_stats.add(timer)
+                if self.time_stats.get_count() > 100:
+                    log.debug('ingestion stats for %d operations: %.2f min, %.2f avg, %.2f max, %.3f dev',
+                        self.time_stats.get_count(), self.time_stats.get_min(), self.time_stats.get_average(),
+                        self.time_stats.get_max(), self.time_stats.get_standard_deviation())
+                    if log.isEnabledFor(TRACE):
+                        for step in ['validate', 'build', 'time','values','save','event']:
+                            log.debug('ingestion stats for step %s: %.2f min, %.2f avg, %.2f max, %.3f dev',
+                                self.time_stats.get_count(step), self.time_stats.get_min(step), self.time_stats.get_average(step),
+                                self.time_stats.get_max(step), self.time_stats.get_standard_deviation(step))
 
