@@ -1929,7 +1929,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             if device.type_ == 'InstrumentAgent':
                 event_state = ResourceAgentState.STREAMING
             elif device.type_ == 'PlatformAgent':
-                event_state = ResourceAgentState.MONITORING
+                event_state = 'PLATFORM_AGENT_STATE_MONITORING'
 
             # Get events associated with device from the events db
             event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
