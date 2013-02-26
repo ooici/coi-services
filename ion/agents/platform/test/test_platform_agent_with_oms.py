@@ -44,7 +44,7 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.responses import NormalResponse
@@ -68,10 +68,10 @@ from nose.plugins.attrib import attr
 # By default, test against "embedded" simulator. The OMS environment variable
 # can be used to indicate a different RSN OMS server endpoint. Some aliases for
 # the "oms_uri" parameter include "localsimulator" and "simulator".
-# See OmsClientFactory.
+# See CIOMSClientFactory.
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
-    'dvr_cls': 'RsnPlatformDriver',
+    'dvr_cls': 'RSNPlatformDriver',
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
@@ -105,7 +105,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         HelperTestMixin.setUpClass()
 
         # Use the network definition provided by RSN OMS directly.
-        rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
         network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
         if log.isEnabledFor(logging.DEBUG):

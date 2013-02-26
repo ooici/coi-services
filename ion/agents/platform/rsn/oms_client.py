@@ -4,7 +4,7 @@
 @package ion.agents.platform.rsn.oms_client
 @file    ion/agents/platform/rsn/oms_client.py
 @author  Carlos Rueda
-@brief   OmsClient captures the CI-OMS interface.
+@brief   CIOMSClient captures the CI-OMS interface.
          See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
          See module ion.agents.platform.responses.
 
@@ -20,7 +20,7 @@ REQUIRED_INSTRUMENT_ATTRIBUTES = [
 ]
 
 
-class OmsClient(object):
+class CIOMSClient(object):
     """
     This class captures the interface with OMS.
 

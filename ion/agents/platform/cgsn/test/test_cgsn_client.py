@@ -18,7 +18,7 @@ import os
 
 from gevent import sleep
 
-from ion.agents.platform.cgsn.cgsn_client_factory import CgsnClientFactory
+from ion.agents.platform.cgsn.cgsn_client_factory import CGSNClientFactory
 from ion.agents.platform.cgsn.cgsn_state import CgsnState
 from ion.agents.platform.cgsn.defs import DclIds, MessageIds
 
@@ -28,7 +28,7 @@ class Test(IonUnitTestCase):
 
     def setUp(self):
         self._cgsn_state = CgsnState()
-        self._cc = CgsnClientFactory.create_instance()
+        self._cc = CGSNClientFactory.create_instance()
         self._cc.set_listener(self._cgsn_state.listener)
         self._cc.start()
 

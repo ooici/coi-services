@@ -60,7 +60,7 @@ from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 
 
 from interface import objects
@@ -90,7 +90,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AlWnRoFa9JrTdHdGemtad0RyNXdNNVJUblFjUmE1ZUE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AlWnRoFa9JrTdEFoMlRaQkdWc3g1YUExN0ZRSU9odkE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1768,19 +1768,19 @@ Reason: %s
         """
         from ion.agents.platform.rsn.oms_util import RsnOmsUtil
         from ion.agents.platform.util.network_util import NetworkUtil
-        simulator = OmsClientFactory.create_instance()
+        simulator = CIOMSClientFactory.create_instance()
         network_definition = RsnOmsUtil.build_network_definition(simulator)
         network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
         return network_definition_ser
 
     def _HACK_get_device_dict(self, platform_id):
-        """ TODO: remove from preload and the initial object def.  instead query OmsClient from IMS when the platform agent is started
-            TODO: set a property in the agent instance to identify which OmsClient to use (need to support platforms from different Orgs)
+        """ TODO: remove from preload and the initial object def.  instead query CIOMSClient from IMS when the platform agent is started
+            TODO: set a property in the agent instance to identify which CIOMSClient to use (need to support platforms from different Orgs)
 
-            query the simulated OmsClient for information about the platform
+            query the simulated CIOMSClient for information about the platform
         """
 
-        simulator = OmsClientFactory.create_instance()
+        simulator = CIOMSClientFactory.create_instance()
 
         # get network information (from: test_oms_launch2._prepare_platform_ports)
         port_dicts = []

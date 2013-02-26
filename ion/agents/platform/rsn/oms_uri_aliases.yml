@@ -1,5 +1,5 @@
 #
-# URI aliases used by OmsClientFactory
+# URI aliases used by CIOMSClientFactory
 #
 
 # See oms_simulator_server.py to launch simulator as an external process.

@@ -22,15 +22,15 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
-from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.util.network_util import NetworkUtil
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from threading import Thread
 
 
-class OmsSimulatorServer(object):
+class CIOMSSimulatorServer(object):
     """
-    Dispatches an OmsSimulator with a SimpleXMLRPCServer. Normally,
+    Dispatches an CIOMSSimulator with a SimpleXMLRPCServer. Normally,
     this is intended to be run outside of pyon.
     """
 
@@ -44,7 +44,7 @@ class OmsSimulatorServer(object):
                       behavior that doesn't play well with threading.Thread
                       (you'll likely see the thread blocked). By default False.
         """
-        self._sim = OmsSimulator()
+        self._sim = CIOMSSimulator()
         self._server = SimpleXMLRPCServer((host, port), allow_none=True)
         self._server.register_introspection_functions()
         self._server.register_instance(self._sim, allow_dotted_names=True)
@@ -106,7 +106,7 @@ if __name__ == "__main__":  # pragma: no cover
     host = opts.host
     port = int(opts.port)
 
-    oss = OmsSimulatorServer(host, port, thread=True)
+    oss = CIOMSSimulatorServer(host, port, thread=True)
     sim = oss.oms_simulator
 
     ser = NetworkUtil.serialize_network_definition(sim._ndef)

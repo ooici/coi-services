@@ -10,7 +10,7 @@
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-from ion.agents.platform.rsn.oms_client import OmsClient
+from ion.agents.platform.rsn.oms_client import CIOMSClient
 from ion.agents.platform.rsn.oms_client import REQUIRED_INSTRUMENT_ATTRIBUTES
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.util.network import InstrumentNode
@@ -28,9 +28,9 @@ from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
 
-class OmsSimulator(OmsClient):
+class CIOMSSimulator(CIOMSClient):
     """
-    Implementation of OmsClient for testing purposes.
+    Implementation of CIOMSClient for testing purposes.
     """
 
     def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml'):

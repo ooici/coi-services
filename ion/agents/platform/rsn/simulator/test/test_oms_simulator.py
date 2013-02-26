@@ -18,8 +18,8 @@ Logger.set_logger(log)
 
 from pyon.util.unit_test import IonUnitTestCase
 
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
-from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.rsn.test.oms_test_mixin import OmsTestMixin
 
 from nose.plugins.attrib import attr
@@ -36,11 +36,11 @@ class Test(IonUnitTestCase, OmsTestMixin):
     def setUpClass(cls):
         OmsTestMixin.setUpClass()
         OmsTestMixin.start_http_server()
-        cls.oms = OmsClientFactory.create_instance()
+        cls.oms = CIOMSClientFactory.create_instance()
 
     @classmethod
     def tearDownClass(cls):
-        if isinstance(cls.oms, OmsSimulator):
+        if isinstance(cls.oms, CIOMSSimulator):
             cls.oms._deactivate_simulator()
         event_notifications = OmsTestMixin.stop_http_server()
         log.info("event_notifications = %s" % str(event_notifications))
