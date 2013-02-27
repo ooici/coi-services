@@ -1,4 +1,3 @@
-#import sys
 import re
 import os
 import numpy as np
@@ -59,8 +58,6 @@ class Handler(BaseHandler):
                 name, slice_ = var.pop(0)
                 name = urllib.unquote(name)
                 
-                #print >> sys.stderr, "name", name
-
                 if seq_name == name:
                     continue
 
@@ -75,21 +72,31 @@ class Handler(BaseHandler):
                         attrs['units'] = pc.uom
                     except:
                         pass
+                    
                     attrs['long_name'] = pc.long_name
                     data = cov.get_parameter_values(name, tdoa=slice_)
+                    
+                    #fix data for scalars
+                    if isinstance(pc.param_type, ConstantRangeType):
+                        if isinstance(data, tuple):
+                            data = [data]
                     data = np.asanyarray(data) 
+                    if not data.shape:
+                        data.shape = (1,)
+                    
                     if isinstance(pc.param_type, QuantityType):
                         dataset[seq_name][name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
                     if isinstance(pc.param_type, ConstantType):
                         dataset[seq_name][name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
                     if isinstance(pc.param_type, ConstantRangeType):
                         try:
+                            #convert to string
                             result = []
                             for d in data:
                                 f = [str(d[0]),str(d[1])]
                                 result.append('_'.join(f))
                             data = np.asanyarray(result)
-                        except:
+                        except Exception, e:
                             data = np.asanyarray(['None' for d in data])
                         dataset[seq_name][name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
                     if isinstance(pc.param_type,BooleanType):
@@ -100,20 +107,20 @@ class Handler(BaseHandler):
                     if isinstance(pc.param_type,ArrayType):
                         dataset[seq_name][name] = BaseType(name=name, data=data, type=self.get_numpy_type(data), attributes=attrs)
                     if isinstance(pc.param_type,RecordType):
-                        result = []
-                        for ddict in data:
-                            d = ['_'.join([k,v]) for k,v in ddict.iteritems()]
-                            result = result + d
-                        result = np.asanyarray(result)
+                        try:
+                            result = []
+                            for ddict in data:
+                                d = ['_'.join([k,v]) for k,v in ddict.iteritems()]
+                                result = result + d
+                            result = np.asanyarray(result)
+                        except Exception, e:
+                            result = np.asanyarray(['None' for d in data])
                         ttype = self.get_numpy_type(result)
                         dataset[seq_name][name] = BaseType(name=name, data=result, type=ttype, attributes=attrs)
-                        
-
                 except Exception, e:
                     log.exception('Problem reading cov %s %s', cov.name, e)
                     continue
         return constrain(dataset, environ.get('QUERY_STRING', ''))
-
     
     def get_numpy_type(self, data):
         result = data.dtype.char
