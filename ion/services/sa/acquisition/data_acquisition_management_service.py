@@ -80,13 +80,26 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound("Data Process %s does not exist" % data_process_id)
 
         #find the data process definition
+        parameters = []
         data_process_def_objs, _ = self.clients.resource_registry.find_objects(
             subject=data_process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=False)
         if not data_process_def_objs:
-            raise NotFound("Data Process Definition for Data Process %s does not exist" % data_process_id)
+            parameters = set()
+            out_data_product_ids, _ = self.clients.resource_registry.find_objects(
+                    subject=data_process_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct,id_only=True)
+            for dp_id in out_data_product_ids:
+                stream_ids, _ = self.clients.resource_registry.find_objects(subject=dp_id, predicate=PRED.hasStream, id_only=True)
+                for stream_id in stream_ids:
+                    stream_def = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
+                    parameters = parameters.union(stream_def.available_fields)
+            parameters = list(parameters)
+        else:
+            parameters = data_process_def_objs[0].parameters
+
+
 
         #create a DataProcessProducerContext to hold the state of the this producer
-        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=data_process_obj.configuration, parameters=data_process_def_objs[0].parameters)
+        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=data_process_obj.configuration, parameters=parameters)
 
         #create data producer resource and associate to this data_process_id
         data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name,

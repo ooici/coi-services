@@ -15,7 +15,6 @@ from pyon.public import CFG
 from pyon.util.file_sys import FileSystem
 import unittest
 
-
 @attr('UNIT', group='dm')
 class TestPydapCoverageHandlerUnit(IonUnitTestCase):
     
@@ -25,7 +24,7 @@ class TestPydapCoverageHandlerUnit(IonUnitTestCase):
             os.mkdir(test_dir)
         except Exception:
             pass
-        (cov,filename) = _make_coverage(test_dir)
+        (cov,filename) = _make_coverage(test_dir, "unit_cov")
         self.cov = cov
         self._handler = Handler(filename)
         self.nt=5
@@ -47,112 +46,170 @@ class TestPydapCoverageHandlerInt(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        self.host = CFG.get_safe('container.pydap_gateway.web_server.host', 'localhost')
+        self.port = CFG.get_safe('container.pydap_gateway.web_server.port', '8001')
+    
+    def _get_cov(self, name, nt):
         path = CFG.get_safe('server.pydap.data_path', "RESOURCE:ext/pydap")
         ext_path = FileSystem.get_extended_url(path)
-        self.cov,self.filename = _make_coverage(ext_path)
-        self.nt = 5
-        self.cov.insert_timesteps(self.nt) 
-        self.time_data = [i+1 for i in range(self.nt)]
-        self.cov.set_parameter_values("time", value=self.time_data)
-        host = CFG.get_safe('container.pydap_gateway.web_server.host', 'localhost')
-        port = CFG.get_safe('container.pydap_gateway.web_server.port', '8001')
-        self.request_url = "http://"+host+":"+str(port)+os.sep+os.path.basename(self.filename)
+        cov,filename = _make_coverage(ext_path, "the_cov")
+        cov.insert_timesteps(nt) 
+        cov.set_parameter_values("time", value=nt)
+        return cov, filename
     
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_parse_constraints_record(self):
-        input_data = [{'key1':'value1'}, {'key2':'value2'}, {'key3':'value3'}, {'key4':'value4'}, {'key5':'value5'}]
-        test_data = [] 
-        for ddict in input_data:
-            d = ['_'.join([k,v]) for k,v in ddict.iteritems()]
-            test_data = test_data + d
-        self.cov.set_parameter_values('record',value=input_data)
-        dataset = open_url(self.request_url)
-        result = [d for d in dataset['data']['record']]
-        self.assertEqual(test_data, result) 
-
+    def _run_test(self, nt, name, input_data, cov_input, wrap=None):
+        cov,filename = self._get_cov('the_cov', nt)
+        request_url = "http://"+self.host+":"+str(self.port)+os.sep+os.path.basename(filename)
+        cov.set_parameter_values(name, value=cov_input)
+        dataset = open_url(request_url)
+        result = [d for d in dataset['data'][name]]
+        if wrap is not None:
+            input_data = wrap(input_data)
+        cov.close()
+        return (input_data, result) 
+    
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_array_float(self):
-        input_data = np.sin(np.arange(self.nt) * 2 * np.pi /60)
-        self.cov.set_parameter_values('array',value=input_data)
-        dataset = open_url(self.request_url)
-        result = np.asanyarray([d for d in dataset['data']['array']])
-        self.assertTrue(np.array_equal(result, input_data))
-    
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_parse_constraints_array_int(self):
-        input_data = np.arange(self.nt) + 1
-        self.cov.set_parameter_values('array',value=input_data)
-        dataset = open_url(self.request_url)
-        result = np.asanyarray([d for d in dataset['data']['array']])
-        self.assertTrue(np.array_equal(result, input_data))
-    
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
-    def test_parse_constraints_array_string(self):
-        input_data = ["larry", "bob", "sally", "jennifer", "fred"]
-        self.cov.set_parameter_values('array',value=input_data)
-        dataset = open_url(self.request_url)
-        result = [d for d in dataset['data']['array']]
-        self.assertEqual(result, input_data)
+        #test scalar
+        nt = 1
+        input_data = np.sin(np.arange(nt) * 2 * np.pi /60)
+        (input_data, result) = self._run_test(nt, 'array', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
+        #test array
+        nt = 5
+        input_data = np.sin(np.arange(nt) * 2 * np.pi /60)
+        (input_data, result) = self._run_test(nt, 'array', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
     
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_quantity(self):
-        input_data = np.arange(self.nt)
-        self.cov.set_parameter_values('quantity', value=input_data)
-        dataset = open_url(self.request_url)
-        result = np.asanyarray([d for d in dataset['data']['quantity']])
-        self.assertTrue(np.array_equal(result, input_data))
+        #test scalar
+        nt = 1
+        input_data = np.arange(nt)
+        (input_data, result) = self._run_test(nt, 'quantity', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
+        #test array
+        nt = 5
+        input_data = np.arange(nt)
+        (input_data, result) = self._run_test(nt, 'quantity', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
+    
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_parse_constraints_array_int(self):
+        #test scalar
+        nt = 1
+        input_data = np.arange(nt) + 1
+        (input_data, result) = self._run_test(nt, 'array', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
+        #test array
+        nt = 5
+        input_data = np.arange(nt) + 1
+        (input_data, result) = self._run_test(nt, 'array', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
+    
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_parse_constraints_array_string(self):
+        #test scalar
+        nt = 1
+        input_data = ["larry"]
+        (input_data, result) = self._run_test(nt, 'array', input_data, input_data)
+        self.assertEqual(input_data, result)
+        #test array
+        nt = 5
+        input_data = ["larry", "bob", "sally", "jennifer", "fred"]
+        (input_data, result) = self._run_test(nt, 'array', input_data, input_data)
+        self.assertEqual(input_data, result)
     
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_constant(self):
-        test_data = [30] * self.nt
-        self.cov.set_parameter_values('constant', value=test_data)
-        dataset = open_url(self.request_url)
-        result = np.asanyarray([d for d in dataset['data']['constant']])
-        self.assertTrue(np.array_equal(result, test_data))
+        #test scalar
+        nt = 1
+        input_data = [30] * nt
+        (input_data, result) = self._run_test(nt, 'constant', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
+        #test array
+        nt = 5
+        input_data = [30] * nt
+        (input_data, result) = self._run_test(nt, 'constant', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
     
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_boolean(self):
-        test_data = np.asanyarray([True,False,True,True,False])
-        self.cov.set_parameter_values('boolean',value=test_data)
-        dataset = open_url(self.request_url)
-        result = []
-        result = np.asanyarray([d for d in dataset['data']['boolean']])
-        self.assertTrue(np.array_equal(result, test_data))
+        #test scalar
+        nt = 1
+        input_data = [True]
+        (input_data, result) = self._run_test(nt, 'boolean', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
+        #test array
+        nt = 5
+        input_data = [True,False,True,True,False]
+        (input_data, result) = self._run_test(nt, 'boolean', input_data, input_data)
+        self.assertTrue(np.array_equal(np.asanyarray(input_data), np.asanyarray(result)))
     
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_category(self):
-        test_data = ["apple","lemon","apple","banana", "lemon"]
-        self.cov.set_parameter_values('category',value=test_data)
-        dataset = open_url(self.request_url)
-        result = [d for d in dataset['data']['category']]
-        self.assertEqual(result, test_data)
+        #test scalar
+        nt = 1
+        input_data = ["apple"]
+        (input_data, result) = self._run_test(nt, 'category', input_data, input_data)
+        self.assertTrue(input_data, result)
+        
+        nt = 5
+        input_data = ["apple","lemon","apple","banana", "lemon"]
+        (input_data, result) = self._run_test(nt, 'category', input_data, input_data)
+        self.assertTrue(input_data, result)
+    
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_parse_constraints_record(self):
+        def wrap(input_data):
+            result = [] 
+            for keyval in input_data:
+                d = ['_'.join([k,v]) for k,v in keyval.iteritems()]
+                result = result + d
+            return result
+        #test scalar
+        nt = 1
+        input_data = [{'key1':'value1'}]
+        (input_data, result) = self._run_test(nt, 'record', input_data, input_data, wrap)
+        self.assertEqual(input_data, result)
+        #test array
+        nt = 5
+        input_data = [{'key1':'value1'}, {'key2':'value2'}, {'key3':'value3'}, {'key4':'value4'}, {'key5':'value5'}]
+        (input_data, result) = self._run_test(nt, 'record', input_data, input_data, wrap)
+        self.assertEqual(input_data, result)
     
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_parse_constraints_range(self):
-        range_ele = (45.0,60.0)
-        self.cov.set_parameter_values('range',value=range_ele)
-        dataset = open_url(self.request_url)
-        input_data = [range_ele] * self.nt
-        test_data = []
-        for d in input_data:
-            f = [str(d[0]),str(d[1])]
-            test_data.append('_'.join(f))
-        result = [d for d in dataset['data']['range']]
-        self.assertEqual(result, test_data)
-
-    def tearDown(self):
-        self.cov.close()
-
-def _make_coverage(path):
+        def wrap(input_data):
+            result = []
+            for d in input_data:
+                f = [str(d[0]),str(d[1])]
+                result.append('_'.join(f))
+            return result
+        range_ele = (45.0, 60.0)
+        #test scalar
+        nt = 1
+        input_data = [range_ele] * nt
+        cov_input = range_ele
+        (input_data, result) = self._run_test(nt, 'range', input_data, cov_input, wrap)
+        self.assertEqual(input_data, result)
+        #test array
+        nt = 5
+        input_data = [range_ele] * nt
+        cov_input = range_ele
+        (input_data, result) = self._run_test(nt, 'range', input_data, cov_input, wrap)
+        self.assertEqual(input_data, result)
+    
+def _make_coverage(path, name):
     tcrs = CRS([AxisTypeEnum.TIME])
     scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT, AxisTypeEnum.HEIGHT])
 
@@ -216,7 +273,7 @@ def _make_coverage(path):
     
     guid = create_guid()
     guid = guid.replace("-", "")
-    cov = SimplexCoverage(path, guid, name="sample_cov", parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+    cov = SimplexCoverage(path, guid, name=name, parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
     
     return (cov,path+os.sep+guid)
 

@@ -10,7 +10,7 @@ from gevent.wsgi import WSGIServer
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict
-from pyon.core.governance.governance_controller import DEFAULT_ACTOR_ID
+from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.event.event import EventSubscriber
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
@@ -448,7 +448,7 @@ def build_message_headers( ion_actor_id, expiry):
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         org_roles = org_client.find_all_roles_by_user(ion_actor_id, headers={"ion-actor-id": service_gateway_instance.name, 'expiry': DEFAULT_EXPIRY })
 
-        role_header = service_gateway_instance.container.governance_controller.get_role_message_headers(org_roles)
+        role_header = get_role_message_headers(org_roles)
 
         #Cache the roles by user id
         service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
@@ -546,7 +546,7 @@ def convert_unicode(data):
 def list_org_roles(actor_id):
 
     try:
-        ret = service_gateway_instance.container.governance_controller.find_roles_by_actor(convert_unicode(actor_id))
+        ret = find_roles_by_actor(convert_unicode(actor_id))
         return gateway_json_response(ret)
 
     except Exception, e:
