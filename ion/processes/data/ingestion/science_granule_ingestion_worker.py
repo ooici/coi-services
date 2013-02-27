@@ -117,7 +117,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 log.error('Ingestion received a message that is not a granule. %s' % msg)
                 return
             granule = RecordDictionaryTool.load_from_granule(msg)
-            if rdt is None:
+            if granule is None:
                 log.error('Invalid granule')
                 return
             if stream_id in self._bad_coverages:
