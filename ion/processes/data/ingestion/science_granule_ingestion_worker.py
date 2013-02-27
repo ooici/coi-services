@@ -14,8 +14,8 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from interface.objects import Granule
 from ion.core.process.transform import TransformStreamListener
 import collections
-
-
+import gevent
+import time
 
 class ScienceGranuleIngestionWorker(TransformStreamListener):
     CACHE_LIMIT=CFG.get_safe('container.ingestion_cache',5)
@@ -87,6 +87,32 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._coverages[stream_id] = result
         return result
 
+    def dead_man_timeout(self, stream_id, callback, *args, **kwargs):
+        done = False
+        timeout = 2
+        start = time.time()
+        while not done:
+            try:
+                callback(*args, **kwargs)
+                done = True
+            except:
+                log.exception('An issue with coverage, retrying after a bit')
+                if (time.time() - start) > 3600: # After an hour just give up
+                    dataset_id = self.get_dataset(stream_id)
+                    log.error("We're giving up, the coverage needs to be inspected %s", DatasetManagementService._get_coverage_path(dataset_id))
+                    raise
+                
+                if stream_id in self._coverages:
+                    log.info('Popping coverage for stream %s', stream_id)
+                    self._coverages.pop(stream_id)
+
+                gevent.sleep(timeout)
+                if timeout > (60 * 5):
+                    timeout = 60 * 5
+                else:
+                    timeout *= 2
+
+
 
     @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
@@ -102,7 +128,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             return
         rdt = RecordDictionaryTool.load_from_granule(msg)
         if rdt is not None:
-            self.add_granule(stream_id, rdt)
+            self.dead_man_timeout(stream_id, self.add_granule,stream_id,rdt)
         else:
             log.error('Invalid granule')
 
@@ -128,7 +154,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             coverage = self.get_coverage(stream_id)
         except IOError as e:
             log.error("Couldn't open coverage: %s" % DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
-            log.exception('IOError')
             raise CorruptionError(e.message)
         
         if not coverage:
