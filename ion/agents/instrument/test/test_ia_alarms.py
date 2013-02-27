@@ -72,6 +72,7 @@ from interface.objects import StreamAlarmType
 """
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_ia_alarms.py:TestIAAlarms
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_ia_alarms.py:TestIAAlarms.test_config
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_ia_alarms.py:TestIAAlarms.test_autosample
 """
 
 ###############################################################################
@@ -440,3 +441,56 @@ class TestIAAlarms(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        
+        
+    def test_autosample(self):
+        """
+        test_autosample
+        Test instrument driver execute interface to start and stop streaming
+        mode. Verify ResourceAgentResourceStateEvents are publsihed.
+        """
+        
+        # Start data subscribers.
+        #self._start_data_subscribers(6)
+        #self.addCleanup(self._stop_data_subscribers)    
+        
+        # Set up a subscriber to collect error events.
+        #self._start_event_subscriber('ResourceAgentResourceStateEvent', 7)
+        #self.addCleanup(self._stop_event_subscriber)            
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        gevent.sleep(15)
+        
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+ 
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        #self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        #self.assertGreaterEqual(len(self._events_received), 6)
+
+        #self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        #self.assertGreaterEqual(len(self._samples_received), 6)
