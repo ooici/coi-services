@@ -24,7 +24,7 @@ from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, GovernanceHeaderValues
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 
@@ -260,6 +260,7 @@ class PlatformAgent(ResourceAgent):
     # Governance interfaces
     ##############################################################
 
+    #TODO - When/If the Instrument and Platform agents are dervied from a common device agent class, then relocate to the parent class and share
     def check_resource_operation_policy(self, msg,  headers):
         '''
         This function is used for governance validation for certain agent operations.
@@ -273,13 +274,13 @@ class PlatformAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
             return True, ''
 
-        if not self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
-        com = self.container.governance_controller.get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
+        com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
         if com is None:
             return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
 
