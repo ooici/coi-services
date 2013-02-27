@@ -1,6 +1,150 @@
-platform agent framework
+Platform Agent Framework
 
-some noteworthy notes (occasionaly updated)
+
+2013-02-26
+- Class renamings per comments on the recent PR (PEP8 conventions):
+  CgsnClient -> CGSNClient
+  CgsnClientFactory -> CGSNClientFactory
+  OmsClient -> CIOMSClient
+  OmsClientFactory -> CIOMSClientFactory
+  OmsSimulator -> CIOMSSimulator
+  RsnPlatformDriver -> RSNPlatformDriver
+
+2013-02-20
+- renamings:
+  ion.agents.platform.oms -> ion.agents.platform.rsn
+  ion.agents.platform.rsn.oms_platform_driver -> ion.agents.platform.rsn.rsn_platform_driver
+  OmsPlatformDriver -> RsnPlatformDriver
+
+2013-02-19
+- Initial definitions and preliminary tests for CGSN.
+  See cgsn/notes.txt
+
+2013-02-15:
+- more progress on checksum implementation, but still incomplete.
+  Note: instead of using the checksum property on the platform network nodes,
+  compute_checksum is called. This seems appropriate in general as the
+  computation is apparently not very costly on the memory representation
+  provided by the BaseNode classes. In particular, the simulator also relies on
+  such representation. However, a real RSN OMS implementation should probably
+  use some caching mechanism along with appropriate invalidation upon
+  changes to the platform network information.
+- For purposes of keeping up-to-date the "local image" of the platform network
+  state at the platform agent/driver level --such that successful checksum verification
+  is maintained (see test_check_sync in test_platform_agent_with_oms.py)--
+  the following operations were adjusted: CONNECT_INSTRUMENT and DISCONNECT_INSTRUMENT.
+  TODO NOTE: several other operations still to be adjusted.
+- Since they can be used in general, moved NormalResponse and InvalidResponse
+  from oms_client to new module ion.agents.platform.responses
+- Renamings in network definition classes for more consistent use of "node"
+  concept.
+- OmsSimulator now uses NetworkUtil to parse the simulated network definition.
+
+
+2013-02-14:
+- moved utility method from platform driver to network_util
+- moved utility methods from NNode to class NetworkUtil
+
+2013-02-12:
+- As R2.1 is not yet to come, renamed branch "platform_agent_2.1" to
+  "platform_agent_R2C4"
+- Removed unneeded local and remote branches CIDEVSA-450_resource_monitor_refactoring,
+  CIDEVSA-455_platform_state_model, fix_OOIION-631_use_system_time,
+  fix_OOIION-674_set_resource_type_to_PlatformDevice, plat_coverage,
+  platform_agent_2.1
+- some additional code clean-up
+- Simplified PortDef: a direct 'network' property. (comms and attrs removed.)
+- Added sketch for command CHECK_SYNC (tentative name), currently with preliminary
+  compute_checksum operation and comparison between external and local checksums.
+
+2013-02-10:
+- cancelled PR: https://github.com/ooici/coi-services/pull/514
+  Will continue working on new branch "platform_agent_2.1" in my fork so we can
+  eventually only perform a single big merge in the mainline if convenient.
+
+2013-02-10:
+- re-enable ability to test against simulator running externally.
+- test/helper.py: Environ variable PLAT_NETWORK optionally used to faciliate
+  use of smaller network (by default network rooted at Node1A as before):
+    PLAT_NETWORK=small  -> rooted at Node1D
+    PLAT_NETWORK=single -> rooted at LJ01D  (no children)
+- Incorporate platform driver FSM - so CIDEVSA-455 pretty much completed.
+- Running all the platform tests with coverage as follows:
+  PLAT_NETWORK=small bin/nosetests -v --with-coverage --cover-package=ion.agents.platform \
+        ion/agents/platform ion/services/sa/observatory/test/test_oms_launch2.py
+
+2013-02-07:
+- Removed redundant operations from CI-OMS interface: get_root_platform_id and
+  get_subplatform_ids (get_platform_map is enough), and adjusted some others
+  for better consistency. Fixed recently introduces bug in PlatformAgent of
+  assigning the network definition's root to _nnode instead of the particular
+  node corresponding to the given platform_id. Other adjustments for consistency.
+  More verifications regarding platform network map and corresp unit tests.
+
+2013-02-06:
+- systematic renaming in RSN-OMS interface operations to follow general CI
+  coding guidelines: use underscore.
+- set_up_platform_port removed (formerly named setUpPort).
+- Instruments:
+  Added InstrumentDef class in network.py. A PortDef includes the nominal
+  list of "connectable" instruments (TODO: this may not be needed). The
+  actual "connected" instruments are operated via the new commands
+  CONNECT_INSTRUMENT, DISCONNECT_INSTRUMENT and GET_CONNECTED_INSTRUMENTS.
+  These have been added to PlatformAgent, including corresponding support
+  in driver and simulator (where the connected instruments per-port
+  are maintained in a simple set).
+
+2013-02-03:
+- more consistent handling of provided platform configuration (in particular,
+  this config is preserved in RESET so an INITIALIZE command can be issued
+  again).
+- more comprehensive tests for platform state transitions.
+- more organized test_platform_agent_with_oms including verification of
+  external event reception.
+
+2013-02-02:
+  A lot of clean-up related with platform configuration being provided as
+  opposed to being retrieved from the external system by the platform
+  agent/driver itself. Now a NetworkDefinition object is used as a basis
+  for the all the integration tests including test_platform_agent_with_oms and
+  test_oms_launch2.
+  (No more _topology and _agent_device_map in PlatformDriver/PlatformAgent)
+
+  At the level of the driver, there is now a set_nnode in PlatformDriver to
+  set the NNode for the driver. This is the only basis for anything related
+  with the static configuration of the platform network rooted at the
+  corresponding platform.
+
+  TODO: all regular operations needing static information should only use the
+  provided NNode. There will be explicit operations related with checking the
+  validity of this configuration against the external system, for example,
+  get_checksum(platform_id).
+
+  NOTE: NetworkDefinition and associated types (NNode, AttrDef, PortDef) are
+  model objects for the platform agent framework that were mainly
+  introduced (long ago, except for NetworkDefinition) while appropriate
+  mechanisms (presumably based on ion object definitions) were defined.
+  However, it is possible that this representation can interplay with others
+  as needed.
+
+  Renamings: Attr -> AttrDef; Port -> PortDef. Removed value property from
+  AttrDef (NetworkDefinition is only about the static structure of the network,
+  not dynamic information).
+
+2013-02-01:
+- CIDEVSA-455 Align platform agent state model with instrument agent / resource agent state model
+  - introduced MONITORING state, entered upon explicit START_MONITORING command
+    (not anymore as part of the RUN command).
+  - introduced STOPPED state
+
+2013-01-28:
+- CIDEVSA-450: Refactor: move resource monitor greenlet functionality to platform agent level
+  - put functionality at platform agent level with new supporting modules:
+    - platform_resource_monitor.py
+    - resource_monitor.py
+  - remove functionality from platform_driver and oms_platform_driver:
+    - start_resource_monitoring and stop_resource_monitoring
+    - associated oms_resource_monitor.py
 
 2013-01-15:
 - code clean-up to improve code coverage: from 79% to 86% when running the

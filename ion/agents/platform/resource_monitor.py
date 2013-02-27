@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.oms_resource_monitor
-@file    ion/agents/platform/oms/oms_resource_monitor.py
+@package ion.agents.platform.resource_monitor
+@file    ion/agents/platform/resource_monitor.py
 @author  Carlos Rueda
 @brief   Platform resource monitoring
 """
@@ -24,31 +24,37 @@ from gevent import Greenlet, sleep
 _DELTA_TIME = 0.0001
 
 
-class OmsResourceMonitor(object):
+class ResourceMonitor(object):
     """
-    Monitor for a specific attribute in a given platform.
+    Monitor for specific attributes in a given platform.
+    Currently it only supports a single attribute.
+    @todo expand to support multiple attributes that can be monitored using the
+          same (or almost same) polling rate.
     """
 
-    def __init__(self, oms, platform_id, attr_id, attr_defn, notify_driver_event):
+    def __init__(self, platform_id, attr_id, attr_defn,
+                 get_attribute_values, notify_driver_event):
         """
         Creates a monitor for a specific attribute in a given platform.
         Call start to start the monitoring greenlet.
 
-        @param oms The CI-OMS object
         @param platform_id Platform ID
         @param attr_id Attribute name
-        @param attr_defn Corresp. attribute definition
+        @param attr_defn Corresponding attribute definition
+        @param get_attribute_values Function to retrieve attribute
+                 values for the specific platform, called like this:
+                 get_attribute_values([self._attr_id], from_time)
         @param notify_driver_event Callback to notify whenever a value is
                 retrieved.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: OmsResourceMonitor entered. attr_defn=%s",
+            log.debug("CIDEVSA-450 %r: ResourceMonitor entered. attr_defn=%s",
                       platform_id, attr_defn)
 
         assert platform_id, "must give a valid platform ID"
         assert 'monitorCycleSeconds' in attr_defn, "must include monitorCycleSeconds"
 
-        self._oms = oms
+        self._get_attribute_values = get_attribute_values
         self._platform_id = platform_id
         self._attr_defn = attr_defn
         self._notify_driver_event = notify_driver_event
@@ -62,7 +68,7 @@ class OmsResourceMonitor(object):
         self._active = False
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: OmsResourceMonitor created. attr_defn=%s",
+            log.debug("CIDEVSA-450 %r: ResourceMonitor created. attr_defn=%s",
                       self._platform_id, attr_defn)
 
     def __str__(self):
@@ -75,7 +81,7 @@ class OmsResourceMonitor(object):
         Starts greenlet for resource monitoring.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: starting resource monitoring %s", self._platform_id, str(self))
+            log.debug("CIDEVSA-450 %r: starting resource monitoring %s", self._platform_id, str(self))
         self._active = True
         runnable = Greenlet(self._run)
         runnable.start()
@@ -90,32 +96,27 @@ class OmsResourceMonitor(object):
                 self._retrieve_attribute_value()
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: attr_id=%r: greenlet stopped.", self._platform_id, self._attr_id)
+            log.debug("CIDEVSA-450 %r: attr_id=%r: greenlet stopped.", self._platform_id, self._attr_id)
 
     def _retrieve_attribute_value(self):
         """
-        Retrieves the attribute value from the OMS.
+        Retrieves the attribute value using the given function and calls
+        _values_retrieved with retrieved values.
         """
         attrNames = [self._attr_id]
         from_time = (self._last_ts + _DELTA_TIME) if self._last_ts else 0.0
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: retrieving attribute %r from_time %f",
+            log.debug("CIDEVSA-450 %r: retrieving attribute %r from_time %f",
                       self._platform_id, self._attr_id, from_time)
 
-        retval = self._oms.getPlatformAttributeValues(self._platform_id, attrNames, from_time)
+        retrieved_vals = self._get_attribute_values(attrNames, from_time)
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: getPlatformAttributeValues returned %s", self._platform_id, retval)
-
-        if not self._platform_id in retval:
-            log.warn("%r: unexpected: response does not include data for me.", self._platform_id)
-            return
-
-        retrieved_vals = retval[self._platform_id]
+            log.debug("CIDEVSA-450 %r: _get_attribute_values returned %s", self._platform_id, retrieved_vals)
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: retrieved attribute %r values from_time %f = %s",
+            log.debug("CIDEVSA-450 %r: retrieved attribute %r values from_time %f = %s",
                       self._platform_id, self._attr_id, from_time, str(retrieved_vals))
 
         if self._attr_id in retrieved_vals:
@@ -124,15 +125,15 @@ class OmsResourceMonitor(object):
                 self._values_retrieved(values)
 
             elif log.isEnabledFor(logging.DEBUG):
-                log.debug("%r: No values reported for attribute=%r from_time=%f",
+                log.debug("CIDEVSA-450 %r: No values reported for attribute=%r from_time=%f",
                     self._platform_id, self._attr_id, from_time)
         else:
-            log.warn("%r: unexpected: response does not include requested attribute %r",
+            log.warn("CIDEVSA-450 %r: unexpected: response does not include requested attribute %r",
                 self._platform_id, self._attr_id)
 
     def _values_retrieved(self, values):
         """
-        A values response has been received from OMS. Create and notify
+        A values response has been received. Create and notify
         corresponding event to platform agent.
         """
         if log.isEnabledFor(logging.DEBUG):
@@ -148,12 +149,12 @@ class OmsResourceMonitor(object):
                 arrstr += ", ".join(vals)
                 arrstr += ", ..., " +str(last_e)
             arrstr += "]"
-            log.debug("%r: attr=%r: values retrieved(%s) = %s",
+            log.debug("CIDEVSA-450 %r: attr=%r: values retrieved(%s) = %s",
                 self._platform_id, self._attr_id, ln, arrstr)
 
         # update _last_ts based on last element in values:
         _, ts = values[-1]
-        self._last_ts = ts
+        self._last_ts = float(ts)
 
         driver_event = AttributeValueDriverEvent(self._platform_id,
                                               self._attr_id, values)
@@ -161,5 +162,5 @@ class OmsResourceMonitor(object):
 
     def stop(self):
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: stopping resource monitoring %s", self._platform_id, str(self))
+            log.debug("CIDEVSA-450 %r: stopping resource monitoring %s", self._platform_id, str(self))
         self._active = False
