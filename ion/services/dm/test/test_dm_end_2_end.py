@@ -652,6 +652,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         
 
+    @unittest.skip('Outdated due to ingestion retry')
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     def test_ingestion_failover(self):
