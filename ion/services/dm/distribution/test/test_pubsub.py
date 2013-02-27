@@ -83,7 +83,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
         self.assertTrue(self.pubsub_management.compatible_stream_definitions(in_stream_definition_id, out_stream_definition_id))
 
-    def test_validate_transform(self):
+    def test_validate_stream_defs(self):
         
         #test no input 
         incoming_pdict_id = self._get_pdict(['time', 'lat', 'lon', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0'])
@@ -92,7 +92,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = []
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_0', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_0', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
     
         #test input with no output
@@ -102,7 +102,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = []
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_1', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_1', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
         #test available field missing parameter context definition -- missing PRESWAT_L0
@@ -112,7 +112,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['DENSITY']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_2', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_2', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
 
         #test l1 from l0
@@ -122,7 +122,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_3', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_3', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
 
         #test l2 from l0
@@ -132,7 +132,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_4', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_4', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
         #test Ln from L0
@@ -142,7 +142,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['DENSITY', 'PRACSAL', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_5', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_5', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
         #test L2 from L1
@@ -152,7 +152,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_6', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_6', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
         #test L1 from L0 missing L0
@@ -162,7 +162,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_7', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_7', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
         
         #test L2 from L0 missing L0
@@ -172,7 +172,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_8', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_8', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
         
         #test L2 from L0 missing L1
@@ -182,7 +182,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_9', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_9', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
-        result = self.pubsub_management.validate_transform(incoming_stream_def_id, outgoing_stream_def_id)
+        result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
 
     def publish_on_stream(self, stream_id, msg):
