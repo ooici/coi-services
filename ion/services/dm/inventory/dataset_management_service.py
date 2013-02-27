@@ -43,7 +43,6 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description=''):
-
         validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
         validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
@@ -70,6 +69,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         if stream_id:
             self.add_stream(dataset_id,stream_id)
 
+        log.debug('creating dataset: %s', dataset_id)
 
         cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
         self._save_coverage(cov)
