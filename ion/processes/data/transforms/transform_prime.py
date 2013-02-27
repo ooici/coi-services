@@ -70,6 +70,10 @@ class TransformPrime(TransformDataProcess):
         merged_pdict = dict([(k,v) for k,v in incoming_pdict.iteritems()] + [(k,v) for k,v in outgoing_pdict.iteritems()])
         rdt_in = RecordDictionaryTool.load_from_granule(msg)
         rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
+        
+        #store computed values so we do not have to process them again
+        store = {}
+        
         #modify the shape of the rdt out since we are using _rd then _shp will never get set
         rdt_out._shp = rdt_in._shp
         if rdt_out._available_fields is None: rdt_out._available_fields = []
@@ -87,16 +91,22 @@ class TransformPrime(TransformDataProcess):
                     if name in rdt_in._available_fields:
                         result = rdt_in[name]
                     else:
-                        #not first level data so continue to evaluate
-                        n,pc = merged_pdict[name]
-                        pv = get_value_class(pc.param_type, rdt_in.domain)
-                        pv._pval_callback = pval_callback
-                        result = pv[:]
+                        #is it cached if it is then skip recursive evaluation
+                        try:
+                            result = store[name]
+                        except KeyError:
+                            #not first level data so continue to evaluate
+                            n,pc = merged_pdict[name]
+                            pv = get_value_class(pc.param_type, rdt_in.domain)
+                            pv._pval_callback = pval_callback
+                            result = pv[:]
+                            store[name] = result
                     return result
                 #set the evaluation callback so it can find values in the input stream
                 pv._pval_callback = pval_callback
                 if key in rdt_out._available_fields:
                     #rdt to and from granule wraps result in a paramval so no need
+                    #expected to use RDT to and load granule around this method
                     #paramval = rdt_out.get_paramval(pc.param_type, rdt_in.domain, pv[:])
                     #paramval._pval_callback = pval_callback
                     #rdt_out._rd[key] = paramval
