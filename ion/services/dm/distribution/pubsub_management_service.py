@@ -91,7 +91,7 @@ class PubsubManagementService(BasePubsubManagementService):
         def2 = self.read_stream_definition(out_stream_definition_id)
         return self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
         
-    def validate_transform(self, in_stream_definition_id, out_stream_definition_id):
+    def validate_stream_defs(self, in_stream_definition_id, out_stream_definition_id):
         stream_def_in = self.read_stream_definition(in_stream_definition_id)
         stream_def_out = self.read_stream_definition(out_stream_definition_id)
         
