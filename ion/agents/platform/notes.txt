@@ -1,6 +1,15 @@
 Platform Agent Framework
 
 
+2013-02-26
+- Class renamings per comments on the recent PR (PEP8 conventions):
+  CgsnClient -> CGSNClient
+  CgsnClientFactory -> CGSNClientFactory
+  OmsClient -> CIOMSClient
+  OmsClientFactory -> CIOMSClientFactory
+  OmsSimulator -> CIOMSSimulator
+  RsnPlatformDriver -> RSNPlatformDriver
+
 2013-02-20
 - renamings:
   ion.agents.platform.oms -> ion.agents.platform.rsn

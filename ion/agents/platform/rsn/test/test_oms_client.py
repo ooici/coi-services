@@ -4,7 +4,7 @@
 @package ion.agents.platform.rsn.test.test_oms_simple
 @file    ion/agents/platform/rsn/test/test_oms_simple.py
 @author  Carlos Rueda
-@brief   Test cases for OmsClient.
+@brief   Test cases for CIOMSClient.
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,7 +16,7 @@ Logger.set_logger(log)
 
 from pyon.util.int_test import IonIntegrationTestCase
 
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.test.oms_test_mixin import OmsTestMixin
 
 from nose.plugins.attrib import attr
@@ -28,7 +28,7 @@ class Test(IonIntegrationTestCase, OmsTestMixin):
     @classmethod
     def setUpClass(cls):
         OmsTestMixin.setUpClass()
-        cls.oms = OmsClientFactory.create_instance()
+        cls.oms = CIOMSClientFactory.create_instance()
         OmsTestMixin.start_http_server()
 
     @classmethod

@@ -10,8 +10,9 @@
 
 from nose.plugins.attrib import attr
 from mock import patch, Mock, call, sentinel, MagicMock
-from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
 from pyon.core.exception import NotFound
+from pyon.ion.stream import StandaloneStreamPublisher
 import unittest
 
 from ion.agents.instrument.exceptions import InstrumentParameterException,\
@@ -33,11 +34,9 @@ import msgpack
 
 
 @attr('UNIT', group='eoi')
-class TestBaseDataHandlerUnit(IonIntegrationTestCase):
+class TestBaseDataHandlerUnit(PyonTestCase):
 
     def setUp(self):
-        self._start_container()
-        self.container.start_rel_from_url('res/deploy/examples/r2deploy.yml')
 
         dh_config = {'external_dataset_res_id': 'external_ds'}
         self._bdh = BaseDataHandler(dh_config=dh_config)
@@ -50,9 +49,8 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
         self._bdh._event_callback = Mock()
         self._bdh._dh_event(type='test_type', value='test_value')
 
-    #@patch(BaseDataHandler, 'execute_acquire_sample')
     @patch('ion.agents.data.handlers.base_data_handler.time')
-    def test__poll(self, time_mock): #, execute_acquire_sample_mock):
+    def test__poll(self, time_mock):
         stream_route = Mock(spec=StreamRoute)
         dh_config = {
             'external_dataset_res_id': 'external_ds',
@@ -63,7 +61,7 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
         bdh = BaseDataHandler(dh_config)
         execute_acquire_sample_mock = MagicMock()
         bdh.execute_acquire_sample = execute_acquire_sample_mock
-        #bdh.initialize()
+
         bdh._params = {'POLLING_INTERVAL': 1}
         glet = spawn(bdh._poll)
 
@@ -477,23 +475,31 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
         with self.assertRaises(ConfigurationError):
             self._bdh.execute_acquire_sample('not_found')
 
+    @patch('ion.agents.data.handlers.base_data_handler.StandaloneStreamPublisher', spec=StandaloneStreamPublisher)
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
-    def test_execute_acquire_sample_with_stream_id_not_new(self, mock):
+    def test_execute_acquire_sample_with_stream_id_not_new(self, mock, StreamPublisher_mock):
         self._bdh._semaphore = Mock()
         self._bdh._glet_queue = Mock()
         stream_route = Mock(spec=StreamRoute)
         stream_route.exchange_point = sentinel.exchange_point
         stream_route.routing_key = sentinel.routing_key
+
+        StreamPublisher_mock.return_value = MagicMock(spec=StandaloneStreamPublisher)
+
         self._bdh.execute_acquire_sample({'stream_id': 'test_stream_id',
                                           'constraints': 'test_constraints',
                                           'stream_route': stream_route})
 
-    def test_execute_acquire_sample_with_stream_id_new_already_acquiring(self):
+    @patch('ion.agents.data.handlers.base_data_handler.StandaloneStreamPublisher', spec=StandaloneStreamPublisher)
+    def test_execute_acquire_sample_with_stream_id_new_already_acquiring(self, StreamPublisher_mock):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = False
         stream_route = Mock(spec=StreamRoute)
         stream_route.exchange_point = sentinel.exchange_point
         stream_route.routing_key = sentinel.routing_key
+
+        StreamPublisher_mock.return_value = MagicMock(spec=StandaloneStreamPublisher)
+
         self._bdh.execute_acquire_sample({'stream_id': 'test_stream_id',
                                           'stream_route': stream_route})
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
@@ -598,8 +604,9 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
             include_content=False,
             id_only=False)
 
+    @patch('ion.agents.data.handlers.base_data_handler.StandaloneStreamPublisher', spec=StandaloneStreamPublisher)
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
-    def test_execute_acquire_sample_with_stream_id_new_not_already_acquiring(self, mock):
+    def test_execute_acquire_sample_with_stream_id_new_not_already_acquiring(self, mock, StreamPublisher_mock):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = True
         self._bdh._glet_queue = Mock()
@@ -613,20 +620,26 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
         stream_route = Mock(spec=StreamRoute)
         stream_route.exchange_point = sentinel.exchange_point
         stream_route.routing_key = sentinel.routing_key
+
+        StreamPublisher_mock = MagicMock(spec=StandaloneStreamPublisher)
+
         self._bdh.execute_acquire_sample({'stream_id': 'test_stream_id',
                                           'stream_route': stream_route})
 
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
         self._bdh._find_new_data_check_attachment.assert_called_once()
 
+    @patch('ion.agents.data.handlers.base_data_handler.StandaloneStreamPublisher', spec=StandaloneStreamPublisher)
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
-    def test_execute_acquire_sample_with_stream_id_new_not_already_acquiring_res_not_found(self, mock):
+    def test_execute_acquire_sample_with_stream_id_new_not_already_acquiring_res_not_found(self, mock, StreamPublisher_mock):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = True
 
         self._bdh._find_new_data_check_attachment = Mock()
         self._bdh._find_new_data_check_attachment.side_effect =\
         InstrumentException
+
+        StreamPublisher_mock = MagicMock(spec=StandaloneStreamPublisher)
 
         stream_route = Mock(spec=StreamRoute)
         self.assertRaises(InstrumentException,
@@ -636,8 +649,9 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
         self._bdh._semaphore.acquire.assert_called_once_with(blocking=False)
         self._bdh._find_new_data_check_attachment.assert_called_once()
 
+    @patch('ion.agents.data.handlers.base_data_handler.StandaloneStreamPublisher', spec=StandaloneStreamPublisher)
     @patch('ion.agents.data.handlers.base_data_handler.spawn')
-    def test_execute_acquire_sample_no_attachments(self, mock):
+    def test_execute_acquire_sample_no_attachments(self, mock, StreamPublisher_mock):
         self._bdh._semaphore = Mock()
         self._bdh._semaphore.acquire.return_value = True
         self._bdh._glet_queue = Mock()
@@ -647,6 +661,9 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
         stream_route = Mock(spec=StreamRoute)
         stream_route.exchange_point = sentinel.exchange_point
         stream_route.routing_key = sentinel.routing_key
+
+        StreamPublisher_mock = MagicMock(spec=StreamPublisher_mock)
+
         self._bdh.execute_acquire_sample({'stream_id': 'test_stream_id',
                                           'stream_route': stream_route})
 
@@ -655,7 +672,7 @@ class TestBaseDataHandlerUnit(IonIntegrationTestCase):
 
 
 @attr('UNIT', group='eoi')
-class TestDummyDataHandlerUnit(IonIntegrationTestCase):
+class TestDummyDataHandlerUnit(PyonTestCase):
     def setUp(self):
         pass
 
@@ -724,7 +741,7 @@ class TestDummyDataHandlerUnit(IonIntegrationTestCase):
 
 
 @attr('UNIT', group='eoi')
-class TestFibonacciDataHandlerUnit(IonIntegrationTestCase):
+class TestFibonacciDataHandlerUnit(PyonTestCase):
     def setUp(self):
         pass
 

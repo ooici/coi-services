@@ -14,7 +14,7 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 import logging
 
-from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 import xmlrpclib
 import os
 import yaml
@@ -22,9 +22,9 @@ import yaml
 _OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/rsn/oms_uri_aliases.yml'
 
 
-class OmsClientFactory(object):
+class CIOMSClientFactory(object):
     """
-    Provides an OmsClient implementation.
+    Provides an CIOMSClient implementation.
     """
 
     _uri_aliases = None
@@ -42,12 +42,12 @@ class OmsClientFactory(object):
     @classmethod
     def create_instance(cls, uri=None):
         """
-        Creates an OmsClient instance.
+        Creates an CIOMSClient instance.
 
         @param uri URI to connect to the RSN OMS server or simulator.
         If None (the default) the value of the OMS environment variable is used
         as argument. If not defined or if the resulting argument is "embsimulator"
-        then an OmsSimulator instance is created and returned. Otherwise, the
+        then an CIOMSSimulator instance is created and returned. Otherwise, the
         argument is looked up in the OMS URI aliases file and if found the
         corresponding URI is used for the connection. Otherwise, the given
         argument (or value of the OMS environment variable) is used as given
@@ -61,9 +61,9 @@ class OmsClientFactory(object):
             uri = os.getenv('OMS', 'embsimulator')
 
         if "embsimulator" == uri:
-            # "embedded" simulator, so instantiate OmsSimulator here:
-            log.debug("Using embedded OmsSimulator instance")
-            instance = OmsSimulator()
+            # "embedded" simulator, so instantiate CIOMSSimulator here:
+            log.debug("Using embedded CIOMSSimulator instance")
+            instance = CIOMSSimulator()
         else:
             # try alias resolution and then create ServerProxy instance:
             uri = cls._uri_aliases.get(uri, uri)

@@ -150,8 +150,8 @@ if __name__ == "__main__":  # pragma: no cover
     #####
     import re
     if re.search('simulator', uri):
-        from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
-        oms = OmsClientFactory.create_instance(uri)
+        from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
+        oms = CIOMSClientFactory.create_instance(uri)
         print "ping() = %s"  % oms.ping()
         map = oms.get_platform_map()
         print "get_platform_map() = %s" % map

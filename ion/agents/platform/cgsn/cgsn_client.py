@@ -4,7 +4,7 @@
 @package ion.agents.platform.cgsn.cgsn_client
 @file    ion/agents/platform/cgsn/cgsn_client.py
 @author  Carlos Rueda
-@brief   CgsnClient
+@brief   CGSNClient
          See https://confluence.oceanobservatories.org/display/CICG/CI-CGSN+Interface+Development+Coordination
 """
 
@@ -21,7 +21,7 @@ from gevent import Greenlet, select
 from ion.agents.platform.cgsn.defs import MessageIds, CIPOP, CICGINT, EOL
 
 
-class CgsnClient(object):
+class CGSNClient(object):
     """
     The lower-level class dealing with the UDP connection to the CGSN
     services endpoint.
@@ -34,7 +34,7 @@ class CgsnClient(object):
         self._address = address
         self._sock = socket(AF_INET, SOCK_DGRAM)
         self._recv = _Recv(self._sock)
-        log.debug("CgsnClient created.")
+        log.debug("CGSNClient created.")
 
     def set_listener(self, listener):
         """

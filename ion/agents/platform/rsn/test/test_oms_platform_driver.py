@@ -4,7 +4,7 @@
 @package ion.agents.platform.rsn.test.test_oms_platform_driver
 @file    ion/agents/platform/rsn/test/test_oms_platform_driver.py
 @author  Carlos Rueda
-@brief   Some basic and direct tests to RsnPlatformDriver.
+@brief   Some basic and direct tests to RSNPlatformDriver.
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,11 +16,11 @@ import logging
 
 from pyon.util.containers import get_ion_ts
 
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 
-from ion.agents.platform.rsn.rsn_platform_driver import RsnPlatformDriver
+from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriver
 
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -46,7 +46,7 @@ class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
     def setUp(self):
 
         # Use the network definition provided by RSN OMS directly.
-        rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
 
         if log.isEnabledFor(logging.DEBUG):
@@ -55,7 +55,7 @@ class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
         platform_id = self.PLATFORM_ID
         pnode = network_definition.pnodes[platform_id]
-        self._plat_driver = RsnPlatformDriver(pnode, self.evt_recv)
+        self._plat_driver = RSNPlatformDriver(pnode, self.evt_recv)
 
     def evt_recv(self, driver_event):
         log.debug('GOT driver_event=%s', str(driver_event))

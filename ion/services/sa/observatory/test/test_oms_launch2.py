@@ -48,7 +48,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from gevent.event import AsyncResult
 from gevent import sleep
 
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 
@@ -67,10 +67,10 @@ BASE_PLATFORM_ID = 'Node1D'
 # By default, test against "embedded" simulator. The OMS environment variable
 # can be used to indicate a different RSN OMS server endpoint. Some aliases for
 # the "oms_uri" parameter include "localsimulator" and "simulator".
-# See OmsClientFactory.
+# See CIOMSClientFactory.
 DVR_CONFIG = {
     'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
-    'dvr_cls': 'RsnPlatformDriver',
+    'dvr_cls': 'RSNPlatformDriver',
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
@@ -113,7 +113,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
 
 
         # Use the network definition provided by RSN OMS directly.
-        rsn_oms = OmsClientFactory.create_instance(DVR_CONFIG['oms_uri'])
+        rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
         # get serialized version for the configuration:
         self._network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)

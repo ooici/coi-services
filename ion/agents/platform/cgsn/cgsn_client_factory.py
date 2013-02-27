@@ -14,16 +14,16 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 import logging
 
-from ion.agents.platform.cgsn.cgsn_client import CgsnClient
+from ion.agents.platform.cgsn.cgsn_client import CGSNClient
 import os
 import yaml
 
 _URI_ALIASES_FILENAME = 'ion/agents/platform/cgsn/cgsn_uri_aliases.yml'
 
 
-class CgsnClientFactory(object):
+class CGSNClientFactory(object):
     """
-    Provides a CgsnClient implementation.
+    Provides a CGSNClient implementation.
     """
 
     _uri_aliases = None
@@ -41,7 +41,7 @@ class CgsnClientFactory(object):
     @classmethod
     def create_instance(cls, uri=None):
         """
-        Creates an CgsnClient instance.
+        Creates an CGSNClient instance.
 
         @param uri URI to connect to the CGSN Services endpoint.
         """
@@ -51,12 +51,12 @@ class CgsnClientFactory(object):
 
         uri = uri or os.getenv('CGSN', 'localsimulator')
 
-        # try alias resolution and then create CgsnClient instance:
+        # try alias resolution and then create CGSNClient instance:
         uri = cls._uri_aliases.get(uri, uri)
         host, port = tuple(uri.split(':'))
         address = (host, int(port))
-        instance = CgsnClient(address)
+        instance = CGSNClient(address)
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("Created CgsnClient for endpoint at: %s:%i" % address)
+            log.debug("Created CGSNClient for endpoint at: %s:%i" % address)
 
         return instance

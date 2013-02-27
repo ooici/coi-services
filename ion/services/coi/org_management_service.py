@@ -13,7 +13,7 @@ from pyon.util.containers import is_basic_identifier, get_ion_ts
 from pyon.core.governance.negotiation import Negotiation
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability, ComputedIntValue, StatusType
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
+from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
@@ -777,7 +777,7 @@ class OrgManagementService(BaseOrgManagementService):
             if role.org_name == org.name:
                 ret_list.append(role)
 
-        if org.name == self.container.governance_controller._system_root_org_name:
+        if org.name == self.container.governance_controller.system_root_org_name:
 
             #Because a user is automatically enrolled with the ION Org then the membership role is implied - so add it to the list
             member_role = self._find_role(org._id, ORG_MEMBER_ROLE)

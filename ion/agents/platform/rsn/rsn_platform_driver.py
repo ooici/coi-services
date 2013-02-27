@@ -19,21 +19,21 @@ from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.exceptions import PlatformDriverException
 from ion.agents.platform.exceptions import PlatformConnectionException
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.rsn.oms_event_listener import OmsEventListener
 
 from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
 
 
-class RsnPlatformDriver(PlatformDriver):
+class RSNPlatformDriver(PlatformDriver):
     """
     The main RSN OMS platform driver class.
     """
 
     def __init__(self, pnode, evt_recv):
         """
-        Creates an RsnPlatformDriver instance.
+        Creates an RSNPlatformDriver instance.
 
         @param pnode     Root PlatformNode defining the platform network rooted at
                          this platform.
@@ -41,7 +41,7 @@ class RsnPlatformDriver(PlatformDriver):
         """
         PlatformDriver.__init__(self, pnode, evt_recv)
 
-        # OmsClient instance created by connect()
+        # CIOMSClient instance created by connect()
         self._rsn_oms = None
 
         # external event listener: we can instantiate this here as the the
@@ -92,26 +92,26 @@ class RsnPlatformDriver(PlatformDriver):
 
     def connect(self):
         """
-        Creates an OmsClient instance and does a ping.
+        Creates an CIOMSClient instance and does a ping.
         """
 
         oms_uri = self._driver_config['oms_uri']
-        log.debug("%r: creating OmsClient instance with oms_uri=%r",
+        log.debug("%r: creating CIOMSClient instance with oms_uri=%r",
                   self._platform_id, oms_uri)
-        self._rsn_oms = OmsClientFactory.create_instance(oms_uri)
-        log.debug("%r: OmsClient instance created: %s",
+        self._rsn_oms = CIOMSClientFactory.create_instance(oms_uri)
+        log.debug("%r: CIOMSClient instance created: %s",
                   self._platform_id, self._rsn_oms)
 
         self.ping()
 
     def disconnect(self):
         """
-        Destroys the OmsClient instance.
+        Destroys the CIOMSClient instance.
         """
         self._assert_rsn_oms()
         self._rsn_oms = None
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: OmsClient instance destroyed" % self._platform_id)
+            log.debug("%r: CIOMSClient instance destroyed" % self._platform_id)
 
     def get_metadata(self):
         """

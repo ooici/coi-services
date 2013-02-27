@@ -20,9 +20,9 @@ from pyon.public import log
 import logging
 
 from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.platform.rsn.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
-from ion.agents.platform.rsn.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 
 from ion.agents.platform.test.helper import HelperTestMixin
 from pyon.util.int_test import IonIntegrationTestCase
@@ -38,9 +38,9 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
         HelperTestMixin.setUpClass()
 
     def setUp(self):
-        # Note that OmsClientFactory will create an "embedded" RSN OMS
+        # Note that CIOMSClientFactory will create an "embedded" RSN OMS
         # simulator object by default.
-        self._rsn_oms = OmsClientFactory.create_instance()
+        self._rsn_oms = CIOMSClientFactory.create_instance()
 
     def test_build_network_definition(self):
         ndef = RsnOmsUtil.build_network_definition(self._rsn_oms)
@@ -50,7 +50,7 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
             serialization = NetworkUtil.serialize_network_definition(ndef)
             log.trace("NetworkDefinition serialization:\n%s", serialization)
 
-        if not isinstance(self._rsn_oms, OmsSimulator):
+        if not isinstance(self._rsn_oms, CIOMSSimulator):
             # OK, no more tests if we are not using the embedded simulator
             return
 
