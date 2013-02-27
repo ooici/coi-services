@@ -105,7 +105,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         Actual ingestion mechanism
         '''
         log.trace('received granule')
-        debugging = log.isEnabledFor(logging.DEBUG)
+        debugging = log.isEnabledFor(DEBUG)
         if debugging:
             timer = Timer()
         try:
@@ -194,6 +194,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             if debugging:
                 timer.complete_step('event')
                 log.trace('receive: event step')
+        except Exception,e:
+            log.error('exception happened', exc_info=True)
         finally:
             if debugging:
                 log.trace('receive: completion')
