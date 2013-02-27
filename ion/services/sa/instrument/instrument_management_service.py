@@ -55,7 +55,8 @@ from ion.agents.port.port_agent_process import PortAgentProcess
 from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType, ProcessSchedule, ProcessRestartMode, ProcessQueueingMode
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, GovernanceHeaderValues
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, is_system_actor, has_exclusive_resource_commitment
+from pyon.core.governance import has_shared_resource_commitment, is_resource_owner
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -974,11 +975,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return False, ex.message
 
         #The system actor can to anything
-        if self.container.governance_controller.is_system_actor(gov_values.actor_id):
+        if is_system_actor(gov_values.actor_id):
             return True, ''
 
         #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
-        if not self.container.governance_controller.has_exclusive_resource_commitment(gov_values.actor_id, gov_values.resource_id):
+        if not has_exclusive_resource_commitment(gov_values.actor_id, gov_values.resource_id):
             return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (self.name, gov_values.op, gov_values.actor_id)
 
         return True, ''
@@ -991,7 +992,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return False, ex.message
 
         #The system actor can to anything
-        if self.container.governance_controller.is_system_actor(gov_values.actor_id):
+        if is_system_actor(gov_values.actor_id):
             return True, ''
 
         if msg.has_key('lifecycle_event'):
@@ -1008,22 +1009,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if self.container.governance_controller.has_org_role(gov_values.actor_roles, org.name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
+                if has_org_role(gov_values.actor_roles, org.name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
                     return True, ''
 
         else:
 
             #The owner can do any of these other lifecycle transitions
-            is_owner = self.container.governance_controller.is_resource_owner(gov_values.actor_id, gov_values.resource_id)
+            is_owner = is_resource_owner(gov_values.actor_id, gov_values.resource_id)
             if is_owner:
                 return True, ''
 
             #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
-            is_shared = self.container.governance_controller.has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
+            is_shared = has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if self.container.governance_controller.has_org_role(gov_values.actor_roles, org.name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
+                if has_org_role(gov_values.actor_roles, org.name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
                     return True, ''
 
         return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, gov_values.op, gov_values.actor_id, lifecycle_event)
