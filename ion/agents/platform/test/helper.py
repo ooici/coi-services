@@ -14,10 +14,10 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
-from ion.agents.platform.oms.oms_client import InvalidResponse
+from ion.agents.platform.responses import NormalResponse, InvalidResponse
 
 
 class HelperTestMixin:
@@ -30,6 +30,11 @@ class HelperTestMixin:
         """
         Sets some various IDs from network.yml, which is used by the OMS
         simulator, and ad hoc values for testing.
+
+        The PLAT_NETWORK environment variable can be used to faciliate
+        testing against a smaller newtork. Possibe values include:
+            PLAT_NETWORK=small  - small network but with children
+            PLAT_NETWORK=single - network with a single platform (no children)
         """
         cls.PLATFORM_ID = 'Node1A'
         cls.SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
@@ -39,19 +44,46 @@ class HelperTestMixin:
         cls.INVALID_ATTR_VALUE = "9876"  # out of range
 
         cls.PORT_ID = 'Node1A_port_1'
-        cls.PORT_ATTR_NAME = 'maxCurrentDraw'
-        cls.VALID_PORT_ATTR_VALUE = 12345
+        cls.INSTRUMENT_ID = 'Node1A_port_1_instrument_1'
+        cls.INSTRUMENT_ATTR_NAME = 'maxCurrentDraw'
+        cls.VALID_INSTRUMENT_ATTR_VALUE = 12345
 
+        cls.INSTRUMENT_ATTRIBUTES_AND_VALUES = {
+            'maxCurrentDraw' : 12345,
+            'initCurrent'    : 23456,
+            'dataThroughput' : 34567,
+            'instrumentType' : "FOO_INSTRUMENT_TYPE"
+        }
+
+        # PLAT_NETWORK: This env variable helps use a smaller network locally.
         import os
-        if os.getenv('SMALL_PLATFORM_NETWORK') is not None:
-            # This env variable helps use a smaller network locally.
-            print("SMALL_PLATFORM_NETWORK")
+        plat_network_size = os.getenv('PLAT_NETWORK', None)
+        if "small" == plat_network_size:
+            #
+            # small network but with children.
+            #
             cls.PLATFORM_ID = 'Node1D'
+            print("PLAT_NETWORK=small -> using base platform: %r" % cls.PLATFORM_ID)
             cls.SUBPLATFORM_IDS = ['MJ01C']
             cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
             cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
 
             cls.PORT_ID = 'Node1D_port_1'
+            cls.INSTRUMENT_ID = 'Node1D_port_1_instrument_1'
+        elif "single" == plat_network_size:
+            #
+            # network with just a single platform (no children).
+            #
+            cls.PLATFORM_ID = 'LJ01D'
+            print("PLAT_NETWORK=single -> using base platform: %r" % cls.PLATFORM_ID)
+            cls.SUBPLATFORM_IDS = []
+            cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
+            cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
+
+            cls.PORT_ID = 'LJ01D_port_1'
+            cls.INSTRUMENT_ID = 'LJ01D_port_1_instrument_1'
+        else:
+            print("PLAT_NETWORK undefined -> using base platform: %r" % cls.PLATFORM_ID)
 
     def _verify_valid_platform_id(self, platform_id, dic):
         """
@@ -112,7 +144,8 @@ class HelperTestMixin:
         """
         self.assertTrue(attr_id in dic)
         val = dic[attr_id]
-        self.assertEquals(InvalidResponse.ATTRIBUTE_NOT_WRITABLE, val)
+        self.assertEquals(InvalidResponse.ATTRIBUTE_NOT_WRITABLE, val,
+                          "attr_id=%r, val=%r" % (attr_id, val))
 
     def _verify_valid_port_id(self, port_id, dic):
         """
@@ -132,3 +165,35 @@ class HelperTestMixin:
         self.assertTrue(port_id in dic)
         val = dic[port_id]
         self.assertEquals(InvalidResponse.PORT_ID, val)
+
+    def _verify_valid_instrument_id(self, instrument_id, dic):
+        """
+        verifies the instrument_id is an entry in the dict with a valid value,
+        either a dict or InvalidResponse.INSTRUMENT_ALREADY_CONNECTED.
+        Returns dic[instrument_id].
+        """
+        self.assertTrue(instrument_id in dic)
+        val = dic[instrument_id]
+        self.assertTrue(
+            isinstance(val, dict) or
+            val == InvalidResponse.INSTRUMENT_ALREADY_CONNECTED,
+            "%r: val should be a dict but is: %s" % (
+                instrument_id, str(val)))
+        return val
+
+    def _verify_invalid_instrument_id(self, instrument_id, dic):
+        """
+        verifies the instrument_id is an entry in the dict with a
+        value that is not a dict.
+        """
+        self.assertTrue(instrument_id in dic)
+        val = dic[instrument_id]
+        self.assertFalse(isinstance(val, dict))
+
+    def _verify_instrument_disconnected(self, instrument_id, result):
+        """
+        verifies the result is equal to NormalResponse.INSTRUMENT_DISCONNECTED.
+        """
+        expected = NormalResponse.INSTRUMENT_DISCONNECTED
+        self.assertEquals(expected, result, "instrument_id=%r: expecting %r but "
+                    "got result=%r" % (instrument_id, expected, result))

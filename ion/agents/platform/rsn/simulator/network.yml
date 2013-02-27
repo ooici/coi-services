@@ -41,9 +41,9 @@ network:
     monitorCycleSeconds: 5
   ports:
   - port_id: ShoreStation_port_1
-    ip: ShoreStation_port_1_IP
+    network: ShoreStation_port_1_IP
   - port_id: ShoreStation_port_2
-    ip: ShoreStation_port_2_IP
+    network: ShoreStation_port_2_IP
   subplatforms:
   - platform_id: L3-UPS1
     platform_types: []
@@ -97,9 +97,9 @@ network:
       monitorCycleSeconds: 5
     ports:
     - port_id: Node1A_port_1
-      ip: Node1A_port_1_IP
+      network: Node1A_port_1_IP
     - port_id: Node1A_port_2
-      ip: Node1A_port_2_IP
+      network: Node1A_port_2_IP
     subplatforms:
     - platform_id: MJ01A
       platform_types: []
@@ -122,9 +122,9 @@ network:
         monitorCycleSeconds: 5
       ports:
       - port_id: MJ01A_port_1
-        ip: MJ01A_port_1_IP
+        network: MJ01A_port_1_IP
       - port_id: MJ01A_port_2
-        ip: MJ01A_port_2_IP
+        network: MJ01A_port_2_IP
     - platform_id: Node1B
       platform_types: []
       attrs:
@@ -147,9 +147,9 @@ network:
         monitorCycleSeconds: 5
       ports:
       - port_id: Node1B_port_1
-        ip: Node1B_port_1_IP
+        network: Node1B_port_1_IP
       - port_id: Node1B_port_2
-        ip: Node1B_port_2_IP
+        network: Node1B_port_2_IP
       subplatforms:
       - platform_id: Node1C
         platform_types: []
@@ -173,9 +173,9 @@ network:
           monitorCycleSeconds: 5
         ports:
         - port_id: Node1C_port_1
-          ip: Node1C_port_1_IP
+          network: Node1C_port_1_IP
         - port_id: Node1C_port_2
-          ip: Node1C_port_2_IP
+          network: Node1C_port_2_IP
         subplatforms:
         - platform_id: Node1D
           platform_types: []
@@ -218,9 +218,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: Node1D_port_1
-            ip: Node1D_port_1_IP
+            network: Node1D_port_1_IP
           - port_id: Node1D_port_2
-            ip: Node1D_port_2_IP
+            network: Node1D_port_2_IP
           subplatforms:
           - platform_id: MJ01C
             platform_types: []
@@ -243,9 +243,9 @@ network:
               monitorCycleSeconds: 5
             ports:
             - port_id: MJ01C_port_1
-              ip: MJ01C_port_1_IP
+              network: MJ01C_port_1_IP
             - port_id: MJ01C_port_2
-              ip: MJ01C_port_2_IP
+              network: MJ01C_port_2_IP
             subplatforms:
             - platform_id: LJ01D
               platform_types: []
@@ -259,11 +259,20 @@ network:
                 read_write: read
                 group: power
                 monitorCycleSeconds: 2
+              - attr_id: Input Bus Current
+                type: float
+                units: Amps
+                min_val: -50
+                max_val: 50
+                precision: 0.1
+                read_write: write  # just for testing
+                group: power
+                monitorCycleSeconds: 5
               ports:
               - port_id: LJ01D_port_1
-                ip: LJ01D_port_1_IP
+                network: LJ01D_port_1_IP
               - port_id: LJ01D_port_2
-                ip: LJ01D_port_2_IP
+                network: LJ01D_port_2_IP
         - platform_id: LV01C
           platform_types: []
           attrs:
@@ -285,9 +294,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: LV01C_port_1
-            ip: LV01C_port_1_IP
+            network: LV01C_port_1_IP
           - port_id: LV01C_port_2
-            ip: LV01C_port_2_IP
+            network: LV01C_port_2_IP
           subplatforms:
           - platform_id: PC01B
             platform_types: []
@@ -310,9 +319,9 @@ network:
               monitorCycleSeconds: 5
             ports:
             - port_id: PC01B_port_1
-              ip: PC01B_port_1_IP
+              network: PC01B_port_1_IP
             - port_id: PC01B_port_2
-              ip: PC01B_port_2_IP
+              network: PC01B_port_2_IP
             subplatforms:
             - platform_id: SC01B
               platform_types: []
@@ -335,9 +344,9 @@ network:
                 monitorCycleSeconds: 5
               ports:
               - port_id: SC01B_port_1
-                ip: SC01B_port_1_IP
+                network: SC01B_port_1_IP
               - port_id: SC01B_port_2
-                ip: SC01B_port_2_IP
+                network: SC01B_port_2_IP
               subplatforms:
               - platform_id: SF01B
                 platform_types: []
@@ -360,9 +369,9 @@ network:
                   monitorCycleSeconds: 5
                 ports:
                 - port_id: SF01B_port_1
-                  ip: SF01B_port_1_IP
+                  network: SF01B_port_1_IP
                 - port_id: SF01B_port_2
-                  ip: SF01B_port_2_IP
+                  network: SF01B_port_2_IP
           - platform_id: LJ01C
             platform_types: []
             attrs:
@@ -384,9 +393,9 @@ network:
               monitorCycleSeconds: 5
             ports:
             - port_id: LJ01C_port_1
-              ip: LJ01C_port_1_IP
+              network: LJ01C_port_1_IP
             - port_id: LJ01C_port_2
-              ip: LJ01C_port_2_IP
+              network: LJ01C_port_2_IP
       - platform_id: LV01B
         platform_types: []
         attrs:
@@ -408,9 +417,9 @@ network:
           monitorCycleSeconds: 5
         ports:
         - port_id: LV01B_port_1
-          ip: LV01B_port_1_IP
+          network: LV01B_port_1_IP
         - port_id: LV01B_port_2
-          ip: LV01B_port_2_IP
+          network: LV01B_port_2_IP
         subplatforms:
         - platform_id: LJ01B
           platform_types: []
@@ -433,9 +442,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: LJ01B_port_1
-            ip: LJ01B_port_1_IP
+            network: LJ01B_port_1_IP
           - port_id: LJ01B_port_2
-            ip: LJ01B_port_2_IP
+            network: LJ01B_port_2_IP
         - platform_id: MJ01B
           platform_types: []
           attrs:
@@ -457,9 +466,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: MJ01B_port_1
-            ip: MJ01B_port_1_IP
+            network: MJ01B_port_1_IP
           - port_id: MJ01B_port_2
-            ip: MJ01B_port_2_IP
+            network: MJ01B_port_2_IP
     - platform_id: LV01A
       platform_types: []
       attrs:
@@ -481,9 +490,9 @@ network:
         monitorCycleSeconds: 5
       ports:
       - port_id: LV01A_port_1
-        ip: LV01A_port_1_IP
+        network: LV01A_port_1_IP
       - port_id: LV01A_port_2
-        ip: LV01A_port_2_IP
+        network: LV01A_port_2_IP
       subplatforms:
       - platform_id: LJ01A
         platform_types: []
@@ -506,9 +515,9 @@ network:
           monitorCycleSeconds: 5
         ports:
         - port_id: LJ01A_port_1
-          ip: LJ01A_port_1_IP
+          network: LJ01A_port_1_IP
         - port_id: LJ01A_port_2
-          ip: LJ01A_port_2_IP
+          network: LJ01A_port_2_IP
       - platform_id: PC01A
         platform_types: []
         attrs:
@@ -530,9 +539,9 @@ network:
           monitorCycleSeconds: 5
         ports:
         - port_id: PC01A_port_1
-          ip: PC01A_port_1_IP
+          network: PC01A_port_1_IP
         - port_id: PC01A_port_2
-          ip: PC01A_port_2_IP
+          network: PC01A_port_2_IP
         subplatforms:
         - platform_id: SC01A
           platform_types: []
@@ -555,9 +564,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: SC01A_port_1
-            ip: SC01A_port_1_IP
+            network: SC01A_port_1_IP
           - port_id: SC01A_port_2
-            ip: SC01A_port_2_IP
+            network: SC01A_port_2_IP
           subplatforms:
           - platform_id: SF01A
             platform_types: []
@@ -580,9 +589,9 @@ network:
               monitorCycleSeconds: 5
             ports:
             - port_id: SF01A_port_1
-              ip: SF01A_port_1_IP
+              network: SF01A_port_1_IP
             - port_id: SF01A_port_2
-              ip: SF01A_port_2_IP
+              network: SF01A_port_2_IP
   - platform_id: Node5A
     platform_types: []
     attrs:
@@ -605,9 +614,9 @@ network:
       monitorCycleSeconds: 5
     ports:
     - port_id: Node5A_port_1
-      ip: Node5A_port_1_IP
+      network: Node5A_port_1_IP
     - port_id: Node5A_port_2
-      ip: Node5A_port_2_IP
+      network: Node5A_port_2_IP
     subplatforms:
     - platform_id: Node3A
       platform_types: []
@@ -631,9 +640,9 @@ network:
         monitorCycleSeconds: 5
       ports:
       - port_id: Node3A_port_1
-        ip: Node3A_port_1_IP
+        network: Node3A_port_1_IP
       - port_id: Node3A_port_2
-        ip: Node3A_port_2_IP
+        network: Node3A_port_2_IP
       subplatforms:
       - platform_id: Node3B
         platform_types: []
@@ -657,9 +666,9 @@ network:
           monitorCycleSeconds: 5
         ports:
         - port_id: Node3B_port_1
-          ip: Node3B_port_1_IP
+          network: Node3B_port_1_IP
         - port_id: Node3B_port_2
-          ip: Node3B_port_2_IP
+          network: Node3B_port_2_IP
         subplatforms:
         - platform_id: MJ03F
           platform_types: []
@@ -682,9 +691,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: MJ03F_port_1
-            ip: MJ03F_port_1_IP
+            network: MJ03F_port_1_IP
           - port_id: MJ03F_port_2
-            ip: MJ03F_port_2_IP
+            network: MJ03F_port_2_IP
         - platform_id: MJ03E
           platform_types: []
           attrs:
@@ -706,9 +715,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: MJ03E_port_1
-            ip: MJ03E_port_1_IP
+            network: MJ03E_port_1_IP
           - port_id: MJ03E_port_2
-            ip: MJ03E_port_2_IP
+            network: MJ03E_port_2_IP
         - platform_id: MJ03D
           platform_types: []
           attrs:
@@ -730,9 +739,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: MJ03D_port_1
-            ip: MJ03D_port_1_IP
+            network: MJ03D_port_1_IP
           - port_id: MJ03D_port_2
-            ip: MJ03D_port_2_IP
+            network: MJ03D_port_2_IP
         - platform_id: MJ03C
           platform_types: []
           attrs:
@@ -754,9 +763,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: MJ03C_port_1
-            ip: MJ03C_port_1_IP
+            network: MJ03C_port_1_IP
           - port_id: MJ03C_port_2
-            ip: MJ03C_port_2_IP
+            network: MJ03C_port_2_IP
         - platform_id: MJ03B
           platform_types: []
           attrs:
@@ -778,9 +787,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: MJ03B_port_1
-            ip: MJ03B_port_1_IP
+            network: MJ03B_port_1_IP
           - port_id: MJ03B_port_2
-            ip: MJ03B_port_2_IP
+            network: MJ03B_port_2_IP
       - platform_id: MJ03A
         platform_types: []
         attrs:
@@ -802,9 +811,9 @@ network:
           monitorCycleSeconds: 5
         ports:
         - port_id: MJ03A_port_1
-          ip: MJ03A_port_1_IP
+          network: MJ03A_port_1_IP
         - port_id: MJ03A_port_2
-          ip: MJ03A_port_2_IP
+          network: MJ03A_port_2_IP
       - platform_id: LV03A
         platform_types: []
         attrs:
@@ -826,9 +835,9 @@ network:
           monitorCycleSeconds: 5
         ports:
         - port_id: LV03A_port_1
-          ip: LV03A_port_1_IP
+          network: LV03A_port_1_IP
         - port_id: LV03A_port_2
-          ip: LV03A_port_2_IP
+          network: LV03A_port_2_IP
         subplatforms:
         - platform_id: LJ03A
           platform_types: []
@@ -851,9 +860,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: LJ03A_port_1
-            ip: LJ03A_port_1_IP
+            network: LJ03A_port_1_IP
           - port_id: LJ03A_port_2
-            ip: LJ03A_port_2_IP
+            network: LJ03A_port_2_IP
         - platform_id: PC03A
           platform_types: []
           attrs:
@@ -875,9 +884,9 @@ network:
             monitorCycleSeconds: 5
           ports:
           - port_id: PC03A_port_1
-            ip: PC03A_port_1_IP
+            network: PC03A_port_1_IP
           - port_id: PC03A_port_2
-            ip: PC03A_port_2_IP
+            network: PC03A_port_2_IP
           subplatforms:
           - platform_id: SC03A
             platform_types: []
@@ -900,9 +909,9 @@ network:
               monitorCycleSeconds: 5
             ports:
             - port_id: SC03A_port_1
-              ip: SC03A_port_1_IP
+              network: SC03A_port_1_IP
             - port_id: SC03A_port_2
-              ip: SC03A_port_2_IP
+              network: SC03A_port_2_IP
             subplatforms:
             - platform_id: SF03A
               platform_types: []
@@ -925,6 +934,6 @@ network:
                 monitorCycleSeconds: 5
               ports:
               - port_id: SF03A_port_1
-                ip: SF03A_port_1_IP
+                network: SF03A_port_1_IP
               - port_id: SF03A_port_2
-                ip: SF03A_port_2_IP
+                network: SF03A_port_2_IP
