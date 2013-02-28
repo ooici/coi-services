@@ -1,6 +1,9 @@
 Platform Agent Framework
 
 
+2013-02-27
+- platform_agent_R2C4 branch finally merged.
+
 2013-02-26
 - Class renamings per comments on the recent PR (PEP8 conventions):
   CgsnClient -> CGSNClient
