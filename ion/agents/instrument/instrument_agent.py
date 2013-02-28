@@ -65,6 +65,7 @@ from interface.objects import StreamAlarmType
 from interface.objects import AlarmDef
 from ion.agents.alarms.alarms import construct_alarm_expression
 from ion.agents.alarms.alarms import eval_alarm
+from ion.agents.alarms.alarms import make_event_data
 from interface.objects import StreamWarningAlaramEvent
 from interface.objects import StreamAlertAlarmEvent
 from interface.objects import StreamAllClearAlarmEvent
@@ -840,29 +841,76 @@ class InstrumentAgent(ResourceAgent):
         except KeyError:
             log.error('Tomato missing stream_name or values keys. Could not process alarms.')
             return
+
+        stream_alarms = []
+        first_time_alarms = []
+        og_alarms = []
  
         for v in values:
             try:
+                # Grab the value and id.
                 value_id = v['value_id']
                 value = v['value']
-            except KeyError:
-                log.error('Tomato value missing value_id or value keys. Could not process alarms.')
+
+                # Retrieve the alarms relevant to this stream and id.
+                [stream_alarms.append(a) for a in self.aparam_alarms if
+                    a.stream_name == stream_name and a.value_id == value_id]
                 
-            else:           
-                for a in self.aparam_alarms:
-                    if a.stream_name == stream_name and a.value_id == value_id:
-                        (a, event_data) = eval_alarm(a, value)
-                        if event_data:
-                            try:
-                                self._event_publisher.publish_event(
-                                    origin=self.resource_id,
-                                    origin_type=self.ORIGIN_TYPE,
-                                    **event_data)
-                                log.info('Instrument agent %s publsihed alarm event %s',
-                                         self._proc_name, str(event_data))
-                            except Exception as ex:
-                                log.error('Instrument agent %s could not publish alarm event %s. Exception: %s',
-                                    self._proc_name, str(event_data), str(ex))
+            except KeyError:
+                log.error('Tomato value missing value_id or value keys. Could not process alarms for stream %s, value_id %s.',
+                          stream_name, value_id)
+
+        # Evaluate relevant alarms.
+        [eval_alarm(a, value) for a in stream_alarms]
+
+        # Determine first time alarms.
+        first_time_alarms = [a for a in stream_alarms if a.first_time == 1]
+                
+        # Ongoing alarms.
+        og_alarms = [a for a in stream_alarms if a.first_time > 1]
+        
+        # Determine newly cleared alarms.
+        new_pos_alarms = [a for a in og_alarms if a.status and not a.old_status]
+                
+        # Determine newly bad alarms.
+        new_neg_alarms = [a for a in og_alarms if a.old_status and not a.status]
+                
+        # Determine all cleared alarms.
+        # pos_alarms = [a for a in og_alarms if a.status and not a.first_time]
+                
+        # Publish all statuses first time.
+        if first_time_alarms:
+            self._publish_alarms(first_time_alarms)
+                
+        # Publish newly bad alarms.                
+        if new_neg_alarms:
+            self._publish_alarms(new_neg_alarms)
+        
+        # Publish newly cleared alarms.                
+        if new_pos_alarms:
+            self._publish_alarms(new_pos_alarms)
+            
+        # TODO.
+        # Publish stream all clear if something cleared and there
+        # are no more bad alarms.
+                            
+    def _publish_alarms(self, alarms):
+        """
+        """
+        events = [make_event_data(a) for a in alarms]
+        events = [x for x in events if x]
+        for event_data in events:
+            try:
+                self._event_publisher.publish_event(
+                    origin=self.resource_id,
+                    origin_type=self.ORIGIN_TYPE,
+                    **event_data)
+                log.info('Instrument agent %s published alarm event %s.',
+                        self._proc_name, str(event_data))
+                
+            except Exception as ex:
+                log.error('Instrument agent %s could not publish alarm event %s. Exception: %s',
+                        self._proc_name, str(event_data), str(ex))
         
     def _publish_stream_buffer(self, stream_name):
         """
