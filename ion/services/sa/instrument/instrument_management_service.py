@@ -1859,7 +1859,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
     def obtain_agent_handle(self, device_id):
         ia_client = ResourceAgentClient(device_id,  process=self)
-
+        log.debug("got the instrument agent client here: %s for the device id: %s and process: %s", ia_client, device_id, self)
 
 #       #todo: any validation?
 #        cmd = AgentCommand(command='get_current_state')
@@ -1912,36 +1912,68 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = 0 #todo: use ia_client
         return ret
 
-    def get_uptime(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedIntValue)
+    def get_uptime(self, device_id):
+        ia_client, ret = self.obtain_agent_calculation(device_id, OT.ComputedStringValue)
 
         if ia_client:
-            # Find events in the event repo that were published when changes of state occurred for the instrument
+            # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
             # The Instrument Agent publishes events of a particular type, ResourceAgentStateEvent, and origin_type. So we query the events db for those.
-            event_tuples = self.container.event_repository.find_events(origin=instrument_device_id, event_type='ResourceAgentStateEvent', descending=True)
+
+            #----------------------------------------------------------------------------------------------
+            # Check whether it is a platform or an instrument
+            #----------------------------------------------------------------------------------------------
+            device = self.RR.read(device_id)
+
+            #----------------------------------------------------------------------------------------------
+            # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
+            # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
+            #----------------------------------------------------------------------------------------------
+            event_state = ''
+            not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
+
+            if device.type_ == 'InstrumentDevice':
+                event_state = ResourceAgentState.STREAMING
+            elif device.type_ == 'PlatformDevice':
+                event_state = 'PLATFORM_AGENT_STATE_MONITORING'
+
+            #----------------------------------------------------------------------------------------------
+            # Get events associated with device from the events db
+            #----------------------------------------------------------------------------------------------
+            log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent events for the following event_state: %s",device_id, device.type_, event_state)
+            event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
 
             recent_events = [tuple[2] for tuple in event_tuples]
 
+            #----------------------------------------------------------------------------------------------
             # We assume below that the events have been sorted in time, with most recent events first in the list
+            #----------------------------------------------------------------------------------------------
             for evt in recent_events:
-                log.debug("Got an event with event_state: %s", evt.state)
-                # These below are the possible new event states while taking the instrument off streaming mode
-                # This is info got from possible actions to wind down the instrument that one can take in the UI when the instrument is already streaming
-                not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
+                log.debug("Got a recent event with event_state: %s", evt.state)
 
-                if evt.state == ResourceAgentState.STREAMING: # "RESOURCE_AGENT_STATE_STREAMING"
-                    current_time = get_ion_ts()
-                    ret.value = current_time - evt.ts_created
+                if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
+                    current_time = get_ion_ts() # this is in milliseconds
                     log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
-                    log.debug("Returning the computed attribute: %s", ret)
-                    return ret
+                    return self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
                 elif evt.state in not_streaming_states:
-                    log.debug("Got a most recent event state that : %s", evt.state)
+                    log.debug("Got a most recent event state that means instrument is not streaming anymore: %s", evt.state)
                     # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
-                    ret.value = 0
-                    return ret
+                    return self._convert_to_string(ret, 0)
 
-            ret.value = 0
+        return self._convert_to_string(ret, 0)
+
+    def _convert_to_string(self, ret, value):
+        """
+        A helper method to put it in a string value into a ComputedStringValue object that will be returned
+
+        @param ret ComputedStringValue object
+        @param value int
+        @retval ret The ComputedStringValue with a value that is of type String
+        """
+        sec = timedelta(seconds = value)
+        d = datetime(1,1,1) + sec
+
+        ret.value = "%s days, %s hours, %s minutes" %(d.day-1, d.hour, d.minute)
+        log.debug("Returning the computed attribute for uptime with value: %s", ret.value)
         return ret
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
