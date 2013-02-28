@@ -1859,7 +1859,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
     def obtain_agent_handle(self, device_id):
         ia_client = ResourceAgentClient(device_id,  process=self)
-
+        log.debug("got the instrument agent client here: %s for the device id: %s and process: %s", ia_client, device_id, self)
 
 #       #todo: any validation?
 #        cmd = AgentCommand(command='get_current_state')
@@ -1931,14 +1931,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             event_state = ''
             not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
 
-            if device.type_ == 'InstrumentAgent':
+            if device.type_ == 'InstrumentDevice':
                 event_state = ResourceAgentState.STREAMING
-            elif device.type_ == 'PlatformAgent':
+            elif device.type_ == 'PlatformDevice':
                 event_state = 'PLATFORM_AGENT_STATE_MONITORING'
 
             #----------------------------------------------------------------------------------------------
             # Get events associated with device from the events db
             #----------------------------------------------------------------------------------------------
+            log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent events for the following event_state: %s",device_id, device.type_, event_state)
             event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
 
             recent_events = [tuple[2] for tuple in event_tuples]
@@ -1947,14 +1948,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             # We assume below that the events have been sorted in time, with most recent events first in the list
             #----------------------------------------------------------------------------------------------
             for evt in recent_events:
-                log.debug("Got an event with event_state: %s", evt.state)
+                log.debug("Got a recent event with event_state: %s", evt.state)
 
                 if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
-                    current_time = get_ion_ts()
+                    current_time = get_ion_ts() # this is in milliseconds
                     log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
-                    return self._convert_to_string(ret, int(current_time) - int(evt.ts_created) )
+                    return self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
                 elif evt.state in not_streaming_states:
-                    log.debug("Got a most recent event state that : %s", evt.state)
+                    log.debug("Got a most recent event state that means instrument is not streaming anymore: %s", evt.state)
                     # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
                     return self._convert_to_string(ret, 0)
 
