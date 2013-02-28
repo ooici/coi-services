@@ -15,7 +15,7 @@ from pyon.public import log
 import logging
 import re
 
-from ion.agents.platform.cgsn.defs import MessageIds, CIPOP, CICGINT, EOL
+from ion.agents.platform.cgsn.defs import CIPOP, CICGINT
 
 
 class CgsnState(object):

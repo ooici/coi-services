@@ -18,7 +18,7 @@ import logging
 from gevent.socket import *
 from gevent import Greenlet, select
 
-from ion.agents.platform.cgsn.defs import MessageIds, CIPOP, CICGINT, EOL
+from ion.agents.platform.cgsn.defs import get_cg_client_address, CIPOP, CICGINT
 
 
 class CGSNClient(object):
@@ -27,14 +27,14 @@ class CGSNClient(object):
     services endpoint.
     """
 
-    def __init__(self, address):
+    def __init__(self, cg_address):
         """
-        @param address   (host, port) of CG services endpoint
+        @param address   (host, port) of the CG services endpoint
         """
-        self._address = address
-        self._sock = socket(AF_INET, SOCK_DGRAM)
-        self._recv = _Recv(self._sock)
-        log.debug("CGSNClient created.")
+        self._cg_address = cg_address
+        self._cg_sock = socket(AF_INET, SOCK_DGRAM)
+        self._receiver = _Receiver()
+        log.debug("CGSNClient created. cg_address: %s" % str(cg_address))
 
     def set_listener(self, listener):
         """
@@ -44,18 +44,18 @@ class CGSNClient(object):
                          from the endpoint. The end-of-line (\n) is *not*
                          included in the line argument.
         """
-        self._recv.set_listener(listener)
+        self._receiver.set_listener(listener)
 
     def start(self):
-        self._recv.start()
+        self._receiver.start()
 
     def end_reception(self):
-        self._recv.end()
+        self._receiver.end()
 
     def _sendto(self, data):
         if log.isEnabledFor(logging.DEBUG):
             log.debug("calling sendto(%r)" % data)
-        nobytes = self._sock.sendto(data, self._address)
+        nobytes = self._cg_sock.sendto(data, self._cg_address)
         if log.isEnabledFor(logging.TRACE):
             log.trace("sendto returned: %i" % nobytes)
         return nobytes
@@ -63,23 +63,24 @@ class CGSNClient(object):
     def send_command(self, dst, cmd):
         """
         """
-        data = "%i,%i,%i,%i,%s%s" % (dst,
-                                     CIPOP,
-                                     CICGINT,
-                                     len(cmd),
-                                     cmd,
-                                     EOL)
+        data = "%i,%i,%i,%i,%s" % (dst,
+                                   CIPOP,
+                                   CICGINT,
+                                   len(cmd),
+                                   cmd)
         self._sendto(data)
 
 
-class _Recv(Greenlet):
+class _Receiver(Greenlet):
     """
     Receives and handles messages from the CG services endpoint.
     """
 
-    def __init__(self, sock):
+    def __init__(self):
         Greenlet.__init__(self)
-        self._sock = sock
+
+        self._sock = socket(AF_INET, SOCK_DGRAM)
+        self._sock.bind(get_cg_client_address())
         self._listener = self._dummy_listener
         self._line = ''
         self._running = False
@@ -95,18 +96,19 @@ class _Recv(Greenlet):
             log.warn("No listener provided. Using a dummy one")
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("_Recv running")
+            log.debug("_Receiver running")
 
         self._running = True
         while self._running:
-            # some timeout to regularly check for end call
+            # some timeout to regularly check for end() call
             rlist, wlist, elist = select.select([self._sock], [], [], 0.5)
             if rlist:
                 recv_data = self._sock.recv(1024)
                 self._handle_recv_data(recv_data)
 
+        self._sock.close()
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("_Recv.run done.")
+            log.debug("_Receiver.run done.")
 
     def end(self):
         self._running = False
