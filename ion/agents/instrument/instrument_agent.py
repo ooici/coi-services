@@ -853,11 +853,16 @@ class InstrumentAgent(ResourceAgent):
                     if a.stream_name == stream_name and a.value_id == value_id:
                         (a, event_data) = eval_alarm(a, value)
                         if event_data:
-                            self._event_publisher.publish_event(
-                                event_data['event_type'],
-                                origin=self._resource_id,
-                                origin_type=self.ORIGIN_TYPE,
-                                **event_data)
+                            try:
+                                self._event_publisher.publish_event(
+                                    origin=self.resource_id,
+                                    origin_type=self.ORIGIN_TYPE,
+                                    **event_data)
+                                log.info('Instrument agent %s publsihed alarm event %s',
+                                         self._proc_name, str(event_data))
+                            except Exception as ex:
+                                log.error('Instrument agent %s could not publish alarm event %s. Exception: %s',
+                                    self._proc_name, str(event_data), str(ex))
         
     def _publish_stream_buffer(self, stream_name):
         """
@@ -908,9 +913,7 @@ class InstrumentAgent(ResourceAgent):
                                 if tval_dict.get('binary', None):
                                     tval_val = base64.b64decode(tval_val)
                                 data_arrays[tval_id][i] = tval_val
-                                
-                                self._eval_alarms(stream_name, tval_id, tval_val)
-                                
+                                                               
                     elif tk in rdt:
                         data_arrays[tk][i] = tv
                         if tk == 'driver_timestamp':
@@ -928,33 +931,6 @@ class InstrumentAgent(ResourceAgent):
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
                 self._proc_name, stream_name)
-        
-        
-    def _eval_alarms(self, stream_name, value_id, value):
-        """
-        """
-        no_changed = 0
-        went_true = []
-        for a in self.aparam_alarms:
-            if a.stream_name == stream_name and a.value_id == value_id:
-                if eval(a.expr):
-                    if not a.status:
-                        a.status = True
-                        no_changed += 1
-                        went_true.append(a)
-                else:
-                    if a.status:
-                        a.status = False
-                        no_changed += 1
-
-        if no_changed > 0:
-            if len(went_true)>0:
-                # publish all true events
-                pass
-        
-            else:
-                #publish all clear
-                pass    
                          
     def _async_driver_event_error(self, val, ts):
         """
