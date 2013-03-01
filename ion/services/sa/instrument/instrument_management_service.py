@@ -30,25 +30,10 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 
 from ion.services.sa.instrument.flag import KeywordFlag
 
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
-from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
-
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from ion.util.qa_doc_parser import QADocParser
-
-# TODO: these are for methods which may belong in DAMS/DPMS/MFMS
-from ion.services.sa.product.data_product_impl import DataProductImpl
-from ion.services.sa.instrument.data_producer_impl import DataProducerImpl
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
@@ -173,27 +158,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if hasattr(new_clients, "data_retriever"):
             self.DRS = new_clients.data_retriever
 
-        #farm everything out to the impls
-
-        self.instrument_model           = InstrumentModelImpl(new_clients)
-        self.instrument_device          = InstrumentDeviceImpl(new_clients)
-
-        self.platform_agent           = PlatformAgentImpl(new_clients)
-        self.platform_agent_instance  = PlatformAgentInstanceImpl(new_clients)
-        self.platform_model           = PlatformModelImpl(new_clients)
-        self.platform_device          = PlatformDeviceImpl(new_clients)
-
-        self.sensor_model    = SensorModelImpl(new_clients)
-        self.sensor_device   = SensorDeviceImpl(new_clients)
-
-        self.instrument_site = InstrumentSiteImpl(new_clients)
-
-        #TODO: may not belong in this service
-        self.data_product        = DataProductImpl(new_clients)
-        self.data_producer       = DataProducerImpl(new_clients)
-
-
-
 
     def restore_resource_state(self, instrument_device_id='', attachment_id=''):
         """
@@ -206,12 +170,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise BadRequest("Can only restore resource states for %s resources, got %s" %
                              (RT.InstrumentDevice, resource_type))
 
-        # get instrument_agent_instance_id
-        inst_agent_inst_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
-        n = len(inst_agent_inst_objs)
-        if 1 != n:
-            raise NotFound("%s instrument agent instances found for instrument %s, not 1" % (n, instrument_device_id))
-        instrument_agent_instance_obj = self.RR2.read(inst_agent_inst_objs[0]._id)
+
+        instrument_agent_instance_obj = self.RR2.find_instrument_agent_instance_of_instrument_device(instrument_device_id)
 
         attachment = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
 
@@ -249,14 +209,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                              (RT.InstrumentDevice, resource_type))
 
         # get instrument_agent_instance_id
-        inst_agent_inst_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
+        inst_agent_instance_obj = self.RR2.find_instrument_agent_instance_of_instrument_device(instrument_device_id)
 
-        if 0 == len(inst_agent_inst_objs):
-            raise NotFound("No instrument agent instance was found for instrument %s" % instrument_device_id)
-
-        inst_agent_instance_obj = inst_agent_inst_objs[0]
-
-        self._validate_instrument_agent_instance(inst_agent_inst_objs[0])
+        self._validate_instrument_agent_instance(inst_agent_instance_obj)
 
         epoch = time.mktime(datetime.now().timetuple())
         snapshot_name = name or "Running Config Snapshot %s.js" % epoch
@@ -354,13 +309,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def _validate_instrument_device_preagentlaunch(self, instrument_device_id):
         #retrieve the instrument model
-        model_objs = self.instrument_device.find_stemming_model(instrument_device_id)
-        if 1 != len(model_objs):
-            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
-                             (str(instrument_device_id), len(model_objs)))
+        instrument_model_id = self.RR2.find_instrument_model_id_of_instrument_device(instrument_device_id)
 
-        model_obj = model_objs[0]
-        instrument_model_id = model_obj._id
 
         #retrieve the associated instrument agent
         self.RR2.find_instrument_agent_by_instrument_model(instrument_model_id)
@@ -382,7 +332,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
 
             #get the  parameter dictionary for this stream
-            dataset_ids = self.RR2.find_data_set_ids_of_data_product(product_id)
+            dataset_ids = self.RR2.find_dataset_ids_of_data_product(product_id)
             #One data set per product ...for now.
             if not dataset_ids:
                 raise NotFound("No Dataset attached to this Data Product " + str(product_id))
@@ -407,11 +357,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
 
         #retrieve the associated instrument device
-        inst_device_objs = self.instrument_device.find_having_agent_instance(instrument_agent_instance_obj._id)
-        if 1 != len(inst_device_objs):
-            raise BadRequest("Expected 1 InstrumentDevice attached to  InstrumentAgentInstance '%s', got %d" %
-                             (str(instrument_agent_instance_obj._id), len(inst_device_objs)))
-        instrument_device_id = inst_device_objs[0]._id
+        instrument_device_id = self.RR2.find_instrument_device_by_instrument_agent_instance(instrument_agent_instance_obj._id)
+
         log.debug("L4-CI-SA-RQ-363: device is %s connected to instrument agent instance %s",
                   str(instrument_device_id),
                   str(instrument_agent_instance_obj._id))
@@ -532,11 +479,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def _generate_instrument_agent_config(self, instrument_device_id):
 
-        instance_objs = self.instrument_device.find_stemming_agent_instance(instrument_device_id)
-        if 1 != len(instance_objs):
-            raise BadRequest("InstrumentDevice had %s agent instances, not 1" % len(instance_objs))
 
-        instrument_agent_instance_obj = instance_objs[0]
+        instrument_agent_instance_obj = self.RR2.find_instrument_agent_instance_of_instrument_device(instrument_device_id)
 
         #retrieve the instrument agent for this device
         instrument_agent_obj = self.RR2.find_instrument_agent_of_instrument_agent_instance(instrument_agent_instance_obj)
@@ -756,11 +700,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             producer_obj.producer_context.activation_time =  IonTime().to_string()
             producer_obj.producer_context.configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
-            site_objs = self.instrument_site.find_having_device(device_obj._id)
-
-            if len(site_objs) == 1:
-                producer_obj.producer_context.deployed_site_id = site_objs[0]._id
-
+            site_id = self.RR2.find_instrument_site_id_by_instrument_device(device_obj._id)
+            producer_obj.producer_context.deployed_site_id = site_id
 
             self.clients.resource_registry.update(producer_obj)
 
@@ -786,8 +727,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         # validate the associations, then pick things up
         self._validate_instrument_agent_instance(instrument_agent_instance_obj)
-        instrument_device_id = self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)[0]._id
-        instrument_model_id  = self.instrument_device.find_stemming_model(instrument_device_id)[0]._id
+        instrument_device_id = self.RR2.find_instrument_device_id_by_instrument_agent_instance(instrument_agent_instance_id)
+        instrument_model_id  = self.RR2.find_instrument_model_id_of_instrument_device(instrument_device_id)
         instrument_agent_id  = self.RR2.find_instrument_agent_id_by_instrument_model(instrument_model_id)
 
         instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
@@ -838,10 +779,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             producer_obj.producer_context.activation_time =  IonTime().to_string()
             producer_obj.producer_context.configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
-            site_objs = self.instrument_site.find_having_device(instrument_device_id)
-
-            if len(site_objs) == 1:
-                producer_obj.producer_context.deployed_site_id = site_objs[0]._id
+            site_id = self.RR2.find_instrument_site_id_by_instrument_device(instrument_device_id)
+            producer_obj.producer_context.deployed_site_id = site_id
 
 
             self.clients.resource_registry.update(producer_obj)
@@ -1260,7 +1199,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        instrument_device_id = self.instrument_device.create_one(instrument_device)
+        instrument_device_id = self.RR2.create(instrument_device)
 
         #register the instrument as a data producer
         self.DAMS.register_instrument(instrument_device_id)
@@ -1275,7 +1214,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is not set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.instrument_device.update_one(instrument_device)
+        return self.RR2.update(instrument_device)
 
     def read_instrument_device(self, instrument_device_id=''):
         """
@@ -1284,7 +1223,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval InstrumentDevice resource
 
         """
-        return self.instrument_device.read_one(instrument_device_id)
+        return self.RR2.read(instrument_device_id)
 
     def delete_instrument_device(self, instrument_device_id=''):
         """
@@ -1293,11 +1232,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.instrument_device.delete_one(instrument_device_id)
+        self.RR2.delete(instrument_device_id)
 
 
     def force_delete_instrument_device(self, instrument_device_id=''):
-        self.instrument_device.force_delete_one(instrument_device_id)
+        self.RR2.force_delete(instrument_device_id)
 
     ##
     ##
@@ -1429,7 +1368,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        platform_agent_instance_id = self.platform_agent_instance.create_one(platform_agent_instance)
+        platform_agent_instance_id = self.RR2.create(platform_agent_instance)
 
         if platform_agent_id:
             self.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
@@ -1446,7 +1385,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is not set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.platform_agent_instance.update_one(platform_agent_instance)
+        return self.RR2.update(platform_agent_instance)
 
     def read_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -1454,7 +1393,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @param platform_agent_instance_id the id of the object to be fetched
         @retval PlatformAgentInstance resource
         """
-        return self.platform_agent_instance.read_one(platform_agent_instance_id)
+        return self.RR2.read(platform_agent_instance_id)
 
     def delete_platform_agent_instance(self, platform_agent_instance_id=''):
         """
@@ -1463,10 +1402,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent_instance.delete_one(platform_agent_instance_id)
+        self.RR2.delete(platform_agent_instance_id)
 
     def force_delete_platform_agent_instance(self, platform_agent_instance_id=''):
-        self.platform_agent_instance.force_delete_one(platform_agent_instance_id)
+        self.RR2.force_delete(platform_agent_instance_id)
 
 #    def _get_child_platforms(self, platform_device_id):
 #        """ recursively trace hasDevice relationships, return list of all PlatformDevice objects
@@ -1507,7 +1446,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        platform_agent_id = self.platform_agent.create_one(platform_agent)
+        platform_agent_id = self.RR2.create(platform_agent)
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
@@ -1517,10 +1456,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         process_definition_id = pd.create_process_definition(process_definition=process_definition)
 
         #associate the agent and the process def
-        self.clients.resource_registry.create_association(platform_agent_id,
-                                                          PRED.hasProcessDefinition,
-                                                          process_definition_id)
-
+        self.RR2.assign_process_definition_to_platform_agent(process_definition_id, platform_agent_id)
         return platform_agent_id
 
     def update_platform_agent(self, platform_agent=None):
@@ -1532,7 +1468,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
 
         """
-        return self.platform_agent.update_one(platform_agent)
+        return self.RR2.update(platform_agent)
 
     def read_platform_agent(self, platform_agent_id=''):
         """
@@ -1541,7 +1477,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval PlatformAgent resource
 
         """
-        return self.platform_agent.read_one(platform_agent_id)
+        return self.RR2.read(platform_agent_id)
 
     def delete_platform_agent(self, platform_agent_id=''):
         """
@@ -1550,10 +1486,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_agent.delete_one(platform_agent_id)
+        self.RR2.delete(platform_agent_id)
 
     def force_delete_platform_agent(self, platform_agent_id=''):
-        self.platform_agent.force_delete_one(platform_agent_id)
+        self.RR2.force_delete(platform_agent_id)
 
 
     ##########################################################################
@@ -1571,7 +1507,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.platform_model.create_one(platform_model)
+        return self.RR2.create(platform_model)
 
     def update_platform_model(self, platform_model=None):
         """
@@ -1581,7 +1517,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is not set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.platform_model.update_one(platform_model)
+        return self.RR2.update(platform_model)
 
     def read_platform_model(self, platform_model_id=''):
         """
@@ -1590,7 +1526,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval PlatformModel resource
 
         """
-        return self.platform_model.read_one(platform_model_id)
+        return self.RR2.read(platform_model_id)
 
     def delete_platform_model(self, platform_model_id=''):
         """
@@ -1599,10 +1535,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_model.delete_one(platform_model_id)
+        self.RR2.delete(platform_model_id)
 
     def force_delete_platform_model(self, platform_model_id=''):
-        self.platform_model.force_delete_one(platform_model_id)
+        self.RR2.force_delete(platform_model_id)
 
 
     ##########################################################################
@@ -1622,7 +1558,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        platform_device_id = self.platform_device.create_one(platform_device)
+        platform_device_id = self.RR2.create(platform_device)
         #register the platform as a data producer
         self.DAMS.register_instrument(platform_device_id)
 
@@ -1638,7 +1574,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
 
         """
-        return self.platform_device.update_one(platform_device)
+        return self.RR2.update(platform_device)
 
     def read_platform_device(self, platform_device_id=''):
         """
@@ -1647,7 +1583,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval PlatformDevice resource
 
         """
-        return self.platform_device.read_one(platform_device_id)
+        return self.RR2.read(platform_device_id)
 
     def delete_platform_device(self, platform_device_id=''):
         """
@@ -1656,10 +1592,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.platform_device.delete_one(platform_device_id)
+        self.RR2.delete(platform_device_id)
 
     def force_delete_platform_device(self, platform_device_id=''):
-        self.platform_device.force_delete_one(platform_device_id)
+        self.RR2.force_delete(platform_device_id)
 
 
 
@@ -1679,7 +1615,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.sensor_model.create_one(sensor_model)
+        return self.RR2.create(sensor_model)
 
     def update_sensor_model(self, sensor_model=None):
         """
@@ -1690,7 +1626,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
 
         """
-        return self.sensor_model.update_one(sensor_model)
+        return self.RR2.update(sensor_model)
 
     def read_sensor_model(self, sensor_model_id=''):
         """
@@ -1699,7 +1635,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval SensorModel resource
 
         """
-        return self.sensor_model.read_one(sensor_model_id)
+        return self.RR2.read(sensor_model_id)
 
     def delete_sensor_model(self, sensor_model_id=''):
         """
@@ -1708,10 +1644,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_model.delete_one(sensor_model_id)
+        self.RR2.delete(sensor_model_id)
 
     def force_delete_sensor_model(self, sensor_model_id=''):
-        self.sensor_model.force_delete_one(sensor_model_id)
+        self.RR2.force_delete(sensor_model_id)
 
 
     ##########################################################################
@@ -1729,7 +1665,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest if the incoming _id field is set
         @throws BadReqeust if the incoming name already exists
         """
-        return self.sensor_device.create_one(sensor_device)
+        return self.RR2.create(sensor_device)
 
     def update_sensor_device(self, sensor_device=None):
         """
@@ -1740,7 +1676,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
 
         """
-        return self.sensor_device.update_one(sensor_device)
+        return self.RR2.update(sensor_device)
 
     def read_sensor_device(self, sensor_device_id=''):
         """
@@ -1749,7 +1685,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval SensorDevice resource
 
         """
-        return self.sensor_device.read_one(sensor_device_id)
+        return self.RR2.read(sensor_device_id)
 
     def delete_sensor_device(self, sensor_device_id=''):
         """
@@ -1758,10 +1694,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @retval success whether it succeeded
 
         """
-        self.sensor_device.delete_one(sensor_device_id)
+        self.RR2.delete(sensor_device_id)
 
     def force_delete_sensor_device(self, sensor_device_id=''):
-        self.sensor_device.force_delete_one(sensor_device_id)
+        self.RR2.force_delete(sensor_device_id)
 
 
 
@@ -1773,8 +1709,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def assign_instrument_model_to_instrument_device(self, instrument_model_id='', instrument_device_id=''):
-        instrument_model_obj  = self.instrument_model.read_one(instrument_model_id)
-        instrument_device_obj = self.instrument_device.read_one(instrument_device_id)
+        instrument_model_obj  = self.RR2.read(instrument_model_id)
+        instrument_device_obj = self.RR2.read(instrument_device_id)
 
         for k, v in instrument_device_obj.custom_attributes.iteritems():
             if not k in instrument_model_obj.custom_attributes:
@@ -1785,10 +1721,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 #raise BadRequest(err_msg)
                 log.warn(err_msg)
 
-        self.instrument_device.link_model(instrument_device_id, instrument_model_id)
+        self.RR2.assign_one_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
+
 
     def unassign_instrument_model_from_instrument_device(self, instrument_model_id='', instrument_device_id=''):
-        self.instrument_device.unlink_model(instrument_device_id, instrument_model_id)
+        self.RR2.unassign_instrument_model_from_instrument_device(instrument_model_id, instrument_device_id)
 
     def assign_instrument_model_to_instrument_agent(self, instrument_model_id='', instrument_agent_id=''):
         self.RR2.assign_instrument_model_to_instrument_agent(instrument_model_id, instrument_agent_id)
@@ -1797,64 +1734,64 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.RR2.unassign_instrument_model_from_instrument_agent(instrument_agent_id, instrument_model_id)
 
     def assign_platform_model_to_platform_agent(self, platform_model_id='', platform_agent_id=''):
-        self.platform_agent.link_model(platform_agent_id, platform_model_id)
+        self.RR2.assign_platform_model_to_one_platform_agent(platform_model_id, platform_agent_id)
 
     def unassign_platform_model_from_platform_agent(self, platform_model_id='', platform_agent_id=''):
-        self.platform_agent.unlink_model(platform_agent_id, platform_model_id)
+        self.RR2.unassign_platform_model_from_platform_agent(platform_model_id, platform_agent_id)
 
     def assign_sensor_model_to_sensor_device(self, sensor_model_id='', sensor_device_id=''):
-        self.sensor_device.link_model(sensor_device_id, sensor_model_id)
+        self.RR2.assign_one_sensor_model_to_sensor_device(sensor_model_id, sensor_device_id)
 
     def unassign_sensor_model_from_sensor_device(self, sensor_model_id='', sensor_device_id=''):
-        self.sensor_device.unlink_model(sensor_device_id, sensor_model_id)
+        self.RR2.unassign_sensor_model_from_sensor_device(self, sensor_model_id, sensor_device_id)
 
     def assign_platform_model_to_platform_device(self, platform_model_id='', platform_device_id=''):
-        self.platform_device.link_model(platform_device_id, platform_model_id)
+        self.RR2.assign_one_platform_model_to_platform_device(platform_model_id, platform_device_id)
 
     def unassign_platform_model_from_platform_device(self, platform_model_id='', platform_device_id=''):
-        self.platform_device.unlink_model(platform_device_id, platform_model_id)
+        self.RR2.unassign_platform_model_from_platform_device(platform_model_id, platform_device_id)
 
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.link_instrument_device(platform_device_id, instrument_device_id)
+        self.RR2.assign_instrument_device_to_one_platform_device(instrument_device_id, platform_device_id)
 
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.platform_device.unlink_instrument_device(platform_device_id, instrument_device_id)
+        self.RR2.unassign_instrument_device_from_platform_device(instrument_device_id, platform_device_id)
 
     def assign_platform_device_to_platform_device(self, child_platform_device_id='', platform_device_id=''):
-        self.platform_device.link_platform_device(platform_device_id, child_platform_device_id)
+        self.RR2.assign_platform_device_to_one_platform_device(child_platform_device_id, platform_device_id)
 
     def unassign_platform_device_from_platform_device(self, child_platform_device_id='', platform_device_id=''):
-        self.platform_device.unlink_platform_device(platform_device_id, child_platform_device_id)
+        self.RR2.unassign_platform_device_from_platform_device(child_platform_device_id, platform_device_id)
 
     def assign_platform_agent_to_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
-        self.platform_agent_instance.link_agent_definition(platform_agent_instance_id, platform_agent_id)
+        self.RR2.assign_one_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
 
     def unassign_platform_agent_from_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
-        self.platform_agent_instance.unlink_agent_definition(platform_agent_instance_id, platform_agent_id)
+        self.RR2.unassign_platform_agent_from_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
 
     def assign_instrument_agent_to_instrument_agent_instance(self, instrument_agent_id='', instrument_agent_instance_id=''):
-        self.RR2.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
+        self.RR2.assign_one_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
 
     def unassign_instrument_agent_from_instrument_agent_instance(self, instrument_agent_id='', instrument_agent_instance_id=''):
         self.RR2.unassign_instrument_agent_from_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
 
     def assign_instrument_agent_instance_to_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
-        self.instrument_device.link_agent_instance(instrument_device_id, instrument_agent_instance_id)
+        self.RR2.assign_one_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
 
     def unassign_instrument_agent_instance_from_instrument_device(self, instrument_agent_instance_id='', instrument_device_id=''):
-        self.instrument_device.unlink_agent_instance(instrument_device_id, instrument_agent_instance_id)
+        self.RR2.unassign_instrument_agent_instance_from_instrument_device(instrument_agent_instance_id, instrument_device_id)
 
     def assign_platform_agent_instance_to_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
-        self.platform_device.link_agent_instance(platform_device_id, platform_agent_instance_id)
+        self.RR2.assign_one_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
 
     def unassign_platform_agent_instance_from_platform_device(self, platform_agent_instance_id='', platform_device_id=''):
-        self.platform_device.unlink_agent_instance(platform_device_id, platform_agent_instance_id)
+        self.RR2.unassign_platform_agent_instance_from_platform_device(platform_agent_instance_id, platform_device_id)
 
     def assign_sensor_device_to_instrument_device(self, sensor_device_id='', instrument_device_id=''):
-        self.instrument_device.link_device(instrument_device_id, sensor_device_id)
+        self.RR2.assign_sensor_device_to_one_instrument_device(sensor_device_id, instrument_device_id)
 
     def unassign_sensor_device_from_instrument_device(self, sensor_device_id='', instrument_device_id=''):
-        self.instrument_device.unlink_device(instrument_device_id, sensor_device_id)
+        self.RR2.unassign_sensor_device_from_instrument_device(sensor_device_id, instrument_device_id)
 
 
     ##########################################################################
@@ -1866,16 +1803,55 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def deploy_instrument_device(self, instrument_device_id='', deployment_id=''):
-        self.instrument_device.link_deployment(instrument_device_id, deployment_id)
+        #def link_deployment(self, instrument_device_id='', deployment_id=''):
+        #    # make sure that only 1 site-device-deployment triangle exists at one time
+        #    sites, _ = self.RR.find_subjects(RT.InstrumentSite, PRED.hasDevice, instrument_device_id, False)
+        #    if 1 < len(sites):
+        #        raise Inconsistent("Device is assigned to more than one site")
+        #    if 1 == len(sites):
+        #        site_deployments = self._find_stemming(sites[0]._id, PRED.hasDeployment, RT.Deployment)
+        #        if 1 < len(site_deployments):
+        #            raise Inconsistent("Site has more than one deployment")
+        #        if 1 == len(site_deployments):
+        #            if site_deployments[0]._id != deployment_id:
+        #                raise BadRequest("Site to which this device is assigned has a different deployment")
+        #
+        #        for dev in self._find_stemming(sites[0]._id, PRED.hasDevice, RT.InstrumentDevice):
+        #            if 0 < len(self._find_stemming(dev, PRED.hasDeployment, RT.Deployment)):
+        #                raise BadRequest("Site already has a device with a deployment")
+        #
+        #    return self._link_resources_single_object(instrument_device_id, PRED.hasDeployment, deployment_id)
+        self.RR2.assign_deployment_to_instrument_device(deployment_id, instrument_device_id)
+
 
     def undeploy_instrument_device(self, instrument_device_id='', deployment_id=''):
-        self.instrument_device.unlink_deployment(instrument_device_id, deployment_id)
+        self.RR2.unassign_deployment_from_instrument_device(deployment_id, instrument_device_id)
+
 
     def deploy_platform_device(self, platform_device_id='', deployment_id=''):
-        self.platform_device.link_deployment(platform_device_id, deployment_id)
+        #def link_deployment(self, platform_device_id='', deployment_id=''):
+        #    # make sure that only 1 site-device-deployment triangle exists at one time
+        #    sites, _ = self.RR.find_subjects(RT.PlatformSite, PRED.hasDevice, platform_device_id, False)
+        #    if 1 < len(sites):
+        #        raise Inconsistent("Device is assigned to more than one site")
+        #    if 1 == len(sites):
+        #        site_deployments = self._find_stemming(sites[0]._id, PRED.hasDeployment, RT.Deployment)
+        #        if 1 < len(site_deployments):
+        #            raise Inconsistent("Site has more than one deployment")
+        #        if 1 == len(site_deployments):
+        #            if site_deployments[0]._id != deployment_id:
+        #                raise BadRequest("Site to which this device is assigned has a different deployment")
+        #
+        #        for dev in self._find_stemming(sites[0]._id, PRED.hasDevice, RT.PlatformDevice):
+        #            if 0 < len(self._find_stemming(dev, PRED.hasDeployment, RT.Deployment)):
+        #                raise BadRequest("Site already has a device with a deployment")
+        #
+        #    return self._link_resources_single_object(platform_device_id, PRED.hasDeployment, deployment_id)
+        self.RR2.assign_deployment_to_platform_device(deployment_id, platform_device_id)
+
 
     def undeploy_platform_device(self, platform_device_id='', deployment_id=''):
-        self.platform_device.unlink_deployment(platform_device_id, deployment_id)
+        self.RR2.unassign_deployent_from_platform_device(deployment_id, platform_device_id)
 
 
 
@@ -1888,16 +1864,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def find_instrument_model_by_instrument_device(self, instrument_device_id=''):
-        return self.instrument_device.find_stemming_model(instrument_device_id)
+        return self.RR2.find_instrument_models_of_instrument_device(instrument_device_id)
 
     def find_instrument_device_by_instrument_model(self, instrument_model_id=''):
-        return self.instrument_device.find_having_model(instrument_model_id)
+        return self.RR2.find_instrument_devices_by_instrument_model(instrument_model_id)
 
     def find_platform_model_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_model(platform_device_id)
+        return self.RR2.find_platform_models_of_platform_device(platform_device_id)
 
     def find_platform_device_by_platform_model(self, platform_model_id=''):
-        return self.platform_device.find_having_model(platform_model_id)
+        return self.RR2.find_platform_devices_by_platform_model(platform_model_id)
 
     def find_instrument_model_by_instrument_agent(self, instrument_agent_id=''):
         return self.RR2.find_instrument_models_of_instrument_agent(instrument_agent_id)
@@ -1906,22 +1882,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.RR2.find_instrument_agents_by_instrument_model(instrument_model_id)
 
     def find_instrument_device_by_instrument_agent_instance(self, instrument_agent_instance_id=''):
-        return self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)
+        return self.RR2.find_instrument_devices_by_instrument_agent_instance(instrument_agent_instance_id)
 
     def find_instrument_agent_instance_by_instrument_device(self, instrument_device_id=''):
-        return self.instrument_device.find_stemming_agent_instance(instrument_device_id)
+        return self.RR2.find_instrument_agent_instances_of_instrument_device(instrument_device_id)
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_instrument_device(platform_device_id)
+        return self.RR2.find_instrument_devices_of_platform_device(platform_device_id)
 
     def find_platform_device_by_instrument_device(self, instrument_device_id=''):
-        return self.platform_device.find_having_instrument_device(instrument_device_id)
+        return self.RR2.find_platform_devices_by_instrument_device(instrument_device_id)
 
-    def find_child_platform_device_by_platform_device(self, platform_device_id=''):
-        return self.platform_device.find_stemming_platform_device(platform_device_id)
 
-    def find_platform_device_by_child_platform_device(self, instrument_device_id=''):
-        return self.platform_device.find_having_platform_device(instrument_device_id)
+
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
         raise NotImplementedError("TODO: this function will be removed")
@@ -1986,56 +1959,56 @@ class InstrumentManagementService(BaseInstrumentManagementService):
        declare a instrument_model to be in a given state
        @param instrument_model_id the resource id
        """
-       return self.instrument_model.advance_lcs(instrument_model_id, lifecycle_event)
+       return self.RR2.advance_lcs(instrument_model_id, lifecycle_event)
 
     def execute_instrument_device_lifecycle(self, instrument_device_id="", lifecycle_event=""):
        """
        declare an instrument_device to be in a given state
        @param instrument_device_id the resource id
        """
-       return self.instrument_device.advance_lcs(instrument_device_id, lifecycle_event)
+       return self.RR2.advance_lcs(instrument_device_id, lifecycle_event)
 
     def execute_platform_agent_lifecycle(self, platform_agent_id="", lifecycle_event=""):
        """
        declare a platform_agent to be in a given state
        @param platform_agent_id the resource id
        """
-       return self.platform_agent.advance_lcs(platform_agent_id, lifecycle_event)
+       return self.RR2.advance_lcs(platform_agent_id, lifecycle_event)
 
     def execute_platform_agent_instance_lifecycle(self, platform_agent_instance_id="", lifecycle_event=""):
        """
        declare a platform_agent_instance to be in a given state
        @param platform_agent_instance_id the resource id
        """
-       return self.platform_agent_instance.advance_lcs(platform_agent_instance_id, lifecycle_event)
+       return self.RR2.advance_lcs(platform_agent_instance_id, lifecycle_event)
 
     def execute_platform_model_lifecycle(self, platform_model_id="", lifecycle_event=""):
        """
        declare a platform_model to be in a given state
        @param platform_model_id the resource id
        """
-       return self.platform_model.advance_lcs(platform_model_id, lifecycle_event)
+       return self.RR2.advance_lcs(platform_model_id, lifecycle_event)
 
     def execute_platform_device_lifecycle(self, platform_device_id="", lifecycle_event=""):
        """
        declare a platform_device to be in a given state
        @param platform_device_id the resource id
        """
-       return self.platform_device.advance_lcs(platform_device_id, lifecycle_event)
+       return self.RR2.advance_lcs(platform_device_id, lifecycle_event)
 
     def execute_sensor_model_lifecycle(self, sensor_model_id="", lifecycle_event=""):
        """
        declare a sensor_model to be in a given state
        @param sensor_model_id the resource id
        """
-       return self.sensor_model.advance_lcs(sensor_model_id, lifecycle_event)
+       return self.RR2.advance_lcs(sensor_model_id, lifecycle_event)
 
     def execute_sensor_device_lifecycle(self, sensor_device_id="", lifecycle_event=""):
        """
        declare a sensor_device to be in a given state
        @param sensor_device_id the resource id
        """
-       return self.sensor_device.advance_lcs(sensor_device_id, lifecycle_event)
+       return self.RR2.advance_lcs(sensor_device_id, lifecycle_event)
 
 
 

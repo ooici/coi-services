@@ -3,6 +3,7 @@
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
 from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -17,20 +18,18 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from pyon.core.exception import NotFound, Inconsistent, Unauthorized #, Conflict
-from pyon.public import RT, LCS, LCE, PRED,CFG
+from pyon.public import RT, LCE, PRED,CFG
 from pyon.ion.resource import get_maturity_visibility, OT
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
+
 from ion.services.sa.instrument.flag import KeywordFlag
 from ion.services.dm.utility.granule_utils import time_series_domain
 
-from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.agents.port.port_agent_process import PortAgentType
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
@@ -73,6 +72,7 @@ class TestAssembly(IonIntegrationTestCase):
         self.client.DPRS = DataProcessManagementServiceClient(node=self.container.node)
 
         self.client.RR   = ResourceRegistryServiceClient(node=self.container.node)
+        self.RR2 = EnhancedResourceRegistryClient(self.client.RR)
         self.dataset_management = DatasetManagementServiceClient()
 
 
@@ -105,9 +105,6 @@ class TestAssembly(IonIntegrationTestCase):
 
         instrument_site_impl    = InstrumentSiteImpl(c2)
         platform_site_impl      = PlatformSiteImpl(c2)
-        platform_agent_impl     = PlatformAgentImpl(c2)
-        instrument_device_impl  = InstrumentDeviceImpl(c2)
-        sensor_device_impl      = SensorDeviceImpl(c2)
         resource_impl           = ResourceImpl(c2)
 
 
@@ -344,8 +341,8 @@ class TestAssembly(IonIntegrationTestCase):
         self.generic_lcs_fail(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEVELOP)
         log.info("Associate platform model with platform agent")
         self.generic_association_script(c.IMS.assign_platform_model_to_platform_agent,
-                                        platform_agent_impl.find_having_model,
-                                        platform_agent_impl.find_stemming_model,
+                                        self.RR2.find_platform_agents_by_platform_model,
+                                        self.RR2.find_platform_models_of_platform_agent,
                                         platform_agent_id,
                                         platform_model_id)
         self.generic_lcs_pass(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEVELOP, LCS.DEVELOPED)
@@ -456,8 +453,8 @@ class TestAssembly(IonIntegrationTestCase):
 
         log.info("Associate sensor model with sensor device")
         self.generic_association_script(c.IMS.assign_sensor_model_to_sensor_device,
-                                        sensor_device_impl.find_having_model,
-                                        sensor_device_impl.find_stemming_model,
+                                        self.RR2.find_sensor_devices_by_sensor_model,
+                                        self.RR2.find_sensor_models_of_sensor_device,
                                         sensor_device_id,
                                         sensor_model_id)
 
@@ -465,8 +462,8 @@ class TestAssembly(IonIntegrationTestCase):
 
         log.info("Associate sensor device with instrument device")
         self.generic_association_script(c.IMS.assign_sensor_device_to_instrument_device,
-                                        instrument_device_impl.find_having_device,
-                                        instrument_device_impl.find_stemming_device,
+                                        self.RR2.find_instrument_devices_by_sensor_device,
+                                        self.RR2.find_sensor_devices_of_instrument_device,
                                         instrument_device_id,
                                         sensor_device_id)
 

@@ -4,7 +4,7 @@
 and the relationships between them"""
 
 import time
-
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
@@ -19,10 +19,6 @@ from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
-
-#for logical/physical associations, it makes sense to search from MFMS
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -79,6 +75,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Replaces the service clients with a new set of them... and makes sure they go to the right places
         """
 
+        self.RR2   = EnhancedResourceRegistryClient(new_clients.resource_registry)
+
         #shortcut names for the import sub-services
         if hasattr(new_clients, "resource_registry"):
             self.RR    = new_clients.resource_registry
@@ -96,8 +94,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.platform_site    = PlatformSiteImpl(new_clients)
         self.instrument_site  = InstrumentSiteImpl(new_clients)
 
-        self.instrument_device   = InstrumentDeviceImpl(new_clients)
-        self.platform_device     = PlatformDeviceImpl(new_clients)
+
         self.dataproductclient = DataProductManagementServiceClient()
         self.dataprocessclient = DataProcessManagementServiceClient()
 
@@ -792,7 +789,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Multiple platforms in the same deployment are not allowed")
         elif 0 < len(device_models):
             log.trace("adding devices and sites that are children of platform device / site")
-            child_device_objs = self.platform_device.find_stemming_platform_device(device_models.keys()[0])
+            child_device_objs = self.RR2.find_platform_devices_of_platform_device(device_models.keys()[0])
             child_site_objs = self.find_related_frames_of_reference(site_models.keys()[0],
                 [RT.PlatformSite, RT.InstrumentSite])
 
