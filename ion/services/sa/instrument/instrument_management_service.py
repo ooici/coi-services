@@ -173,7 +173,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_obj = self.RR2.find_instrument_agent_instance_of_instrument_device(instrument_device_id)
 
-        attachment = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
+        attachment = self.RR2.read_attachment(attachment_id, include_content=True)
 
         if not KeywordFlag.CONFIG_SNAPSHOT in attachment.keywords:
             raise BadRequest("Attachment '%s' does not seem to be a config snapshot" % attachment_id)
@@ -240,7 +240,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                attachment_type=AttachmentType.ASCII)
 
         # return the attachment id
-        return self.clients.resource_registry.create_attachment(instrument_device_id, attachment)
+        return self.RR2.create_attachment(instrument_device_id, attachment)
 
 
 
@@ -323,22 +323,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #retrieve the streams assoc with each defined output product
         for product_id in data_product_ids:
-            stream_ids = self.RR2.find_stream_ids_of_data_product(product_id)
-
-            #One stream per product ...for now.
-            if not stream_ids:
-                raise NotFound("No Stream  attached to this Data Product " + str(product_id))
-            if len(stream_ids) > 1:
-                raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
-
-            #get the  parameter dictionary for this stream
-            dataset_ids = self.RR2.find_dataset_ids_of_data_product(product_id)
-            #One data set per product ...for now.
-            if not dataset_ids:
-                raise NotFound("No Dataset attached to this Data Product " + str(product_id))
-            if len(dataset_ids) > 1:
-                raise Inconsistent("Data Product should only have ONE Dataset" + str(product_id))
-
+            self.RR2.find_stream_id_of_data_product(product_id)  # check one stream per product
+            self.RR2.find_dataset_id_of_data_product(product_id) # check one dataset per product
 
 
 
@@ -346,7 +332,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if not instrument_agent_obj.stream_configurations:
             raise BadRequest("Agent does not contain stream configuration used in launching the agent. Agent object: '%s",
                              str(instrument_agent_obj) )
-
 
 
     def _validate_instrument_agent_instance(self, instrument_agent_instance_obj):
@@ -378,30 +363,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #        data_product_id = self.dpclient.create_data_product(data_product=self.dp_obj, stream_definition_id=self.platform_eng_stream_def_id)
 #        self.damsclient.assign_data_product(input_resource_id=device_id, data_product_id=data_product_id)
 
-        data_product_ids, _ = self.clients.resource_registry.find_objects(device_id,
-                                                                          PRED.hasOutputProduct,
-                                                                          RT.DataProduct,
-                                                                          True)
-        if not data_product_ids:
-            raise BadRequest('platform %s has no associated data product' % platform_id)
-        data_product_id = data_product_ids[0]
-
         # Retrieve the id of the OUTPUT stream from the out Data Product
-        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, None, True)
-        stream_id = stream_ids[0]
+        data_product_id = self.RR2.find_data_product_id_of_platform_device_using_has_output_product(device_id)
+        stream_id = self.RR2.find_stream_id_of_data_product(data_product_id)
+
+        #get the streamroute object from pubsub by passing the stream_id
+        stream_def_id = self.RR2.find_stream_definition_id_of_stream(stream_id)
+        stream_route = self.clients.pubsub_management.read_stream_route(stream_id=stream_id)
 
         platform_eng_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('platform_eng_parsed')
 
-        #get the streamroute object from pubsub by passing the stream_id
-        stream_def_ids, _ = self.clients.resource_registry.find_objects(stream_id,
-                                                                        PRED.hasStreamDefinition,
-                                                                        RT.StreamDefinition,
-                                                                        True)
-
-        stream_route = self.clients.pubsub_management.read_stream_route(stream_id=stream_id)
         stream_config = {'routing_key' : stream_route.routing_key,
                          'stream_id' : stream_id,
-                         'stream_definition_ref' : stream_def_ids[0],
+                         'stream_definition_ref' : stream_def_id,
                          'exchange_point' : stream_route.exchange_point,
                          'parameter_dictionary':platform_eng_dictionary.dump()}
 
@@ -409,21 +383,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def _generate_stream_config(self, instrument_device_id='', instrument_agent_instance_obj=None):
+        dsm = self.clients.dataset_management
+        psm = self.clients.pubsub_management
 
         #_stream_config = self.instrument_device.find_stemming_model(instrument_device_id)[0].stream_configuration
 
         #retrieve the agent definition
-        instrument_agent_objs, _ = self.clients.resource_registry.find_objects(instrument_agent_instance_obj._id,
-                                                                               PRED.hasAgentDefinition,
-                                                                               RT.InstrumentAgent,
-                                                                               False)
-        if not instrument_agent_objs:
-            raise NotFound("No Agent Definition attached to this Instrument Agent Instance " +
-                           str(instrument_agent_instance_obj))
-        dsm = self.clients.dataset_management
-        psm = self.clients.pubsub_management
+        instrument_agent_obj = self.RR2.find_instrument_agent_of_instrument_agent_instance(instrument_agent_instance_obj)
+
         streams_dict = {}
-        for stream_cfg in instrument_agent_objs[0].stream_configurations:
+        for stream_cfg in instrument_agent_obj.stream_configurations:
             #create a stream def for each param dict to match against the existing data products
             param_dict_id = dsm.read_parameter_dictionary_by_name(stream_cfg.parameter_dictionary_name,
                                                                   id_only=True)
@@ -434,45 +403,40 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                             'granule_publish_rate':stream_cfg.granule_publish_rate }
 
         #retrieve the output products
-        data_product_ids, _ = self.clients.resource_registry.find_objects(instrument_device_id,
-                                                                          PRED.hasOutputProduct,
-                                                                          RT.DataProduct,
-                                                                          True)
+        data_product_ids = self.RR2.find_data_product_ids_of_instrument_device_using_has_output_product(instrument_device_id)
 
         out_streams = []
         for product_id in data_product_ids:
-            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
-            out_streams.append(stream_ids[0])
+            stream_id = self.RR2.find_stream_id_of_data_product(product_id)
+            out_streams.append(stream_id)
 
 
         stream_config_too = {}
 
-        # create a stream config got each stream (dataproduct) assoc with this agent/device
+        log.debug("Creating a stream config got each stream (dataproduct) assoc with this agent/device")
         for product_stream_id in out_streams:
 
             #get the streamroute object from pubsub by passing the stream_id
-            stream_def_ids, _ = self.clients.resource_registry.find_objects(product_stream_id,
-                                                                            PRED.hasStreamDefinition,
-                                                                            RT.StreamDefinition,
-                                                                            True)
+            stream_def_id = self.RR2.find_stream_definition_id_of_stream(product_stream_id)
 
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
 
                 if self.clients.pubsub_management.compare_stream_definition(stream_info_dict.get('stream_def_id'),
-                                                                            stream_def_ids[0]):
+                                                                            stream_def_id):
                     model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
                     stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
 
                     stream_config_too[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                             'stream_id'             : product_stream_id,
-                                                            'stream_definition_ref' : stream_def_ids[0],
+                                                            'stream_definition_ref' : stream_def_id,
                                                             'exchange_point'        : stream_route.exchange_point,
                                                             'parameter_dictionary'  : model_param_dict.dump(),
                                                             'records_per_granule'  : stream_info_dict.get('records_per_granule'),
                                                             'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
                                                             }
 
+        log.debug("Stream config generated")
         log.trace("IMS:_generate_stream_config: %s", str(stream_config_too) )
         return stream_config_too
 
@@ -482,7 +446,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         instrument_agent_instance_obj = self.RR2.find_instrument_agent_instance_of_instrument_device(instrument_device_id)
 
-        #retrieve the instrument agent for this device
+        log.debug("retrieve the instrument agent for this device")
         instrument_agent_obj = self.RR2.find_instrument_agent_of_instrument_agent_instance(instrument_agent_instance_obj)
 
 
@@ -511,19 +475,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         }
 
         #retrieve the Org name to which this agent instance belongs
-        org_name = ''
-        org_objs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org,
-                                                                  predicate=PRED.hasResource,
-                                                                  object=instrument_agent_instance_obj._id)
-        if org_objs:
-            org_name = org_objs[0].name
-        agent_config['org_name'] = org_name
+        try:
+            org_obj = self.RR2.find_org_by_instrument_agent_instance_using_has_resource(instrument_agent_instance_obj)
+            agent_config['org_name'] = org_obj.name
+        except NotFound:
+            agent_config['org_name'] = ''
+        except:
+            raise
 
         return driver_config, agent_config
 
 
 
-    def _collect_agent_instance_associations(self, agent_instance_obj, lookup_method=None):
+    def _collect_agent_instance_associations(self, agent_instance_obj, lookup_means=None):
         """
         Verify that an agent instance is valid for launch.
 
@@ -548,22 +512,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                          True)
         """
 
-        if None is lookup_method: lookup_method = {}
+        if None is lookup_means: lookup_means = {}
 
-        assert PRED.hasAgentInstance in lookup_method
-        assert PRED.hasModel in lookup_method
-        assert PRED.hasAgentDefinition in lookup_method
-        #assert PRED.hasProcessDefinition in lookup_method
+        assert PRED.hasAgentInstance in lookup_means
+        assert PRED.hasModel in lookup_means
+        assert PRED.hasAgentDefinition in lookup_means
+        #assert PRED.hasProcessDefinition in lookup_means
 
-        lu = lookup_method
+        lu = lookup_means
 
         ret = {}
 
-        platform_agent_lookup_method = {}
-        platform_agent_lookup_method[PRED.hasAgentInstance] = RT.PlatformDevice
-        platform_agent_lookup_method[PRED.hasModel] = RT.PlatformModel
-        platform_agent_lookup_method[PRED.hasAgentDefinition] = RT.PlatformAgent
-
+      
 
 
         log.debug("retrieve the associated device")
@@ -593,7 +553,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #        streams_dict = platform_models_objs[0].custom_attributes['streams']
         #        if not streams_dict:
         #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
-
+        #TODO: get the agent from the instance not from the model!!!!!!!
         log.debug("retrieve the agent associated with the model")
         agent_obj = self.RR2.find_object(subject=agent_instance_obj._id,
                                          predicate=PRED.hasAgentDefinition,
@@ -615,38 +575,21 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         ret[RT.ProcessDefinition] = process_def_obj
 
         #retrieve the output products
-        data_product_ids = self.RR2.find_data_product_ids_by_data_product_using_has_output_product(device_id)
-#        data_product_ids, _ = self.clients.resource_registry.find_objects(device_id,
-#                                                                          PRED.hasOutputProduct,
-#                                                                          RT.DataProduct,
-#                                                                          True)
+        data_product_ids, _ = self.RR2.find_objects(device_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
+
         if not data_product_ids:
             raise NotFound("No output Data Products attached to this Device " + str(device_id))
 
         #retrieve the streams assoc with each defined output product
         for product_id in data_product_ids:
-            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
-
-            #One stream per product ...for now.
-            if not stream_ids:
-                raise NotFound("No Stream  attached to this Data Product " + str(product_id))
-            if len(stream_ids) > 1:
-                raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
-
-            #get the  parameter dictionary for this stream
-            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.DataSet, True)
-            #One data set per product ...for now.
-            if not dataset_ids:
-                raise NotFound("No Dataset attached to this Data Product " + str(product_id))
-            if len(dataset_ids) > 1:
-                raise Inconsistent("Data Product should only have ONE Dataset" + str(product_id))
-
+            self.RR2.find_stream_id_of_data_product(product_id)  # check one stream per product
+            self.RR2.find_dataset_id_of_data_product(product_id) # check one dataset per product
 
         return ret
 
 
 
-    def prelaunch_validate_agent_instance(self, agent_instance_obj, lookup_method):
+    def prelaunch_validate_agent_instance(self, agent_instance_obj, lookup_means):
         """
         Agent instance must exist and be associated with a device
         Launch the instument agent instance and return the id
@@ -658,58 +601,86 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                              str(agent_instance_obj.agent_process_id))
 
         # validate the associations, then pick things up
-        associated_objects = self._collect_agent_instance_associations(agent_instance_obj, lookup_method)
+        associated_objects = self._collect_agent_instance_associations(agent_instance_obj, lookup_means)
 
         return associated_objects
 
 
 
-    def launch_agent_instance(self, agent_instance_obj, associated_objects, lookup_method):
 
-        if None is lookup_method: lookup_method = {}
+    def launch_agent_instance(self, agent_instance_obj, associated_objects, lookup_means, agent_config=None, driver_config=None):
 
-        def check_keys(adict):
-            assert PRED.hasAgentInstance in adict
-            assert PRED.hasModel in adict
-            assert PRED.hasAgentDefinition in adict
+        if None is lookup_means: lookup_means = {}
 
-        check_keys(lookup_method)
-        check_keys(associated_objects)
-        assert PRED.hasProcessDefinition in associated_objects
+        def check_keys(somekeys):
+            for k in somekeys:
+                assert k in lookup_means
+                assert lookup_means[k] in associated_objects
 
-        lu = lookup_method
+        check_keys([PRED.hasAgentInstance, PRED.hasModel, PRED.hasAgentDefinition])
+        assert RT.ProcessDefinition in associated_objects
+
+        lu = lookup_means
 
         device_obj      = associated_objects[lu[PRED.hasAgentInstance]]
         model_obj       = associated_objects[lu[PRED.hasModel]]
         agent_obj       = associated_objects[lu[PRED.hasAgentDefinition]]
-        process_def_obj = associated_objects[lu[PRED.hasProcessDefinition]]
+        process_def_obj = associated_objects[RT.ProcessDefinition]
 
-        driver_config, agent_config = self._generate_instrument_agent_config(device_obj._id)
+        if agent_config is None:
+            agent_config = agent_instance_obj.agent_config
+
+        if driver_config is None:
+            driver_config = agent_instance_obj.driver_config
+
+        log.debug("complement agent_config with resource_id")
+        if 'agent' not in agent_config:
+            agent_config['agent'] = {'resource_id': device_obj._id}
+        elif 'resource_id' not in agent_config.get('agent'):
+            agent_config['agent']['resource_id'] = device_obj._id
+
+        log.debug("retrieve the Org name to which this agent instance belongs")
+        try:
+            org_obj = self.RR2.find_subject(RT.Org, PRED.hasResource, agent_instance_obj._id, id_only=False)
+            agent_config['org_name'] = org_obj.name
+        except NotFound:
+            agent_config['org_name'] = ''
+        except:
+            raise
 
         agent_instance_obj.driver_config = driver_config
 
+        log.debug("schedule agent process")
         process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL,
                                            queueing_mode=ProcessQueueingMode.ALWAYS)
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_def_obj._id,
                                                                       schedule=process_schedule,
                                                                       configuration=agent_config)
-        #update the producer context for provenance
+
+        log.debug("update the producer context for provenance")
         #todo: should get the time from process dispatcher
         producer_obj = self._get_instrument_producer(device_obj._id)
         if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
             producer_obj.producer_context.activation_time =  IonTime().to_string()
             producer_obj.producer_context.configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
-            site_id = self.RR2.find_instrument_site_id_by_instrument_device(device_obj._id)
-            producer_obj.producer_context.deployed_site_id = site_id
+            try:
+                site_id = self.RR2.find_instrument_site_id_by_instrument_device(device_obj._id)
+                producer_obj.producer_context.deployed_site_id = site_id
+            except NotFound:
+                pass
+            except:
+                raise
+            self.RR2.update(producer_obj)
 
-            self.clients.resource_registry.update(producer_obj)
-
-        # add the process id and update the resource
+        log.debug("add the process id and update the resource")
         agent_instance_obj.agent_config = agent_config
         agent_instance_obj.agent_process_id = process_id
-
         self.RR2.update(agent_instance_obj)
+
+        log.debug('completed agent start')
+
+        return process_id
 
 
 
@@ -720,83 +691,37 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         """
         instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
 
-        #if there is an agent pid then assume that a drive is already started
-        if instrument_agent_instance_obj.agent_process_id:
-            raise BadRequest("Instrument Agent Instance already running for this device pid: %s" %
-                             str(instrument_agent_instance_obj.agent_process_id))
+        instrument_agent_lookup_means = {}
+        instrument_agent_lookup_means[PRED.hasAgentInstance] = RT.InstrumentDevice
+        instrument_agent_lookup_means[PRED.hasModel] = RT.InstrumentModel
+        instrument_agent_lookup_means[PRED.hasAgentDefinition] = RT.InstrumentAgent
+        lu = instrument_agent_lookup_means
 
-        # validate the associations, then pick things up
-        self._validate_instrument_agent_instance(instrument_agent_instance_obj)
-        instrument_device_id = self.RR2.find_instrument_device_id_by_instrument_agent_instance(instrument_agent_instance_id)
-        instrument_model_id  = self.RR2.find_instrument_model_id_of_instrument_device(instrument_device_id)
-        instrument_agent_id  = self.RR2.find_instrument_agent_id_by_instrument_model(instrument_model_id)
-
-        instrument_agent_obj = self.clients.resource_registry.read(instrument_agent_id)
-        self._validate_instrument_agent(instrument_agent_obj)
-
-        #retrieve the associated process definition
-        process_def_ids, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
-                                                                         PRED.hasProcessDefinition,
-                                                                         RT.ProcessDefinition,
-                                                                         True)
-        if 1 != len(process_def_ids):
-            raise BadRequest("Expected 1 ProcessDefinition attached to InstrumentAgent '%s', got %d" %
-                           (str(instrument_agent_id), len(process_def_ids)))
-
-
-        process_definition_id = process_def_ids[0]
-
-        # retrieve the process definition information
-        process_def_obj = self.clients.resource_registry.read(process_definition_id)
-        if not process_def_obj:
-            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
+        associated_objects = self.prelaunch_validate_agent_instance(instrument_agent_instance_obj,
+                                                                    instrument_agent_lookup_means)
+        instrument_device_obj      = associated_objects[lu[PRED.hasAgentInstance]]
 
         # if no comms_config specified in the driver config
-        log.info("IMS:start_instrument_agent_instance check to launch port agent. driver_config: %s ",
-                 instrument_agent_instance_obj.driver_config)
         if not 'comms_config' in instrument_agent_instance_obj.driver_config:
             log.info("IMS:start_instrument_agent_instance no comms_config specified in the driver_config so call _start_port_agent")
             instrument_agent_instance_obj = self._start_port_agent(instrument_agent_instance_obj) # <-- this updates agent instance obj!
         # if the comms_config host addr in the driver config is localhost
         elif 'addr' in instrument_agent_instance_obj.driver_config.get('comms_config') and \
              instrument_agent_instance_obj.driver_config['comms_config']['addr'] == 'localhost':
-                log.info("IMS:start_instrument_agent_instance  comms_config host addr in the driver_config is localhost so call _start_port_agent")
-                instrument_agent_instance_obj = self._start_port_agent(instrument_agent_instance_obj) # <-- this updates agent instance obj!
-
-        driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_id)
-
-        instrument_agent_instance_obj.driver_config = driver_config
-
-        process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL,
-                                           queueing_mode=ProcessQueueingMode.ALWAYS)
-        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
-                                                                      schedule=process_schedule,
-                                                                      configuration=agent_config)
-        #update the producer context for provenance
-        #todo: should get the time from process dispatcher
-        producer_obj = self._get_instrument_producer(instrument_device_id)
-        if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
-            producer_obj.producer_context.activation_time =  IonTime().to_string()
-            producer_obj.producer_context.configuration = agent_config
-            # get the site where this device is currently deploy instrument_device_id
-            try:
-                site_id = self.RR2.find_instrument_site_id_by_instrument_device(instrument_device_id)
-                producer_obj.producer_context.deployed_site_id = site_id
-            except NotFound:
-                pass
-            except:
-                raise
+            log.info("IMS:start_instrument_agent_instance  comms_config host addr in the driver_config is localhost so call _start_port_agent")
+            instrument_agent_instance_obj = self._start_port_agent(instrument_agent_instance_obj) # <-- this updates agent instance obj!
 
 
-            self.clients.resource_registry.update(producer_obj)
-
-        # add the process id and update the resource
-        instrument_agent_instance_obj.agent_config = agent_config
-        instrument_agent_instance_obj.agent_process_id = process_id
-
-        self.update_instrument_agent_instance(instrument_agent_instance_obj)
+        driver_config, agent_config = self._generate_instrument_agent_config(instrument_device_obj._id)
 
 
+        process_id = self.launch_agent_instance(instrument_agent_instance_obj,
+                                                associated_objects,
+                                                instrument_agent_lookup_means,
+                                                agent_config,
+                                                driver_config)
+
+        return process_id
 
 
     def start_platform_agent_instance(self, platform_agent_instance_id=''):
@@ -804,108 +729,43 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         Agent instance must first be created and associated with a platform device
         Launch the platform agent instance and return the id
         """
-        platform_agent_instance_obj = self.clients.resource_registry.read(platform_agent_instance_id)
+        platform_agent_instance_obj = self.RR2.read(platform_agent_instance_id)
 
-        #if there is a agent pid then assume that a drive is already started
-        if platform_agent_instance_obj.agent_process_id:
-            raise BadRequest("Platform Agent Instance already running for this device pid: %s" %
-                             str(platform_agent_instance_obj.agent_process_id))
+        platform_agent_lookup_means = {}
+        platform_agent_lookup_means[PRED.hasAgentInstance] = RT.PlatformDevice
+        platform_agent_lookup_means[PRED.hasModel] = RT.PlatformModel
+        platform_agent_lookup_means[PRED.hasAgentDefinition] = RT.PlatformAgent
+        lu = platform_agent_lookup_means
+    
+        associated_objects = self.prelaunch_validate_agent_instance(platform_agent_instance_obj, 
+                                                                    platform_agent_lookup_means)
 
-        #retrieve the associated platform device
-        platform_device_objs, _  = self.clients.resource_registry.find_subjects(subject_type=RT.PlatformDevice,
-                                                                                predicate=PRED.hasAgentInstance,
-                                                                                object=platform_agent_instance_id,
-                                                                                id_only=False )
-        if 1 != len(platform_device_objs):
-            raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
-                             (str(platform_agent_instance_id), len(platform_device_objs)))
-        platform_device_id = platform_device_objs[0]._id
-        log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)", str(platform_device_id),  str(platform_agent_instance_id))
+        platform_device_obj      = associated_objects[lu[PRED.hasAgentInstance]]
 
-        #retrieve the platform model
-        platform_models_objs, _  = self.clients.resource_registry.find_objects(subject=platform_device_id,
-                                                                               predicate=PRED.hasModel,
-                                                                               object_type=RT.PlatformModel,
-                                                                               id_only=False )
-        if 1 != len(platform_models_objs):
-            raise BadRequest("Expected 1 PlatformDevice attached to  PlatformAgentInstance '%s', got %d" %
-                             (str(platform_device_id), len(platform_models_objs)))
-        platform_model_id = platform_models_objs[0]
+        log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)",
+                  str(platform_device_obj._id),  str(platform_agent_instance_id))
 
         #retrive the stream info for this model
         #todo: add stream info to the platofrom model create
-        #        streams_dict = platform_models_objs[0].custom_attributes['streams']
+        #        streams_dict = platform_model_obj.custom_attributes['streams']
         #        if not streams_dict:
         #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
 
-        #retrieve the associated platform agent
-        platform_agent_objs, _  = self.clients.resource_registry.find_objects(subject=platform_agent_instance_id,
-                                                                              predicate=PRED.hasAgentDefinition,
-                                                                              object_type=RT.PlatformAgent,
-                                                                              id_only=False )
-        if 1 != len(platform_agent_objs):
-            raise BadRequest("Expected 1 InstrumentAgent attached to InstrumentAgentInstance '%s', got %d" %
-                             (str(platform_agent_instance_id), len(platform_agent_objs)))
-        platform_agent_id = platform_agent_objs[0]._id
 
-        #retrieve the associated process definition
-        #todo: this association is not in the diagram... is it ok?
-        process_def_ids, _ = self.clients.resource_registry.find_objects(platform_agent_id,
-                                                                         PRED.hasProcessDefinition,
-                                                                         RT.ProcessDefinition,
-                                                                         True)
-        if 1 != len(process_def_ids):
-            raise BadRequest("Expected 1 ProcessDefinition attached to PlatformAgent '%s', got %d" %
-                             (str(platform_agent_id), len(process_def_ids)))
-
-
-        process_definition_id = process_def_ids[0]
-
-        # retrieve the process definition information
-        process_def_obj = self.clients.resource_registry.read(process_definition_id)
-        if not process_def_obj:
-            raise NotFound("ProcessDefinition %s does not exist" % process_definition_id)
-
-
-        # complement agent_config with resource_id
         agent_config = platform_agent_instance_obj.agent_config
-        if 'agent' not in agent_config:
-            agent_config['agent'] = {'resource_id': platform_device_id}
-        elif 'resource_id' not in agent_config.get('agent'):
-            agent_config['agent']['resource_id'] = platform_device_id
 
         # TODO: for platform_id in children in topology:
         platform_id = agent_config['platform_config']['platform_id']
-        stream_config = self._generate_platform_streamconfig( platform_id, platform_device_id )
+        stream_config = self._generate_platform_streamconfig( platform_id, platform_device_obj._id )
         agent_config['platform_config']['agent_streamconfig_map'] = { platform_id: stream_config }
 
-        #retrieve the Org name to which this agent instance belongs
-        org_name = ''
-        org_objs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org,
-                                                                  predicate=PRED.hasResource,
-                                                                  object=platform_agent_instance_id)
-        if org_objs:
-            org_name = org_objs[0].name
-        agent_config['org_name'] = org_name
 
+        process_id = self.launch_agent_instance(platform_agent_instance_obj,
+                                                associated_objects,
+                                                platform_agent_lookup_means,
+                                                None,
+                                                None)
 
-        #        import pprint
-        #        print '============== config within IMS for platform ID: %s ===========' % platform_id
-        #        pprint.pprint(agent_config)
-
-        process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL)
-        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
-                                                                      schedule=process_schedule,
-                                                                      configuration=agent_config)
-        #update the producer context for provenance
-        #todo: should get the time from process dispatcher
-
-
-        # add the process id and update the resource
-        platform_agent_instance_obj.agent_config = agent_config
-        platform_agent_instance_obj.agent_process_id = process_id
-        self.update_instrument_agent_instance(platform_agent_instance_obj)
-        log.debug('completed platform agent start, platform id: %s', platform_id)
         return process_id
 
 
@@ -958,21 +818,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         producer_obj = self._get_instrument_producer(instrument_device_id)
         if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
             producer_obj.producer_context.deactivation_time =  IonTime().to_string()
-            self.clients.resource_registry.update(producer_obj)
+            self.RR2.update(producer_obj)
 
 
     def stop_agent_instance(self, agent_instance_id, device_type):
         """
         Deactivate an agent instance, return device ID
         """
-        device_ids, _ = self.clients.resource_registry.find_subjects(subject_type=device_type,
-                                                                     predicate=PRED.hasAgentInstance,
-                                                                     object=agent_instance_id,
-                                                                     id_only=True)
-        if not device_ids:
-            raise NotFound("No %s resources associated with agent instance '%s'" % (device_type, agent_instance_id))
+        agent_instance_obj = self.RR2.read(agent_instance_id)
 
-        agent_instance_obj = self.clients.resource_registry.read(agent_instance_id)
+        device_id = self.RR2.find_subject(subject_type=device_type,
+                                          predicate=PRED.hasAgentInstance,
+                                          object=agent_instance_id,
+                                          id_only=True)
 
 
         log.debug("Canceling the execution of agent's process ID")
@@ -1008,9 +866,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         agent_instance_obj.agent_process_id = None
         if "pagent_pid" in agent_instance_obj.driver_config:
             agent_instance_obj.driver_config['pagent_pid'] = None
-        self.clients.resource_registry.update(agent_instance_obj)
+        self.RR2.update(agent_instance_obj)
 
-        return device_ids[0]
+        return device_id
 
 
 
@@ -1136,7 +994,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #insert all attachments
         for att in attachments:
-            self.clients.resource_registry.create_attachment(instrument_agent_id, att)
+            self.RR2.create_attachment(instrument_agent_id, att)
 
         #updates the state of this InstAgent to integrated
         self.RR2.advance_lcs(instrument_agent_id, LCE.INTEGRATE)
@@ -1739,7 +1597,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.RR2.unassign_instrument_model_from_instrument_agent(instrument_agent_id, instrument_model_id)
 
     def assign_platform_model_to_platform_agent(self, platform_model_id='', platform_agent_id=''):
-        self.RR2.assign_platform_model_to_one_platform_agent(platform_model_id, platform_agent_id)
+        self.RR2.assign_platform_model_to_platform_agent(platform_model_id, platform_agent_id)
 
     def unassign_platform_model_from_platform_agent(self, platform_model_id='', platform_agent_id=''):
         self.RR2.unassign_platform_model_from_platform_agent(platform_model_id, platform_agent_id)
