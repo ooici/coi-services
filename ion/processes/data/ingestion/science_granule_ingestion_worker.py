@@ -37,6 +37,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
 
     def on_quit(self): #pragma no cover
+        super(ScienceGranuleIngestionWorker, self).on_quit()
         for stream, coverage in self._coverages.iteritems():
             try:
                 coverage.close(timeout=5)
