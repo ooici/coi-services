@@ -556,7 +556,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.debug("Dynamically deleting association %s -> %s -> %s", isubj, ipred, iobj)
-                self.RR.delete_association(subj_id, ipred, obj_id)
+                self.delete_association(subj_id, ipred, obj_id)
 
             return ret_fn
 

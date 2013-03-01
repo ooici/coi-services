@@ -372,8 +372,9 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.RR2.assign_instrument_model_to_instrument_device(y, x)
         self.rr.create_association.assert_called_once_with(x, PRED.hasModel, y)
 
+        self.rr.get_association.return_value = "zzz"
         self.RR2.unassign_instrument_model_from_instrument_device(y, x)
-        self.rr.delete_association.assert_called_once_with(x, PRED.hasModel, y)
+        self.rr.delete_association.assert_called_once_with("zzz")
 
         self.assertRaises(BadRequest, getattr, self.RR2, "assign_data_product_to_data_process")
         self.assertRaises(BadRequest, getattr, self.RR2, "unassign_data_product_from_data_process")
@@ -383,8 +384,10 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.create_association.assert_called_once_with(x, PRED.hasOutputProduct, y)
 
         self.rr.delete_association.reset_mock()
+        self.rr.get_association.reset_mock()
+        self.rr.get_association.return_value = "aaa"
         self.RR2.unassign_data_product_from_data_process_with_has_output_product(y, x)
-        self.rr.delete_association.assert_called_once_with(x, PRED.hasOutputProduct, y)
+        self.rr.delete_association.assert_called_once_with("aaa")
 
     def test_assign_single_object(self):
         x = "x_id"
