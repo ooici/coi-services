@@ -3,7 +3,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, collections, ast, simplejson, json, sys, time, traceback, string
+import inspect, ast, simplejson, sys, traceback, string
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
@@ -201,6 +201,10 @@ def process_gateway_request(service_name, operation):
         if not service_name:
             raise BadRequest("Target service name not found in the URL")
 
+        #Ensure there is no unicode
+        service_name = str(service_name)
+        operation = str(operation)
+
         #Retrieve service definition
         from pyon.core.bootstrap import get_service_registry
         # MM: Note: service_registry can do more now
@@ -225,7 +229,7 @@ def process_gateway_request(service_name, operation):
             payload = request.form['payload']
             #debug only
             #payload = '{"serviceRequest": { "serviceName": "resource_registry", "serviceOp": "find_resources", "params": { "restype": "BankAccount", "lcstate": "", "name": "", "id_only": false } } }'
-            json_params = json.loads(payload)
+            json_params = simplejson.loads(str(payload))
 
             if not json_params.has_key('serviceRequest'):
                 raise Inconsistent("The JSON request is missing the 'serviceRequest' key in the request")
@@ -278,12 +282,17 @@ def process_gateway_agent_request(resource_id, operation):
         if operation == '':
             raise BadRequest("An agent operation was not specified in the URL")
 
+
+        #Ensure there is no unicode
+        resource_id = str(resource_id)
+        operation = str(operation)
+
         #Retrieve json data from HTTP Post payload
         json_params = None
         if request.method == "POST":
             payload = request.form['payload']
 
-            json_params = json.loads(payload)
+            json_params = simplejson.loads(str(payload))
 
             if not json_params.has_key('agentRequest'):
                 raise Inconsistent("The JSON request is missing the 'agentRequest' key in the request")
@@ -300,7 +309,7 @@ def process_gateway_agent_request(resource_id, operation):
             if json_params['agentRequest']['agentOp'] != operation:
                 raise Inconsistent("Target agent operation in the JSON request (%s) does not match agent operation in URL (%s)" % ( str(json_params['agentRequest']['agentOp']), operation ) )
 
-        resource_agent = ResourceAgentClient(convert_unicode(resource_id), node=Container.instance.node, process=service_gateway_instance)
+        resource_agent = ResourceAgentClient(resource_id, node=Container.instance.node, process=service_gateway_instance)
         if resource_agent is None:
             raise NotFound('The agent instance for id %s is not found.' % resource_id)
 
@@ -330,7 +339,7 @@ def json_response(response_data):
 def gateway_json_response(response_data):
 
     if request.args.has_key(RETURN_FORMAT_PARAM):
-        return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
+        return_format = str(request.args[RETURN_FORMAT_PARAM])
         if return_format == RETURN_FORMAT_RAW_JSON:
             return service_gateway_app.response_class(response_data, mimetype='application/json')
 
@@ -365,7 +374,7 @@ def build_error_response(e):
     }
 
     if request.args.has_key(RETURN_FORMAT_PARAM):
-        return_format = convert_unicode(request.args[RETURN_FORMAT_PARAM])
+        return_format = str(request.args[RETURN_FORMAT_PARAM])
         if return_format == RETURN_FORMAT_RAW_JSON:
             return service_gateway_app.response_class(result, mimetype='application/json')
 
@@ -379,17 +388,17 @@ def get_governance_info_from_request(request_type = '', json_params = None):
     if not json_params:
 
         if request.args.has_key('requester'):
-            actor_id = convert_unicode(request.args['requester'])
+            actor_id = str(request.args['requester'])
 
         if request.args.has_key('expiry'):
-            expiry = convert_unicode(request.args['expiry'])
+            expiry = str(request.args['expiry'])
     else:
 
         if json_params[request_type].has_key('requester'):
-            actor_id = convert_unicode(json_params[request_type]['requester'])
+            actor_id = json_params[request_type]['requester']
 
         if json_params[request_type].has_key('expiry'):
-            expiry = convert_unicode(json_params[request_type]['expiry'])
+            expiry = json_params[request_type]['expiry']
 
     return actor_id, expiry
 
@@ -473,20 +482,20 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
             if request.args.has_key(arg):
                 param_type = get_message_class_in_parm_type(service_name, operation, arg)
                 if param_type == 'str':
-                    param_list[arg] = convert_unicode(request.args[arg])
+                    param_list[arg] = str(request.args[arg])
                 else:
-                    param_list[arg] = ast.literal_eval(convert_unicode(request.args[arg]))
+                    param_list[arg] = ast.literal_eval(str(request.args[arg]))
         else:
             if json_params[request_type]['params'].has_key(arg):
 
                 #TODO - Potentially remove these conversions whenever ION objects support unicode
                 # UNICODE strings are not supported with ION objects
-                object_params = convert_unicode(json_params[request_type]['params'][arg])
+                object_params = json_params[request_type]['params'][arg]
                 if is_ion_object_dict(object_params):
                     param_list[arg] = create_ion_object(object_params)
                 else:
                     #Not an ION object so handle as a simple type then.
-                    param_list[arg] = convert_unicode(json_params[request_type]['params'][arg])
+                    param_list[arg] = json_params[request_type]['params'][arg]
 
     return param_list
 
@@ -518,17 +527,6 @@ def set_object_field(obj, field, field_val):
 def ion_object_encoder(obj):
     return obj.__dict__
 
-#Used to recursively convert unicode in JSON structures into proper data structures
-def convert_unicode(data):
-    if isinstance(data, unicode):
-        return str(data)
-    elif isinstance(data, collections.Mapping):
-        return dict(map(convert_unicode, data.iteritems()))
-    elif isinstance(data, collections.Iterable): # @TODO: passing in a dictionary with strings in it will infinite loop here
-        return type(data)(map(convert_unicode, data))
-    else:
-        return data
-
 
 
 
@@ -546,7 +544,7 @@ def convert_unicode(data):
 def list_org_roles(actor_id):
 
     try:
-        ret = find_roles_by_actor(convert_unicode(actor_id))
+        ret = find_roles_by_actor(str(actor_id))
         return gateway_json_response(ret)
 
     except Exception, e:
@@ -586,7 +584,7 @@ def get_resource_schema(resource_type):
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
         #ION Objects are not registered as UNICODE names
-        ion_object_name = convert_unicode(resource_type)
+        ion_object_name = str(resource_type)
         ret_obj = IonObject(ion_object_name, {})
 
         # If it's an op input param or response message object.
@@ -629,15 +627,15 @@ def get_attachment(attachment_id):
 def create_attachment():
 
     try:
-        resource_id        = convert_unicode(request.form.get('resource_id', ''))
+        resource_id        = str(request.form.get('resource_id', ''))
         fil                = request.files['file']
         content            = fil.read()
 
         # build attachment
-        attachment         = Attachment(name=convert_unicode(request.form['attachment_name']),
-                                        description=convert_unicode(request.form['attachment_description']),
+        attachment         = Attachment(name=str(request.form['attachment_name']),
+                                        description=str(request.form['attachment_description']),
                                         attachment_type=int(request.form['attachment_type']),
-                                        content_type=convert_unicode(request.form['attachment_content_type']),
+                                        content_type=str(request.form['attachment_content_type']),
                                         content=content)
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
@@ -706,7 +704,7 @@ def get_resource(resource_id):
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
         #Database object IDs are not unicode
-        result = client.read(convert_unicode(resource_id))
+        result = client.read(str(resource_id))
         if not result:
             raise NotFound("No resource found for id: %s " % resource_id)
 
@@ -728,7 +726,7 @@ def find_resources_by_type(resource_type):
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
         #Resource Types are not in unicode
-        res_list,_ = client.find_resources(restype=convert_unicode(resource_type) )
+        res_list,_ = client.find_resources(restype=str(resource_type) )
 
         return gateway_json_response(res_list)
 
