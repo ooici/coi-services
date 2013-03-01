@@ -174,11 +174,14 @@ class EnhancedResourceRegistryClient(object):
                                          object=object_id,
                                          id_only=id_only)
 
-        if 1 != len(objs):
+        if 1 == len(objs):
+            return objs[0]
+        elif 1 < len(objs):
             raise Inconsistent("Expected 1 %s as subject of %s '%s', got %d" %
                               (subject_type, object_type, str(object_id), len(objs)))
-
-        return objs[0]
+        else:
+            raise NotFound("Expected 1 %s as subject of %s '%s'" %
+                           (subject_type, object_type, str(object_id)))
 
 
     def find_object(self, subject, predicate, object_type, id_only=False):
@@ -188,12 +191,15 @@ class EnhancedResourceRegistryClient(object):
                                         predicate=predicate,
                                         object_type=object_type,
                                         id_only=id_only)
-        if 1 != len(objs):
+
+        if 1 == len(objs):
+            return objs[0]
+        elif 1 < len(objs):
             raise Inconsistent("Expected 1 %s as object of %s '%s', got %d" %
                               (object_type, subject_type, str(subject_id), len(objs)))
-
-        return objs[0]
-
+        else:
+            raise NotFound("Expected 1 %s as object of %s '%s'" %
+                            (object_type, subject_type, str(subject_id)))
 
     def delete_object_associations(self, subject_id='', association_type=''):
         """

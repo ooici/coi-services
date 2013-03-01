@@ -248,17 +248,28 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
             self.rr.find_objects.return_value = ([], [])
             self.assertEqual(0, self.rr.find_subjects.call_count)
 
+        def rst1():
+            self.rr.find_objects.reset_mock()
+            self.rr.find_objects.return_value = (["x"], ["x"])
+            self.assertEqual(0, self.rr.find_subjects.call_count)
+
+        def rst2():
+            self.rr.find_objects.reset_mock()
+            self.rr.find_objects.return_value = (["x", "y"], ["z", "k"])
+            self.assertEqual(0, self.rr.find_subjects.call_count)
+
         x = sample_obj
         xx = x
         if hasattr(x, "_id"):
             xx = x._id
 
+        # find none
         rst()
         self.RR2.find_instrument_models_of_instrument_device(x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
 
         rst()
-        self.assertRaises(Inconsistent, self.RR2.find_instrument_model_of_instrument_device, x)
+        self.assertRaises(NotFound, self.RR2.find_instrument_model_of_instrument_device, x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
 
         rst()
@@ -266,30 +277,58 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
 
         rst()
+        self.assertRaises(NotFound, self.RR2.find_instrument_model_id_of_instrument_device, x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
+
+        # find one
+        rst1()
+        self.RR2.find_instrument_models_of_instrument_device(x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
+
+        rst1()
+        self.RR2.find_instrument_model_of_instrument_device(x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
+
+        rst1()
+        self.RR2.find_instrument_model_ids_of_instrument_device(x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
+
+        rst1()
+        self.RR2.find_instrument_model_id_of_instrument_device(x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
+
+
+        # find multiples
+        rst2()
+        self.RR2.find_instrument_models_of_instrument_device(x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
+
+        rst2()
+        self.assertRaises(Inconsistent, self.RR2.find_instrument_model_of_instrument_device, x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
+
+        rst2()
+        self.RR2.find_instrument_model_ids_of_instrument_device(x)
+        self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
+
+        rst2()
         self.assertRaises(Inconsistent, self.RR2.find_instrument_model_id_of_instrument_device, x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
 
-        self.rr.find_objects.reset_mock()
-        self.rr.find_objects.return_value = (["x"], ["x"])
-        self.RR2.find_instrument_model_of_instrument_device(x)
-
-        self.rr.find_objects.reset_mock()
-        self.rr.find_objects.return_value = (["x"], ["x"])
-        self.RR2.find_instrument_model_id_of_instrument_device(x)
-
-        rst()
+        # find using
+        rst2()
         self.RR2.find_instrument_models_of_instrument_device_using_has_model(x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
 
-        rst()
+        rst2()
         self.assertRaises(Inconsistent, self.RR2.find_instrument_model_of_instrument_device_using_has_model, x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=False)
 
-        rst()
+        rst2()
         self.RR2.find_instrument_model_ids_of_instrument_device_using_has_model(x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
 
-        rst()
+        rst2()
         self.assertRaises(Inconsistent, self.RR2.find_instrument_model_id_of_instrument_device_using_has_model, x)
         self.rr.find_objects.assert_called_once_with(subject=xx, predicate=PRED.hasModel, object_type=RT.InstrumentModel, id_only=True)
 
@@ -317,17 +356,28 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
             self.rr.find_subjects.return_value = ([], [])
             self.assertEqual(0, self.rr.find_objects.call_count)
 
+        def rst1():
+            self.rr.find_subjects.reset_mock()
+            self.rr.find_subjects.return_value = (["x"], ["x"])
+            self.assertEqual(0, self.rr.find_objects.call_count)
+
+        def rst2():
+            self.rr.find_subjects.reset_mock()
+            self.rr.find_subjects.return_value = (["x", "y"], ["z", "k"])
+            self.assertEqual(0, self.rr.find_objects.call_count)
+
         x = sample_obj
         xx = x
         if hasattr(x, "_id"):
             xx = x._id
 
+        # find none
         rst()
         self.RR2.find_instrument_devices_by_instrument_model(x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
 
         rst()
-        self.assertRaises(Inconsistent, self.RR2.find_instrument_device_by_instrument_model, x)
+        self.assertRaises(NotFound, self.RR2.find_instrument_device_by_instrument_model, x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
 
         rst()
@@ -335,30 +385,60 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
 
         rst()
+        self.assertRaises(NotFound, self.RR2.find_instrument_device_id_by_instrument_model, x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
+
+
+        # find 1
+        rst1()
+        self.RR2.find_instrument_devices_by_instrument_model(x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
+
+        rst1()
+        self.RR2.find_instrument_device_by_instrument_model(x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
+
+        rst1()
+        self.RR2.find_instrument_device_ids_by_instrument_model(x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
+
+        rst1()
+        self.RR2.find_instrument_device_id_by_instrument_model(x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
+
+
+        # find multiple
+        rst2()
+        self.RR2.find_instrument_devices_by_instrument_model(x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
+
+        rst2()
+        self.assertRaises(Inconsistent, self.RR2.find_instrument_device_by_instrument_model, x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
+
+        rst2()
+        self.RR2.find_instrument_device_ids_by_instrument_model(x)
+        self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
+
+        rst2()
         self.assertRaises(Inconsistent, self.RR2.find_instrument_device_id_by_instrument_model, x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
 
-        self.rr.find_subjects.reset_mock()
-        self.rr.find_subjects.return_value = (["x"], ["x"])
-        self.RR2.find_instrument_device_by_instrument_model(x)
 
-        self.rr.find_subjects.reset_mock()
-        self.rr.find_subjects.return_value = (["x"], ["x"])
-        self.RR2.find_instrument_device_id_by_instrument_model(x)
-
-        rst()
+        # find using
+        rst2()
         self.RR2.find_instrument_devices_by_instrument_model_using_has_model(x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
 
-        rst()
+        rst2()
         self.assertRaises(Inconsistent, self.RR2.find_instrument_device_by_instrument_model_using_has_model, x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=False)
 
-        rst()
+        rst2()
         self.RR2.find_instrument_device_ids_by_instrument_model_using_has_model(x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
 
-        rst()
+        rst2()
         self.assertRaises(Inconsistent, self.RR2.find_instrument_device_id_by_instrument_model_using_has_model, x)
         self.rr.find_subjects.assert_called_once_with(object=xx, predicate=PRED.hasModel, subject_type=RT.InstrumentDevice, id_only=True)
 
