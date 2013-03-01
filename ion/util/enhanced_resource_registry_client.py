@@ -73,6 +73,9 @@ class EnhancedResourceRegistryClient(object):
                 return fn
 
         log.trace("Getting %s attribute from self.RR", item)
+        if not hasattr(self.RR, item):
+            raise AttributeError(("The method '%s' could not be parsed as a dynamic function and does not exist " + \
+                                 "in the Resource Registry Client (%s)") % (item, type(self.RR).__name__))
         ret = getattr(self.RR, item)
         log.trace("Got attribute from self.RR: %s", type(ret).__name__)
 
