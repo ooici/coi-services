@@ -74,7 +74,7 @@ class EnhancedResourceRegistryClient(object):
 
         log.trace("Getting %s attribute from self.RR", item)
         if not hasattr(self.RR, item):
-            raise AttributeError(("The method '%s' could not be parsed as a dynamic function and does not exist " + \
+            raise AttributeError(("The method '%s' could not be parsed as a dynamic function and does not exist " +
                                  "in the Resource Registry Client (%s)") % (item, type(self.RR).__name__))
         ret = getattr(self.RR, item)
         log.trace("Got attribute from self.RR: %s", type(ret).__name__)
@@ -460,7 +460,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to create associations (1)%s -> %s -> %s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(obj_id, subj_id):
-                log.debug("Dynamically creating association (1)%s -> %s -> %s", isubj, ipred, iobj)
+                log.info("Dynamically creating association (1)%s -> %s -> %s", isubj, ipred, iobj)
                 # see if there are any other objects of this type and pred on this subject
                 existing_subjs, _ = self.RR.find_subjects(isubj, ipred, obj_id, id_only=True)
 
@@ -508,7 +508,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to create associations %s -> %s -> (1)%s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(obj_id, subj_id):
-                log.debug("Dynamically creating association %s -> %s -> (1)%s", isubj, ipred, iobj)
+                log.info("Dynamically creating association %s -> %s -> (1)%s", isubj, ipred, iobj)
 
                 # see if there are any other objects of this type and pred on this subject
                 existing_objs, _ = self.RR.find_objects(subj_id, ipred, iobj, id_only=True)
@@ -559,7 +559,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to delete associations %s -> %s -> %s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(obj_id, subj_id):
-                log.debug("Dynamically deleting association %s -> %s -> %s", isubj, ipred, iobj)
+                log.info("Dynamically deleting association %s -> %s -> %s", isubj, ipred, iobj)
                 self.delete_association(subj_id, ipred, obj_id)
 
             return ret_fn
@@ -590,7 +590,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find objects %s -> %s -> %s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(subj):
-                log.debug("Dynamically finding objects %s -> %s -> %s", isubj, ipred, iobj)
+                log.info("Dynamically finding objects %s -> %s -> %s", isubj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret, _ = self.RR.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
@@ -622,7 +622,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find subjects %s <- %s <- %s", iobj, ipred, isubj)
         def freeze():
             def ret_fn(obj):
-                log.debug("Dynamically finding subjects %s <- %s <- %s", iobj, ipred, isubj)
+                log.info("Dynamically finding subjects %s <- %s <- %s", iobj, ipred, isubj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret, _ = self.RR.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
@@ -655,7 +655,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find object %s -> %s -> %s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(subj_id):
-                log.debug("Dynamically finding object %s -> %s -> %s", isubj, ipred, iobj)
+                log.info("Dynamically finding object %s -> %s -> %s", isubj, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
 
@@ -686,7 +686,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find subject %s <- %s <- %s", iobj, ipred, isubj)
         def freeze():
             def ret_fn(obj_id):
-                log.debug("Dynamically finding subject %s <- %s <- %s", iobj, ipred, isubj)
+                log.info("Dynamically finding subject %s <- %s <- %s", iobj, ipred, isubj)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
 
@@ -722,7 +722,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find object_ids %s -> %s -> %s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(subj):
-                log.debug("Dynamically finding object_ids %s -> %s -> %s", isubj, ipred, iobj)
+                log.info("Dynamically finding object_ids %s -> %s -> %s", isubj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret, _ = self.RR.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
@@ -754,7 +754,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find subject_ids %s <- %s <- %s", iobj, ipred, isubj)
         def freeze():
             def ret_fn(obj):
-                log.debug("Dynamically finding subject_ids %s <- %s <- %s", iobj, ipred, isubj)
+                log.info("Dynamically finding subject_ids %s <- %s <- %s", iobj, ipred, isubj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret, _ = self.RR.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
@@ -787,7 +787,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find object_id %s -> %s -> %s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(subj_id):
-                log.debug("Dynamically finding object_id %s -> %s -> %s", isubj, ipred, iobj)
+                log.info("Dynamically finding object_id %s -> %s -> %s", isubj, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
 
@@ -818,7 +818,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to find subject_id %s <- %s <- %s", iobj, ipred, isubj)
         def freeze():
             def ret_fn(obj_id):
-                log.debug("Dynamically finding subject_id %s <- %s <- %s", iobj, ipred, isubj)
+                log.info("Dynamically finding subject_id %s <- %s <- %s", iobj, ipred, isubj)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
 
