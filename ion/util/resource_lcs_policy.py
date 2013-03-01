@@ -32,22 +32,22 @@ class ResourceLCSPolicy(object):
         pass
 
     def lce_precondition_plan(self, agent_id):
-        return self._make_fail("ResourceLCSPolicy base class not overridden!")
+        return self._make_pass("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_develop(self, agent_id):
-        return self._make_fail("ResourceLCSPolicy base class not overridden!")
+        return self._make_pass("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_integrate(self, agent_id):
-        return self._make_fail("ResourceLCSPolicy base class not overridden!")
+        return self._make_pass("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_deploy(self, agent_id):
-        return self._make_fail("ResourceLCSPolicy base class not overridden!")
+        return self._make_pass("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_retire(self, agent_id):
-        return self._make_fail("ResourceLCSPolicy base class not overridden!")
+        return self._make_pass("ResourceLCSPolicy base class not overridden!")
 
     def precondition_delete(self, agent_id):
-        return self._make_fail("ResourceLCSPolicy base class not overridden!")
+        return self._make_pass("ResourceLCSPolicy base class not overridden!")
 
     def policy_fn_delete_precondition(self, id_field):
 
