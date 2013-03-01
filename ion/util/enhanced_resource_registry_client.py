@@ -163,12 +163,7 @@ class EnhancedResourceRegistryClient(object):
         assoc = self.RR.get_association(subject=subject_id,
                                         predicate=association_type,
                                         object=object_id)
-        dessociate_success = self.RR.delete_association(assoc)
-
-        log.debug("Delete %s Association: %s",
-                  self._assn_name(association_type),
-                  str(dessociate_success))
-        return dessociate_success
+        self.RR.delete_association(assoc)
 
 
     def find_subject(self, subject_type, predicate, object, id_only=False):
