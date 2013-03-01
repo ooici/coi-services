@@ -651,7 +651,7 @@ def create_attachment():
 
 # Get a visualization image for a specific data product
 #TODO - will need to update this to handle parameters to pass on to the Vis service and to use proper return keys
-@service_gateway_app.route('/ion-viz-products/image/<data_product_id>/<img_name>', methods=['GET','POST'])
+@service_gateway_app.route('/ion-service/visualization/<data_product_id>/<img_name>')
 def get_visualization_image(data_product_id, img_name):
 
     # Create client to interface with the viz service
@@ -665,7 +665,7 @@ def get_visualization_image(data_product_id, img_name):
     return service_gateway_app.response_class(image_info['image_obj'],mimetype=image_info['content_type'])
 
 # Get version information about this copy of coi-services
-@service_gateway_app.route('/version')
+@service_gateway_app.route('/ion-service/version')
 def get_version_info():
     import pkg_resources
 
@@ -693,7 +693,7 @@ def get_version_info():
 
 #This example calls the resource registry with an id passed in as part of the URL
 #http://hostname:port/ion-service/resource/c1b6fa6aadbd4eb696a9407a39adbdc8
-@service_gateway_app.route('/ion-service/rest/resource/<resource_id>')
+@service_gateway_app.route('/ion-resources/resource/<resource_id>')
 def get_resource(resource_id):
 
     try:
@@ -716,7 +716,7 @@ def get_resource(resource_id):
 
 #Example operation to return a list of resources of a specific type like
 #http://hostname:port/ion-service/find_resources/BankAccount
-@service_gateway_app.route('/ion-service/rest/find_resources/<resource_type>')
+@service_gateway_app.route('/ion-resources/find_resources/<resource_type>')
 def find_resources_by_type(resource_type):
     try:
         client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
@@ -734,15 +734,5 @@ def find_resources_by_type(resource_type):
         return build_error_response(e)
 
 
-
-
-#Below are example restful calls to stuff for testing... all should be removed at some point
-
-#http://hostname:port/ion-service/run_bank_client
-@service_gateway_app.route('/ion-service/run_bank_client')
-def create_accounts():
-    from examples.bank.bank_client import run_client
-    run_client(Container.instance, process=service_gateway_instance)
-    return json_response("")
 
 

@@ -306,7 +306,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         data_product_id = self.create_data_product_resource()
 
-        response = self.test_app.get('/ion-service/rest/resource/' + data_product_id)
+        response = self.test_app.get('/ion-resources/resource/' + data_product_id)
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
@@ -322,7 +322,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         data_product_id = self.create_data_product_resource()
 
-        response = self.test_app.get('/ion-service/rest/find_resources/DataProduct')
+        response = self.test_app.get('/ion-resources/find_resources/DataProduct')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
