@@ -15,18 +15,6 @@ from nose.plugins.attrib import attr
 
 from ooi.logging import log
 
-from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-
-from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
-from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
-from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 
 #from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 import unittest
@@ -54,15 +42,5 @@ class TestInstrumentManagement(PyonTestCase):
 
     #def resource_impl_cleanup(self):
         #pass
-
-rim = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
-rim.test_all_in_one(True)
-
-rim.add_resource_impl_unittests(InstrumentAgentImpl, {"driver_module": "potato"})
-rim.add_resource_impl_unittests(InstrumentDeviceImpl, {"serial_number": "123", "firmware_version": "x"})
-rim.add_resource_impl_unittests(PlatformAgentImpl, {"description": "the big donut"})
-rim.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
-rim.add_resource_impl_unittests(PlatformModelImpl, {"description": "desc"})
-rim.add_resource_impl_unittests(SensorDeviceImpl, {"serial_number": "123"})
 
 
