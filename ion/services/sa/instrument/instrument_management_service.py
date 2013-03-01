@@ -779,8 +779,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             producer_obj.producer_context.activation_time =  IonTime().to_string()
             producer_obj.producer_context.configuration = agent_config
             # get the site where this device is currently deploy instrument_device_id
-            site_id = self.RR2.find_instrument_site_id_by_instrument_device(instrument_device_id)
-            producer_obj.producer_context.deployed_site_id = site_id
+            try:
+                site_id = self.RR2.find_instrument_site_id_by_instrument_device(instrument_device_id)
+                producer_obj.producer_context.deployed_site_id = site_id
+            except NotFound:
+                pass
+            except:
+                raise
 
 
             self.clients.resource_registry.update(producer_obj)
