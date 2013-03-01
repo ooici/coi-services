@@ -6,13 +6,13 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import simplejson, json
+import simplejson, json, collections
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from webtest import TestApp
 
 from pyon.core.registry import getextends
-from ion.services.coi.service_gateway_service import service_gateway_app, service_gateway_instance, convert_unicode, GATEWAY_RESPONSE, \
+from ion.services.coi.service_gateway_service import service_gateway_app, GATEWAY_RESPONSE, \
             GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, GATEWAY_ERROR_TRACE
 
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
@@ -48,6 +48,17 @@ CkpK4nS0kbwLux+zI7BWON97UpMIzEeE05pd7SmNAETuWRsHMP+x6i7hoUp/uad4DwbzNUGIotdK
 f8b270icOVgkOKRdLP/Q4r/x8skKSCRz1ZsRdR+7+B/EgksAJj7Ut3yiWoUekEMxCaTdAHPTMD/g
 Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 -----END CERTIFICATE-----"""
+
+def convert_unicode(data):
+    if isinstance(data, unicode):
+        return str(data)
+    elif isinstance(data, collections.Mapping):
+        return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data, collections.Iterable):
+        return type(data)(map(convert_unicode, data))
+    else:
+        return data
+
 
 @attr('LOCOINT', 'INT', group='coi-sgs')
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -271,6 +282,12 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
     def test_get_resource_schema(self):
 
+        response = self.test_app.get('/ion-service/resource_type_schema/Org')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        org_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
+        self.assertTrue(isinstance(org_obj, dict))
+
         response = self.test_app.get('/ion-service/resource_type_schema/DataProduct')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
@@ -289,7 +306,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         data_product_id = self.create_data_product_resource()
 
-        response = self.test_app.get('/ion-service/rest/resource/' + data_product_id)
+        response = self.test_app.get('/ion-resources/resource/' + data_product_id)
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
@@ -305,7 +322,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         data_product_id = self.create_data_product_resource()
 
-        response = self.test_app.get('/ion-service/rest/find_resources/DataProduct')
+        response = self.test_app.get('/ion-resources/find_resources/DataProduct')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
