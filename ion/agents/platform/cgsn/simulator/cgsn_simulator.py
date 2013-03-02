@@ -17,6 +17,7 @@ import select
 import re
 
 from ion.agents.platform.cgsn.defs import get_cg_client_address, CICGINT, CIPOP
+from ion.agents.platform.cgsn.util import basic_message_verification, MalformedMessage
 
 
 def _get_client_endpoints():
@@ -55,31 +56,35 @@ class CgsnSimulator(object):
             # some timeout to regularly check for shutdown call
             rlist, wlist, elist = select.select([self._server_socket], [], [], 0.5)
             if rlist:
-                recv_data, addr = self._server_socket.recvfrom(1024)
-                print("Received: %r from addr %s" % (recv_data, str(addr)))
-                ca_rsp = self._handle_request(recv_data)
+                recv_message, addr = self._server_socket.recvfrom(1024)
+                print("<- Received from %-30s: %r" % (str(addr), recv_message))
+                ca_rsp = self._handle_request(recv_message)
                 if ca_rsp:
                     client_address, response = ca_rsp
-                    print("Replying: %r to %s" % (response, str(client_address)))
                     self._server_socket.sendto(response, client_address)
+                    print("-> Replied  to   %-30s: %r" % (str(client_address), response))
+                    print
 
     def shutdown(self):
         self._running = False
 
-    def _handle_request(self, recv_data):
+    def _handle_request(self, recv_message):
 
-        toks = recv_data.split(',')
-
-        print("toks = %s" % toks)
-
-        (dst, src, nnn, lng) = tuple(int(toks[i]) for i in range(4))
-        msg = toks[4]
+        try:
+            dst, src, msg_type, msg = self._parse_message(recv_message)
+        except MalformedMessage as e:
+            print("MalformedMessage: %s", e)
+            return None
 
         if not src in self._client_endpoints:
             print "Unrecognized source in request: %r" % src
             return None
 
         client_address = self._client_endpoints[src]
+
+        #
+        # TODO more real implementation; this just ACKs whatever it comes
+        #
 
         m = re.match(r"(.*)(\s+(.*))?", msg)
         if m:
@@ -94,5 +99,34 @@ class CgsnSimulator(object):
 
         else:
             # TODO handle remaining cases
-            print "NOT responding anything to request: %r" % recv_data
+            print "NOT responding anything to request: %r" % recv_message
             return None
+
+    def _parse_message(self, recv_message):
+        """
+        Note that this is pretty symmetrical to the same method in CGSNClient.
+        """
+        dst, src, msg_type, msg = basic_message_verification(recv_message)
+
+        #
+        # source must be CIPOP:
+        #
+        if src != CIPOP:
+            raise MalformedMessage(
+                "unexpected source in received message: "
+                "%d (expected %d)" % (src, CIPOP))
+
+        #
+        # verify message type:
+        # TODO how does this exactly work?
+        #
+        if msg_type != CICGINT:
+            MalformedMessage(
+                "unexpected msg_type in received message: "
+                "%d (expected %d)" % (msg_type, CICGINT))
+
+        #
+        # TODO verification of destination.
+        # ...
+
+        return dst, src, msg_type, msg

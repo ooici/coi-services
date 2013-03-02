@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 """
-@package 
-@file 
-@author Carlos Rueda
-@brief  Some definitions and associated utilities.
-        This is very preliminary
+@package ion.agents.platform.cgsn.defs
+@file    ion/agents/platform/cgsn/defs.py
+@author  Carlos Rueda
+@brief   Some definitions and associated utilities.
+         This is very preliminary
 """
 
 __author__ = 'Carlos Rueda'
@@ -25,6 +25,9 @@ CICGINT = 112
 # the CG services endpoint in the cgsn_client module.
 # This value corresponds to my laptop within the MBARI network, with a port
 # that has been opened for this project.
+#
+# TODO Put this stuff in appropriate CI configuration resource.
+#
 DEFAULT_CG_CLIENT_ADDRESS = "134.89.13.60:10011"
 
 
