@@ -41,7 +41,7 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
-from interface.objects import ComputedIntValue, ComputedFloatValue
+from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 import gevent
@@ -215,7 +215,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_calibration_datetime, ComputedFloatValue)
-        self.assertIsInstance(extended_instrument.computed.uptime, ComputedIntValue)
+        self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
 
         self.assertIsInstance(extended_instrument.computed.power_status_roll_up, ComputedIntValue)
         self.assertIsInstance(extended_instrument.computed.communications_status_roll_up, ComputedIntValue)
