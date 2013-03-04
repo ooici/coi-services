@@ -6,6 +6,7 @@ from pyon.util.log import log
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
 from coverage_model import SimplexCoverage
+#from coverage_model.parameter_types import QuantityType
 
 from xml.dom.minidom import parse, parseString
 from zipfile import ZipFile
@@ -81,7 +82,6 @@ class RegistrationProcess(StandaloneProcess):
     def get_dataset_xml(self, coverage_path, product_name=''):
         #http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html
         result = ''
-        from coverage_model.parameter_types import QuantityType
         paths = os.path.split(coverage_path)
         cov = SimplexCoverage.load(coverage_path)
         doc = xml.dom.minidom.Document()
@@ -98,8 +98,8 @@ class RegistrationProcess(StandaloneProcess):
         for key in cov.list_parameters():
             pc = cov.get_parameter_context(key)
             
-            if not isinstance(pc.param_type, QuantityType):
-                continue
+            #if not isinstance(pc.param_type, QuantityType):
+            #    continue
 
             param = cov.get_parameter(key)
             dims = (cov.temporal_parameter_name,)
@@ -249,8 +249,8 @@ class RegistrationProcess(StandaloneProcess):
                 index += 1
                 #bug with prettyxml
                 #http://ronrothman.com/public/leftbraned/xml-dom-minidom-toprettyxml-and-silly-whitespace/
-                #result += dataset_element.toprettyxml() + '\n'
-                result += dataset_element.toxml() + '\n'
+                result += dataset_element.toprettyxml() + '\n'
+                #result += dataset_element.toxml() + '\n'
 
         cov.close()
 
