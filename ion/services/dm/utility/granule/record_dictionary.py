@@ -210,7 +210,9 @@ class RecordDictionaryTool(object):
 
         else:
             if isinstance(vals, np.ndarray):
-                validate_equal(vals.shape, self._shp, 'Invalid shape on input (%s expecting %s)' % (vals.shape, self._shp))
+                if not vals.shape:
+                    raise BadRequest('Invalid shape on input (dimensionless)')
+                validate_equal(vals.shape[0], self._shp[0], 'Invalid shape on input (%s expecting %s)' % (vals.shape, self._shp))
             elif isinstance(vals, list):
                 validate_equal(len(vals), self._shp[0], 'Invalid shape on input')
 
