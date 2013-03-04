@@ -818,6 +818,11 @@ class InstrumentAgent(ResourceAgent):
         try:
             stream_name = val['stream_name']
             self._stream_buffers[stream_name].insert(0,val)
+
+            if stream_name == 'parsed':
+                print '############################ IA got parsed sample:'
+                print str(val)
+
         except KeyError:
             log.error('Instrument agent %s received sample with bad \
                 stream name %s.', self._proc_name, stream_name)
@@ -853,15 +858,18 @@ class InstrumentAgent(ResourceAgent):
                 value = v['value']
 
                 # Retrieve the alarms relevant to this stream and id.
-                [stream_alarms.append(a) for a in self.aparam_alarms if
+                stream_value_alarms = [a for a in self.aparam_alarms if
                     a.stream_name == stream_name and a.value_id == value_id]
+
+                # Evaluate the alarms relevant to this stream and id.
+                [eval_alarm(a, value) for a in stream_value_alarms]
+                 
+                # Accumulate all alarms relevant to this stream.
+                stream_alarms.extend(stream_value_alarms)
                 
             except KeyError:
                 log.error('Tomato value missing value_id or value keys. Could not process alarms for stream %s, value_id %s.',
                           stream_name, value_id)
-
-        # Evaluate relevant alarms.
-        [eval_alarm(a, value) for a in stream_alarms]
 
         # Determine first time alarms.
         first_time_alarms = [a for a in stream_alarms if a.first_time == 1]
