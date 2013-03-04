@@ -223,7 +223,7 @@ class PlatformAgent(ResourceAgent):
     def _reset(self):
         """
         Resets this platform agent (terminates sub-platforms processes,
-        clears self._pa_clients, destroys driver).
+        clears self._pa_clients, stops resource monitoring, destroys driver).
 
         Basic configuration is retained: The "platform_config" configuration
         object provided via self.CFG (see on_init) is kept. This allows
@@ -248,12 +248,18 @@ class PlatformAgent(ResourceAgent):
 
         self._pa_clients.clear()
 
-        if self._plat_driver:
-            self._plat_driver.destroy()
-            self._plat_driver = None
-
         if self._platform_resource_monitor:
             self._stop_resource_monitoring()
+
+        if self._plat_driver:
+            # disconnect driver if connected:
+            driver_state = self._plat_driver._fsm.get_current_state()
+            log.debug("_reset: driver_state = %s", driver_state)
+            if driver_state == PlatformDriverState.CONNECTED:
+                self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
+            # destroy driver:
+            self._plat_driver.destroy()
+            self._plat_driver = None
 
         self._unconfigured_params.clear()
 
