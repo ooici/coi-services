@@ -571,8 +571,15 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return
 
+    def update_data_process2(self):
+        raise BadRequest('Cannot update an existing data process.')
+
     def read_data_process(self, data_process_id=""):
 
+        data_proc_obj = self.clients.resource_registry.read(data_process_id)
+        return data_proc_obj
+
+    def read_data_process2(self, data_process_id=''):
         data_proc_obj = self.clients.resource_registry.read(data_process_id)
         return data_proc_obj
 
@@ -624,6 +631,35 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Delete the data process
         self.clients.resource_registry.retire(data_process_id)
         return
+
+    def delete_data_process2(self, data_process_id=''):
+
+        #Stops processes and deletes the data process associations
+        #TODO: Delete the processes also?
+        assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=RT.hasProcess, id_only=False)
+        for assoc in assocs:
+            self._stop_process(data_process=assoc.o)
+            self.clients.resource_registry.delete_association(assoc)
+
+        #Delete all subscriptions associations
+        assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=RT.hasSubscription, id_only=False)
+        for assoc in assocs:
+            #Delete subscription
+            self.clients.pubsub_management.deactivate_subscription(subscription_id=assoc.o._id)
+            self.clients.pubsub_management.delete_subscription(subscription_id=assoc.o._id)
+
+            self.clients.resource_registry.delete_association(assoc)
+
+        #Unassign data products
+        assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=RT.hasOutputProduct, id_only=False)
+        for assoc in assocs:
+            self.clients.data_acquisition_management.unassign_data_product(input_resource_id=data_process_id, data_product_id=assoc.o._id)
+
+        #Unregister the data process with acquisition
+        self.clients.data_acquisition_management.unregister_process(data_process_id=data_process_id)
+
+        #Delete the data process from the resource registry
+        self.clients.resource_registry.delete(object_id=data_process_id)
 
     def force_delete_data_process(self, data_process_id=""):
 
@@ -794,7 +830,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
     def _validator(self, in_data_product_id, out_data_product_id):
-        return True
+        in_stream = self._get_stream_from_dp(dp_id=in_data_product_id)
+        in_stream_def = self.clients.resource_registry.find_objects(subject=in_stream._id, predicate=PRED.hasStreamDefinition, id_only=False)
+        out_stream = self._get_stream_from_dp(dp_id=out_data_product_id)
+        out_stream_def = self.clients.resource_registry.find_objects(subject=out_stream._id, predicate=PRED.hasStreamDefinition, id_only=False)
+        return self.clients.pubsub_management.compatible_stream_definitions(in_stream_definition_id=in_stream_def, out_stream_definition_id=out_stream_def)
     
     def validate_compatibility(self, in_data_product_ids=None, out_data_product_ids=None, routes=None):
         '''
@@ -816,6 +856,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             return True
         else:
             raise BadRequest('No input data products specified')
+
 
 
     def _get_process_producer(self, data_process_id=""):
