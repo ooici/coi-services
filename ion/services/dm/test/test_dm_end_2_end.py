@@ -9,7 +9,7 @@ from pyon.datastore.datastore import DataStore
 from pyon.event.event import EventSubscriber
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from pyon.public import RT, log
+from pyon.public import RT, log, OT
 from pyon.util.poller import poll
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -490,15 +490,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
 
+        dataset_modified = Event()
+        def cb(*args, **kwargs):
+            dataset_modified.set()
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
+        es.start()
 
-        #--------------------------------------------------------------------------------
-        # Coerce the datastore into existence (beats race condition)
-        #--------------------------------------------------------------------------------
-        self.get_datastore(dataset_id)
+        self.publish_fake_data(stream_id, route)
 
-        self.launch_producer(stream_id)
-
-        self.wait_until_we_have_enough_granules(dataset_id,40)
+        self.assertTrue(dataset_modified.wait(30))
 
         query = {
             'start_time': 0 - 2208988800,
