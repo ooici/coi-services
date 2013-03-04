@@ -92,9 +92,10 @@ class RSNPlatformDriver(PlatformDriver):
 
     def connect(self):
         """
-        Creates an CIOMSClient instance and does a ping.
+        Creates an CIOMSClient instance, does a ping to verify connection,
+        and starts event dispatch.
         """
-
+        # create CIOMSClient:
         oms_uri = self._driver_config['oms_uri']
         log.debug("%r: creating CIOMSClient instance with oms_uri=%r",
                   self._platform_id, oms_uri)
@@ -102,16 +103,19 @@ class RSNPlatformDriver(PlatformDriver):
         log.debug("%r: CIOMSClient instance created: %s",
                   self._platform_id, self._rsn_oms)
 
+        # ping to verify connection:
         self.ping()
+
+        # start event dispatch:
+        self._start_event_dispatch()
 
     def disconnect(self):
         """
-        Destroys the CIOMSClient instance.
+        Stops event dispatch and sestroys the CIOMSClient instance.
         """
-        self._assert_rsn_oms()
+        self._stop_event_dispatch()
         self._rsn_oms = None
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: CIOMSClient instance destroyed" % self._platform_id)
+        log.debug("%r: CIOMSClient instance destroyed", self._platform_id)
 
     def get_metadata(self):
         """
@@ -474,17 +478,22 @@ class RSNPlatformDriver(PlatformDriver):
         Registers given url for all event types.
         """
         result = self._rsn_oms.register_event_listener(url, [])
-        log.info("register_event_listener url=%r returned: %s", url, str(result))
+        log.info("register_event_listener url=%r returned: %s", url, result)
 
     def _unregister_event_listener(self, url):
         """
         Unregisters given url for all event types.
         """
         result = self._rsn_oms.unregister_event_listener(url, [])
-        log.info("unregister_event_listener url=%r returned: %s", url, str(result))
+        log.info("unregister_event_listener url=%r returned: %s", url, result)
 
-    def start_event_dispatch(self):
+    def _start_event_dispatch(self):
+        """
+        Starts the dispatch of events received from the platform network to do
+        corresponding event notifications.
+        """
         self._assert_rsn_oms()
+
         # start http server:
         self._event_listener.start_http_server()
 
@@ -493,8 +502,12 @@ class RSNPlatformDriver(PlatformDriver):
 
         return "OK"
 
-    def stop_event_dispatch(self):
+    def _stop_event_dispatch(self):
+        """
+        Stops the dispatch of events received from the platform network.
+        """
         self._assert_rsn_oms()
+
         # unregister my listener:
         self._unregister_event_listener(self._event_listener.url)
 

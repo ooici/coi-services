@@ -104,8 +104,6 @@ class PlatformAgentEvent(BaseEnum):
     TURN_ON_PORT              = 'PLATFORM_AGENT_TURN_ON_PORT'
     TURN_OFF_PORT             = 'PLATFORM_AGENT_TURN_OFF_PORT'
     GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
-    START_EVENT_DISPATCH      = 'PLATFORM_AGENT_START_EVENT_DISPATCH'
-    STOP_EVENT_DISPATCH       = 'PLATFORM_AGENT_STOP_EVENT_DISPATCH'
     START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
     STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
 
@@ -136,9 +134,6 @@ class PlatformAgentCapability(BaseEnum):
     TURN_ON_PORT              = PlatformAgentEvent.TURN_ON_PORT
     TURN_OFF_PORT             = PlatformAgentEvent.TURN_OFF_PORT
     GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
-
-    START_EVENT_DISPATCH      = PlatformAgentEvent.START_EVENT_DISPATCH
-    STOP_EVENT_DISPATCH       = PlatformAgentEvent.STOP_EVENT_DISPATCH
 
     START_MONITORING          = PlatformAgentEvent.START_MONITORING
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
@@ -513,14 +508,14 @@ class PlatformAgent(ResourceAgent):
 
     def _do_go_active(self):
         """
-        Any activation actions at this platform (excluding sub-platforms).
+        Does activation actions at this platform (excluding sub-platforms).
         This base class connects the driver.
         """
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
     def _do_go_inactive(self):
         """
-        Any desactivation actions at this platform (excluding sub-platforms).
+        Does desactivation actions at this platform (excluding sub-platforms).
         This base class disconnects the driver.
         """
         self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
@@ -1299,41 +1294,6 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
-    def _handler_start_event_dispatch(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        try:
-            result = self._trigger_driver_event(PlatformDriverEvent.START_EVENT_DISPATCH)
-
-            next_state = self.get_agent_state()
-
-        except Exception as ex:
-            log.error("error in start_event_dispatch %s", str(ex)) #, exc_Info=True)
-            raise
-
-        return (next_state, result)
-
-    def _handler_stop_event_dispatch(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        try:
-            result = self._trigger_driver_event(PlatformDriverEvent.STOP_EVENT_DISPATCH)
-            next_state = self.get_agent_state()
-
-        except Exception as ex:
-            log.error("error in stop_event_dispatch %s", str(ex)) #, exc_Info=True)
-            raise
-
-        return (next_state, result)
-
     def _handler_get_metadata(self, *args, **kwargs):
         """
         Gets platform's metadata
@@ -1650,6 +1610,4 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
-            self._fsm.add_handler(state, PlatformAgentEvent.START_EVENT_DISPATCH, self._handler_start_event_dispatch)
-            self._fsm.add_handler(state, PlatformAgentEvent.STOP_EVENT_DISPATCH, self._handler_stop_event_dispatch)
             self._fsm.add_handler(state, PlatformAgentEvent.CHECK_SYNC, self._handler_check_sync)

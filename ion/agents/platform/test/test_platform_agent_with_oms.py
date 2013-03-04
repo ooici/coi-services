@@ -18,7 +18,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_state_transitions
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_commands
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_event_dispatch
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_external_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_connect_disconnect_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_check_sync
 #
@@ -527,24 +527,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(x in retval.result for x in self.SUBPLATFORM_IDS)
         return retval.result
 
-    def _start_event_dispatch(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH)
-        retval = self._execute_agent(cmd)
-        self.assertTrue(retval.result is not None)
-        return retval.result
-
-    def _wait_for_an_event(self):
+    def _wait_for_external_event(self):
         log.info("waiting for reception of an external event...")
         # just wait for at least one -- see consume_event
         self._async_event_result.get(timeout=EVENT_TIMEOUT)
         self.assertTrue(len(self._events_received) >= 1)
         log.info("Received events: %s", len(self._events_received))
-
-    def _stop_event_dispatch(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
-        retval = self._execute_agent(cmd)
-        self.assertTrue(retval.result is not None)
-        return retval.result
 
     def _check_sync(self):
         cmd = AgentCommand(command=PlatformAgentEvent.CHECK_SYNC)
@@ -580,9 +568,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.TURN_ON_PORT,
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
-
-            PlatformAgentEvent.START_EVENT_DISPATCH,
-            PlatformAgentEvent.STOP_EVENT_DISPATCH,
 
             PlatformAgentEvent.START_MONITORING,
             PlatformAgentEvent.STOP_MONITORING,
@@ -754,9 +739,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
 
-            PlatformAgentEvent.START_EVENT_DISPATCH,
-            PlatformAgentEvent.STOP_EVENT_DISPATCH,
-
             PlatformAgentEvent.START_MONITORING,
 
             PlatformAgentEvent.CHECK_SYNC,
@@ -827,9 +809,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
-
-            PlatformAgentEvent.START_EVENT_DISPATCH,
-            PlatformAgentEvent.STOP_EVENT_DISPATCH,
 
             PlatformAgentEvent.STOP_MONITORING,
 
@@ -920,7 +899,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._go_inactive()
         self._reset()
 
-    def test_event_dispatch(self):
+    def test_external_event_dispatch(self):
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -929,9 +908,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._go_active()
         self._run()
 
-        self._start_event_dispatch()
-        self._wait_for_an_event()
-        self._stop_event_dispatch()
+        self._wait_for_external_event()
 
         self._go_inactive()
         self._reset()
