@@ -8,7 +8,7 @@ from stat import ST_MTIME
 
 from coverage_model.coverage import SimplexCoverage
 from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType
-from pydap.model import DatasetType,BaseType, GridType, StructureType
+from pydap.model import DatasetType,BaseType, GridType
 from pydap.handlers.lib import BaseHandler
 import time
 
@@ -43,11 +43,8 @@ class Handler(BaseHandler):
         return attrs
 
     def get_data(self,cov, name, slice_):
-        pc = cov.get_parameter_context(name)
+        #pc = cov.get_parameter_context(name)
         data = cov.get_parameter_values(name, tdoa=slice_)
-        if isinstance(pc.param_type, ConstantRangeType):
-            if isinstance(data, tuple):
-                data = [data]
         data = np.asanyarray(data) 
         if not data.shape:
             data.shape = (1,)
@@ -75,8 +72,8 @@ class Handler(BaseHandler):
                 slice_ = self.update_slice_object(slice_, fill_index)
                 if slice_ is None:
                     continue
-                print name
-                print "slice", slice_
+                #print name
+                #print "slice", slice_
                 pc = cov.get_parameter_context(name)
                 try:
                     param = cov.get_parameter(name)
@@ -85,51 +82,51 @@ class Handler(BaseHandler):
                     time_attrs  = self.get_attrs(cov, name)
                     attrs  = self.get_attrs(cov, name)
                     dims = (cov.temporal_parameter_name,)
-
                     if isinstance(pc.param_type, QuantityType) and not param.is_coordinate and cov.temporal_parameter_name != name:
                         dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
                     if isinstance(pc.param_type, ConstantType):
                         dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
                     if isinstance(pc.param_type, ConstantRangeType):
-                        start = time.time()
-                        print "range", start
+                        #start = time.time()
                         #convert to string
                         try:
-                            result = []
-                            for d in data:
-                                f = [str(d[0]),str(d[1])]
-                                result.append('_'.join(f))
-                            data = np.asanyarray(result)
+                            if data.shape == (2,):
+                                data = np.atleast_1d('_'.join([str(data[0]), str(data[1])]))
+                            else:
+                                for i,d in enumerate(data):
+                                    f = [str(d[0]),str(d[1])]
+                                    data[i] = '_'.join(f)
                         except Exception, e:
                             data = np.asanyarray(['None' for d in data])
-                        print "range end", time.time() - start
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                        #print "range end", time.time() - start
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, 'S')                
                     if isinstance(pc.param_type,BooleanType):
                         data = np.asanyarray(data, dtype='int32')
                         dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
                     if isinstance(pc.param_type,CategoryType):
+                        #start = time.time()
                         dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                        #print "category end", time.time() - start
                     if isinstance(pc.param_type,ArrayType):
+                        #start = time.time()
                         dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                        #print "array end", time.time() - start
                     if isinstance(pc.param_type,RecordType):
-                        start = time.time()
+                        #start = time.time()
                         #convert to string
                         try:
-                            result = []
-                            for ddict in data:
-                                d = ['_'.join([k,v]) for k,v in ddict.iteritems()]
-                                result = result + d
-                            data = np.asanyarray(result)
+                            for i,ddict in enumerate(data):
+                                data[i] = str(ddict)
                         except Exception, e:
                             data = np.asanyarray(['None' for d in data])
-                        print "record end", time.time() - start
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)
+                        #print "record end", time.time() - start
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, 'S')
                     if param.is_coordinate and cov.temporal_parameter_name == name:
                         dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
                 except Exception, e:
                     log.exception('Problem reading cov %s %s', cov.name, e)
                     continue
-        print dataset
+        #print dataset
         return dataset
 
     def parse_constraints(self, environ):
@@ -172,112 +169,9 @@ class Handler(BaseHandler):
             fields = [[(name, ())] for name in all_vars]
         
         dataset = self.get_dataset(coverage, fields, fill_index, dataset)
-        print "returning result"
+        #print "returning result"
         return dataset
     
-    def old_parse_constraints(self, environ):
-        base = os.path.split(self.filepath)
-        coverage = SimplexCoverage.load(base[0], base[1],mode='r')
-        #coverage = SimplexCoverage.pickle_load(self.filepath)
-
-        last_modified = formatdate(time.mktime(time.localtime(os.stat(self.filepath)[ST_MTIME])))
-        environ['pydap.headers'].append(('Last-modified', last_modified))
-
-        atts = {}
-        atts['title'] = coverage.name
-        dataset = DatasetType(coverage.name) #, attributes=atts)
-        fields, queries = environ['pydap.ce']
-        queries = filter(bool, queries)  # fix for older version of pydap
-
-        all_vars = coverage.list_parameters()
-        t = []
-
-        for param in all_vars:
-            if not isinstance(coverage.get_parameter_context(param).param_type, QuantityType):
-                t.append(param)
-        [all_vars.remove(i) for i in t]
-
-        time_context = coverage.get_parameter_context(coverage.temporal_parameter_name)
-        time_fill_value = time_context.fill_value
-        time_data = coverage.get_parameter_values(coverage.temporal_parameter_name)
-        fill_index = -1
-        try:
-            fill_index = np.where(time_data == time_fill_value)[0][0]
-        except IndexError:
-            pass
-
-        # If no fields have been explicitly requested, of if the sequence
-        # has been requested directly, return all variables.
-
-        if not fields:
-            fields = [[(name, ())] for name in all_vars]
-
-        for var in fields:
-            target = dataset
-            while var:
-                name, slice_ = var.pop(0)
-                covname = urllib.unquote(name)
-                param = coverage.get_parameter(covname)
-
-                #print 'Incoming tuple ', slice_
-
-                slice_ = slice_[0] if slice_ else slice(None)
-                
-                #print 'formed slice ', slice_
-
-
-                #need to truncate slice here in case time has fill values
-                if slice_.start is None and slice_.stop is None and fill_index >=0:
-                    slice_ = slice(0, fill_index, 1)
-
-                if slice_.start and slice_.stop is None:
-
-                    if fill_index > slice_.start:
-                        continue
-
-                    if fill_index > slice_.stop:
-                        slice_.stop = fill_index
-
-                if slice_.start is not None and slice_.start == slice_.stop:
-                    slice_ = slice(slice_.start, slice_.stop+1, slice_.step)
-                    #print 'crap'
-
-                print "slice", slice_
-                
-                if param.is_coordinate or target is not dataset:
-                    print "first if"
-                    try:
-                        target[name] = get_var(coverage,name,slice_)
-                    except:
-                        log.exception('Problem reading coverage %s', coverage.name)
-                        continue
-
-                elif var:
-                    print "second if"
-                    target.setdefault(name, StructureType(name=name, attributes={'units':coverage.get_parameter_context(name).uom}))
-                    target = target[name]
-                else:  # return grid
-                    print "third if"
-                    grid = target[name] = GridType(name=name)
-                    try:
-                        grid[name] = get_var(coverage,name, slice_)
-                    except:
-                        log.exception('Problem reading coverage %s', coverage.name)
-                        continue
-
-                    dim = coverage.temporal_parameter_name 
-                    try:
-                        grid[dim] = get_var(coverage,dim,slice_)
-                    except:
-                        log.exception('Problem reading coverage %s', coverage.name)
-                        continue
-        dataset._set_id()
-        dataset.close = coverage.close
-        #print dataset.__dict__
-        print dataset
-        return dataset
-
-        
     def none_to_str(self, data):
         for i,d in enumerate(data):
             if d is None:
@@ -331,20 +225,3 @@ class Handler(BaseHandler):
 
 class TypeNotSupportedError(Exception):
     pass
-
-def get_var(coverage,name,slice_):
-    data = coverage.get_parameter_values(name,tdoa=slice_)
-    if not isinstance(data, np.ndarray):
-        data = np.array([data])
-    attrs = {'units': coverage.get_parameter_context(name).uom}
-    dims = (coverage.temporal_parameter_name,)
-    
-    
-    log.debug( 'name=%s', name)
-    log.debug( 'data=%s', data)
-    log.debug( 'shape=%s' , data.shape)
-    log.debug( 'type=%s', data.dtype.char)
-    log.debug( 'dims=%s', dims)
-    log.debug( 'attrs=%s', attrs)
-    return BaseType(name=name, data=data, shape=data.shape, type=data.dtype.char, dimensions=dims, attributes=attrs)
-
