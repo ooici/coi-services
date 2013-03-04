@@ -496,6 +496,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
         es.start()
 
+        self.addCleanup(es.stop)
+
         self.publish_fake_data(stream_id, route)
 
         self.assertTrue(dataset_modified.wait(30))
