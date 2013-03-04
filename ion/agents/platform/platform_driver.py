@@ -107,7 +107,7 @@ class PlatformDriver(object):
         """
         return self._platform_attributes
 
-    def validate_driver_configuration(self, driver_config):
+    def _validate_driver_configuration(self, driver_config):
         """
         Called by configure so a subclass can perform any needed additional
         validation of the provided configuration.
@@ -121,14 +121,14 @@ class PlatformDriver(object):
 
     def configure(self, driver_config):
         """
-        Configures this driver. It first calls validate_driver_configuration.
+        Configures this driver. It first calls _validate_driver_configuration.
 
         @param driver_config Driver configuration.
         """
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: configure: %s" % (self._platform_id, str(driver_config)))
 
-        self.validate_driver_configuration(driver_config)
+        self._validate_driver_configuration(driver_config)
         self._driver_config = driver_config
 
     def connect(self):

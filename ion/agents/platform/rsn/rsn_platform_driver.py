@@ -48,7 +48,7 @@ class RSNPlatformDriver(PlatformDriver):
         # actual http server is started via corresponding method.
         self._event_listener = OmsEventListener(self._notify_driver_event)
 
-    def validate_driver_configuration(self, driver_config):
+    def _validate_driver_configuration(self, driver_config):
         """
         Driver config must include 'oms_uri' entry.
         """
