@@ -386,12 +386,14 @@ class EnhancedResourceRegistryClient(object):
         if pred is not None:
             log.debug("supplied pred is %s", pred)
             if not pred in self.label_to_predicate:
-                raise BadRequest("Attempted to use dynamic %s with unknown predicate '%s'" % (genre, pred))
+                raise BadRequest("Attempted to use dynamic %s between %s and %s with unknown predicate '%s'" %
+                                 (genre, isubj, iobj, pred))
                 #return None
 
             ipred = self.label_to_predicate[pred]
             if not ipred in self.predicates_for_subj_obj[isubj][iobj]:
-                raise BadRequest("Attempted to use dynamic %s with disallowed predicate '%s'" % (genre, ipred))
+                raise BadRequest("Attempted to use dynamic %s between %s and %s with disallowed predicate '%s'" %
+                                 (genre, isubj, ipred, ipred))
         else:
             log.debug("no suppied pred, picking from choices: %s" % self.predicates_for_subj_obj[isubj][iobj])
             if 1 != len(self.predicates_for_subj_obj[isubj][iobj]):
