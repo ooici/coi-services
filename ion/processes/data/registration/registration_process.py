@@ -10,7 +10,6 @@ from coverage_model import SimplexCoverage
 from xml.dom.minidom import parse, parseString
 from zipfile import ZipFile
 
-#import numpy as np
 import base64
 import os
 import urllib
@@ -43,8 +42,6 @@ class RegistrationProcess(StandaloneProcess):
         with ZipFile(zip_file) as zipper:
             zipper.extract('datasets.xml', path)
         zip_file.close()
-
-
 
     def register_dap_dataset(self, dataset_id, data_product_name=''):
         coverage_path = DatasetManagementService._get_coverage_path(dataset_id)
@@ -84,12 +81,12 @@ class RegistrationProcess(StandaloneProcess):
     def get_dataset_xml(self, coverage_path, product_name=''):
         #http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html
         result = ''
-
+        from coverage_model.parameter_types import QuantityType
         paths = os.path.split(coverage_path)
         cov = SimplexCoverage.load(coverage_path)
         doc = xml.dom.minidom.Document()
         
-#        erd_type_map = {'d':'double', 'f':"float", 'h':'short', 'i':'int', 'l':'int', 'q':'int', 'b':'byte', 'b':'char', 'S':'String'} 
+        #erd_type_map = {'d':'double', 'f':"float", 'h':'short', 'i':'int', 'l':'int', 'q':'int', 'b':'byte', 'b':'char', 'S':'String'} 
         
         #Get lists of variables with unique sets of dimensions.
         #Datasets can only have variables with the same sets of dimensions
@@ -100,9 +97,10 @@ class RegistrationProcess(StandaloneProcess):
         datasets = {}
         for key in cov.list_parameters():
             pc = cov.get_parameter_context(key)
-            #if not isinstance(pc.param_type, QuantityType):
-            #if key not in ["time","lat","lon", "density"]:
-            #    continue
+            
+            if not isinstance(pc.param_type, QuantityType):
+                continue
+
             param = cov.get_parameter(key)
             dims = (cov.temporal_parameter_name,)
             if len(param.shape) == 2:
@@ -110,6 +108,7 @@ class RegistrationProcess(StandaloneProcess):
 
             if not dims in datasets.keys():
                 datasets[dims] = []
+            
 
             datasets[dims].append(key)
         
@@ -126,8 +125,7 @@ class RegistrationProcess(StandaloneProcess):
 
             if not (len(dims) == 1 and dims[0] == vars[0]):
                 dataset_element = doc.createElement('dataset')
-                #dataset_element.setAttribute('type', 'EDDGridFromDap')
-                dataset_element.setAttribute('type', 'EDDTableFromDapSequence')
+                dataset_element.setAttribute('type', 'EDDGridFromDap')
                 dataset_element.setAttribute('datasetID', '{0}_{1}'.format(paths[1], index))
                 dataset_element.setAttribute('active', 'True')
 
@@ -141,25 +139,6 @@ class RegistrationProcess(StandaloneProcess):
                 reload_element.appendChild(text_node)
                 dataset_element.appendChild(reload_element)
                 
-                outer_element = doc.createElement('outerSequenceName')
-                text_node = doc.createTextNode('data')
-                outer_element.appendChild(text_node)
-                dataset_element.appendChild(outer_element)
-                
-                skip_element = doc.createElement('skipDapperSpacerRows')
-                text_node = doc.createTextNode('false')
-                skip_element.appendChild(text_node)
-                dataset_element.appendChild(skip_element)
-                
-                gtlt_element = doc.createElement('sourceCanConstrainStringGTLT')
-                text_node = doc.createTextNode('true')
-                gtlt_element.appendChild(text_node)
-                dataset_element.appendChild(gtlt_element)
-                
-                eqne_element = doc.createElement('sourceCanConstrainStringEQNE')
-                text_node = doc.createTextNode('true')
-                eqne_element.appendChild(text_node)
-                dataset_element.appendChild(eqne_element)
 
                 add_attributes_element = doc.createElement('addAttributes')
 
@@ -170,7 +149,7 @@ class RegistrationProcess(StandaloneProcess):
                 atts['Conventions'] = "COARDS, CF-1.6, Unidata Dataset Discovery v1.0"
                 atts['license'] = '[standard]'
                 atts['summary'] = cov.name
-                atts['cdm_data_type'] = 'Point'
+                atts['cdm_data_type'] = 'Grid'
                 atts['subsetVariables'] = ','.join([erd_name_map[v] for v in vars])
                 atts['standard_name_vocabulary'] = 'CF-12'
                 

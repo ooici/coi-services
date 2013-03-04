@@ -9,7 +9,7 @@ from stat import ST_MTIME
 from pydap.handlers.helper import constrain
 from coverage_model.coverage import SimplexCoverage
 from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType
-from pydap.model import DatasetType,BaseType, SequenceType
+from pydap.model import DatasetType,BaseType, GridType
 from pydap.handlers.lib import BaseHandler
 import time
 
@@ -19,9 +19,117 @@ class Handler(BaseHandler):
 
     def __init__(self, filepath):
         self.filepath = filepath
+        
+    def get_numpy_type(self, data):
+        data = self.none_to_str(data)
+        result = data.dtype.char
+        if self.is_basestring(data):
+            result = 'S'
+        elif self.is_float(data):
+            result = 'd'
+        elif self.is_int(data):
+            result = 'i'
+        elif result not in ('d','f','h','i','b','H','I','B','S'):
+            raise TypeNotSupportedError()
+        return result
+
+    def get_attrs(self, cov, name):
+        pc = cov.get_parameter_context(name)
+        attrs = {}
+        try:
+            attrs['units'] = pc.uom
+        except:
+            pass
+        attrs['long_name'] = pc.long_name
+        return attrs
+
+    def get_data(self,cov, name, slice_):
+        pc = cov.get_parameter_context(name)
+        data = cov.get_parameter_values(name, tdoa=slice_)
+        if isinstance(pc.param_type, ConstantRangeType):
+            if isinstance(data, tuple):
+                data = [data]
+        data = np.asanyarray(data) 
+        if not data.shape:
+            data.shape = (1,)
+        return data
     
+    def get_time_data(self, cov, slice_):
+        data = cov.get_parameter_values(cov.temporal_parameter_name, tdoa=slice_)
+        data = np.asanyarray(data) 
+        if not data.shape:
+            data.shape = (1,)
+        return data
+
+    def make_grid(self, name, data, time_data, attrs, time_attrs, dims, ttype):
+        grid = GridType(name=name)
+        grid[name] = BaseType(name=name, data=data, type=ttype, attributes=attrs, dimensions=dims, shape=data.shape)
+        grid[dims[0]] = BaseType(name=dims[0], data=time_data, type=time_data.dtype.char, attributes=time_attrs, dimensions=dims, shape=time_data.shape)
+        return grid    
+
+    def get_dataset(self, cov, fields, fill_index, dataset):
+        for var in fields:
+            print "var", var
+            while var:
+                name, slice_ = var.pop(0)
+                name = urllib.unquote(name)
+                
+                slice_ = self.update_slice_object(slice_, fill_index)
+                if slice_ is None:
+                    continue
+
+                pc = cov.get_parameter_context(name)
+                try:
+                    param = cov.get_parameter(name)
+                    data = self.get_data(cov, name, slice_)
+                    time_data = self.get_time_data(cov, slice_)
+                    time_attrs  = self.get_attrs(cov, name)
+                    attrs  = self.get_attrs(cov, name)
+                    dims = (cov.temporal_parameter_name,)
+
+                    if isinstance(pc.param_type, QuantityType) and not param.is_coordinate and cov.temporal_parameter_name != name:
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                    if isinstance(pc.param_type, ConstantType):
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                    if isinstance(pc.param_type, ConstantRangeType):
+                        #convert to string
+                        try:
+                            result = []
+                            for d in data:
+                                f = [str(d[0]),str(d[1])]
+                                result.append('_'.join(f))
+                            data = np.asanyarray(result)
+                        except Exception, e:
+                            data = np.asanyarray(['None' for d in data])
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                    if isinstance(pc.param_type,BooleanType):
+                        data = np.asanyarray(data, dtype='int32')
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                    if isinstance(pc.param_type,CategoryType):
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                    if isinstance(pc.param_type,ArrayType):
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                    if isinstance(pc.param_type,RecordType):
+                        #convert to string
+                        try:
+                            result = []
+                            for ddict in data:
+                                d = ['_'.join([k,v]) for k,v in ddict.iteritems()]
+                                result = result + d
+                            result = np.asanyarray(result)
+                        except Exception, e:
+                            result = np.asanyarray(['None' for d in data])
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                    if param.is_coordinate and cov.temporal_parameter_name == name:
+                        dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
+                except Exception, e:
+                    log.exception('Problem reading cov %s %s', cov.name, e)
+                    import traceback
+                    traceback.print_exc()
+                    continue
+        return dataset
+
     def parse_constraints(self, environ):
-        seq_name = 'data'
         base = os.path.split(self.filepath)
         cov = SimplexCoverage.load(base[0], base[1],mode='r')
 
@@ -39,100 +147,34 @@ class Handler(BaseHandler):
             fill_index = np.where(time_data == time_fill_value)[0][0]
         except IndexError:
             pass
+        
         fields, queries = environ['pydap.ce']
         queries = filter(bool, queries)  # fix for older version of pydap
         
         all_vars = []
         for name in cov.list_parameters():
-            pc = cov.get_parameter_context(name)
-            #if isinstance(pc.param_type, QuantityType):
-            #if name in ["time", "lon", "lat", "density"]:
             all_vars.append(name)
-
+        
+        #remove everything except quantity type
+        #strings break the erddap interface
+        t = []
+        for param in all_vars:
+            if not isinstance(cov.get_parameter_context(param).param_type, QuantityType):
+                t.append(param)
+        [all_vars.remove(i) for i in t]
+        
         if not fields:
             fields = [[(name, ())] for name in all_vars]
-        dataset[seq_name] = SequenceType(name=seq_name)
         
-        for var in fields:
-            while var:
-                name, slice_ = var.pop(0)
-                name = urllib.unquote(name)
-                
-                if seq_name == name:
-                    continue
-
-                slice_ = self.update_slice_object(slice_, fill_index)
-                if slice_ is None:
-                    continue
-
-                pc = cov.get_parameter_context(name)
-                try:
-                    attrs = {}
-                    try:
-                        attrs['units'] = pc.uom
-                    except:
-                        pass
-                    
-                    attrs['long_name'] = pc.long_name
-                    data = cov.get_parameter_values(name, tdoa=slice_)
-                    
-                    #fix data for scalars
-                    if isinstance(pc.param_type, ConstantRangeType):
-                        if isinstance(data, tuple):
-                            data = [data]
-                    data = np.asanyarray(data) 
-                    if not data.shape:
-                        data.shape = (1,)
-                    
-                    if isinstance(pc.param_type, QuantityType):
-                        dataset[seq_name][name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
-                    if isinstance(pc.param_type, ConstantType):
-                        dataset[seq_name][name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
-                    if isinstance(pc.param_type, ConstantRangeType):
-                        try:
-                            #convert to string
-                            result = []
-                            for d in data:
-                                f = [str(d[0]),str(d[1])]
-                                result.append('_'.join(f))
-                            data = np.asanyarray(result)
-                        except Exception, e:
-                            data = np.asanyarray(['None' for d in data])
-                        dataset[seq_name][name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs)
-                    if isinstance(pc.param_type,BooleanType):
-                        boolean_values = np.asanyarray(data, dtype='int32')
-                        dataset[seq_name][name] = BaseType(name=name, data=boolean_values, type=self.get_numpy_type(boolean_values), attributes=attrs)
-                    if isinstance(pc.param_type,CategoryType):
-                        dataset[seq_name][name] = BaseType(name=name, data=data, type=self.get_numpy_type(data), attributes=attrs)
-                    if isinstance(pc.param_type,ArrayType):
-                        dataset[seq_name][name] = BaseType(name=name, data=data, type=self.get_numpy_type(data), attributes=attrs)
-                    if isinstance(pc.param_type,RecordType):
-                        try:
-                            result = []
-                            for ddict in data:
-                                d = ['_'.join([k,v]) for k,v in ddict.iteritems()]
-                                result = result + d
-                            result = np.asanyarray(result)
-                        except Exception, e:
-                            result = np.asanyarray(['None' for d in data])
-                        ttype = self.get_numpy_type(result)
-                        dataset[seq_name][name] = BaseType(name=name, data=result, type=ttype, attributes=attrs)
-                except Exception, e:
-                    log.exception('Problem reading cov %s %s', cov.name, e)
-                    continue
+        dataset = self.get_dataset(cov, fields, fill_index, dataset)
+        
         return constrain(dataset, environ.get('QUERY_STRING', ''))
-    
-    def get_numpy_type(self, data):
-        result = data.dtype.char
-        if self.is_basestring(data):
-            result = 'S'
-        elif self.is_float(data):
-            result = 'd'
-        elif self.is_int(data):
-            result = 'i'
-        elif result not in ('d', 'f', 'h', 'i','b','H','I','B','S'):
-            raise TypeNotSupportedError()
-        return result
+        
+    def none_to_str(self, data):
+        for i,d in enumerate(data):
+            if d is None:
+                data[i] = 'None'
+        return data
 
     def is_basestring(self, data):
         for d in data:
@@ -181,3 +223,20 @@ class Handler(BaseHandler):
 
 class TypeNotSupportedError(Exception):
     pass
+
+def get_var(coverage,name,slice_):
+    data = coverage.get_parameter_values(name,tdoa=slice_)
+    if not isinstance(data, np.ndarray):
+        data = np.array([data])
+    attrs = {'units': coverage.get_parameter_context(name).uom}
+    dims = (coverage.temporal_parameter_name,)
+    
+    
+    log.debug( 'name=%s', name)
+    log.debug( 'data=%s', data)
+    log.debug( 'shape=%s' , data.shape)
+    log.debug( 'type=%s', data.dtype.char)
+    log.debug( 'dims=%s', dims)
+    log.debug( 'attrs=%s', attrs)
+    return BaseType(name=name, data=data, shape=data.shape, type=data.dtype.char, dimensions=dims, attributes=attrs)
+
