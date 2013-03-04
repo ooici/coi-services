@@ -15,14 +15,6 @@ from pyon.public import PRED #, RT
 
 from ooi.logging import log
 
-from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
-from ion.services.sa.observatory.subsite_impl import SubsiteImpl
-
-
 
 
 
@@ -47,14 +39,4 @@ class TestObservatoryManagement(PyonTestCase):
         
         # must call this manually
         self.observatory_mgmt_service.on_init()
-
-
-rim = ResourceImplMetatest(TestObservatoryManagement, ObservatoryManagementService, log)
-rim.test_all_in_one(True)
-
-rim.add_resource_impl_unittests(InstrumentSiteImpl, {})
-rim.add_resource_impl_unittests(PlatformSiteImpl, {})
-rim.add_resource_impl_unittests(ObservatoryImpl, {})
-rim.add_resource_impl_unittests(SubsiteImpl, {})
-
 
