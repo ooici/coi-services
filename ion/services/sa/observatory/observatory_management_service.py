@@ -14,10 +14,7 @@ from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
 
-from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
-from ion.services.sa.observatory.subsite_impl import SubsiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
+
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
@@ -61,13 +58,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #        if self.container and self.container.governance_controller:
 #            reg_precondition = self.container.governance_controller.register_process_operation_precondition
 #            reg_precondition(self, 'execute_observatory_lifecycle',
-#                             self.observatory.policy_fn_lcs_precondition("observatory_id"))
+#                             self.RR2.policy_fn_lcs_precondition("observatory_id"))
 #            reg_precondition(self, 'execute_subsite_lifecycle',
-#                             self.subsite.policy_fn_lcs_precondition("subsite_id"))
+#                             self.RR2.policy_fn_lcs_precondition("subsite_id"))
 #            reg_precondition(self, 'execute_platform_site_lifecycle',
-#                             self.platform_site.policy_fn_lcs_precondition("platform_site_id"))
+#                             self.RR2.policy_fn_lcs_precondition("platform_site_id"))
 #            reg_precondition(self, 'execute_instrument_site_lifecycle',
-#                             self.instrument_site.policy_fn_lcs_precondition("instrument_site_id"))
+#                             self.RR2.policy_fn_lcs_precondition("instrument_site_id"))
 
 
     def override_clients(self, new_clients):
@@ -88,11 +85,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             self.PRMS  = new_clients.data_process_management
 
         #farm everything out to the impls
-
-        self.observatory      = ObservatoryImpl(new_clients)
-        self.subsite          = SubsiteImpl(new_clients)
-        self.platform_site    = PlatformSiteImpl(new_clients)
-        self.instrument_site  = InstrumentSiteImpl(new_clients)
 
 
         self.dataproductclient = DataProductManagementServiceClient()
@@ -176,7 +168,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         # create the marine facility
-        observatory_id = self.observatory.create_one(observatory)
+        observatory_id = self.RR2.create(observatory)
 
         if org_id:
             self.assign_resource_to_observatory_org(observatory_id, org_id)
@@ -190,7 +182,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval observatory    Observatory
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.read_one(observatory_id)
+        return self.RR2.read(observatory_id)
 
     def update_observatory(self, observatory=None):
         """Update a Observatory resource
@@ -198,7 +190,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory    Observatory
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.update_one(observatory)
+        return self.RR2.update(observatory)
 
     def delete_observatory(self, observatory_id=''):
         """Delete a Observatory resource
@@ -206,10 +198,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.delete_one(observatory_id)
+        return self.RR2.delete(observatory_id)
 
     def force_delete_observatory(self, observatory_id=''):
-        return self.observatory.force_delete_one(observatory_id)
+        return self.RR2.force_delete(observatory_id)
 
 
 
@@ -223,10 +215,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        subsite_id = self.subsite.create_one(subsite)
+        subsite_id = self.RR2.create(subsite)
 
         if parent_id:
-            self.subsite.link_parent(subsite_id, parent_id)
+            self.assign_site_to_site(subsite_id, parent_id)
 
         return subsite_id
 
@@ -237,7 +229,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval subsite    Subsite
         @throws NotFound    object with specified id does not exist
         """
-        return self.subsite.read_one(subsite_id)
+        return self.RR2.read(subsite_id)
 
     def update_subsite(self, subsite=None):
         """Update a Subsite resource
@@ -245,7 +237,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite    Subsite
         @throws NotFound    object with specified id does not exist
         """
-        return self.subsite.update_one(subsite)
+        return self.RR2.update(subsite)
 
     def delete_subsite(self, subsite_id=''):
         """Delete a subsite resource, removes assocations to parents
@@ -253,10 +245,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.subsite.delete_one(subsite_id)
+        self.RR2.delete(subsite_id)
 
     def force_delete_subsite(self, subsite_id=''):
-        self.subsite.force_delete_one(subsite_id)
+        self.RR2.force_delete(subsite_id)
 
 
 
@@ -270,10 +262,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        platform_site_id = self.platform_site.create_one(platform_site)
+        platform_site_id = self.RR2.create(platform_site)
 
         if parent_id:
-            self.platform_site.link_parent(platform_site_id, parent_id)
+            self.RR2.assign_site_to_one_site_with_has_site(platform_site_id, parent_id)
 
         return platform_site_id
 
@@ -284,7 +276,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval platform_site    PlatformSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.platform_site.read_one(platform_site_id)
+        return self.RR2.read(platform_site_id)
 
     def update_platform_site(self, platform_site=None):
         """Update a PlatformSite resource
@@ -292,7 +284,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site    PlatformSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.platform_site.update_one(platform_site)
+        return self.RR2.update(platform_site)
 
     def delete_platform_site(self, platform_site_id=''):
         """Delete a PlatformSite resource, removes assocations to parents
@@ -300,10 +292,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.platform_site.delete_one(platform_site_id)
+        self.RR2.delete(platform_site_id)
 
     def force_delete_platform_site(self, platform_site_id=''):
-        self.platform_site.force_delete_one(platform_site_id)
+        self.RR2.force_delete(platform_site_id)
 
 
     def create_instrument_site(self, instrument_site=None, parent_id=''):
@@ -316,10 +308,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        instrument_site_id = self.instrument_site.create_one(instrument_site)
+        instrument_site_id = self.RR2.create(instrument_site)
 
         if parent_id:
-            self.instrument_site.link_parent(instrument_site_id, parent_id)
+            self.RR2.assign_site_to_one_site_with_has_site(instrument_site_id, parent_id)
 
         return instrument_site_id
 
@@ -330,7 +322,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval instrument_site    InstrumentSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.instrument_site.read_one(instrument_site_id)
+        return self.RR2.read(instrument_site_id)
 
     def update_instrument_site(self, instrument_site=None):
         """Update a InstrumentSite resource
@@ -338,7 +330,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param instrument_site    InstrumentSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.instrument_site.update_one(instrument_site)
+        return self.RR2.update(instrument_site)
 
     def delete_instrument_site(self, instrument_site_id=''):
         """Delete a InstrumentSite resource, removes assocations to parents
@@ -347,10 +339,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.instrument_site.delete_one(instrument_site_id)
+        self.RR2.delete(instrument_site_id)
 
     def force_delete_instrument_site(self, instrument_site_id=''):
-        self.instrument_site.force_delete_one(instrument_site_id)
+        self.RR2.force_delete(instrument_site_id)
 
 
 
@@ -426,17 +418,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        parent_site_obj = self.subsite.read_one(parent_site_id)
-        parent_site_type = parent_site_obj._get_type()
 
-        if RT.Observatory == parent_site_type:
-            self.observatory.link_site(parent_site_id, child_site_id)
-        elif RT.Subsite == parent_site_type:
-           self.subsite.link_site(parent_site_id, child_site_id)
-        elif RT.PlatformSite == parent_site_type:
-           self.platform_site.link_site(parent_site_id, child_site_id)
-        else:
-           raise BadRequest("Tried to assign a child site to a %s resource" % parent_site_type)
+        self.RR2.assign_site_to_site_with_has_site(child_site_id, parent_site_id)
+
 
     def unassign_site_from_site(self, child_site_id='', parent_site_id=''):
         """Disconnects a child site (any subtype) from a parent site (any subtype)
@@ -445,17 +429,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        parent_site_obj = self.subsite.read_one(parent_site_id)
-        parent_site_type = parent_site_obj._get_type()
 
-        if RT.Observatory == parent_site_type:
-            self.observatory.unlink_site(parent_site_id, child_site_id)
-        elif RT.Subsite == parent_site_type:
-            self.subsite.unlink_site(parent_site_id, child_site_id)
-        elif RT.PlatformSite == parent_site_type:
-            self.platform_site.unlink_site(parent_site_id, child_site_id)
-        else:
-            raise BadRequest("Tried to unassign a child site from a %s resource" % parent_site_type)
+        self.RR2.unassign_site_from_site_with_has_site(child_site_id, parent_site_id)
+
 
     def assign_device_to_site(self, device_id='', site_id=''):
         """Connects a device (any type) to a site (any subtype)
@@ -464,15 +440,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        site_obj = self.subsite.read_one(site_id)
-        site_type = site_obj._get_type()
 
-        if RT.PlatformSite == site_type:
-            self.platform_site.link_device(site_id, device_id)
-        elif RT.InstrumentSite == site_type:
-            self.instrument_site.link_device(site_id, device_id)
-        else:
-            raise BadRequest("Tried to assign a device to a %s resource" % site_type)
+        self.RR2.assign_device_to_site_with_has_device(device_id, site_id)
 
     def unassign_device_from_site(self, device_id='', site_id=''):
         """Disconnects a device (any type) from a site (any subtype)
@@ -481,33 +450,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        site_obj = self.subsite.read_one(site_id)
-        site_type = site_obj._get_type()
 
-        if RT.PlatformSite == site_type:
-           self.platform_site.unlink_device(site_id, device_id)
-        elif RT.InstrumentSite == site_type:
-           self.instrument_site.unlink_device(site_id, device_id)
-        else:
-           raise BadRequest("Tried to unassign a device from a %s resource" % site_type)
+        self.RR2.unassign_device_from_site_with_has_device(device_id, site_id)
 
-    def assign_site_to_observatory(self, site_id='', observatory_id=''):
-        self.observatory.link_site(observatory_id, site_id)
-
-    def unassign_site_from_observatory(self, site_id="", observatory_id=''):
-        self.observatory.unlink_site(observatory_id, site_id)
 
     def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        self.instrument_site.link_model(instrument_site_id, instrument_model_id)
+        self.RR2.assign_instrument_model_to_instrument_site(instrument_model_id, instrument_site_id)
 
     def unassign_instrument_model_from_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        self.instrument_site.unlink_model(instrument_site_id, instrument_model_id)
+        self.RR2.unassign_instrument_model_from_instrument_site(self, instrument_model_id, instrument_site_id)
 
     def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
-        self.platform_site.link_model(platform_site_id, platform_model_id)
+        self.RR2.assign_platform_model_to_platform_site(platform_model_id, platform_site_id)
 
     def unassign_platform_model_from_platform_site(self, platform_model_id='', platform_site_id=''):
-        self.platform_site.unlink_model(platform_site_id, platform_model_id)
+        self.RR2.unassign_platform_model_from_platform_site(platform_model_id, platform_site_id)
 
     def assign_resource_to_observatory_org(self, resource_id='', org_id=''):
         if not org_id:
@@ -541,16 +498,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def deploy_instrument_site(self, instrument_site_id='', deployment_id=''):
-        self.instrument_site.link_deployment(instrument_site_id, deployment_id)
+        self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
 
     def undeploy_instrument_site(self, instrument_site_id='', deployment_id=''):
-        self.instrument_site.unlink_deployment(instrument_site_id, deployment_id)
+        self.RR2.unassign_deployment_from_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
 
     def deploy_platform_site(self, platform_site_id='', deployment_id=''):
-        self.platform_site.link_deployment(platform_site_id, deployment_id)
+        self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id)
 
     def undeploy_platform_site(self, platform_site_id='', deployment_id=''):
-        self.platform_site.unlink_deployment(platform_site_id, deployment_id)
+        self.RR2.unassign_deployment_from_platform_site_with_has_deployment(deployment_id, platform_site_id)
 
 
     def create_site_data_product(self, site_id="", data_product_id=""):
@@ -597,11 +554,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.dataprocessclient.activate_data_process(data_process_id)
 
-        #make it all happen
-        if RT.InstrumentSite == sitetype:
-            self.instrument_site.link_output_product(site_id, data_product_id)
-        elif RT.PlatformSite == sitetype:
-            self.platform_site.link_output_product(site_id, data_product_id)
+        #make it all happen by assigning the output product to the site
+        if RT.InstrumentSite == type(site_obj).__name__:
+            self.RR2.assign_data_product_to_one_instrument_site_with_has_output_product(data_product_id, site_id)
+        elif RT.PlatformSite == type(site_obj).__name__:
+            self.RR2.assign_data_product_to_one_platform_site_with_has_output_product(data_product_id, site_id)
+        else:
+            raise BadRequest("Tried to assign a dataproduct to a %s instead of %s or %s" %
+                            (type(site_obj).__name__, RT.InstrumentSite, RT.PlatformSite))
 
 
     def streamdef_of_site(self, site_id):

@@ -2,7 +2,7 @@
 #from pyon.ion.endpoint import ProcessRPCClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import IonObject
 from pyon.util.containers import DotDict
@@ -23,8 +23,6 @@ from pyon.ion.resource import get_maturity_visibility, OT
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old, add_keyworded_attachment
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
 
 from ion.services.sa.instrument.flag import KeywordFlag
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -102,10 +100,6 @@ class TestAssembly(IonIntegrationTestCase):
 
         c2 = DotDict()
         c2.resource_registry = self.client.RR
-
-        instrument_site_impl    = InstrumentSiteImpl(c2)
-        platform_site_impl      = PlatformSiteImpl(c2)
-        resource_impl           = ResourceImpl(c2)
 
 
         #generate a function that finds direct associations, using the more complex one in the service
@@ -315,15 +309,15 @@ class TestAssembly(IonIntegrationTestCase):
         
         log.info("Associate platform model with platform site")
         self.generic_association_script(c.OMS.assign_platform_model_to_platform_site,
-                                        platform_site_impl.find_having_model,
-                                        platform_site_impl.find_stemming_model,
+                                        self.RR2.find_platform_sites_by_platform_model,
+                                        self.RR2.find_platform_models_of_platform_site,
                                         platform_site_id,
                                         platform_model_id)
 
         log.info("Associate instrument model with instrument site")
         self.generic_association_script(c.OMS.assign_instrument_model_to_instrument_site,
-                                        instrument_site_impl.find_having_model,
-                                        instrument_site_impl.find_stemming_model,
+                                        self.RR2.find_instrument_sites_by_instrument_model,
+                                        self.RR2.find_instrument_models_of_instrument_site,
                                         instrument_site_id,
                                         instrument_model_id)
 
@@ -523,10 +517,10 @@ class TestAssembly(IonIntegrationTestCase):
         c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
 
         c.OMS.activate_deployment(deployment_id, True)
-        self.assertLess(0, len(instrument_site_impl.find_having_device(instrument_device_id)))
-        self.assertLess(0, len(instrument_site_impl.find_stemming_device(instrument_site_id)))
-        self.assertLess(0, len(platform_site_impl.find_having_device(platform_device_id)))
-        self.assertLess(0, len(platform_site_impl.find_stemming_device(platform_site_id)))
+        self.assertLess(0, len(self.RR2.find_instrument_sites_by_instrument_device(instrument_device_id)))
+        self.assertLess(0, len(self.RR2.find_instrument_devices_of_instrument_site(instrument_site_id)))
+        self.assertLess(0, len(self.RR2.find_platform_sites_by_platform_device(platform_device_id)))
+        self.assertLess(0, len(self.RR2.find_platform_devices_of_platform_site(platform_site_id)))
 
         self.generic_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
         self.generic_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
@@ -614,12 +608,12 @@ class TestAssembly(IonIntegrationTestCase):
         #----------------------------------------------
 
         # need to "pluck" some resources out of associations
-        resource_impl.pluck(instrument_model_id)
-        resource_impl.pluck(platform_model_id)
-        resource_impl.pluck(instrument_agent_id)
-        resource_impl.pluck(platform_agent_id)
-        resource_impl.pluck(deployment_id)
-        resource_impl.pluck(deployment_id2)
+        self.RR2.pluck(instrument_model_id)
+        self.RR2.pluck(platform_model_id)
+        self.RR2.pluck(instrument_agent_id)
+        self.RR2.pluck(platform_agent_id)
+        self.RR2.pluck(deployment_id)
+        self.RR2.pluck(deployment_id2)
 
         self.generic_fd_script(observatory_id, "observatory", c.OMS)
         self.generic_fd_script(subsite_id, "subsite", c.OMS)
@@ -694,8 +688,6 @@ class TestAssembly(IonIntegrationTestCase):
 
         c2 = DotDict()
         c2.resource_registry = self.client.RR
-        instrument_site_impl = InstrumentSiteImpl(c2)
-        resource_impl = ResourceImpl(c2)
 
         log.info("Create a instrument model")
         instrument_model_id = self.generic_fcruf_script(RT.InstrumentModel,
@@ -717,8 +709,8 @@ class TestAssembly(IonIntegrationTestCase):
 
         log.info("Associate instrument model with instrument site")
         self.generic_association_script(c.OMS.assign_instrument_model_to_instrument_site,
-                                        instrument_site_impl.find_having_model,
-                                        instrument_site_impl.find_stemming_model,
+                                        self.RR2.find_instrument_sites_by_instrument_model,
+                                        self.RR2.find_instrument_models_of_instrument_site,
                                         instrument_site_id,
                                         instrument_model_id)
 
@@ -759,9 +751,9 @@ class TestAssembly(IonIntegrationTestCase):
         c.OMS.activate_deployment(deployment_id, True)
 
         # cleanup
-        resource_impl.pluck(instrument_model_id)
-        resource_impl.pluck(deployment_id)
-        resource_impl.pluck(instrument_device_id)
+        self.RR2.pluck(instrument_model_id)
+        self.RR2.pluck(deployment_id)
+        self.RR2.pluck(instrument_device_id)
         c.IMS.force_delete_instrument_model(instrument_model_id)
         c.IMS.force_delete_instrument_device(instrument_device_id)
         c.OMS.force_delete_instrument_site(instrument_site_id)

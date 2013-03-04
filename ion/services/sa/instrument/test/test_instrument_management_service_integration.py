@@ -5,7 +5,8 @@ from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+
 from pyon.datastore.datastore import DataStore
 from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
@@ -54,6 +55,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.DSC  = DatasetManagementServiceClient(node=self.container.node)
         self.PDC  = ProcessDispatcherServiceClient(node=self.container.node)
+
+        self.RR2 = EnhancedResourceRegistryClient(self.RR)
 
         print 'started services'
 
@@ -228,11 +231,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # cleanup
         c = DotDict()
         c.resource_registry = self.RR
-        resource_impl = ResourceImpl(c)
-        resource_impl.pluck(instrument_agent_id)
-        resource_impl.pluck(instrument_model_id)
-        resource_impl.pluck(instrument_device_id)
-        resource_impl.pluck(platform_agent_id)
+        self.RR2.pluck(instrument_agent_id)
+        self.RR2.pluck(instrument_model_id)
+        self.RR2.pluck(instrument_device_id)
+        self.RR2.pluck(platform_agent_id)
         self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)

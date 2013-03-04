@@ -146,7 +146,7 @@ class EnhancedResourceRegistryClient(object):
 
         #primary_object_obj = self.RR.read(primary_object_id)
 
-        self._pluck(resource_id)
+        self.pluck(resource_id)
 
         self.RR.delete(resource_id)
 
@@ -870,7 +870,7 @@ class EnhancedResourceRegistryClient(object):
 
 
 
-    def _pluck(self, resource_id=''):
+    def pluck(self, resource_id=''):
         """
         delete all associations to/from a resource
         """
@@ -892,11 +892,14 @@ class EnhancedResourceRegistryClient(object):
             log.debug("pluck deleting subject association %s", assn)
             self.RR.delete_association(assn)
 
-        # find all associations where this is the subject
-        _, obj_assns = self.RR.find_objects(subject=resource_id, id_only=True)
+        debug = False
 
-        # find all associations where this is the object
-        _, sbj_assns = self.RR.find_subjects(object=resource_id, id_only=True)
+        if debug:
+            # find all associations where this is the subject
+            _, obj_assns = self.RR.find_objects(subject=resource_id, id_only=True)
 
-        log.debug("post-deletions, pluck found %s subject associations and %s object associations",
-                  len(sbj_assns), len(obj_assns))
+            # find all associations where this is the object
+            _, sbj_assns = self.RR.find_subjects(object=resource_id, id_only=True)
+
+            log.debug("post-deletions, pluck found %s subject associations and %s object associations",
+                      len(sbj_assns), len(obj_assns))

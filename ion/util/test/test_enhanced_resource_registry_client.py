@@ -223,6 +223,14 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.RR2.delete_subject_associations("x")
         self.rr.delete_association.assert_called_once_with("111")
 
+    def test_pluck(self):
+        self.rr.find_subjects.return_value = (["111"], ["aaa"])
+        self.rr.find_objects.return_value = (["222"], ["bbb"])
+        self.RR2.pluck("x")
+        #self.rr.delete_association.assert_called_with("bbb")
+        self.rr.delete_association.assert_called_with("aaa")
+        self.assertEqual(self.rr.delete_association.call_count, 2)
+
 
     def test_find_objects_using_id(self):
         self.tbase_find_objects("x_id")
