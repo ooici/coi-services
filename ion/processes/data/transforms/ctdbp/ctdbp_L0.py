@@ -38,13 +38,11 @@ class CTDBP_L0_all(TransformDataProcess):
         """
         if packet == {}:
             return
-        granules = ctd_L0_algorithm.execute([packet], params=self.params)
+        granules = ctdbp_L0_algorithm.execute([packet], params=self.params)
         for granule in granules:
-            self.conductivity.publish(msg = granule['conductivity'])
-            self.temperature.publish(msg = granule['temp'])
-            self.pressure.publish(msg = granule['pressure'])
+            self.L0_stream.publish(msg=granule['L0_stream'])
 
-class ctd_L0_algorithm(MultiGranuleTransformFunction):
+class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
     @MultiGranuleTransformFunction.validate_inputs
@@ -65,28 +63,18 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
 
             result = {}
 
-            # build the granules for conductivity, temperature and pressure
-            result['conductivity'] = ctd_L0_algorithm._build_granule(   stream_definition_id= params['conductivity'],
-                field_name= 'conductivity',
+            # build the granule for conductivity, temperature and pressure
+            result['L0_stream'] = ctdbp_L0_algorithm._build_granule(stream_definition_id= params['L0_stream'],
+                field_names= ['conductivity', 'temp', 'pressure'],
                 time=time,
-                value= conductivity)
-
-            result['temp'] = ctd_L0_algorithm._build_granule(stream_definition_id= params['temperature'],
-                field_name= 'temp',
-                time=time,
-                value= temperature)
-
-            result['pressure'] = ctd_L0_algorithm._build_granule(stream_definition_id= params['pressure'],
-                field_name= 'pressure',
-                time=time,
-                value= pressure)
+                values= [conductivity, temperature, pressure])
 
             result_list.append(result)
 
         return result_list
 
     @staticmethod
-    def _build_granule(stream_definition_id=None, field_name='', value=None, time=None):
+    def _build_granule(stream_definition_id=None, field_names=None, values=None, time=None):
         '''
         @param param_dictionary ParameterDictionary
         @param field_name str
@@ -95,7 +83,11 @@ class ctd_L0_algorithm(MultiGranuleTransformFunction):
         @retval Granule
         '''
         root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
-        root_rdt[field_name] = value
+        zipped = zip(field_names, values)
+
+        for k,v in zipped:
+            root_rdt[k] = v
+
         root_rdt['time'] = time
 
         return root_rdt.to_granule()
