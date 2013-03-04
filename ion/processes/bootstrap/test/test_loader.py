@@ -146,12 +146,14 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
 
         # check for platform agents
-        found_it = self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+        self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
 
         # check for platform model boolean values
         model = self.find_object_by_name('Nose Testing Platform Model', RT.PlatformModel)
         self.assertEquals(True, model.shore_networked)
-        self.assertNotEqual('str', model.shore_networked.__class__.__name__)        self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+        self.assertNotEqual('str', model.shore_networked.__class__.__name__)
+
 
         # check for data process definition
         self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)
+
