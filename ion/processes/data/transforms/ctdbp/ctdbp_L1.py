@@ -12,6 +12,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 
+import numpy as np
 
 class CTDBP_L1_Transform(TransformDataProcess):
     '''
@@ -30,9 +31,9 @@ class CTDBP_L1_Transform(TransformDataProcess):
 
         self.L1_stream = self.CFG.process.publish_streams.L1_stream
 
-        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
         calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
         calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
+        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -63,19 +64,22 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
 
         # Set the temperature values for the output granule
-        out_rdt = self.calculate_temperature(out_rdt, params['calibration_coeffs']['temp_calibration_coeffs'] )
+        out_rdt = self.calculate_temperature(out_rdt = out_rdt, temp_calibration_coeffs= params['calibration_coeffs']['temp_calibration_coeffs'] )
 
         # Set the pressure values for the output granule
-        out_rdt = self.calculate_pressure(out_rdt, params['calibration_coeffs']['pres_calibration_coeffs'])
+        out_rdt = self.calculate_pressure(out_rdt = out_rdt, TEMPWAT_L0 = self.rdt['TEMPWAT_L0'], pres_calibration_coeffs= params['calibration_coeffs']['pres_calibration_coeffs'])
 
         # Set the conductivity values for the output granule
-        out_rdt = self.calculate_conductivity(out_rdt, params['calibration_coeffs']['cond_calibration_coeffs'])
-
+        # Note that since the conductivity caculation depends on whether TEMPWAT_L1, PRESWAT_L1 have been calculated, we need to do this last
+        out_rdt = self.calculate_conductivity(  out_rdt = out_rdt,
+                                                cond_calibration_coeffs = params['calibration_coeffs']['cond_calibration_coeffs'],
+                                                TEMPWAT_L1 = TEMPWAT_L1,
+                                                PRESWAT_L1 = PRESWAT_L1)
 
         # build the granule for the L1 stream
         return out_rdt.to_granule()
 
-    def calculate_conductivity(self, out_rdt = None, cond_calibration_coeffs = None):
+    def calculate_conductivity(self, out_rdt = None, cond_calibration_coeffs = None, TEMPWAT_L1=None, PRESWAT_L1=None):
         '''
         Dependencies: conductivity calibration coefficients, TEMPWAT_L1, PRESWAT_L1
         '''
@@ -118,10 +122,10 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         TEMPWAT_L0 = self.rdt['TEMPWAT_L0']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
-        a0 = cond_calibration_coeffs['a0']
-        a1 = cond_calibration_coeffs['a1']
-        a2 = cond_calibration_coeffs['a2']
-        a3 = cond_calibration_coeffs['a3']
+        a0 = temp_calibration_coeffs['a0']
+        a1 = temp_calibration_coeffs['a1']
+        a2 = temp_calibration_coeffs['a2']
+        a3 = temp_calibration_coeffs['a3']
 
         if not (a0 and a1 and a2 and a3):
             raise BadRequest("All the temperature calibration coefficients (a0,a1,a2,a3) were not passed through"
@@ -130,7 +134,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         #------------  Computation -------------------------------------
         MV = (TEMPWAT_L0 - 524288) / 1.6e+007
         R = (MV * 2.900e+009 + 1.024e+008) / (2.048e+004 - MV * 2.0e+005)
-        TEMPWAT_L1 = 1 / (a0 + a1 * ln(R) + a2 * ln^2(R) + a3 * ln^3(R)) - 273.15
+        TEMPWAT_L1 = 1 / (a0 + a1 * np.log(R) + a2 * np.log^2(R) + a3 * np.log^3(R)) - 273.15
 
         #------------  Update the output record dictionary with the values --------------
         for key, value in self.rdt.iteritems():
@@ -141,28 +145,28 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
         return out_rdt
 
-    def calculate_pressure(self, out_rdt = None, pres_calibration_coeffs = None):
+    def calculate_pressure(self, out_rdt = None, TEMPWAT_L0 = None, pres_calibration_coeffs = None):
         '''
             Dependencies: TEMPWAT_L0, PRESWAT_L0, pressure calibration coefficients
         '''
         PRESWAT_L0 = self.rdt['PRESWAT_L0']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
-        PTEMPA0 = cond_calibration_coeffs['PTEMPA0']
-        PTEMPA1 = cond_calibration_coeffs['PTEMPA1']
-        PTEMPA2 = cond_calibration_coeffs['PTEMPA2']
+        PTEMPA0 = pres_calibration_coeffs['PTEMPA0']
+        PTEMPA1 = pres_calibration_coeffs['PTEMPA1']
+        PTEMPA2 = pres_calibration_coeffs['PTEMPA2']
 
-        PTCA0 = cond_calibration_coeffs['PTCA0']
-        PTCA1 = cond_calibration_coeffs['PTCA1']
-        PTCA2 = cond_calibration_coeffs['PTCA2']
+        PTCA0 = pres_calibration_coeffs['PTCA0']
+        PTCA1 = pres_calibration_coeffs['PTCA1']
+        PTCA2 = pres_calibration_coeffs['PTCA2']
 
-        PTCB0 = cond_calibration_coeffs['PTCB0']
-        PTCB1 = cond_calibration_coeffs['PTCB1']
-        PTCB2 = cond_calibration_coeffs['PTCB2']
+        PTCB0 = pres_calibration_coeffs['PTCB0']
+        PTCB1 = pres_calibration_coeffs['PTCB1']
+        PTCB2 = pres_calibration_coeffs['PTCB2']
 
-        PA0 = cond_calibration_coeffs['PA0']
-        PA1 = cond_calibration_coeffs['PA1']
-        PA2 = cond_calibration_coeffs['PA2']
+        PA0 = pres_calibration_coeffs['PA0']
+        PA1 = pres_calibration_coeffs['PA1']
+        PA2 = pres_calibration_coeffs['PA2']
 
         cond = PTEMPA0 and PTEMPA0 and PTEMPA2 and PTCA0 and PTCA1 and PTCA2 and PTCB0 and PTCB1 and PTCB2
         cond = cond and PA0 and PA1 and PA2
