@@ -145,6 +145,7 @@ class IONLoader(ImmediateProcess):
     COL_ORGS = "org_ids"
     ID_ORG_ION = "ORG_ION"
     ID_SYSTEM_ACTOR = "USER_SYSTEM"
+    ID_WEB_AUTH_ACTOR = "USER_WEB_AUTH"
 
     def __init__(self,*a, **b):
         super(IONLoader,self).__init__(*a,**b)
@@ -395,6 +396,11 @@ class IONLoader(ImmediateProcess):
             RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=False)
         system_actor_id = system_actor[0]._id if system_actor else 'anonymous'
         self._register_id(self.ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
+
+        webauth_actor, _ = self.container.resource_registry.find_resources(
+            RT.ActorIdentity, name=self.CFG.get_safe("system.web_authentication_actor", "web_authentication"), id_only=False)
+        webauth_actor_id = webauth_actor[0]._id if webauth_actor else 'anonymous'
+        self._register_id(self.ID_WEB_AUTH_ACTOR, webauth_actor_id, webauth_actor[0] if webauth_actor else None)
 
     def _prepare_incremental(self):
         """
@@ -889,6 +895,11 @@ class IONLoader(ImmediateProcess):
                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
                'expiry':'0'}
 
+    def _get_webauth_actor_headers(self):
+        return {'ion-actor-id': self.resource_ids[self.ID_WEB_AUTH_ACTOR],
+                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
+                'expiry':'0'}
+
     def _load_User(self, row):
         # TODO: Make the calls below with an actor_id for the web server
         alias = row['ID']
@@ -910,7 +921,7 @@ class IONLoader(ImmediateProcess):
         # Build ActorIdentity
         actor_name = "Identity for %s" % user_attrs['name']
         actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
-        headers = self._get_system_actor_headers()
+        headers = self._get_webauth_actor_headers()
         log.trace("creating user %s with headers: %r", user_attrs['name'], headers)
         actor_id = ims.create_actor_identity(actor_identity_obj, headers=headers)
         actor_identity_obj._id = actor_id
