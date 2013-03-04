@@ -9,7 +9,7 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.core.exception import CorruptionError
 from pyon.event.event import handle_stream_exception, EventPublisher
-from pyon.public import log, RT, PRED, CFG
+from pyon.public import log, RT, PRED, CFG, OT
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
 from ion.core.process.transform import TransformStreamListener
@@ -33,7 +33,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._bad_coverages = {}
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
-        self.event_publisher = EventPublisher('DatasetModified')
+        self.event_publisher = EventPublisher(OT.DatasetModified)
 
 
     def on_quit(self): #pragma no cover
