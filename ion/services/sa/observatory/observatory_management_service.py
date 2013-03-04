@@ -355,29 +355,30 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         deployment on a platform at an observatory site.
         """
 
-        deployment_id, version = self.clients.resource_registry.create(deployment)
+        deployment_id = self.RR2.create(deployment)
 
         #Verify that site and device exist, add links if they do
         if site_id:
-            site_obj = self.clients.resource_registry.read(site_id)
+            site_obj = self.RR2.read(site_id)
             if site_obj:
-                self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
+                self.RR2.assign_deployment_to_site(deployment_id, site_id)
 
         if device_id:
-            device_obj = self.clients.resource_registry.read(device_id)
+
+            device_obj = self.RR2.read(device_id)
             if device_obj:
-                self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
+                self.RR2.assign_deployment_to_device(deployment_id, device_id)
 
         return deployment_id
 
     def update_deployment(self, deployment=None):
         # Overwrite Deployment object
-        self.clients.resource_registry.update(deployment)
+        self.RR2.update(deployment)
 
     def read_deployment(self, deployment_id=''):
         # Read Deployment object with _id matching id
         log.debug("Reading Deployment object id: %s", deployment_id)
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        deployment_obj = self.RR2.read(deployment_id)
 
         return deployment_obj
 
@@ -385,23 +386,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         Delete a Deployment resource
         """
-        #Verify that the deployment exist
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
-        if not deployment_obj:
-            raise NotFound("Deployment %s does not exist" % deployment_id)
 
-        # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(None, PRED.hasDeployment, deployment_id, id_only=True)
-        if not associations:
-            raise NotFound("No Sites or Devices associated with this Deployment identifier " + str(deployment_id))
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+        self.RR2.delete_subject_associations(PRED.hasDeployment, deployment_id)
 
         # Delete the deployment
-        self.clients.resource_registry.retire(deployment_id)
+        self.RR2.retire(deployment_id)
 
     def force_delete_deployment(self, deployment_id=''):
-        self.clients.resource_registry.delete(deployment_id)
+        self.RR2.force_delete(deployment_id)
 
 
     ############################
@@ -512,24 +504,15 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def create_site_data_product(self, site_id="", data_product_id=""):
         # verify that both exist
-        site_obj = self.RR.read(site_id)
-        self.RR.read(data_product_id)
+        site_obj = self.RR2.read(site_id)
+        self.RR2.read(data_product_id)
 
         sitetype = type(site_obj).__name__
 
         if not (RT.InstrumentSite == sitetype or RT.PlatformSite == sitetype):
             raise BadRequest("Can't associate a data product to a %s" % sitetype)
 
-        # validation
-        prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct)
-        if 0 < len(prods):
-            raise BadRequest("%s '%s' already has an output data product" % (sitetype, site_id))
 
-        sites, _ = self.RR.find_subjects(sitetype, PRED.hasOutputProduct, data_product_id)
-        if 0 < len(sites):
-            raise BadRequest("DataProduct '%s' is already an output product of a %s" % (data_product_id, sitetype))
-
-        #todo: re-use existing defintion?  how?
 
 
         #----------------------------------------------------------------------------------------------------
@@ -569,16 +552,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return the streamdef associated with the output product of a site
         """
 
-        #assume we've previously validated that the site has 1 product
-        p, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        streams, _ = self.RR.find_objects(p[0], PRED.hasStream, RT.Stream, True)
-        if 1 != len(streams):
-            raise BadRequest("Expected 1 stream on DataProduct '%s', got %d" % (p[0], len(streams)))
-        sdefs, _ = self.RR.find_objects(streams[0], PRED.hasStreamDefinition, RT.StreamDefinition, True)
-        if 1 != len(sdefs):
-            raise BadRequest("Expected 1 streamdef on StreamDefinition '%s', got %d" % (streams[0], len(sdefs)))
+        output_product_id = self.RR2.find_object(site_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
+        stream_id         = self.RR2.find_stream_id_of_data_product(output_product_id)
+        streamdef_id      = self.RR2.find_stream_definition_id_of_stream(stream_id)
 
-        return sdefs[0]
+        return streamdef_id
 
 
     def streamdefs_of_device(self, device_id):
@@ -778,7 +756,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Make the devices on this deployment the primary devices for the sites
         """
         #Verify that the deployment exists
-        self.clients.resource_registry.read(deployment_id)
+        self.RR2.read(deployment_id)
 
 #        if LCS.DEPLOYED == deployment_obj.lcstate:
 #            raise BadRequest("This deploment is already active")
@@ -865,7 +843,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         #Verify that the deployment exists
-        self.clients.resource_registry.read(deployment_id)
+        self.RR2.read(deployment_id)
 
 #        if LCS.DEPLOYED != deployment_obj.lcstate:
 #            raise BadRequest("This deploment is not active")
@@ -1100,7 +1078,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #  look up all the model ids, then create the proper output
             model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
             model_uniq = list(set([m for m in model_list if m is not None]))
-            model_objs = self.clients.resource_registry.read_mult(model_uniq)
+            model_objs = self.RR2.read_mult(model_uniq)
             model_dict = dict(zip(model_uniq, model_objs))
             return [model_dict.get(m) for m in model_list]
 

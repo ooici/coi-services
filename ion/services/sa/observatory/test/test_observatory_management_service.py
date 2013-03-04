@@ -9,8 +9,9 @@
 
 #from mock import Mock , sentinel, patch
 from ion.services.sa.observatory.observatory_management_service import ObservatoryManagementService
+from ion.services.sa.test.helpers import UnitTestGenerator
 from nose.plugins.attrib import attr
-from pyon.public import PRED #, RT
+from pyon.ion.resource import RT
 
 
 from ooi.logging import log
@@ -40,3 +41,13 @@ class TestObservatoryManagement(PyonTestCase):
         # must call this manually
         self.observatory_mgmt_service.on_init()
 
+utg = UnitTestGenerator(TestObservatoryManagement,
+                        ObservatoryManagementService)
+
+utg.test_all_in_one(True)
+
+utg.add_resource_unittests(RT.Deployment, "deployment")
+utg.add_resource_unittests(RT.Observatory, "observatory")
+utg.add_resource_unittests(RT.Subsite, "subsite")
+utg.add_resource_unittests(RT.PlatformSite, "platform_site")
+utg.add_resource_unittests(RT.InstrumentSite, "instrument_site")

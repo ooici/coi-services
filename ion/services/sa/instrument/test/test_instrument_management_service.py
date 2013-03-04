@@ -9,6 +9,7 @@
 
 #from mock import Mock #, sentinel, patch
 from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
+from ion.services.sa.test.helpers import UnitTestGenerator
 from nose.plugins.attrib import attr
 
 
@@ -18,6 +19,7 @@ from ooi.logging import log
 
 #from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 import unittest
+from pyon.ion.resource import RT
 from pyon.util.unit_test import PyonTestCase
 
 
@@ -44,3 +46,18 @@ class TestInstrumentManagement(PyonTestCase):
         #pass
 
 
+utg = UnitTestGenerator(TestInstrumentManagement,
+                        InstrumentManagementService)
+
+utg.test_all_in_one(True)
+
+utg.add_resource_unittests(RT.InstrumentAgentInstance, "instrument_agent_instance", {})
+utg.add_resource_unittests(RT.InstrumentAgent, "instrument_agent", {"driver_module": "potato"})
+utg.add_resource_unittests(RT.InstrumentDevice, "instrument_device", {"serial_number": "123", "firmware_version": "x"})
+utg.add_resource_unittests(RT.InstrumentModel, "instrument_model")
+utg.add_resource_unittests(RT.PlatformAgentInstance, "platform_agent_instance", {})
+utg.add_resource_unittests(RT.PlatformAgent, "platform_agent", {"description": "the big donut"})
+utg.add_resource_unittests(RT.PlatformDevice, "platform_device", {"serial_number": "2345"})
+utg.add_resource_unittests(RT.PlatformModel, "platform_model", {"description": "desc"})
+utg.add_resource_unittests(RT.SensorDevice, "sensor_device", {"serial_number": "123"})
+utg.add_resource_unittests(RT.SensorModel, "sensor_model")
