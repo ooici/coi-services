@@ -1,7 +1,7 @@
 '''
 @author Swarbhanu Chatterjee
 @file ion/processes/data/transforms/ctdbp/ctdbp_L0.py
-@description Transforms CTD parsed data into L0 streams
+@description Transforms incoming CTD parsed data into L0 products to send out through the L0 stream
 '''
 
 from ion.core.process.transform import TransformDataProcess
@@ -65,7 +65,7 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
 
             # build the granule for conductivity, temperature and pressure
             result['L0_stream'] = ctdbp_L0_algorithm._build_granule(stream_definition_id= params['L0_stream'],
-                field_names= ['conductivity', 'temp', 'pressure'],
+                field_names= ['CONDWAT_L0', 'TEMPWAT_L0', 'PRESWAT_L0'], # these are the field names for the output record dictionary
                 time=time,
                 values= [conductivity, temperature, pressure])
 
