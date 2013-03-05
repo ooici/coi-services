@@ -48,7 +48,7 @@ class ResourceMonitor(object):
                 retrieved.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: ResourceMonitor entered. attr_defn=%s",
+            log.debug("%r: ResourceMonitor entered. attr_defn=%s",
                       platform_id, attr_defn)
 
         assert platform_id, "must give a valid platform ID"
@@ -68,7 +68,7 @@ class ResourceMonitor(object):
         self._active = False
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: ResourceMonitor created. attr_defn=%s",
+            log.debug("%r: ResourceMonitor created. attr_defn=%s",
                       self._platform_id, attr_defn)
 
     def __str__(self):
@@ -81,7 +81,7 @@ class ResourceMonitor(object):
         Starts greenlet for resource monitoring.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: starting resource monitoring %s", self._platform_id, str(self))
+            log.debug("%r: starting resource monitoring %s", self._platform_id, str(self))
         self._active = True
         runnable = Greenlet(self._run)
         runnable.start()
@@ -96,7 +96,7 @@ class ResourceMonitor(object):
                 self._retrieve_attribute_value()
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: attr_id=%r: greenlet stopped.", self._platform_id, self._attr_id)
+            log.debug("%r: attr_id=%r: greenlet stopped.", self._platform_id, self._attr_id)
 
     def _retrieve_attribute_value(self):
         """
@@ -107,16 +107,16 @@ class ResourceMonitor(object):
         from_time = (self._last_ts + _DELTA_TIME) if self._last_ts else 0.0
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: retrieving attribute %r from_time %f",
+            log.debug("%r: retrieving attribute %r from_time %f",
                       self._platform_id, self._attr_id, from_time)
 
         retrieved_vals = self._get_attribute_values(attrNames, from_time)
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: _get_attribute_values returned %s", self._platform_id, retrieved_vals)
+            log.debug("%r: _get_attribute_values returned %s", self._platform_id, retrieved_vals)
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: retrieved attribute %r values from_time %f = %s",
+            log.debug("%r: retrieved attribute %r values from_time %f = %s",
                       self._platform_id, self._attr_id, from_time, str(retrieved_vals))
 
         if self._attr_id in retrieved_vals:
@@ -125,10 +125,10 @@ class ResourceMonitor(object):
                 self._values_retrieved(values)
 
             elif log.isEnabledFor(logging.DEBUG):
-                log.debug("CIDEVSA-450 %r: No values reported for attribute=%r from_time=%f",
+                log.debug("%r: No values reported for attribute=%r from_time=%f",
                     self._platform_id, self._attr_id, from_time)
         else:
-            log.warn("CIDEVSA-450 %r: unexpected: response does not include requested attribute %r",
+            log.warn("%r: unexpected: response does not include requested attribute %r",
                 self._platform_id, self._attr_id)
 
     def _values_retrieved(self, values):
@@ -149,7 +149,7 @@ class ResourceMonitor(object):
                 arrstr += ", ".join(vals)
                 arrstr += ", ..., " +str(last_e)
             arrstr += "]"
-            log.debug("CIDEVSA-450 %r: attr=%r: values retrieved(%s) = %s",
+            log.debug("%r: attr=%r: values retrieved(%s) = %s",
                 self._platform_id, self._attr_id, ln, arrstr)
 
         # update _last_ts based on last element in values:
@@ -162,5 +162,5 @@ class ResourceMonitor(object):
 
     def stop(self):
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: stopping resource monitoring %s", self._platform_id, str(self))
+            log.debug("%r: stopping resource monitoring %s", self._platform_id, str(self))
         self._active = False
