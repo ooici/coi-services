@@ -60,6 +60,11 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
     def test_pfunc_crud(self):
         contexts, funcs = self.create_pfuncs()
+        context_ids = [context_id for ctxt,context_id in contexts.itervalues()]
+
+        pdict_id = self.dataset_management.create_parameter_dictionary(name='functional_pdict', parameter_context_ids=context_ids, temporal_context='time')
+
+
 
 
     def test_pdict_crud(self):

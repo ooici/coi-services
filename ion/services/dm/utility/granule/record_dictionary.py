@@ -82,6 +82,10 @@ class RecordDictionaryTool(object):
 
         self._setup_params()
 
+    def _pval_callback(self, name, slice_):
+        retval = np.atleast_1d(self[name])
+        return retval[slice_]
+
     @classmethod
     def get_paramval(cls, ptype, domain, values):
         paramval = get_value_class(ptype, domain_set=domain)
@@ -91,7 +95,6 @@ class RecordDictionaryTool(object):
             paramval[:] = values
         paramval.storage._storage.flags.writeable = False
         return paramval
-
 
 
     @classmethod
@@ -129,7 +132,7 @@ class RecordDictionaryTool(object):
         
         for key,val in self._rd.iteritems():
             if val is not None:
-                granule.record_dictionary[self._pdict.ord_from_key(key)] = val[:]
+                granule.record_dictionary[self._pdict.ord_from_key(key)] = self[key]
             else:
                 granule.record_dictionary[self._pdict.ord_from_key(key)] = None
         
@@ -242,6 +245,15 @@ class RecordDictionaryTool(object):
             if isinstance(context.param_type, ParameterFunctionType):
                 return self._rd[name].memoized_values[:]
             return self._rd[name][:]
+        ptype = self._pdict.get_context(name).param_type
+        if isinstance(ptype, ParameterFunctionType):
+            try:
+                pfv = get_value_class(ptype, self.domain)
+                pfv._pval_callback = self._pval_callback
+                retval = pfv[:]
+                return retval
+            except:
+                return None
         else:
             return None
 
