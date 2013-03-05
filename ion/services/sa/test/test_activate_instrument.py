@@ -2,6 +2,19 @@
 
 from pyon.util.containers import DotDict
 from pyon.core.bootstrap import get_sys_name
+from pyon.public import RT, PRED
+from pyon.core.bootstrap import CFG
+from pyon.public import IonObject, log
+from pyon.datastore.datastore import DataStore
+from pyon.event.event import EventPublisher
+
+from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.context import LocalContextMixin
+from pyon.util.containers import  get_ion_ts
+from pyon.util.poller import poll
+
+from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -20,22 +33,9 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.inventory.index_management_service import IndexManagementService
-
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
-from pyon.public import RT, PRED
-from pyon.core.bootstrap import CFG
-from pyon.public import IonObject, log
-from pyon.datastore.datastore import DataStore
-from pyon.event.event import EventPublisher
-
-from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.context import LocalContextMixin
-from pyon.util.containers import  get_ion_ts
-
-from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
-from pyon.agent.agent import ResourceAgentEvent
 import unittest, os
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
@@ -543,11 +543,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
 
 
+        #wait for STATUS WARNING to appear in the computed attribute, communication status rollup
+        def get_status_rollup_status_warning():
+            cond = False
+            cond = extended_instrument.computed.communications_status_roll_up.value == StatusType.STATUS_WARNING
+            cond = cond and extended_instrument.computed.data_status_roll_up.value ==StatusType.STATUS_OK
+            cond = cond and extended_instrument.computed.power_status_roll_up.value == StatusType.STATUS_WARNING
+
+            return cond
+
+        poll(get_status_rollup_status_warning, timeout=40)
+
         # the following assert will not work without elasticsearch.
         #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
-        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
-        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
-        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
         #------------------------------------------------------------------------------------------------------------------------------
         # Create notifications for another user and verify that we see different computed subscriptions for the two users
@@ -612,10 +620,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(notification.origin_type, "instrument_2")
         self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
 
-        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
-        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
-        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
-
+        poll(get_status_rollup_status_warning, timeout=40)
 
         #-------------------------------
         # Deactivate loggers
