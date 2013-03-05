@@ -13,6 +13,23 @@ from ooi.logging import log
 
 __author__ = 'Ian Katz'
 
+class AgentLauncherFactory(object):
+
+    def __init__(self, clients):
+        self.clients = clients
+
+    def create_by_device_type(self, device_type):
+        if RT.InstrumentDevice == device_type:
+            return InstrumentAgentLauncher(self.clients)
+        elif RT.PlatformDevice == device_type:
+            return PlatformAgentLauncher(self.clients)
+
+    def create_by_agent_instance_type(self, instance_type):
+        if RT.InstrumentAgentInstance == instance_type:
+            return InstrumentAgentLauncher(self.clients)
+        elif RT.PlatformAgentInstance == instance_type:
+            return PlatformAgentLauncher(self.clients)
+
 class AgentLauncher(object):
 
     def __init__(self, clients):
@@ -94,6 +111,9 @@ class AgentLauncher(object):
         except:
             raise
 
+    def _generate_device_type(self):
+        return type(self._get_device()).__name__
+
     def _generate_driver_config(self):
         # should override this
         return {}
@@ -124,6 +144,7 @@ class AgentLauncher(object):
 
         # Create agent_ config.
         agent_config['org_name']       = self._generate_org_name()
+        agent_config['device_type']    = self._generate_device_type()
         agent_config['driver_config']  = self._generate_driver_config()
         agent_config['stream_config']  = self._generate_stream_config()
         agent_config['agent']          = self._generate_agent_config()
@@ -429,9 +450,34 @@ class PlatformAgentLauncher(AgentLauncher):
 
         return stream_config
 
-#    def _generate_children(self):
-#        # TODO: for platform_id in children in topology:
-#        platform_id = agent_config['platform_config']['platform_id']
-#
-#        stream_config = self._generate_platform_streamconfig( platform_id, platform_device_obj._id )
-#        agent_config['platform_config']['agent_streamconfig_map'] = { platform_id: stream_config }
+    def _generate_children(self):
+        """
+        Generate the configuration for child devices
+        """
+        log.debug("Getting child device ids")
+        child_device_ids = self.RR2.find_device_ids_of_device(self._get_device()._id)
+
+        launcher_factory = AgentLauncherFactory(self.clients)
+
+        # get all agent instances first. if there's no agent instance, just skip
+        child_agent_instance = {}
+        for d in child_device_ids:
+            log.debug("Getting agent instance of device %s", d)
+            try:
+                child_agent_instance[d] = self.RR2.find_agent_instance_of_device(d)
+            except NotFound:
+                log.debug("No agent instance exists; skipping")
+                pass
+            except:
+                raise
+
+        ret = {}
+        for d, a in child_agent_instance.iteritems():
+            agent_instance_type = type(a).__name__
+            log.debug("generating %s config for device '%s'", agent_instance_type, d)
+            launcher = launcher_factory.create_by_agent_instance_type(agent_instance_type)
+            launcher.set_agent_instance_object(a)
+            launcher.prepare(will_launch=False)
+            ret[d] = launcher.generate_config()
+
+        return ret
