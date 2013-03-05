@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+"""
+@package  ion.services.sa.instrument.agent_launcher
+@author   Ian Katz
+"""
+
 import tempfile
 from interface.objects import ProcessSchedule, ProcessRestartMode, ProcessQueueingMode, ProcessStateEnum
 from ion.agents.instrument.driver_process import DriverProcessType
@@ -10,8 +16,6 @@ from pyon.ion.resource import PRED, RT
 
 from ooi.logging import log
 
-
-__author__ = 'Ian Katz'
 
 class AgentLauncherFactory(object):
 
@@ -87,6 +91,8 @@ class AgentLauncher(object):
     def prepare(self, will_launch=True):
         """
         Prepare (validate) an agent for launch, fetching all associated resources
+
+        @param will_launch - whether the running status should be checked -- set false if just generating config
         """
         assert self.agent_instance_obj
 
@@ -184,6 +190,9 @@ class AgentLauncher(object):
 
 
     def launch(self):
+        """
+        generate the configuration for this agent, schedule the launch, wait for the launch, record process id
+        """
 
         self._check_associations()
         assert self.will_launch
@@ -214,24 +223,17 @@ class AgentLauncher(object):
 
         return process_id
 
+
     def _collect_agent_instance_associations(self):
         """
         Collect related resources to this agent instance
 
-        Returns a dict of objects necessary to start this instance, keyed on resource type
-            Device type -> device_obj
-            Model type -> model_obj
-            Agent type -> agent_obj
-            RT.ProcessDefinition -> process_def_obj
+        Returns a dict of objects necessary to start this instance, keyed on the values of self._lookup_means()
+            PRED.hasAgentInstance   -> device_obj
+            PRED.hasModel           -> model_obj
+            PRED.hasAgentDefinition -> agent_obj
+            RT.ProcessDefinition    -> process_def_obj
 
-        device_id = self.instrument_device.find_having_agent_instance(instrument_agent_instance_id)[0]._id
-        model_id  = self.instrument_device.find_stemming_model(instrument_device_id)[0]._id
-        agent_id  = self.instrument_agent.find_having_model(instrument_model_id)[0]._id
-
-        process_def, _ = self.clients.resource_registry.find_objects(instrument_agent_id,
-                                                                         PRED.hasProcessDefinition,
-                                                                         RT.ProcessDefinition,
-                                                                         True)
         """
         assert self.agent_instance_obj
 
@@ -395,6 +397,7 @@ class InstrumentAgentLauncher(AgentLauncher):
         log.debug("Stream config generated")
         log.trace("generate_stream_config: %s", str(stream_config_too) )
         return stream_config_too
+
 
     def _generate_driver_config(self):
 

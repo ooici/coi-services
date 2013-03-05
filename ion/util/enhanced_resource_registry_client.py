@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+
+"""
+@package  ion.util.enhanced_resource_registry_client
+@author   Ian Katz
+"""
+
+
 import re
 from ooi.logging import log
 from pyon.core.exception import BadRequest, Inconsistent, NotFound
@@ -6,6 +14,43 @@ from pyon.ion.resource import LCE, RT, PRED
 from pyon.util.config import Config
 
 class EnhancedResourceRegistryClient(object):
+    """
+    This class provides enhanced resource registy client functionality by wrapping the "real" client.
+
+    Specifically, this class adds more succinct interaction with the resource registry in assign and find operations.
+
+    This class analyzes the allowable resource/predicate relations to allow the following:
+     * assigning/unassigning one resource to another and letting this class figure out the allowed predicate
+     * assigning and validating that only one subject (or object) association exists
+     * finding objects or subjects between two resource types and letting the class figure out the allowed predicate
+     * finding a single object or subject and letting the class do the error checking for len(results) == 1
+     * all of the above find ops, but with resource_id instead of full resource
+
+    Examples:
+     # assigning
+     self.assign_instrument_model_to_instrument_agent(instrument_model_id, instrument_agent_id)
+     self.assign_one_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
+     self.assign_instrument_device_to_one_platform_device(instrument_device_id, platform_device_id)
+     self.unassign_instrument_model_from_instrument_device(instrument_model_id, instrument_device_id)
+
+     # find objects
+     self.find_instrument_models_of_instrument_device(instrument_device_id) # returns list
+     self.find_instrument_model_of_instrument_device(instrument_device_id)  # returns IonObject or raises NotFound
+     self.find_instrument_devices_by_instrument_model(instrument_model_id)  # returns list
+     self.find_instrument_device_by_instrument_model(instrument_model_id)   # returns IonObject or raises NotFound
+
+     # find subjects
+     self.find_instrument_model_ids_of_instrument_device(instrument_device_id) # returns list
+     self.find_instrument_model_id_of_instrument_device(instrument_device_id)  # returns string or raises NotFound
+     self.find_instrument_device_ids_by_instrument_model(instrument_model_id)  # returns list
+     self.find_instrument_device_id_by_instrument_model(instrument_model_id)   # returns string or raises NotFound
+
+    Breaking Ambiguity:
+     assign/unassign method names can also include "_with_has_model" ("_with_", and the predicate type with underscores)
+
+     find method name can include "_using_has_model" ("_using_", and the predicate type with underscores)
+     
+    """
 
     def __init__(self, rr_client):
         log.debug("EnhancedResourceRegistryClient init")

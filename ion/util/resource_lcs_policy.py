@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.policy
+@package  ion.util.resource_lcs_policy
 @author   Ian Katz
 """
 
