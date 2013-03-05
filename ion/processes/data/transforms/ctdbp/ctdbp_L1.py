@@ -5,9 +5,10 @@
 @description Transforms incoming L0 product into L1 product for conductivity, temperature and pressure through the L1 stream
 '''
 
-from ion.core.process.transform import TransformDataProcess
+from pyon.public import log
 from pyon.core.exception import BadRequest
 
+from ion.core.process.transform import TransformDataProcess
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
@@ -22,29 +23,34 @@ class CTDBP_L1_Transform(TransformDataProcess):
     output_bindings = ['L1_stream']
 
     def on_start(self):
-        super(CTDBPL1Transform, self).on_start()
+        super(CTDBP_L1_Transform, self).on_start()
 
         #  Validate the CFG used to launch the transform has all the required fields
         if not self.CFG.process.publish_streams.has_key('L1_stream'):
             raise BadRequest("For CTDBP transforms, please send the stream_id for the L1_stream using "
                      "a special keyword (L1_stream)")
 
-        self.L1_stream = self.CFG.process.publish_streams.L1_stream
+        self.L1_stream_id = self.CFG.process.publish_streams.L1_stream
 
+        calibration_coeffs = {}
         calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
         calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
         calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
-        self.stream_definition = pubsub.read_stream_definition(stream_id=self.L1_stream)
+        self.stream_definition = pubsub.read_stream_definition(stream_id=self.L1_stream_id)
 
+        self.params = {}
         self.params['stream_def_id'] = self.stream_definition._id
         self.params['calibration_coeffs'] = calibration_coeffs
 
     def recv_packet(self, packet, stream_route, stream_id):
         """Processes incoming data!!!!
         """
+
+        log.debug("CTDBP L1 transform received a packet: %s", packet)
+
         if packet == {}:
             return
 
@@ -59,7 +65,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
 
-        self.rdt = RecordDictionaryTool.load_from_granule(input)
+        rdt = RecordDictionaryTool.load_from_granule(input)
         out_rdt = RecordDictionaryTool(stream_definition_id=params['stream_def_id'])
 
         # The calibration coefficients
@@ -68,29 +74,34 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         cond_calibration_coeffs = params['calibration_coeffs']['cond_calibration_coeffs']
 
         # Set the temperature values for the output granule
-        out_rdt = self.calculate_temperature(   out_rdt = out_rdt,
-                                                temp_calibration_coeffs= temp_calibration_coeffs )
+        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_temperature(    input_rdt = rdt,
+                                                                        out_rdt = out_rdt,
+                                                                        temp_calibration_coeffs= temp_calibration_coeffs )
 
         # Set the pressure values for the output granule
-        out_rdt = self.calculate_pressure(  out_rdt = out_rdt,
-                                            TEMPWAT_L0 = self.rdt['TEMPWAT_L0'],
-                                            pres_calibration_coeffs= pres_calibration_coeffs)
+        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_pressure(   out_rdt = out_rdt,
+                                                                    TEMPWAT_L0 = rdt['TEMPWAT_L0'],
+                                                                    pres_calibration_coeffs= pres_calibration_coeffs)
 
         # Set the conductivity values for the output granule
         # Note that since the conductivity caculation depends on whether TEMPWAT_L1, PRESWAT_L1 have been calculated, we need to do this last
-        out_rdt = self.calculate_conductivity(  out_rdt = out_rdt,
-                                                cond_calibration_coeffs = cond_calibration_coeffs,
-                                                TEMPWAT_L1 = TEMPWAT_L1,
-                                                PRESWAT_L1 = PRESWAT_L1)
+        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_conductivity(   out_rdt = out_rdt,
+                                                                        cond_calibration_coeffs = cond_calibration_coeffs,
+                                                                        TEMPWAT_L1 = TEMPWAT_L1,
+                                                                        PRESWAT_L1 = PRESWAT_L1)
 
         # build the granule for the L1 stream
         return out_rdt.to_granule()
 
-    def calculate_conductivity(self, out_rdt = None, cond_calibration_coeffs = None, TEMPWAT_L1=None, PRESWAT_L1=None):
+    @staticmethod
+    def calculate_conductivity(input_rdt = None, out_rdt = None, cond_calibration_coeffs = None, TEMPWAT_L1=None, PRESWAT_L1=None):
         '''
         Dependencies: conductivity calibration coefficients, TEMPWAT_L1, PRESWAT_L1
         '''
-        CONDWAT_L0 = self.rdt['CONDWAT_L0']
+
+        log.debug("L1 transform applying conductivity algorithm")
+
+        CONDWAT_L0 = input_rdt['CONDWAT_L0']
 
         #------------  CALIBRATION COEFFICIENTS FOR CONDUCTIVITY  --------------
         g = cond_calibration_coeffs['g']
@@ -110,7 +121,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
 
         #------------  Update the output record dictionary with the values -------
-        for key, value in self.rdt.iteritems():
+        for key, value in input_rdt.iteritems():
             if key in out_rdt:
                 #todo check this!!!!
                 out_rdt[key] = value[:]
@@ -120,13 +131,18 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         #------------------------------------------------------------------------
         out_rdt['CONDWAT_L1'] = CONDWAT_L1
 
+        log.debug("L1 transform conductivity algorithm returning: %s", out_rdt)
+
         return out_rdt
 
-    def calculate_temperature(self, out_rdt = None, temp_calibration_coeffs = None):
+    @staticmethod
+    def calculate_temperature(input_rdt = None, out_rdt = None, temp_calibration_coeffs = None):
         '''
         Dependencies: temperature calibration coefficients
         '''
-        TEMPWAT_L0 = self.rdt['TEMPWAT_L0']
+        log.debug("L1 transform applying temperature algorithm")
+
+        TEMPWAT_L0 = input_rdt['TEMPWAT_L0']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
         a0 = temp_calibration_coeffs['a0']
@@ -144,19 +160,25 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         TEMPWAT_L1 = 1 / (a0 + a1 * np.log(R) + a2 * (np.log(R))**2 + a3 * (np.log(R))**3) - 273.15
 
         #------------  Update the output record dictionary with the values --------------
-        for key, value in self.rdt.iteritems():
+        for key, value in input_rdt.iteritems():
             if key in out_rdt:
                 out_rdt[key] = value[:]
 
         out_rdt['TEMPWAT_L1'] = TEMPWAT_L1
 
+        log.debug("L1 transform temperature algorithm returning: %s", out_rdt)
+
         return out_rdt
 
-    def calculate_pressure(self, out_rdt = None, TEMPWAT_L0 = None, pres_calibration_coeffs = None):
+    @staticmethod
+    def calculate_pressure(input_rdt = None, out_rdt = None, TEMPWAT_L0 = None, pres_calibration_coeffs = None):
         '''
             Dependencies: TEMPWAT_L0, PRESWAT_L0, pressure calibration coefficients
         '''
-        PRESWAT_L0 = self.rdt['PRESWAT_L0']
+
+        log.debug("L1 transform applying pressure algorithm")
+
+        PRESWAT_L0 = input_rdt['PRESWAT_L0']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
         PTEMPA0 = pres_calibration_coeffs['PTEMPA0']
@@ -191,10 +213,12 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         PRESWAT_L1 = (absolute_pressure * 0.689475729) - 10.1325
 
         #------------  Update the output record dictionary with the values ---------
-        for key, value in self.rdt.iteritems():
+        for key, value in input_rdt.iteritems():
             if key in out_rdt:
                 out_rdt[key] = value[:]
 
         out_rdt['PRESWAT_L1'] = PRESWAT_L1
+
+        log.debug("L1 transform pressure algorithm returning: %s", out_rdt)
 
         return out_rdt

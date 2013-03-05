@@ -28,11 +28,11 @@ class CTDBP_DensityTransform(TransformDataProcess):
         if not self.CFG.process.publish_streams.has_key('density'):
             raise BadRequest("For CTD transforms, please send the stream_id "
                              "using a special keyword (ex: density)")
-        self.dens_stream = self.CFG.process.publish_streams.density
+        self.dens_stream_id = self.CFG.process.publish_streams.density
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
-        self.stream_definition = pubsub.read_stream_definition(stream_id=self.dens_stream)
+        self.stream_definition = pubsub.read_stream_definition(stream_id=self.dens_stream_id)
 
     def recv_packet(self, packet, stream_route, stream_id):
         """

@@ -32,11 +32,11 @@ class CTDBP_SalinityTransform(TransformDataProcess):
             raise BadRequest("For CTD transforms, please send the stream_id "
                              "using a special keyword (ex: salinity)")
 
-        self.sal_stream = self.CFG.process.publish_streams.salinity
+        self.sal_stream_id = self.CFG.process.publish_streams.salinity
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
-        self.stream_definition = pubsub.read_stream_definition(stream_id=self.sal_stream)
+        self.stream_definition = pubsub.read_stream_definition(stream_id=self.sal_stream_id)
 
     def recv_packet(self, packet, stream_route, stream_id):
         """
