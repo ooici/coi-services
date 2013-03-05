@@ -8,7 +8,7 @@
 
 import os
 from pyon.ion.stream import  StandaloneStreamPublisher
-from pyon.public import log, IonObject, RT
+from pyon.public import log, IonObject, RT, PRED
 from pyon.util.containers import DotDict
 from pyon.util.file_sys import FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
@@ -21,6 +21,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from interface.objects import StreamRoute, Granule
 from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
@@ -52,6 +53,24 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.dataset_management = DatasetManagementServiceClient()
         self.data_process_management = DataProcessManagementServiceClient()
         self.dataproduct_management = DataProductManagementServiceClient()
+        self.resource_registry = ResourceRegistryServiceClient()
+
+        # This is for the time values inside the packets going into the transform
+        self.i = 0
+
+    def _get_new_ctd_packet(self, stream_definition_id, length):
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
+        rdt['time'] = numpy.arange(self.i, self.i+length)
+
+        for field in rdt:
+            if isinstance(rdt._pdict.get_context(field).param_type, QuantityType):
+                rdt[field] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+
+        g = rdt.to_granule()
+        self.i+=length
+
+        return g
 
     def test_ctd_L0_all(self):
         '''
@@ -59,6 +78,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         '''
 
         #----------- Data Process Definition --------------------------------
+
         dpd_obj = IonObject(RT.DataProcessDefinition,
             name='CTDBP_L0_all',
             description='Take parsed stream and put the C, T and P into three separate L0 streams.',
@@ -70,7 +90,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         log.debug("created data process definition: id = %s", dprocdef_id)
 
         #----------- Data Products --------------------------------
-
 
         # Construct temporal and spatial Coordinate Reference System objects
         tdom, sdom = time_series_domain()
@@ -106,11 +125,43 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         L0_stream_dp_id = self.dataproduct_management.create_data_product(data_product=L0_stream_dp_obj,
                                                                     stream_definition_id=parsed_stream_def_id
                                                                     )
+
+        # We need the key name here to be "L0_stream", since when the data process is launched, this name goes into
+        # the config as in config.process.publish_streams.L0_stream when the config is used to launch the data process
         self.output_products = {'L0_stream' : L0_stream_dp_id}
 
         dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products)
 
         log.debug("Created a data process for ctdbp_L0. id: %s", dproc_id)
+
+        # Activate the data process
+        self.data_process_management.activate_data_process(dproc_id)
+
+        #----------- Find the stream that is associated with the input data product when it was created by create_data_product() --------------------------------
+
+        stream_ids, _ = self.resource_registry.find_objects(input_dp_id, PRED.hasStream, RT.Stream, True)
+
+        input_stream_id = stream_ids[0]
+        input_stream = self.resource_registry.read(input_stream_id)
+        stream_route = input_stream.stream_route
+
+        log.debug("The input stream for the L0 transform: %s", input_stream_id)
+
+        #----------- Publish on that stream so that the transform can receive it --------------------------------
+
+        pub = StandaloneStreamPublisher(input_stream_id, stream_route)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=parsed_stream_def_id, length = 5)
+
+        pub.publish(publish_granule)
+
+        log.debug("Published the following granule: %s", publish_granule)
+
+        gevent.sleep(20)
+
+
+
+
+
 
 
 
