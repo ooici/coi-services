@@ -21,7 +21,7 @@ class AgentLauncher(object):
         self.agent_instance_obj = None
         self.associated_objects = None
         self.last_id            = None
-
+        self.will_launch        = False
 
     def _lookup_means(self):
         """
@@ -39,11 +39,14 @@ class AgentLauncher(object):
         assert self.agent_instance_obj
         assert self.associated_objects
 
+        lookup_means = self._lookup_means()
+        assert lookup_means
+
         # make sure we've picked up the associations we expect
         def check_keys(somekeys):
             for k in somekeys:
-                assert k in self._lookup_means
-                assert self._lookup_means[k] in self.associated_objects
+                assert k in lookup_means
+                assert lookup_means[k] in self.associated_objects
 
         check_keys([PRED.hasAgentInstance, PRED.hasModel, PRED.hasAgentDefinition])
         assert RT.ProcessDefinition in self.associated_objects
@@ -64,19 +67,21 @@ class AgentLauncher(object):
         self.last_id = agent_instance_obj._id
 
 
-    def prepare(self):
+    def prepare(self, will_launch=True):
         """
         Prepare (validate) an agent for launch, fetching all associated resources
         """
         assert self.agent_instance_obj
 
-        #if there is an agent pid then assume that a drive is already started
-        if self.agent_instance_obj.agent_process_id:
-            raise BadRequest("Agent Instance already running for this device pid: %s" %
-                             str(self.agent_instance_obj.agent_process_id))
+        if will_launch:
+            #if there is an agent pid then assume that a drive is already started
+            if self.agent_instance_obj.agent_process_id:
+                raise BadRequest("Agent Instance already running for this device pid: %s" %
+                                 str(self.agent_instance_obj.agent_process_id))
 
         # validate the associations, then pick things up
         self._collect_agent_instance_associations()
+        self.will_launch = will_launch
 
 
     def _generate_org_name(self):
@@ -102,10 +107,16 @@ class AgentLauncher(object):
         return {}
 
     def _generate_alarms_config(self):
-        pass
+        # should override this
+        return {}
 
     def _generate_startup_config(self):
-        pass
+        # should override this
+        return {}
+
+    def _generate_children(self):
+        # should override this
+        return {}
 
     def _generate_skeleton_config_block(self):
         # should override this
@@ -118,6 +129,7 @@ class AgentLauncher(object):
         agent_config['agent']          = self._generate_agent_config()
         agent_config['alarm_defs']     = self._generate_alarms_config()
         agent_config['startup_config'] = self._generate_startup_config()
+        agent_config['children']       = self._generate_children()
 
         return agent_config
 
@@ -153,6 +165,7 @@ class AgentLauncher(object):
     def launch(self):
 
         self._check_associations()
+        assert self.will_launch
 
         agent_config = self.generate_config()
 
@@ -386,7 +399,7 @@ class PlatformAgentLauncher(AgentLauncher):
 
     def _lookup_means(self):
         platform_agent_lookup_means = {}
-        platform_agent_lookup_means[PRED.hasAgentInstance]  = RT.PlatformDevice
+        platform_agent_lookup_means[PRED.hasAgentInstance]   = RT.PlatformDevice
         platform_agent_lookup_means[PRED.hasModel]           = RT.PlatformModel
         platform_agent_lookup_means[PRED.hasAgentDefinition] = RT.PlatformAgent
 
@@ -416,4 +429,9 @@ class PlatformAgentLauncher(AgentLauncher):
 
         return stream_config
 
-
+#    def _generate_children(self):
+#        # TODO: for platform_id in children in topology:
+#        platform_id = agent_config['platform_config']['platform_id']
+#
+#        stream_config = self._generate_platform_streamconfig( platform_id, platform_device_obj._id )
+#        agent_config['platform_config']['agent_streamconfig_map'] = { platform_id: stream_config }
