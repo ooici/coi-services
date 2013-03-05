@@ -307,7 +307,7 @@ def make_event_data(alarm_def):
         event_data['message'] = 'Alarm is cleared.'
         
     elif alarm_def.type == StreamAlarmType.WARNING:
-        event_data['event_type'] = 'StreamWarningAlaramEvent'
+        event_data['event_type'] = 'StreamWarningAlarmEvent'
 
     elif alarm_def.type == StreamAlarmType.ALERT:
         event_data['event_type'] = 'StreamAlertAlarmEvent'

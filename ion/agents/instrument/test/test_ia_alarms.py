@@ -277,6 +277,39 @@ class TestIAAlarms(IonIntegrationTestCase):
     # Event helpers.
     ###############################################################################
 
+    def _start_event_subscriber(self, type='StreamAlarmEvent', count=0):
+        """
+        Start a subscriber to the instrument agent events.
+        @param type The type of event to catch.
+        @count Trigger the async event result when events received reaches this.
+        """
+        def consume_event(*args, **kwargs):
+            print '#################'
+            log.info('Test recieved ION event: args=%s, kwargs=%s, event=%s.', 
+                     str(args), str(kwargs), str(args[0]))
+            self._events_received.append(args[0])
+            if self._event_count > 0 and \
+                self._event_count == len(self._events_received):
+                self._async_event_result.set()
+            
+        # Event array and async event result.
+        self._event_count = count
+        self._events_received = []
+        self._async_event_result = AsyncResult()
+            
+        self._event_subscriber = EventSubscriber(
+            event_type=type, callback=consume_event,
+            origin=IA_RESOURCE_ID)
+        self._event_subscriber.start()
+        self._event_subscriber._ready_event.wait(timeout=5)
+
+    def _stop_event_subscriber(self):
+        """
+        Stop event subscribers on cleanup.
+        """
+        self._event_subscriber.stop()
+        self._event_subscriber = None
+
 
     ###############################################################################
     # Data stream helpers.
@@ -347,28 +380,32 @@ class TestIAAlarms(IonIntegrationTestCase):
         # A callback for processing subscribed-to data.
         def recv_data(message, stream_route, stream_id):
             log.info('Received message on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
+            #print '######################## stream message:'
+            #print str(message)
             self._samples_received.append(message)
             if len(self._samples_received) == count:
                 self._async_sample_result.set()
 
         for (stream_name, stream_config) in self._stream_config.iteritems():
             
-            stream_id = stream_config['stream_id']
-            
-            # Create subscriptions for each stream.
+            if stream_name == 'parsed':
+                
+                # Create subscription for parsed stream only.
 
-            from pyon.util.containers import create_unique_identifier
-            # exchange_name = '%s_queue' % stream_name
-            exchange_name = create_unique_identifier("%s_queue" %
-                    stream_name)
-            self._purge_queue(exchange_name)
-            sub = StandaloneStreamSubscriber(exchange_name, recv_data)
-            sub.start()
-            self._data_subscribers.append(sub)
-            print 'stream_id: %s' % stream_id
-            sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-            pubsub_client.activate_subscription(sub_id)
-            sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
+                stream_id = stream_config['stream_id']
+                
+                from pyon.util.containers import create_unique_identifier
+                # exchange_name = '%s_queue' % stream_name
+                exchange_name = create_unique_identifier("%s_queue" %
+                        stream_name)
+                self._purge_queue(exchange_name)
+                sub = StandaloneStreamSubscriber(exchange_name, recv_data)
+                sub.start()
+                self._data_subscribers.append(sub)
+                print 'stream_id: %s' % stream_id
+                sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+                pubsub_client.activate_subscription(sub_id)
+                sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
 
     def _purge_queue(self, queue):
         xn = self.container.ex_manager.create_xn_queue(queue)
@@ -451,12 +488,12 @@ class TestIAAlarms(IonIntegrationTestCase):
         """
         
         # Start data subscribers.
-        #self._start_data_subscribers(6)
-        #self.addCleanup(self._stop_data_subscribers)    
+        self._start_data_subscribers(5)
+        self.addCleanup(self._stop_data_subscribers)    
         
         # Set up a subscriber to collect error events.
-        #self._start_event_subscriber('ResourceAgentResourceStateEvent', 7)
-        #self.addCleanup(self._stop_event_subscriber)            
+        self._start_event_subscriber()
+        self.addCleanup(self._stop_event_subscriber)            
         
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
@@ -479,7 +516,7 @@ class TestIAAlarms(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
-        gevent.sleep(15)
+        gevent.sleep(20)
         
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
@@ -492,5 +529,66 @@ class TestIAAlarms(IonIntegrationTestCase):
         #self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         #self.assertGreaterEqual(len(self._events_received), 6)
 
-        #self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
-        #self.assertGreaterEqual(len(self._samples_received), 6)
+        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertGreaterEqual(len(self._samples_received), 5)
+
+        #for x in self._samples_received:
+            
+
+        gevent.sleep(5)
+        
+        """
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142753e+09]), 2: array([  3.57142753e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 83.66190338], dtype=float32), 8: array([ 27.09519958], dtype=float32), 9: array([ 495.5369873], dtype=float32), 10: None, 11: array([  3.57142753e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438731.584241, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142753e+09]), 2: array([  3.57142753e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 50.97378922], dtype=float32), 8: array([ 17.82060051], dtype=float32), 9: array([ 280.375], dtype=float32), 10: None, 11: array([  3.57142753e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438734.120577, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142754e+09]), 2: array([  3.57142754e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 79.61238098], dtype=float32), 8: array([ 99.90670013], dtype=float32), 9: array([ 830.60198975], dtype=float32), 10: None, 11: array([  3.57142754e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438737.154774, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142754e+09]), 2: array([  3.57142754e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 81.31384277], dtype=float32), 8: array([ 89.92569733], dtype=float32), 9: array([ 575.98901367], dtype=float32), 10: None, 11: array([  3.57142754e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438739.68893, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142754e+09]), 2: array([  3.57142754e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 80.85481262], dtype=float32), 8: array([ 86.46209717], dtype=float32), 9: array([ 563.9329834], dtype=float32), 10: None, 11: array([  3.57142754e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438742.722411, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142755e+09]), 2: array([  3.57142754e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 42.43975067], dtype=float32), 8: array([ 13.87370014], dtype=float32), 9: array([ 910.49298096], dtype=float32), 10: None, 11: array([  3.57142755e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438745.256714, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142755e+09]), 2: array([  3.57142755e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 76.90184021], dtype=float32), 8: array([ 84.85610199], dtype=float32), 9: array([ 742.34002686], dtype=float32), 10: None, 11: array([  3.57142755e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438748.29093, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142755e+09]), 2: array([  3.57142755e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 92.28489685], dtype=float32), 8: array([ 19.77809906], dtype=float32), 9: array([ 272.94500732], dtype=float32), 10: None, 11: array([  3.57142755e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438750.841668, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142755e+09]), 2: array([  3.57142755e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 60.02323151], dtype=float32), 8: array([-7.79680014], dtype=float32), 9: array([ 418.51400757], dtype=float32), 10: None, 11: array([  3.57142755e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438753.424074, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'record_dictionary': {1: array([  3.57142756e+09]), 2: array([  3.57142756e+09]), 3: array([port_timestamp], dtype=object), 4: 'ok', 5: None, 6: None, 7: array([ 13.54555035], dtype=float32), 8: array([ 90.14240265], dtype=float32), 9: array([ 105.24099731], dtype=float32), 10: None, 11: array([  3.57142756e+09]), 12: None, 13: None}, 'locator': None, 'type_': 'Granule', 'param_dictionary': '529b995c1aee4d149bca755aba7de687', 'creation_timestamp': 1362438756.511647, 'provider_metadata_update': {}}
+        #######################
+        {'origin': '123xyz', 'stream_name': 'parsed', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': 'x<5.0', 'value': 27.0952, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Temperature is above test range of 5.0.', '_id': '838337bd75ad4852afa15aac29c82a4c', 'ts_created': '1362438731572', 'sub_type': '', 'origin_type': 'InstrumentDevice', 'name': 'test_sim_warning'}
+        {'origin': '123xyz', 'stream_name': 'parsed', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': 'x<5.0', 'value': -7.7968, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Alarm is cleared.', '_id': '6a3dc641a3fd4092a203857cf6a70e0c', 'ts_created': '1362438753412', 'sub_type': '', 'origin_type': 'InstrumentDevice', 'name': 'test_sim_warning'}
+        {'origin': '123xyz', 'stream_name': 'parsed', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': 'x<5.0', 'value': 90.1424, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Temperature is above test range of 5.0.', '_id': 'd45d95a3d94345faa1cf82cb18398f3b', 'ts_created': '1362438756499', 'sub_type': '', 'origin_type': 'InstrumentDevice', 'name': 'test_sim_warning'}
+        2013-03-04 15:13:00,746 INFO Dummy-1 pyon.event.event:259 EventSubscriber stopped. Event pattern=#.StreamAlarmEvent.#.*.#.*.123xyz
+        """
+        
+        """
+        {'domain': [1],
+        'data_producer_id': '123xyz',
+        'record_dictionary':
+            {1: array([  3.57142756e+09]),
+             2: array([  3.57142756e+09]),
+             3: array([port_timestamp], dtype=object),
+             4: 'ok',
+             5: None,
+             6: None,
+             7: array([ 13.54555035], dtype=float32),
+             8: array([ 90.14240265], dtype=float32),
+             9: array([ 105.24099731], dtype=float32),
+             10: None,
+             11: array([  3.57142756e+09]),
+             12: None, 13: None},
+        'locator': None,
+        'type_': 'Granule',
+        'param_dictionary': '529b995c1aee4d149bca755aba7de687',
+        'creation_timestamp': 1362438756.511647,
+        'provider_metadata_update': {}}
+        """
+        
+        print '#######################'
+        print '#######################'
+        print '#######################'
+        for x in self._samples_received:
+            #print str(x)
+            print str(x.record_dictionary)
+            #print str(type(x.record_dictionary))
+            print str(x.param_dictionary)
+            #print str(x['record_dictionary'][8])
+            
+        print '#######################'
+        for x in self._events_received:
+            print str(x)
+            

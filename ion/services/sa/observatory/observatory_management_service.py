@@ -37,7 +37,7 @@ INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
 AGENT_STATUS_EVENT_DELTA_DAYS = 5
-
+LOGICAL_TRANSFORM_DEFINITION_NAME = "Logical Transform Definition" # defined in preload
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
 
@@ -577,52 +577,19 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #todo: re-use existing defintion?  how?
 
-        #-------------------------------
-        # Process Definition
-        #-------------------------------
-#        process_definition = ProcessDefinition()
-#        process_definition.name = 'SiteDataProduct'
-#        process_definition.description = site_id
-#
-#        process_definition.executable = {'module':'ion.processes.data.transforms.logical_transform', 'class':'logical_transform'}
-#
-#        process_dispatcher = ProcessDispatcherServiceClient()
-#        process_definition_id = process_dispatcher.create_process_definition(process_definition=process_definition)
-
-#        subscription = self.clients.pubsub_management.read_subscription(subscription_id = in_subscription_id)
-#        queue_name = subscription.exchange_name
-#
-#
-#        configuration = DotDict()
-#
-#        configuration['process'] = dict({
-#            'output_streams' : [stream_ids[0]],
-#            'publish_streams': {data_product_id: }
-#        })
-#
-#        # ------------------------------------------------------------------------------------
-#        # Process Spawning
-#        # ------------------------------------------------------------------------------------
-#        # Spawn the process
-#        process_dispatcher.schedule_process(
-#            process_definition_id=process_definition_id,
-#            configuration=configuration
-#        )
-#
-#        ###########
 
         #----------------------------------------------------------------------------------------------------
-        # Create a data process definition
+        # Get the data process definition added during preload
         #----------------------------------------------------------------------------------------------------
 
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name= create_unique_identifier(prefix='SiteDataProduct'), #as per Maurice.  todo: constant?
-            description=site_id,    #as per Maurice.
-            module='ion.processes.data.transforms.logical_transform',
-            class_name='logical_transform')
-
-
-        data_process_def_id = self.dataprocessclient.create_data_process_definition(dpd_obj)
+        data_process_def_ids, _ = self.container.resource_registry.find_resources(RT.DataProcessDefinition,
+                                                                                  None,
+                                                                                  LOGICAL_TRANSFORM_DEFINITION_NAME,
+                                                                                  True)
+        if not 1 == len(data_process_def_ids):
+            raise Inconsistent("Expected 1 data process definition, got %s with name '%s'" %
+                               (len(data_process_def_ids), LOGICAL_TRANSFORM_DEFINITION_NAME))
+        data_process_def_id = data_process_def_ids[0]
 
         #----------------------------------------------------------------------------------------------------
         # Create a data process
