@@ -69,7 +69,8 @@ class AgentLauncher(object):
                 assert k in lookup_means
                 assert lookup_means[k] in self.associated_objects
 
-        check_keys([PRED.hasAgentInstance, PRED.hasModel, PRED.hasAgentDefinition])
+        #check_keys([PRED.hasAgentInstance, PRED.hasModel, PRED.hasAgentDefinition])
+        check_keys([PRED.hasAgentInstance, PRED.hasAgentDefinition])
         assert RT.ProcessDefinition in self.associated_objects
 
 
@@ -263,13 +264,13 @@ class AgentLauncher(object):
                   type(self.agent_instance_obj).__name__,
                   str(self.agent_instance_obj._id))
 
-        log.debug("retrieve the model associated with the device")
-        model_obj = self.RR2.find_object(subject=device_id,
-                                         predicate=PRED.hasModel,
-                                         object_type=lu[PRED.hasModel])
-
-        ret[lu[PRED.hasModel]] = model_obj
-        model_id = model_obj
+#        log.debug("retrieve the model associated with the device")
+#        model_obj = self.RR2.find_object(subject=device_id,
+#                                         predicate=PRED.hasModel,
+#                                         object_type=lu[PRED.hasModel])
+#
+#        ret[lu[PRED.hasModel]] = model_obj
+#        model_id = model_obj
 
         #retrive the stream info for this model
         #todo: add stream info to the platofrom model create
@@ -315,9 +316,9 @@ class AgentLauncher(object):
         self._check_associations()
         return self.associated_objects[self._lookup_means()[PRED.hasAgentInstance]]
 
-    def _get_model(self):
-        self._check_associations()
-        return self.associated_objects[self._lookup_means()[PRED.hasModel]]
+#    def _get_model(self):
+#        self._check_associations()
+#        return self.associated_objects[self._lookup_means()[PRED.hasModel]]
 
     def _get_agent(self):
         self._check_associations()
