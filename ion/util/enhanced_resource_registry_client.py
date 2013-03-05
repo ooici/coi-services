@@ -49,7 +49,6 @@ class EnhancedResourceRegistryClient(object):
      assign/unassign method names can also include "_with_has_model" ("_with_", and the predicate type with underscores)
 
      find method name can include "_using_has_model" ("_using_", and the predicate type with underscores)
-     
     """
 
     def __init__(self, rr_client):
@@ -440,7 +439,7 @@ class EnhancedResourceRegistryClient(object):
                 raise BadRequest("Attempted to use dynamic %s between %s and %s with disallowed predicate '%s'" %
                                  (genre, isubj, ipred, ipred))
         else:
-            log.debug("no suppied pred, picking from choices: %s" % self.predicates_for_subj_obj[isubj][iobj])
+            log.debug("no supplied predicate, picking from choices: %s" % self.predicates_for_subj_obj[isubj][iobj])
             if 1 != len(self.predicates_for_subj_obj[isubj][iobj]):
                 raise BadRequest("Dynamic %s wanted 1 predicate choice for associating %s to %s, got %s" %
                                (genre, subj, obj, self.predicates_for_subj_obj[isubj][iobj]))
