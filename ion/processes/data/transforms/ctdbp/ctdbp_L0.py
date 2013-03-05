@@ -4,9 +4,10 @@
 @description Transforms incoming CTD parsed data into L0 products to send out through the L0 stream
 '''
 
-from ion.core.process.transform import TransformDataProcess
 from pyon.core.exception import BadRequest
+from pyon.public import log
 
+from ion.core.process.transform import TransformDataProcess
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.core.function.transform_function import MultiGranuleTransformFunction
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
@@ -24,11 +25,14 @@ class CTDBP_L0_all(TransformDataProcess):
                              "a special keyword (L0_stream)")
         self.L0_stream = self.CFG.process.publish_streams.L0_stream
 
+        log.debug("the output stream: %s", self.L0_stream)
+
         pubsub = PubsubManagementServiceProcessClient(process=self)
         self.stream_def_L0 = pubsub.read_stream_definition(stream_id=self.L0_stream)
 
-        self.params = {}
-        self.params['L0_stream'] = self.stream_def_L0._id
+        self.params = {'L0_stream' : self.stream_def_L0._id }
+
+        log.debug("the params: %s", self.params)
 
     def recv_packet(self, packet,stream_route, stream_id):
         """Processes incoming data!!!!
@@ -36,6 +40,9 @@ class CTDBP_L0_all(TransformDataProcess):
             @param stream_route StreamRoute
             @param stream_id str
         """
+
+        log.debug("CTDBP_L0_all received in the stream, %s, the packet: %s", stream_id, packet)
+
         if packet == {}:
             return
         granules = ctdbp_L0_algorithm.execute([packet], params=self.params)
@@ -56,15 +63,15 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
         for x in input:
             rdt = RecordDictionaryTool.load_from_granule(x)
 
-            conductivity = rdt['CONDWAT_L0']
-            pressure = rdt['PRESWAT_L0']
-            temperature = rdt['TEMPWAT_L0']
+            conductivity = rdt['conductivity']
+            pressure = rdt['pressure']
+            temperature = rdt['temp']
 
             result = {}
 
             # build the granule for conductivity, temperature and pressure
             result['L0_stream'] = ctdbp_L0_algorithm._build_granule(stream_definition_id= params['L0_stream'],
-                field_names= ['CONDWAT_L0', 'TEMPWAT_L0', 'PRESWAT_L0'], # these are the field names for the output record dictionary
+                field_names= ['conductivity', 'pressure', 'temp'], # these are the field names for the output record dictionary
                 values= [conductivity, temperature, pressure])
 
             result_list.append(result)
