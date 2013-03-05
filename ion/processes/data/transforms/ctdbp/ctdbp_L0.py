@@ -23,12 +23,12 @@ class CTDBP_L0_all(TransformDataProcess):
         if not self.CFG.process.publish_streams.has_key('L0_stream'):
             raise BadRequest("For CTD transforms, please send the stream_id for the L0_stream using "
                              "a special keyword (L0_stream)")
-        self.L0_stream = self.CFG.process.publish_streams.L0_stream
+        self.L0_stream_id = self.CFG.process.publish_streams.L0_stream
 
-        log.debug("the output stream: %s", self.L0_stream)
+        log.debug("the output stream: %s", self.L0_stream_id)
 
         pubsub = PubsubManagementServiceProcessClient(process=self)
-        self.stream_def_L0 = pubsub.read_stream_definition(stream_id=self.L0_stream)
+        self.stream_def_L0 = pubsub.read_stream_definition(stream_id=self.L0_stream_id)
 
         self.params = {'L0_stream' : self.stream_def_L0._id }
 
