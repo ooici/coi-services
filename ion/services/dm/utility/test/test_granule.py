@@ -117,19 +117,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
 
     def test_rdt_param_funcs(self):
-        pass
-
-    def create_rdt(self):
-        contexts, pfuncs = create_pfuncs()
-        context_ids = [_id for ct,_id in contexts.itervalues()]
-
-        pdict_id = self.dataset_management.create_parameter_dictionary(name='functional_pdict', parameter_context_ids=context_ids, temporal_context='test_TIME')
-        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
-        stream_def_id = self.pubsub_management.create_stream_definition('functional', parameter_dictionary_id=pdict_id)
-        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-
-
+        rdt = self.create_rdt()
         rdt['TIME'] = [0]
         rdt['TEMPWAT_L0'] = [280000]
         rdt['CONDWAT_L0'] = [100000]
@@ -138,7 +126,21 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         rdt['LAT'] = [45]
         rdt['LON'] = [-71]
 
-        self.assertTrue(np.array_equal(rdt['DENSITY'], np.array([ 1001.76506258])))
+        np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1001.76506258]))
+
+
+    def create_rdt(self):
+        contexts, pfuncs = self.create_pfuncs()
+        context_ids = [_id for ct,_id in contexts.itervalues()]
+
+        pdict_id = self.dataset_management.create_parameter_dictionary(name='functional_pdict', parameter_context_ids=context_ids, temporal_context='test_TIME')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('functional', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        return rdt
+
+
 
     def create_pfuncs(self):
         
