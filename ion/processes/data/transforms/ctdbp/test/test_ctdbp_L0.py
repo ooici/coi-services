@@ -6,13 +6,9 @@
 '''
 
 
-import os
 from pyon.ion.stream import  StandaloneStreamPublisher
 from pyon.public import log, IonObject, RT, PRED
-from pyon.util.containers import DotDict
-from pyon.util.file_sys import FileSystem
 from pyon.util.int_test import IonIntegrationTestCase
-from pyon.util.containers import get_safe
 from pyon.ion.stream import StandaloneStreamSubscriber
 from nose.plugins.attrib import attr
 
@@ -23,27 +19,18 @@ from interface.services.sa.idata_process_management_service import DataProcessMa
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from interface.objects import StreamRoute, Granule
-from ion.processes.data.ctd_stream_publisher import SimpleCtdPublisher
-from ion.processes.data.transforms.ctd.ctd_L0_all import ctd_L0_all
-from ion.processes.data.transforms.ctd.ctd_L1_conductivity import CTDL1ConductivityTransform
-from ion.processes.data.transforms.ctd.ctd_L1_pressure import CTDL1PressureTransform
-from ion.processes.data.transforms.ctd.ctd_L1_temperature import CTDL1TemperatureTransform
-from ion.processes.data.transforms.ctd.ctd_L2_salinity import SalinityTransform
-from ion.processes.data.transforms.ctd.ctd_L2_density import DensityTransform
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule_utils import time_series_domain
 from coverage_model import QuantityType
-import unittest, gevent
+
+import gevent
 import numpy, random
-from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
-from seawater.gibbs import cte
 
 @attr('INT', group='dm')
-class CtdTransformsIntTest(IonIntegrationTestCase):
+class CtdbpTransformsIntTest(IonIntegrationTestCase):
     def setUp(self):
-        super(CtdTransformsIntTest, self).setUp()
+        super(CtdbpTransformsIntTest, self).setUp()
 
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
@@ -57,6 +44,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # This is for the time values inside the packets going into the transform
         self.i = 0
+
+        # Cleanup of queue created by the subscriber
+        self.queue_cleanup = []
 
     def _get_new_ctd_packet(self, stream_definition_id, length):
 
@@ -72,9 +62,14 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         return g
 
-    def test_ctd_L0_all(self):
+    def clean_queues(self):
+        for queue in self.queue_cleanup:
+            xn = self.container.ex_manager.create_xn_queue(queue)
+            xn.delete()
+
+    def test_ctdbp_L0_all(self):
         '''
-        Test that packets are processed by the ctd_L0_all transform
+        Test packets processed by the ctdbp_L0_all transform
         '''
 
         #----------- Data Process Definition --------------------------------
@@ -129,6 +124,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         # We need the key name here to be "L0_stream", since when the data process is launched, this name goes into
         # the config as in config.process.publish_streams.L0_stream when the config is used to launch the data process
         self.output_products = {'L0_stream' : L0_stream_dp_id}
+        out_stream_ids, _ = self.resource_registry.find_objects(L0_stream_dp_id, PRED.hasStream, RT.Stream, True)
+        output_stream_id = out_stream_ids[0]
 
         dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products)
 
@@ -147,6 +144,26 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         log.debug("The input stream for the L0 transform: %s", input_stream_id)
 
+        #----------- Create a subscriber that will listen to the transform's output --------------------------------
+
+        ar = gevent.event.AsyncResult()
+        def subscriber(m,r,s):
+            ar.set(m)
+
+        sub = StandaloneStreamSubscriber(exchange_name='sub', callback=subscriber)
+
+        sub_id = self.pubsub.create_subscription('subscriber_to_transform',
+            stream_ids=[output_stream_id],
+            exchange_name='sub')
+
+        self.pubsub.activate_subscription(sub_id)
+
+        self.addCleanup(sub.stop)
+        self.queue_cleanup.append(sub.xn.queue)
+        self.addCleanup(self.clean_queues)
+
+        sub.start()
+
         #----------- Publish on that stream so that the transform can receive it --------------------------------
 
         pub = StandaloneStreamPublisher(input_stream_id, stream_route)
@@ -156,43 +173,19 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         log.debug("Published the following granule: %s", publish_granule)
 
-        gevent.sleep(20)
+        granule_from_transform = ar.get(timeout=20)
+
+        log.debug("Got the following granule from the transform: %s", granule_from_transform)
+
+        # Check that the granule published by the L0 transform has the right properties
+        self._check_granule_from_transform(granule_from_transform)
 
 
+    def _check_granule_from_transform(self, granule):
+        '''
+        An internal method to check if a granule has the right properties
+        '''
+
+        pass
 
 
-
-
-
-
-#    def check_cond_algorithm_execution(self, publish_granule, granule_from_transform):
-#
-#        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
-#        output_rdt_transform = RecordDictionaryTool.load_from_granule(granule_from_transform)
-#
-#        output_data = output_rdt_transform['conductivity']
-#        input_data = input_rdt_to_transform['conductivity']
-#
-#        self.assertTrue(numpy.array_equal(((input_data / 100000.0) - 0.5), output_data))
-#
-#
-#    def check_granule_splitting(self, publish_granule, out_dict):
-#        '''
-#        This checks that the ctd_L0_all transform is able to split out one of the
-#        granules from the whole granule
-#        fed into the transform
-#        '''
-#
-#        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
-#
-#        in_cond = input_rdt_to_transform['conductivity']
-#        in_pressure = input_rdt_to_transform['pressure']
-#        in_temp = input_rdt_to_transform['temp']
-#
-#        out_cond = out_dict['c']
-#        out_pres = out_dict['p']
-#        out_temp = out_dict['t']
-#
-#        self.assertTrue(numpy.array_equal(in_cond,out_cond))
-#        self.assertTrue(numpy.array_equal(in_pressure, out_pres))
-#        self.assertTrue(numpy.array_equal(in_temp,out_temp))
