@@ -2,7 +2,6 @@
 #from pyon.ion.endpoint import ProcessRPCClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import log, IonObject
