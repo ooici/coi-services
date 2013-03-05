@@ -167,14 +167,20 @@ class RecordDictionaryTool(object):
     def _replace_hook(self, name,vals):
         if not isinstance(self._pdict.get_context(name).param_type, QuantityType):
             return vals
-        nparray = np.array(vals)
-        np.place(nparray,nparray==np.array(None),self.fill_value(name))
-        try:
-            if (nparray==np.array(self.fill_value(name))).all():
+        if isinstance(vals, (list,tuple)):
+            vals = [i if i is not None else self.fill_value(name) for i in vals]
+            if all([i is None for i in vals]):
                 return None
-        except AttributeError:
-            return nparray
-        return nparray
+            return vals
+        if isinstance(vals, np.ndarray):
+            np.place(vals,vals==np.array(None), self.fill_value(name))
+            try:
+                if (vals == np.array(self.fill_value(name))).all():
+                    return None
+            except AttributeError:
+                pass
+            return np.asanyarray(vals, dtype=self._pdict.get_context(name).param_type.value_encoding)
+        return np.atleast_1d(vals)
 
     def __setitem__(self, name, vals):
         return self._set(name, self._replace_hook(name,vals))

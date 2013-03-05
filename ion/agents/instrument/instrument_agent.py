@@ -66,7 +66,7 @@ from interface.objects import AlarmDef
 from ion.agents.alarms.alarms import construct_alarm_expression
 from ion.agents.alarms.alarms import eval_alarm
 from ion.agents.alarms.alarms import make_event_data
-from interface.objects import StreamWarningAlaramEvent
+from interface.objects import StreamWarningAlarmEvent
 from interface.objects import StreamAlertAlarmEvent
 from interface.objects import StreamAllClearAlarmEvent
 
