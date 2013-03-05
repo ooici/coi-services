@@ -488,7 +488,7 @@ class TestIAAlarms(IonIntegrationTestCase):
         """
         
         # Start data subscribers.
-        self._start_data_subscribers(6)
+        self._start_data_subscribers(5)
         self.addCleanup(self._stop_data_subscribers)    
         
         # Set up a subscriber to collect error events.
@@ -530,7 +530,10 @@ class TestIAAlarms(IonIntegrationTestCase):
         #self.assertGreaterEqual(len(self._events_received), 6)
 
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertGreaterEqual(len(self._samples_received), 6)
+        self.assertGreaterEqual(len(self._samples_received), 5)
+
+        #for x in self._samples_received:
+            
 
         gevent.sleep(5)
         
@@ -579,7 +582,11 @@ class TestIAAlarms(IonIntegrationTestCase):
         print '#######################'
         print '#######################'
         for x in self._samples_received:
-            print str(x)
+            #print str(x)
+            print str(x.record_dictionary)
+            #print str(type(x.record_dictionary))
+            print str(x.param_dictionary)
+            #print str(x['record_dictionary'][8])
             
         print '#######################'
         for x in self._events_received:
