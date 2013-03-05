@@ -62,17 +62,24 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         self.rdt = RecordDictionaryTool.load_from_granule(input)
         out_rdt = RecordDictionaryTool(stream_definition_id=params['stream_def_id'])
 
+        # The calibration coefficients
+        temp_calibration_coeffs= params['calibration_coeffs']['temp_calibration_coeffs']
+        pres_calibration_coeffs= params['calibration_coeffs']['pres_calibration_coeffs']
+        cond_calibration_coeffs = params['calibration_coeffs']['cond_calibration_coeffs']
 
         # Set the temperature values for the output granule
-        out_rdt = self.calculate_temperature(out_rdt = out_rdt, temp_calibration_coeffs= params['calibration_coeffs']['temp_calibration_coeffs'] )
+        out_rdt = self.calculate_temperature(   out_rdt = out_rdt,
+                                                temp_calibration_coeffs= temp_calibration_coeffs )
 
         # Set the pressure values for the output granule
-        out_rdt = self.calculate_pressure(out_rdt = out_rdt, TEMPWAT_L0 = self.rdt['TEMPWAT_L0'], pres_calibration_coeffs= params['calibration_coeffs']['pres_calibration_coeffs'])
+        out_rdt = self.calculate_pressure(  out_rdt = out_rdt,
+                                            TEMPWAT_L0 = self.rdt['TEMPWAT_L0'],
+                                            pres_calibration_coeffs= pres_calibration_coeffs)
 
         # Set the conductivity values for the output granule
         # Note that since the conductivity caculation depends on whether TEMPWAT_L1, PRESWAT_L1 have been calculated, we need to do this last
         out_rdt = self.calculate_conductivity(  out_rdt = out_rdt,
-                                                cond_calibration_coeffs = params['calibration_coeffs']['cond_calibration_coeffs'],
+                                                cond_calibration_coeffs = cond_calibration_coeffs,
                                                 TEMPWAT_L1 = TEMPWAT_L1,
                                                 PRESWAT_L1 = PRESWAT_L1)
 
@@ -134,7 +141,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         #------------  Computation -------------------------------------
         MV = (TEMPWAT_L0 - 524288) / 1.6e+007
         R = (MV * 2.900e+009 + 1.024e+008) / (2.048e+004 - MV * 2.0e+005)
-        TEMPWAT_L1 = 1 / (a0 + a1 * np.log(R) + a2 * np.log^2(R) + a3 * np.log^3(R)) - 273.15
+        TEMPWAT_L1 = 1 / (a0 + a1 * np.log(R) + a2 * (np.log(R))**2 + a3 * (np.log(R))**3) - 273.15
 
         #------------  Update the output record dictionary with the values --------------
         for key, value in self.rdt.iteritems():

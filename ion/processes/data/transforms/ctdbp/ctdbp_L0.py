@@ -13,7 +13,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 class CTDBP_L0_all(TransformDataProcess):
     """
-    L0 listens to the parsed and just pulls C, T, & Pressure from the parsed and puts it onto the L0 stream.
+    L0 listens to the parsed and pulls only C, T, & Pressure from the parsed and puts it onto the L0 stream. The other parameters are dropped.
     """
     output_bindings = ['L0_stream']
     def on_start(self):
@@ -56,17 +56,15 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
         for x in input:
             rdt = RecordDictionaryTool.load_from_granule(x)
 
-            conductivity = rdt['conductivity']
-            pressure = rdt['pressure']
-            temperature = rdt['temp']
-            time = rdt['time']
+            conductivity = rdt['CONDWAT_L0']
+            pressure = rdt['PRESWAT_L0']
+            temperature = rdt['TEMPWAT_L0']
 
             result = {}
 
             # build the granule for conductivity, temperature and pressure
             result['L0_stream'] = ctdbp_L0_algorithm._build_granule(stream_definition_id= params['L0_stream'],
                 field_names= ['CONDWAT_L0', 'TEMPWAT_L0', 'PRESWAT_L0'], # these are the field names for the output record dictionary
-                time=time,
                 values= [conductivity, temperature, pressure])
 
             result_list.append(result)
@@ -74,8 +72,10 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
         return result_list
 
     @staticmethod
-    def _build_granule(stream_definition_id=None, field_names=None, values=None, time=None):
+    def _build_granule(stream_definition_id=None, field_names=None, values=None):
         '''
+        Builds a granule with values corresponding only to the params specified in the field names
+
         @param param_dictionary ParameterDictionary
         @param field_name str
         @param value numpy.array
@@ -87,8 +87,6 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
 
         for k,v in zipped:
             root_rdt[k] = v
-
-        root_rdt['time'] = time
 
         return root_rdt.to_granule()
 
