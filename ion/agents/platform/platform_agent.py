@@ -40,7 +40,7 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 import numpy
 from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 
-from ion.agents.instrument.instrument_fsm import InstrumentFSM
+from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMStateError
 
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
@@ -218,7 +218,59 @@ class PlatformAgent(ResourceAgent):
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
-        log.info('platform agent is running')
+        log.info('platform agent is running: on_start called.')
+
+    def on_quit(self):
+        try:
+            log.info("%r: PlatformAgent: on_quit called. current_state=%s",
+                     self._platform_id, self._fsm.get_current_state())
+
+            self._do_quit()
+
+        finally:
+            super(PlatformAgent, self).on_quit()
+
+    def _do_quit(self):
+        """
+        Performs steps to transition this agent to the UNINITIALIZED state
+        (if not already there), so it attempts a "graceful" termination.
+        """
+        curr_state = self._fsm.get_current_state()
+
+        if PlatformAgentState.UNINITIALIZED == curr_state:
+            log.info("%r: PlatformAgent: quit: already in UNINITIALIZED state",
+                     self._platform_id)
+            return
+
+        # attempt a "graceful" termination.
+
+        log.info("%r: PlatformAgent: executing quit secuence", self._platform_id)
+
+        attempts = 0
+        while PlatformAgentState.UNINITIALIZED != curr_state and attempts <= 3:
+            attempts += 1
+            try:
+                # all main states accept the RESET event so the following
+                # should work in general:
+                self._fsm.on_event(PlatformAgentEvent.RESET)
+
+            except FSMStateError as e:
+                #
+                # if this happens, need to consider unhandled case!
+                # TODO adjust logic to do appropriate action depending on
+                # the current state.
+                log.warn("TODO: for the quit sequence, a RESET event was tried "
+                         "in a state (%s) that does not handle it; please "
+                         "report this bug. (platform_id=%r)",
+                         curr_state, self._platform_id)
+                break
+
+            finally:
+                curr_state = self._fsm.get_current_state()
+
+        log.info("%r: PlatformAgent: quit secuence complete. "
+                 "attempts=%d;  final state=%s",
+                 self._platform_id, attempts, curr_state)
 
     def _reset(self):
         """
@@ -782,7 +834,7 @@ class PlatformAgent(ResourceAgent):
         }
 
         log.info("%r: publishing external platform event: event_data=%s",
-                  self._platform_id, str(event_data))
+                 self._platform_id, event_data)
 
         try:
             self._event_publisher.publish_event(
@@ -1590,20 +1642,10 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
-        # COMMAND state event handlers.
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.RESET, self._handler_command_reset)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.PAUSE, self._handler_command_pause)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.CLEAR, self._handler_command_clear)
-        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.START_MONITORING, self._handler_start_resource_monitoring)
-
-        # MONITORING state event handlers.
-        self._fsm.add_handler(PlatformAgentState.MONITORING, PlatformAgentEvent.STOP_MONITORING, self._handler_stop_resource_monitoring)
-
         # COMMAND/MONITORING common state event handlers.
-        # Note that these handlers do not change the current state.
         # TODO revisit this when introducing the BUSY state
         for state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
+            self._fsm.add_handler(state, PlatformAgentEvent.RESET, self._handler_command_reset)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
             self._fsm.add_handler(state, PlatformAgentEvent.CONNECT_INSTRUMENT, self._handler_connect_instrument)
@@ -1617,3 +1659,12 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.CHECK_SYNC, self._handler_check_sync)
+
+        # COMMAND state event handlers.
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.PAUSE, self._handler_command_pause)
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.CLEAR, self._handler_command_clear)
+        self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.START_MONITORING, self._handler_start_resource_monitoring)
+
+        # MONITORING state event handlers.
+        self._fsm.add_handler(PlatformAgentState.MONITORING, PlatformAgentEvent.STOP_MONITORING, self._handler_stop_resource_monitoring)
