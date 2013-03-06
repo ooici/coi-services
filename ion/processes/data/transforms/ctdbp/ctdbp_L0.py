@@ -67,14 +67,12 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
             pressure = rdt['pressure']
             temperature = rdt['temp']
 
-            result = {}
-
             # build the granule for conductivity, temperature and pressure
-            result['L0_stream'] = ctdbp_L0_algorithm._build_granule(stream_definition_id= params['L0_stream'],
+            granule = ctdbp_L0_algorithm._build_granule(stream_definition_id= params['L0_stream'],
                 field_names= ['conductivity', 'pressure', 'temp'], # these are the field names for the output record dictionary
                 values= [conductivity, temperature, pressure])
 
-            result_list.append(result)
+            result_list.append(granule)
 
         return result_list
 
