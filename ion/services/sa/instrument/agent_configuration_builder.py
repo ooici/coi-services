@@ -1,14 +1,12 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.agent_launcher
+@package  ion.services.sa.instrument.agent_ConfigurationBuilder
 @author   Ian Katz
 """
 
 import tempfile
-from interface.objects import ProcessSchedule, ProcessRestartMode, ProcessQueueingMode, ProcessStateEnum
 from ion.agents.instrument.driver_process import DriverProcessType
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import NotFound, BadRequest
@@ -17,24 +15,25 @@ from pyon.ion.resource import PRED, RT
 from ooi.logging import log
 
 
-class AgentLauncherFactory(object):
+class AgentConfigurationBuilderFactory(object):
 
     def __init__(self, clients):
         self.clients = clients
 
     def create_by_device_type(self, device_type):
         if RT.InstrumentDevice == device_type:
-            return InstrumentAgentLauncher(self.clients)
+            return InstrumentAgentConfigurationBuilder(self.clients)
         elif RT.PlatformDevice == device_type:
-            return PlatformAgentLauncher(self.clients)
+            return PlatformAgentConfigurationBuilder(self.clients)
 
     def create_by_agent_instance_type(self, instance_type):
         if RT.InstrumentAgentInstance == instance_type:
-            return InstrumentAgentLauncher(self.clients)
+            return InstrumentAgentConfigurationBuilder(self.clients)
         elif RT.PlatformAgentInstance == instance_type:
-            return PlatformAgentLauncher(self.clients)
+            return PlatformAgentConfigurationBuilder(self.clients)
 
-class AgentLauncher(object):
+
+class AgentConfigurationBuilder(object):
 
     def __init__(self, clients):
         self.clients = clients
@@ -244,25 +243,12 @@ class AgentLauncher(object):
         return agent_config
 
 
-    def launch(self, agent_config=None):
+
+    def record_launch_parameters(self, agent_config, process_id):
         """
-        generate the configuration for this agent, schedule the launch, wait for the launch, record process id
+        record process id of the launch
         """
 
-        self._check_associations()
-        assert self.will_launch
-
-        if None is agent_config:
-            agent_config = self.generate_config()
-
-        process_def_obj = self._get_process_def()
-
-        log.debug("schedule agent process")
-        process_schedule = ProcessSchedule(restart_mode=ProcessRestartMode.ABNORMAL,
-                                           queueing_mode=ProcessQueueingMode.ALWAYS)
-        process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_def_obj._id,
-                                                                      schedule=process_schedule,
-                                                                      configuration=agent_config)
         log.debug("add the process id and update the resource")
         self.agent_instance_obj.agent_config = agent_config
         self.agent_instance_obj.agent_process_id = process_id
@@ -272,14 +258,6 @@ class AgentLauncher(object):
 
         return process_id
 
-
-    def await_launch(self, process_id, timeout):
-
-        log.debug("waiting %s seconds for agent launch", timeout)
-        psg = ProcessStateGate(self.clients.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
-        if not psg.await(20):
-            raise BadRequest("The %s '%s' failed to launch in %s seconds" %
-                             (type(self.agent_instance_obj).__name__, self.agent_instance_obj._id), timeout)
 
 
     def _collect_agent_instance_associations(self):
@@ -381,14 +359,14 @@ class AgentLauncher(object):
         self._check_associations()
         return self.associated_objects[self._lookup_means()[PRED.hasAgentDefinition]]
 
-    def _get_process_def(self):
+    def _get_process_definition(self):
         self._check_associations()
         return self.associated_objects[RT.ProcessDefinition]
 
 
 
 
-class InstrumentAgentLauncher(AgentLauncher):
+class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
 
     def _lookup_means(self):
         instrument_agent_lookup_means = {}
@@ -419,7 +397,7 @@ class InstrumentAgentLauncher(AgentLauncher):
 
 
 
-class PlatformAgentLauncher(AgentLauncher):
+class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
 
     def _lookup_means(self):
         platform_agent_lookup_means = {}
@@ -446,7 +424,7 @@ class PlatformAgentLauncher(AgentLauncher):
 
         log.debug("combined device ids: %s", child_device_ids)
 
-        launcher_factory = AgentLauncherFactory(self.clients)
+        ConfigurationBuilder_factory = AgentConfigurationBuilderFactory(self.clients)
 
         agent_lookup_method = {
             RT.PlatformAgentInstance: self.RR2.find_platform_agent_instance_of_platform_device,
@@ -470,9 +448,9 @@ class PlatformAgentLauncher(AgentLauncher):
         for d, a in child_agent_instance.iteritems():
             agent_instance_type = type(a).__name__
             log.debug("generating %s config for device '%s'", agent_instance_type, d)
-            launcher = launcher_factory.create_by_agent_instance_type(agent_instance_type)
-            launcher.set_agent_instance_object(a)
-            launcher.prepare(will_launch=False)
-            ret[d] = launcher.generate_config()
+            ConfigurationBuilder = ConfigurationBuilder_factory.create_by_agent_instance_type(agent_instance_type)
+            ConfigurationBuilder.set_agent_instance_object(a)
+            ConfigurationBuilder.prepare(will_launch=False)
+            ret[d] = ConfigurationBuilder.generate_config()
 
         return ret

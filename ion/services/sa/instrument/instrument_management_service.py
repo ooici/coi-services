@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-from ion.services.sa.instrument.agent_launcher import InstrumentAgentLauncher, PlatformAgentLauncher
+from ion.util.agent_launcher import AgentLauncher
+from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
+    PlatformAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 
@@ -201,7 +203,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         take a snapshot of the current instrument agent instance config for this instrument,
           and save it as an attachment
         """
-        launcher = InstrumentAgentLauncher(self.clients)
+        config_builder = InstrumentAgentConfigurationBuilder(self.clients)
 
         instrument_device_obj = self.RR.read(instrument_device_id)
 
@@ -211,8 +213,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                              (RT.InstrumentDevice, resource_type))
 
         inst_agent_instance_obj = self.RR2.find_instrument_agent_instance_of_instrument_device(instrument_device_id)
-        launcher.set_agent_instance_object(inst_agent_instance_obj)
-        agent_config = launcher.prepare(will_launch=False)
+        config_builder.set_agent_instance_object(inst_agent_instance_obj)
+        agent_config = config_builder.prepare(will_launch=False)
 
         epoch = time.mktime(datetime.now().timetuple())
         snapshot_name = name or "Running Config Snapshot %s.js" % epoch
@@ -354,17 +356,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             log.info("IMS:start_instrument_agent_instance  comms_config host addr in the driver_config is localhost so call _start_port_agent")
             instrument_agent_instance_obj = self._start_port_agent(instrument_agent_instance_obj) # <-- this updates agent instance obj!
 
+        config_builder = InstrumentAgentConfigurationBuilder(self.clients)
+        launcher = AgentLauncher(self.clients.process_dispatcher)
         try:
-            launcher = InstrumentAgentLauncher(self.clients)
-            launcher.set_agent_instance_object(instrument_agent_instance_obj)
-            config = launcher.prepare()
+            config_builder.set_agent_instance_object(instrument_agent_instance_obj)
+            config = config_builder.prepare()
         except:
             self._stop_port_agent(instrument_agent_instance_obj.port_agent_config)
             raise
 
-        process_id = launcher.launch(config)
+        process_id = launcher.launch(config, config_builder._get_process_definition()._id)
+        config_builder.record_launch_parameters(config, process_id)
 
-        self.record_instrument_producer_activation(launcher._get_device()._id, instrument_agent_instance_id)
+        self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)
 
         launcher.await_launch(process_id, 20)
 
@@ -899,14 +903,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         Agent instance must first be created and associated with a platform device
         Launch the platform agent instance and return the id
         """
-        launcher = PlatformAgentLauncher(self.clients)
+        configuration_builder = PlatformAgentConfigurationBuilder(self.clients)
+        launcher = AgentLauncher(self.clients.process_dispatcher)
 
         platform_agent_instance_obj = self.RR2.read(platform_agent_instance_id)
 
-        launcher.set_agent_instance_object(platform_agent_instance_obj)
-        config = launcher.prepare()
+        configuration_builder.set_agent_instance_object(platform_agent_instance_obj)
+        config = configuration_builder.prepare()
 
-        platform_device_obj = launcher._get_device()
+        platform_device_obj = configuration_builder._get_device()
         log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)",
                   str(platform_device_obj._id),  str(platform_agent_instance_id))
 
@@ -917,7 +922,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
 
 
-        process_id = launcher.launch(config)
+        process_id = launcher.launch(config, configuration_builder._get_process_definition()._id)
+        configuration_builder.record_launch_parameters(config, process_id)
         launcher.await_launch(20)
 
         return process_id
