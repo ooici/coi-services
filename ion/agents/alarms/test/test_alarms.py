@@ -38,6 +38,7 @@ from ion.agents.alarms.alarms import SetMembershipAlarm
 from ion.agents.alarms.alarms import UserDefinedAlarm
 from ion.agents.alarms.alarms import construct_alarm_expression
 from ion.agents.alarms.alarms import eval_alarm
+from ion.agents.alarms.alarms import make_event_data
 
 
 """
@@ -114,19 +115,16 @@ class TestAlarms(IonIntegrationTestCase):
             'lower_rel_op' : '<'
         }
 
-        if TEST_ION_OBJECTS:
-            # Create alarm object.
-            alarm = IonObject('IntervalAlarmDef', **kwargs)
-            alarm = construct_alarm_expression(alarm)
-        else:
-            alarm = IntervalAlarm(**kwargs)
+        # Create alarm object.
+        alarm = IonObject('IntervalAlarmDef', **kwargs)
+        alarm = construct_alarm_expression(alarm)
 
         # This sequence will produce 5 alarms:
-        # All clear on the first value,
-        # Warning on the first 30,
-        # All clear on the following 5.5,
-        # Warning on the 15.1,
-        # All clear on the following 3.3.
+        # Warning on the first value,
+        # All clear on 30,
+        # Warning on 5.5
+        # All clear on 15.1
+        # Warning on 3.3
         self._event_count = 5
         test_vals = [5.5, 5.4, 5.5, 5.6, 30, 30.4, 5.5, 5.6, 15.1, 15.2,
                      15.3, 3.3, 3.4]
@@ -135,11 +133,14 @@ class TestAlarms(IonIntegrationTestCase):
             node=self.container.node)
 
         for x in test_vals:
-            if TEST_ION_OBJECTS:
-                (alarm, event_data) = eval_alarm(alarm, x)
+            event_data = None
+            eval_alarm(alarm, x)
+            if alarm.first_time == 1:
+                event_data = make_event_data(alarm)
                 
-            else:
-                event_data = alarm.eval_alarm(x)
+            elif alarm.first_time > 1:
+                if alarm.status != alarm.old_status:
+                    event_data = make_event_data(alarm)
 
             if event_data:
                 pub.publish_event(origin=self._resource_id, **event_data)
@@ -147,11 +148,11 @@ class TestAlarms(IonIntegrationTestCase):
         self._async_event_result.get(timeout=30)
         
         """
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 5.5, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'The alarm current_warning_interval has cleared.', 'ts_created': '1357684731978', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.5<x', 'value': 30, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'Current is above normal range.', 'ts_created': '1357684731984', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 5.5, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'The alarm current_warning_interval has cleared.', 'ts_created': '1357684731991', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.5<x', 'value': 15.1, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'Current is above normal range.', 'ts_created': '1357684731997', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 3.3, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'Event'], 'message': 'The alarm current_warning_interval has cleared.', 'ts_created': '1357684732003', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.5<x', 'value': 5.5, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': '8e424a0cde254c0e97d0b7556ce8f7ee', 'ts_created': '1362071937165', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 30, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Alarm is cleared.', '_id': '7471fd2e6dc347bcbde041af48476c31', 'ts_created': '1362071937171', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.5<x', 'value': 5.5, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': '612d2e71c0b44fbb87dba12d9a8dc27b', 'ts_created': '1362071937177', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.5<x', 'value': 15.1, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Alarm is cleared.', '_id': 'd1d3481807364678825f23eaa0c25080', 'ts_created': '1362071937183', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.5<x', 'value': 3.3, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'port_current', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': 'dabf102c62c343d790d3eb7473e63295', 'ts_created': '1362071937189', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}.
         """
         
     def test_less_than_interval(self):
@@ -171,14 +172,16 @@ class TestAlarms(IonIntegrationTestCase):
             'upper_rel_op' : '<'            
         }
 
-        if TEST_ION_OBJECTS:
-            # Create alarm object.
-            alarm = IonObject('IntervalAlarmDef', **kwargs)
-            alarm = construct_alarm_expression(alarm)
-        else:
-            alarm = IntervalAlarm(**kwargs)
+        # Create alarm object.
+        alarm = IonObject('IntervalAlarmDef', **kwargs)
+        alarm = construct_alarm_expression(alarm)
 
         # This sequence will produce 5 alarms:
+        # 5.5 warning
+        # 3.3 all clear
+        # 4.5 warning
+        # 3.3 all clear
+        # 4.8 warning
         self._event_count = 5
         test_vals = [5.5, 5.5, 5.4, 4.6, 4.5, 3.3, 3.3, 4.5, 4.5, 3.3, 3.3, 4.8]
 
@@ -186,16 +189,27 @@ class TestAlarms(IonIntegrationTestCase):
             node=self.container.node)
 
         for x in test_vals:
-            if TEST_ION_OBJECTS:
-                (alarm, event_data) = eval_alarm(alarm, x)
+            event_data = None
+            eval_alarm(alarm, x)
+            if alarm.first_time == 1:
+                event_data = make_event_data(alarm)
                 
-            else:
-                event_data = alarm.eval_alarm(x)
+            elif alarm.first_time > 1:
+                if alarm.status != alarm.old_status:
+                    event_data = make_event_data(alarm)
 
             if event_data:
                 pub.publish_event(origin=self._resource_id, **event_data)
         
         self._async_event_result.get(timeout=30)
+        
+        """        
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': 'x<4.0', 'value': 5.5, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'battery_level', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Battery is below normal range.', '_id': '3cd266d62afd442bb50340eb135e00a2', 'ts_created': '1362080735202', 'sub_type': '', 'origin_type': '', 'name': 'reserve_power_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': 'x<4.0', 'value': 3.3, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'battery_level', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Alarm is cleared.', '_id': '138ef5dabf0547fabcea8a9b02c67ec8', 'ts_created': '1362080735210', 'sub_type': '', 'origin_type': '', 'name': 'reserve_power_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': 'x<4.0', 'value': 4.5, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'battery_level', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Battery is below normal range.', '_id': '0a5b6d8f187047cbb3c66b449c4f7cec', 'ts_created': '1362080735216', 'sub_type': '', 'origin_type': '', 'name': 'reserve_power_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': 'x<4.0', 'value': 3.3, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'battery_level', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Alarm is cleared.', '_id': 'ff96853728b24280b64f96415649e5e3', 'ts_created': '1362080735223', 'sub_type': '', 'origin_type': '', 'name': 'reserve_power_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': 'x<4.0', 'value': 4.8, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'battery_level', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Battery is below normal range.', '_id': 'e2104f3119eb498e93b0661cf8616df4', 'ts_created': '1362080735229', 'sub_type': '', 'origin_type': '', 'name': 'reserve_power_warning'}.
+        """
         
     def test_two_sided_interval(self):
         """
@@ -216,14 +230,16 @@ class TestAlarms(IonIntegrationTestCase):
             'upper_rel_op' : '<'            
         }
 
-        if TEST_ION_OBJECTS:
-            # Create alarm object.
-            alarm = IonObject('IntervalAlarmDef', **kwargs)
-            alarm = construct_alarm_expression(alarm)
-        else:
-            alarm = IntervalAlarm(**kwargs)
+        # Create alarm object.
+        alarm = IonObject('IntervalAlarmDef', **kwargs)
+        alarm = construct_alarm_expression(alarm)
 
         # This sequence will produce 5 alarms.
+        # 5.5 warning
+        # 10.2 all clear
+        # 23.3 warning
+        # 17.5 all clear
+        # 8.8 warning
         self._event_count = 5
         test_vals = [5.5, 5.5, 5.4, 4.6, 4.5, 10.2, 10.3, 10.5, 15.5,
                      23.3, 23.3, 24.8, 17.5, 16.5, 12.5, 8.8, 7.7]
@@ -232,17 +248,27 @@ class TestAlarms(IonIntegrationTestCase):
             node=self.container.node)
 
         for x in test_vals:
-            if TEST_ION_OBJECTS:
-                (alarm, event_data) = eval_alarm(alarm, x)
+            event_data = None
+            eval_alarm(alarm, x)
+            if alarm.first_time == 1:
+                event_data = make_event_data(alarm)
                 
-            else:
-                event_data = alarm.eval_alarm(x)
+            elif alarm.first_time > 1:
+                if alarm.status != alarm.old_status:
+                    event_data = make_event_data(alarm)
 
             if event_data:
                 pub.publish_event(origin=self._resource_id, **event_data)
         
         self._async_event_result.get(timeout=30)
  
+        """ 
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.0<x<20.0', 'value': 5.5, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Temperature is above normal range.', '_id': 'bc9dec259e3049c4b06d1d965c3f33c8', 'ts_created': '1362080871789', 'sub_type': '', 'origin_type': '', 'name': 'temp_high_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.0<x<20.0', 'value': 10.2, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Alarm is cleared.', '_id': '7480eabc9e79428495d6041577b70d6c', 'ts_created': '1362080871794', 'sub_type': '', 'origin_type': '', 'name': 'temp_high_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.0<x<20.0', 'value': 23.3, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Temperature is above normal range.', '_id': 'af2b146e3c944e3587bb4805703bda36', 'ts_created': '1362080871801', 'sub_type': '', 'origin_type': '', 'name': 'temp_high_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.ALL_CLEAR', 'description': '', 'expr': '10.0<x<20.0', 'value': 17.5, 'type_': 'StreamAllClearAlarmEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Alarm is cleared.', '_id': '96e857953fb04dd7a89ce4fec488d31f', 'ts_created': '1362080871806', 'sub_type': '', 'origin_type': '', 'name': 'temp_high_warning'}.
+        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'type': 'StreamAlaramType.WARNING', 'description': '', 'expr': '10.0<x<20.0', 'value': 8.8, 'type_': 'StreamWarningAlaramEvent', 'value_id': 'temp', 'base_types': ['StreamAlarmEvent', 'ResourceEvent', 'Event'], 'message': 'Temperature is above normal range.', '_id': '98676d83472b453ea17e9ed6d388206b', 'ts_created': '1362080871814', 'sub_type': '', 'origin_type': '', 'name': 'temp_high_warning'}.
+        """
 
  
         

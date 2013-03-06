@@ -8,7 +8,7 @@
 from pyon.public import PRED, RT
 from pyon.util.arg_check import validate_is_instance, validate_true
 from interface.services.dm.iingestion_management_service import BaseIngestionManagementService
-from interface.objects import IngestionConfiguration, IngestionQueue, ProcessSchedule, ProcessRestartMode
+from interface.objects import IngestionConfiguration, IngestionQueue, ProcessSchedule, ProcessRestartMode, ProcessQueueingMode
 from pyon.core.exception import BadRequest
 from pyon.util.log import log
 from pyon.util.containers import DotDict
@@ -115,6 +115,7 @@ class IngestionManagementService(BaseIngestionManagementService):
 
         schedule = ProcessSchedule()
         schedule.restart_mode = ProcessRestartMode.ABNORMAL
+        schedule.queueing_mode = ProcessQueueingMode.ALWAYS
 
         self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,schedule=schedule,process_id=process_id, configuration=config)
 
@@ -144,7 +145,7 @@ class IngestionManagementService(BaseIngestionManagementService):
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_subscription(subscription)
 
-        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.DataSet,predicate=PRED.hasStream,object=stream_id,id_only=True)
+        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Dataset,predicate=PRED.hasStream,object=stream_id,id_only=True)
         for dataset_id in datasets:
             self.clients.dataset_management.remove_stream(dataset_id, stream_id)
 

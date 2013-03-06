@@ -34,7 +34,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product   = DataProductImpl(self.clients)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', parameter_dictionary=None, exchange_point=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -49,7 +49,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # If the stream definition has a parameter dictionary, use that
         validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to register a data product')
         stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
-        parameter_dictionary = stream_def_obj.parameter_dictionary or parameter_dictionary
+        parameter_dictionary = stream_def_obj.parameter_dictionary 
         validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
         exchange_point = exchange_point or 'science_data'
@@ -76,15 +76,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.data_product.link_stream(data_product_id, stream_id)
 
 
-        # create a dataset...
-        data_set_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
-                                                                        stream_id=stream_id,
-                                                                        parameter_dict=parameter_dictionary,
-                                                                        temporal_domain=data_product.temporal_domain,
-                                                                        spatial_domain=data_product.spatial_domain)
-
-        # link dataset with data product. This creates the association in the resource registry
-        self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=data_set_id)
 
         # Return the id of the new data product
         return data_product_id
@@ -137,7 +128,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # remove dataset associations
         #--------------------------------------------------------------------------------
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
 
 #        for dataset_id in dataset_ids:
 #            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
@@ -206,14 +197,30 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
 
-        #--------------------------------------------------------------------------------
-        # get the Stream associated with this data product; if no stream then create one, if multiple streams then Throw
-        #--------------------------------------------------------------------------------
-        streams = self.data_product.find_stemming_stream(data_product_id)
-        if not streams:
-            raise BadRequest('Data Product %s must have one stream associated' % str(data_product_id))
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('Specified DataProduct has no streams associated with it')
+        stream_id = stream_ids[0]
 
-        stream_id = streams[0]._id
+        stream_defs, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition,id_only=True)
+        if not stream_defs:
+            raise BadRequest("Data Product stream is without a stream definition")
+        stream_def_id = stream_defs[0]
+
+        stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id) # additional read necessary to fill in the pdict
+
+        
+        
+
+        dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
+                                                                        stream_id=stream_id,
+                                                                        parameter_dict=stream_def.parameter_dictionary,
+                                                                        temporal_domain=data_product_obj.temporal_domain,
+                                                                        spatial_domain=data_product_obj.spatial_domain)
+
+        # link dataset with data product. This creates the association in the resource registry
+        self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
+        
         log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
 
 
@@ -231,8 +238,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
 
         # find datasets for the data product
-        dataset_id = self._get_dataset_id(data_product_id)
-        log.debug("Activating data product persistence for dataset_id: %s"  % str(dataset_id))
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
                                                 ingestion_configuration_id=ingestion_configuration_id,
                                                 dataset_id=dataset_id)
@@ -296,6 +301,14 @@ class DataProductManagementService(BaseDataProductManagementService):
 #            self.data_product.unlink_data_set(data_product_id, dataset_id)
 
 
+    def get_data_product_stream_definition(self, data_product_id=''):
+        self.read_data_product(data_product_id)
+        streams, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        for stream in streams:
+            stream_defs, _ = self.clients.resource_registry.find_objects(subject=stream, predicate=PRED.hasStreamDefinition, id_only=True)
+            if stream_defs:
+                return stream_defs[0]
+    
     def get_data_product_provenance(self, data_product_id=''):
 
         # Retrieve information that characterizes how this data was produced
@@ -490,7 +503,9 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.DataSet, id_only=True)
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
+        if not dataset_ids:
+            raise NotFound('No Dataset is associated with DataProduct %s' % data_product_id)
         return dataset_ids[0]
 
     def _get_stream_id(self, data_product_id=''):
@@ -688,11 +703,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         erddap_host = CFG.get_safe('server.erddap.host','localhost')
         errdap_port = CFG.get_safe('server.erddap.port','8080')
-        dataset_id = self._get_dataset_id(data_product_id)
-        ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/griddap/", str(dataset_id), "_0.html"],'')
+        try:
+            dataset_id = self._get_dataset_id(data_product_id)
+            ret.value  = string.join( ["http://", erddap_host, ":", str(errdap_port),"/erddap/griddap/", str(dataset_id), "_0.html"],'')
+            ret.status = ComputedValueAvailability.PROVIDED
+            log.debug("get_data_url: data_url: %s", ret.value)
+        except NotFound:
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            ret.reason = "Dataset for this Data Product could not be located"
 
-        ret.status = ComputedValueAvailability.PROVIDED
-        log.debug("get_data_url: data_url: %s", ret.value)
         return ret
 
     def get_provenance(self, data_product_id=''):

@@ -99,9 +99,9 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
 
         self.rdt_to_granule(context, ['hi'] * 20)
 
@@ -114,9 +114,9 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
 
         self.rdt_to_granule(context,['hi'] * 20)
 
@@ -306,7 +306,7 @@ class ExhaustiveParameterTest(IonIntegrationTestCase):
         self.resource_registry       = self.container.resource_registry
         self.data_retriever          = DataRetrieverServiceClient()
 
-        pdicts, _ = self.resource_registry.find_resources(restype='ParameterDictionaryResource', id_only=False)
+        pdicts, _ = self.resource_registry.find_resources(restype='ParameterDictionary', id_only=False)
         self.dp_ids = []
         for pdict in pdicts:
             stream_def_id = self.pubsub_management.create_stream_definition(pdict.name, parameter_dictionary_id=pdict._id)

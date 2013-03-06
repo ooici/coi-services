@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -11,7 +10,6 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from ion.core.includes.mi import SBE37ProtocolEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -80,8 +78,8 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         self.event_publisher = EventPublisher()
 
-        self.egg_url_good = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1-py2.7.egg"
-        self.egg_url_bad  = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1-py2.7.egg"
+        self.egg_url_good = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg"
+        self.egg_url_bad  = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1a-py2.7.egg"
         self.egg_url_404  = "http://sddevrepo.oceanobservatories.org/releases/completely_made_up_404.egg"
 
 
@@ -111,6 +109,7 @@ class TestDriverEgg(IonIntegrationTestCase):
     #
     ###########################
 
+    @unittest.skip("this test can't be run from coi services. it is missing dependencies")
     def test_driverLaunchModuleNoURI(self):
         raw_config, parsed_config = self.get_streamConfigs()
 
@@ -270,6 +269,7 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
         print  'new dp_id = %s' % data_product_id1
+        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
 
@@ -286,7 +286,6 @@ class TestDriverEgg(IonIntegrationTestCase):
         #create the datastore at the beginning of each int test that persists data
         self.get_datastore(self.parsed_dataset)
 
-        self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         dp_obj = IonObject(RT.DataProduct,
                            name='the raw data',

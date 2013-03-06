@@ -6,7 +6,7 @@ from ion.core.bootstrap_process import BootstrapProcess, AbortBootstrap
 from pyon.util.containers import get_safe, for_name, dict_merge
 
 from pyon.public import log, RT
-
+from pyon.core.governance import get_system_actor_header
 
 class Bootstrapper(BootstrapProcess):
     """
@@ -27,11 +27,9 @@ class Bootstrapper(BootstrapProcess):
         # Finding the system actor ID. If found, construct call context headers.
         # This may be called very early in bootstrap with no system actor yet existing
         system_actor, _ = process.container.resource_registry.find_resources(
-            RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=True)
-        system_actor_id = system_actor[0] if system_actor else 'anonymous'
+            RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=False)
 
-        actor_headers = {'ion-actor-id': system_actor_id,
-                         'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']} if system_actor else {}}
+        actor_headers = get_system_actor_header(system_actor[0] if system_actor else None)
 
         # Set the call context of the current process
         with process.push_context(actor_headers):

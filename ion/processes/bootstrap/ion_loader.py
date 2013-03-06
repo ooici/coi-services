@@ -60,7 +60,7 @@ from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
-from ion.agents.platform.oms.oms_client_factory import OmsClientFactory
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 
 
 from interface import objects
@@ -90,7 +90,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHBEVnM1d2tIUDUtOWZNSElxaVEySWc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdGxnWkl0WUNmdDhlOGlyODBfWGFRQ3c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -117,11 +117,13 @@ DEFAULT_CATEGORIES = [
     'PlatformDevice',
     'PlatformAgent',
     'PlatformAgentInstance',
+    'InstrumentAgent',
     'InstrumentDevice',
     'SensorDevice',
-    'InstrumentAgent',
+#    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
+   'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
     'DataProductLink',
@@ -131,13 +133,14 @@ DEFAULT_CATEGORIES = [
     'Deployment',
     ]
 
+COL_SCENARIO = "Scenario"
+COL_ID = "ID"
+
 class IONLoader(ImmediateProcess):
-    COL_SCENARIO = "Scenario"
-    COL_ID = "ID"
+
     COL_OWNER = "owner_id"
     COL_LCSTATE = "lcstate"
     COL_ORGS = "org_ids"
-
     ID_ORG_ION = "ORG_ION"
     ID_SYSTEM_ACTOR = "USER_SYSTEM"
 
@@ -307,12 +310,12 @@ class IONLoader(ImmediateProcess):
         row_skip = row_do = 0
         rows = []
         for row in reader:
-            if row[self.COL_SCENARIO] not in scenarios:
+            if row[COL_SCENARIO] not in scenarios:
                 row_skip += 1
-                if self.COL_ID in row:
-                    log.trace('skipping %s row %s in scenario %s', category, row[self.COL_ID], row[self.COL_SCENARIO])
+                if COL_ID in row:
+                    log.trace('skipping %s row %s in scenario %s', category, row[COL_ID], row[COL_SCENARIO])
                 else:
-                    log.trace('skipping %s row in scenario %s: %r', category, row[self.COL_SCENARIO], row)
+                    log.trace('skipping %s row in scenario %s: %r', category, row[COL_SCENARIO], row)
             else:
                 row_do += 1
                 rows.append(row)
@@ -351,8 +354,8 @@ class IONLoader(ImmediateProcess):
                 log.debug("Loading category %s", category)
 
             for row in self.object_definitions.get(category, []):
-                if self.COL_ID in row:
-                    log.trace('handling %s row %s: %r', category, row[self.COL_ID], row)
+                if COL_ID in row:
+                    log.trace('handling %s row %s: %r', category, row[COL_ID], row)
                 else:
                     log.trace('handling %s row: %r', category, row)
 
@@ -483,11 +486,11 @@ class IONLoader(ImmediateProcess):
             log.trace("Update object type %s using field names %s", objtype, obj_fields.keys())
             obj = existing_obj
         else:
-            if self.COL_ID in row and row[self.COL_ID] and 'alt_ids' in schema:
+            if COL_ID in row and row[COL_ID] and 'alt_ids' in schema:
                 if 'alt_ids' in obj_fields:
-                    obj_fields['alt_ids'].append("PRE:"+row[self.COL_ID])
+                    obj_fields['alt_ids'].append("PRE:"+row[COL_ID])
                 else:
-                    obj_fields['alt_ids'] = ["PRE:"+row[self.COL_ID]]
+                    obj_fields['alt_ids'] = ["PRE:"+row[COL_ID]]
 
             log.trace("Create object type %s from field names %s", objtype, obj_fields.keys())
             obj = IonObject(objtype, **obj_fields)
@@ -542,6 +545,34 @@ class IONLoader(ImmediateProcess):
         else:
             log.trace('parsing value as %s: %s', targettype, value)
             return ast.literal_eval(value)
+
+    """
+    there is a data representation problem affecting our boolean fields in preload data
+
+    we enter the values "TRUE" and "FALSE" when editing the google doc or CSV files.
+    but when these are accessed as an XLS file downloaded from google,
+    the values are changed to (number) 1 and 0.
+    then we extract the rows from the spreadsheet with our python library,
+    and the values are changed to (string) "1" and "0".
+
+    as many of these values are not yet used by the system,
+    many were just quietly stored as strings in Ion objects
+    (although some did appear in the UI).
+
+    these methods consistently translate the values to python True and False.
+    """
+    def _fix_boolean(self, row, *keys):
+        """ modify the row to have boolean values instead of string or number """
+        for key in keys:
+            row[key] = self._as_boolean(row[key]) if key in row else False
+
+    def _as_boolean(self, value):
+        """ interpret the string or number value as a boolean """
+        if value in ('TRUE', 'True', '1', 1, True):
+            return True
+        if value in ('FALSE', 'False', '0', 0, '', None, False):
+            return False
+        raise iex.BadRequest('expected boolean value, got: ' + value)
 
     def _get_service_client(self, service):
         return get_service_registry().services[service].client(process=self.rpc_sender)
@@ -599,7 +630,7 @@ class IONLoader(ImmediateProcess):
         - store newly created resource id and obj for future reference
         - (optional) support bulk create/update
         """
-        res_id_alias = row[self.COL_ID]
+        res_id_alias = row[COL_ID]
         existing_obj = None
         if res_id_alias in self.resource_ids:
             # TODO: Catch case when ID used twice
@@ -710,8 +741,8 @@ class IONLoader(ImmediateProcess):
                 for name in names:
                     if name not in value_map:
                         msg = 'invalid ' + member_type + ': ' + name + ' (from value=' + value + ')'
-                        if self.COL_ID in row:
-                            msg = 'id ' + row[self.COL_ID] + ' refers to an ' + msg
+                        if COL_ID in row:
+                            msg = 'id ' + row[COL_ID] + ' refers to an ' + msg
                         if obj_type:
                             msg = obj_type + ' ' + msg
                         raise iex.BadRequest(msg)
@@ -755,7 +786,7 @@ class IONLoader(ImmediateProcess):
     def _load_Contact(self, row):
         """ create constraint IonObject but do not insert into DB,
             cache in dictionary for inclusion in other preload objects """
-        id = row[self.COL_ID]
+        id = row[COL_ID]
         log.trace('creating contact: ' + id)
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
@@ -798,7 +829,7 @@ class IONLoader(ImmediateProcess):
     def _load_Constraint(self, row):
         """ create constraint IonObject but do not insert into DB,
             cache in dictionary for inclusion in other preload objects """
-        id = row[self.COL_ID]
+        id = row[COL_ID]
         if id in self.constraint_defs:
             raise iex.BadRequest('constraint with ID already exists: ' + id)
         type = row['type']
@@ -811,12 +842,12 @@ class IONLoader(ImmediateProcess):
 
     def _load_CoordinateSystem(self, row):
         gcrs = self._create_object_from_row("GeospatialCoordinateReferenceSystem", row, "m/")
-        id = row[self.COL_ID]
+        id = row[COL_ID]
         self.resource_ids[id] = gcrs
 
     def _load_CoordinateSystem_OOI(self):
         fakerow = {}
-        fakerow[self.COL_ID] = 'OOI_SUBMERGED_CS'
+        fakerow[COL_ID] = 'OOI_SUBMERGED_CS'
         fakerow['m/geospatial_geodetic_crs'] = 'http://www.opengis.net/def/crs/EPSG/0/4326'
         fakerow['m/geospatial_vertical_crs'] = 'http://www.opengis.net/def/cs/EPSG/0/6498'
         fakerow['m/geospatial_latitude_units'] = 'degrees_north'
@@ -893,7 +924,7 @@ class IONLoader(ImmediateProcess):
         ims.create_user_info(actor_id, user_info_obj, headers=headers)
 
     def _load_Org(self, row):
-        log.trace("Loading Org (ID=%s)", row[self.COL_ID])
+        log.trace("Loading Org (ID=%s)", row[COL_ID])
         contacts = self._get_contacts(row, field='contact_id', type='Org')
         res_obj = self._create_object_from_row("Org", row, "org/")
         if contacts:
@@ -915,7 +946,7 @@ class IONLoader(ImmediateProcess):
 
         if res_id:
             res_obj._id = res_id
-            self._register_id(row[self.COL_ID], res_id, res_obj)
+            self._register_id(row[COL_ID], res_id, res_obj)
 
     def _load_UserRole(self, row):
         org_id = row["org_id"]
@@ -924,11 +955,9 @@ class IONLoader(ImmediateProcess):
 
         user_id = self.resource_ids[row["user_id"]]
         role_name = row["role_name"]
-
         svc_client = self._get_service_client("org_management")
 
-        auto_enroll = self._get_typed_value(row["auto_enroll"], targettype="bool")
-        if auto_enroll:
+        if self._as_boolean(row['auto_enroll']):
             svc_client.enroll_member(org_id, user_id, headers=self._get_system_actor_headers())
 
         if role_name != "ORG_MEMBER":
@@ -968,7 +997,7 @@ class IONLoader(ImmediateProcess):
         return False
 
     def _load_PlatformModel(self, row):
-        res_id = self._basic_resource_create(row, "PlatformModel", "pm/",
+        self._basic_resource_create(row, "PlatformModel", "pm/",
             "instrument_management", "create_platform_model",
             support_bulk=True)
 
@@ -977,8 +1006,9 @@ class IONLoader(ImmediateProcess):
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_PM"
+            fakerow[COL_ID] = ooi_id + "_PM"
             fakerow['pm/name'] = ooi_obj['name']
+            fakerow['pm/description'] = "Node Type: %s" % ooi_id
             fakerow['pm/alt_ids'] = "['OOI:" + ooi_id + "_PM" + "']"
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
 
@@ -989,11 +1019,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_InstrumentModel(self, row):
         row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
-        #raw_stream_def = row['raw_stream_def']
-        #parsed_stream_def = row['parsed_stream_def']
-        #row['im/stream_configuration'] = "{'raw': '%s', 'parsed': '%s'}" % (raw_stream_def, parsed_stream_def)
-
-        res_id = self._basic_resource_create(row, "InstrumentModel", "im/",
+        self._basic_resource_create(row, "InstrumentModel", "im/",
             "instrument_management", "create_instrument_model",
             support_bulk=True)
 
@@ -1005,7 +1031,7 @@ class IONLoader(ImmediateProcess):
             class_obj = self.ooi_loader.get_type_assets("class")[ooi_id[:5]]
             family_obj = self.ooi_loader.get_type_assets("family")[class_obj['family']]
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[COL_ID] = ooi_id
             fakerow['im/name'] = ooi_obj['name']
             fakerow['im/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['im/description'] = ooi_obj['description']
@@ -1054,8 +1080,9 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("array")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[COL_ID] = ooi_id
             fakerow['obs/name'] = ooi_obj['name']
+            fakerow['obs/description'] = "Array: %s" % ooi_id
             fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = ''
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
@@ -1081,7 +1108,7 @@ class IONLoader(ImmediateProcess):
         if psite_id:
             if self.bulk:
                 psite_obj = self._get_resource_obj(psite_id)
-                site_obj = self._get_resource_obj(row[self.COL_ID])
+                site_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(psite_obj, PRED.hasSite, site_obj)
             else:
                 svc_client = self._get_service_client("observatory_management")
@@ -1092,8 +1119,9 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("site")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[COL_ID] = ooi_id
             fakerow['site/name'] = ooi_obj['name']
+            fakerow['site/description'] = "Site: %s" % ooi_id
             fakerow['site/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = ''
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
@@ -1111,7 +1139,7 @@ class IONLoader(ImmediateProcess):
             const_id1 = ''
             if ooi_obj['latitude'] or ooi_obj['longitude'] or ooi_obj['depth_subsite']:
                 const_id1 = ooi_id + "_const1"
-                constrow[self.COL_ID] = const_id1
+                constrow[COL_ID] = const_id1
                 constrow['type'] = 'geospatial'
                 constrow['south'] = ooi_obj['latitude'] or '0.0'
                 constrow['north'] = ooi_obj['latitude'] or '0.0'
@@ -1123,8 +1151,9 @@ class IONLoader(ImmediateProcess):
                 self._load_Constraint(constrow)
 
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[COL_ID] = ooi_id
             fakerow['site/name'] = ooi_obj['name']
+            fakerow['site/description'] = "Subsite: %s" % ooi_id
             fakerow['site/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
@@ -1152,7 +1181,7 @@ class IONLoader(ImmediateProcess):
         if psite_id:
             if self.bulk:
                 psite_obj = self._get_resource_obj(psite_id)
-                site_obj = self._get_resource_obj(row[self.COL_ID])
+                site_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(psite_obj, PRED.hasSite, site_obj)
             else:
                 svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id],
@@ -1164,7 +1193,7 @@ class IONLoader(ImmediateProcess):
             for pm_id in pm_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(pm_id)
-                    site_obj = self._get_resource_obj(row[self.COL_ID])
+                    site_obj = self._get_resource_obj(row[COL_ID])
                     self._create_association(site_obj, PRED.hasModel, model_obj)
                 else:
                     svc_client.assign_platform_model_to_platform_site(self.resource_ids[pm_id], res_id,
@@ -1177,7 +1206,7 @@ class IONLoader(ImmediateProcess):
             const_id1 = ''
             if ooi_obj.get('latitude',None) or ooi_obj.get('longitude',None) or ooi_obj.get('depth_subsite',None):
                 const_id1 = ooi_id + "_const1"
-                constrow[self.COL_ID] = const_id1
+                constrow[COL_ID] = const_id1
                 constrow['type'] = 'geospatial'
                 constrow['south'] = ooi_obj['latitude'] or '0.0'
                 constrow['north'] = ooi_obj['latitude'] or '0.0'
@@ -1189,15 +1218,17 @@ class IONLoader(ImmediateProcess):
                 self._load_Constraint(constrow)
 
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
+            fakerow[COL_ID] = ooi_id
             fakerow['ps/name'] = ooi_obj.get('name', ooi_id)
             fakerow['ps/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             if ooi_obj.get('is_platform', False):
                 fakerow['parent_site_id'] = ooi_id[:8]
+                fakerow['ps/description'] = "Node (platform): %s" % ooi_id
             else:
                 fakerow['parent_site_id'] = ooi_obj.get('platform_id', '')
+                fakerow['ps/description'] = "Node (child): %s" % ooi_id
             fakerow['platform_model_ids'] = ooi_id[9:11] + "_PM"
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
 
@@ -1233,7 +1264,7 @@ class IONLoader(ImmediateProcess):
         if psite_id:
             if self.bulk:
                 psite_obj = self._get_resource_obj(psite_id)
-                site_obj = self._get_resource_obj(row[self.COL_ID])
+                site_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(psite_obj, PRED.hasSite, site_obj)
             else:
                 svc_client.assign_site_to_site(res_id, self.resource_ids[psite_id],
@@ -1245,7 +1276,7 @@ class IONLoader(ImmediateProcess):
             for im_id in im_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(im_id)
-                    site_obj = self._get_resource_obj(row[self.COL_ID])
+                    site_obj = self._get_resource_obj(row[COL_ID])
                     self._create_association(site_obj, PRED.hasModel, model_obj)
                 else:
                     svc_client.assign_instrument_model_to_instrument_site(self.resource_ids[im_id], res_id,
@@ -1253,13 +1284,15 @@ class IONLoader(ImmediateProcess):
 
     def _load_InstrumentSite_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
+        nodes = self.ooi_loader.get_type_assets("node")
+        iclass = self.ooi_loader.get_type_assets("class")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             constrow = {}
             const_id1 = ''
             if ooi_obj['latitude'] or ooi_obj['longitude'] or ooi_obj['depth_port_max'] or ooi_obj['depth_port_min']:
                 const_id1 = ooi_id + "_const1"
-                constrow[self.COL_ID] = const_id1
+                constrow[COL_ID] = const_id1
                 constrow['type'] = 'geospatial'
                 constrow['south'] = ooi_obj['latitude'] or '0.0'
                 constrow['north'] = ooi_obj['latitude'] or '0.0'
@@ -1270,9 +1303,11 @@ class IONLoader(ImmediateProcess):
                 constrow['bottom'] = ooi_obj['depth_port_max'] or '0.0'
                 self._load_Constraint(constrow)
 
+            ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id
-            fakerow['is/name'] = ooi_id
+            fakerow[COL_ID] = ooi_id
+            fakerow['is/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['Class_Name'], nodes[ooi_id[:14]]['name'])
+            fakerow['is/description'] = "Instrument: %s" % ooi_id
             fakerow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
@@ -1294,13 +1329,13 @@ class IONLoader(ImmediateProcess):
         svc_client = self._get_service_client("pubsub_management")
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
             headers=self._get_system_actor_headers())
-        self._register_id(row[self.COL_ID], res_id)
+        self._register_id(row[COL_ID], res_id)
 
     def _conflict_report(self, row_id, name, reason):
         log.warn('''
 ------- Conflict Report -------
 Conflict with %s
-Parmater Name: %s
+Parameter Name: %s
 Reason: %s
 -------------------------------''', row_id, name, reason)
 
@@ -1319,13 +1354,13 @@ Reason: %s
                 if res_id not in context_ids:
                     context_ids[res_id] = 0
                 else:
-                    print 'Duplicate: %s (%s)' % (name, i)
+                    log.warning('Duplicate: %s (%s)', name, i)
                 context_ids[self.resource_ids[i]] = 0
             except KeyError:
                 pass
 
         if not context_ids:
-            print 'No valid parameters: %s' % row['name']
+            log.warning('No valid parameters: %s', row['name'])
             return
         dataset_management = self._get_service_client('dataset_management')
         try:
@@ -1334,18 +1369,15 @@ Reason: %s
             log.exception( '%s has a problem', row['name'])
             return
 
-        self._register_id(row[self.COL_ID], pdict_id)
+        self._register_id(row[COL_ID], pdict_id)
 
 
 
     def _load_ParameterDefs(self, row):
-        try:
-            if row['SKIP']:
-                self._conflict_report(row['ID'], row['Name'], row['SKIP'])
-                return
-        except:
-            print '>>>>>>>>>> ', row.keys()
-            raise
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['Name'], row['SKIP'])
+            return
+
         name          = row['Name']
         ptype         = row['Parameter Type']
         encoding      = row['Value Encoding']
@@ -1368,7 +1400,7 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         except:
-            print row
+            log.exception('Could not load the following parameter definition: %s', row)
             return
         
 
@@ -1395,7 +1427,7 @@ Reason: %s
             else:
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
-        self._register_id(row[self.COL_ID], context_id)
+        self._register_id(row[COL_ID], context_id)
 
 
     def _load_PlatformDevice(self, row):
@@ -1406,7 +1438,7 @@ Reason: %s
 
         if self.bulk:
             # Create DataProducer and association
-            pd_obj = self._get_resource_obj(row[self.COL_ID])
+            pd_obj = self._get_resource_obj(row[COL_ID])
             pd_alias = self._get_alt_id(pd_obj, "PRE")
             data_producer_obj = IonObject(RT.DataProducer, name=pd_obj.name,
                 description="Primary DataProducer for PlatformDevice %s" % pd_obj.name,
@@ -1420,7 +1452,7 @@ Reason: %s
         if ass_id:
             if self.bulk:
                 model_obj = self._get_resource_obj(ass_id)
-                device_obj = self._get_resource_obj(row[self.COL_ID])
+                device_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(device_obj, PRED.hasModel, model_obj)
             else:
                 ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id,
@@ -1429,14 +1461,15 @@ Reason: %s
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
     def _load_PlatformDevice_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("nodetype")
+        ooi_objs = self.ooi_loader.get_type_assets("node")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_PD"
-            fakerow['pd/name'] = "%s (%s)" % (ooi_obj.get('name', ''), ooi_id)
+            fakerow[COL_ID] = ooi_id + "_PD"
+            fakerow['pd/name'] = "%s" % ooi_obj.get('name', '')
+            fakerow['pd/description'] = "Platform %s device #01" % ooi_id
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
-            fakerow['platform_model_id'] = ooi_id + "_PM"
+            fakerow['platform_model_id'] = ooi_id[9:11] + "_PM"
             fakerow['contact_ids'] = ''
 
             if not self._match_filter(ooi_obj.get('array_list', None)):
@@ -1453,7 +1486,7 @@ Reason: %s
 
         if self.bulk:
             # Create DataProducer and association
-            id_obj = self._get_resource_obj(row[self.COL_ID])
+            id_obj = self._get_resource_obj(row[COL_ID])
             id_alias = self._get_alt_id(id_obj, "PRE")
             data_producer_obj = IonObject(RT.DataProducer, name=id_obj.name,
                 description="Primary DataProducer for InstrumentDevice %s" % id_obj.name,
@@ -1467,7 +1500,7 @@ Reason: %s
         if ass_id:
             if self.bulk:
                 model_obj = self._get_resource_obj(ass_id)
-                device_obj = self._get_resource_obj(row[self.COL_ID])
+                device_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(device_obj, PRED.hasModel, model_obj)
             else:
                 ims_client.assign_instrument_model_to_instrument_device(self.resource_ids[ass_id], res_id,
@@ -1476,7 +1509,7 @@ Reason: %s
         if ass_id:
             if self.bulk:
                 parent_obj = self._get_resource_obj(ass_id)
-                device_obj = self._get_resource_obj(row[self.COL_ID])
+                device_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(parent_obj, PRED.hasDevice, device_obj)
             else:
                 ims_client.assign_instrument_device_to_platform_device(res_id, self.resource_ids[ass_id],
@@ -1486,15 +1519,27 @@ Reason: %s
 
     def _load_InstrumentDevice_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
+        nodes = self.ooi_loader.get_type_assets("node")
+        iclass = self.ooi_loader.get_type_assets("class")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
+            node_id = ooi_id[:14]
+            node_obj = nodes[node_id]
+            if not node_obj.get('is_platform', False):
+                node_id = node_obj.get('platform_id')
+                node_obj = nodes[node_id]
+                if not node_obj.get('is_platform', False):
+                    log.warn("Node %s is not a platform!!" % node_id)
+
+            ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_ID"
-            fakerow['id/name'] = ooi_id
+            fakerow[COL_ID] = ooi_id + "_ID"
+            fakerow['id/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['Class_Name'], nodes[ooi_id[:14]]['name'])
+            fakerow['id/description'] = "Instrument %s device #01" % ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow['instrument_model_id'] = ooi_rd.subseries_rd
-            fakerow['platform_device_id'] = ooi_rd.node_type + "_PD"
+            fakerow['platform_device_id'] = node_id + "_PD"
             fakerow['id/reference_urls'] = ''
             fakerow['contact_ids'] = ''
 
@@ -1514,7 +1559,7 @@ Reason: %s
         if ass_id:
             if self.bulk:
                 model_obj = self._get_resource_obj(ass_id)
-                device_obj = self._get_resource_obj(row[self.COL_ID])
+                device_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(device_obj, PRED.hasModel, model_obj)
             else:
                 ims_client.assign_sensor_model_to_sensor_device(self.resource_ids[ass_id], res_id,
@@ -1523,7 +1568,7 @@ Reason: %s
         if ass_id:
             if self.bulk:
                 parent_obj = self._get_resource_obj(ass_id)
-                device_obj = self._get_resource_obj(row[self.COL_ID])
+                device_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(parent_obj, PRED.hasDevice, device_obj)
             else:
                 ims_client.assign_sensor_device_to_instrument_device(res_id, self.resource_ids[ass_id],
@@ -1546,7 +1591,7 @@ Reason: %s
 
         if self.bulk:
             # Create DataProducer and association
-            ia_obj = self._get_resource_obj(row[self.COL_ID])
+            ia_obj = self._get_resource_obj(row[COL_ID])
             proc_def_obj = IonObject(RT.ProcessDefinition)
             pd_id = self._create_bulk_resource(proc_def_obj)
             self._create_association(ia_obj, PRED.hasProcessDefinition, proc_def_obj)
@@ -1560,7 +1605,7 @@ Reason: %s
             for im_id in im_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(im_id)
-                    agent_obj = self._get_resource_obj(row[self.COL_ID])
+                    agent_obj = self._get_resource_obj(row[COL_ID])
                     self._create_association(model_obj, PRED.hasAgentDefinition, agent_obj)
                 else:
                     svc_client.assign_instrument_model_to_instrument_agent(self.resource_ids[im_id], res_id,
@@ -1569,11 +1614,11 @@ Reason: %s
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
     def _load_InstrumentAgent_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("instrument")
+        ooi_objs = self.ooi_loader.get_type_assets("subseries")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_IA"
+            fakerow[COL_ID] = ooi_id + "_IA"
             fakerow['ia/name'] = "Instrument Agent for " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             ooi_rd = OOIReferenceDesignator(ooi_id)
@@ -1588,7 +1633,8 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
-                                            'port':  int(row['comms_server_port']) } }
+                                                    'port':  int(row['comms_server_port']),
+                                                    'cmd_port': int(row['comms_server_cmd_port']) } }
 
         port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
                               'device_port':   int(row['iai/comms_device_port']),
@@ -1624,7 +1670,7 @@ Reason: %s
 
         if self.bulk:
             # Create DataProducer and association
-            pa_obj = self._get_resource_obj(row[self.COL_ID])
+            pa_obj = self._get_resource_obj(row[COL_ID])
             proc_def_obj = IonObject(RT.ProcessDefinition)
             pd_id = self._create_bulk_resource(proc_def_obj)
             self._create_association(pa_obj, PRED.hasProcessDefinition, proc_def_obj)
@@ -1637,7 +1683,7 @@ Reason: %s
             for model_id in model_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(model_id)
-                    agent_obj = self._get_resource_obj(row[self.COL_ID])
+                    agent_obj = self._get_resource_obj(row[COL_ID])
                     self._create_association(model_obj, PRED.hasAgentDefinition, agent_obj)
                 else:
                     svc_client.assign_platform_model_to_platform_agent(self.resource_ids[model_id], res_id,
@@ -1649,7 +1695,7 @@ Reason: %s
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_PA"
+            fakerow[COL_ID] = ooi_id + "_PA"
             fakerow['pa/name'] = "Platform Agent for " + ooi_id
             fakerow['platform_model_ids'] = ooi_id + "_PM"
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
@@ -1671,18 +1717,28 @@ Reason: %s
         driver_config['dvr_cls'] = platform_agent.driver_class
         driver_config['dvr_mod'] = platform_agent.driver_module
 
-        #TODO: allow child platforms
-        platform_topology = { platform_id: [] }
-
+        # ***** previously: *****
+        # #TODO: allow child platforms
+        # platform_topology = { platform_id: [] }
         #
-        device_dict = self._HACK_get_device_dict(platform_id)
+        # #
+        # device_dict = self._HACK_get_device_dict(platform_id)
+        #
+        # admap = { platform_id: device_dict }
+        # platform_config = { 'platform_id':             platform_id,
+        #                     'platform_topology':       platform_topology,
+        #                     'agent_device_map':        admap,
+        #                     'agent_streamconfig_map':  None,  # can we just omit?
+        #                     'driver_config':           driver_config }
+        #
 
-        admap = { platform_id: device_dict }
+        # ***** now using platform network definition
+        network_definition_ser = self._HACK_get_platform_network_definition()
         platform_config = { 'platform_id':             platform_id,
-                            'platform_topology':       platform_topology,
-                            'agent_device_map':        admap,
-                            'agent_streamconfig_map':  None,  # can we just omit?
-                            'driver_config':           driver_config }
+                            'driver_config':           driver_config,
+                            'network_definition' :     network_definition_ser
+        }
+
         agent_config = { 'platform_config': platform_config }
 
 
@@ -1704,24 +1760,37 @@ Reason: %s
     #        agent_config = self._parse_dict(row['agent_config'])
     #        stream_definition = self.resource_objs[row['stream_definition']]
 
-    def _HACK_get_device_dict(self, platform_id):
-        """ TODO: remove from preload and the initial object def.  instead query OmsClient from IMS when the platform agent is started
-            TODO: set a property in the agent instance to identify which OmsClient to use (need to support platforms from different Orgs)
+    def _HACK_get_platform_network_definition(self):
+        """
+        This replaces _HACK_get_device_dict.
+        Here, we still use the simulator, but via a utility that provides the
+        network definition in yaml format suitable for the platform configuration.
+        """
+        from ion.agents.platform.rsn.oms_util import RsnOmsUtil
+        from ion.agents.platform.util.network_util import NetworkUtil
+        simulator = CIOMSClientFactory.create_instance()
+        network_definition = RsnOmsUtil.build_network_definition(simulator)
+        network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
+        return network_definition_ser
 
-            query the simulated OmsClient for information about the platform
+    def _HACK_get_device_dict(self, platform_id):
+        """ TODO: remove from preload and the initial object def.  instead query CIOMSClient from IMS when the platform agent is started
+            TODO: set a property in the agent instance to identify which CIOMSClient to use (need to support platforms from different Orgs)
+
+            query the simulated CIOMSClient for information about the platform
         """
 
-        simulator = OmsClientFactory.create_instance()
+        simulator = CIOMSClientFactory.create_instance()
 
         # get network information (from: test_oms_launch2._prepare_platform_ports)
         port_dicts = []
-        platform_port_info = simulator.getPlatformPorts(platform_id)
+        platform_port_info = simulator.get_platform_ports(platform_id)
         for port_id, port in platform_port_info[platform_id].iteritems():
-            port_dicts.append(dict(port_id=port_id, ip_address=port['comms']['ip']))
+            port_dicts.append(dict(port_id=port_id, ip_address=port['network']))
 
         # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
         attribute_dicts = []
-        platform_attribute_info = simulator.getPlatformAttributes(platform_id)
+        platform_attribute_info = simulator.get_platform_attributes(platform_id)
         for name, attribute in platform_attribute_info[platform_id].iteritems():
             attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
 
@@ -1729,6 +1798,10 @@ Reason: %s
         return { 'ports': port_dicts,
                  'platform_monitor_attributes': attribute_dicts }
 
+
+
+    def _load_TransformFunction(self,row):
+        res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
 
     def _load_DataProcessDefinition(self, row):
         res_id = self._basic_resource_create(row, "DataProcessDefinition", "dpd/",
@@ -1771,13 +1844,14 @@ Reason: %s
 
         headers = self._get_op_headers(row)
         res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
-        self._register_id(row[self.COL_ID], res_id)
+        self._register_id(row[COL_ID], res_id)
 
         self._resource_assign_org(row, res_id)
 
         res_id = svc_client.activate_data_process(res_id, headers=self._get_system_actor_headers())
 
     def _load_DataProduct(self, row, do_bulk=False):
+        self._fix_boolean(row, 'persist_metadata', 'persist_data')
         tdom, sdom = time_series_domain()
 
         contacts = self._get_contacts(row, field='contact_ids', type='DataProduct')
@@ -1799,18 +1873,18 @@ Reason: %s
 
         if self.bulk and do_bulk:
             # This is a non-functional, diminished version of a DataProduct, just to show up in lists
-            res_id = self._create_bulk_resource(res_obj, row[self.COL_ID])
+            res_id = self._create_bulk_resource(res_obj, row[COL_ID])
             self._resource_assign_owner(headers, res_obj)
             # Create and associate Stream
-            # Create and associate DataSet
+            # Create and associate Dataset
         else:
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]
             res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
                 headers=headers)
-            self._register_id(row[self.COL_ID], res_id, res_obj)
+            self._register_id(row[COL_ID], res_id, res_obj)
 
-            if not self.debug and row['persist_data']=='1':
+            if not self.debug and row['persist_data']:
                 svc_client.activate_data_product_persistence(res_id, headers=headers)
 
         self._resource_assign_org(row, res_id)
@@ -1818,6 +1892,7 @@ Reason: %s
 
     def _load_DataProduct_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
+        data_products = self.ooi_loader.get_type_assets("data_product")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             const_id1 = ''
@@ -1830,8 +1905,9 @@ Reason: %s
 
             # (1) Device Data Product - parsed
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_DPIDP"
+            fakerow[COL_ID] = ooi_id + "_DPIDP"
             fakerow['dp/name'] = "Data Product parsed for device " + ooi_id
+            fakerow['dp/description'] = "Data Product (device, parsed) for: " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['contact_ids'] = ''
             fakerow['geo_constraint_id'] = const_id1
@@ -1842,8 +1918,9 @@ Reason: %s
 
             # (2) Device Data Product - raw
             fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_DPIDR"
+            fakerow[COL_ID] = ooi_id + "_DPIDR"
             fakerow['dp/name'] = "Data Product raw for device " + ooi_id
+            fakerow['dp/description'] = "Data Product (device, raw) for: " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             fakerow['contact_ids'] = ''
             fakerow['geo_constraint_id'] = const_id1
@@ -1853,23 +1930,17 @@ Reason: %s
             self._load_DataProduct(fakerow, do_bulk=self.bulk)
 
             # (3) Site Data Product - parsed
-            fakerow = {}
-            fakerow[self.COL_ID] = ooi_id + "_DPISP"
-            fakerow['dp/name'] = "Data Product parsed for site " + ooi_id
-            fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
-            fakerow['contact_ids'] = ''
-            fakerow['geo_constraint_id'] = const_id1
-            fakerow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            fakerow['available_formats'] = ''
-            fakerow['stream_def_id'] = ''
-            self._load_DataProduct(fakerow, do_bulk=self.bulk)
-
             data_product_list = ooi_obj.get('data_product_list', [])
             for dp_id in data_product_list:
+                dp_obj = data_products[dp_id]
+
                 # (4*) Site Data Product DPS - Level
                 fakerow = {}
-                fakerow[self.COL_ID] = ooi_id + "_" + dp_id + "_DPID"
-                fakerow['dp/name'] = "Data Product for site " + ooi_id + " DPS " + dp_id
+                fakerow[COL_ID] = ooi_id + "_" + dp_id + "_DPID"
+                fakerow['dp/name'] = "%s %s at %s" % (dp_obj['name'], dp_obj['level'], ooi_id)
+
+                #"Data Product for site " + ooi_id + " DPS " + dp_id
+                fakerow['dp/description'] = "Data Product DPS %s level %s for site %s: " % (dp_id,  dp_obj['level'], ooi_id)
                 fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
                 fakerow['contact_ids'] = ''
                 fakerow['geo_constraint_id'] = const_id1
@@ -1950,7 +2021,7 @@ Reason: %s
         att_obj = self._create_object_from_row("Attachment", row, "att/")
         filename = row["file_path"]
         if not filename:
-            raise iex.BadRequest('attachment did not include a filename: ' + row[self.COL_ID])
+            raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])
 
         path = "%s/%s" % (self.attachment_path, filename)
         try:
@@ -1961,7 +2032,7 @@ Reason: %s
             log.warn("Failed to open attachment file: %s/%s" % (path, ioe))
 
         att_id = self.container.resource_registry.create_attachment(res_id, att_obj)
-        self._register_id(row[self.COL_ID], att_id, att_obj)
+        self._register_id(row[COL_ID], att_id, att_obj)
 
     def _load_WorkflowDefinition(self, row):
         log.info("Loading WorkflowDefinition")
@@ -1989,7 +2060,7 @@ Reason: %s
         workflow_def_id = workflow_client.create_workflow_definition(workflow_def_obj,
             headers=headers)
 
-        self._register_id(row[self.COL_ID], workflow_def_id, workflow_def_obj)
+        self._register_id(row[COL_ID], workflow_def_id, workflow_def_obj)
 
     def _load_Workflow(self,row):
         workflow_obj = self._create_object_from_row("Workflow", row, "wf/")
@@ -2003,16 +2074,12 @@ Reason: %s
             configuration = self._get_typed_value(configuration, targettype="dict")
             configuration["in_dp_id"] = in_dp_id
 
-        persist_data_flag = False
-        if row["persist_data"] == "TRUE":
-            persist_data_flag = True
-
         headers = self._get_op_headers(row)
 
         # Create and start the workflow
-        workflow_id, workflow_product_id = workflow_client.create_data_process_workflow(
+        workflow_client.create_data_process_workflow(
             workflow_definition_id=workflow_def_id,
-            input_data_product_id=in_dp_id, persist_workflow_data_product=persist_data_flag,
+            input_data_product_id=in_dp_id, persist_workflow_data_product=self._as_boolean(row["persist_data"]),
             configuration=configuration, timeout=30,
             headers=headers)
 
@@ -2035,7 +2102,7 @@ Reason: %s
         oms.deploy_instrument_site(site_id, deployment_id, headers=headers)
         ims.deploy_instrument_device(device_id, deployment_id, headers=headers)
 
-        if row['activate']=='1':
+        if self._as_boolean(row['activate']):
             oms.activate_deployment(deployment_id, headers=headers)
 
     def delete_ooi_assets(self):

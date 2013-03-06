@@ -19,12 +19,12 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 from pyon.public import IonObject
 
 # Pyon exceptions.
-from pyon.core.exception import IonException
+from pyon.core.exception import IonException, Inconsistent
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
 from pyon.core.exception import Timeout
@@ -43,12 +43,12 @@ import numpy
 import gevent
 
 # MI exceptions
-from mi.core.exceptions import InstrumentTimeoutException
-from mi.core.exceptions import InstrumentParameterException
-from mi.core.exceptions import SampleException
-from mi.core.exceptions import InstrumentStateException
-from mi.core.exceptions import InstrumentProtocolException
-from mi.core.exceptions import InstrumentException
+from ion.core.includes.mi_exceptions import InstrumentTimeoutException
+from ion.core.includes.mi_exceptions import InstrumentParameterException
+from ion.core.includes.mi_exceptions import SampleException
+from ion.core.includes.mi_exceptions import InstrumentStateException
+from ion.core.includes.mi_exceptions import InstrumentProtocolException
+from ion.core.includes.mi_exceptions import InstrumentException
 
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
@@ -65,15 +65,13 @@ from interface.objects import StreamAlarmType
 from interface.objects import AlarmDef
 from ion.agents.alarms.alarms import construct_alarm_expression
 from ion.agents.alarms.alarms import eval_alarm
-from interface.objects import StreamWarningAlaramEvent
+from ion.agents.alarms.alarms import make_event_data
+from interface.objects import StreamWarningAlarmEvent
 from interface.objects import StreamAlertAlarmEvent
 from interface.objects import StreamAllClearAlarmEvent
 
 # MI imports
-from ion.core.includes.mi import DriverEvent
 from ion.core.includes.mi import DriverAsyncEvent
-from ion.core.includes.mi import DriverProtocolState
-from ion.core.includes.mi import DriverParameter
 from interface.objects import StreamRoute
 from interface.objects import AgentCommand
 
@@ -247,52 +245,29 @@ class InstrumentAgent(ResourceAgent):
     # Governance interfaces
     ##############################################################
 
-    def check_set_resource(self, msg,  headers):
+    #TODO - When/If the Instrument and Platform agents are dervied from a common device agent class, then relocate to the parent class and share
+    def check_resource_operation_policy(self, msg,  headers):
         '''
-        This function is used for governance validation for the set_resource operation.
+        This function is used for governance validation for certain agent operations.
+        @param msg:
+        @param headers:
+        @return:
         '''
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers, resource_id_required=False)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
             return True, ''
 
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
-        com = self._get_resource_commitments(headers['ion-actor-id'])
+        com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
         if com is None:
-            return False, '(set_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        return True, ''
-
-    def check_execute_resource(self, msg,  headers):
-        '''
-        This function is used for governance validation for the execute_resource operation.
-        '''
-
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
-            return True, ''
-
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
-
-        com = self._get_resource_commitments(headers['ion-actor-id'])
-        if com is None:
-            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
-
-        return True, ''
-
-    def check_ping_resource(self, msg,  headers):
-        '''
-        This function is used for governance validation for the ping_resource operation.
-        '''
-        if self._is_org_role(headers['ion-actor-roles'], ORG_MANAGER_ROLE):
-            return True, ''
-
-        if not self._is_org_role(headers['ion-actor-roles'], INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
-
-        com = self._get_resource_commitments(headers['ion-actor-id'])
-        if com is None:
-            return False, '(ping_resource) has been denied since the user %s has not acquired the resource %s' % (headers['ion-actor-id'], self.resource_id)
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
 
         return True, ''
 
@@ -654,10 +629,8 @@ class InstrumentAgent(ResourceAgent):
         #next_state = InstrumentAgentState.DIRECT_ACCESS
         
         # tell driver to start direct access mode
-        # (dvr_result, next_state) = self._dvr_client.cmd_dvr('execute_start_direct_access')
-        #(next_state, dvr_result) = self.execute_resource(DriverEvent.START_DIRECT)
-        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.START_DIRECT)
-        
+        (next_state, dvr_result) = self._dvr_client.cmd_dvr('start_direct')
+
         return (next_state, result)        
 
     ##############################################################
@@ -726,8 +699,8 @@ class InstrumentAgent(ResourceAgent):
         log.info("Instrument agent requested to stop direct access mode - %s" %self._da_session_close_reason)
         
         # tell driver to stop direct access mode
-        (next_state, dvr_result) = self._handler_execute_resource(DriverEvent.STOP_DIRECT)
-        
+        (next_state, dvr_result) = self._dvr_client.cmd_dvr('stop_direct')
+
         # stop DA server
         if (self._da_server):
             self._da_server.stop()
@@ -791,6 +764,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceStateEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver state change event.',
@@ -807,6 +781,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceConfigEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver config change event.',
@@ -843,6 +818,11 @@ class InstrumentAgent(ResourceAgent):
         try:
             stream_name = val['stream_name']
             self._stream_buffers[stream_name].insert(0,val)
+
+            if stream_name == 'parsed':
+                print '############################ IA got parsed sample:'
+                print str(val)
+
         except KeyError:
             log.error('Instrument agent %s received sample with bad \
                 stream name %s.', self._proc_name, stream_name)
@@ -866,23 +846,79 @@ class InstrumentAgent(ResourceAgent):
         except KeyError:
             log.error('Tomato missing stream_name or values keys. Could not process alarms.')
             return
+
+        stream_alarms = []
+        first_time_alarms = []
+        og_alarms = []
  
         for v in values:
             try:
+                # Grab the value and id.
                 value_id = v['value_id']
                 value = v['value']
-            except KeyError:
-                log.error('Tomato value missing value_id or value keys. Could not process alarms.')
+
+                # Retrieve the alarms relevant to this stream and id.
+                stream_value_alarms = [a for a in self.aparam_alarms if
+                    a.stream_name == stream_name and a.value_id == value_id]
+
+                # Evaluate the alarms relevant to this stream and id.
+                [eval_alarm(a, value) for a in stream_value_alarms]
+                 
+                # Accumulate all alarms relevant to this stream.
+                stream_alarms.extend(stream_value_alarms)
                 
-            else:           
-                for a in self.aparam_alarms:
-                    if a.stream_name == stream_name and a.value_id == value_id:
-                        (a, event_data) = eval_alarm(a, value)
-                        if event_data:
-                            self._event_publisher.publish_event(
-                                event_data['event_type'],
-                                origin=self._resource_id,
-                                **event_data)
+            except KeyError:
+                log.error('Tomato value missing value_id or value keys. Could not process alarms for stream %s, value_id %s.',
+                          stream_name, value_id)
+
+        # Determine first time alarms.
+        first_time_alarms = [a for a in stream_alarms if a.first_time == 1]
+                
+        # Ongoing alarms.
+        og_alarms = [a for a in stream_alarms if a.first_time > 1]
+        
+        # Determine newly cleared alarms.
+        new_pos_alarms = [a for a in og_alarms if a.status and not a.old_status]
+                
+        # Determine newly bad alarms.
+        new_neg_alarms = [a for a in og_alarms if a.old_status and not a.status]
+                
+        # Determine all cleared alarms.
+        # pos_alarms = [a for a in og_alarms if a.status and not a.first_time]
+                
+        # Publish all statuses first time.
+        if first_time_alarms:
+            self._publish_alarms(first_time_alarms)
+                
+        # Publish newly bad alarms.                
+        if new_neg_alarms:
+            self._publish_alarms(new_neg_alarms)
+        
+        # Publish newly cleared alarms.                
+        if new_pos_alarms:
+            self._publish_alarms(new_pos_alarms)
+            
+        # TODO.
+        # Publish stream all clear if something cleared and there
+        # are no more bad alarms.
+                            
+    def _publish_alarms(self, alarms):
+        """
+        """
+        events = [make_event_data(a) for a in alarms]
+        events = [x for x in events if x]
+        for event_data in events:
+            try:
+                self._event_publisher.publish_event(
+                    origin=self.resource_id,
+                    origin_type=self.ORIGIN_TYPE,
+                    **event_data)
+                log.info('Instrument agent %s published alarm event %s.',
+                        self._proc_name, str(event_data))
+                
+            except Exception as ex:
+                log.error('Instrument agent %s could not publish alarm event %s. Exception: %s',
+                        self._proc_name, str(event_data), str(ex))
         
     def _publish_stream_buffer(self, stream_name):
         """
@@ -933,9 +969,7 @@ class InstrumentAgent(ResourceAgent):
                                 if tval_dict.get('binary', None):
                                     tval_val = base64.b64decode(tval_val)
                                 data_arrays[tval_id][i] = tval_val
-                                
-                                self._eval_alarms(stream_name, tval_id, tval_val)
-                                
+                                                               
                     elif tk in rdt:
                         data_arrays[tk][i] = tv
                         if tk == 'driver_timestamp':
@@ -953,33 +987,6 @@ class InstrumentAgent(ResourceAgent):
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
                 self._proc_name, stream_name)
-        
-        
-    def _eval_alarms(self, stream_name, value_id, value):
-        """
-        """
-        no_changed = 0
-        went_true = []
-        for a in self.aparam_alarms:
-            if a.stream_name == stream_name and a.value_id == value_id:
-                if eval(a.expr):
-                    if not a.status:
-                        a.status = True
-                        no_changed += 1
-                        went_true.append(a)
-                else:
-                    if a.status:
-                        a.status = False
-                        no_changed += 1
-
-        if no_changed > 0:
-            if len(went_true)>0:
-                # publish all true events
-                pass
-        
-            else:
-                #publish all clear
-                pass    
                          
     def _async_driver_event_error(self, val, ts):
         """
@@ -1006,6 +1013,7 @@ class InstrumentAgent(ResourceAgent):
             
             self._event_publisher.publish_event(
                 event_type='ResourceAgentErrorEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver error event.',
@@ -1025,6 +1033,7 @@ class InstrumentAgent(ResourceAgent):
             }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentAsyncResultEvent',
+                origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id, **event_data)
         except:
             log.error('Instrument agent %s could not publish driver result event.',
@@ -1301,9 +1310,22 @@ class InstrumentAgent(ResourceAgent):
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)
                     self.aparam_streams[stream_name] = rdt.fields
                     
-                    alarms = stream_config.get('alarms',None)
-                    if isinstance(alarms, (list,tuple)):
-                        self.aparam_set_alarms(['add'].extend(alarms))
+                    alarm_defs = stream_config.get('alarms',None)
+                    if isinstance(alarm_defs, (list,tuple)):
+                        alarms = []
+                        for x in alarm_defs:
+                            try:
+                                type = x['type']
+                                kwargs = x['kwargs']
+                                a = IonObject(type,**kwargs)
+                                alarms.append(a)
+                            except:
+                                log.error('Instrument agent %s failed to create alarm from def %s', str(x))
+                    
+                        if len(alarms) > 0:
+                            params = ['set']
+                            params.extend(alarms)
+                            self.aparam_set_alarms(params)
                     
     def _start_publisher_greenlets(self):
         """
@@ -1395,7 +1417,10 @@ class InstrumentAgent(ResourceAgent):
                     log.error('Attempted to remove an invalid alarm.')
                     
             self.aparam_alarms = new_alarms
-            
+        
+        for a in self.aparam_alarms:
+            log.info('Instrument agent %s has alarm: %s', self._proc_name, str(a))
+                
         return len(self.aparam_alarms)
         
     ###############################################################################
@@ -1421,6 +1446,6 @@ class InstrumentAgent(ResourceAgent):
             return
         log.debug("InstAgent.telnetInputProcessor: data = <" + str(data) + "> len=" + str(len(data)))
         # send the data to the driver
-        self._dvr_client.cmd_dvr('execute_resource', DriverEvent.EXECUTE_DIRECT, data)
-        
+        self._dvr_client.cmd_dvr('execute_direct', data)
+
         

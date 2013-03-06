@@ -283,34 +283,38 @@ def eval_alarm(alarm_def, x):
     """
     """
     alarm_def.current_val = x
-    old_status = alarm_def.status
+    alarm_def.old_status = alarm_def.status
     alarm_def.status = eval(alarm_def.expr)
+    alarm_def.first_time += 1
+    if alarm_def.first_time > 2:
+        alarm_def.first_time = 2
     
-    event_data = None
-    
-    if old_status != alarm_def.status:
+def make_event_data(alarm_def):
+    """
+    """    
             
-        event_data = {
-            'name' : alarm_def.name,
-            'message' : alarm_def.message,
-            'expr' : alarm_def.expr,
-            'stream_name' : alarm_def.stream_name,
-            'value_id' : alarm_def.value_id,
-            'value' : x
-        }
+    event_data = {
+        'name' : alarm_def.name,
+        'message' : alarm_def.message,
+        'expr' : alarm_def.expr,
+        'stream_name' : alarm_def.stream_name,
+        'value_id' : alarm_def.value_id,
+        'value' : alarm_def.current_val
+    }
         
-        if not alarm_def.status:
-            event_data['event_type'] = 'StreamAllClearAlarmEvent'
-            event_data['message'] = 'The alarm %s has cleared.' % alarm_def.name
-            
-        elif alarm_def.type == StreamAlarmType.WARNING:
-            event_data['event_type'] = 'StreamWarningAlaramEvent'
+    if alarm_def.status:
+        event_data['event_type'] = 'StreamAllClearAlarmEvent'
+        event_data['message'] = 'Alarm is cleared.'
+        
+    elif alarm_def.type == StreamAlarmType.WARNING:
+        event_data['event_type'] = 'StreamWarningAlarmEvent'
 
-        elif alarm_def.type == StreamAlarmType.ALERT:
-            event_data['event_type'] = 'StreamAlertAlarmEvent'
+    elif alarm_def.type == StreamAlarmType.ALERT:
+        event_data['event_type'] = 'StreamAlertAlarmEvent'
 
-        else:
-            log.error('Unknown alarm type.')
-            event_data = None
+    else:
+        log.error('Unknown alarm type.')
+        return None
     
-    return (alarm_def, event_data)
+    return event_data
+    

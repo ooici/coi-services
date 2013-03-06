@@ -20,7 +20,8 @@ from interface.services.dm.ipubsub_management_service import BasePubsubManagemen
 from collections import deque
 import logging
 
-
+from coverage_model.parameter_functions import ParameterFunctionException
+from coverage_model.parameter import ParameterFunctionValidator
 
 dot = logging.getLogger('dot')
 
@@ -28,7 +29,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
 
-    def create_stream_definition(self, name='', parameter_dictionary=None, parameter_dictionary_id='', stream_type='', description=''):
+    def create_stream_definition(self, name='', parameter_dictionary=None, parameter_dictionary_id='', stream_type='', description='', available_fields=None):
         parameter_dictionary = parameter_dictionary or {}
         existing = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition, name=name, id_only=True)[0]
         if name and existing:
@@ -46,7 +47,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         name = name or create_unique_identifier()
 
-        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description)
+        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description, available_fields=available_fields)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
         if parameter_dictionary_id:
             self._associate_pdict_with_definition(parameter_dictionary_id, stream_definition_id)
@@ -62,7 +63,7 @@ class PubsubManagementService(BasePubsubManagementService):
             else:
                 raise NotFound('No Stream Definition is associated with this Stream')
         stream_definition = retval or self.clients.resource_registry.read(stream_definition_id)
-        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionaryResource, id_only=True)
+        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary, id_only=True)
         if len(pdicts):
             stream_definition.parameter_dictionary = DatasetManagementService.get_parameter_dictionary(pdicts[0]).dump()
         validate_is_instance(stream_definition,StreamDefinition)
@@ -76,9 +77,48 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def compare_stream_definition(self, stream_definition1_id='', stream_definition2_id=''):
         # returns True if the 2 stream definitions are equivalent
+        if stream_definition1_id == stream_definition2_id and self.read_stream_definition(stream_definition1_id):
+            return True
         def1 = self.read_stream_definition(stream_definition1_id)
         def2 = self.read_stream_definition(stream_definition2_id)
+        pdict_compare = self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary) 
+        return pdict_compare and sorted(def1.available_fields) == sorted(def2.available_fields)
+
+    def compatible_stream_definitions(self, in_stream_definition_id, out_stream_definition_id):
+        if in_stream_definition_id == out_stream_definition_id and self.read_stream_definition(in_stream_definition_id):
+            return True
+        def1 = self.read_stream_definition(in_stream_definition_id)
+        def2 = self.read_stream_definition(out_stream_definition_id)
         return self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
+        
+    def validate_stream_defs(self, in_stream_definition_id, out_stream_definition_id):
+        stream_def_in = self.read_stream_definition(in_stream_definition_id)
+        stream_def_out = self.read_stream_definition(out_stream_definition_id)
+        
+        if not stream_def_in.available_fields:
+            log.info("no available fields on input stream definition")
+            return False
+        
+        incoming_pdict_dump = stream_def_in.parameter_dictionary
+        outgoing_pdict_dump = stream_def_out.parameter_dictionary
+
+        incoming_pdict = ParameterDictionary.load(incoming_pdict_dump)
+        outgoing_pdict = ParameterDictionary.load(outgoing_pdict_dump)
+
+        incoming_ctxt = [pc for name,(n,pc) in incoming_pdict.iteritems()]
+        outgoing_ctxt = [pc for name,(n,pc) in outgoing_pdict.iteritems()]
+        
+        incoming_ctxt_af = [pc for name,(n,pc) in incoming_pdict.iteritems() if name in stream_def_in.available_fields]
+        
+        pfv = ParameterFunctionValidator(incoming_ctxt_af, incoming_ctxt, outgoing_ctxt)
+        try:
+            for name in stream_def_out.available_fields:
+                pfv.validate(name)
+        except ParameterFunctionException, e:
+            log.info('validation failed %s to %s is not reachable' % (stream_def_in.available_fields,stream_def_out.available_fields))
+            log.info(e)
+            return False
+        return True
 
     #--------------------------------------------------------------------------------
     

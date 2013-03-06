@@ -6,12 +6,14 @@ __author__ = 'Stephen P. Henrie'
 """
 Process that loads the system policy
 """
+
+from pyon.core.governance import get_system_actor, get_system_actor_header
 from pyon.public import CFG, log, ImmediateProcess, iex, Container, IonObject, RT, OT
+
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
-from pyon.public import CFG, log, ImmediateProcess, iex, Container
 
 class LoadSystemPolicy(ImmediateProcess):
     """
@@ -47,10 +49,10 @@ class LoadSystemPolicy(ImmediateProcess):
 
         id_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=calling_process )
 
-        system_actor = Container.instance.governance_controller.get_system_actor()
+        system_actor = get_system_actor()
         log.info('system actor:' + system_actor._id)
 
-        sa_user_header = Container.instance.governance_controller.get_system_actor_header()
+        sa_user_header = get_system_actor_header()
 
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
 
@@ -349,10 +351,15 @@ class LoadSystemPolicy(ImmediateProcess):
                 </Resources>
 
                 <Actions>
-
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">signon</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_user_info</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
@@ -408,14 +415,6 @@ class LoadSystemPolicy(ImmediateProcess):
                     <Subject>
                         <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
-                            <SubjectAttributeDesignator
-                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
-                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </SubjectMatch>
-                    </Subject>
-                    <Subject>
-                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
                             <SubjectAttributeDesignator
                                  AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
@@ -643,6 +642,14 @@ class LoadSystemPolicy(ImmediateProcess):
                                  DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </SubjectMatch>
                     </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
                 </Subjects>
             </Target>
 
@@ -838,39 +845,44 @@ class LoadSystemPolicy(ImmediateProcess):
 
         #Add precondition policies for the Instrument Agents
 
-        #TODO - these process names may not seem correct!!!
-
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_resource',
-                policy_content='check_execute_resource', headers=sa_user_header )
+                policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='set_resource',
-            policy_content='check_set_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='ping_resource',
-            policy_content='check_ping_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         #Add precondition policies for the Platform Agents
 
-        #TODO - these process names do not seem correct!!!
-
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='execute_resource',
-            policy_content='check_execute_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='set_resource',
-            policy_content='check_set_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
 
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='ping_resource',
-            policy_content='check_ping_resource', headers=sa_user_header )
+            policy_content='check_resource_operation_policy', headers=sa_user_header )
+
 
         #Add precondition policies for IMS Direct Access operations
+
         pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='request_direct_access',
-            policy_content='check_exclusive_commitment', headers=sa_user_header )
+            policy_content='check_direct_access_policy', headers=sa_user_header )
 
         pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='stop_direct_access',
-            policy_content='check_exclusive_commitment', headers=sa_user_header )
+            policy_content='check_direct_access_policy', headers=sa_user_header )
 
+        #Add precondition policies for IMS lifecyle operations
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_instrument_device_lifecycle',
+            policy_content='check_device_lifecycle_policy', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_platform_device_lifecycle',
+            policy_content='check_device_lifecycle_policy', headers=sa_user_header )

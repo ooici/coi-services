@@ -21,9 +21,15 @@ class TestLoader(IonIntegrationTestCase):
     def assert_can_load(self, scenarios, loadui=False, loadooi=False,
             path=TESTED_DOC, ui_path='default'):
         """ perform preload for given scenarios and raise exception if there is a problem with the data """
-        config = dict(op="load", scenario=scenarios,
-                attachments="res/preload/r2_ioc/attachments",
-                loadui=loadui, loadooi=loadooi, path=path, ui_path=ui_path)
+        config = dict(op="load",
+                      scenario=scenarios,
+                      attachments="res/preload/r2_ioc/attachments",
+                      loadui=loadui,
+                      loadooi=loadooi,
+                      path=path, ui_path=ui_path,
+                      assets='res/preload/r2_ioc/ooi_assets',
+                      bulk=loadooi,
+                      ooiexclude='DataProduct,DataProductLink')
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
 
     @attr('PRELOAD')
@@ -37,12 +43,25 @@ class TestLoader(IonIntegrationTestCase):
         self.assert_can_load("BASE,BETA", loadui=True, ui_path='candidate')
 
     @attr('PRELOAD')
-    def test_demo_valid(self):
+    def test_assets_valid(self):
+        """ make sure can load asset DB """
+        self.assert_can_load("BASE,BETA,DEVS", path='master', loadooi=True)
+
+    @attr('PRELOAD')
+    def test_alpha_valid(self):
         """ make sure R2_DEMO scenario in master google doc
             is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,R2_DEMO", path='master')
+        self.assert_can_load("BASE,BETA,ALPHA_SYS", path='master')
+
+    @attr('PRELOAD')
+    def test_beta_valid(self):
+        """ make sure R2_DEMO scenario in master google doc
+            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            NOTE: test will pass/fail based on current google doc, not just code changes.
+        """
+        self.assert_can_load("BASE,BETA,BETA_SYS", path='master')
 
     @attr('PRELOAD')
     def test_devs_valid(self):
@@ -127,4 +146,14 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
 
         # check for platform agents
-        found_it = self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+        self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+
+        # check for platform model boolean values
+        model = self.find_object_by_name('Nose Testing Platform Model', RT.PlatformModel)
+        self.assertEquals(True, model.shore_networked)
+        self.assertNotEqual('str', model.shore_networked.__class__.__name__)
+
+
+        # check for data process definition
+        self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)
+

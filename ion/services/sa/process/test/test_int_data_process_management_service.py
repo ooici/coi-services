@@ -13,6 +13,7 @@ from pyon.public import CFG, RT, PRED
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.poller import poll
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -22,14 +23,13 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from interface.objects import ProcessStateEnum
+from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType
 from mock import patch
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 import gevent
 from sets import Set
 
@@ -370,7 +370,18 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
+
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+        data_process = self.rrclient.read(ctd_l0_all_data_process_id)
+        process_id = data_process.process_id
+        self.addCleanup(self.process_dispatcher.cancel_process, process_id)
+
+        #-------------------------------
+        # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
+        #-------------------------------
+
+        gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
+        self.assertTrue(gate.await(30), "The data process (%s) did not spawn in 30 seconds" % process_id)
 
         #-------------------------------
         # Retrieve a list of all data process defintions in RR and validate that the DPD is listed
@@ -391,9 +402,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         input_subscription_id = ctd_l0_all_data_process.input_subscription_id
         subs = self.rrclient.read(input_subscription_id)
         self.assertTrue(subs.activated)
-
-        process_obj = self.process_dispatcher.read_process(ctd_l0_all_data_process.process_id)
-        self.assertEquals(process_obj.process_state, ProcessStateEnum.RUNNING)
 
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
         self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
@@ -518,3 +526,23 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound):
             self.rrclient.read(ctd_l0_all_data_process_id)
+
+
+    def test_transform_function_crd(self):
+        tf = TransformFunction(name='simple', module='pyon.ion.process', cls='SimpleProcess')
+
+        tf_id = self.dataprocessclient.create_transform_function(tf)
+        self.assertTrue(tf_id)
+
+        tf2_id = self.dataprocessclient.create_transform_function(tf)
+        self.assertEquals(tf_id, tf2_id)
+
+        tf_obj = self.dataprocessclient.read_transform_function(tf_id)
+        self.assertEquals([tf.name, tf.module, tf.cls, tf.function_type], [tf_obj.name, tf_obj.module, tf_obj.cls, tf_obj.function_type])
+
+        tf.module = 'dev.null'
+        self.assertRaises(BadRequest, self.dataprocessclient.create_transform_function, tf)
+
+        self.dataprocessclient.delete_transform_function(tf_id)
+        self.assertRaises(NotFound, self.dataprocessclient.read_transform_function, tf_id)
+

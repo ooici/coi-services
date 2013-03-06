@@ -347,7 +347,8 @@ class HAProcessControl(object):
 
         self.client = ProcessDispatcherServiceClient(to_name=pd_name)
         self.event_sub = EventSubscriber(event_type="ProcessLifecycleEvent",
-            callback=self._event_callback, origin_type="DispatchedProcess")
+            callback=self._event_callback, origin_type="DispatchedProcess",
+            auto_delete=True)
 
         self.processes = {}
 

@@ -7,7 +7,7 @@ __author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
 import os
 import pwd
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import tempfile
 
@@ -20,7 +20,8 @@ from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
 from pyon.public import RT, PRED, OT
-
+from pyon.util.containers import get_ion_ts
+from pyon.agent.agent import ResourceAgentState
 from coverage_model.parameter import ParameterDictionary
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -53,6 +54,9 @@ from ion.agents.port.port_agent_process import PortAgentProcess
 
 from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedIntValue, StatusType, ProcessSchedule, ProcessRestartMode, ProcessQueueingMode
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, is_system_actor, has_exclusive_resource_commitment
+from pyon.core.governance import has_shared_resource_commitment, is_resource_owner
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -378,7 +382,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 raise Inconsistent("Data Product should only have ONE Stream" + str(product_id))
 
             #get the  parameter dictionary for this stream
-            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.DataSet, True)
+            dataset_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasDataset, RT.Dataset, True)
             #One data set per product ...for now.
             if not dataset_ids:
                 raise NotFound("No Dataset attached to this Data Product " + str(product_id))
@@ -653,6 +657,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         _pagent = PortAgentProcess.launch_process(_port_agent_config,  test_mode = True)
         pid = _pagent.get_pid()
         port = _pagent.get_data_port()
+        cmd_port = _pagent.get_command_port()
         log.info("IMS:_start_pagent returned from PortAgentProcess.launch_process pid: %s ", pid)
 
         # Hack to get ready for DEMO.  Further though needs to be put int
@@ -669,6 +674,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         # Configure driver to use port agent port number.
         instrument_agent_instance_obj.driver_config['comms_config'] = {
             'addr' : host,
+            'cmd_port' : cmd_port,
             'port' : port
         }
         instrument_agent_instance_obj.driver_config['pagent_pid'] = pid
@@ -957,28 +963,78 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     ##
     ##
+    ##  PRECONDITION FUNCTIONS
+    ##
+    ##
+
+    def check_direct_access_policy(self, msg, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        #The system actor can to anything
+        if is_system_actor(gov_values.actor_id):
+            return True, ''
+
+        #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
+        if not has_exclusive_resource_commitment(gov_values.actor_id, gov_values.resource_id):
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (self.name, gov_values.op, gov_values.actor_id)
+
+        return True, ''
+
+    def check_device_lifecycle_policy(self, msg, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        #The system actor can to anything
+        if is_system_actor(gov_values.actor_id):
+            return True, ''
+
+        if msg.has_key('lifecycle_event'):
+            lifecycle_event = msg['lifecycle_event']
+        else:
+            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (self.name, gov_values.op))
+
+        orgs,_ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasResource, gov_values.resource_id)
+        if not orgs:
+            return False, '%s(%s) has been denied since the resource id %s has not been shared with any Orgs' % (self.name, gov_values.op, gov_values.resource_id)
+
+        #Handle these lifecycle transitions first
+        if lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE:
+
+            #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
+            for org in orgs:
+                if has_org_role(gov_values.actor_roles, org.name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
+                    return True, ''
+
+        else:
+
+            #The owner can do any of these other lifecycle transitions
+            is_owner = is_resource_owner(gov_values.actor_id, gov_values.resource_id)
+            if is_owner:
+                return True, ''
+
+            #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
+            is_shared = has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
+
+            #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
+            for org in orgs:
+                if has_org_role(gov_values.actor_roles, org.name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
+                    return True, ''
+
+        return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, gov_values.op, gov_values.actor_id, lifecycle_event)
+
+
+    ##
+    ##
     ##  DIRECT ACCESS
     ##
     ##
-
-    def check_exclusive_commitment(self, msg,  headers):
-        """
-        This function is used for governance validation for the request_direct_access and stop_direct_access operation.
-        """
-
-        actor_id = headers['ion-actor-id']
-        resource_id = msg['instrument_device_id']
-
-        commitment_status =  self.container.governance_controller.has_resource_commitments(actor_id, resource_id)
-
-        if not commitment_status.shared:
-            return False, '(execute_resource) has been denied since the user %s has not acquired the resource %s' % (actor_id, resource_id)
-
-        #Look for any active commitments that are exclusive - and only allow for exclusive commitment
-        if not commitment_status.exclusive:
-            return False, 'Direct Access Mode has been denied since the user %s has not acquired the resource %s exclusively' % (actor_id, resource_id)
-
-        return True, ''
 
     def request_direct_access(self, instrument_device_id=''):
         """
@@ -1803,7 +1859,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
     def obtain_agent_handle(self, device_id):
         ia_client = ResourceAgentClient(device_id,  process=self)
-
+        log.debug("got the instrument agent client here: %s for the device id: %s and process: %s", ia_client, device_id, self)
 
 #       #todo: any validation?
 #        cmd = AgentCommand(command='get_current_state')
@@ -1856,9 +1912,69 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = 0 #todo: use ia_client
         return ret
 
+    def get_uptime(self, device_id):
+        ia_client, ret = self.obtain_agent_calculation(device_id, OT.ComputedStringValue)
 
-    # def get_uptime(self, device_id): - common to both instrument and platform, see below
+        if ia_client:
+            # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
+            # The Instrument Agent publishes events of a particular type, ResourceAgentStateEvent, and origin_type. So we query the events db for those.
 
+            #----------------------------------------------------------------------------------------------
+            # Check whether it is a platform or an instrument
+            #----------------------------------------------------------------------------------------------
+            device = self.RR.read(device_id)
+
+            #----------------------------------------------------------------------------------------------
+            # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
+            # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
+            #----------------------------------------------------------------------------------------------
+            event_state = ''
+            not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
+
+            if device.type_ == 'InstrumentDevice':
+                event_state = ResourceAgentState.STREAMING
+            elif device.type_ == 'PlatformDevice':
+                event_state = 'PLATFORM_AGENT_STATE_MONITORING'
+
+            #----------------------------------------------------------------------------------------------
+            # Get events associated with device from the events db
+            #----------------------------------------------------------------------------------------------
+            log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent events for the following event_state: %s",device_id, device.type_, event_state)
+            event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
+
+            recent_events = [tuple[2] for tuple in event_tuples]
+
+            #----------------------------------------------------------------------------------------------
+            # We assume below that the events have been sorted in time, with most recent events first in the list
+            #----------------------------------------------------------------------------------------------
+            for evt in recent_events:
+                log.debug("Got a recent event with event_state: %s", evt.state)
+
+                if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
+                    current_time = get_ion_ts() # this is in milliseconds
+                    log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
+                    return self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
+                elif evt.state in not_streaming_states:
+                    log.debug("Got a most recent event state that means instrument is not streaming anymore: %s", evt.state)
+                    # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
+                    return self._convert_to_string(ret, 0)
+
+        return self._convert_to_string(ret, 0)
+
+    def _convert_to_string(self, ret, value):
+        """
+        A helper method to put it in a string value into a ComputedStringValue object that will be returned
+
+        @param ret ComputedStringValue object
+        @param value int
+        @retval ret The ComputedStringValue with a value that is of type String
+        """
+        sec = timedelta(seconds = value)
+        d = datetime(1,1,1) + sec
+
+        ret.value = "%s days, %s hours, %s minutes" %(d.day-1, d.hour, d.minute)
+        log.debug("Returning the computed attribute for uptime with value: %s", ret.value)
+        return ret
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
@@ -1940,14 +2056,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return extended_platform
 
-    # The actual initiation of the deployment, calculated from when the deployment was activated
-    def get_uptime(self, device_id):
-        #used by both instrument device, platform device
-#        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
-#        if ia_client:
-#            ret.value = 45.5 #todo: use ia_client
-#        return ret
-        return "0 days, 0 hours, 0 minutes"
 
     def get_data_product_parameters_set(self, resource_id=''):
         # return the set of data product with the processing_level_code as the key to identify

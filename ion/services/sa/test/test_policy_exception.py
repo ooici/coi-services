@@ -1,4 +1,5 @@
-
+import os
+import unittest
 from pyon.public import IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -58,92 +59,63 @@ class TestAssembly(IonIntegrationTestCase):
         self.dataset_management = DatasetManagementServiceClient()
 
 
-
-
-
-    #@unittest.skip('refactoring')
     def test_policy_exception_ims(self):
+
+        def fail_execute_via_ims(platform_agent_id, lc_event):
+            log.debug("attemting to trigger exception through IMS")
+            with self.assertRaises(Unauthorized) as cm:
+                self.client.IMS.execute_platform_agent_lifecycle(platform_agent_id, lc_event)
+            self.assertIn('No model associated with agent', cm.exception.message)
+
+        self.base_policy_exception(fail_execute_via_ims)
+
+
+
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Assumes localhost gateway, not supportd in CEI LAUNCH mode')
+    def test_policy_exception_sgw(self):
         """
 
         """
+        def fail_execute_via_sgw(platform_agent_id, lc_event):
+            log.debug("attempting to trigger exception through service gateway")
 
+            response = _gw_call('instrument_management',
+                                "execute_platform_agent_lifecycle",
+                                platform_agent_id,
+                                lc_event)
+
+            self.assertIn(GATEWAY_ERROR, response['data'])
+            self.assertEqual(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_EXCEPTION], 'Unauthorized')
+            self.assertEqual(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE], 'No model associated with agent')
+            log.debug("Service Gateway Response: %s" % response['data'][GATEWAY_ERROR])
+
+        self.base_policy_exception(fail_execute_via_sgw)
+
+
+
+
+    def base_policy_exception(self, fail_fn):
         log.info("Create platform agent")
         platform_agent_obj = any_old(RT.PlatformAgent)
         platform_agent_id = self.client.IMS.create_platform_agent(platform_agent_obj)
 
-        self.generic_lcs_pass(self.client.IMS, "platform_agent", platform_agent_id, LCE.PLAN, LCS.PLANNED)
-        self.generic_lcs_fail(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEVELOP)
+        log.debug("executing lifecycle transition to PLANNED")
+        self.client.IMS.execute_platform_agent_lifecycle(platform_agent_id, LCE.PLAN)
 
-
-
-    #############################
-    #
-    # HELPER STUFF
-    #
-    #############################
-
-
-    def generic_lcs_fail(self,
-                         owner_service,
-                         resource_label,
-                         resource_id,
-                         lc_event):
-        """
-        execute an lcs event and verify that it fails
-
-        @param owner_service instance of service client that will handle the request
-        @param resource_label string like "instrument_device"
-        @param resource_id string
-        @param lc_event string like LCE.INTEGRATE
-        """
-
-        lcsmethod = getattr(owner_service, "execute_%s_lifecycle" % resource_label)
-        # lcsmethod(resource_id, lc_event)
-        log.debug("asserting that %s of '%s' on %s '%s' raises Unauthorized",
-                  lcsmethod, lc_event, resource_label, resource_id)
-        #self.assertRaises(Unauthorized, lcsmethod, resource_id, lc_event)
-
-        with self.assertRaises(Unauthorized) as cm:
-            lcsmethod(resource_id, lc_event)
-        self.assertIn('No model associated with agent',cm.exception.message)
-
-        response = _gw_call('instrument_management', "execute_%s_lifecycle" % resource_label, resource_id, lc_event)
-
-        self.assertIn(GATEWAY_ERROR, response['data'])
-        self.assertEqual(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_EXCEPTION], 'Unauthorized')
-        self.assertEqual(response['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE], 'No model associated with agent')
-        log.debug("Service Gateway Response: %s" % response['data'][GATEWAY_ERROR])
-
-    def generic_lcs_pass(self,
-                         owner_service,
-                         resource_label,
-                         resource_id,
-                         lc_event,
-                         lc_state):
-        """
-        execute an lcs event and verify that it passes and affects state
-
-        @param owner_service instance of service client that will handle the request
-        @param resource_label string like "instrument_device"
-        @param resource_id string
-        @param lc_event string like LCE.INTEGRATE
-        @param lc_state string like LCS.INTEGRATED (where the state should end up
-        """
-
-        lcsmethod  = getattr(owner_service, "execute_%s_lifecycle" % resource_label)
-        readmethod = getattr(owner_service, "read_%s" % resource_label)
-
-        log.debug("performing %s of '%s' on %s '%s'", lcsmethod, lc_event, resource_label, resource_id)
-
-        lcsmethod(resource_id, lc_event)
-
-        log.debug("reading current revision of %s '%s'", resource_label, resource_id)
-        resource_obj = readmethod(resource_id)
+        log.debug("reading current revision")
+        resource_obj = self.client.IMS.read_platform_agent(platform_agent_id)
 
         log.debug("checking current state of resource")
-        parts = get_maturity_visibility(resource_obj.lcstate)
+        self.assertEqual(LCS.PLANNED, get_maturity_visibility(resource_obj.lcstate)[0])
 
-        self.assertEqual(lc_state, parts[0])
+        log.debug("executing test-specific failure check")
+        fail_fn(platform_agent_id, LCE.DEVELOP)
+
+
+
+
+
+
 
 
 def _gw_call(service_name, op, platform_agent_id='', lifecycle_event='', requester=None):

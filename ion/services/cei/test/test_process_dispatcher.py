@@ -23,7 +23,8 @@ from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService,\
-    PDLocalBackend, PDNativeBackend, get_dashi, get_pd_dashi_name, PDDashiHandler
+    PDLocalBackend, PDNativeBackend, get_dashi, get_pd_dashi_name, PDDashiHandler,\
+    Notifier
 from ion.services.cei.test import ProcessStateWaiter
 
 try:
@@ -63,13 +64,11 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.pd_service.init()
         self.assertIsInstance(self.pd_service.backend, PDLocalBackend)
         self.pd_service.backend.rr = self.mock_rr = Mock()
+        self.pd_service.backend.event_pub = self.mock_event_pub = Mock()
 
     def test_create_schedule(self):
-        backend = self.pd_service.backend
-        assert isinstance(backend, PDLocalBackend)
 
-        event_pub = Mock()
-        backend.event_pub = event_pub
+        backend = self.pd_service.backend
 
         proc_def = DotDict()
         proc_def['name'] = "someprocess"
@@ -120,7 +119,7 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.assertEqual(called_config, configuration)
 
         # PENDING followed by RUNNING
-        self.assertEqual(event_pub.publish_event.call_count, 2)
+        self.assertEqual(self.mock_event_pub.publish_event.call_count, 2)
 
         process = self.pd_service.read_process(pid)
         self.assertEqual(process.process_id, pid)
@@ -143,7 +142,6 @@ class ProcessDispatcherServiceLocalTest(PyonTestCase):
         self.mock_rr.read.assert_called_once_with("not-a-real-process-id")
 
     def test_local_cancel(self):
-
         pid = self.pd_service.create_process("fake-process-def-id")
 
         ok = self.pd_service.cancel_process(pid)
@@ -763,6 +761,23 @@ pd_config = {
         }
     }
 }
+
+
+@attr('INT', group='cei')
+class ProcessDispatcherNotifierTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+
+    def test_event_publish_unicode_error(self):
+        process = Mock()
+        process.process_id = "some_process_id"
+        process.state = "500-RUNNING"
+        notifier = Notifier()
+        notifier.event_pub = Mock()
+
+        notifier.event_pub.publish_event.side_effect = Exception()
+        notifier.notify_process(process)
 
 
 def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):

@@ -1,0 +1,14 @@
+#
+# URI aliases used by CGSNClientFactory
+#
+
+# See cgsn_simulator_server.py to launch simulator.
+
+# simulator running locally
+localsimulator: localhost:2221
+
+# simulator deployment on OOICI
+#simulator: ?????.oceanobservatories.org:2221
+
+# actual CGSN Services endpoint
+cgsn: 128.128.24.43:2221

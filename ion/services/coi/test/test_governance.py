@@ -27,13 +27,21 @@ from interface.services.cei.ischeduler_service import SchedulerServiceProcessCli
 
 
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
-from ion.core.includes.mi import SBE37Parameter, SBE37ProtocolEvent
-from ion.core.includes.mi import DriverConnectionState
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER, get_system_actor, get_system_actor_header
+from pyon.core.governance import get_actor_header
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
+from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
+from pyon.event.event import EventPublisher
+
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+import ion.agents.instrument.test.test_instrument_agent
+from mi.core.instrument.instrument_driver import DriverProtocolState
+from mi.core.instrument.instrument_driver import DriverConnectionState
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 ORG2 = 'Org2'
 
@@ -142,6 +150,134 @@ TEST_BOUNDARY_POLICY_TEXT = '''
         '''
 
 
+@attr('INT', group='coi')
+class TestGovernanceHeaders(IonIntegrationTestCase):
+    def setUp(self):
+
+        # Start container
+        self._start_container()
+
+        #Load a deploy file
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        #Instantiate a process to represent the test
+        process=GovernanceTestProcess()
+
+        self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+
+        #Get info on the ION System Actor
+        self.system_actor = get_system_actor()
+        log.info('system actor:' + self.system_actor._id)
+
+        self.system_actor_header = get_system_actor_header()
+
+        self.resource_id_header_value = ''
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    def test_governance_message_headers(self):
+        '''
+        This test is used to make sure the ION endpoint code is properly setting the
+        '''
+
+        #Get function pointer to send function
+        old_send = BidirectionalEndpointUnit._send
+
+        # make new send to patch on that duplicates send
+        def patched_send(*args, **kwargs):
+
+            #Only duplicate the message send from the initial client call
+            msg_headers = kwargs['headers']
+
+            self.resource_id_header_value = ''
+
+            if msg_headers.has_key('resource-id'):
+                self.resource_id_header_value = msg_headers['resource-id']
+
+            return old_send(*args, **kwargs)
+
+        # patch it into place with auto-cleanup to try to interogate the message headers
+        patcher = patch('pyon.net.endpoint.BidirectionalEndpointUnit._send', patched_send)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+        # Instantiate an object
+        obj = IonObject("UserInfo", name="name")
+
+        # Can't call update with object that hasn't been persisted
+        with self.assertRaises(BadRequest) as cm:
+            self.rr_client.update(obj)
+        self.assertTrue(cm.exception.message.startswith("Object does not have required '_id' or '_rev' attribute"))
+
+        self.resource_id_header_value = ''
+
+        # Persist object and read it back
+        obj_id, obj_rev = self.rr_client.create(obj)
+        log.debug('The id of the created object is %s', obj_id)
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        self.resource_id_header_value = ''
+        read_obj = self.rr_client.read(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Cannot create object with _id and _rev fields pre-set
+        self.resource_id_header_value = ''
+        with self.assertRaises(BadRequest) as cm:
+            self.rr_client.create(read_obj)
+        self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        # Update object
+        read_obj.name = "John Doe"
+        self.resource_id_header_value = ''
+        self.rr_client.update(read_obj)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Update should fail with revision mismatch
+        self.resource_id_header_value = ''
+        with self.assertRaises(Conflict) as cm:
+            self.rr_client.update(read_obj)
+        self.assertTrue(cm.exception.message.startswith("Object not based on most current version"))
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        # Re-read and update object
+        self.resource_id_header_value = ''
+        read_obj = self.rr_client.read(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        self.resource_id_header_value = ''
+        self.rr_client.update(read_obj)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+        #Create second object
+        obj = IonObject("UserInfo", name="Babs Smith")
+
+        self.resource_id_header_value = ''
+
+        # Persist object and read it back
+        obj2_id, obj2_rev = self.rr_client.create(obj)
+        log.debug('The id of the created object is %s', obj_id)
+        self.assertEqual(self.resource_id_header_value, '' )
+
+        #Test for multi-read
+        self.resource_id_header_value = ''
+        objs = self.rr_client.read_mult([obj_id, obj2_id])
+
+        self.assertAlmostEquals(self.resource_id_header_value, [obj_id, obj2_id])
+        self.assertEqual(len(objs),2)
+
+        # Delete object
+        self.resource_id_header_value = ''
+        self.rr_client.delete(obj_id)
+        self.assertEqual(self.resource_id_header_value, obj_id )
+
+
+        # Delete object
+        self.resource_id_header_value = ''
+        self.rr_client.delete(obj2_id)
+        self.assertEqual(self.resource_id_header_value, obj2_id )
+
+
 class GovernanceTestProcess(LocalContextMixin):
     name = 'gov_test'
     id='gov_client'
@@ -200,17 +336,17 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Get info on the ION System Actor
-        self.system_actor = self.container.governance_controller.get_system_actor()
+        self.system_actor = get_system_actor()
         log.info('system actor:' + self.system_actor._id)
 
-        self.system_actor_header = self.container.governance_controller.get_system_actor_header()
+        self.system_actor_header = get_system_actor_header()
 
         #Create a Actor which represents an originator like a web server.
         apache_obj = IonObject(RT.ActorIdentity, name='ApacheWebServer', description='Represents a non user actor like an apache web server')
         apache_actor_id,_ = self.rr_client.create(apache_obj, headers=self.system_actor_header)
         self.apache_actor = self.rr_client.read(apache_actor_id)
 
-        self.apache_actor_header = self.container.governance_controller.get_actor_header(self.apache_actor._id)
+        self.apache_actor_header = get_actor_header(self.apache_actor._id)
 
         self.anonymous_user_headers = {'ion-actor-id':'anonymous'}
 
@@ -235,7 +371,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Clean up the non user actor
         self.rr_client.delete(self.apache_actor._id, headers=self.system_actor_header)
-
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -296,7 +431,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'Arguments not set',cm.exception.message)
 
 
-        #Now test service operation specific policies
+        #Now test service operation specific policies - specifically that there can be more than one on the same operation.
 
         pol1_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content='func1_pass', headers=self.system_actor_header )
 
@@ -350,6 +485,20 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
+
+        #try to enable the test policy  again
+        self.pol_client.enable_policy(test_policy_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+
         pre_func1 =\
         """def precondition_func(process, msg, headers):
             if headers['op'] == 'disable_policy':
@@ -358,8 +507,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
                 return True, ''
 
         """
-
-        pol2_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content=pre_func1, headers=self.system_actor_header )
+        #Create a dynamic precondition function to deny calls to disable policy
+        pre_func1_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content=pre_func1, headers=self.system_actor_header )
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
 
@@ -367,6 +516,74 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Unauthorized) as cm:
             self.pol_client.disable_policy(test_policy_id, headers=self.system_actor_header)
         self.assertIn( 'Denied for no reason again',cm.exception.message)
+
+        #Now delete the most recent precondition policy
+        self.pol_client.delete_policy(pre_func1_id,  headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+
+        #Now test that a precondition function can be enabled and disabled
+        pre_func2 =\
+        """def precondition_func(process, msg, headers):
+            if headers['op'] == 'create_exchange_space':
+                return False, 'Denied for from a operation precondition function'
+            else:
+                return True, ''
+
+        """
+        #Create a dynamic precondition function to deny calls to disable policy
+        pre_func2_id = self.pol_client.add_process_operation_precondition_policy(process_name='exchange_management', op='create_exchange_space', policy_content=pre_func2, headers=self.system_actor_header )
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+        #The same request that previously was allowed should now be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Denied for from a operation precondition function',cm.exception.message)
+
+
+        #try to enable the precondition policy
+        self.pol_client.disable_policy(pre_func2_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+        #try to enable the precondition policy
+        self.pol_client.enable_policy(pre_func2_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+        #The same request that previously was allowed should now be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Denied for from a operation precondition function',cm.exception.message)
+
+        #Delete the precondition policy
+        self.pol_client.delete_policy(pre_func2_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
 
 
         self.pol_client.delete_policy(test_policy_id, headers=self.system_actor_header)
@@ -389,8 +606,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #now try creating a new user with a valid actor
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        log.info( "actor id=" + actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #User without OPERATOR or MANAGER role should not be allowed
         with self.assertRaises(Unauthorized) as cm:
@@ -401,10 +618,31 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.grant_role(self.ion_org._id, actor_id, ORG_MANAGER_ROLE,  headers=self.system_actor_header)
 
         #Refresh headers with new role
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #User with proper role should now be allowed to access this service operation.
         id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=actor_header)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    @patch.dict(CFG, {'container':{'org_boundary':True}})
+    def test_policy_cache_reset(self):
+
+
+        event_publisher = EventPublisher()
+
+
+        event_data = dict()
+        event_data['origin_type'] = 'System_Request'
+        event_data['description'] = 'Policy Cache Reset Event'
+
+        event_publisher.publish_event(event_type='PolicyCacheResetEvent', origin='', **event_data)
+
+        gevent.sleep(20)  # Wait for events to be published and policy reloaded for all running processes
+
+        #Reuse the basic test to make sure polices have been reloaded
+        self.test_basic_policy_operations()
 
 
 
@@ -426,7 +664,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),2) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),3) #Should include the ION System Actor, Web auth actor and non-user actor from setup as well.
 
         log.debug('Begin testing with policies')
 
@@ -438,16 +676,16 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #now try creating a new user with a valid actor
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        log.info( "actor id=" + actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),3) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),4) #Should include the ION System Actor and non-user actor from setup as well.
 
         #Now enroll the user as a member of the Second Org
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Add a new Org boundary policy which deny's all anonymous access
         test_policy_id = self.pol_client.create_resource_access_policy( org2_id, 'Org_Test_Policy',
@@ -468,7 +706,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now try to hit the RR with a real user and should noe bw allowed
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=actor_header)
-        self.assertEqual(len(users),3) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),4) #Should include the ION System Actor and non-user actor from setup as well.
 
         #TODO - figure out how to right a XACML rule to be a member of the specific Org as well
 
@@ -505,10 +743,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now create user with proper credentials
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Attempt to enroll a user anonymously - should not be allowed
         with self.assertRaises(Unauthorized) as cm:
@@ -537,7 +775,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'org_management(find_enrolled_users) has been denied',cm.exception.message)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),3)  # WIll include the ION system actor and the non user actor from setup
+        self.assertEqual(len(users),4)  # WIll include the ION system actor and the non user actor from setup
 
         #Create a second Org
         with self.assertRaises(NotFound) as nf:
@@ -663,13 +901,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now create user with proper credentials
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),3)  # WIll include the ION system actor and the non user actor from setup
+        self.assertEqual(len(users),4)  # WIll include the ION system actor and the non user actor from setup
 
         ## test_org_roles and policies
 
@@ -869,7 +1107,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(ret, False)
 
         #Refresh headers with new role
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Now the user with the proper role should be able to create an instrument.
         self.ims_client.create_instrument_agent(ia_obj, headers=actor_header)
@@ -905,7 +1143,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now create user with proper credentials
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.info( "user id=" + actor_id)
+        log.info( "actor id=" + actor_id)
 
         #Create a second Org
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
@@ -932,7 +1170,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.enroll_member(org2_id, actor_id,headers=self.system_actor_header )
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Test the invitation process
 
@@ -956,7 +1194,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(ret, True)
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
 
@@ -987,14 +1225,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First make a acquire resource request with an non-enrolled user.
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=self.system_actor._id, provider=org2_id, resource=ia_list[0]._id )
+            sap = IonObject(OT.AcquireResourceProposal,consumer=self.system_actor._id, provider=org2_id, resource_id=ia_list[0]._id )
             sap_response = self.org_client.negotiate(sap, headers=self.system_actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_enrolled',cm.exception.message)
 
 
         #Make a proposal to acquire a resource with an enrolled user that has the right role but the resource is not shared the Org
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -1010,13 +1248,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #First try to acquire the resource exclusively but it should fail since the user cannot do this without first
         #having had acquired the resource
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_acquired',cm.exception.message)
 
 
         #Make a proposal to acquire a resource with an enrolled user that has the right role and is now shared
-        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.system_actor_header)
@@ -1059,13 +1297,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
 
-        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
+        gevent.sleep(self.SLEEP_TIME+1)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
         self.assertEquals(len(events_r), 3)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.COUNTER])
-        self.assertEqual(events_r[-1][2].resource, ia_list[0]._id)
+        self.assertEqual(events_r[-1][2].resource_id, ia_list[0]._id)
 
 
         #Manager approves Instrument resource proposal
@@ -1114,7 +1352,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         invalid_expiration = cur_time +  ( 13 * 60 * 60 * 1000 ) # 12 hours from now
 
         #Now try to acquire the resource exclusively for longer than 12 hours
-        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id,
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id,
                     expiration=invalid_expiration)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
@@ -1126,7 +1364,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         cur_time = int(get_ion_ts())
         valid_expiration = cur_time +  ( 20 * 60 * 1000 ) # 12 hours from now
 
-        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id,
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id,
                     expiration=valid_expiration)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
@@ -1139,7 +1377,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now try to acquire the resource exclusively again - should fail
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: not is_resource_acquired_exclusively',cm.exception.message)
 
@@ -1174,7 +1412,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Attempt to acquire the same resource from the ION Org which is not sharing it - should fail
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=self.ion_org._id, resource=ia_list[0]._id)
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=self.ion_org._id, resource_id=ia_list[0]._id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -1183,21 +1421,21 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.revoke_role(org2_id, actor_id, INSTRUMENT_OPERATOR_ROLE,  headers=self.system_actor_header)
 
         #Refresh headers with new role
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Make a proposal to acquire a resource with an enrolled user that does not have the right role
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=ia_list[0]._id )
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id )
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: has_role',cm.exception.message)
 
-        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
+        gevent.sleep(self.SLEEP_TIME+1)  # Wait for events to be published
 
         #Check that there are the correct number of events
         events_r = self.event_repo.find_events(origin=sap_response2.negotiation_id, event_type=OT.AcquireResourceNegotiationStatusEvent)
         self.assertEquals(len(events_r), 6)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
-        self.assertEqual(events_r[-1][2].resource, ia_list[0]._id)
+        self.assertEqual(events_r[-1][2].resource_id, ia_list[0]._id)
 
 
     @attr('LOCOINT')
@@ -1218,9 +1456,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Create user
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
-        log.debug( "user id=" + actor_id)
+        log.debug( "actor id=" + actor_id)
 
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Create a second Org
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
@@ -1273,7 +1511,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
 
         #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Next try a basic agent operation with a user that is a member of the Org but not an Instrument Operator - it should be allowed
         retval = ia_client.get_capabilities(headers=actor_header)
@@ -1304,7 +1542,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
 
         #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #This operation should now be allowed with the Instrument Operator role - just checking policy not agent functionality
         with self.assertRaises(Conflict) as cm:
@@ -1347,7 +1585,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Make a proposal to acquire a resource with an enrolled user that has the right role - but the resource is not shared
         with self.assertRaises(BadRequest) as cm:
-            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=inst_obj_id)
+            sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=inst_obj_id)
             sap_response = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: is_resource_shared',cm.exception.message)
 
@@ -1355,7 +1593,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.share_resource(org_id=org2_id, resource_id=inst_obj_id, headers=self.system_actor_header  )
 
         #Renegotiate the proposal
-        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource=inst_obj_id)
+        sap = IonObject(OT.AcquireResourceProposal,consumer=actor_id, provider=org2_id, resource_id=inst_obj_id)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         #Have the Org accept the proposal
@@ -1387,13 +1625,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
+        self.assertIn('instrument_management(request_direct_access) has been denied',cm.exception.message)
 
         #Request to access the resource exclusively for two hours
         cur_time = int(get_ion_ts())
         two_hour_expiration = cur_time +  ( 2 * 60 * 60 * 1000 ) # 2 hours from now
 
-        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource=inst_obj_id,
+        sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=inst_obj_id,
                     expiration=two_hour_expiration)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
@@ -1412,7 +1650,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Try to Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
-        self.assertIn('Direct Access Mode has been denied',cm.exception.message)
+        self.assertIn('instrument_management(request_direct_access) has been denied',cm.exception.message)
 
         #The agent related functions should not be allowed for a user that is not an Org Manager
         with self.assertRaises(Unauthorized) as cm:
@@ -1450,7 +1688,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.grant_role(org2_id,actor_id, ORG_MANAGER_ROLE, headers=self.system_actor_header)
 
         #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
 
         #Try again with user with also Org Manager role and should pass even with out acquiring a resource
@@ -1536,3 +1774,192 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.execute_agent(cmd, headers=actor_header)
         retval = ia_client.get_agent_state(headers=actor_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
+
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    @patch.dict(CFG, {'system':{'load_policy':True}})
+    def test_instrument_lifecycle_policy(self):
+
+
+        #Make sure that the system policies have been loaded
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
+
+        log.debug('Begin testing with policies')
+
+        #Create user
+        inst_operator_actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
+        log.debug( "actor id=" + inst_operator_actor_id)
+
+        inst_operator_actor_header = get_actor_header(inst_operator_actor_id)
+
+        #Create a second user to be used as regular member
+        member_actor_obj = IonObject(RT.ActorIdentity, name='org member actor')
+        member_actor_id,_ = self.rr_client.create(member_actor_obj)
+        assert(member_actor_id)
+
+        #Create a thirs user to be used as observatory operator
+        obs_operator_actor_obj = IonObject(RT.ActorIdentity, name='observatory operator actor')
+        obs_operator_actor_id,_ = self.rr_client.create(obs_operator_actor_obj)
+        assert(obs_operator_actor_id)
+
+        #Create a second Org
+        org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
+        org2_id = self.org_client.create_org(org2, headers=self.system_actor_header)
+
+        org2 = self.org_client.find_org(ORG2)
+        self.assertEqual(org2_id, org2._id)
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),2)
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+
+        #Create Instrument Operator Role and add it to the second Org
+        inst_operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, label='Instrument Operator', description='Instrument Operator')
+        self.org_client.add_user_role(org2_id, inst_operator_role, headers=self.system_actor_header)
+
+        #Create Instrument Operator Role and add it to the second Org
+        obs_operator_role = IonObject(RT.UserRole, name=OBSERVATORY_OPERATOR_ROLE, label='Observatory Operator', description='Observatory Operator')
+        self.org_client.add_user_role(org2_id, obs_operator_role, headers=self.system_actor_header)
+
+
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),4)
+        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
+
+        self.org_client.enroll_member(org2_id,inst_operator_actor_id, headers=self.system_actor_header)
+        self.org_client.enroll_member(org2_id,member_actor_id, headers=self.system_actor_header)
+        self.org_client.enroll_member(org2_id,obs_operator_actor_id, headers=self.system_actor_header)
+
+
+        #Grant the role of Instrument Operator to the user
+        self.org_client.grant_role(org2_id, inst_operator_actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+        #Grant the role of Observatory Operator to the user
+        self.org_client.grant_role(org2_id, obs_operator_actor_id, OBSERVATORY_OPERATOR_ROLE, headers=self.system_actor_header)
+
+
+        #Refresh header with updated roles
+        inst_operator_actor_header = get_actor_header(inst_operator_actor_id)
+        member_actor_header = get_actor_header(member_actor_id)
+        obs_operator_actor_header = get_actor_header(obs_operator_actor_id)
+
+        #Attempt to Create Test InstrumentDevice as Org Member
+        inst_dev = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')
+
+        #Should be denied without being the proper role
+        with self.assertRaises(Unauthorized) as cm:
+            inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=member_actor_header)
+        self.assertIn('instrument_management(create_instrument_device) has been denied',cm.exception.message)
+
+        #Should be allowed
+        inst_dev_id = self.ims_client.create_instrument_device(inst_dev, headers=inst_operator_actor_header)
+
+        #Reads are always allowed anonymously
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEqual(inst_dev_obj.lcstate, LCS.DRAFT_PRIVATE)
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=self.anonymous_user_headers)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=member_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR - will fail since resource is not shared by an Org
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=inst_operator_actor_header)
+        self.assertIn( 'has not been shared with any Orgs',cm.exception.message)
+
+        #Ensure the resource is shareable
+        self.org_client.share_resource(org2_id, inst_dev_id, headers=self.system_actor_header)
+
+
+        #Successfully advance the Life cycle to planned - this user is owner and Inst operator
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=inst_operator_actor_header)
+
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+
+        #Advance the Life cycle to DEVELOP - should fail since not owner or acquried resource
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEVELOP, headers=obs_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+
+        #Have the Obs Operator acquire the resource since not the owner
+        commitment_id = self.org_client.create_resource_commitment(org2_id, obs_operator_actor_id, inst_dev_id)
+
+        #Advance the Life cycle to DEVELOP - should pass governance but fail because of other hard wired preconditions.
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEVELOP, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+
+        #These states are only ever allowed for the Observatory Operator ( or Org Manager)
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.INTEGRATE, headers=inst_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEPLOY, headers=inst_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.RETIRE, headers=inst_operator_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        #These states are only ever allowed for the Observatory Operator ( or Org Manager)
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.INTEGRATE, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.DEPLOY, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+
+        #Back to testing a few other states with different actors
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=member_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=member_actor_header)
+        self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=inst_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=obs_operator_actor_header)
+        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+
+        #Should be able to retire a device anytime
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.RETIRE, headers=obs_operator_actor_header)
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.RETIRED)
+
+
+        #Clean up
+        self.org_client.release_commitment(commitment_id)
+        self.ims_client.delete_instrument_device(inst_dev_id, headers=inst_operator_actor_header)
+
+        self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
+        self.rr_client.delete(member_actor_id, headers=self.system_actor_header)
+        self.rr_client.delete(obs_operator_actor_id, headers=self.system_actor_header)

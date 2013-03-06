@@ -41,12 +41,6 @@ else
     echo -e "  (containing your local pre-update commands) but it didn't exist."
 fi
 
-#echo -e "\n\n=== UPDATING COI-SERVICES SUBMODULE(S) ===\n"
-#get_submodule extern/pyon
-#get_submodule extern/ion-definitions
-#get_submodule extern/marine-integrations
-#get_submodule extern/coverage-model
-#get_submodule extern/parameter-definitions
 
 echo -e "\n\n=== UPDATING COI-SERVICES ===\n"
 git pull --rebase
@@ -55,14 +49,14 @@ if [ $? -ne 0 ]; then
     echo -e "\n$(basename $0) aborting because pull failed (probably have unstashed changes)"
     exit 1
 fi
-git submodule update
+git submodule update --init
 
 echo -e "\n\n=== CLEANING UP ===\n"
 ant clean
 sh scripts/cc-cleanup.sh
 
 echo -e "\n\n=== BOOTSTRAPPING ===\n"
-python bootstrap.py
+python bootstrap.py -v 1.7
 
 echo -e "\n\n=== BUILDING OUT ===\n"
 bin/buildout

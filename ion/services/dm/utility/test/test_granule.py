@@ -17,9 +17,9 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 
 from gevent.event import Event
 from nose.plugins.attrib import attr
+from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
 
 import numpy as np
-import unittest
 
 @attr('INT',group='dm')
 class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
@@ -49,6 +49,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.assertEquals(rdt, self.rdt)
         self.assertEquals(m.data_producer_id, self.data_producer_id)
         self.assertEquals(m.provider_metadata_update, self.provider_metadata_update)
+        self.assertNotEqual(m.creation_timestamp, None)
         self.event.set()
 
 
@@ -57,8 +58,10 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
         pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
+        self.addCleanup(self.pubsub_management.delete_stream_definition,stream_def_id)
 
         stream_id, route = self.pubsub_management.create_stream('ctd_stream', 'xp1', stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream,stream_id)
         self.xps.append('xp1')
         publisher = StandaloneStreamPublisher(stream_id, route)
 
@@ -88,25 +91,190 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         
         self.pubsub_management.deactivate_subscription(subscription_id)
         self.pubsub_management.delete_subscription(subscription_id)
-
-    @unittest.skip('TODO: add support back for appending granules')
-    def test_granule_append(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
-
-        rdt1 = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt1['time'] = np.arange(20)
-        rdt1['temp'] = [6] * 20
         
-        rdt2 = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt2['time'] = np.arange(20,40)
-        rdt2['temp'] = [7] * 20
-        rdt2['preferred_timestamp'] = ['time'] * 20
+        filtered_stream_def_id = self.pubsub_management.create_stream_definition('filtered', parameter_dictionary_id=pdict_id, available_fields=['time', 'temp'])
+        self.addCleanup(self.pubsub_management.delete_stream_definition, filtered_stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition_id=filtered_stream_def_id)
+        self.assertEquals(rdt._available_fields,['time','temp'])
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+        with self.assertRaises(KeyError):
+            rdt['pressure'] = np.arange(20)
 
-        rdt3 = RecordDictionaryTool.append(rdt1, rdt2)
-        self.assertTrue((rdt3['time'] == np.arange(40)).all())
-        self.assertTrue((rdt3['temp'] == np.array([6]*20 + [7]*20)).all())
-        self.assertTrue((rdt3['preferred_timestamp'] == np.array([None] * 20 + ['time'] *20, dtype='|O8')).all())
-        self.assertTrue(rdt3['pressure'] is None)
+        granule = rdt.to_granule()
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        self.assertEquals(rdt._available_fields, rdt2._available_fields)
+        self.assertEquals(rdt.fields, rdt2.fields)
+        for k,v in rdt.iteritems():
+            self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
+        
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.array([None,None,None])
+        self.assertTrue(rdt['time'] is None)
+        
+        rdt['time'] = np.array([None, 1, 2])
+        self.assertEquals(rdt['time'][0], rdt.fill_value('time'))
 
 
+    def test_rdt_param_funcs(self):
+        rdt = self.create_rdt()
+        rdt['TIME'] = [0]
+        rdt['TEMPWAT_L0'] = [280000]
+        rdt['CONDWAT_L0'] = [100000]
+        rdt['PRESWAT_L0'] = [2789]
+
+        rdt['LAT'] = [45]
+        rdt['LON'] = [-71]
+
+        np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1001.76506258]))
+
+
+    def create_rdt(self):
+        contexts, pfuncs = self.create_pfuncs()
+        context_ids = [_id for ct,_id in contexts.itervalues()]
+
+        pdict_id = self.dataset_management.create_parameter_dictionary(name='functional_pdict', parameter_context_ids=context_ids, temporal_context='test_TIME')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('functional', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        return rdt
+
+
+
+    def create_pfuncs(self):
+        
+        contexts = {}
+        funcs = {}
+
+        t_ctxt = ParameterContext('TIME', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='test_TIME', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['TIME'] = (t_ctxt, t_ctxt_id)
+
+        lat_ctxt = ParameterContext('LAT', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
+        lat_ctxt.axis = AxisTypeEnum.LAT
+        lat_ctxt.uom = 'degree_north'
+        lat_ctxt_id = self.dataset_management.create_parameter_context(name='test_LAT', parameter_context=lat_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, lat_ctxt_id)
+        contexts['LAT'] = lat_ctxt, lat_ctxt_id
+
+        lon_ctxt = ParameterContext('LON', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
+        lon_ctxt.axis = AxisTypeEnum.LON
+        lon_ctxt.uom = 'degree_east'
+        lon_ctxt_id = self.dataset_management.create_parameter_context(name='test_LON', parameter_context=lon_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, lon_ctxt_id)
+        contexts['LON'] = lon_ctxt, lon_ctxt_id
+
+        # Independent Parameters
+
+        # Temperature - values expected to be the decimal results of conversion from hex
+        temp_ctxt = ParameterContext('TEMPWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L0', parameter_context=temp_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['TEMPWAT_L0'] = temp_ctxt, temp_ctxt_id
+
+        # Conductivity - values expected to be the decimal results of conversion from hex
+        cond_ctxt = ParameterContext('CONDWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        cond_ctxt.uom = 'S m-1'
+        cond_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L0', parameter_context=cond_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, cond_ctxt_id)
+        contexts['CONDWAT_L0'] = cond_ctxt, cond_ctxt_id
+
+        # Pressure - values expected to be the decimal results of conversion from hex
+        press_ctxt = ParameterContext('PRESWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        press_ctxt.uom = 'dbar'
+        press_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRESWAT_L0', parameter_context=press_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, press_ctxt_id)
+        contexts['PRESWAT_L0'] = press_ctxt, press_ctxt_id
+
+
+        # Dependent Parameters
+
+        # TEMPWAT_L1 = (TEMPWAT_L0 / 10000) - 10
+        tl1_func = '(T / 10000) - 10'
+        expr = NumexprFunction('TEMPWAT_L1', tl1_func, ['T'])
+        expr_id = self.dataset_management.create_parameter_function(name='test_TEMPWAT_L1', parameter_function=expr.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
+        funcs['TEMPWAT_L1'] = expr, expr_id
+
+        tl1_pmap = {'T': 'TEMPWAT_L0'}
+        expr.param_map = tl1_pmap
+        tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
+        tempL1_ctxt.uom = 'deg_C'
+        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        self.addCleanup(self.dataset_management.delete_parameter_context, tempL1_ctxt_id)
+        contexts['TEMPWAT_L1'] = tempL1_ctxt, tempL1_ctxt_id
+
+        # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
+        cl1_func = '(C / 100000) - 0.5'
+        expr = NumexprFunction('CONDWAT_L1', cl1_func, ['C'])
+        expr_id = self.dataset_management.create_parameter_function(name='test_CONDWAT_L1', parameter_function=expr.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
+        funcs['CONDWAT_L1'] = expr, expr_id
+
+        cl1_pmap = {'C': 'CONDWAT_L0'}
+        expr.param_map = cl1_pmap
+        condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
+        condL1_ctxt.uom = 'S m-1'
+        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        self.addCleanup(self.dataset_management.delete_parameter_context, condL1_ctxt_id)
+        contexts['CONDWAT_L1'] = condL1_ctxt, condL1_ctxt_id
+
+        # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
+        #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
+        pl1_func = '(P * p_range / (0.85 * 65536)) - (0.05 * p_range)'
+        expr = NumexprFunction('PRESWAT_L1', pl1_func, ['P', 'p_range'])
+        expr_id = self.dataset_management.create_parameter_function(name='test_PRESWAT_L1', parameter_function=expr.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
+        funcs['PRESWAT_L1'] = expr, expr_id
+        
+        pl1_pmap = {'P': 'PRESWAT_L0', 'p_range': 679.34040721}
+        expr.param_map = pl1_pmap
+        presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
+        presL1_ctxt.uom = 'S m-1'
+        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        self.addCleanup(self.dataset_management.delete_parameter_context, presL1_ctxt_id)
+        contexts['PRESWAT_L1'] = presL1_ctxt, presL1_ctxt_id
+
+        # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
+        #       https://code.google.com/p/python-gsw/ & http://pypi.python.org/pypi/gsw/3.0.1
+
+        # PRACSAL = gsw.SP_from_C((CONDWAT_L1 * 10), TEMPWAT_L1, PRESWAT_L1)
+        owner = 'gsw'
+        sal_func = 'SP_from_C'
+        sal_arglist = ['C', 't', 'p']
+        expr = PythonFunction('PRACSAL', owner, sal_func, sal_arglist)
+        expr_id = self.dataset_management.create_parameter_function(name='test_PRACSAL', parameter_function=expr.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
+        funcs['PRACSAL'] = expr, expr_id
+        
+        # A magic function that may or may not exist actually forms the line below at runtime.
+        sal_pmap = {'C': NumexprFunction('CONDWAT_L1*10', 'C*10', ['C'], param_map={'C': 'CONDWAT_L1'}), 't': 'TEMPWAT_L1', 'p': 'PRESWAT_L1'}
+        expr.param_map = sal_pmap
+        sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
+        sal_ctxt.uom = 'g kg-1'
+        sal_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_ids=[expr_id])
+        self.addCleanup(self.dataset_management.delete_parameter_context, sal_ctxt_id)
+        contexts['PRACSAL'] = sal_ctxt, sal_ctxt_id
+
+        # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
+        # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
+        # DENSITY = gsw.rho(absolute_salinity, conservative_temperature, PRESWAT_L1)
+        owner = 'gsw'
+        abs_sal_expr = PythonFunction('abs_sal', owner, 'SA_from_SP', ['PRACSAL', 'PRESWAT_L1', 'LON','LAT'])
+        cons_temp_expr = PythonFunction('cons_temp', owner, 'CT_from_t', [abs_sal_expr, 'TEMPWAT_L1', 'PRESWAT_L1'])
+        dens_expr = PythonFunction('DENSITY', owner, 'rho', [abs_sal_expr, cons_temp_expr, 'PRESWAT_L1'])
+        dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_expr), variability=VariabilityEnum.TEMPORAL)
+        dens_ctxt.uom = 'kg m-3'
+        dens_ctxt_id = self.dataset_management.create_parameter_context(name='test_DENSITY', parameter_context=dens_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, dens_ctxt_id)
+        contexts['DENSITY'] = dens_ctxt, dens_ctxt_id
+        return contexts, funcs
+
+    
+
+
+        
