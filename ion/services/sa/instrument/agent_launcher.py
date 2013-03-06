@@ -458,22 +458,37 @@ class PlatformAgentLauncher(AgentLauncher):
         """
         Generate the configuration for child devices
         """
-        log.debug("Getting child device ids")
-        child_device_ids = self.RR2.find_device_ids_of_device(self._get_device()._id)
+        log.debug("Getting child platform device ids")
+        child_pdevice_ids = self.RR2.find_platform_device_ids_of_device(self._get_device()._id)
+        log.debug("found platform device ids: %s", child_pdevice_ids)
+
+        log.debug("Getting child instrument device ids")
+        child_cdevice_ids = self.RR2.find_instrument_device_ids_of_device(self._get_device()._id)
+        log.debug("found instrument device ids: %s", child_cdevice_ids)
+
+        child_device_ids = child_cdevice_ids + child_pdevice_ids
+
+        log.debug("combined device ids: %s", child_device_ids)
 
         launcher_factory = AgentLauncherFactory(self.clients)
 
+        agent_lookup_method = {
+            RT.PlatformAgentInstance: self.RR2.find_platform_agent_instance_of_platform_device,
+            RT.InstrumentAgentInstance: self.RR2.find_instrument_agent_instance_of_instrument_device,
+            }
+
         # get all agent instances first. if there's no agent instance, just skip
         child_agent_instance = {}
-        for d in child_device_ids:
-            log.debug("Getting agent instance of device %s", d)
-            try:
-                child_agent_instance[d] = self.RR2.find_agent_instance_of_device(d)
-            except NotFound:
-                log.debug("No agent instance exists; skipping")
-                pass
-            except:
-                raise
+        for ot, lookup_fn in agent_lookup_method.iteritems():
+            for d in child_device_ids:
+                log.debug("Getting %s of device %s", ot, d)
+                try:
+                    child_agent_instance[d] = lookup_fn(d)
+                except NotFound:
+                    log.debug("No agent instance exists; skipping")
+                    pass
+                except:
+                    raise
 
         ret = {}
         for d, a in child_agent_instance.iteritems():
