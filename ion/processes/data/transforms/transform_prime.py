@@ -29,10 +29,11 @@ class TransformPrime(TransformDataProcess):
     def on_start(self):
         TransformDataProcess.on_start(self)
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
-    
-    @memoize_lru(maxsize=100)
-    def _read_stream_def(self, stream_id):
+
+    @memoize_lru(100)
+    def read_stream_def(self,stream_id):
         return self.pubsub_management.read_stream_definition(stream_id=stream_id)
+
     
     def recv_packet(self, msg, stream_route, stream_id):
         process_routes = self.CFG.get_safe('process.routes', {})
@@ -58,8 +59,8 @@ class TransformPrime(TransformDataProcess):
 
     def _execute_transform(self, msg, streams):
         stream_in_id,stream_out_id = streams
-        stream_def_in = self._read_stream_def(stream_in_id)
-        stream_def_out = self._read_stream_def(stream_out_id)
+        stream_def_in = self.read_stream_def(stream_in_id)
+        stream_def_out = self.read_stream_def(stream_out_id)
         
         incoming_pdict_dump = stream_def_in.parameter_dictionary
         outgoing_pdict_dump = stream_def_out.parameter_dictionary
@@ -67,55 +68,34 @@ class TransformPrime(TransformDataProcess):
         incoming_pdict = ParameterDictionary.load(incoming_pdict_dump)
         outgoing_pdict = ParameterDictionary.load(outgoing_pdict_dump)
         
-        merged_pdict = dict([(k,v) for k,v in incoming_pdict.iteritems()] + [(k,v) for k,v in outgoing_pdict.iteritems()])
+        merged_pdict = ParameterDictionary()
+        for k,v in incoming_pdict.iteritems():
+            ordinal, v = v
+            if k not in merged_pdict:
+                merged_pdict.add_context(v)
+        for k,v in outgoing_pdict.iteritems():
+            ordinal, v = v
+            if k not in merged_pdict:
+                merged_pdict.add_context(v)
+        rdt_temp = RecordDictionaryTool(param_dictionary=merged_pdict)
         rdt_in = RecordDictionaryTool.load_from_granule(msg)
+        for field in rdt_temp.fields:
+            if not isinstance(rdt_temp._pdict.get_context(field).param_type, ParameterFunctionType):
+                try:
+                    rdt_temp[field] = rdt_in[field]
+                except KeyError:
+                    pass
+        
+        for field in rdt_temp.fields:
+            if isinstance(rdt_temp._pdict.get_context(field).param_type, ParameterFunctionType):
+                rdt_temp[field] = rdt_temp[field]
+
+        
         rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
+
+        for field in rdt_out.fields:
+            rdt_out[field] = rdt_temp[field]
         
-        #store computed values so we do not have to process them again
-        store = {}
-        
-        #modify the shape of the rdt out since we are using _rd then _shp will never get set
-        rdt_out._shp = rdt_in._shp
-        if rdt_out._available_fields is None: rdt_out._available_fields = []
-        if rdt_in._available_fields is None: rdt_in._available_fields = []
-        for key,pctup in merged_pdict.iteritems():
-            n,pc = pctup
-            #if function then a transform is applied to calculate values
-            if isinstance(pc.param_type, ParameterFunctionType):
-                #apply transform
-                pv = get_value_class(pc.param_type, rdt_in.domain)
-                #recursive function applies values
-                def pval_callback(name, slice_):
-                    result = None
-                    #search for input data...first level input
-                    if name in rdt_in._available_fields:
-                        result = rdt_in[name]
-                    else:
-                        #is it cached if it is then skip recursive evaluation
-                        try:
-                            result = store[name]
-                        except KeyError:
-                            #not first level data so continue to evaluate
-                            n,pc = merged_pdict[name]
-                            pv = get_value_class(pc.param_type, rdt_in.domain)
-                            pv._pval_callback = pval_callback
-                            result = pv[:]
-                            store[name] = result
-                    return result
-                #set the evaluation callback so it can find values in the input stream
-                pv._pval_callback = pval_callback
-                if key in rdt_out._available_fields:
-                    #rdt to and from granule wraps result in a paramval so no need
-                    #expected to use RDT to and load granule around this method
-                    #paramval = rdt_out.get_paramval(pc.param_type, rdt_in.domain, pv[:])
-                    #paramval._pval_callback = pval_callback
-                    #rdt_out._rd[key] = paramval
-                    rdt_out._rd[key] = pv[:]
-            else:
-                #field exists in both the in and the out stream so pass it along to the output stream
-                if key in rdt_in._available_fields and key in rdt_out._available_fields:
-                    #pass through
-                    rdt_out._rd[key] = rdt_in._rd[key][:]
         return rdt_out 
 
 
