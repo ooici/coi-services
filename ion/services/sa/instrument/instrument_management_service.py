@@ -212,12 +212,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         inst_agent_instance_obj = self.RR2.find_instrument_agent_instance_of_instrument_device(instrument_device_id)
         launcher.set_agent_instance_object(inst_agent_instance_obj)
-        launcher.prepare(will_launch=False)
+        agent_config = launcher.prepare(will_launch=False)
 
         epoch = time.mktime(datetime.now().timetuple())
         snapshot_name = name or "Running Config Snapshot %s.js" % epoch
 
-        agent_config = launcher.generate_config()
 
         snapshot = {}
         snapshot["driver_config"] = agent_config['driver_config']
@@ -340,61 +339,37 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         Launch the instument agent instance and return the id
         """
 
-        launcher = InstrumentAgentLauncher(self.clients)
-
         instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
 
-        launcher.set_agent_instance_object(instrument_agent_instance_obj)
-        launcher.prepare()
-
-        instrument_device_obj = launcher._get_device()
+        # launch the port agent before verifying anything.
+        # if agent instance doesn't validate, port agent won't care and will be available for when it does validate
 
         # if no comms_config specified in the driver config then we need to start a port agent
         if not 'comms_config' in instrument_agent_instance_obj.driver_config:
             log.info("IMS:start_instrument_agent_instance no comms_config specified in the driver_config so call _start_port_agent")
             instrument_agent_instance_obj = self._start_port_agent(instrument_agent_instance_obj) # <-- this updates agent instance obj!
         # if the comms_config host addr in the driver config is localhost
-        elif 'addr' in instrument_agent_instance_obj.driver_config.get('comms_config') and \
+        elif 'addr' in instrument_agent_instance_obj.driver_config.get('comms_config') and\
              instrument_agent_instance_obj.driver_config['comms_config']['addr'] == 'localhost':
             log.info("IMS:start_instrument_agent_instance  comms_config host addr in the driver_config is localhost so call _start_port_agent")
             instrument_agent_instance_obj = self._start_port_agent(instrument_agent_instance_obj) # <-- this updates agent instance obj!
 
-        # re-set the agent instance object with the new version
-        launcher.set_agent_instance_object(instrument_agent_instance_obj)
-        process_id = launcher.launch()
+        try:
+            launcher = InstrumentAgentLauncher(self.clients)
+            launcher.set_agent_instance_object(instrument_agent_instance_obj)
+            config = launcher.prepare()
+        except:
+            self._stop_port_agent(instrument_agent_instance_obj.port_agent_config)
+            raise
 
-        self.record_instrument_producer_activation(instrument_device_obj._id, instrument_agent_instance_id)
+        process_id = launcher.launch(config)
 
-        return process_id
+        self.record_instrument_producer_activation(launcher._get_device()._id, instrument_agent_instance_id)
 
-
-    def start_platform_agent_instance(self, platform_agent_instance_id=''):
-        """
-        Agent instance must first be created and associated with a platform device
-        Launch the platform agent instance and return the id
-        """
-        launcher = PlatformAgentLauncher(self.clients)
-
-        platform_agent_instance_obj = self.RR2.read(platform_agent_instance_id)
-
-        launcher.set_agent_instance_object(platform_agent_instance_obj)
-        launcher.prepare()
-
-        platform_device_obj = launcher._get_device()
-
-        log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)",
-                  str(platform_device_obj._id),  str(platform_agent_instance_id))
-
-        #retrive the stream info for this model
-        #todo: add stream info to the platform model create
-        #        streams_dict = platform_model_obj.custom_attributes['streams']
-        #        if not streams_dict:
-        #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
-
-
-        process_id = launcher.launch()
+        launcher.await_launch(process_id, 20)
 
         return process_id
+
 
 
 
@@ -436,17 +411,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.read_instrument_agent_instance(instrument_agent_instance_obj._id)
 
 
+    def _stop_port_agent(self, port_agent_config):
+        log.debug("Stopping port agent")
+        try:
+            _port_agent_config = port_agent_config
+
+            process = PortAgentProcess.get_process(_port_agent_config, test_mode=True)
+            process.stop()
+        except NotFound:
+            log.debug("No port agent process found")
+            pass
+        except Exception as e:
+            raise e
+        else:
+            log.debug("Success stopping port agent")
+
+
     def stop_instrument_agent_instance(self, instrument_agent_instance_id=''):
         """
         Deactivate the instrument agent instance
         """
-        instrument_device_id = self.stop_agent_instance(instrument_agent_instance_id, RT.InstrumentDevice)
+        instance_obj, device_id = self.stop_agent_instance(instrument_agent_instance_id, RT.InstrumentDevice)
+
+        self._stop_port_agent(instance_obj.port_agent_config)
 
         #update the producer context for provenance
-        producer_obj = self._get_instrument_producer(instrument_device_id)
+        producer_obj = self._get_instrument_producer(device_id)
         if producer_obj.producer_context.type_ == OT.InstrumentProducerContext :
             producer_obj.producer_context.deactivation_time =  IonTime().to_string()
             self.RR2.update(producer_obj)
+
 
 
     def stop_agent_instance(self, agent_instance_id, device_type):
@@ -476,19 +470,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             log.debug("Success cancelling agent process")
 
 
-        log.debug("Stopping port agent")
-        try:
-            _port_agent_config = agent_instance_obj.port_agent_config
 
-            process = PortAgentProcess.get_process(_port_agent_config, test_mode=True)
-            process.stop()
-        except NotFound:
-            log.debug("No port agent process found")
-            pass
-        except Exception as e:
-            raise e
-        else:
-            log.debug("Success stopping port agent")
 
         #reset the process ids.
         agent_instance_obj.agent_process_id = None
@@ -496,7 +478,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             agent_instance_obj.driver_config['pagent_pid'] = None
         self.RR2.update(agent_instance_obj)
 
-        return device_id
+        return agent_instance_obj, device_id
 
 
 
@@ -911,6 +893,34 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 #            out[0:] = descendents
 #        return out
 
+
+    def start_platform_agent_instance(self, platform_agent_instance_id=''):
+        """
+        Agent instance must first be created and associated with a platform device
+        Launch the platform agent instance and return the id
+        """
+        launcher = PlatformAgentLauncher(self.clients)
+
+        platform_agent_instance_obj = self.RR2.read(platform_agent_instance_id)
+
+        launcher.set_agent_instance_object(platform_agent_instance_obj)
+        config = launcher.prepare()
+
+        platform_device_obj = launcher._get_device()
+        log.debug("start_platform_agent_instance: device is %s connected to platform agent instance %s (L4-CI-SA-RQ-363)",
+                  str(platform_device_obj._id),  str(platform_agent_instance_id))
+
+        #retrive the stream info for this model
+        #todo: add stream info to the platform model create
+        #        streams_dict = platform_model_obj.custom_attributes['streams']
+        #        if not streams_dict:
+        #            raise BadRequest("Device model does not contain stream configuation used in launching the agent. Model: '%s", str(platform_models_objs[0]) )
+
+
+        process_id = launcher.launch(config)
+        launcher.await_launch(20)
+
+        return process_id
 
 
 

@@ -106,6 +106,7 @@ class AgentLauncher(object):
         # validate the associations, then pick things up
         self._collect_agent_instance_associations()
         self.will_launch = will_launch
+        return self.generate_config()
 
 
     def _generate_org_name(self):
@@ -243,7 +244,7 @@ class AgentLauncher(object):
         return agent_config
 
 
-    def launch(self):
+    def launch(self, agent_config=None):
         """
         generate the configuration for this agent, schedule the launch, wait for the launch, record process id
         """
@@ -251,7 +252,8 @@ class AgentLauncher(object):
         self._check_associations()
         assert self.will_launch
 
-        agent_config = self.generate_config()
+        if None is agent_config:
+            agent_config = self.generate_config()
 
         process_def_obj = self._get_process_def()
 
@@ -261,13 +263,6 @@ class AgentLauncher(object):
         process_id = self.clients.process_dispatcher.schedule_process(process_definition_id=process_def_obj._id,
                                                                       schedule=process_schedule,
                                                                       configuration=agent_config)
-
-        log.debug("waiting 20 seconds for agent launch")
-        psg = ProcessStateGate(self.clients.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
-        if not psg.await(20):
-            raise BadRequest("The %s '%s' failed to launch in 20 seconds" %
-                             (type(self.agent_instance_obj).__name__, self.agent_instance_obj._id))
-
         log.debug("add the process id and update the resource")
         self.agent_instance_obj.agent_config = agent_config
         self.agent_instance_obj.agent_process_id = process_id
@@ -276,6 +271,15 @@ class AgentLauncher(object):
         log.debug('completed agent start')
 
         return process_id
+
+
+    def await_launch(self, process_id, timeout):
+
+        log.debug("waiting %s seconds for agent launch", timeout)
+        psg = ProcessStateGate(self.clients.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
+        if not psg.await(20):
+            raise BadRequest("The %s '%s' failed to launch in %s seconds" %
+                             (type(self.agent_instance_obj).__name__, self.agent_instance_obj._id), timeout)
 
 
     def _collect_agent_instance_associations(self):

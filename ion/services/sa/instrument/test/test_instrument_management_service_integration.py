@@ -546,10 +546,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         log.debug("Preparing a valid agent instance launch, for config only")
         plauncher.set_agent_instance_object(platform_agent_instance_child_obj)
-        plauncher.prepare(will_launch=False)
-
-        log.debug("Generating child config")
-        child_config = plauncher.generate_config()
+        child_config = plauncher.prepare(will_launch=False)
         verify_child_config(child_config, platform_device_child_id)
 
 
@@ -559,8 +556,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         log.debug("Testing child-less parent as a child config")
         plauncher.set_agent_instance_object(platform_agent_instance_parent_obj)
-        plauncher.prepare(will_launch=False)
-        parent_config = plauncher.generate_config()
+        parent_config = plauncher.prepare(will_launch=False)
         verify_child_config(parent_config, platform_device_parent_id)
 
         log.warn("assigning child platform to parent")
@@ -570,8 +566,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         log.warn("Testing parent + child as parent config")
         plauncher.set_agent_instance_object(platform_agent_instance_parent_obj)
-        plauncher.prepare(will_launch=False)
-        parent_config = plauncher.generate_config()
+        parent_config = plauncher.prepare(will_launch=False)
         verify_parent_config(parent_config, platform_device_parent_id, platform_device_child_id)
 
         #self.fail(parent_config)
