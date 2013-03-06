@@ -31,16 +31,9 @@ class TransformBase(SimpleProcess):
         Begins listening for incoming RPC calls.
         '''
         super(TransformBase,self).on_start()
-        self._rpc_server = RPCServer(self, from_name=self.id)
-        self._listener = gevent.spawn(self._rpc_server.listen)
-
-    def on_quit(self):
-        '''
-        Closes the listener.
-        '''
-        self._rpc_server.close()
-        self._listener.join(5)
-        super(TransformBase, self).on_quit()
+        self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id,
+                                                                                  process=self)
+        self.add_endpoint(self._rpc_server)
 
     def _stat(self):
         return self._stats
@@ -93,7 +86,7 @@ class TransformStreamListener(TransformStreamProcess):
         self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
 
         self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.recv_packet)
-        self.subscriber.start()
+        self.add_endpoint(self.subscriber)
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
@@ -101,13 +94,6 @@ class TransformStreamListener(TransformStreamProcess):
         This method is called on receipt of an incoming message from a stream.
         '''
         raise NotImplementedError('Method recv_packet not implemented')
-
-    def on_quit(self):
-        '''
-        Stops consuming on the queue.
-        '''
-        self.subscriber.stop()
-        super(TransformStreamListener,self).on_quit()
 
 class TransformStreamPublisher(TransformStreamProcess):
     '''
@@ -169,14 +155,10 @@ class TransformEventListener(TransformEventProcess):
         queue_name = self.CFG.get_safe('process.queue_name', None)
 
         self.listener = EventSubscriber(event_type=event_type, queue_name=queue_name, callback=self.process_event)
-        self.listener.start()
+        self.add_endpoint(self.listener)
 
     def process_event(self, msg, headers):
         raise NotImplementedError('Method process_event not implemented')
-
-    def on_quit(self):
-        self.listener.stop()
-        super(TransformEventListener,self).on_quit()
 
 class TransformEventPublisher(TransformEventProcess):
 

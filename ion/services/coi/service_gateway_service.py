@@ -100,21 +100,14 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #Configure  subscriptions for user_cache events
         self.user_role_event_subscriber = EventSubscriber(event_type=OT.UserRoleModifiedEvent, origin_type="Org",
             callback=self.user_role_event_callback)
-        self.user_role_event_subscriber.start()
+        self.add_endpoint(self.user_role_event_subscriber)
 
         self.user_role_reset_subscriber = EventSubscriber(event_type=OT.UserRoleCacheResetEvent,
             callback=self.user_role_reset_callback)
-        self.user_role_reset_subscriber.start()
+        self.add_endpoint(self.user_role_reset_subscriber)
 
     def on_quit(self):
         self.stop_service()
-
-        if self.user_role_event_subscriber is not None:
-            self.user_role_event_subscriber.stop()
-
-        if self.user_role_reset_subscriber is not None:
-            self.user_role_reset_subscriber.stop()
-
 
     def start_service(self, hostname=DEFAULT_WEB_SERVER_HOSTNAME, port=DEFAULT_WEB_SERVER_PORT):
         """Responsible for starting the gevent based web server."""
