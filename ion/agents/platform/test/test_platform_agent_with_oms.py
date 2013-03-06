@@ -16,9 +16,10 @@ __license__ = 'Apache 2.0'
 #
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_state_transitions
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_get_set_resources
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_commands
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_event_dispatch
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_external_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_connect_disconnect_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_check_sync
 #
@@ -423,13 +424,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
+        #
+        # OOIION-631: use get_ion_ts() as a basis for using system time, which is
+        # a string.
+        #
         cur_time = get_ion_ts()
-        #
-        # OOIION-631 Note: I'm asked to only use get_ion_ts() as a basis for
-        # using system time. However, other associated supporting (and more
-        # "numeric") routines would be convenient. In particular, note the
-        # following operation to subtract a number of seconds for my request:
-        #
         from_time = str(int(cur_time) - 50000)  # a 50-sec time window
         kwargs = dict(attr_names=attrNames, from_time=from_time)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
@@ -527,24 +526,12 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(x in retval.result for x in self.SUBPLATFORM_IDS)
         return retval.result
 
-    def _start_event_dispatch(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH)
-        retval = self._execute_agent(cmd)
-        self.assertTrue(retval.result is not None)
-        return retval.result
-
-    def _wait_for_an_event(self):
+    def _wait_for_external_event(self):
         log.info("waiting for reception of an external event...")
         # just wait for at least one -- see consume_event
         self._async_event_result.get(timeout=EVENT_TIMEOUT)
         self.assertTrue(len(self._events_received) >= 1)
         log.info("Received events: %s", len(self._events_received))
-
-    def _stop_event_dispatch(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
-        retval = self._execute_agent(cmd)
-        self.assertTrue(retval.result is not None)
-        return retval.result
 
     def _check_sync(self):
         cmd = AgentCommand(command=PlatformAgentEvent.CHECK_SYNC)
@@ -580,9 +567,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.TURN_ON_PORT,
             PlatformAgentEvent.TURN_OFF_PORT,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
-
-            PlatformAgentEvent.START_EVENT_DISPATCH,
-            PlatformAgentEvent.STOP_EVENT_DISPATCH,
 
             PlatformAgentEvent.START_MONITORING,
             PlatformAgentEvent.STOP_MONITORING,
@@ -754,9 +738,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
 
-            PlatformAgentEvent.START_EVENT_DISPATCH,
-            PlatformAgentEvent.STOP_EVENT_DISPATCH,
-
             PlatformAgentEvent.START_MONITORING,
 
             PlatformAgentEvent.CHECK_SYNC,
@@ -813,6 +794,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
 
         agt_cmds_monitoring = [
+            PlatformAgentEvent.RESET,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
 
@@ -827,9 +809,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
-
-            PlatformAgentEvent.START_EVENT_DISPATCH,
-            PlatformAgentEvent.STOP_EVENT_DISPATCH,
 
             PlatformAgentEvent.STOP_MONITORING,
 
@@ -882,6 +861,21 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._reset()        # -> UNINITIALIZED
 
+    def test_get_set_resources(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._get_resource()
+        self._set_resource()
+
+        self._go_inactive()
+        self._reset()
+
     def test_some_commands(self):
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
@@ -897,9 +891,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._get_metadata()
         self._get_ports()
         self._get_subplatform_ids()
-
-        self._get_resource()
-        self._set_resource()
 
         self._go_inactive()
         self._reset()
@@ -920,7 +911,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._go_inactive()
         self._reset()
 
-    def test_event_dispatch(self):
+    def test_external_event_dispatch(self):
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -929,9 +920,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._go_active()
         self._run()
 
-        self._start_event_dispatch()
-        self._wait_for_an_event()
-        self._stop_event_dispatch()
+        self._wait_for_external_event()
 
         self._go_inactive()
         self._reset()

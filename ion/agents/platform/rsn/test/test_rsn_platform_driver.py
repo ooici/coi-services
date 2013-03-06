@@ -2,7 +2,7 @@
 
 """
 @package ion.agents.platform.rsn.test.test_oms_platform_driver
-@file    ion/agents/platform/rsn/test/test_oms_platform_driver.py
+@file    ion/agents/platform/rsn/test/test_rsn_platform_driver.py
 @author  Carlos Rueda
 @brief   Some basic and direct tests to RSNPlatformDriver.
 """
@@ -85,12 +85,6 @@ class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
         for attr_name in attrNames:
             self.assertTrue(attr_name in attr_values)
 
-    def _start_event_dispatch(self):
-        self._plat_driver.start_event_dispatch()
-
-    def _stop_event_dispatch(self):
-        self._plat_driver.stop_event_dispatch()
-
     def test(self):
 
         self._configure()
@@ -99,9 +93,5 @@ class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
 
         self._get_attribute_values()
 
-        self._start_event_dispatch()
-
         log.info("sleeping to eventually see some events...")
         sleep(15)
-
-        self._stop_event_dispatch()

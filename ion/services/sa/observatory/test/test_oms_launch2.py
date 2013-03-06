@@ -636,11 +636,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
         log.debug( 'Base Platform START_MONITORING = %s', str(retval) )
 
-        # START_EVENT_DISPATCH
-        cmd = AgentCommand(command=PlatformAgentEvent.START_EVENT_DISPATCH)
-        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        self.assertTrue(retval.result is not None)
-
         # wait for data sample
         # just wait for at least one -- see consume_data above
         log.info("waiting for reception of a data sample...")
@@ -663,11 +658,6 @@ class TestOmsLaunch(IonIntegrationTestCase):
 #        log.debug( 'test_single_platform   extended_platform: %s', str(extended_platform) )
 #        log.debug( 'test_single_platform   power_status_roll_up: %s', str(extended_platform.computed.power_status_roll_up.value) )
 #        log.debug( 'test_single_platform   comms_status_roll_up: %s', str(extended_platform.computed.communications_status_roll_up.value) )
-
-        # STOP_EVENT_DISPATCH
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_EVENT_DISPATCH)
-        retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        self.assertTrue(retval.result is not None)
 
         # STOP_MONITORING:
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)

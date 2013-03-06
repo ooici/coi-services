@@ -29,9 +29,7 @@ class PlatformDriverState(BaseEnum):
     """
     UNCONFIGURED     = 'PLATFORM_DRIVER_STATE_UNCONFIGURED'
     DISCONNECTED     = 'PLATFORM_DRIVER_STATE_DISCONNECTED'
-    CONNECTING       = 'PLATFORM_DRIVER_STATE_CONNECTING'
     CONNECTED        = 'PLATFORM_DRIVER_STATE_CONNECTED'
-    DISCONNECTING    = 'PLATFORM_DRIVER_STATE_DISCONNECTING'
 
 
 class PlatformDriverEvent(BaseEnum):
@@ -56,8 +54,6 @@ class PlatformDriverEvent(BaseEnum):
     GET_CONNECTED_INSTRUMENTS = 'PLATFORM_DRIVER_GET_CONNECTED_INSTRUMENTS'
     TURN_ON_PORT              = 'PLATFORM_DRIVER_TURN_ON_PORT'
     TURN_OFF_PORT             = 'PLATFORM_DRIVER_TURN_OFF_PORT'
-    START_EVENT_DISPATCH      = 'PLATFORM_DRIVER_START_EVENT_DISPATCH'
-    STOP_EVENT_DISPATCH       = 'PLATFORM_DRIVER_STOP_EVENT_DISPATCH'
     GET_CHECKSUM              = 'PLATFORM_DRIVER_GET_CHECKSUM'
 
 
@@ -109,7 +105,7 @@ class PlatformDriver(object):
         """
         return self._platform_attributes
 
-    def validate_driver_configuration(self, driver_config):
+    def _validate_driver_configuration(self, driver_config):
         """
         Called by configure so a subclass can perform any needed additional
         validation of the provided configuration.
@@ -123,14 +119,14 @@ class PlatformDriver(object):
 
     def configure(self, driver_config):
         """
-        Configures this driver. It first calls validate_driver_configuration.
+        Configures this driver. It first calls _validate_driver_configuration.
 
         @param driver_config Driver configuration.
         """
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: configure: %s" % (self._platform_id, str(driver_config)))
 
-        self.validate_driver_configuration(driver_config)
+        self._validate_driver_configuration(driver_config)
         self._driver_config = driver_config
 
     def connect(self):
@@ -292,21 +288,6 @@ class PlatformDriver(object):
         assert isinstance(driver_event, DriverEvent)
 
         self._send_event(driver_event)
-
-    def start_event_dispatch(self):
-        """
-        To be implemented by subclass.
-        Starts the dispatch of events received from the platform network to do
-        corresponding event notifications.
-        """
-        raise NotImplementedError()  #pragma: no cover
-
-    def stop_event_dispatch(self):
-        """
-        To be implemented by subclass.
-        Stops the dispatch of events received from the platform network.
-        """
-        raise NotImplementedError()  #pragma: no cover
 
     def get_checksum(self):
         """
@@ -584,32 +565,6 @@ class PlatformDriver(object):
 
         return next_state, result
 
-    def _handler_connected_start_event_dispatch(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s" % (
-                      self._platform_id, self.get_driver_state(),
-                      str(args), str(kwargs)))
-
-        result = self.start_event_dispatch()
-        next_state = None
-
-        return next_state, result
-
-    def _handler_connected_stop_event_dispatch(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s" % (
-                      self._platform_id, self.get_driver_state(),
-                      str(args), str(kwargs)))
-
-        result = self.stop_event_dispatch()
-        next_state = None
-
-        return next_state, result
-
     def _handler_connected_get_checksum(self, *args, **kwargs):
         """
         """
@@ -647,12 +602,6 @@ class PlatformDriver(object):
         # DISCONNECTED state event handlers:
         self._fsm.add_handler(PlatformDriverState.DISCONNECTED, PlatformDriverEvent.CONNECT, self._handler_disconnected_connect)
 
-        # CONNECTING state event handlers:
-        # NONE.
-
-        # DISCONNECTING state event handlers:
-        # NONE.
-
         # CONNECTED state event handlers:
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT, self._handler_connected_disconnect)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECTION_LOST, self._handler_connected_disconnect)
@@ -666,6 +615,4 @@ class PlatformDriver(object):
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, self._handler_connected_get_connected_instruments)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.TURN_ON_PORT, self._handler_connected_turn_on_port)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.TURN_OFF_PORT, self._handler_connected_turn_off_port)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.START_EVENT_DISPATCH, self._handler_connected_start_event_dispatch)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.STOP_EVENT_DISPATCH, self._handler_connected_stop_event_dispatch)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CHECKSUM, self._handler_connected_get_checksum)
