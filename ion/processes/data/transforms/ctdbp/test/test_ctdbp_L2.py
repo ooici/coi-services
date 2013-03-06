@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@brief Test to check CTD
+@brief Test to check CTDBP chain of transforms: L0, L1 and L2 (density and salinity)
 @author Swarbhanu Chatterjee
 """
 
@@ -72,16 +72,112 @@ class TestCTDPChain(IonIntegrationTestCase):
             xn = self.container.ex_manager.create_xn_queue(queue)
             xn.delete()
 
-    def _prepare_stream_for_transform_chain(self):
+
+    def test_ctdp_chain(self):
+        """
+        Test that packets are processed by a chain of CTDP transforms: L0, L1 and L2
+        """
+
+        #-------------------------------------------------------------------------------------
+        # Prepare the stream def to be used for transform chain
+        #-------------------------------------------------------------------------------------
+
+        #todo Check whether the right parameter dictionary is being used
+        self._prepare_stream_def_for_transform_chain(parameter_dict_name='ctd_parsed_param_dict')
+
+        #-------------------------------------------------------------------------------------
+        # Prepare the data proc defs and in and out data products for the transforms
+        #-------------------------------------------------------------------------------------
+
+        # list_args_L0 = [data_proc_def_id, input_dpod_id, output_dpod_id]
+        list_args_L0 = self._prepare_things_you_need_to_launch_transform(name_of_transform='L0')
+
+        list_args_L1 = self._prepare_things_you_need_to_launch_transform(name_of_transform='L1')
+
+        list_args_L2_density = self._prepare_things_you_need_to_launch_transform(name_of_transform='L2_density')
+
+        list_args_L2_salinity = self._prepare_things_you_need_to_launch_transform(name_of_transform='L2_salinity')
+
+        #-------------------------------------------------------------------------------------
+        # Launch the CTDP transforms
+        #-------------------------------------------------------------------------------------
+
+        L0_data_proc_id = self._launch_transform('L0', *list_args_L0)
+
+        L1_data_proc_id = self._launch_transform('L1', *list_args_L1)
+
+        L2_density_data_proc_id = self._launch_transform('L2_density', *list_args_L2_density)
+
+        L2_salinity_data_proc_id = self._launch_transform('L2_salinity', *list_args_L2_salinity)
+
+        #-------------------------------------------------------------------------
+        # Start a subscriber listening to the output of each of the transforms
+        #-------------------------------------------------------------------------
+
+        ar_L0 = self.start_subscriber_listening_to_L0_transform(output_stream_id_of_transform=list_args_L0[2])
+        ar_L1 = self.start_subscriber_listening_to_L1_transform(output_stream_id_of_transform=list_args_L1[2])
+        ar_L2 = self.start_subscriber_listening_to_L2_transform(output_stream_id_of_transform=list_args_L1[2])
+
+        #-------------------------------------------------------------------
+        # Publish the parsed packets that the L0 transform is listening for
+        #-------------------------------------------------------------------
+
+        stream_id, stream_route = self.get_stream_and_route_for_data_prod(data_prod_id= list_args_L0[1])
+        self._publish_for_L0_transform(input_stream_id, stream_route)
+
+        #-------------------------------------------------------------------
+        # Check the granules being outputted by the transforms
+        #-------------------------------------------------------------------
+        self._check_granule_from_L0_transform(ar_L0)
+        self._check_granule_from_L1_transform(ar_L1)
+        self._check_granule_from_L2_transform(ar_L2)
+
+
+    def _prepare_stream_def_for_transform_chain(self, parameter_dict_name = ''):
 
         # Get the stream definition for the stream using the parameter dictionary
-        #todo Check whether the right parameter dictionary is being used
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id = self.pubsub.create_stream_definition(name='stream_def_for_CTDBP_transforms', parameter_dictionary_id=pdict_id)
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(parameter_dict_name, id_only=True)
+        self.stream_def_id = self.pubsub.create_stream_definition(name='stream_def_for_CTDBP_transforms', parameter_dictionary_id=pdict_id)
 
         log.debug("Got the parsed parameter dictionary: id: %s", pdict_id)
-        log.debug("Got the stream def for parsed input: %s", stream_def_id)
+        log.debug("Got the stream def for parsed input: %s", self.stream_def_id)
 
+    def _prepare_things_you_need_to_launch_transform(self, name_of_transform = ''):
+
+        module, class_name = self._get_class_module(name_of_transform)
+
+        #-------------------------------------------------------------------------
+        # Data Process Definition
+        #-------------------------------------------------------------------------
+
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+            name= 'CTDBP_%s_Transform' % name_of_transform,
+            description= 'Data Process Definition for the CTDBP %s transform.' % name_of_transform,
+            module= module,
+            class_name=class_name)
+
+        data_proc_def_id = self.data_process_management.create_data_process_definition(dpd_obj)
+        log.debug("created data process definition: id = %s", data_proc_def_id)
+
+        #-------------------------------------------------------------------------
+        # Construct temporal and spatial Coordinate Reference System objects for the data product objects
+        #-------------------------------------------------------------------------
+
+        tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+        #-------------------------------------------------------------------------
+        # Input data product
+        #-------------------------------------------------------------------------
+        input_dpod_id = self._create_input_data_product(tdom, sdom)
+
+        #-------------------------------------------------------------------------
+        # output data product
+        #-------------------------------------------------------------------------
+        output_dpod_id = self._create_output_data_product(tdom, sdom)
+
+        return [data_proc_def_id, input_dpod_id, output_dpod_id]
 
     def _get_class_module(self, name_of_transform):
 
@@ -117,7 +213,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         return module, class_name
 
-    def _create_input_data_product(self, name_of_transform = '', tdom = None, sdom = None, stream_def_id = None):
+    def _create_input_data_product(self, name_of_transform = '', tdom = None, sdom = None):
 
         dpod_obj = IonObject(RT.DataProduct,
             name='in_data_prod_for_%s' % name_of_transform,
@@ -126,12 +222,12 @@ class TestCTDPChain(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         dpod_id = self.dataproduct_management.create_data_product(data_product=dpod_obj,
-            stream_definition_id=stream_def_id
+            stream_definition_id=self.stream_def_id
         )
 
         return dpod_id
 
-    def _create_output_data_product(self, name_of_transform = '', tdom = None, sdom = None, stream_def_id = None):
+    def _create_output_data_product(self, name_of_transform = '', tdom = None, sdom = None):
 
         dpod_obj = IonObject(RT.DataProduct,
             name='out_data_prod_for_%s' % name_of_transform,
@@ -140,139 +236,63 @@ class TestCTDPChain(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         dpod_id = self.dataproduct_management.create_data_product(data_product=dpod_obj,
-            stream_definition_id=stream_def_id
+            stream_definition_id=self.stream_def_id
         )
 
         return dpod_id
 
-    def _launch_a_ctdbp_transform(self, name_of_transform = ''):
-
-        module, class_name = self._get_class_module(name_of_transform)
-
-        #-------------------------------------------------------------------------
-        # Data Process Definition
-        #-------------------------------------------------------------------------
-
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-            name= 'CTDBP_%s_Transform' % name_of_transform,
-            description= 'Data Process Definition for the CTDBP %s transform.' % name_of_transform,
-            module= module,
-            class_name=class_name)
-
-        dprocdef_density_id = self.data_process_management.create_data_process_definition(dpd_obj)
-        log.debug("created data process definition: id = %s", dprocdef_density_id)
-
-        #-------------------------------------------------------------------------
-        # Construct temporal and spatial Coordinate Reference System objects for the data product objects
-        #-------------------------------------------------------------------------
-
-        tdom, sdom = time_series_domain()
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
-        #-------------------------------------------------------------------------
-        # Input data product
-        #-------------------------------------------------------------------------
-        input_dpod_id = self._create_input_data_product(tdom, sdom, stream_def_id)
-
-        #-------------------------------------------------------------------------
-        # output data product
-        #-------------------------------------------------------------------------
-        output_dpod_id = self._create_output_data_product(tdom, sdom, stream_def_id)
-
-    def _launch_L0_transform(self, input_dpod_id = None, output_dpod_id = None):
-
-
+    def _launch_transform(self, name_of_transform = '', data_proc_def_id = None, input_dpod_id = None, output_dpod_id = None):
 
         # We need the key name here to be "L2_stream", since when the data process is launched, this name goes into
         # the config as in config.process.publish_streams.L2_stream when the config is used to launch the data process
-        self.output_products = {'L2_stream' : L2_stream_dp_id}
-        out_stream_ids, _ = self.resource_registry.find_objects(L2_stream_dp_id, PRED.hasStream, RT.Stream, True)
-        output_stream_id = out_stream_ids[0]
+        output_products = {'L0_stream' : output_dpod_id}
 
-        dproc_dens_id = self.data_process_management.create_data_process( dprocdef_density_id, [input_dp_id], self.output_products)
-
-        log.debug("Created a data process for ctdbp_L2. id: %s", dproc_dens_id)
+        data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products)
 
         # Activate the data process
-        self.data_process_management.activate_data_process(dproc_dens_id)
+        self.data_process_management.activate_data_process(data_proc_id)
 
-        #----------- Find the stream that is associated with the input data product when it was created by create_data_product() --------------------------------
+        log.debug("Created a data process for ctdbp %s transform: id = %s", name_of_transform, data_proc_id)
 
-        stream_ids, _ = self.resource_registry.find_objects(input_dp_id, PRED.hasStream, RT.Stream, True)
+        return data_proc_id
 
-        input_stream_id = stream_ids[0]
+    def get_stream_and_route_for_data_prod(self, data_prod_id = ''):
+
+        stream_ids, _ = self.resource_registry.find_objects(data_prod_id, PRED.hasStream, RT.Stream, True)
+        stream_id = stream_ids[0]
         input_stream = self.resource_registry.read(input_stream_id)
         stream_route = input_stream.stream_route
 
-        log.debug("The input stream for the L2 transform: %s", input_stream_id)
-
-
+        return stream_id, stream_route
 
     def _launch_L2_transform(self):
 
-        self._launch_a_ctdbp_transform(name_of_transform='L2')
+        pass
 
 
-    def test_ctdp_chain(self):
-        """
-        Test that packets are processed by a chain of CTDP transforms: L0, L1 and L2
-        """
-
-        #------------------------------------------------------------
-        # Launch the CTDP transforms
-        #------------------------------------------------------------
-
-        self._launch_L0_transform()
-
-        self._launch_L1_transform()
-
-        self._launch_L2_transform()
-
-        #-------------------------------------------------------------------------
-        # Start a subscriber listening to the output of each of the transforms
-        #-------------------------------------------------------------------------
-
-        ar_L0 = self.start_subscriber_listening_to_L0_transform()
-        ar_L1 = self.start_subscriber_listening_to_L1_transform()
-        ar_L2 = self.start_subscriber_listening_to_L2_transform()
-
-        #-------------------------------------------------------------------
-        # Publish the parsed packets that the L0 transform is listening for
-        #-------------------------------------------------------------------
-
-        self._publish_for_L0_transform(input_stream_id, stream_route)
-
-        #-------------------------------------------------------------------
-        # Check the granules being outputted by the transforms
-        #-------------------------------------------------------------------
-        self._check_granule_from_L0_transform(ar_L0)
-        self._check_granule_from_L1_transform(ar_L1)
-        self._check_granule_from_L2_transform(ar_L2)
-
-    def start_subscriber_listening_to_L0_transform(self):
+    def start_subscriber_listening_to_L0_transform(self, output_stream_id_of_transform = ''):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        ar_L0 = self._start_subscriber_to_transform( name_of_transform = 'L0',stream_id=output_stream_id)
+        ar_L0 = self._start_subscriber_to_transform( name_of_transform = 'L0',stream_id=output_stream_id_of_transform)
 
         return ar_L0
 
 
-    def start_subscriber_listening_to_L1_transform(self):
+    def start_subscriber_listening_to_L1_transform(self, output_stream_id_of_transform = ''):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        ar_L1 = self._start_subscriber_to_transform( name_of_transform = 'L1',stream_id=output_stream_id)
+        ar_L1 = self._start_subscriber_to_transform( name_of_transform = 'L1',stream_id=output_stream_id_of_transform)
 
         return ar_L1
 
 
-    def start_subscriber_listening_to_L2_transform(self):
+    def start_subscriber_listening_to_L2_transform(self, output_stream_id_of_transform = ''):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        ar_L2 = self._start_subscriber_to_transform( name_of_transform = 'L2',stream_id=output_stream_id)
+        ar_L2 = self._start_subscriber_to_transform( name_of_transform = 'L2',stream_id=output_stream_id_of_transform)
 
         return ar_L2
 
@@ -345,7 +365,7 @@ class TestCTDPChain(IonIntegrationTestCase):
     def _publish_to_transform(self, stream_id = '', stream_route = None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
-        publish_granule = self._get_new_ctd_L1_packet(stream_definition_id=L1_stream_def_id, length = 5)
+        publish_granule = self._get_new_ctd_L1_packet(stream_definition_id=L1_self.stream_def_id, length = 5)
         pub.publish(publish_granule)
 
         log.debug("Published the following granule: %s", publish_granule)
