@@ -794,6 +794,7 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         agt_cmds, agt_pars, res_cmds, res_pars = sort_caps(retval)
 
         agt_cmds_monitoring = [
+            PlatformAgentEvent.RESET,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
 
