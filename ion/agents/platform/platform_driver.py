@@ -29,9 +29,7 @@ class PlatformDriverState(BaseEnum):
     """
     UNCONFIGURED     = 'PLATFORM_DRIVER_STATE_UNCONFIGURED'
     DISCONNECTED     = 'PLATFORM_DRIVER_STATE_DISCONNECTED'
-    CONNECTING       = 'PLATFORM_DRIVER_STATE_CONNECTING'
     CONNECTED        = 'PLATFORM_DRIVER_STATE_CONNECTED'
-    DISCONNECTING    = 'PLATFORM_DRIVER_STATE_DISCONNECTING'
 
 
 class PlatformDriverEvent(BaseEnum):
@@ -603,12 +601,6 @@ class PlatformDriver(object):
 
         # DISCONNECTED state event handlers:
         self._fsm.add_handler(PlatformDriverState.DISCONNECTED, PlatformDriverEvent.CONNECT, self._handler_disconnected_connect)
-
-        # CONNECTING state event handlers:
-        # NONE.
-
-        # DISCONNECTING state event handlers:
-        # NONE.
 
         # CONNECTED state event handlers:
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT, self._handler_connected_disconnect)
