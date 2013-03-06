@@ -86,6 +86,7 @@ class TestAssembly(GenericIntHelperTestCase):
         def killAllDataProcesses():
             for proc_id in self.client.RR.find_resources(RT.DataProcess, None, None, True)[0]:
                 self.client.DPRS.deactivate_data_process(proc_id)
+                self.client.DPRS.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
 

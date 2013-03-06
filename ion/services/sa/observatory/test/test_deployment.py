@@ -68,6 +68,7 @@ class TestDeployment(IonIntegrationTestCase):
         def killAllDataProcesses():
             for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
                 self.dsmsclient.deactivate_data_process(proc_id)
+                self.dsmsclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
 
