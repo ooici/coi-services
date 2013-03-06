@@ -222,8 +222,8 @@ class PlatformAgent(ResourceAgent):
 
     def on_quit(self):
         try:
-            log.info("%r: PlatformAgent: on_quit called. current_state=%s",
-                     self._platform_id, self._fsm.get_current_state())
+            log.debug("%r: PlatformAgent: on_quit called. current_state=%s",
+                      self._platform_id, self._fsm.get_current_state())
 
             self._do_quit()
 
@@ -238,8 +238,8 @@ class PlatformAgent(ResourceAgent):
         curr_state = self._fsm.get_current_state()
 
         if PlatformAgentState.UNINITIALIZED == curr_state:
-            log.info("%r: PlatformAgent: quit: already in UNINITIALIZED state",
-                     self._platform_id)
+            log.debug("%r: PlatformAgent: quit: already in UNINITIALIZED state",
+                      self._platform_id)
             return
 
         # attempt a "graceful" termination.
@@ -268,9 +268,9 @@ class PlatformAgent(ResourceAgent):
             finally:
                 curr_state = self._fsm.get_current_state()
 
-        log.info("%r: PlatformAgent: quit secuence complete. "
-                 "attempts=%d;  final state=%s",
-                 self._platform_id, attempts, curr_state)
+        log.debug("%r: PlatformAgent: quit secuence complete. "
+                  "attempts=%d;  final state=%s",
+                  self._platform_id, attempts, curr_state)
 
     def _reset(self):
         """
