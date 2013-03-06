@@ -629,9 +629,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
     @patch.dict(CFG, {'container':{'org_boundary':True}})
     def test_policy_cache_reset(self):
 
+        before_policy_set = self.container.governance_controller.get_active_policies()
 
         event_publisher = EventPublisher()
-
 
         event_data = dict()
         event_data['origin_type'] = 'System_Request'
@@ -641,9 +641,20 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         gevent.sleep(20)  # Wait for events to be published and policy reloaded for all running processes
 
+
+        after_policy_set = self.container.governance_controller.get_active_policies()
+
         #Reuse the basic test to make sure polices have been reloaded
         self.test_basic_policy_operations()
 
+        self.assertEqual(len(before_policy_set.keys()), len(after_policy_set.keys()))
+        self.assertEqual(len(before_policy_set['service_access'].keys()), len(after_policy_set['service_access'].keys()))
+        self.assertEqual(len(before_policy_set['resource_access'].keys()), len(after_policy_set['resource_access'].keys()))
+        self.assertEqual(len(before_policy_set['service_operation'].keys()), len(after_policy_set['service_operation'].keys()))
+
+        #If the number of keys for service operations were equal, then check each set of operation precondition functions
+        for key in before_policy_set['service_operation']:
+            self.assertEqual(len(before_policy_set['service_operation'][key]), len(after_policy_set['service_operation'][key]))
 
 
     @attr('LOCOINT')
