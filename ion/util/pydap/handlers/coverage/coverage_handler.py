@@ -63,7 +63,7 @@ class Handler(BaseHandler):
         grid[dims[0]] = BaseType(name=dims[0], data=time_data, type=time_data.dtype.char, attributes=time_attrs, dimensions=dims, shape=time_data.shape)
         return grid    
 
-    def get_dataset(self, cov, fields, fill_index, dataset):
+    def get_dataset(self, cov, fields, fill_index, dataset, response):
         for var in fields:
             while var:
                 name, slice_ = var.pop(0)
@@ -77,8 +77,13 @@ class Handler(BaseHandler):
                 pc = cov.get_parameter_context(name)
                 try:
                     param = cov.get_parameter(name)
-                    data = self.get_data(cov, name, slice_)
-                    time_data = self.get_time_data(cov, slice_)
+                    
+                    data = np.array([])
+                    time_data = np.array([])
+                    if response == "dods":
+                        data = self.get_data(cov, name, slice_)
+                        time_data = self.get_time_data(cov, slice_)
+
                     time_attrs  = self.get_attrs(cov, name)
                     attrs  = self.get_attrs(cov, name)
                     dims = (cov.temporal_parameter_name,)
@@ -90,6 +95,7 @@ class Handler(BaseHandler):
                         #start = time.time()
                         #convert to string
                         try:
+                            #scalar case
                             if data.shape == (2,):
                                 data = np.atleast_1d('_'.join([str(data[0]), str(data[1])]))
                             else:
@@ -132,7 +138,6 @@ class Handler(BaseHandler):
     def parse_constraints(self, environ):
         base = os.path.split(self.filepath)
         coverage = SimplexCoverage.load(base[0], base[1],mode='r')
-        #coverage = SimplexCoverage.pickle_load(self.filepath)
 
         last_modified = formatdate(time.mktime(time.localtime(os.stat(self.filepath)[ST_MTIME])))
         environ['pydap.headers'].append(('Last-modified', last_modified))
@@ -141,35 +146,28 @@ class Handler(BaseHandler):
         atts['title'] = coverage.name
         dataset = DatasetType(coverage.name) #, attributes=atts)
         fields, queries = environ['pydap.ce']
+        response = environ['pydap.response']
+
         queries = filter(bool, queries)  # fix for older version of pydap
 
         all_vars = coverage.list_parameters()
         
-        """
-        t = []
-        for param in all_vars:
-            if not isinstance(coverage.get_parameter_context(param).param_type, QuantityType):
-                t.append(param)
-        [all_vars.remove(i) for i in t]
-        """
-        
-        time_context = coverage.get_parameter_context(coverage.temporal_parameter_name)
-        time_fill_value = time_context.fill_value
-        time_data = coverage.get_parameter_values(coverage.temporal_parameter_name)
         fill_index = -1
-        try:
-            fill_index = np.where(time_data == time_fill_value)[0][0]
-        except IndexError:
-            pass
+        if response == "dods":
+            time_context = coverage.get_parameter_context(coverage.temporal_parameter_name)
+            time_fill_value = time_context.fill_value
+            time_data = coverage.get_parameter_values(coverage.temporal_parameter_name)
+            try:
+                fill_index = np.where(time_data == time_fill_value)[0][0]
+            except IndexError:
+                pass
 
         # If no fields have been explicitly requested, of if the sequence
         # has been requested directly, return all variables.
-
         if not fields:
             fields = [[(name, ())] for name in all_vars]
         
-        dataset = self.get_dataset(coverage, fields, fill_index, dataset)
-        #print "returning result"
+        dataset = self.get_dataset(coverage, fields, fill_index, dataset, response)
         return dataset
     
     def none_to_str(self, data):
