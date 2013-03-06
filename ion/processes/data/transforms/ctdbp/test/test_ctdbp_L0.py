@@ -93,7 +93,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         tdom = tdom.dump()
 
         # Get the stream definition for the stream using the parameter dictionary
-        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctdbp_cdef_sample', id_only=True)
         parsed_stream_def_id = self.pubsub.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
         log.debug("Got the parsed parameter dictionary: id: %s", parsed_pdict_id)
