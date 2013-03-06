@@ -126,8 +126,61 @@ class AgentLauncher(object):
         return {}
 
     def _generate_stream_config(self):
-        # should override this
-        return {}
+        dsm = self.clients.dataset_management
+        psm = self.clients.pubsub_management
+
+        agent_obj  = self._get_agent()
+        device_obj = self._get_device()
+
+        streams_dict = {}
+        for stream_cfg in agent_obj.stream_configurations:
+            #create a stream def for each param dict to match against the existing data products
+            param_dict_id = dsm.read_parameter_dictionary_by_name(stream_cfg.parameter_dictionary_name,
+                                                                  id_only=True)
+            stream_def_id = psm.create_stream_definition(parameter_dictionary_id=param_dict_id)
+            streams_dict[stream_cfg.stream_name] = {'param_dict_name':stream_cfg.parameter_dictionary_name,
+                                                    'stream_def_id':stream_def_id,
+                                                    'records_per_granule': stream_cfg.records_per_granule,
+                                                    'granule_publish_rate':stream_cfg.granule_publish_rate }
+
+        #retrieve the output products
+        device_id = device_obj._id
+        data_product_ids = self.RR2.find_data_product_ids_of_instrument_device_using_has_output_product(device_id)
+
+        out_streams = []
+        for product_id in data_product_ids:
+            stream_id = self.RR2.find_stream_id_of_data_product(product_id)
+            out_streams.append(stream_id)
+
+
+        stream_config_too = {}
+
+        log.debug("Creating a stream config got each stream (dataproduct) assoc with this agent/device")
+        for product_stream_id in out_streams:
+
+            #get the streamroute object from pubsub by passing the stream_id
+            stream_def_id = self.RR2.find_stream_definition_id_of_stream(product_stream_id)
+
+            #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
+            for model_stream_name, stream_info_dict  in streams_dict.items():
+
+                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict.get('stream_def_id'),
+                                                                            stream_def_id):
+                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
+                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
+
+                    stream_config_too[model_stream_name] = {'routing_key'           : stream_route.routing_key,
+                                                            'stream_id'             : product_stream_id,
+                                                            'stream_definition_ref' : stream_def_id,
+                                                            'exchange_point'        : stream_route.exchange_point,
+                                                            'parameter_dictionary'  : model_param_dict.dump(),
+                                                            'records_per_granule'  : stream_info_dict.get('records_per_granule'),
+                                                            'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
+                    }
+
+        log.debug("Stream config generated")
+        log.trace("generate_stream_config: %s", str(stream_config_too) )
+        return stream_config_too
 
     def _generate_agent_config(self):
         # should override this
@@ -342,64 +395,6 @@ class InstrumentAgentLauncher(AgentLauncher):
         return instrument_agent_lookup_means
 
 
-    def _generate_stream_config(self):
-        dsm = self.clients.dataset_management
-        psm = self.clients.pubsub_management
-
-        instrument_agent_obj  = self._get_agent()
-        instrument_device_obj = self._get_device()
-
-        streams_dict = {}
-        for stream_cfg in instrument_agent_obj.stream_configurations:
-            #create a stream def for each param dict to match against the existing data products
-            param_dict_id = dsm.read_parameter_dictionary_by_name(stream_cfg.parameter_dictionary_name,
-                                                                  id_only=True)
-            stream_def_id = psm.create_stream_definition(parameter_dictionary_id=param_dict_id)
-            streams_dict[stream_cfg.stream_name] = {'param_dict_name':stream_cfg.parameter_dictionary_name,
-                                                    'stream_def_id':stream_def_id,
-                                                    'records_per_granule': stream_cfg.records_per_granule,
-                                                    'granule_publish_rate':stream_cfg.granule_publish_rate }
-
-        #retrieve the output products
-        device_id = instrument_device_obj._id
-        data_product_ids = self.RR2.find_data_product_ids_of_instrument_device_using_has_output_product(device_id)
-
-        out_streams = []
-        for product_id in data_product_ids:
-            stream_id = self.RR2.find_stream_id_of_data_product(product_id)
-            out_streams.append(stream_id)
-
-
-        stream_config_too = {}
-
-        log.debug("Creating a stream config got each stream (dataproduct) assoc with this agent/device")
-        for product_stream_id in out_streams:
-
-            #get the streamroute object from pubsub by passing the stream_id
-            stream_def_id = self.RR2.find_stream_definition_id_of_stream(product_stream_id)
-
-            #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
-            for model_stream_name, stream_info_dict  in streams_dict.items():
-
-                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict.get('stream_def_id'),
-                                                                            stream_def_id):
-                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
-                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
-
-                    stream_config_too[model_stream_name] = {'routing_key'           : stream_route.routing_key,
-                                                            'stream_id'             : product_stream_id,
-                                                            'stream_definition_ref' : stream_def_id,
-                                                            'exchange_point'        : stream_route.exchange_point,
-                                                            'parameter_dictionary'  : model_param_dict.dump(),
-                                                            'records_per_granule'  : stream_info_dict.get('records_per_granule'),
-                                                            'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
-                    }
-
-        log.debug("Stream config generated")
-        log.trace("generate_stream_config: %s", str(stream_config_too) )
-        return stream_config_too
-
-
     def _generate_driver_config(self):
 
         instrument_agent_instance_obj = self.agent_instance_obj
@@ -430,29 +425,6 @@ class PlatformAgentLauncher(AgentLauncher):
 
         return platform_agent_lookup_means
 
-
-    def _generate_stream_config(self):
-        # FROM test_oms_launch2 L355
-
-        device_id = self._get_device()._id
-
-        # Retrieve the id of the OUTPUT stream from the out Data Product
-        data_product_id = self.RR2.find_data_product_id_of_platform_device_using_has_output_product(device_id)
-        stream_id = self.RR2.find_stream_id_of_data_product(data_product_id)
-
-        #get the streamroute object from pubsub by passing the stream_id
-        stream_def_id = self.RR2.find_stream_definition_id_of_stream(stream_id)
-        stream_route = self.clients.pubsub_management.read_stream_route(stream_id=stream_id)
-
-        platform_eng_dictionary = DatasetManagementService.get_parameter_dictionary_by_name('platform_eng_parsed')
-
-        stream_config = {'routing_key' : stream_route.routing_key,
-                         'stream_id' : stream_id,
-                         'stream_definition_ref' : stream_def_id,
-                         'exchange_point' : stream_route.exchange_point,
-                         'parameter_dictionary':platform_eng_dictionary.dump()}
-
-        return stream_config
 
     def _generate_children(self):
         """
