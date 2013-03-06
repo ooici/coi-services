@@ -96,7 +96,7 @@ class OmsEventListener(object):
         body = "\n".join(input.readlines())
 #        log.trace('notification received payload=%s', body)
         event_instance = yaml.load(body)
-        log.trace('notification received event_instance=%s', str(event_instance))
+        log.trace('notification received event_instance=%s', event_instance)
         if not 'url' in event_instance:
             log.warn("expecting 'url' entry in notification call")
             return
@@ -113,14 +113,14 @@ class OmsEventListener(object):
             log.warn("got notification call with an unexpected url=%s (expected url=%s)",
                      url, self._url)
 
-        # generic OK response  TODO determine appropriate variations
+        # generic OK response  TODO determine appropriate variations if any
         status = '200 OK'
         headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
         return event_type
 
     def _event_received(self, event_type, event_instance):
-        log.trace('received event_instance=%s', str(event_instance))
+        log.trace('received event_instance=%s', event_instance)
 
         if self._notifications:
             if event_type in self._notifications:
@@ -128,7 +128,7 @@ class OmsEventListener(object):
             else:
                 self._notifications[event_type] = [event_instance]
 
-        log.debug('notifying event_instance=%s', str(event_instance))
+        log.debug('notifying event_instance=%s', event_instance)
 
         driver_event = ExternalEventDriverEvent(event_type, event_instance)
         self._notify_driver_event(driver_event)

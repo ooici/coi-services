@@ -16,6 +16,7 @@ __license__ = 'Apache 2.0'
 #
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_state_transitions
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_get_set_resources
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_commands
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_external_event_dispatch
@@ -423,13 +424,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
     def _get_resource(self):
         attrNames = self.ATTR_NAMES
+        #
+        # OOIION-631: use get_ion_ts() as a basis for using system time, which is
+        # a string.
+        #
         cur_time = get_ion_ts()
-        #
-        # OOIION-631 Note: I'm asked to only use get_ion_ts() as a basis for
-        # using system time. However, other associated supporting (and more
-        # "numeric") routines would be convenient. In particular, note the
-        # following operation to subtract a number of seconds for my request:
-        #
         from_time = str(int(cur_time) - 50000)  # a 50-sec time window
         kwargs = dict(attr_names=attrNames, from_time=from_time)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
@@ -861,6 +860,21 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
 
         self._reset()        # -> UNINITIALIZED
 
+    def test_get_set_resources(self):
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._get_resource()
+        self._set_resource()
+
+        self._go_inactive()
+        self._reset()
+
     def test_some_commands(self):
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
@@ -876,9 +890,6 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         self._get_metadata()
         self._get_ports()
         self._get_subplatform_ids()
-
-        self._get_resource()
-        self._set_resource()
 
         self._go_inactive()
         self._reset()

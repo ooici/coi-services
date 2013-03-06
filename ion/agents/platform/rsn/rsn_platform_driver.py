@@ -23,7 +23,7 @@ from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.rsn.oms_event_listener import OmsEventListener
 
-from ion.agents.platform.util import ion_ts_2_ntp, ntp_2_ion_ts
+from ion.agents.platform.util import ion_ts_2_ntp
 
 
 class RSNPlatformDriver(PlatformDriver):
@@ -140,10 +140,12 @@ class RSNPlatformDriver(PlatformDriver):
 
         self._assert_rsn_oms()
 
-        # OOIION-631 convert the system time from_time to NTP, which is used by
-        # the RSN OMS interface:
+        # convert the ION system time from_time to NTP, as this is the time
+        # format used by the RSN OMS interface:
         ntp_from_time = ion_ts_2_ntp(from_time)
-        retval = self._rsn_oms.get_platform_attribute_values(self._platform_id, attr_names, ntp_from_time)
+        retval = self._rsn_oms.get_platform_attribute_values(self._platform_id,
+                                                             attr_names,
+                                                             ntp_from_time)
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
@@ -151,35 +153,8 @@ class RSNPlatformDriver(PlatformDriver):
 
         attr_values = retval[self._platform_id]
 
-        # OOIION-631 the reported timestamps are in NTP; do conversion to system time
-
-        if log.isEnabledFor(logging.TRACE):
-            log.trace("get_attribute_values: response before conversion = %s" %
-                      str(attr_values))
-
-        conv_attr_values = {}  # the converted dictionary to return
-        for attr_name, array in attr_values.iteritems():
-            conv_array = []
-            for (val, ntp_time) in array:
-
-                if isinstance(ntp_time, (float, int)):
-                    # do conversion:
-                    sys_ts = ntp_2_ion_ts(ntp_time)
-                else:
-                    # NO conversion; just keep whatever the returned value is --
-                    # normally an error code in str format:
-                    sys_ts = ntp_time
-
-                conv_array.append((val, sys_ts))
-
-            conv_attr_values[attr_name] = conv_array
-
-        if log.isEnabledFor(logging.TRACE):
-            log.trace("get_attribute_values: response  after conversion = %s" %
-                      str(conv_attr_values))
-
-        return conv_attr_values
-
+        # reported timestamps are already in NTP. Just return the dict:
+        return attr_values
 
     def _validate_set_attribute_values(self, attrs):
         """
@@ -260,8 +235,7 @@ class RSNPlatformDriver(PlatformDriver):
     def set_attribute_values(self, attrs):
         """
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("set_attribute_values: attrs = %s" % str(attrs))
+        log.debug("set_attribute_values: attrs = %s", attrs)
 
         self._assert_rsn_oms()
 
@@ -290,35 +264,20 @@ class RSNPlatformDriver(PlatformDriver):
 
         attr_values = retval[self._platform_id]
 
-        # OOIION-631 the reported timestamps are in NTP; see below for
-        # conversion to system time.
+        # Note that the reported timestamps are in NTP.
+        # (Timestamps indicate the time when the value was set for each attribute.)
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("set_attribute_values: response before conversion = %s" %
-                      str(attr_values))
+        # ret_attr_values: dictionary to return, initialized with the error ones
+        # determined above, if any:
+        ret_attr_values = error_vals
 
-        # conv_attr_values: the time converted dictionary to return, initialized
-        # with the error ones determined above if any:
-        conv_attr_values = error_vals
-
+        # add the info returned from RSN OMS:
         for attr_name, attr_val_ts in attr_values.iteritems():
-            (val, ntp_time) = attr_val_ts
+            ret_attr_values[attr_name] = attr_val_ts
 
-            if isinstance(ntp_time, (float, int)):
-                # do conversion:
-                sys_ts = ntp_2_ion_ts(ntp_time)
-            else:
-                # NO conversion; just keep whatever the returned value is --
-                # normally an error code in str format:
-                sys_ts = ntp_time
+        log.debug("set_attribute_values: returning %s", ret_attr_values)
 
-            conv_attr_values[attr_name] = (val, sys_ts)
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("set_attribute_values: response  after conversion = %s" %
-                      str(conv_attr_values))
-
-        return conv_attr_values
+        return ret_attr_values
 
     def _verify_platform_id_in_response(self, response):
         """
