@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-'''
+"""
 @brief Test to check CTD
 @author Swarbhanu Chatterjee
-'''
+"""
 
 
 
@@ -72,9 +72,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
             xn.delete()
 
     def test_ctd_L1_all(self):
-        '''
+        """
         Test that packets are processed by the ctd_L1_all transform
-        '''
+        """
 
         #----------- Data Process Definition --------------------------------
 
@@ -186,9 +186,9 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
 
     def _check_granule_from_transform(self, granule):
-        '''
+        """
         An internal method to check if a granule has the right properties
-        '''
+        """
 
         pass
 
@@ -209,11 +209,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 #
 #
 #    def check_granule_splitting(self, publish_granule, out_dict):
-#        '''
+#        """
 #        This checks that the ctd_L1_all transform is able to split out one of the
 #        granules from the whole granule
 #        fed into the transform
-#        '''
+#        """
 #
 #        input_rdt_to_transform = RecordDictionaryTool.load_from_granule(publish_granule)
 #

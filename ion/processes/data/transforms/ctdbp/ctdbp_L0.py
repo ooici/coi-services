@@ -54,10 +54,10 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
     @staticmethod
     @MultiGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
-        '''
+        """
         @param input granule
         @retval result_list list of dictionaries containing granules as values
-        '''
+        """
 
         result_list = []
         for x in input:
@@ -80,7 +80,7 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
 
     @staticmethod
     def _build_granule(stream_definition_id=None, field_names=None, values=None):
-        '''
+        """
         Builds a granule with values corresponding only to the params specified in the field names
 
         @param param_dictionary ParameterDictionary
@@ -88,7 +88,7 @@ class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
         @param value numpy.array
 
         @retval Granule
-        '''
+        """
         root_rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
         zipped = zip(field_names, values)
 

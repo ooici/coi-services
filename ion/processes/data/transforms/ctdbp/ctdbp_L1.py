@@ -1,9 +1,9 @@
 
-'''
+"""
 @author Swarbhanu Chatterjee
 @file ion/processes/data/transforms/ctdbp/ctd_L1.py
 @description Transforms incoming L0 product into L1 product for conductivity, temperature and pressure through the L1 stream
-'''
+"""
 
 from pyon.public import log
 from pyon.core.exception import BadRequest
@@ -16,10 +16,10 @@ from ion.core.function.transform_function import SimpleGranuleTransformFunction
 import numpy as np
 
 class CTDBP_L1_Transform(TransformDataProcess):
-    '''
+    """
     L1 takes the L0 stream and the passed in Calibration Coefficients and performs the appropriate calculations
     to output the L1 values.
-    '''
+    """
     output_bindings = ['L1_stream']
 
     def on_start(self):
@@ -58,9 +58,9 @@ class CTDBP_L1_Transform(TransformDataProcess):
         self.L1_stream.publish(msg=granule)
 
 class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
-    '''
-
-    '''
+    """
+    Compute conductivity, temperature and pressure using the calibration coefficients
+    """
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
@@ -95,9 +95,9 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
     @staticmethod
     def calculate_conductivity(input_rdt = None, out_rdt = None, cond_calibration_coeffs = None, TEMPWAT_L1=None, PRESWAT_L1=None):
-        '''
+        """
         Dependencies: conductivity calibration coefficients, TEMPWAT_L1, PRESWAT_L1
-        '''
+        """
 
         log.debug("L1 transform applying conductivity algorithm")
 
@@ -137,9 +137,9 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
     @staticmethod
     def calculate_temperature(input_rdt = None, out_rdt = None, temp_calibration_coeffs = None):
-        '''
+        """
         Dependencies: temperature calibration coefficients
-        '''
+        """
         log.debug("L1 transform applying temperature algorithm")
 
         TEMPWAT_L0 = input_rdt['TEMPWAT_L0']
@@ -172,9 +172,9 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
     @staticmethod
     def calculate_pressure(input_rdt = None, out_rdt = None, TEMPWAT_L0 = None, pres_calibration_coeffs = None):
-        '''
+        """
             Dependencies: TEMPWAT_L0, PRESWAT_L0, pressure calibration coefficients
-        '''
+        """
 
         log.debug("L1 transform applying pressure algorithm")
 

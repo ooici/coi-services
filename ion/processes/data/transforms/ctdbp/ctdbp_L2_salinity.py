@@ -1,9 +1,9 @@
 
-'''
+"""
 @author Swarbhanu Chatterjee
 @file ion/processes/data/transforms/ctdbp/ctdbp_L2_salinity.py
 @description Transforms CTD parsed data into L2 product for salinity
-'''
+"""
 from pyon.util.log import log
 from ion.core.process.transform import TransformDataProcess
 from pyon.core.exception import BadRequest
@@ -18,11 +18,11 @@ from seawater.gibbs import cte
 # ion/processes/data/transforms/ctd/test/test_ctd_transforms.py
 
 class CTDBP_SalinityTransform(TransformDataProcess):
-    ''' A basic transform that receives input through a subscription,
+    """ A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the pressure value and scales it according to
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
-    '''
+    """
     output_bindings = ['salinity']
 
     def on_start(self):

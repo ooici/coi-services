@@ -1,9 +1,9 @@
 
-'''
+"""
 @author Swarbhanu Chatterjee
 @file ion/processes/data/transforms/ctdbp/ctdbp_L2_density.py
 @description Transforms incoming L1 product into L2 product for density through the L2 stream
-'''
+"""
 from pyon.util.log import log
 from pyon.core.exception import BadRequest
 from ion.core.process.transform import TransformDataProcess
@@ -15,11 +15,11 @@ from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
 from seawater.gibbs import cte
 
 class CTDBP_DensityTransform(TransformDataProcess):
-    ''' A basic transform that receives input through a subscription,
+    """ A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the pressure value and scales it according to
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
-    '''
+    """
     output_bindings = ['density']
 
     def on_start(self):

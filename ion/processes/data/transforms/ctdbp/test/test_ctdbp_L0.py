@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-'''
+"""
 @brief Test to check CTD
 @author Swarbhanu Chatterjee
-'''
+"""
 
 
 from pyon.ion.stream import  StandaloneStreamPublisher
@@ -68,9 +68,9 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             xn.delete()
 
     def test_ctdbp_L0_all(self):
-        '''
+        """
         Test packets processed by the ctdbp_L0_all transform
-        '''
+        """
 
         #----------- Data Process Definition --------------------------------
 
@@ -182,9 +182,9 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
 
 
     def _check_granule_from_transform(self, granule):
-        '''
+        """
         An internal method to check if a granule has the right properties
-        '''
+        """
 
         pass
 
