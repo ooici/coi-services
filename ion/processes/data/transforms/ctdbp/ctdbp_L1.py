@@ -68,6 +68,9 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         rdt = RecordDictionaryTool.load_from_granule(input)
         out_rdt = RecordDictionaryTool(stream_definition_id=params['stream_def_id'])
 
+        # Fill the time values
+        out_rdt['time'] = rdt['time']
+
         # The calibration coefficients
         temp_calibration_coeffs= params['calibration_coeffs']['temp_calibration_coeffs']
         pres_calibration_coeffs= params['calibration_coeffs']['pres_calibration_coeffs']
@@ -80,7 +83,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
         # Set the pressure values for the output granule
         out_rdt = CTDBP_L1_TransformAlgorithm.calculate_pressure(   out_rdt = out_rdt,
-                                                                    TEMPWAT_L0 = rdt['TEMPWAT_L0'],
+                                                                    TEMPWAT_L0 = rdt['temperature'],
                                                                     pres_calibration_coeffs= pres_calibration_coeffs)
 
         # Set the conductivity values for the output granule
@@ -101,7 +104,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
         log.debug("L1 transform applying conductivity algorithm")
 
-        CONDWAT_L0 = input_rdt['CONDWAT_L0']
+        CONDWAT_L0 = input_rdt['conductivity']
 
         #------------  CALIBRATION COEFFICIENTS FOR CONDUCTIVITY  --------------
         g = cond_calibration_coeffs['g']
@@ -129,7 +132,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         #------------------------------------------------------------------------
         # Update the conductivity values
         #------------------------------------------------------------------------
-        out_rdt['CONDWAT_L1'] = CONDWAT_L1
+        out_rdt['conductivity'] = CONDWAT_L1
 
         log.debug("L1 transform conductivity algorithm returning: %s", out_rdt)
 
@@ -142,7 +145,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         """
         log.debug("L1 transform applying temperature algorithm")
 
-        TEMPWAT_L0 = input_rdt['TEMPWAT_L0']
+        TEMPWAT_L0 = input_rdt['temperature']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
         a0 = temp_calibration_coeffs['a0']
@@ -164,7 +167,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
             if key in out_rdt:
                 out_rdt[key] = value[:]
 
-        out_rdt['TEMPWAT_L1'] = TEMPWAT_L1
+        out_rdt['temperature'] = TEMPWAT_L1
 
         log.debug("L1 transform temperature algorithm returning: %s", out_rdt)
 
@@ -178,7 +181,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
         log.debug("L1 transform applying pressure algorithm")
 
-        PRESWAT_L0 = input_rdt['PRESWAT_L0']
+        PRESWAT_L0 = input_rdt['pressure']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
         PTEMPA0 = pres_calibration_coeffs['PTEMPA0']
@@ -217,7 +220,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
             if key in out_rdt:
                 out_rdt[key] = value[:]
 
-        out_rdt['PRESWAT_L1'] = PRESWAT_L1
+        out_rdt['pressure'] = PRESWAT_L1
 
         log.debug("L1 transform pressure algorithm returning: %s", out_rdt)
 

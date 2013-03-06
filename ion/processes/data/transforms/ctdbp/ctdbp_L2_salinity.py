@@ -64,6 +64,8 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
         rdt = RecordDictionaryTool.load_from_granule(input)
         out_rdt = RecordDictionaryTool(stream_definition_id=params)
 
+        out_rdt['time'] = rdt['time']
+
         conductivity = rdt['conductivity']
         pressure = rdt['pressure']
         temperature = rdt['temp']
