@@ -475,7 +475,7 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Making function to create associations %s -> %s -> %s", isubj, ipred, iobj)
         def freeze():
             def ret_fn(obj_id, subj_id):
-                log.debug("Dynamically creating association %s -> %s -> %s", isubj, ipred, iobj)
+                log.info("Dynamically creating association %s -> %s -> %s", isubj, ipred, iobj)
                 self.RR.create_association(subj_id, ipred, obj_id)
 
             return ret_fn
