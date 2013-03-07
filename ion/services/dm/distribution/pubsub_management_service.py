@@ -87,9 +87,7 @@ class PubsubManagementService(BasePubsubManagementService):
     def compatible_stream_definitions(self, in_stream_definition_id, out_stream_definition_id):
         if in_stream_definition_id == out_stream_definition_id and self.read_stream_definition(in_stream_definition_id):
             return True
-        def1 = self.read_stream_definition(in_stream_definition_id)
-        def2 = self.read_stream_definition(out_stream_definition_id)
-        return self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
+        return self.validate_stream_defs(in_stream_definition_id, out_stream_definition_id)
         
     def validate_stream_defs(self, in_stream_definition_id, out_stream_definition_id):
         stream_def_in = self.read_stream_definition(in_stream_definition_id)
