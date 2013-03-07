@@ -122,30 +122,23 @@ class TestIdentityManagementService(PyonTestCase):
         
         self.identity_management_service.delete_actor_identity('111')
 
-        self.mock_read.assert_called_once_with('111', '')
         self.mock_delete.assert_called_once_with('111')
  
     def test_read_actor_identity_not_found(self):
-        self.mock_read.return_value = None
+        self.mock_read.side_effect = NotFound("bad")
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.identity_management_service.read_actor_identity('bad')
 
-        ex = cm.exception
-        self.assertEqual(ex.message, 'ActorIdentity bad does not exist')
         self.mock_read.assert_called_once_with('bad', '')
  
     def test_delete_actor_identity_not_found(self):
-        self.mock_read.return_value = None
+        self.mock_delete.side_effect = NotFound("bad")
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.identity_management_service.delete_actor_identity('bad')
-
-        ex = cm.exception
-        self.assertEqual(ex.message, 'ActorIdentity bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')
 
     def test_register_user_credentials(self):
         self.mock_create.return_value = ['222', 1]
@@ -247,14 +240,12 @@ class TestIdentityManagementService(PyonTestCase):
         self.mock_delete.assert_called_once_with('444')
  
     def test_read_user_info_not_found(self):
-        self.mock_read.return_value = None
+        self.mock_read.side_effect = NotFound("bad")
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.identity_management_service.read_user_info('bad')
 
-        ex = cm.exception
-        self.assertEqual(ex.message, 'UserInfo bad does not exist')
         self.mock_read.assert_called_once_with('bad', '')
  
     def test_delete_user_info_not_found(self):
