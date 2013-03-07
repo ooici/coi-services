@@ -54,12 +54,13 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import get_parameter_type, get_fill_value
+from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
+from coverage_model import NumexprFunction, PythonFunction
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 
 
@@ -103,6 +104,7 @@ DEFAULT_CATEGORIES = [
     'Org',
     'UserRole',
     'CoordinateSystem',
+    'ParameterFunctions',
     'ParameterDefs',
     'ParameterDictionary',
     'StreamConfiguration',
@@ -1364,13 +1366,39 @@ Reason: %s
             return
         dataset_management = self._get_service_client('dataset_management')
         try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'])
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'], headers=self._get_system_actor_headers())
         except:
             log.exception( '%s has a problem', row['name'])
             return
 
         self._register_id(row[COL_ID], pdict_id)
 
+    def _load_ParameterFunctions(self, row):
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['Name'], row['SKIP'])
+            return 
+
+        name      = row['Name']
+        ftype     = row['Function Type']
+        func_expr = row['Function']
+        owner     = row['Owner']
+        args      = ast.literal_eval(row['Args'])
+        #kwargs    = row['Kwargs']
+        descr     = row['Description']
+
+        dataset_management = self._get_service_client('dataset_management')
+        func = None
+        if ftype == 'NumexprFunction':
+            func = NumexprFunction(row['Name'], func_expr, args)
+        elif ftype == 'PythonFunction':
+            func = PythonFunction(name, owner,func_expr, args, None)
+        else:
+            self._conflict_report(row['ID'], row['Name'], 'Unsupported Function Type: %s' % ftype)
+            return
+            
+        func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(), description=descr, headers=self._get_system_actor_headers())
+        self._register_id(row[COL_ID], func_id)
+        function_lookups[row[COL_ID]] = func_id
 
 
     def _load_ParameterDefs(self, row):
@@ -1378,20 +1406,22 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
             return
 
-        name          = row['Name']
-        ptype         = row['Parameter Type']
-        encoding      = row['Value Encoding']
-        uom           = row['Unit of Measure']
-        code_set      = row['Code Set']
-        fill_value    = row['Fill Value']
-        display_name  = row['Display Name']
-        std_name      = row['Standard Name']
-        long_name     = row['Long Name']
-        references    = row['Reference URLS']
-        description   = row['Description']
+        name         = row['Name']
+        ptype        = row['Parameter Type']
+        encoding     = row['Value Encoding']
+        uom          = row['Unit of Measure']
+        code_set     = row['Code Set']
+        fill_value   = row['Fill Value']
+        display_name = row['Display Name']
+        std_name     = row['Standard Name']
+        long_name    = row['Long Name']
+        references   = row['Reference URLS']
+        description  = row['Description']
+        pfid         = row['Parameter Function ID']
+        pmap         = row['Parameter Function Map']
 
         try:
-            param_type = get_parameter_type(ptype, encoding,code_set)
+            param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
             context.fill_value = get_fill_value(fill_value, encoding, param_type)
@@ -1413,13 +1443,19 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         try:
-            context_id = dataset_management.create_parameter_context(
+            creation_args = dict(
                 name=name, parameter_context=context_dump,
                 description=description,
                 parameter_type=ptype,
                 value_encoding=encoding,
                 unit_of_measure=uom,
                 headers=self._get_system_actor_headers())
+            if pfid:
+                try:
+                    creation_args['parameter_function_ids'] = [self.resource_ids[pfid]]
+                except KeyError:
+                    pass
+            context_id = dataset_management.create_parameter_context(**creation_args)
         except AttributeError as e:
             if e.message == "'dict' object has no attribute 'read'":
                 self._conflict_report(row['ID'], row['Name'], 'Something is not JSON compatible.')
