@@ -139,8 +139,8 @@ class TestCTDPChain(IonIntegrationTestCase):
         #-------------------------------------------------------------------
         self._check_granule_from_L0_transform(ar_L0)
         self._check_granule_from_L1_transform(ar_L1)
-        self._check_granule_from_L2_transform(ar_L2_density)
-        self._check_granule_from_L2_transform(ar_L2_salinity)
+        self._check_granule_from_L2_density_transform(ar_L2_density)
+        self._check_granule_from_L2_salinity_transform(ar_L2_salinity)
 
 
     def _prepare_stream_def_for_transform_chain(self, parameter_dict_name = ''):
@@ -403,25 +403,61 @@ class TestCTDPChain(IonIntegrationTestCase):
         # Check the algorithm being applied
         self._check_application_of_L1_algorithm(granule_from_transform)
 
-    def _check_granule_from_L2_transform(self, ar = None):
+    def _check_granule_from_L2_density_transform(self, ar = None):
 
         granule_from_transform = ar.get(timeout=20)
         log.debug("Got the following granule from the L2 transform: %s", granule_from_transform)
 
         # Check the algorithm being applied
-        self._check_application_of_L2_algorithm(granule_from_transform)
+        self._check_application_of_L2_density_algorithm(granule_from_transform)
+
+    def _check_granule_from_L2_salinity_transform(self, ar = None):
+
+        granule_from_transform = ar.get(timeout=20)
+        log.debug("Got the following granule from the L2 transform: %s", granule_from_transform)
+
+        # Check the algorithm being applied
+        self._check_application_of_L2_salinity_algorithm(granule_from_transform)
+
 
     def _check_application_of_L0_algorithm(self, granule = None):
         """ Check the algorithm applied by the L0 transform """
-        pass
+
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+
+        for key, value in rdt.iteritems():
+            list_of_expected_keys = ['lat', 'lon', 'time', 'pressure', 'conductivity', 'temperature']
+            if key not in list_of_expected_keys:
+                self.fail("The L0 transform is sending out data for more parameters than it should")
+
 
     def _check_application_of_L1_algorithm(self, granule = None):
         """ Check the algorithm applied by the L1 transform """
-        pass
+        rdt = RecordDictionaryTool.load_from_granule(granule)
 
-    def _check_application_of_L2_algorithm(self, granule = None):
+        for key, value in rdt.iteritems():
+            list_of_expected_keys = ['lat', 'lon', 'time', 'pressure', 'conductivity', 'temperature']
+            if key not in list_of_expected_keys:
+                self.fail("The L1 transform is sending out data for more parameters than it should")
+
+    def _check_application_of_L2_density_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
-        pass
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+
+        for key, value in rdt.iteritems():
+            list_of_expected_keys = ['lat', 'lon', 'time', 'density']
+            if key not in list_of_expected_keys:
+                self.fail("The L2 density transform is sending out data for more parameters than it should")
+
+    def _check_application_of_L2_salinity_algorithm(self, granule = None):
+        """ Check the algorithm applied by the L2 transform """
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+
+        for key, value in rdt.iteritems():
+            list_of_expected_keys = ['lat', 'lon', 'time', 'salinity']
+            if key not in list_of_expected_keys:
+                self.fail("The L2 salinity transform is sending out data for more parameters than it should")
+
 
     def _publish_for_L0_transform(self, input_stream_id = None, stream_route = None):
 
