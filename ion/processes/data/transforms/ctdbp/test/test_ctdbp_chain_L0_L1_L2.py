@@ -35,7 +35,7 @@ from seawater.gibbs import cte
 @attr('INT', group='dm')
 class TestCTDPChain(IonIntegrationTestCase):
     def setUp(self):
-        super(CtdTransformsIntTest, self).setUp()
+        super(TestCTDPChain, self).setUp()
 
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
@@ -119,9 +119,12 @@ class TestCTDPChain(IonIntegrationTestCase):
         # Start a subscriber listening to the output of each of the transforms
         #-------------------------------------------------------------------------
 
-        ar_L0 = self.start_subscriber_listening_to_L0_transform(output_stream_id_of_transform=list_args_L0[2])
-        ar_L1 = self.start_subscriber_listening_to_L1_transform(output_stream_id_of_transform=list_args_L1[2])
-        ar_L2 = self.start_subscriber_listening_to_L2_transform(output_stream_id_of_transform=list_args_L1[2])
+        ar_L0 = self.start_subscriber_listening_to_L0_transform(out_data_prod_id=list_args_L0[2])
+        ar_L1 = self.start_subscriber_listening_to_L1_transform(out_data_prod_id=list_args_L1[2])
+
+        ar_L2_density = self.start_subscriber_listening_to_L2_density_transform(out_data_prod_id=list_args_L2_density[2])
+        ar_L2_salinity = self.start_subscriber_listening_to_L2_density_transform(out_data_prod_id=list_args_L2_salinity[2])
+
 
         #-------------------------------------------------------------------
         # Publish the parsed packets that the L0 transform is listening for
@@ -135,7 +138,8 @@ class TestCTDPChain(IonIntegrationTestCase):
         #-------------------------------------------------------------------
         self._check_granule_from_L0_transform(ar_L0)
         self._check_granule_from_L1_transform(ar_L1)
-        self._check_granule_from_L2_transform(ar_L2)
+        self._check_granule_from_L2_transform(ar_L2_density)
+        self._check_granule_from_L2_transform(ar_L2_salinity)
 
 
     def _prepare_stream_def_for_transform_chain(self, parameter_dict_name = ''):
@@ -174,14 +178,38 @@ class TestCTDPChain(IonIntegrationTestCase):
         tdom = tdom.dump()
 
         #-------------------------------------------------------------------------
-        # Input data product
+        # Get the names of the input and output data products
         #-------------------------------------------------------------------------
-        input_dpod_id = self._create_input_data_product(tdom, sdom)
 
-        #-------------------------------------------------------------------------
-        # output data product
-        #-------------------------------------------------------------------------
-        output_dpod_id = self._create_output_data_product(tdom, sdom)
+        input_dpod_id = ''
+        output_dpod_id = ''
+
+        if name_of_transform == 'L0':
+
+            input_dpod_id = self._create_input_data_product('parsed', tdom, sdom)
+            output_dpod_id = self._create_output_data_product('L0', tdom, sdom)
+
+            self.in_prod_for_L1 = output_dpod_id
+
+        elif name_of_transform == 'L1':
+
+            input_dpod_id = self.in_prod_for_L1
+            output_dpod_id = self._create_output_data_product('L1', tdom, sdom)
+
+            self.in_prod_for_L2 = output_dpod_id
+
+        elif name_of_transform == 'L2_density':
+
+            input_dpod_id = self.in_prod_for_L2
+            output_dpod_id = self._create_output_data_product('L2_density', tdom, sdom)
+
+        elif name_of_transform == 'L2_salinity':
+
+            input_dpod_id = self.in_prod_for_L2
+            output_dpod_id = self._create_output_data_product('L2_salinity', tdom, sdom)
+
+        else:
+            self.fail("something bad happened")
 
         return [data_proc_def_id, input_dpod_id, output_dpod_id]
 
@@ -222,22 +250,26 @@ class TestCTDPChain(IonIntegrationTestCase):
     def _create_input_data_product(self, name_of_transform = '', tdom = None, sdom = None):
 
         dpod_obj = IonObject(RT.DataProduct,
-            name='in_data_prod_for_%s' % name_of_transform,
-            description='in_data_prod_for_%s' % name_of_transform,
+            name='dprod_%s' % name_of_transform,
+            description='for_%s' % name_of_transform,
             temporal_domain = tdom,
             spatial_domain = sdom)
+
+        log.debug("the stream def id: %s", self.stream_def_id)
 
         dpod_id = self.dataproduct_management.create_data_product(data_product=dpod_obj,
             stream_definition_id=self.stream_def_id
         )
+
+        log.debug("got the data product out. id: %s", dpod_id)
 
         return dpod_id
 
     def _create_output_data_product(self, name_of_transform = '', tdom = None, sdom = None):
 
         dpod_obj = IonObject(RT.DataProduct,
-            name='out_data_prod_for_%s' % name_of_transform,
-            description='out_data_prod_for_%s' % name_of_transform,
+            name='dprod_%s' % name_of_transform,
+            description='for_%s' % name_of_transform,
             temporal_domain = tdom,
             spatial_domain = sdom)
 
@@ -251,7 +283,15 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         # We need the key name here to be "L2_stream", since when the data process is launched, this name goes into
         # the config as in config.process.publish_streams.L2_stream when the config is used to launch the data process
-        output_products = {'L0_stream' : output_dpod_id}
+
+        if name_of_transform in ['L0', 'L1']:
+            binding = '%s_stream' % name_of_transform
+        elif name_of_transform == 'L2_salinity':
+            binding = 'salinity'
+        elif name_of_transform == 'L2_density':
+            binding = 'density'
+
+        output_products = {binding : output_dpod_id}
 
         data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products)
 
@@ -276,31 +316,51 @@ class TestCTDPChain(IonIntegrationTestCase):
         pass
 
 
-    def start_subscriber_listening_to_L0_transform(self, output_stream_id_of_transform = ''):
+    def start_subscriber_listening_to_L0_transform(self, out_data_prod_id = ''):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
+
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        output_stream_id_of_transform = stream_ids[0]
 
         ar_L0 = self._start_subscriber_to_transform( name_of_transform = 'L0',stream_id=output_stream_id_of_transform)
 
         return ar_L0
 
 
-    def start_subscriber_listening_to_L1_transform(self, output_stream_id_of_transform = ''):
+    def start_subscriber_listening_to_L1_transform(self, out_data_prod_id = ''):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
+
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        output_stream_id_of_transform = stream_ids[0]
 
         ar_L1 = self._start_subscriber_to_transform( name_of_transform = 'L1',stream_id=output_stream_id_of_transform)
 
         return ar_L1
 
 
-    def start_subscriber_listening_to_L2_transform(self, output_stream_id_of_transform = ''):
+    def start_subscriber_listening_to_L2_density_transform(self, out_data_prod_id = ''):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        ar_L2 = self._start_subscriber_to_transform( name_of_transform = 'L2',stream_id=output_stream_id_of_transform)
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        output_stream_id_of_transform = stream_ids[0]
 
-        return ar_L2
+        ar_L2_density = self._start_subscriber_to_transform( name_of_transform = 'L2_density', stream_id=output_stream_id_of_transform)
+
+        return ar_L2_density
+
+    def start_subscriber_listening_to_L2_salinity_transform(self, out_data_prod_id = ''):
+
+        #----------- Create subscribers to listen to the two transforms --------------------------------
+
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        output_stream_id_of_transform = stream_ids[0]
+
+        ar_L2_density = self._start_subscriber_to_transform( name_of_transform = 'L2_salinity',stream_id=output_stream_id_of_transform)
+
+        return ar_L2_density
 
     def _start_subscriber_to_transform(self,  name_of_transform = '', stream_id = ''):
 
