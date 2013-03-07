@@ -22,7 +22,7 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule_utils import time_series_domain
-from coverage_model import QuantityType
+from coverage_model import ParameterContext, AxisTypeEnum, QuantityType
 from coverage_model.parameter import ParameterDictionary
 
 import gevent
@@ -68,7 +68,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             xn = self.container.ex_manager.create_xn_queue(queue)
             xn.delete()
 
-    def _create_input_param_dict_for_test(self):
+    def _create_input_param_dict_for_test(self, parameter_dict_name = ''):
 
         pdict = ParameterDictionary()
 
@@ -110,9 +110,9 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         #create temp streamdef so the data product can create the stream
         pc_list = []
         for pc_k, pc in pdict.iteritems():
-            pc_list.append(dms_cli.create_parameter_context(pc_k, pc[1].dump()))
+            pc_list.append(self.dataset_management.create_parameter_context(pc_k, pc[1].dump()))
 
-        pdict_id = dms_cli.create_parameter_dictionary('fictitious_ctdp_param_dict', pc_list)
+        pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
 
         return pdict_id
 
@@ -141,7 +141,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        input_param_dict = self._create_input_param_dict_for_test()
+        input_param_dict = self._create_input_param_dict_for_test(parameter_dict_name = 'fictitious_ctdp_param_dict')
 
         # Get the stream definition for the stream using the parameter dictionary
 #        input_param_dict = self.dataset_management.read_parameter_dictionary_by_name('ctdbp_cdef_sample', id_only=True)
