@@ -252,7 +252,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_parameter_dictionary_by_name(self, name='', id_only=False):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=id_only)
         if not len(res):
-            raise NotFound('Unable to locate context with name: %s' % name)
+            raise NotFound('Unable to locate dictionary with name: %s' % name)
         return res[0]
 
 #--------
