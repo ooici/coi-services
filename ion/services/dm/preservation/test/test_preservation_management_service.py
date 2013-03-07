@@ -351,7 +351,7 @@ class PreservationManagementServiceTest(PyonTestCase):
 
         self.mock_read.assert_called_once_with(self.couch_instance_id, '')
         self.assertEqual(self.mock_find_associations.call_count, 2)
-        expected = [call(self.couch_instance_id, '', '', PRED.hasDatastore, False), call('', self.couch_instance_id, '', PRED.hasPersistenceInstance, False)]
+        expected = [call(self.couch_instance_id, '', '', PRED.hasDatastore, False, 0, 0, False), call('', self.couch_instance_id, '', PRED.hasPersistenceInstance, False, 0, 0, False)]
         self.assertEqual(expected, self.mock_find_associations.call_args_list)
         self.assertEqual(self.mock_delete_association.call_count, 2)
         expected = [call(self.instance_has_datastore_id), call(self.system_has_instance_id)]
@@ -486,7 +486,7 @@ class PreservationManagementServiceTest(PyonTestCase):
 
         self.mock_read.assert_called_once_with(self.couch_datastore_id, '')
         self.assertEqual(self.mock_find_associations.call_count, 2)
-        expected = [call('', '', self.couch_datastore_id, PRED.hasDatastore, False), call(self.couch_datastore_id, '', '', PRED.hasArchive, False)]
+        expected = [call('', '', self.couch_datastore_id, PRED.hasDatastore, False, 0, 0, False), call(self.couch_datastore_id, '', '', PRED.hasArchive, False, 0, 0, False)]
         self.assertEqual(expected, self.mock_find_associations.call_args_list)
         self.assertEqual(self.mock_delete_association.call_count, 4)
         expected = [call(self.system_has_datastore_id), call(self.datastore_has_archive_id), call(self.system_has_datastore_id), call(self.datastore_has_archive_id)]
