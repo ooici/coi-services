@@ -54,6 +54,15 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
+        """
+        Dependencies:    PRACSAL, PRESWAT_L1, longitude, latitude, TEMPWAT_L1
+
+        absolute_salinity = gsw_SA_from_SP(PRACSAL,PRESWAT_L1,longitude,latitude)
+        conservative_temperature = gsw_CT_from_t(absolute_salinity,TEMPWAT_L1,PRESWAT_L1)
+        DENSITY = gsw_rho(absolute_salinity,conservative_temperature,PRESWAT_L1)
+
+        """
+
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         out_rdt = RecordDictionaryTool(stream_definition_id=params)
@@ -67,15 +76,18 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         longitude = rdt['lon'] if rdt['lon'] is not None else 0
         latitude = rdt['lat'] if rdt['lat'] is not None else 0
 
-        sp = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
+        # Doing: PRACSAL = gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)
+        pracsal = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)
 
-        log.debug("CTDBP Density algorithm calculated the sp (practical salinity) values: %s", sp)
+        log.debug("CTDBP Density algorithm calculated the pracsal (practical salinity) values: %s", pracsal)
 
-        sa = SA_from_SP(sp, pressure, longitude, latitude)
+        # Doing: absolute_salinity = gsw_SA_from_SP(PRACSAL,PRESWAT_L1,longitude,latitude)
+        absolute_salinity = SA_from_SP(pracsal, pressure, longitude, latitude)
 
-        log.debug("CTDBP Density algorithm calculated the sa (actual salinity) values: %s", sa)
+        log.debug("CTDBP Density algorithm calculated the absolute_salinity (actual salinity) values: %s", absolute_salinity)
 
-        dens_value = rho(sa, temperature, pressure)
+        # Doing: DENSITY = gsw_rho(absolute_salinity,conservative_temperature,PRESWAT_L1)
+        dens_value = rho(absolute_salinity, temperature, pressure)
 
         for key, value in rdt.iteritems():
             if key in out_rdt:

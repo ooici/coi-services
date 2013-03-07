@@ -60,6 +60,12 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
+        """
+        Dependencies: CONDWAT_L1, TEMPWAT_L1, PRESWAT_L1
+
+        PRACSAL = gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)
+        """
+
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         out_rdt = RecordDictionaryTool(stream_definition_id=params)
@@ -70,7 +76,10 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
         pressure = rdt['pressure']
         temperature = rdt['temp']
 
-        sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
+        #todo Is this the same as "gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)" ?
+        sal_value = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)
+
+#        sal_value = SP_from_cndr(r=conductivity/cte.C3515, t=temperature, p=pressure)
 
         log.debug("CTDBP Salinity algorithm calculated the sp (practical salinity) values: %s", sal_value)
 

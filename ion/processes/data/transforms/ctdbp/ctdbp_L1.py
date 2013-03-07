@@ -82,8 +82,8 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
                                                                         temp_calibration_coeffs= temp_calibration_coeffs )
 
         # Set the pressure values for the output granule
-        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_pressure(   out_rdt = out_rdt,
-                                                                    TEMPWAT_L0 = rdt['temperature'],
+        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_pressure(   input_rdt= rdt,
+                                                                    out_rdt = out_rdt,
                                                                     pres_calibration_coeffs= pres_calibration_coeffs)
 
         # Set the conductivity values for the output granule
@@ -120,7 +120,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
         #------------  Computation -------------------------------------
         freq = (CONDWAT_L0 / 256) / 1000
-        CONDWAT_L1 = (g + h * freq^2 + I * freq^3 + j * freq^4) / (1 + CTcor * TEMPWAT_L1 + CPcor * PRESWAT_L1)
+        CONDWAT_L1 = (g + h * freq**2 + I * freq**3 + j * freq**4) / (1 + CTcor * TEMPWAT_L1 + CPcor * PRESWAT_L1)
 
 
         #------------  Update the output record dictionary with the values -------
@@ -174,7 +174,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         return out_rdt
 
     @staticmethod
-    def calculate_pressure(input_rdt = None, out_rdt = None, TEMPWAT_L0 = None, pres_calibration_coeffs = None):
+    def calculate_pressure(input_rdt = None, out_rdt = None, pres_calibration_coeffs = None):
         """
             Dependencies: TEMPWAT_L0, PRESWAT_L0, pressure calibration coefficients
         """
@@ -182,6 +182,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         log.debug("L1 transform applying pressure algorithm")
 
         PRESWAT_L0 = input_rdt['pressure']
+        TEMPWAT_L0 = rdt['temperature']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
         PTEMPA0 = pres_calibration_coeffs['PTEMPA0']
@@ -209,10 +210,10 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
         #------------  Computation -------------------------------------
         tvolt = TEMPWAT_L0 / 13107
-        temp = PTEMPA0 + PTEMPA1 * tvolt + PTEMPA2 * tvolt^2
-        x = PRESWAT_L0 - PTCA0 - PTCA1 * temp - PTCA2 * temp^2
-        n = x * PTCB0 / (PTCB0 + PTCB1 * temp + PTCB2 * temp^2)
-        absolute_pressure = PA0 + PA1 * n + PA2 * n^2
+        temp = PTEMPA0 + PTEMPA1 * tvolt + PTEMPA2 * tvolt**2
+        x = PRESWAT_L0 - PTCA0 - PTCA1 * temp - PTCA2 * temp**2
+        n = x * PTCB0 / (PTCB0 + PTCB1 * temp + PTCB2 * temp**2)
+        absolute_pressure = PA0 + PA1 * n + PA2 * n**2
         PRESWAT_L1 = (absolute_pressure * 0.689475729) - 10.1325
 
         #------------  Update the output record dictionary with the values ---------

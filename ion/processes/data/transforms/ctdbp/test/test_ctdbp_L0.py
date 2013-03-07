@@ -23,6 +23,7 @@ from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule_utils import time_series_domain
 from coverage_model import QuantityType
+from coverage_model.parameter import ParameterDictionary
 
 import gevent
 import numpy, random
@@ -67,6 +68,54 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             xn = self.container.ex_manager.create_xn_queue(queue)
             xn.delete()
 
+    def _create_input_param_dict_for_test(self):
+
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        t_ctxt.axis = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        lat_ctxt.axis = AxisTypeEnum.LAT
+        lat_ctxt.uom = ''
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        lon_ctxt.axis = AxisTypeEnum.LON
+        lon_ctxt.uom = ''
+        pdict.add_context(lon_ctxt)
+
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        cond_ctxt.uom = ''
+        pdict.add_context(cond_ctxt)
+
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        pres_ctxt.uom = ''
+        pdict.add_context(pres_ctxt)
+
+        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        temp_ctxt.uom = ''
+        pdict.add_context(temp_ctxt)
+
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        dens_ctxt.uom = ''
+        pdict.add_context(dens_ctxt)
+
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        sal_ctxt.uom = ''
+        pdict.add_context(sal_ctxt)
+
+        #create temp streamdef so the data product can create the stream
+        pc_list = []
+        for pc_k, pc in pdict.iteritems():
+            pc_list.append(dms_cli.create_parameter_context(pc_k, pc[1].dump()))
+
+        pdict_id = dms_cli.create_parameter_dictionary('fictitious_ctdp_param_dict', pc_list)
+
+        return pdict_id
+
     def test_ctdbp_L0_all(self):
         """
         Test packets processed by the ctdbp_L0_all transform
@@ -92,12 +141,14 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        # Get the stream definition for the stream using the parameter dictionary
-        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctdbp_cdef_sample', id_only=True)
-        parsed_stream_def_id = self.pubsub.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
+        input_param_dict = self._create_input_param_dict_for_test()
 
-        log.debug("Got the parsed parameter dictionary: id: %s", parsed_pdict_id)
-        log.debug("Got the stream def for parsed input: %s", parsed_stream_def_id)
+        # Get the stream definition for the stream using the parameter dictionary
+#        input_param_dict = self.dataset_management.read_parameter_dictionary_by_name('ctdbp_cdef_sample', id_only=True)
+        input_stream_def_dict = self.pubsub.create_stream_definition(name='parsed', parameter_dictionary_id=input_param_dict)
+
+        log.debug("Got the parsed parameter dictionary: id: %s", input_param_dict)
+        log.debug("Got the stream def for parsed input: %s", input_stream_def_dict)
 
         # Input data product
         parsed_stream_dp_obj = IonObject(RT.DataProduct,
@@ -107,7 +158,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         input_dp_id = self.dataproduct_management.create_data_product(data_product=parsed_stream_dp_obj,
-            stream_definition_id=parsed_stream_def_id
+            stream_definition_id=input_stream_def_dict
         )
 
         # output data product
@@ -118,7 +169,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         L0_stream_dp_id = self.dataproduct_management.create_data_product(data_product=L0_stream_dp_obj,
-                                                                    stream_definition_id=parsed_stream_def_id
+                                                                    stream_definition_id=input_stream_def_dict
                                                                     )
 
         # We need the key name here to be "L0_stream", since when the data process is launched, this name goes into
@@ -167,7 +218,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         #----------- Publish on that stream so that the transform can receive it --------------------------------
 
         pub = StandaloneStreamPublisher(input_stream_id, stream_route)
-        publish_granule = self._get_new_ctd_packet(stream_definition_id=parsed_stream_def_id, length = 5)
+        publish_granule = self._get_new_ctd_packet(stream_definition_id=input_stream_def_dict, length = 5)
 
         pub.publish(publish_granule)
 
