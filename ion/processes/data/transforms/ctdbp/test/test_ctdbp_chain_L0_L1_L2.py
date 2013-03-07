@@ -54,6 +54,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         # Cleanup of queue created by the subscriber
         self.queue_cleanup = []
+        self.data_process_cleanup = []
 
     def _get_new_ctd_L1_packet(self, stream_definition_id, length):
 
@@ -74,6 +75,9 @@ class TestCTDPChain(IonIntegrationTestCase):
             xn = self.container.ex_manager.create_xn_queue(queue)
             xn.delete()
 
+    def cleaning_operations(self):
+        for dproc_id in self.data_process_cleanup:
+            self.data_process_management.delete_data_process(dproc_id)
 
     def test_ctdp_chain(self):
         """
@@ -299,8 +303,8 @@ class TestCTDPChain(IonIntegrationTestCase):
             config = self._create_calibration_coefficients_dict()
 
         data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products, config)
+        self.data_process_cleanup.append(data_proc_id)
 
-        # Activate the data process
         self.data_process_management.activate_data_process(data_proc_id)
 
         log.debug("Created a data process for ctdbp %s transform: id = %s", name_of_transform, data_proc_id)

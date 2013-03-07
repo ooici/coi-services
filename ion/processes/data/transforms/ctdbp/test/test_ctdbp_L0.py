@@ -48,6 +48,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
 
         # Cleanup of queue created by the subscriber
         self.queue_cleanup = []
+        self.data_process_cleanup = []
 
     def _get_new_ctd_packet(self, stream_definition_id, length):
 
@@ -67,6 +68,10 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         for queue in self.queue_cleanup:
             xn = self.container.ex_manager.create_xn_queue(queue)
             xn.delete()
+
+    def cleaning_operations(self):
+        for dproc_id in self.data_process_cleanup:
+            self.data_process_management.delete_data_process(dproc_id)
 
     def _create_input_param_dict_for_test(self, parameter_dict_name = ''):
 
@@ -179,6 +184,9 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         output_stream_id = out_stream_ids[0]
 
         dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products)
+
+        self.data_process_cleanup.append(dproc_id)
+        self.addCleanup(self.cleaning_operations)
 
         log.debug("Created a data process for ctdbp_L0. id: %s", dproc_id)
 

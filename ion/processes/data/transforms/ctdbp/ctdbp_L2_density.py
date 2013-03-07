@@ -11,7 +11,7 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
-from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
+from seawater.gibbs import SP_from_cndr, rho, SA_from_SP, conservative_t
 from seawater.gibbs import cte
 
 class CTDBP_DensityTransform(TransformDataProcess):
@@ -86,8 +86,14 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         log.debug("CTDBP Density algorithm calculated the absolute_salinity (actual salinity) values: %s", absolute_salinity)
 
+        conservative_temperature = conservative_t(absolute_salinity, temperature, pressure)
+
+        log.debug("CTDBP Density algorithm calculated the conservative temperature values: %s", conservative_temperature)
+
         # Doing: DENSITY = gsw_rho(absolute_salinity,conservative_temperature,PRESWAT_L1)
-        dens_value = rho(absolute_salinity, temperature, pressure)
+        dens_value = rho(absolute_salinity, conservative_temperature, pressure)
+
+        log.debug("Calculated density values: %s", dens_value)
 
         for key, value in rdt.iteritems():
             if key in out_rdt:

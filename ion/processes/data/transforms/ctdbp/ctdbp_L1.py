@@ -129,7 +129,6 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         #------------  Update the output record dictionary with the values -------
         for key, value in input_rdt.iteritems():
             if key in out_rdt:
-                #todo check this!!!!
                 out_rdt[key] = value[:]
 
         #------------------------------------------------------------------------

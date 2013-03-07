@@ -53,6 +53,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Cleanup of queue created by the subscriber
         self.queue_cleanup = []
+        self.data_process_cleanup = []
 
     def _create_input_param_dict_for_test(self, parameter_dict_name = ''):
 
@@ -151,6 +152,10 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
             xn = self.container.ex_manager.create_xn_queue(queue)
             xn.delete()
 
+    def cleaning_operations(self):
+        for dproc_id in self.data_process_cleanup:
+            self.data_process_management.delete_data_process(dproc_id)
+
     def test_ctd_L1_all(self):
         """
         Test that packets are processed by the ctd_L1_all transform
@@ -214,7 +219,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config = self._create_calibration_coefficients_dict()
         dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products, config)
-
+        self.data_process_cleanup.append(dproc_id)
         log.debug("Created a data process for ctdbp_L1. id: %s", dproc_id)
 
         # Activate the data process
