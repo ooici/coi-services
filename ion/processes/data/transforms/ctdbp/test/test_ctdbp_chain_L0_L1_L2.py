@@ -23,7 +23,8 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule_utils import time_series_domain
-from coverage_model import QuantityType
+from coverage_model import ParameterContext, AxisTypeEnum, QuantityType
+from coverage_model.parameter import ParameterDictionary
 
 import gevent
 import numpy, random
@@ -98,6 +99,8 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         list_args_L2_salinity = self._prepare_things_you_need_to_launch_transform(name_of_transform='L2_salinity')
 
+        log.debug("Got the following args: L0 = %s, L1 = %s, L2 density = %s, L2 salinity = %s", list_args_L0, list_args_L1, list_args_L2_density, list_args_L2_salinity )
+
         #-------------------------------------------------------------------------------------
         # Launch the CTDP transforms
         #-------------------------------------------------------------------------------------
@@ -109,6 +112,8 @@ class TestCTDPChain(IonIntegrationTestCase):
         L2_density_data_proc_id = self._launch_transform('L2_density', *list_args_L2_density)
 
         L2_salinity_data_proc_id = self._launch_transform('L2_salinity', *list_args_L2_salinity)
+
+        log.debug("Launched the transforms: L0 = %s, L1 = %s", L0_data_proc_id, L1_data_proc_id)
 
         #-------------------------------------------------------------------------
         # Start a subscriber listening to the output of each of the transforms
@@ -136,7 +141,8 @@ class TestCTDPChain(IonIntegrationTestCase):
     def _prepare_stream_def_for_transform_chain(self, parameter_dict_name = ''):
 
         # Get the stream definition for the stream using the parameter dictionary
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(parameter_dict_name, id_only=True)
+#        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(parameter_dict_name, id_only=True)
+        pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'fictitious_ctdp_param_dict')
         self.stream_def_id = self.pubsub.create_stream_definition(name='stream_def_for_CTDBP_transforms', parameter_dictionary_id=pdict_id)
 
         log.debug("Got the parsed parameter dictionary: id: %s", pdict_id)
@@ -370,6 +376,54 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         log.debug("Published the following granule: %s", publish_granule)
 
+
+    def _create_input_param_dict_for_test(self, parameter_dict_name = ''):
+
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        t_ctxt.axis = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        lat_ctxt.axis = AxisTypeEnum.LAT
+        lat_ctxt.uom = ''
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        lon_ctxt.axis = AxisTypeEnum.LON
+        lon_ctxt.uom = ''
+        pdict.add_context(lon_ctxt)
+
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        cond_ctxt.uom = ''
+        pdict.add_context(cond_ctxt)
+
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        pres_ctxt.uom = ''
+        pdict.add_context(pres_ctxt)
+
+        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        temp_ctxt.uom = ''
+        pdict.add_context(temp_ctxt)
+
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        dens_ctxt.uom = ''
+        pdict.add_context(dens_ctxt)
+
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        sal_ctxt.uom = ''
+        pdict.add_context(sal_ctxt)
+
+        #create temp streamdef so the data product can create the stream
+        pc_list = []
+        for pc_k, pc in pdict.iteritems():
+            pc_list.append(self.dataset_management.create_parameter_context(pc_k, pc[1].dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
+
+        return pdict_id
 
 
 
