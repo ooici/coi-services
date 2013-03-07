@@ -5,7 +5,7 @@ from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.services.sa.instrument.agent_launcher import PlatformAgentLauncher
+from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import BadRequest
 
@@ -450,7 +450,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         clients.resource_registry  = self.RR
         clients.pubsub_management  = self.PSC
         clients.dataset_management = self.DSC
-        plauncher = PlatformAgentLauncher(clients)
+        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
 
 
         tdom, sdom = time_series_domain()
@@ -538,15 +538,15 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         # can't do anything without an agent instance obj
         log.debug("Testing that preparing a launcher without agent instance raises an error")
-        self.assertRaises(AssertionError, plauncher.prepare, will_launch=False)
+        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
 
         log.debug("Making the structure for a platform agent, which will be the child")
         platform_agent_instance_child_id, _, platform_device_child_id  = _make_agent_structure()
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
         log.debug("Preparing a valid agent instance launch, for config only")
-        plauncher.set_agent_instance_object(platform_agent_instance_child_obj)
-        child_config = plauncher.prepare(will_launch=False)
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_child_obj)
+        child_config = pconfig_builder.prepare(will_launch=False)
         verify_child_config(child_config, platform_device_child_id)
 
 
@@ -555,8 +555,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
 
         log.debug("Testing child-less parent as a child config")
-        plauncher.set_agent_instance_object(platform_agent_instance_parent_obj)
-        parent_config = plauncher.prepare(will_launch=False)
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        parent_config = pconfig_builder.prepare(will_launch=False)
         verify_child_config(parent_config, platform_device_parent_id)
 
         log.warn("assigning child platform to parent")
@@ -565,8 +565,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertNotEqual(0, len(child_device_ids))
 
         log.warn("Testing parent + child as parent config")
-        plauncher.set_agent_instance_object(platform_agent_instance_parent_obj)
-        parent_config = plauncher.prepare(will_launch=False)
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        parent_config = pconfig_builder.prepare(will_launch=False)
         verify_parent_config(parent_config, platform_device_parent_id, platform_device_child_id)
 
         #self.fail(parent_config)
