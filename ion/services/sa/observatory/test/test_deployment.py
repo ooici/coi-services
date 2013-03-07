@@ -2,8 +2,8 @@
 #from pyon.ion.endpoint import ProcessRPCClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import log, IonObject
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -53,7 +53,7 @@ class TestDeployment(IonIntegrationTestCase):
 
         self.c = DotDict()
         self.c.resource_registry = self.rrclient
-        self.resource_impl = ResourceImpl(self.c)
+        self.RR2 = EnhancedResourceRegistryClient(self.rrclient)
 
         # create missing data process definition
         self.dsmsclient = DataProcessManagementServiceClient(node=self.container.node)
@@ -68,6 +68,7 @@ class TestDeployment(IonIntegrationTestCase):
         def killAllDataProcesses():
             for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
                 self.dsmsclient.deactivate_data_process(proc_id)
+                self.dsmsclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
 
@@ -109,11 +110,11 @@ class TestDeployment(IonIntegrationTestCase):
         self.assertEqual(len(device_ids), 1)
 
         #delete the deployment
-        self.resource_impl.pluck(deployment_id)
+        self.RR2.pluck(deployment_id)
         self.omsclient.force_delete_deployment(deployment_id)
         # now try to get the deleted dp object
         try:
-            deployment_obj = self.omsclient.read_deployment(deployment_id)
+            self.omsclient.read_deployment(deployment_id)
         except NotFound:
             pass
         else:

@@ -19,8 +19,6 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 
-from ion.services.sa.product.data_product_impl import DataProductImpl
-from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
@@ -124,9 +122,3 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.clients.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
 
 
- 
-#dynamically add tests to the test classes. THIS MUST HAPPEN OUTSIDE THE CLASS
-
-#unit
-rim = ResourceImplMetatest(TestDataProductManagementServiceUnit, DataProductManagementService, log)
-rim.add_resource_impl_unittests(DataProductImpl)
