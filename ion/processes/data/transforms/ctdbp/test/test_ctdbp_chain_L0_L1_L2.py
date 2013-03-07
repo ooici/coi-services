@@ -10,6 +10,7 @@
 from pyon.ion.stream import  StandaloneStreamPublisher
 from pyon.public import log, IonObject, RT, PRED
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.containers import DotDict
 from pyon.ion.stream import StandaloneStreamSubscriber
 from nose.plugins.attrib import attr
 
@@ -131,7 +132,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         #-------------------------------------------------------------------
 
         stream_id, stream_route = self.get_stream_and_route_for_data_prod(data_prod_id= list_args_L0[1])
-        self._publish_for_L0_transform(input_stream_id, stream_route)
+        self._publish_for_L0_transform(stream_id, stream_route)
 
         #-------------------------------------------------------------------
         # Check the granules being outputted by the transforms
@@ -293,7 +294,11 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         output_products = {binding : output_dpod_id}
 
-        data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products)
+        config = None
+        if name_of_transform == 'L1':
+            config = self._create_calibration_coefficients_dict()
+
+        data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products, config)
 
         # Activate the data process
         self.data_process_management.activate_data_process(data_proc_id)
@@ -306,21 +311,16 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         stream_ids, _ = self.resource_registry.find_objects(data_prod_id, PRED.hasStream, RT.Stream, True)
         stream_id = stream_ids[0]
-        input_stream = self.resource_registry.read(input_stream_id)
+        input_stream = self.resource_registry.read(stream_id)
         stream_route = input_stream.stream_route
 
         return stream_id, stream_route
-
-    def _launch_L2_transform(self):
-
-        pass
-
 
     def start_subscriber_listening_to_L0_transform(self, out_data_prod_id = ''):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, RT.Stream, True)
         output_stream_id_of_transform = stream_ids[0]
 
         ar_L0 = self._start_subscriber_to_transform( name_of_transform = 'L0',stream_id=output_stream_id_of_transform)
@@ -332,7 +332,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, RT.Stream, True)
         output_stream_id_of_transform = stream_ids[0]
 
         ar_L1 = self._start_subscriber_to_transform( name_of_transform = 'L1',stream_id=output_stream_id_of_transform)
@@ -344,7 +344,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, RT.Stream, True)
         output_stream_id_of_transform = stream_ids[0]
 
         ar_L2_density = self._start_subscriber_to_transform( name_of_transform = 'L2_density', stream_id=output_stream_id_of_transform)
@@ -355,7 +355,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         #----------- Create subscribers to listen to the two transforms --------------------------------
 
-        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, True)
+        stream_ids, _ = self.resource_registry.find_objects(out_data_prod_id, PRED.hasStream, RT.Stream, True)
         output_stream_id_of_transform = stream_ids[0]
 
         ar_L2_density = self._start_subscriber_to_transform( name_of_transform = 'L2_salinity',stream_id=output_stream_id_of_transform)
@@ -392,7 +392,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         log.debug("Got the following granule from the L0 transform: %s", granule_from_transform)
 
         # Check the algorithm being applied
-        self._check_application_of_L0_algorithm(granule)
+        self._check_application_of_L0_algorithm(granule_from_transform)
 
 
     def _check_granule_from_L1_transform(self, ar = None):
@@ -415,11 +415,11 @@ class TestCTDPChain(IonIntegrationTestCase):
         """ Check the algorithm applied by the L0 transform """
         pass
 
-    def _check_application_L1_algorithm(self, granule = None):
+    def _check_application_of_L1_algorithm(self, granule = None):
         """ Check the algorithm applied by the L1 transform """
         pass
 
-    def _check_application_L2_algorithm(self, granule = None):
+    def _check_application_of_L2_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
         pass
 
@@ -431,7 +431,7 @@ class TestCTDPChain(IonIntegrationTestCase):
     def _publish_to_transform(self, stream_id = '', stream_route = None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
-        publish_granule = self._get_new_ctd_L1_packet(stream_definition_id=L1_self.stream_def_id, length = 5)
+        publish_granule = self._get_new_ctd_L1_packet(stream_definition_id=self.stream_def_id, length = 5)
         pub.publish(publish_granule)
 
         log.debug("Published the following granule: %s", publish_granule)
@@ -487,6 +487,35 @@ class TestCTDPChain(IonIntegrationTestCase):
 
 
 
+    def _create_calibration_coefficients_dict(self):
+
+    #        calibration_coeffs = {}
+    #        calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
+    #        calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
+    #        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
+
+        config = DotDict()
+        config.process = DotDict()
+        config.process.calibration_coeffs = {}
+        config.process.calibration_coeffs['temp_calibration_coeffs'] = {'a0' : 1, 'a1' : 1, 'a2' : 1, 'a3' : 1}
+
+        config.process.calibration_coeffs['pres_calibration_coeffs'] = { 'PTEMPA0' : 1,
+                                                                         'PTEMPA1' : 1,
+                                                                         'PTEMPA2' : 1,
+                                                                         'PTCA0' : 0.1,
+                                                                         'PTCA1' : 0.1,
+                                                                         'PTCA2' : 0.1,
+                                                                         'PTCB0' : 1,
+                                                                         'PTCB1' : 1,
+                                                                         'PTCB2' : 1,
+                                                                         'PA0' : 1,
+                                                                         'PA1' : 1,
+                                                                         'PA2' : 1}
+
+        config.process.calibration_coeffs['cond_calibration_coeffs'] = {'g' : 1, 'h' : 1, 'I'  :1, 'j' : 1,
+                                                                        'CTcor' : 0.1, 'CPcor' : 0.2}
+
+        return config
 
 
 

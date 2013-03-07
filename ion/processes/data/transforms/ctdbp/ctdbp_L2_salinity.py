@@ -74,7 +74,7 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         conductivity = rdt['conductivity']
         pressure = rdt['pressure']
-        temperature = rdt['temp']
+        temperature = rdt['temperature']
 
         #todo Is this the same as "gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)" ?
         sal_value = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)
@@ -85,7 +85,7 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         for key, value in rdt.iteritems():
             if key in out_rdt:
-                if key=='conductivity' or key=='temp' or key=='pressure':
+                if key=='conductivity' or key=='temperature' or key=='pressure':
                     continue
                 out_rdt[key] = value[:]
 
