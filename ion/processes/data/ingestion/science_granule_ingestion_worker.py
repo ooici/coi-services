@@ -207,6 +207,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                     if log.isEnabledFor(TRACE):
                         for step in ['validate', 'build', 'time','values','save','event']:
                             log.debug('ingestion stats for step %s: %.2f min, %.2f avg, %.2f max, %.3f dev',
-                                self.time_stats.get_count(step), self.time_stats.get_min(step), self.time_stats.get_average(step),
+                                step, self.time_stats.get_min(step), self.time_stats.get_average(step),
                                 self.time_stats.get_max(step), self.time_stats.get_standard_deviation(step))
 
