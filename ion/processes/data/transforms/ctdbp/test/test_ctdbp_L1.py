@@ -10,6 +10,7 @@
 from pyon.ion.stream import  StandaloneStreamPublisher
 from pyon.public import log, IonObject, RT, PRED
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.containers import DotDict
 from pyon.ion.stream import StandaloneStreamSubscriber
 from nose.plugins.attrib import attr
 
@@ -23,7 +24,8 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from ion.services.dm.utility.granule_utils import time_series_domain
-from coverage_model import QuantityType
+from coverage_model import ParameterContext, AxisTypeEnum, QuantityType
+from coverage_model.parameter import ParameterDictionary
 
 import gevent
 import numpy, random
@@ -52,6 +54,54 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         # Cleanup of queue created by the subscriber
         self.queue_cleanup = []
 
+    def _create_input_param_dict_for_test(self, parameter_dict_name = ''):
+
+        pdict = ParameterDictionary()
+
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        t_ctxt.axis = AxisTypeEnum.TIME
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        pdict.add_context(t_ctxt)
+
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        lat_ctxt.axis = AxisTypeEnum.LAT
+        lat_ctxt.uom = ''
+        pdict.add_context(lat_ctxt)
+
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        lon_ctxt.axis = AxisTypeEnum.LON
+        lon_ctxt.uom = ''
+        pdict.add_context(lon_ctxt)
+
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        cond_ctxt.uom = ''
+        pdict.add_context(cond_ctxt)
+
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        pres_ctxt.uom = ''
+        pdict.add_context(pres_ctxt)
+
+        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        temp_ctxt.uom = ''
+        pdict.add_context(temp_ctxt)
+
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        dens_ctxt.uom = ''
+        pdict.add_context(dens_ctxt)
+
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        sal_ctxt.uom = ''
+        pdict.add_context(sal_ctxt)
+
+        #create temp streamdef so the data product can create the stream
+        pc_list = []
+        for pc_k, pc in pdict.iteritems():
+            pc_list.append(self.dataset_management.create_parameter_context(pc_k, pc[1].dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
+
+        return pdict_id
+
     def _get_new_ctd_L0_packet(self, stream_definition_id, length):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
@@ -65,6 +115,36 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         self.i+=length
 
         return g
+
+    def _create_calibration_coefficients_dict(self):
+
+#        calibration_coeffs = {}
+#        calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
+#        calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
+#        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
+
+        config = DotDict()
+        config.process = DotDict()
+        config.process.calibration_coeffs = {}
+        config.process.calibration_coeffs['temp_calibration_coeffs'] = {'a0' : 1, 'a1' : 1, 'a2' : 1, 'a3' : 1}
+
+        config.process.calibration_coeffs['pres_calibration_coeffs'] = { 'PTEMPA0' : 1,
+                                                          'PTEMPA1' : 1,
+                                                          'PTEMPA2' : 1,
+                                                          'PTCA0' : 0.1,
+                                                          'PTCA1' : 0.1,
+                                                          'PTCA2' : 0.1,
+                                                          'PTCB0' : 1,
+                                                          'PTCB1' : 1,
+                                                          'PTCB2' : 1,
+                                                          'PA0' : 1,
+                                                          'PA1' : 1,
+                                                          'PA2' : 1}
+
+        config.process.calibration_coeffs['cond_calibration_coeffs'] = {'g' : 1, 'h' : 1, 'I'  :1, 'j' : 1,
+                                                         'CTcor' : 0.1, 'CPcor' : 0.2}
+
+        return config
 
     def clean_queues(self):
         for queue in self.queue_cleanup:
@@ -97,7 +177,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         tdom = tdom.dump()
 
         # Get the stream definition for the stream using the parameter dictionary
-        L0_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        L0_pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'fictitious_ctdp_param_dict')
+
         L0_stream_def_id = self.pubsub.create_stream_definition(name='parsed', parameter_dictionary_id=L0_pdict_id)
 
         log.debug("Got the parsed parameter dictionary: id: %s", L0_pdict_id)
@@ -131,7 +212,8 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         out_stream_ids, _ = self.resource_registry.find_objects(L1_stream_dp_id, PRED.hasStream, RT.Stream, True)
         output_stream_id = out_stream_ids[0]
 
-        dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products)
+        config = self._create_calibration_coefficients_dict()
+        dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products, config)
 
         log.debug("Created a data process for ctdbp_L1. id: %s", dproc_id)
 
@@ -190,7 +272,12 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         An internal method to check if a granule has the right properties
         """
 
-        pass
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+
+        self.assertTrue(rdt.__contains__('pressure') and rdt.__contains__('temperature') and rdt.__contains__('conductivity'))
+        self.assertTrue(rdt.__contains__('time') and rdt.__contains__('lat') and rdt.__contains__('lon'))
+
+        #todo: need to check the algorithms here for the granule
 
 
 

@@ -88,16 +88,16 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
         # Set the conductivity values for the output granule
         # Note that since the conductivity caculation depends on whether TEMPWAT_L1, PRESWAT_L1 have been calculated, we need to do this last
-        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_conductivity(   out_rdt = out_rdt,
-                                                                        cond_calibration_coeffs = cond_calibration_coeffs,
-                                                                        TEMPWAT_L1 = TEMPWAT_L1,
-                                                                        PRESWAT_L1 = PRESWAT_L1)
+        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_conductivity(   input_rdt = rdt,
+                                                                        out_rdt = out_rdt,
+                                                                        cond_calibration_coeffs = cond_calibration_coeffs
+        )
 
         # build the granule for the L1 stream
         return out_rdt.to_granule()
 
     @staticmethod
-    def calculate_conductivity(input_rdt = None, out_rdt = None, cond_calibration_coeffs = None, TEMPWAT_L1=None, PRESWAT_L1=None):
+    def calculate_conductivity(input_rdt = None, out_rdt = None, cond_calibration_coeffs = None):
         """
         Dependencies: conductivity calibration coefficients, TEMPWAT_L1, PRESWAT_L1
         """
@@ -105,6 +105,9 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         log.debug("L1 transform applying conductivity algorithm")
 
         CONDWAT_L0 = input_rdt['conductivity']
+        TEMPWAT_L1 = out_rdt['temperature']
+        PRESWAT_L1 = out_rdt['pressure']
+
 
         #------------  CALIBRATION COEFFICIENTS FOR CONDUCTIVITY  --------------
         g = cond_calibration_coeffs['g']
@@ -182,7 +185,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         log.debug("L1 transform applying pressure algorithm")
 
         PRESWAT_L0 = input_rdt['pressure']
-        TEMPWAT_L0 = rdt['temperature']
+        TEMPWAT_L0 = input_rdt['temperature']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
         PTEMPA0 = pres_calibration_coeffs['PTEMPA0']
@@ -197,7 +200,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         PTCB1 = pres_calibration_coeffs['PTCB1']
         PTCB2 = pres_calibration_coeffs['PTCB2']
 
-        PA0 = pres_calibration_coeffs['PA0']
+        PA0 = pres_calibration_coeffs['PTCB0']
         PA1 = pres_calibration_coeffs['PA1']
         PA2 = pres_calibration_coeffs['PA2']
 
