@@ -20,7 +20,6 @@ from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestart
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 
-from ion.services.sa.instrument.data_process_impl import DataProcessImpl
 from pyon.util.arg_check import validate_is_instance
 from ion.util.module_uploader import RegisterModulePreparerPy
 import os
@@ -66,10 +65,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         #shortcut names for the import sub-services
         if hasattr(self.clients, "resource_registry"):
             self.RR   = self.clients.resource_registry
-
-        #farm everything out to the impls
-
-        self.data_process = DataProcessImpl(self.clients)
 
 
     #todo: need to know what object will be worked with here

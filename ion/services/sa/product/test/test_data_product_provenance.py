@@ -67,6 +67,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         def killAllDataProcesses():
             for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
                 self.dataprocessclient.deactivate_data_process(proc_id)
+                self.dataprocessclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
 
