@@ -173,9 +173,7 @@ class UserNotificationService(BaseUserNotificationService):
             origin='UserNotificationService',
             callback=reload_user_info
         )
-        self.reload_user_info_subscriber.start()
-        # For cleanup of the subscriber
-        self._subscribers.append(self.reload_user_info_subscriber)
+        self.add_endpoint(self.reload_user_info_subscriber)
 
     def on_quit(self):
         """
