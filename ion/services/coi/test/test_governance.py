@@ -1955,7 +1955,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
         self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED)
-        self.assertEquals(inst_dev_obj.availability, LCS.DISCOVERABLE)
+        self.assertEquals(inst_dev_obj.availability, AS.DISCOVERABLE)
         #print "new state: " + inst_dev_obj.lcstate
 
 
