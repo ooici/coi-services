@@ -310,10 +310,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             'type': PortAgentType.ETHERNET
         }
 
-        raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
-
-
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           port_agent_config = port_agent_config)
@@ -438,14 +434,13 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         #wait for start
-        instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
-                                instance_obj.agent_process_id,
+                                inst_agent_instance_obj.agent_process_id,
                                 ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(30), "The instrument agent instance (%s) did not spawn in 30 seconds" %
-                                        instance_obj.agent_process_id)
+                                        inst_agent_instance_obj.agent_process_id)
 
-        inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
         log.debug('Instrument agent instance obj: = %s' , str(inst_agent_instance_obj))
 
         # Start a resource agent client to talk with the instrument agent.
