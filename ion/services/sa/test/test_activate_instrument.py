@@ -178,7 +178,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         datastore = self.container.datastore_manager.get_datastore(datastore_name, DataStore.DS_PROFILE.SCIDATA)
         return datastore
 
-    def _check_computed_attributes_of_extended_instrument(self, instrument_device_id = '',extended_instrument = None):
+    def _check_computed_attributes_of_extended_instrument(self, expected_instrument_device_id = '',extended_instrument = None):
 
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
 
@@ -196,7 +196,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Verify the computed attribute for user notification requests
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
-        self.assertEqual(notification.origin, instrument_device_id)
+        self.assertEqual(notification.origin, expected_instrument_device_id)
         self.assertEqual(notification.origin_type, "instrument")
         self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
 
@@ -206,14 +206,16 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
-    def _check_computed_attributes_of_extended_product(self, data_product_id = '', extended_data_product = None):
+    def _check_computed_attributes_of_extended_product(self, expected_data_product_id = '', extended_data_product = None):
 
-        self.assertEqual(data_product_id, extended_data_product._id)
+        self.assertEqual(expected_data_product_id, extended_data_product._id)
         self.assertEqual( 1, len(extended_data_product.computed.user_notification_requests.value) )
+
+        log.debug("extended_data_product.computed: %s", extended_data_product.computed)
 
         notifications = extended_data_product.computed.user_notification_requests.value
         notification = notifications[0]
-        self.assertEqual(notification.origin, data_product_id)
+        self.assertEqual(notification.origin, expected_data_product_id)
         self.assertEqual(notification.origin_type, "data product")
         self.assertEqual(notification.event_type, 'DetectionEvent')
 
@@ -387,7 +389,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
         # setup notifications for the device and parsed data product
-        user_id = self._create_notification( user_name='user_1', instrument_id=instDevice_id, product_id=data_product_id1)
+        user_id_1 = self._create_notification( user_name='user_1', instrument_id=instDevice_id, product_id=data_product_id1)
+        #---------- Create notifications for another user and verify that we see different computed subscriptions for the two users ---------
+        user_id_2 = self._create_notification( user_name='user_2', instrument_id=instDevice_id, product_id=data_product_id2)
 
         #elastic search debug
         es_indexes, _ = self.container.resource_registry.find_resources(restype='ElasticSearchIndex')
@@ -562,8 +566,8 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
         # Get the extended data product to see if it contains the granules
         #--------------------------------------------------------------------------------
-        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id)
-        self._check_computed_attributes_of_extended_product( data_product_id = data_product_id1, extended_data_product = extended_product)
+        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id_1)
+        self._check_computed_attributes_of_extended_product( expected_data_product_id = data_product_id1, extended_data_product = extended_product)
 
         #--------------------------------------------------------------------------------
         #put some events into the eventsdb to test - this should set the comms and data status to WARNING
@@ -579,18 +583,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Get the extended instrument
         #--------------------------------------------------------------------------------
 
-        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id)
-        self._check_computed_attributes_of_extended_instrument(instrument_device_id = instDevice_id, extended_instrument = extended_instrument)
-
-
-        #---------- Create notifications for another user and verify that we see different computed subscriptions for the two users ---------
-        user_id_2 = self._create_notification( user_name='user_2', instrument_id=instDevice_id, product_id=data_product_id1)
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id_1)
+        self._check_computed_attributes_of_extended_instrument(expected_instrument_device_id = instDevice_id, extended_instrument = extended_instrument)
 
         #--------------------------------------------------------------------------------
         # For the second user, check the extended data product and the extended intrument
         #--------------------------------------------------------------------------------
-        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id_2)
-        self._check_computed_attributes_of_extended_product(data_product_id = data_product_id1, extended_data_product = extended_product)
+        extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id2, user_id=user_id_2)
+        self._check_computed_attributes_of_extended_product(expected_data_product_id = data_product_id2, extended_data_product = extended_product)
 
         #---------- Put some events into the eventsdb to test - this should set the comms and data status to WARNING  ---------
 
@@ -605,7 +605,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id_2)
-        self._check_computed_attributes_of_extended_instrument(instrument_device_id = instDevice_id, extended_instrument = extended_instrument)
+        self._check_computed_attributes_of_extended_instrument(expected_instrument_device_id = instDevice_id, extended_instrument = extended_instrument)
 
         #--------------------------------------------------------------------------------
         # Deactivate loggers
