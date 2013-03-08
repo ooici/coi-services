@@ -370,7 +370,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)
 
-        launcher.await_launch(process_id, 20)
+        launcher.await_launch(20)
 
         return process_id
 
