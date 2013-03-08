@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from pyon.util.containers import DotDict
+from pyon.util.poller import poll
 from pyon.core.bootstrap import get_sys_name
 from gevent.event import AsyncResult
 
@@ -42,7 +43,7 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
-from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
+from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue, ComputedDictValue, ComputedListValue, ComputedEventListValue
 from interface.objects import StreamAlarmType
 
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
@@ -180,8 +181,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
     def _check_computed_attributes_of_extended_instrument(self, expected_instrument_device_id = '',extended_instrument = None):
 
-        self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
-
         # Verify that computed attributes exist for the extended instrument
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
@@ -193,35 +192,55 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertIsInstance(extended_instrument.computed.data_status_roll_up, ComputedIntValue)
         self.assertIsInstance(extended_instrument.computed.location_status_roll_up, ComputedIntValue)
 
-        # Verify the computed attribute for user notification requests
-        notifications = extended_instrument.computed.user_notification_requests.value
-        notification = notifications[0]
-        self.assertEqual(notification.origin, expected_instrument_device_id)
-        self.assertEqual(notification.origin_type, "instrument")
-        self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
-
         # the following assert will not work without elasticsearch.
         #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
         self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
         self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
         self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
 
+        # Verify the computed attribute for user notification requests
+        self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
+        notifications = extended_instrument.computed.user_notification_requests.value
+        notification = notifications[0]
+        self.assertEqual(notification.origin, expected_instrument_device_id)
+        self.assertEqual(notification.origin_type, "instrument")
+        self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
+
+
     def _check_computed_attributes_of_extended_product(self, expected_data_product_id = '', extended_data_product = None):
 
         self.assertEqual(expected_data_product_id, extended_data_product._id)
-        self.assertEqual( 1, len(extended_data_product.computed.user_notification_requests.value) )
-
         log.debug("extended_data_product.computed: %s", extended_data_product.computed)
 
+        # Verify that computed attributes exist for the extended instrument
+        self.assertIsInstance(extended_data_product.computed.product_download_size_estimated, ComputedIntValue)
+        self.assertIsInstance(extended_data_product.computed.number_active_subscriptions, ComputedIntValue)
+        self.assertIsInstance(extended_data_product.computed.data_url, ComputedStringValue)
+        self.assertIsInstance(extended_data_product.computed.stored_data_size, ComputedIntValue)
+        self.assertIsInstance(extended_data_product.computed.recent_granules, ComputedDictValue)
+        self.assertIsInstance(extended_data_product.computed.parameters, ComputedListValue)
+        self.assertIsInstance(extended_data_product.computed.recent_events, ComputedEventListValue)
+
+        self.assertIsInstance(extended_data_product.computed.provenance, ComputedDictValue)
+        self.assertIsInstance(extended_data_product.computed.user_notification_requests, ComputedListValue)
+        self.assertIsInstance(extended_data_product.computed.active_user_subscriptions, ComputedListValue)
+        self.assertIsInstance(extended_data_product.computed.past_user_subscriptions, ComputedListValue)
+        self.assertIsInstance(extended_data_product.computed.last_granule, ComputedDictValue)
+        self.assertIsInstance(extended_data_product.computed.is_persisted, ComputedIntValue)
+        self.assertIsInstance(extended_data_product.computed.data_contents_updated, ComputedStringValue)
+        self.assertIsInstance(extended_data_product.computed.data_datetime, ComputedListValue)
+
+        # exact text here keeps changing to fit UI capabilities.  keep assertion general...
+        self.assertTrue( 'ok' in extended_data_product.computed.last_granule.value['quality_flag'] )
+        self.assertEqual( 2, len(extended_data_product.computed.data_datetime.value) )
+
         notifications = extended_data_product.computed.user_notification_requests.value
+
         notification = notifications[0]
         self.assertEqual(notification.origin, expected_data_product_id)
         self.assertEqual(notification.origin_type, "data product")
         self.assertEqual(notification.event_type, 'DetectionEvent')
 
-        # exact text here keeps changing to fit UI capabilities.  keep assertion general...
-        self.assertTrue( 'ok' in extended_data_product.computed.last_granule.value['quality_flag'] )
-        self.assertEqual( 2, len(extended_data_product.computed.data_datetime.value) )
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -378,6 +397,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self.dpclient.activate_data_product_persistence(data_product_id=data_product_id2)
 
+        # setup notifications for the device and parsed data product
+        user_id_1 = self._create_notification( user_name='user_1', instrument_id=instDevice_id, product_id=data_product_id1)
+        #---------- Create notifications for another user and verify that we see different computed subscriptions for the two users ---------
+        user_id_2 = self._create_notification( user_name='user_2', instrument_id=instDevice_id, product_id=data_product_id2)
+
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
         log.debug('Data product streams2 = %s' , str(stream_ids))
@@ -386,12 +410,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasDataset, RT.Dataset, True)
         log.debug('Data set for data_product_id2 = %s' , dataset_ids[0])
         self.raw_dataset = dataset_ids[0]
-
-
-        # setup notifications for the device and parsed data product
-        user_id_1 = self._create_notification( user_name='user_1', instrument_id=instDevice_id, product_id=data_product_id1)
-        #---------- Create notifications for another user and verify that we see different computed subscriptions for the two users ---------
-        user_id_2 = self._create_notification( user_name='user_2', instrument_id=instDevice_id, product_id=data_product_id2)
 
         #elastic search debug
         es_indexes, _ = self.container.resource_registry.find_resources(restype='ElasticSearchIndex')
@@ -567,6 +585,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Get the extended data product to see if it contains the granules
         #--------------------------------------------------------------------------------
         extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id_1)
+        def poller(extended_product):
+            return len(extended_product.computed.user_notification_requests.value) == 1
+
+        poll(poller, extended_product, timeout=30)
+
         self._check_computed_attributes_of_extended_product( expected_data_product_id = data_product_id1, extended_data_product = extended_product)
 
         #--------------------------------------------------------------------------------
