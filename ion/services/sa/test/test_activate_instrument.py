@@ -209,17 +209,17 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
     def _check_computed_attributes_of_extended_product(self, data_product_id = '', extended_data_product = None):
 
         self.assertEqual(data_product_id, extended_data_product._id)
-        self.assertEqual( 1, len(extended_product.computed.user_notification_requests.value) )
+        self.assertEqual( 1, len(extended_data_product.computed.user_notification_requests.value) )
 
-        notifications = extended_product.computed.user_notification_requests.value
+        notifications = extended_data_product.computed.user_notification_requests.value
         notification = notifications[0]
         self.assertEqual(notification.origin, data_product_id)
         self.assertEqual(notification.origin_type, "data product")
         self.assertEqual(notification.event_type, 'DetectionEvent')
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
-        self.assertTrue( 'ok' in extended_product.computed.last_granule.value['quality_flag'] )
-        self.assertEqual( 2, len(extended_product.computed.data_datetime.value) )
+        self.assertTrue( 'ok' in extended_data_product.computed.last_granule.value['quality_flag'] )
+        self.assertEqual( 2, len(extended_data_product.computed.data_datetime.value) )
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
