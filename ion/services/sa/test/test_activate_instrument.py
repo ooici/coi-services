@@ -2,6 +2,7 @@
 
 from pyon.util.containers import DotDict
 from pyon.core.bootstrap import get_sys_name
+from gevent.event import AsyncResult
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
@@ -28,7 +29,7 @@ from pyon.public import RT, PRED
 from pyon.core.bootstrap import CFG
 from pyon.public import IonObject, log
 from pyon.datastore.datastore import DataStore
-from pyon.event.event import EventPublisher
+from pyon.event.event import EventPublisher, EventSubscriber
 
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
@@ -42,10 +43,15 @@ from interface.objects import Granule, DeviceStatusType, DeviceCommsType, Status
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
+from interface.objects import StreamAlarmType
+
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 import gevent
 import elasticpy as ep
+from mock import patch
+
+import time
 
 use_es = CFG.get_safe('system.elasticsearch',False)
 
@@ -58,7 +64,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
-@attr('SMOKE', group='saxx')
+@attr('SMOKE', group='sa')
 #@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
@@ -86,7 +92,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.dataretrieverclient = DataRetrieverServiceClient(node=self.container.node)
         self.dataset_management = DatasetManagementServiceClient()
         self.usernotificationclient = UserNotificationServiceClient()
-        
+
         #setup listerner vars
         self._data_greenlets = []
         self._no_samples = None
@@ -127,7 +133,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                 }
         }
         pid = self.processdispatchclient.schedule_process(process_definition_id=logger_procdef_id,
-                                                          configuration=configuration)
+                                                            configuration=configuration)
 
         return pid
 
@@ -227,6 +233,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
@@ -239,8 +246,43 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         print  'new InstrumentModel id = %s ' % instModel_id
 
 
+
+        #Create stream alarms
+        """
+        test_two_sided_interval
+        Test interval alarm and alarm event publishing for a closed
+        inteval.
+        """
+
+        #        kwargs = {
+        #            'name' : 'test_sim_warning',
+        #            'stream_name' : 'parsed',
+        #            'value_id' : 'temp',
+        #            'message' : 'Temperature is above test range of 5.0.',
+        #            'type' : StreamAlarmType.WARNING,
+        #            'upper_bound' : 5.0,
+        #            'upper_rel_op' : '<'
+        #        }
+
+
+        kwargs = {
+            'name' : 'temperature_warning_interval',
+            'stream_name' : 'parsed',
+            'value_id' : 'temp',
+            'message' : 'Temperature is below the normal range of 50.0 and above.',
+            'type' : StreamAlarmType.WARNING,
+            'lower_bound' : 50.0,
+            'lower_rel_op' : '<'
+        }
+
+        # Create alarm object.
+        alarm = {}
+        alarm['type'] = 'IntervalAlarmDef'
+        alarm['kwargs'] = kwargs
+
         raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5 )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5, alarms=[alarm] )
+
 
         # Create InstrumentAgent
         instAgent_obj = IonObject(RT.InstrumentAgent,
@@ -255,7 +297,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # Create InstrumentDevice
         print 'test_activateInstrumentSample: Create instrument resource to represent the SBE37 ' +\
-                 '(SA Req: L4-CI-SA-RQ-241) '
+                '(SA Req: L4-CI-SA-RQ-241) '
         instDevice_obj = IonObject(RT.InstrumentDevice,
                                    name='SBE37IMDevice',
                                    description="SBE37IMDevice",
@@ -264,7 +306,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
         print "test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) " %\
-                  instDevice_id
+                instDevice_id
 
 
         port_agent_config = {
@@ -374,8 +416,38 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         gevent.joinall([gevent.spawn(start_instrument_agent)])
 
+
+        #setup a subscriber to alarm events from the device
+        self._events_received= []
+        self._event_count = 0
+        self._samples_out_of_range = 0
+        self._samples_complete = False
+        self._async_sample_result = AsyncResult()
+
+        def consume_event(*args, **kwargs):
+            log.debug('TestActivateInstrument recieved ION event: args=%s, kwargs=%s, event=%s.',
+                str(args), str(kwargs), str(args[0]))
+            self._events_received.append(args[0])
+            self._event_count = len(self._events_received)
+            self._async_sample_result.set()
+
+        self._event_subscriber = EventSubscriber(
+            event_type= 'StreamWarningAlarmEvent',   #'StreamWarningAlarmEvent', #  StreamAlarmEvent
+            callback=consume_event,
+            origin=instDevice_id)
+        self._event_subscriber.start()
+
+
+        #cleanup
         self.addCleanup(self.imsclient.stop_instrument_agent_instance,
                         instrument_agent_instance_id=instAgentInstance_id)
+
+        def stop_subscriber():
+            self._event_subscriber.stop()
+            self._event_subscriber = None
+
+        self.addCleanup(stop_subscriber)
+
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
@@ -444,11 +516,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             retval = self._ia_client.execute_resource(cmd)
             print "test_activateInstrumentSample: return from sample %s" % str(retval)
 
-
         print "test_activateInstrumentSample: calling reset "
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         reply = self._ia_client.execute_agent(cmd)
         print "test_activateInstrumentSample: return from reset %s" % str(reply)
+
+        self._samples_complete = True
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
@@ -457,10 +530,25 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         replay_data = self.dataretrieverclient.retrieve(self.parsed_dataset)
         self.assertIsInstance(replay_data, Granule)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        log.debug("RDT parsed: %s", str(rdt.pretty_print()) )
+        log.debug("test_activateInstrumentSample: RDT parsed: %s", str(rdt.pretty_print()) )
         temp_vals = rdt['temp']
         self.assertEquals(len(temp_vals) , 10)
+        log.debug("test_activateInstrumentSample: all temp_vals: %s", temp_vals )
 
+        #out_of_range_temp_vals = [i for i in temp_vals if i > 5]
+        out_of_range_temp_vals = [i for i in temp_vals if i < 50.0]
+        log.debug("test_activateInstrumentSample: Out_of_range_temp_vals: %s", out_of_range_temp_vals )
+        self._samples_out_of_range = len(out_of_range_temp_vals)
+
+        # if no bad values were produced, then do not wait for an event
+        if self._samples_out_of_range == 0:
+            self._async_sample_result.set()
+
+
+        log.debug("test_activateInstrumentSample: _events_received: %s", self._events_received )
+        log.debug("test_activateInstrumentSample: _event_count: %s", self._event_count )
+
+        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
         self.assertIsInstance(replay_data, Granule)
@@ -521,9 +609,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-                origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
+            origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
-                origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
+            origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id)
         log.debug( "test_activateInstrumentSample: extended_instrument %s", str(extended_instrument) )
@@ -553,7 +641,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # Create notifications for another user and verify that we see different computed subscriptions for the two users
         #------------------------------------------------------------------------------------------------------------------------------
 
-#        user_id = self.create_user_notifications(instrument_id=instDevice_id, product_id=data_product_id1)
+        #        user_id = self.create_user_notifications(instrument_id=instDevice_id, product_id=data_product_id1)
 
         user_id_2 = self.create_notifications_for_another_user(instrument_id=instDevice_id, product_id=data_product_id1)
 
