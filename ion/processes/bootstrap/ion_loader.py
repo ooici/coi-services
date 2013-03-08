@@ -54,7 +54,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups
+from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups, parameter_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
@@ -1527,6 +1527,7 @@ Reason: %s
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
         self._register_id(row[COL_ID], context_id)
+        parameter_lookups[row[COL_ID]] = name
 
 
     def _load_PlatformDevice(self, row):
