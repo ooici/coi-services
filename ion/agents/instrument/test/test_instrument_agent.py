@@ -857,8 +857,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    self._ia_client.get_resource()
+        with self.assertRaises(BadRequest):
+            self._ia_client.get_resource()
                 
         # Attempt to get with bogus parameters.
         params = [
@@ -868,15 +868,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    retval = self._ia_client.get_resource(params)
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_resource(params)
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
         # Attempt to set with no parameters.
         # Set without parameters.
-        #with self.assertRaises(BadRequest):
-        #    retval = self._ia_client.set_resource()
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.set_resource()
         
         # Attempt to set with bogus parameters.
         params = {
@@ -885,8 +885,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         }
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    self._ia_client.set_resource(params)
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_resource(params)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
