@@ -307,6 +307,7 @@ class ZMQPyClassDriverProcess(DriverProcess):
         @return a list containing spawn args for the _spawn method
         """
         log.debug("cwd: %s" % os.getcwd())
+        mi_repo = self.config.get('mi_repo', None)
         driver_module = self.config.get('dvr_mod')
         driver_class = self.config.get('dvr_cls')
         ppid = os.getpid() if self.test_mode else None
@@ -322,7 +323,10 @@ class ZMQPyClassDriverProcess(DriverProcess):
 
         cmd_port_fname = self._driver_command_port_file()
         evt_port_fname = self._driver_event_port_file()
-        cmd_str = 'from %s import %s; dp = %s("%s", "%s", "%s", "%s", %s);dp.run()'\
+        cmd_str = ''
+        if mi_repo:
+            cmd_str += 'import sys; sys.path.insert(0,"%s");' % mi_repo
+        cmd_str += 'from %s import %s; dp = %s("%s", "%s", "%s", "%s", %s);dp.run()'\
         % ('mi.core.instrument.zmq_driver_process', 'ZmqDriverProcess', 'ZmqDriverProcess', driver_module,
            driver_class, cmd_port_fname, evt_port_fname, str(ppid))
 

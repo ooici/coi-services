@@ -16,12 +16,6 @@ from nose.plugins.attrib import attr
 import unittest
 from ooi.logging import log
 
-from ion.services.sa.resource_impl.resource_impl_metatest_integration import ResourceImplMetatestIntegration
-
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
-from ion.services.sa.observatory.subsite_impl import SubsiteImpl
 
 
 
@@ -52,15 +46,5 @@ class TestObservatoryManagementServiceMeta(IonIntegrationTestCase):
     def test_just_the_setup(self):
         return
 
-
-
-
-rimi = ResourceImplMetatestIntegration(TestObservatoryManagementServiceMeta, ObservatoryManagementService, log)
-rimi.test_all_in_one(True)
-
-rimi.add_resource_impl_inttests(ObservatoryImpl, {})
-rimi.add_resource_impl_inttests(SubsiteImpl, {})
-rimi.add_resource_impl_inttests(PlatformSiteImpl, {})
-rimi.add_resource_impl_inttests(InstrumentSiteImpl, {})
 
 

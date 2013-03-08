@@ -99,9 +99,9 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
 
         self.rdt_to_granule(context, ['hi'] * 20)
 
@@ -114,9 +114,9 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
+        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
 
         self.rdt_to_granule(context,['hi'] * 20)
 

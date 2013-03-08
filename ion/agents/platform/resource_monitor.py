@@ -14,14 +14,16 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
+from ion.agents.platform.util import ntp_2_ion_ts
 
 import logging
 from gevent import Greenlet, sleep
 
 
-# A small increment to the latest received timestamp for purposes of the next
-# request so we don't get that last sample repeated:
-_DELTA_TIME = 0.0001
+# A small "ION System time" compliant increment to the latest received timestamp
+# for purposes of the next request so we don't get that last sample repeated.
+# Since "ION system time" is in milliseconds, this delta is in milliseconds.
+_DELTA_TIME = 10
 
 
 class ResourceMonitor(object):
@@ -48,7 +50,7 @@ class ResourceMonitor(object):
                 retrieved.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: ResourceMonitor entered. attr_defn=%s",
+            log.debug("%r: ResourceMonitor entered. attr_defn=%s",
                       platform_id, attr_defn)
 
         assert platform_id, "must give a valid platform ID"
@@ -62,13 +64,13 @@ class ResourceMonitor(object):
         self._attr_id = attr_id
         self._monitorCycleSeconds = attr_defn['monitorCycleSeconds']
 
-        # timestamp of last retrieved attribute value
+        # "ION System time" compliant timestamp of last retrieved attribute value
         self._last_ts = None
 
         self._active = False
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: ResourceMonitor created. attr_defn=%s",
+            log.debug("%r: ResourceMonitor created. attr_defn=%s",
                       self._platform_id, attr_defn)
 
     def __str__(self):
@@ -81,7 +83,7 @@ class ResourceMonitor(object):
         Starts greenlet for resource monitoring.
         """
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: starting resource monitoring %s", self._platform_id, str(self))
+            log.debug("%r: starting resource monitoring %s", self._platform_id, str(self))
         self._active = True
         runnable = Greenlet(self._run)
         runnable.start()
@@ -96,7 +98,7 @@ class ResourceMonitor(object):
                 self._retrieve_attribute_value()
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: attr_id=%r: greenlet stopped.", self._platform_id, self._attr_id)
+            log.debug("%r: attr_id=%r: greenlet stopped.", self._platform_id, self._attr_id)
 
     def _retrieve_attribute_value(self):
         """
@@ -104,32 +106,31 @@ class ResourceMonitor(object):
         _values_retrieved with retrieved values.
         """
         attrNames = [self._attr_id]
-        from_time = (self._last_ts + _DELTA_TIME) if self._last_ts else 0.0
+        # note that int(x) returns a long object if needed.
+        from_time = (int(self._last_ts) + _DELTA_TIME) if self._last_ts else 0
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: retrieving attribute %r from_time %f",
-                      self._platform_id, self._attr_id, from_time)
+        log.debug("%r: _retrieve_attribute_value: attribute=%r from_time=%s",
+                  self._platform_id, self._attr_id, from_time)
 
         retrieved_vals = self._get_attribute_values(attrNames, from_time)
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: _get_attribute_values returned %s", self._platform_id, retrieved_vals)
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: retrieved attribute %r values from_time %f = %s",
-                      self._platform_id, self._attr_id, from_time, str(retrieved_vals))
+        log.debug("%r: _retrieve_attribute_value: _get_attribute_values "
+                  "for attribute %r and from_time=%s returned %s",
+                  self._platform_id,
+                  self._attr_id, from_time, retrieved_vals)
 
         if self._attr_id in retrieved_vals:
             values = retrieved_vals[self._attr_id]
             if values:
                 self._values_retrieved(values)
 
-            elif log.isEnabledFor(logging.DEBUG):
-                log.debug("CIDEVSA-450 %r: No values reported for attribute=%r from_time=%f",
-                    self._platform_id, self._attr_id, from_time)
+            else:
+                log.debug("%r: No values reported for attribute=%r from_time=%f",
+                          self._platform_id, self._attr_id, from_time)
         else:
-            log.warn("CIDEVSA-450 %r: unexpected: response does not include requested attribute %r",
-                self._platform_id, self._attr_id)
+            log.warn("%r: _retrieve_attribute_value: unexpected: "
+                     "response does not include requested attribute %r",
+                     self._platform_id, self._attr_id)
 
     def _values_retrieved(self, values):
         """
@@ -149,18 +150,22 @@ class ResourceMonitor(object):
                 arrstr += ", ".join(vals)
                 arrstr += ", ..., " +str(last_e)
             arrstr += "]"
-            log.debug("CIDEVSA-450 %r: attr=%r: values retrieved(%s) = %s",
+            log.debug("%r: attr=%r: values retrieved(%s) = %s",
                 self._platform_id, self._attr_id, ln, arrstr)
 
-        # update _last_ts based on last element in values:
-        _, ts = values[-1]
-        self._last_ts = float(ts)
+        # update _last_ts based on last element's timestamp in values: note
+        # that the timestamp is reported in NTP so we need to convert it to
+        # ION system time for a subsequent request:
+        _, ntp_ts = values[-1]
+
+        self._last_ts = ntp_2_ion_ts(ntp_ts)
+        log.debug("%r: _values_retrieved: _last_ts=%s", self._platform_id, self._last_ts)
 
         driver_event = AttributeValueDriverEvent(self._platform_id,
-                                              self._attr_id, values)
+                                                 self._attr_id, values)
         self._notify_driver_event(driver_event)
 
     def stop(self):
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: stopping resource monitoring %s", self._platform_id, str(self))
+            log.debug("%r: stopping resource monitoring %s", self._platform_id, str(self))
         self._active = False

@@ -34,6 +34,7 @@ from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER,
 from pyon.core.governance import get_actor_header
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
+from pyon.event.event import EventPublisher
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
@@ -430,7 +431,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'Arguments not set',cm.exception.message)
 
 
-        #Now test service operation specific policies
+        #Now test service operation specific policies - specifically that there can be more than one on the same operation.
 
         pol1_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content='func1_pass', headers=self.system_actor_header )
 
@@ -484,6 +485,20 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
+
+        #try to enable the test policy  again
+        self.pol_client.enable_policy(test_policy_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+
         pre_func1 =\
         """def precondition_func(process, msg, headers):
             if headers['op'] == 'disable_policy':
@@ -492,8 +507,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
                 return True, ''
 
         """
-
-        pol2_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content=pre_func1, headers=self.system_actor_header )
+        #Create a dynamic precondition function to deny calls to disable policy
+        pre_func1_id = self.pol_client.add_process_operation_precondition_policy(process_name='policy_management', op='disable_policy', policy_content=pre_func1, headers=self.system_actor_header )
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
 
@@ -501,6 +516,74 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Unauthorized) as cm:
             self.pol_client.disable_policy(test_policy_id, headers=self.system_actor_header)
         self.assertIn( 'Denied for no reason again',cm.exception.message)
+
+        #Now delete the most recent precondition policy
+        self.pol_client.delete_policy(pre_func1_id,  headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+
+        #Now test that a precondition function can be enabled and disabled
+        pre_func2 =\
+        """def precondition_func(process, msg, headers):
+            if headers['op'] == 'create_exchange_space':
+                return False, 'Denied for from a operation precondition function'
+            else:
+                return True, ''
+
+        """
+        #Create a dynamic precondition function to deny calls to disable policy
+        pre_func2_id = self.pol_client.add_process_operation_precondition_policy(process_name='exchange_management', op='create_exchange_space', policy_content=pre_func2, headers=self.system_actor_header )
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+        #The same request that previously was allowed should now be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Denied for from a operation precondition function',cm.exception.message)
+
+
+        #try to enable the precondition policy
+        self.pol_client.disable_policy(pre_func2_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
+
+        #try to enable the precondition policy
+        self.pol_client.enable_policy(pre_func2_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+        #The same request that previously was allowed should now be denied
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(Unauthorized) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Denied for from a operation precondition function',cm.exception.message)
+
+        #Delete the precondition policy
+        self.pol_client.delete_policy(pre_func2_id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+        #The previous attempt at this operations should now be allowed.
+        es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
+        with self.assertRaises(BadRequest) as cm:
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+        self.assertIn( 'Arguments not set',cm.exception.message)
 
 
         self.pol_client.delete_policy(test_policy_id, headers=self.system_actor_header)
@@ -540,6 +623,38 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #User with proper role should now be allowed to access this service operation.
         id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=actor_header)
 
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
+    @patch.dict(CFG, {'container':{'org_boundary':True}})
+    def test_policy_cache_reset(self):
+
+        before_policy_set = self.container.governance_controller.get_active_policies()
+
+        event_publisher = EventPublisher()
+
+        event_data = dict()
+        event_data['origin_type'] = 'System_Request'
+        event_data['description'] = 'Policy Cache Reset Event'
+
+        event_publisher.publish_event(event_type='PolicyCacheResetEvent', origin='', **event_data)
+
+        gevent.sleep(20)  # Wait for events to be published and policy reloaded for all running processes
+
+
+        after_policy_set = self.container.governance_controller.get_active_policies()
+
+        #Reuse the basic test to make sure polices have been reloaded
+        self.test_basic_policy_operations()
+
+        self.assertEqual(len(before_policy_set.keys()), len(after_policy_set.keys()))
+        self.assertEqual(len(before_policy_set['service_access'].keys()), len(after_policy_set['service_access'].keys()))
+        self.assertEqual(len(before_policy_set['resource_access'].keys()), len(after_policy_set['resource_access'].keys()))
+        self.assertEqual(len(before_policy_set['service_operation'].keys()), len(after_policy_set['service_operation'].keys()))
+
+        #If the number of keys for service operations were equal, then check each set of operation precondition functions
+        for key in before_policy_set['service_operation']:
+            self.assertEqual(len(before_policy_set['service_operation'][key]), len(after_policy_set['service_operation'][key]))
 
 
     @attr('LOCOINT')
@@ -1695,7 +1810,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         member_actor_id,_ = self.rr_client.create(member_actor_obj)
         assert(member_actor_id)
 
-        #Create a thirs user to be used as observatory operator
+        #Create a third user to be used as observatory operator
         obs_operator_actor_obj = IonObject(RT.ActorIdentity, name='observatory operator actor')
         obs_operator_actor_id,_ = self.rr_client.create(obs_operator_actor_obj)
         assert(obs_operator_actor_id)
@@ -1830,21 +1945,25 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=member_actor_header)
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
-        with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+        #print "old state: " + inst_dev_obj.lcstate
 
-        with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=inst_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_DISCOVERABLE)
+        #print "new state: " + inst_dev_obj.lcstate
 
-        with self.assertRaises(Unauthorized) as cm:
+
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=inst_operator_actor_header)
+
+        with self.assertRaises(BadRequest) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=obs_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        self.assertIn( 'PLANNED_AVAILABLE has no transition for event',cm.exception.message)
 
-        with self.assertRaises(Unauthorized) as cm:
+        with self.assertRaises(BadRequest) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=obs_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        self.assertIn( 'PLANNED_AVAILABLE has no transition for event',cm.exception.message)
 
         #Should be able to retire a device anytime
         self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.RETIRE, headers=obs_operator_actor_header)

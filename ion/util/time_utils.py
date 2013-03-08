@@ -50,7 +50,11 @@ class TimeUtils(object):
             dtg = t.num2date(val)
             return calendar.timegm(dtg.timetuple())
         elif 'iso' in units:
-            t = dateutil.parser.parse(val)
+            dtg = dateutil.parser.parse(val)
+            return calendar.timegm(dtg.timetuple())
+        else:
+            raise TypeError('Unknown time units')
+        
 
 
     @classmethod

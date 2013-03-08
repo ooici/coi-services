@@ -35,14 +35,22 @@ class Test(IonUnitTestCase):
     def tearDown(self):
         self._cc.end_reception()
 
-    def test_get_dcl_status(self):
+    def test_some_acks_nacks(self):
 
         dcl_id = DclIds.DCL11
-        cmd = MessageIds.DCL_STATUS
-        self._cc.send_command(dcl_id, cmd)
+        cmd_nas = [
+            # command,                         expected NACK or ACK
+            (MessageIds.DCL_STATUS,            MessageIds.ACK),
+            ("%s 1 1" % MessageIds.PORT_ONOFF, MessageIds.ACK),
+            ("%s 0 1" % MessageIds.PORT_ONOFF, MessageIds.NACK),
+            ("%s 3 1" % MessageIds.PORT_ONOFF, MessageIds.ACK),
+        ]
 
-        # TODO instead of sleep, use AsyncResult or similar mechanism
-        sleep(2)
+        for cmd, na in cmd_nas:
+            self._cc.send_command(dcl_id, cmd)
 
-        ack_nack = self._cgsn_state.get_ack_nack(dcl_id, cmd)
-        self.assertTrue(MessageIds.ACK, ack_nack)
+            # TODO instead of sleep, use AsyncResult or similar mechanism
+            sleep(1)
+
+            ack_nack = self._cgsn_state.get_ack_nack(dcl_id, cmd)
+            self.assertEquals(na, ack_nack)

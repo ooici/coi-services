@@ -87,7 +87,8 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         var_tuple = []
         data_description = []
         data_table_content = []
-        gdt_allowed_numerical_types = ['int32', 'int64', 'uint32', 'uint64', 'float32', 'float64']
+        gdt_allowed_numerical_types = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32',
+                                       'uint64', 'float32', 'float64','str']
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []

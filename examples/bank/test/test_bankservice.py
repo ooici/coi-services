@@ -314,5 +314,5 @@ class TestBankService(PyonTestCase):
 
         self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'Roger', False)
         self.mock_find_objects.assert_called_once_with(sentinel.customer_obj,
-                PRED.hasAccount, 'BankAccount', False)
+                PRED.hasAccount, 'BankAccount', False, 0, 0, False)
         assert accounts is sentinel.accounts

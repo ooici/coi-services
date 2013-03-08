@@ -115,9 +115,9 @@ class VisualizationService(BaseVisualizationService):
 
     def _process_visualization_message(self, messages, callback, reqId):
 
-        gdt_description = None
+        gdt_description = []
         gdt_content = []
-        viz_product_type = ''
+        viz_product_type = 'google_dt'  # defaults to google_dt unless overridden by the message
 
         for message in messages:
 
@@ -143,7 +143,7 @@ class VisualizationService(BaseVisualizationService):
 
                     # If the data description is being put together for the first time,
                     # switch the time format from float to datetime
-                    if (gdt_description == None):
+                    if (gdt_description == []):
                         temp_gdt_description = gdt_component['data_description']
                         gdt_description = [('time', 'datetime', 'time')]
 
@@ -181,15 +181,26 @@ class VisualizationService(BaseVisualizationService):
         # Now that all the messages have been parsed, any last processing should be done here
         if viz_product_type == "google_dt":
             # Using the description and content, build the google data table
-            gdt = gviz_api.DataTable(gdt_description)
-            gdt.LoadData(gdt_content)
+            if (gdt_description):
+                gdt = gviz_api.DataTable(gdt_description)
+                gdt.LoadData(gdt_content)
 
-            # return the json version of the table
-            #return gdt.ToJSonResponse()
-            if callback == '':
-                return gdt.ToJSonResponse(req_id = reqId)
+                # return the json version of the table
+                if callback == '':
+                    return gdt.ToJSonResponse(req_id = reqId)
+                else:
+                    return callback + "(\"" + gdt.ToJSonResponse(req_id = reqId) + "\")"
+
+            # Handle case where there is no data for constructing a GDT
             else:
-                return callback + "(\"" + gdt.ToJSonResponse(req_id = reqId) + "\")"
+                if callback == '':
+                    return None
+                else:
+                    return callback + "(\"" + None + "\")"
+
+
+
+
 
         return None
 
@@ -203,9 +214,7 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
 
-        print " >>>>>>>>>>>>>>> QUERY TOKEN : ", query_token
-        print " >>>>>>>>>>>>>>> callback : ", callback
-        print ">>>>>>>>>>>>>>>  TQX : ", tqx
+        print " >>>>>>>>>>>>>>> get_realtime_visualization_data : QUERY TOKEN : ", query_token, "CB : ", callback, "TQX : ", tqx
 
         reqId = 0
         # If a reqId was passed in tqx, extract it
@@ -259,6 +268,7 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
+        print ">>>>>>>>> TERMINATING REALTIME QUEUES  "
 
         subscription_ids = self.clients.resource_registry.find_resources(restype=RT.Subscription, name=query_token, id_only=True)
 
@@ -279,6 +289,8 @@ class VisualizationService(BaseVisualizationService):
         xq = self.container.ex_manager.create_xn_queue(query_token)
 
         self.container.ex_manager.delete_xn(xq)
+
+        print ">>>>>>>>> REALTIME QUEUES AND STUFF CLEANED UP "
 
 
     def _create_google_dt_data_process_definition(self):
@@ -331,8 +343,7 @@ class VisualizationService(BaseVisualizationService):
 
 
     def get_visualization_data(self, data_product_id='', visualization_parameters=None, callback='', tqx=""):
-        """Retrieves the data for the specified DP and sends a token back which can be checked in
-            a non-blocking fashion till data is ready
+        """Retrieves the data for the specified DP
 
         @param data_product_id    str
         @param visualization_parameters    str

@@ -9,7 +9,7 @@ from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
-from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict
+from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict, is_ion_object, isenum
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.event.event import EventSubscriber
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -583,6 +583,12 @@ def get_resource_schema(resource_type):
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
+        schema_info = dict()
+
+        #Prepare the dict entry for schema information including all of the internal object types
+        schema_info['schemas'] = dict()
+
+
         #ION Objects are not registered as UNICODE names
         ion_object_name = str(resource_type)
         ret_obj = IonObject(ion_object_name, {})
@@ -601,7 +607,31 @@ def get_resource_schema(resource_type):
                         value = None
                     setattr(ret_obj, field, value)
 
-        return gateway_json_response(ret_obj)
+        #Add schema information for sub object types
+        schema_info['schemas'][ion_object_name] = ret_obj._schema
+        for field in ret_obj._schema:
+            obj_type = ret_obj._schema[field]['type']
+
+            #First look for ION objects
+            if is_ion_object(obj_type):
+
+                try:
+                    value = IonObject(obj_type, {})
+                    schema_info['schemas'][obj_type] = value._schema
+
+                except NotFound:
+                    pass
+
+            #Next look for ION Enums
+            elif ret_obj._schema[field].has_key('enum_type'):
+                if isenum(ret_obj._schema[field]['enum_type']):
+                    value = IonObject(ret_obj._schema[field]['enum_type'], {})
+                    schema_info['schemas'][ret_obj._schema[field]['enum_type']] = value._str_map
+
+
+        #Add an instance of the resource type object
+        schema_info['object'] = ret_obj
+        return gateway_json_response(schema_info)
 
     except Exception, e:
         return build_error_response(e)

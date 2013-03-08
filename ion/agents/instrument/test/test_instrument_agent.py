@@ -23,6 +23,7 @@ import socket
 import re
 import json
 import unittest
+import os
 
 # 3rd party imports.
 import gevent
@@ -131,13 +132,24 @@ DVR_CONFIG = {
     'dvr_mod' : DRV_MOD,
     'dvr_cls' : DRV_CLS,
     'workdir' : WORK_DIR,
-    'process_type' : (DriverProcessType.EGG,)
+    'process_type' : None
 }
 
-# Dynamically load the egg into the test path
-launcher = ZMQEggDriverProcess(DVR_CONFIG)
-egg = launcher._get_egg(DRV_URI)
-if not egg in sys.path: sys.path.insert(0, egg)
+# Launch from egg or a local MI repo.
+LAUNCH_FROM_EGG=True
+
+if LAUNCH_FROM_EGG:
+    # Dynamically load the egg into the test path
+    launcher = ZMQEggDriverProcess(DVR_CONFIG)
+    egg = launcher._get_egg(DRV_URI)
+    if not egg in sys.path: sys.path.insert(0, egg)
+    DVR_CONFIG['process_type'] = (DriverProcessType.EGG,)
+
+else:
+    mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
+    if not mi_repo in sys.path: sys.path.insert(0, mi_repo)
+    DVR_CONFIG['process_type'] = (DriverProcessType.PYTHON_MODULE,)
+    DVR_CONFIG['mi_repo'] = mi_repo
 
 # Load MI modules from the egg
 from mi.core.instrument.instrument_driver import DriverProtocolState

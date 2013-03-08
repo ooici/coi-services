@@ -54,12 +54,13 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import get_parameter_type, get_fill_value
+from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.util.xlsparser import XLSParser
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
+from coverage_model import NumexprFunction, PythonFunction
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 
 
@@ -90,7 +91,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AlWnRoFa9JrTdEdiYXkxMzdmQUtwS0dZTFpySjJtQVE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGV4dkg2d284b0h6RUZNVXNjdWNNbXc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -103,6 +104,7 @@ DEFAULT_CATEGORIES = [
     'Org',
     'UserRole',
     'CoordinateSystem',
+    'ParameterFunctions',
     'ParameterDefs',
     'ParameterDictionary',
     'StreamConfiguration',
@@ -143,6 +145,7 @@ class IONLoader(ImmediateProcess):
     COL_ORGS = "org_ids"
     ID_ORG_ION = "ORG_ION"
     ID_SYSTEM_ACTOR = "USER_SYSTEM"
+    ID_WEB_AUTH_ACTOR = "USER_WEB_AUTH"
 
     def __init__(self,*a, **b):
         super(IONLoader,self).__init__(*a,**b)
@@ -393,6 +396,11 @@ class IONLoader(ImmediateProcess):
             RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=False)
         system_actor_id = system_actor[0]._id if system_actor else 'anonymous'
         self._register_id(self.ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
+
+        webauth_actor, _ = self.container.resource_registry.find_resources(
+            RT.ActorIdentity, name=self.CFG.get_safe("system.web_authentication_actor", "web_authentication"), id_only=False)
+        webauth_actor_id = webauth_actor[0]._id if webauth_actor else 'anonymous'
+        self._register_id(self.ID_WEB_AUTH_ACTOR, webauth_actor_id, webauth_actor[0] if webauth_actor else None)
 
     def _prepare_incremental(self):
         """
@@ -887,6 +895,11 @@ class IONLoader(ImmediateProcess):
                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
                'expiry':'0'}
 
+    def _get_webauth_actor_headers(self):
+        return {'ion-actor-id': self.resource_ids[self.ID_WEB_AUTH_ACTOR],
+                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
+                'expiry':'0'}
+
     def _load_User(self, row):
         # TODO: Make the calls below with an actor_id for the web server
         alias = row['ID']
@@ -908,7 +921,7 @@ class IONLoader(ImmediateProcess):
         # Build ActorIdentity
         actor_name = "Identity for %s" % user_attrs['name']
         actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
-        headers = self._get_system_actor_headers()
+        headers = self._get_webauth_actor_headers()
         log.trace("creating user %s with headers: %r", user_attrs['name'], headers)
         actor_id = ims.create_actor_identity(actor_identity_obj, headers=headers)
         actor_identity_obj._id = actor_id
@@ -1364,13 +1377,39 @@ Reason: %s
             return
         dataset_management = self._get_service_client('dataset_management')
         try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'])
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'], headers=self._get_system_actor_headers())
         except:
             log.exception( '%s has a problem', row['name'])
             return
 
         self._register_id(row[COL_ID], pdict_id)
 
+    def _load_ParameterFunctions(self, row):
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['Name'], row['SKIP'])
+            return 
+
+        name      = row['Name']
+        ftype     = row['Function Type']
+        func_expr = row['Function']
+        owner     = row['Owner']
+        args      = ast.literal_eval(row['Args'])
+        #kwargs    = row['Kwargs']
+        descr     = row['Description']
+
+        dataset_management = self._get_service_client('dataset_management')
+        func = None
+        if ftype == 'NumexprFunction':
+            func = NumexprFunction(row['Name'], func_expr, args)
+        elif ftype == 'PythonFunction':
+            func = PythonFunction(name, owner,func_expr, args, None)
+        else:
+            self._conflict_report(row['ID'], row['Name'], 'Unsupported Function Type: %s' % ftype)
+            return
+            
+        func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(), description=descr, headers=self._get_system_actor_headers())
+        self._register_id(row[COL_ID], func_id)
+        function_lookups[row[COL_ID]] = func_id
 
 
     def _load_ParameterDefs(self, row):
@@ -1378,20 +1417,22 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
             return
 
-        name          = row['Name']
-        ptype         = row['Parameter Type']
-        encoding      = row['Value Encoding']
-        uom           = row['Unit of Measure']
-        code_set      = row['Code Set']
-        fill_value    = row['Fill Value']
-        display_name  = row['Display Name']
-        std_name      = row['Standard Name']
-        long_name     = row['Long Name']
-        references    = row['Reference URLS']
-        description   = row['Description']
+        name         = row['Name']
+        ptype        = row['Parameter Type']
+        encoding     = row['Value Encoding']
+        uom          = row['Unit of Measure']
+        code_set     = row['Code Set']
+        fill_value   = row['Fill Value']
+        display_name = row['Display Name']
+        std_name     = row['Standard Name']
+        long_name    = row['Long Name']
+        references   = row['Reference URLS']
+        description  = row['Description']
+        pfid         = row['Parameter Function ID']
+        pmap         = row['Parameter Function Map']
 
         try:
-            param_type = get_parameter_type(ptype, encoding,code_set)
+            param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
             context.fill_value = get_fill_value(fill_value, encoding, param_type)
@@ -1413,13 +1454,19 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         try:
-            context_id = dataset_management.create_parameter_context(
+            creation_args = dict(
                 name=name, parameter_context=context_dump,
                 description=description,
                 parameter_type=ptype,
                 value_encoding=encoding,
                 unit_of_measure=uom,
                 headers=self._get_system_actor_headers())
+            if pfid:
+                try:
+                    creation_args['parameter_function_ids'] = [self.resource_ids[pfid]]
+                except KeyError:
+                    pass
+            context_id = dataset_management.create_parameter_context(**creation_args)
         except AttributeError as e:
             if e.message == "'dict' object has no attribute 'read'":
                 self._conflict_report(row['ID'], row['Name'], 'Something is not JSON compatible.')

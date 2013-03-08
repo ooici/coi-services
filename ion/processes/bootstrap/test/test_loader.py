@@ -71,17 +71,14 @@ class TestLoader(IonIntegrationTestCase):
         """
         self.assert_can_load("BASE,BETA,DEVS", path='master')
 
-    def find_object_by_name(self, name, type):
-        objects,_ = self.container.resource_registry.find_resources(type, id_only=False)
-        self.assertTrue(len(objects)>=1)
-        found = None
-        for object in objects:
-            print object.name
-            if object.name==name:
-                self.assertFalse(found, msg='Found more than one %s "%s" (was expecting just one)'%(type,name))
-                found = object
-        self.assertTrue(found, msg='Did not find %s "%s"'%(type,name))
-        return found
+    def find_object_by_name(self, name, resource_type):
+        objects,_ = self.container.resource_registry.find_resources(resource_type, id_only=False)
+        self.assertGreaterEqual(len(objects), 1)
+
+        filtered_objs = [obj for obj in objects if obj.name == name]
+        self.assertEquals(len(filtered_objs), 1)
+
+        return filtered_objs[0]
 
     @attr('INT', group='loader')
     @attr('SMOKE', group='loader')
@@ -146,9 +143,14 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
 
         # check for platform agents
-        found_it = self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+        self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
 
         # check for platform model boolean values
         model = self.find_object_by_name('Nose Testing Platform Model', RT.PlatformModel)
         self.assertEquals(True, model.shore_networked)
         self.assertNotEqual('str', model.shore_networked.__class__.__name__)
+
+
+        # check for data process definition
+        self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)
+
