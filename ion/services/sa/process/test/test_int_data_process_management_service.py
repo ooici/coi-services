@@ -254,8 +254,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             'type': PortAgentType.ETHERNET
         }
 
-        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance", svr_addr="localhost",
-                                          comms_device_address=CFG.device.sbe37.host, comms_device_port=CFG.device.sbe37.port,
+        instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance', description="SBE37IMAgentInstance",
                                           port_agent_config = port_agent_config)
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj, instAgent_id, instDevice_id)
 

@@ -21,6 +21,7 @@ import re
 
 
 function_lookups = {}
+parameter_lookups = {}
 
 
 def get_array_type(parameter_type=None):
@@ -116,6 +117,14 @@ def get_parameter_type(parameter_type, encoding, code_set=None, pfid=None, pmap=
         raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
 
+def get_param_name(pdid):
+    global parameter_lookups
+    try:
+        param_name = parameter_lookups[pdid]
+    except KeyError:
+        raise KeyError('Parameter %s was not loaded' % pdid)
+    return param_name
+
 def get_pfunc(pfid):
     global function_lookups
     try:
@@ -137,6 +146,9 @@ def evaluate_pmap(pfid, pmap):
     for k,v in pmap.iteritems():
         if isinstance(v, dict) or 'PFID' in k:
             pmap[k] = evaluate_pmap(k, v)
+        if isinstance(v, basestring) and 'PD' in v:
+            print 'looking up ', v
+            pmap[k] = get_param_name(v)
     func = deepcopy(get_pfunc(pfid))
     func.param_map = pmap
     return func

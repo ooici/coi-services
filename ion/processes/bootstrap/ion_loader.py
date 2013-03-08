@@ -54,7 +54,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups
+from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups, parameter_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.util.xlsparser import XLSParser
@@ -92,7 +92,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGV4dkg2d284b0h6RUZNVXNjdWNNbXc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydFZocTR4S0xZZURkN01pVnJhcmV4NVE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1534,6 +1534,7 @@ Reason: %s
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
         self._register_id(row[COL_ID], context_id)
+        parameter_lookups[row[COL_ID]] = name
 
 
     def _load_PlatformDevice(self, row):
