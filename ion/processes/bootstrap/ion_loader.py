@@ -48,7 +48,7 @@ from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
-from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT
+from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS
 from pyon.util.containers import get_ion_ts, named_any
 from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
@@ -56,12 +56,13 @@ from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.util.xlsparser import XLSParser
+
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
 from coverage_model import NumexprFunction, PythonFunction
-from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 
 
 from interface import objects
@@ -137,17 +138,18 @@ DEFAULT_CATEGORIES = [
 
 COL_SCENARIO = "Scenario"
 COL_ID = "ID"
+COL_OWNER = "owner_id"
+COL_LCSTATE = "lcstate"
+COL_ORGS = "org_ids"
+
+ID_ORG_ION = "ORG_ION"
+ID_SYSTEM_ACTOR = "USER_SYSTEM"
+ID_WEB_AUTH_ACTOR = "USER_WEB_AUTH"
 
 UUID_RE = '^[0-9a-fA-F]{32}$'
 
 class IONLoader(ImmediateProcess):
 
-    COL_OWNER = "owner_id"
-    COL_LCSTATE = "lcstate"
-    COL_ORGS = "org_ids"
-    ID_ORG_ION = "ORG_ION"
-    ID_SYSTEM_ACTOR = "USER_SYSTEM"
-    ID_WEB_AUTH_ACTOR = "USER_WEB_AUTH"
 
     def __init__(self,*a, **b):
         super(IONLoader,self).__init__(*a,**b)
@@ -392,17 +394,17 @@ class IONLoader(ImmediateProcess):
         if not org_objs:
             raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
         ion_org_id = org_objs[0]._id
-        self._register_id(self.ID_ORG_ION, ion_org_id, org_objs[0])
+        self._register_id(ID_ORG_ION, ion_org_id, org_objs[0])
 
         system_actor, _ = self.container.resource_registry.find_resources(
             RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=False)
         system_actor_id = system_actor[0]._id if system_actor else 'anonymous'
-        self._register_id(self.ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
+        self._register_id(ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
 
         webauth_actor, _ = self.container.resource_registry.find_resources(
             RT.ActorIdentity, name=self.CFG.get_safe("system.web_authentication_actor", "web_authentication"), id_only=False)
         webauth_actor_id = webauth_actor[0]._id if webauth_actor else 'anonymous'
-        self._register_id(self.ID_WEB_AUTH_ACTOR, webauth_actor_id, webauth_actor[0] if webauth_actor else None)
+        self._register_id(ID_WEB_AUTH_ACTOR, webauth_actor_id, webauth_actor[0] if webauth_actor else None)
 
     def _prepare_incremental(self):
         """
@@ -635,7 +637,7 @@ class IONLoader(ImmediateProcess):
 
     def _get_op_headers(self, row, force_user=False):
         headers = {}
-        owner_id = row.get(self.COL_OWNER, None)
+        owner_id = row.get(COL_OWNER, None)
         if owner_id:
             owner_id = self.resource_ids[owner_id]
             headers['ion-actor-id'] = owner_id
@@ -721,25 +723,30 @@ class IONLoader(ImmediateProcess):
         Change lifecycle state of object to requested state. Supports bulk.
         """
         lcsm = get_restype_lcsm(restype)
-        initial_lcstate = lcsm.initial_state if lcsm else "DEPLOYED_AVAILABLE"
+        initial_lcmat = lcsm.initial_state if lcsm else LCS.DEPLOYED
+        initial_lcav = lcsm.initial_availability if lcsm else AS.AVAILABLE
 
-        lcstate = row.get(self.COL_LCSTATE, None)
+        lcstate = row.get(COL_LCSTATE, None)
         if lcstate:
+            row_lcmat, row_lcav = lcstate.split("_", 1)
             if self.bulk and res_id in self.bulk_objects:
-                self.bulk_objects[res_id].lcstate = lcstate
+                self.bulk_objects[res_id].lcstate = row_lcmat
+                self.bulk_objects[res_id].availability = row_lcav
             else:
-                imat, ivis = initial_lcstate.split("_")
-                mat, vis = lcstate.split("_")
-                if mat != imat:
-                    self.container.resource_registry.set_lifecycle_state(res_id, "%s_PRIVATE" % mat)
-                if vis != ivis:
-                    self.container.resource_registry.set_lifecycle_state(res_id, "%s_%s" % (mat, vis))
+                if row_lcmat != initial_lcmat:    # Vertical transition
+                    self.container.resource_registry.set_lifecycle_state(res_id, row_lcmat)
+                if row_lcav != initial_lcav:      # Horizontal transition
+                    self.container.resource_registry.set_lifecycle_state(res_id, row_lcav)
+        elif self.bulk and res_id in self.bulk_objects:
+            # Set the lcs to resource type appropriate initial values
+            self.bulk_objects[res_id].lcstate = initial_lcmat
+            self.bulk_objects[res_id].availability = initial_lcav
 
     def _resource_assign_org(self, row, res_id):
         """
         Shares the resource in the given orgs. Supports bulk.
         """
-        org_ids = row.get(self.COL_ORGS, None)
+        org_ids = row.get(COL_ORGS, None)
         if org_ids:
             org_ids = self._get_typed_value(org_ids, targettype="simplelist")
             for org_id in org_ids:
@@ -919,12 +926,12 @@ class IONLoader(ImmediateProcess):
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
     def _get_system_actor_headers(self):
-        return {'ion-actor-id': self.resource_ids[self.ID_SYSTEM_ACTOR],
+        return {'ion-actor-id': self.resource_ids[ID_SYSTEM_ACTOR],
                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
                'expiry':'0'}
 
     def _get_webauth_actor_headers(self):
-        return {'ion-actor-id': self.resource_ids[self.ID_WEB_AUTH_ACTOR],
+        return {'ion-actor-id': self.resource_ids[ID_WEB_AUTH_ACTOR],
                 'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
                 'expiry':'0'}
 
