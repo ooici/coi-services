@@ -278,154 +278,67 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################    
 
     def _handler_get_resource(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-        
         try:
             params = args[0]
-        
         # Raise ION BadRequest if required parameters missing.
         except KeyError:
             raise BadRequest('get_resource missing parameters argument.')
-
-        try:
-            result = self._dvr_client.cmd_dvr('get_resource', params)
-            
-        except Exception as ex:
-            self._raise_ion_exception(ex)
-        
-        return (next_state, result)
+        result = self._dvr_client.cmd_dvr('get_resource', params)
+        return (None, result)
 
     def _handler_set_resource(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-        
         try:
             params = args[0]
-        
         except KeyError:
             raise BadRequest('set_resource missing parameters argument.')
-
-        try:
-            result = self._dvr_client.cmd_dvr('set_resource', params)
-            
-        except Exception as ex:
-            self._raise_ion_exception(ex)
-
-        return (next_state, result)
+        result = self._dvr_client.cmd_dvr('set_resource', params)
+        return (None, result)
 
     def _handler_execute_resource(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-        
-        try:
-            (next_state, result) = self._dvr_client.cmd_dvr(
-                'execute_resource', *args, **kwargs)
-            
-        except Exception as ex:
-            self._raise_ion_exception(ex)
-
-        return (next_state, result)
+        return self._dvr_client.cmd_dvr('execute_resource', *args, **kwargs)
 
     def _handler_get_resource_state(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-        
-        try:
-            result = self._dvr_client.cmd_dvr('get_resource_state',
-                                              *args, **kwargs)
-            
-        except Exception as ex:
-            self._raise_ion_exception(ex)
-
-        return (next_state, result)
+        result = self._dvr_client.cmd_dvr('get_resource_state',*args, **kwargs)
+        return (None, result)
 
     def _handler_ping_resource(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-        
-        try:
-            result = self._dvr_client.cmd_dvr('process_echo', *args, **kwargs)
-            result = result + ', time:%s' % get_ion_ts()
-        except Exception as ex:
-            self._raise_ion_exception(ex)
-
-        return (next_state, result)
+        result = '%s, time:%s' % (self._dvr_client.cmd_dvr('process_echo', *args, **kwargs), get_ion_ts())
+        return (None, result)
 
     def _handler_done(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
-        next_state = ResourceAgentState.COMMAND
-          
-        return (next_state, result)        
+        return (ResourceAgentState.COMMAND, None)
 
     ##############################################################
     # UNINITIALIZED event handlers.
     ##############################################################    
 
     def _handler_uninitialized_initialize(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-        
         # If a config is passed, update member.
         try:
             self._dvr_config = args[0]
-        
         except IndexError:
             pass
         
         # If config not valid, fail.
         if not self._validate_driver_config():
-            log.error('Bad or missing driver configuration.')
             raise BadRequest('The driver configuration is missing or invalid.')
 
         # Start the driver and switch to inactive.
         self._start_driver(self._dvr_config)
-
-        next_state = ResourceAgentState.INACTIVE
-
-        return (next_state, result)
+        return (ResourceAgentState.INACTIVE, None)
 
     ##############################################################
     # INACTIVE event handlers.
     ##############################################################    
 
     def _handler_inactive_reset(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-
         result = self._stop_driver()
-        next_state = ResourceAgentState.UNINITIALIZED
-  
-        return (next_state, result)
+        return (ResourceAgentState.UNINITIALIZED, result)
 
     def _handler_inactive_go_active(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-                            
         # Set the driver config if passed as a parameter.
         try:
             self._dvr_config['comms_config'] = args[0]
-        
         except IndexError:
             pass
         
@@ -449,18 +362,13 @@ class InstrumentAgent(ResourceAgent):
                     # fixfix
                     raise ResourceError('Could not discover instrument state.')
         
-        return (next_state, result)        
+        return (next_state, None)
 
     ##############################################################
     # IDLE event handlers.
     ##############################################################    
 
     def _handler_idle_reset(self, *args, **kwargs):
-        """
-        """
-        result = None
-        next_state = None
-
         # Disconnect, initialize, stop driver and go to uninitialized.
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
@@ -470,129 +378,58 @@ class InstrumentAgent(ResourceAgent):
         return (next_state, result)
 
     def _handler_idle_go_inactive(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
-        next_state = ResourceAgentState.INACTIVE
-        
-        return (next_state, result)        
+        return (ResourceAgentState.INACTIVE, None)
 
     def _handler_idle_run(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
         # TODO: need to determine correct obs state to enter (streaming or
         # command, and follow agent transitions as needed.)
-        next_state = ResourceAgentState.COMMAND
-        
-        return (next_state, result)        
+        return (ResourceAgentState.COMMAND, None)
 
     ##############################################################
     # STOPPED event handlers.
     ##############################################################    
 
     def _handler_stopped_reset(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        next_state = ResourceAgentState.UNINITIALIZED
-        
-        return (next_state, result)        
+        return (ResourceAgentState.UNINITIALIZED, result)
 
     def _handler_stopped_go_inactive(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
-        next_state = ResourceAgentState.INACTIVE
-        
-        return (next_state, result)        
+        return (ResourceAgentState.INACTIVE, None)
 
     def _handler_stopped_resume(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-        
-        next_state = ResourceAgentState.COMMAND
-        
-        return (next_state, result)        
+        return (ResourceAgentState.COMMAND, None)
 
     def _handler_stopped_clear(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
-        next_state = ResourceAgentState.IDLE
-        
-        return (next_state, result)        
+        return (ResourceAgentState.IDLE, None)
 
     ##############################################################
     # COMMAND event handlers.
     ##############################################################    
 
     def _handler_command_reset(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        next_state = ResourceAgentState.UNINITIALIZED
-        
-        return (next_state, result)        
+        return (ResourceAgentState.UNINITIALIZED, result)
     
     def _handler_command_go_inactive(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
-        next_state = ResourceAgentState.INACTIVE
-        
-        return (next_state, result)        
+        return (ResourceAgentState.INACTIVE, None)
 
     def _handler_command_clear(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
-        next_state = ResourceAgentState.IDLE
-        
-        return (next_state, result)        
+        return (ResourceAgentState.IDLE, None)
 
     def _handler_command_pause(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
-        next_state = ResourceAgentState.STOPPED
-        
-        return (next_state, result)        
+        return (ResourceAgentState.STOPPED, None)
 
     def _handler_command_go_direct_access(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
-                
         session_timeout = kwargs.get('session_timeout', 10)
         inactivity_timeout = kwargs.get('inactivity_timeout', 5)
         session_type = kwargs.get('session_type', None)
@@ -600,16 +437,14 @@ class InstrumentAgent(ResourceAgent):
         if not session_type:
             raise BadRequest('Instrument parameter error attempting direct access: session_type not present') 
 
-        log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d,  session_type=%s" 
-                 %(session_timeout, inactivity_timeout, dir(DirectAccessTypes)[session_type]))
-        
-        
+        log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d,  session_type=%s",
+                 session_timeout, inactivity_timeout, dir(DirectAccessTypes)[session_type])
+
         # get 'address' of host
         hostname = socket.gethostname()
-        log.debug("hostname = " + hostname)        
         ip_addresses = socket.gethostbyname_ex(hostname)
-        log.debug("ip_address=" + str(ip_addresses))
-        ip_address = ip_addresses[2][0]
+        log.debug("hostname: %s, ip address: %s", hostname, ip_addresses)
+#        ip_address = ip_addresses[2][0]
         ip_address = hostname
         
         # create a DA server instance (TODO: just telnet for now) and pass in callback method
@@ -620,59 +455,38 @@ class InstrumentAgent(ResourceAgent):
                                                 session_timeout,
                                                 inactivity_timeout)
         except Exception as ex:
-            log.warning("InstrumentAgent: failed to start DA Server <%s>" %str(ex))
+            log.warning("InstrumentAgent: failed to start DA Server <%s>",ex)
             raise ex
         
         # get the connection info from the DA server to return to the user
         port, token = self._da_server.get_connection_info()
         result = {'ip_address':ip_address, 'port':port, 'token':token}
-        #next_state = InstrumentAgentState.DIRECT_ACCESS
-        
         # tell driver to start direct access mode
-        (next_state, dvr_result) = self._dvr_client.cmd_dvr('start_direct')
-
-        return (next_state, result)        
+        next_state, _ = self._dvr_client.cmd_dvr('start_direct')
+        return (next_state, result)
 
     ##############################################################
     # STREAMING event handlers.
     ##############################################################    
 
     def _handler_streaming_enter(self, *args, **kwargs):
-        """
-        """
         self._start_publisher_greenlets()
         super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
 
     def _handler_streaming_exit(self, *args, **kwargs):
-        """
-        """
         self._stop_publisher_greenlets()
         super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
 
     def _handler_streaming_reset(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-        
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
-        next_state = ResourceAgentState.UNINITIALIZED
-          
-        return (next_state, result)        
+        return (ResourceAgentState.UNINITIALIZED, result)
     
     def _handler_streaming_go_inactive(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
-        next_state = ResourceAgentState.INACTIVE
-          
-        return (next_state, result)        
+        return (ResourceAgentState.INACTIVE, None)
     
     ##############################################################
     # TEST event handlers.
@@ -691,77 +505,53 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################    
 
     def _handler_direct_access_go_command(self, *args, **kwargs):
-        """
-        """
-        next_state = None
-        result = None
-
-        log.info("Instrument agent requested to stop direct access mode - %s" %self._da_session_close_reason)
-        
+        log.info("Instrument agent requested to stop direct access mode - %s", self._da_session_close_reason)
         # tell driver to stop direct access mode
-        (next_state, dvr_result) = self._dvr_client.cmd_dvr('stop_direct')
-
+        next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
         # stop DA server
         if (self._da_server):
             self._da_server.stop()
             self._da_server = None
-            
         # re-set the 'reason' to be the default
         self._da_session_close_reason = 'due to ION request'
-        
-        return (next_state, result)        
+        return (next_state, None)
 
     ##############################################################
     # Asynchronous driver event callback and handlers.
     ##############################################################    
 
     def evt_recv(self, evt):
-        """
-        """        
-        log.info('Instrument agent %s got async driver event %s',
-                 self.id, str(evt))
+        log.info('Instrument agent %s got async driver event %s', self.id, evt)
         try:
             type = evt['type']
             val = evt['value']
             ts = evt['time']
-            
         except KeyError, ValueError:
-            log.error('Instrument agent %s received driver event %s \
-                      has missing required fields.', self.id, str(evt))
+            log.error('Instrument agent %s received driver event %s has missing required fields.', self.id, evt)
             return
         
         if type == DriverAsyncEvent.STATE_CHANGE:
             self._async_driver_event_state_change(val, ts)
-                
         elif type == DriverAsyncEvent.CONFIG_CHANGE:
             self._async_driver_event_config_change(val, ts)
-
         elif type == DriverAsyncEvent.SAMPLE:
             self._async_driver_event_sample(val, ts)
-
         elif type == DriverAsyncEvent.ERROR:
             self._async_driver_event_error(val, ts)
-
         elif type == DriverAsyncEvent.RESULT:
             self._async_driver_event_result(val, ts)
-
         elif type == DriverAsyncEvent.DIRECT_ACCESS:
             self._async_driver_event_direct_access(val, ts)
-
         elif type == DriverAsyncEvent.AGENT_EVENT:
             self._async_driver_event_agent_event(val, ts)
-        
         else:
-            log.error('Instrument agent %s received unknown driver event %s.',
-                      self._proc_name, str(evt))
+            log.error('Instrument agent %s received unknown driver event %s.', self._proc_name, str(evt))
 
     def _async_driver_event_state_change(self, val, ts):
         """
         """
         try:
-            event_data = {
-                'state' : val
-            }
+            event_data = { 'state' : val }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceStateEvent',
                 origin_type=self.ORIGIN_TYPE,
@@ -1215,40 +1005,6 @@ class InstrumentAgent(ResourceAgent):
             return False
         
         return True
-
-    ##############################################################
-    # Convert instrument exceptions to ION exceptions.
-    ##############################################################    
-
-    def _raise_ion_exception(self, ex):
-        """
-        """
-        if isinstance(ex, IonException):
-            iex = ex
-        
-        elif isinstance(ex, InstrumentParameterException):
-            iex = BadRequest(*(ex.args))
-
-        elif isinstance(ex, InstrumentStateException):
-            iex = Conflict(*(ex.args))
-
-        elif isinstance(ex, FSMStateError):
-            iex = Conflict(*(ex.args))
-
-        elif isinstance(ex, FSMCommandUnknownError):
-            iex = BadRequest(*(ex.args))
-
-        elif isinstance(ex, InstrumentTimeoutException):
-            iex = Timeout(*(ex.args))
-        
-        elif isinstance(ex, InstrumentException):
-            iex = ResourceError(*(ex.args))
-
-        elif isinstance(ex, Exception):
-            iex = ServerError(*(ex.args))
-
-        if iex:
-            raise iex
 
     ##############################################################
     # Publishing helpers.
