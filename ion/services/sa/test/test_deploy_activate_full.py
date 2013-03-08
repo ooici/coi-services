@@ -277,8 +277,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1',
             description="SBE37IMAgentInstanceYear1",
-            comms_device_address='sbe37-simulator.oceanobservatories.org',
-            comms_device_port=4001,
             port_agent_config = port_agent_config,
             stream_configurations = [raw_config, parsed_config])
 
@@ -373,8 +371,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2',
             description="SBE37IMAgentInstanceYear2",
-            comms_device_address='sbe37-simulator.oceanobservatories.org',
-            comms_device_port=4004,
             port_agent_config = port_agent_config)
 
 
