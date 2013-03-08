@@ -40,7 +40,7 @@
 
 """
 
-__author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan'
+__author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
 
 
 from pyon.core.bootstrap import get_service_registry
@@ -125,7 +125,7 @@ DEFAULT_CATEGORIES = [
 #    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
-   'TransformFunction',
+    'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
     'DataProductLink',
@@ -137,6 +137,8 @@ DEFAULT_CATEGORIES = [
 
 COL_SCENARIO = "Scenario"
 COL_ID = "ID"
+
+UUID_RE = '^[0-9a-fA-F]{32}$'
 
 class IONLoader(ImmediateProcess):
 
@@ -586,11 +588,30 @@ class IONLoader(ImmediateProcess):
         return get_service_registry().services[service].client(process=self.rpc_sender)
 
     def _register_id(self, alias, resid, res_obj=None):
+        """Keep preload resource in internal dict for later reference"""
         if alias in self.resource_ids:
             raise iex.BadRequest("ID alias %s used twice" % alias)
         self.resource_ids[alias] = resid
         self.resource_objs[alias] = res_obj
         log.trace("Added resource alias=%s to id=%s", alias, resid)
+
+    def _read_resource_id(self, res_id):
+        existing_obj = self.container.resource_registry.read(res_id)
+        self.resource_objs[res_id] = existing_obj
+        self.resource_ids[res_id] = res_id
+        return existing_obj
+
+    def _get_resource_id(self, alias_id):
+        """Returns resource ID from preload alias ID, scanning also for real resource IDs to be loaded"""
+        if alias_id in self.resource_ids:
+            return self.resource_ids[alias_id]
+        elif re.match(UUID_RE, alias_id):
+            # This is obviously an ID of a real resource - let it fail if not existing
+            self._read_resource_id(alias_id)
+            log.debug("Referencing existing resource via direct ID: %s", alias_id)
+            return alias_id
+        else:
+            raise KeyError(alias_id)
 
     def _get_resource_obj(self, res_id):
         """Returns a resource object from one of the memory locations for given preload or internal ID"""
@@ -643,6 +664,13 @@ class IONLoader(ImmediateProcess):
         if res_id_alias in self.resource_ids:
             # TODO: Catch case when ID used twice
             existing_obj = self.resource_objs[res_id_alias]
+        elif re.match(UUID_RE, res_id_alias):
+            # This is obviously an ID of a real resource
+            try:
+                existing_obj = self._read_resource_id(res_id_alias)
+                log.debug("Updating existing resource via direct ID: %s", res_id_alias)
+            except NotFound as nf:
+                pass  # Ok it was not there after all
 
         res_obj = self._create_object_from_row(restype, row, prefix,
                                                constraints=constraints, constraint_field=constraint_field,
@@ -918,23 +946,47 @@ class IONLoader(ImmediateProcess):
             user_attrs['name'] = "%s %s" % (contact.individual_names_given, contact.individual_name_family)
             user_attrs['contact'] = contact
 
-        # Build ActorIdentity
-        actor_name = "Identity for %s" % user_attrs['name']
-        actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
         headers = self._get_webauth_actor_headers()
-        log.trace("creating user %s with headers: %r", user_attrs['name'], headers)
-        actor_id = ims.create_actor_identity(actor_identity_obj, headers=headers)
-        actor_identity_obj._id = actor_id
-        self._register_id(alias, actor_id, actor_identity_obj)
 
-        # Build UserCredentials
-        user_credentials_obj = IonObject("UserCredentials", name=subject,
-            description="Default credentials for %s" % user_attrs['name'])
-        ims.register_user_credentials(actor_id, user_credentials_obj, headers=headers)
+        if alias in self.resource_ids or re.match(UUID_RE, alias):
+            # Update cases
+            if alias in self.resource_ids:
+                actor_obj = self.resource_objs[alias]
+            else:
+                actor_obj = self._read_resource_id(alias)
+            actor_id = alias
 
-        # Build UserInfo
-        user_info_obj = IonObject("UserInfo", **user_attrs)
-        ims.create_user_info(actor_id, user_info_obj, headers=headers)
+            # Update UserInfo etc
+            user_info_obj = ims.find_user_info_by_id(actor_id)
+
+            # Add credentials
+            if subject:
+                uc_list,_ = self.container.resource_registry.find_resources(RT.UserCredentials, None, name=subject, id_only=True)
+                if not uc_list:
+                    # Add a new credentials set
+                    # TODO: Delete the old credentials?
+                    user_credentials_obj = IonObject("UserCredentials", name=subject,
+                                                     description="Default credentials for %s" % user_info_obj.name)
+                    ims.register_user_credentials(actor_id, user_credentials_obj, headers=headers)
+
+        else:
+            # Build ActorIdentity
+            actor_name = "Identity for %s" % user_attrs['name']
+            actor_identity_obj = IonObject("ActorIdentity", name=actor_name, alt_ids=["PRE:"+alias])
+            log.trace("creating user %s with headers: %r", user_attrs['name'], headers)
+            actor_id = ims.create_actor_identity(actor_identity_obj, headers=headers)
+            actor_identity_obj._id = actor_id
+            self._register_id(alias, actor_id, actor_identity_obj)
+
+            # Build UserCredentials
+            if subject:
+                user_credentials_obj = IonObject("UserCredentials", name=subject,
+                    description="Default credentials for %s" % user_attrs['name'])
+                ims.register_user_credentials(actor_id, user_credentials_obj, headers=headers)
+
+            # Build UserInfo
+            user_info_obj = IonObject("UserInfo", **user_attrs)
+            ims.create_user_info(actor_id, user_info_obj, headers=headers)
 
     def _load_Org(self, row):
         log.trace("Loading Org (ID=%s)", row[COL_ID])
@@ -966,7 +1018,7 @@ class IONLoader(ImmediateProcess):
         if org_id:
             org_id = self.resource_ids[org_id]
 
-        user_id = self.resource_ids[row["user_id"]]
+        user_id = self._get_resource_id(row["user_id"])   # Accepts a non-preloaded resource as well
         role_name = row["role_name"]
         svc_client = self._get_service_client("org_management")
 
