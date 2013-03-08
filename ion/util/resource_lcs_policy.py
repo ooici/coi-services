@@ -20,34 +20,56 @@ class ResourceLCSPolicy(object):
             self.RR = self.clients.resource_registry
 
         self.lce_precondition = {}
-        self.lce_precondition[LCE.PLAN]      = self.lce_precondition_plan
-        self.lce_precondition[LCE.INTEGRATE] = self.lce_precondition_integrate
-        self.lce_precondition[LCE.DEVELOP]   = self.lce_precondition_develop
-        self.lce_precondition[LCE.DEPLOY]    = self.lce_precondition_deploy
-        self.lce_precondition[LCE.RETIRE]    = self.lce_precondition_retire
+        self.lce_precondition[LCE.PLAN]       = self.lce_precondition_plan
+        self.lce_precondition[LCE.INTEGRATE]  = self.lce_precondition_integrate
+        self.lce_precondition[LCE.DEVELOP]    = self.lce_precondition_develop
+        self.lce_precondition[LCE.DEPLOY]     = self.lce_precondition_deploy
+        self.lce_precondition[LCE.RETIRE]     = self.lce_precondition_retire
+
+        self.lce_precondition[LCE.ANNOUNCE]   = self.lce_precondition_announce
+        self.lce_precondition[LCE.UNANNOUNCE] = self.lce_precondition_unannounce
+        self.lce_precondition[LCE.ENABLE]     = self.lce_precondition_enable
+        self.lce_precondition[LCE.DISABLE]    = self.lce_precondition_disable
 
         self.on_policy_init()
 
     def on_policy_init(self):
         pass
 
+    # maturity
     def lce_precondition_plan(self, agent_id):
-        return self._make_pass("ResourceLCSPolicy base class not overridden!")
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_develop(self, agent_id):
-        return self._make_pass("ResourceLCSPolicy base class not overridden!")
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_integrate(self, agent_id):
-        return self._make_pass("ResourceLCSPolicy base class not overridden!")
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_deploy(self, agent_id):
-        return self._make_pass("ResourceLCSPolicy base class not overridden!")
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
     def lce_precondition_retire(self, agent_id):
-        return self._make_pass("ResourceLCSPolicy base class not overridden!")
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
 
+    # visibility
+    def lce_precondition_announce(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_unannounce(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_enable(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_disable(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    #delete
     def precondition_delete(self, agent_id):
-        return self._make_pass("ResourceLCSPolicy base class not overridden!")
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+
 
     def policy_fn_delete_precondition(self, id_field):
 
@@ -133,13 +155,13 @@ class ResourceLCSPolicy(object):
             return False, message
 
     def _make_pass(self):
-        return self._make_result(True, "")
+        return True, ""
 
     def _make_fail(self, message):
-        return self._make_result(False, message)
+        return False, message
 
     def _make_warn(self, message):
-        return self._make_result(True, message)
+        return True, message
 
     def _get_resource_type_by_id(self, resource_id):
         """

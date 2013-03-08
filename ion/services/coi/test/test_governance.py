@@ -1810,7 +1810,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         member_actor_id,_ = self.rr_client.create(member_actor_obj)
         assert(member_actor_id)
 
-        #Create a thirs user to be used as observatory operator
+        #Create a third user to be used as observatory operator
         obs_operator_actor_obj = IonObject(RT.ActorIdentity, name='observatory operator actor')
         obs_operator_actor_id,_ = self.rr_client.create(obs_operator_actor_obj)
         assert(obs_operator_actor_id)
@@ -1945,21 +1945,25 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=member_actor_header)
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
-        with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+        #print "old state: " + inst_dev_obj.lcstate
 
-        with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=inst_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
+        inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_DISCOVERABLE)
+        #print "new state: " + inst_dev_obj.lcstate
 
-        with self.assertRaises(Unauthorized) as cm:
+
+        self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=inst_operator_actor_header)
+
+        with self.assertRaises(BadRequest) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=obs_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        self.assertIn( 'PLANNED_AVAILABLE has no transition for event',cm.exception.message)
 
-        with self.assertRaises(Unauthorized) as cm:
+        with self.assertRaises(BadRequest) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ENABLE, headers=obs_operator_actor_header)
-        self.assertNotIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
+        self.assertIn( 'PLANNED_AVAILABLE has no transition for event',cm.exception.message)
 
         #Should be able to retire a device anytime
         self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.RETIRE, headers=obs_operator_actor_header)
