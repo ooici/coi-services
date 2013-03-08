@@ -379,6 +379,9 @@ class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
         return instrument_agent_lookup_means
 
 
+    def _generate_startup_config(self):
+        return self.agent_instance_obj.startup_config
+
     def _generate_driver_config(self):
 
         instrument_agent_instance_obj = self.agent_instance_obj
