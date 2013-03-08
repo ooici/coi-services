@@ -18,7 +18,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 
 
 from pyon.util.context import LocalContextMixin
-from pyon.core.exception import NotFound
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import RT, PRED
 #from mock import Mock, patch
 from pyon.util.ion_time import IonTime
@@ -124,7 +124,7 @@ class TestDeployment(IonIntegrationTestCase):
 
 
     #@unittest.skip("targeting")
-    def test_activate_deployment(self):
+    def base_activate_deployment(self):
 
         #-------------------------------------------------------------------------------------
         # Create platform site, platform device, platform model
@@ -133,7 +133,7 @@ class TestDeployment(IonIntegrationTestCase):
         platform_site__obj = IonObject(RT.PlatformSite,
                                         name='PlatformSite1',
                                         description='test platform site')
-        site_id = self.omsclient.create_platform_site(platform_site__obj)
+        platform_site_id = self.omsclient.create_platform_site(platform_site__obj)
 
         platform_device_obj = IonObject(RT.PlatformDevice,
                                         name='PlatformDevice1',
@@ -143,14 +143,8 @@ class TestDeployment(IonIntegrationTestCase):
         platform_model__obj = IonObject(RT.PlatformModel,
                                         name='PlatformModel1',
                                         description='test platform model')
-        model_id = self.imsclient.create_platform_model(platform_model__obj)
+        platform_model_id = self.imsclient.create_platform_model(platform_model__obj)
 
-        #-------------------------------------------------------------------------------------
-        # Assign platform model to platform device and site
-        #-------------------------------------------------------------------------------------
-
-        self.imsclient.assign_platform_model_to_platform_device(model_id, platform_device_id)
-        self.omsclient.assign_platform_model_to_platform_site(model_id, site_id)
 
 
         #-------------------------------------------------------------------------------------
@@ -160,7 +154,7 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_site_obj = IonObject(RT.InstrumentSite,
                                         name='InstrumentSite1',
                                         description='test instrument site')
-        instrument_site_id = self.omsclient.create_instrument_site(instrument_site_obj, site_id)
+        instrument_site_id = self.omsclient.create_instrument_site(instrument_site_obj, platform_site_id)
 
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         ctd_stream_def_id = self.psmsclient.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
@@ -220,8 +214,7 @@ class TestDeployment(IonIntegrationTestCase):
                                         name='InstrumentModel1',
                                         description='test instrument model')
         instrument_model_id = self.imsclient.create_instrument_model(instrument_model_obj)
-        self.imsclient.assign_instrument_model_to_instrument_device(instrument_model_id, instrument_device_id)
-        self.omsclient.assign_instrument_model_to_instrument_site(instrument_model_id, instrument_site_id)
+
 
         #----------------------------------------------------------------------------------------------------
         # Create a deployment object
@@ -235,10 +228,93 @@ class TestDeployment(IonIntegrationTestCase):
                                         description='some new deployment',
                                         constraint_list=[temporal_bounds])
         deployment_id = self.omsclient.create_deployment(deployment_obj)
-        self.omsclient.deploy_instrument_site(instrument_site_id, deployment_id)
-        self.imsclient.deploy_instrument_device(instrument_device_id, deployment_id)
 
         log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
 
-        self.omsclient.activate_deployment(deployment_id)
 
+        ret = DotDict(instrument_site_id=instrument_site_id,
+                      instrument_device_id=instrument_device_id,
+                      instrument_model_id=instrument_model_id,
+                      platform_site_id=platform_site_id,
+                      platform_device_id=platform_device_id,
+                      platform_model_id=platform_model_id,
+                      deployment_id=deployment_id)
+
+
+        return ret
+
+    #@unittest.skip("targeting")
+    def test_activate_deployment_normal(self):
+
+        res = self.base_activate_deployment()
+
+        log.debug("assigning platform and instrument models")
+        self.imsclient.assign_platform_model_to_platform_device(res.platform_model_id, res.platform_device_id)
+        self.imsclient.assign_instrument_model_to_instrument_device(res.instrument_model_id, res.instrument_device_id)
+        self.omsclient.assign_platform_model_to_platform_site(res.platform_model_id, res.platform_site_id)
+        self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
+
+        log.debug("adding instrument site and device to deployment")
+        self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
+        self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
+
+        log.debug("adding platform site and device to deployment")
+        self.omsclient.deploy_platform_site(res.platform_site_id, res.deployment_id)
+        self.imsclient.deploy_platform_device(res.platform_device_id, res.deployment_id)
+
+        log.debug("activating deployment, expecting success")
+        self.omsclient.activate_deployment(res.deployment_id)
+
+
+    #@unittest.skip("targeting")
+    def test_activate_deployment_nomodels(self):
+
+        res = self.base_activate_deployment()
+
+        self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
+        self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
+
+        log.debug("activating deployment without site+device models, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, "Expected at least 1 model for InstrumentSite")
+
+        log.debug("assigning instrument site model")
+        self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
+
+        log.debug("activating deployment without device models, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, "Expected 1 model for InstrumentDevice")
+
+    #@unittest.skip("targeting")
+    def test_activate_deployment_nosite(self):
+
+        res = self.base_activate_deployment()
+
+        log.debug("assigning instrument models")
+        self.imsclient.assign_instrument_model_to_instrument_device(res.instrument_model_id, res.instrument_device_id)
+        self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
+
+        log.debug("deploying instrument device only")
+        self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
+
+        log.debug("activating deployment without device models, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, "No sites were found in the deployment")
+
+    #@unittest.skip("targeting")
+    def test_activate_deployment_nodevice(self):
+
+        res = self.base_activate_deployment()
+
+        log.debug("assigning platform and instrument models")
+        self.imsclient.assign_instrument_model_to_instrument_device(res.instrument_model_id, res.instrument_device_id)
+        self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
+
+        log.debug("deploying instrument site only")
+        self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
+
+        log.debug("activating deployment without device models, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, "The set of devices could not be mapped to the set of sites")
+
+
+    def assert_deploy_fail(self, deployment_id, fail_message="did not specify fail_message"):
+        with self.assertRaises(BadRequest) as cm:
+            self.omsclient.activate_deployment(deployment_id)
+        self.assertIn(fail_message, cm.exception.message)

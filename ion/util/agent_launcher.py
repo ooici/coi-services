@@ -16,6 +16,7 @@ class AgentLauncher(object):
 
     def __init__(self, process_dispatcher_client):
         self.process_dispatcher_client = process_dispatcher_client
+        self.process_id = None
 
 
     def launch(self, agent_config, process_definition_id):
@@ -30,10 +31,18 @@ class AgentLauncher(object):
                                                                       schedule=process_schedule,
                                                                       configuration=agent_config)
 
+        self.process_id = process_id
         return process_id
 
 
-    def await_launch(self, process_id, timeout):
+    def await_launch(self, timeout, process_id=None):
+
+        if None is process_id:
+            if None is self.process_id:
+                raise BadRequest("No process_id was supplied to await_launch, and " +
+                                 "no process_id was available from launch")
+            else:
+                process_id = self.process_id
 
         log.debug("waiting %s seconds for agent launch", timeout)
         psg = ProcessStateGate(self.process_dispatcher_client.read_process, process_id, ProcessStateEnum.RUNNING)
