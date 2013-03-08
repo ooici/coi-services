@@ -55,11 +55,21 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
     @SimpleGranuleTransformFunction.validate_inputs
     def execute(input=None, context=None, config=None, params=None, state=None):
         """
-        Dependencies:    PRACSAL, PRESWAT_L1, longitude, latitude, TEMPWAT_L1
+        Dependencies
+        ------------
+        PRACSAL, PRESWAT_L1, longitude, latitude, TEMPWAT_L1
 
-        absolute_salinity = gsw_SA_from_SP(PRACSAL,PRESWAT_L1,longitude,latitude)
-        conservative_temperature = gsw_CT_from_t(absolute_salinity,TEMPWAT_L1,PRESWAT_L1)
-        DENSITY = gsw_rho(absolute_salinity,conservative_temperature,PRESWAT_L1)
+        Algorithms used
+        ------------
+        1. PRACSAL = gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)
+        2. absolute_salinity = gsw_SA_from_SP(PRACSAL,PRESWAT_L1,longitude,latitude)
+        3. conservative_temperature = gsw_CT_from_t(absolute_salinity,TEMPWAT_L1,PRESWAT_L1)
+        4. DENSITY = gsw_rho(absolute_salinity,conservative_temperature,PRESWAT_L1)
+
+        Reference
+        ------------
+        The calculations below are based on the following spreadsheet document:
+        https://docs.google.com/spreadsheet/ccc?key=0Au7PUzWoCKU4dDRMeVI0RU9yY180Z0Y5U0hyMUZERmc#gid=0
 
         """
 

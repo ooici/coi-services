@@ -115,7 +115,9 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         #create temp streamdef so the data product can create the stream
         pc_list = []
         for pc_k, pc in pdict.iteritems():
-            pc_list.append(self.dataset_management.create_parameter_context(pc_k, pc[1].dump()))
+            ctxt_id = self.dataset_management.create_parameter_context(pc_k, pc[1].dump())
+            pc_list.append(ctxt_id)
+            self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
 
         pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
 

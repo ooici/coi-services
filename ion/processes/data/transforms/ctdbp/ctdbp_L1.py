@@ -60,6 +60,12 @@ class CTDBP_L1_Transform(TransformDataProcess):
 class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
     """
     Compute conductivity, temperature and pressure using the calibration coefficients
+
+    Reference
+    ---------
+    The calculations below are based on the following spreadsheet document:
+    https://docs.google.com/spreadsheet/ccc?key=0Au7PUzWoCKU4dDRMeVI0RU9yY180Z0Y5U0hyMUZERmc#gid=0
+
     """
     @staticmethod
     @SimpleGranuleTransformFunction.validate_inputs
