@@ -234,7 +234,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   name='SBE37IMModel',
                                   description="SBE37IMModel")
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
-        print  'new InstrumentModel id = %s ' % instModel_id
+        log.debug( 'new InstrumentModel id = %s ', instModel_id)
 
 
 
@@ -282,13 +282,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                   driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg",
                                   stream_configurations = [raw_config, parsed_config])
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
-        print  'new InstrumentAgent id = %s' % instAgent_id
+        log.debug('new InstrumentAgent id = %s', instAgent_id)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
         # Create InstrumentDevice
-        print 'test_activateInstrumentSample: Create instrument resource to represent the SBE37 ' +\
-                '(SA Req: L4-CI-SA-RQ-241) '
+        log.debug('test_activateInstrumentSample: Create instrument resource to represent the SBE37 (SA Req: L4-CI-SA-RQ-241) ')
         instDevice_obj = IonObject(RT.InstrumentDevice,
                                    name='SBE37IMDevice',
                                    description="SBE37IMDevice",
@@ -296,8 +295,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
         self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
 
-        print "test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) " %\
-                instDevice_id
+        log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s (SA Req: L4-CI-SA-RQ-241) " , instDevice_id)
 
 
         port_agent_config = {
@@ -348,7 +346,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
-        print  'new dp_id = %s' % data_product_id1
+        log.debug( 'new dp_id = %s' , data_product_id1)
         self.dpclient.activate_data_product_persistence(data_product_id=data_product_id1)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id1)
@@ -357,11 +355,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasStream, None, True)
-        print  'Data product streams1 = %s' % stream_ids
+        log.debug('Data product streams1 = %s', stream_ids)
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         dataset_ids, _ = self.rrclient.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
-        print  'Data set for data_product_id1 = %s' % dataset_ids[0]
+        log.debug('Data set for data_product_id1 = %s' , dataset_ids[0])
         self.parsed_dataset = dataset_ids[0]
 
 
@@ -376,7 +374,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         data_product_id2 = self.dpclient.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
-        print  'new dp_id = %s' % str(data_product_id2)
+        log.debug('new dp_id = %s', data_product_id2)
 
         self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id2)
 
@@ -384,11 +382,11 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasStream, None, True)
-        print  'Data product streams2 = %s' % str(stream_ids)
+        log.debug('Data product streams2 = %s' , str(stream_ids))
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         dataset_ids, _ = self.rrclient.find_objects(data_product_id2, PRED.hasDataset, RT.Dataset, True)
-        print  'Data set for data_product_id2 = %s' % dataset_ids[0]
+        log.debug('Data set for data_product_id2 = %s' , dataset_ids[0])
         self.raw_dataset = dataset_ids[0]
 
 
@@ -448,36 +446,36 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                         instance_obj.agent_process_id)
 
         inst_agent_instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
-        print  'Instrument agent instance obj: = %s' % str(inst_agent_instance_obj)
+        log.debug('Instrument agent instance obj: = %s' , str(inst_agent_instance_obj))
 
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = ResourceAgentClient(instDevice_id,
                                               to_name=inst_agent_instance_obj.agent_process_id,
                                               process=FakeProcess())
 
-        print "test_activateInstrumentSample: got ia client %s" % str(self._ia_client)
+        log.debug("test_activateInstrumentSample: got ia client %s" , str(self._ia_client))
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
-        print "test_activateInstrumentSample: initialize %s" % str(retval)
+        log.debug("test_activateInstrumentSample: initialize %s" , str(retval))
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
 
-        print "(L4-CI-SA-RQ-334): Sending go_active command "
+        log.debug("(L4-CI-SA-RQ-334): Sending go_active command ")
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         reply = self._ia_client.execute_agent(cmd)
-        print "test_activateInstrument: return value from go_active %s" % str(reply)
+        log.debug("test_activateInstrument: return value from go_active %s" , str(reply))
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.IDLE)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
         retval = self._ia_client.execute_agent(cmd)
         state = retval.result
-        print "(L4-CI-SA-RQ-334): current state after sending go_active command %s" % str(state)
+        log.debug("(L4-CI-SA-RQ-334): current state after sending go_active command %s" , str(state))
 
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         reply = self._ia_client.execute_agent(cmd)
-        print "test_activateInstrumentSample: run %s" % str(reply)
+        log.debug("test_activateInstrumentSample: run %s" , str(reply))
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
@@ -504,12 +502,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
         for i in xrange(10):
             retval = self._ia_client.execute_resource(cmd)
-            print "test_activateInstrumentSample: return from sample %s" % str(retval)
+            log.debug("test_activateInstrumentSample: return from sample %s" , str(retval))
 
-        print "test_activateInstrumentSample: calling reset "
+        log.debug( "test_activateInstrumentSample: calling reset ")
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         reply = self._ia_client.execute_agent(cmd)
-        print "test_activateInstrumentSample: return from reset %s" % str(reply)
+        log.debug("test_activateInstrumentSample: return from reset %s" , str(reply))
 
         self._samples_complete = True
 
@@ -549,7 +547,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEquals(len(raw_vals) , 10)
 
 
-        print "l4-ci-sa-rq-138"
+        log.debug("l4-ci-sa-rq-138")
         """
         Physical resource control shall be subject to policy
 
@@ -599,10 +597,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id1, user_id=user_id_2)
         self._check_computed_attributes_of_extended_product(data_product_id = data_product_id1, extended_data_product = extended_product)
 
-        #--------------------------------------------------------------------------------
-        # Get the extended instrument
-        #--------------------------------------------------------------------------------
-
         #---------- Put some events into the eventsdb to test - this should set the comms and data status to WARNING  ---------
 
         t = get_ion_ts()
@@ -610,6 +604,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
             origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
+
+        #--------------------------------------------------------------------------------
+        # Get the extended instrument
+        #--------------------------------------------------------------------------------
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id_2)
         self._check_computed_attributes_of_extended_instrument(instrument_device_id = instDevice_id, extended_instrument = extended_instrument)
