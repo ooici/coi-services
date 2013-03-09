@@ -28,7 +28,7 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 
 from ion.agents.instrument.common import BaseEnum
 
-from ion.agents.platform.exceptions import PlatformException
+from ion.agents.platform.exceptions import PlatformException, PlatformConfigurationException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
@@ -51,6 +51,9 @@ from interface.objects import StreamRoute
 
 import logging
 import time
+
+import pprint
+
 
 # NOTE: the bigger the platform network size starting from the platform
 # associated with a PlatformAgent instance, the more the time that should be
@@ -202,19 +205,18 @@ class PlatformAgent(ResourceAgent):
 
         log.info("PlatformAgent constructor complete.")
 
+        # for debugging purposes
+        self._pp = pprint.PrettyPrinter(indent=4, depth=12)
+
     def on_init(self):
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
-        # TODO what follows in part of the change regarding the full
-        # configuration of the platform at this point as opposed to in the
-        # INITIALIZE command. More strict check here pending while we
-        # complete this change.
+
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
 
-        if log.isEnabledFor(logging.TRACE): # pragma: no cover
-            if self._plat_config:
-                log.trace("self._plat_config set on_init: %s", str(self._plat_config))
+        if log.isEnabledFor(logging.DEBUG): # pragma: no cover
+            log.debug("on_init: CFG = %s", self._pp.pformat(self.CFG))
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -238,8 +240,8 @@ class PlatformAgent(ResourceAgent):
         curr_state = self._fsm.get_current_state()
 
         if PlatformAgentState.UNINITIALIZED == curr_state:
-            log.debug("%r: PlatformAgent: quit: already in UNINITIALIZED state",
-                      self._platform_id)
+            log.debug("%r: PlatformAgent: quit: already in UNINITIALIZED "
+                      "state; nothing to do.", self._platform_id)
             return
 
         # attempt a "graceful" termination.
@@ -321,8 +323,8 @@ class PlatformAgent(ResourceAgent):
 
         @raises PlatformException if the verification fails for some reason.
         """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("_pre_initialize: plat_config=%s", str(self._plat_config))
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            log.debug("_pre_initialize: plat_config=%s", self._pp.pformat(self._plat_config))
 
         if not self._plat_config:
             msg = "'platform_config' entry not provided in agent configuration"
@@ -416,13 +418,77 @@ class PlatformAgent(ResourceAgent):
         return publisher
 
     def _construct_data_publishers(self):
-        if self._agent_streamconfig_map:
-            self._construct_data_publishers_using_agent_streamconfig_map()
-        else:
-            self._construct_data_publishers_using_CFG_stream_config()
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("%r: _construct_data_publishers complete" % self._platform_id)
+        #
+        # TODO simplify method as only CFG.stream_config will be used.
+        #
 
+        if self._agent_streamconfig_map:
+            # TODO this part to be removed.
+            log.debug("%r: _agent_streamconfig_map = %s", self._platform_id, self._agent_streamconfig_map)
+
+            stream_config = self._agent_streamconfig_map[self._platform_id]
+            self._construct_data_publishers_using_stream_config(stream_config)
+
+            # TODO remove the following
+            # self._construct_data_publishers_using_agent_streamconfig_map()
+
+        else:
+            stream_config = self.CFG.get('stream_config', None)
+            if stream_config is None:
+                raise PlatformConfigurationException(
+                    "%r: No stream_config given in CFG", self._platform_id)
+
+            parsed = stream_config.get('parsed', None)
+            if parsed is None:
+                raise PlatformConfigurationException(
+                    "%r: No 'parsed' in stream_config", self._platform_id)
+
+            self._construct_data_publishers_using_stream_config(parsed)
+
+            # TODO remove the following
+            # self._construct_data_publishers_using_CFG_stream_config()
+
+        log.debug("%r: _construct_data_publishers complete", self._platform_id)
+
+    def _construct_data_publishers_using_stream_config(self, stream_config):
+
+        # granule_publish_rate
+        # records_per_granule
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _construct_data_publishers_using_stream_config: "
+                      "stream_config=%s", self._platform_id, self._pp.pformat(stream_config))
+
+        routing_key           = stream_config['routing_key']
+        stream_id             = stream_config['stream_id']
+        exchange_point        = stream_config['exchange_point']
+        parameter_dictionary  = stream_config['parameter_dictionary']
+        stream_definition_ref = stream_config['stream_definition_ref']
+
+        #
+        # TODO Note: using a single stream for the platform.
+        #
+        stream_name = self._get_platform_name(self._platform_id)
+
+        log.debug("%r: stream_name=%r, routing_key=%r", self._platform_id, stream_name, routing_key)
+
+        ###############################################
+        # TODO HACK(input_voltage): REMOVE/CLEAN-UP HACK
+        if 'input_voltage' in parameter_dictionary:
+            stream_name = 'input_voltage'
+            log.warn("%r: TEMPORARY HACK stream_name set to %s", self._platform_id, stream_name)
+        ###############################################
+
+        self._data_streams[stream_name] = stream_id
+        self._param_dicts[stream_name] = ParameterDictionary.load(parameter_dictionary)
+        self._stream_defs[stream_name] = stream_definition_ref
+        stream_route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
+        publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
+        self._data_publishers[stream_name] = publisher
+
+        log.debug("%r: created publisher for stream_name=%r", self._platform_id, stream_name)
+
+    # TODO remove this obsolete method
     def _construct_data_publishers_using_agent_streamconfig_map(self):
         log.debug("%r: _agent_streamconfig_map = %s",
             self._platform_id, self._agent_streamconfig_map)
@@ -451,6 +517,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: created publisher for stream_name=%r",
               self._platform_id, stream_name)
 
+    # TODO remove this obsolete method
     def _construct_data_publishers_using_CFG_stream_config(self):
         """
         Construct the stream publishers from the stream_config agent
@@ -459,11 +526,10 @@ class PlatformAgent(ResourceAgent):
 
         stream_info = self.CFG.get('stream_config', None)
         if stream_info is None:
-            log.debug("%r: No stream_config given in CFG", self._platform_id)
+            log.warn("%r: No stream_config given in CFG", self._platform_id)
             return
 
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r: stream_info = %s", self._platform_id, stream_info)
+        log.debug("%r: stream_info = %s", self._platform_id, stream_info)
 
         for (stream_name, stream_config) in stream_info.iteritems():
 
@@ -661,6 +727,13 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_attribute_value_event(self, driver_event):
 
+        #
+        # TODO clean up!
+        #
+        self._handle_attribute_value_event_using_agent_streamconfig_map(driver_event)
+
+        return
+
         if self._agent_streamconfig_map:
             self._handle_attribute_value_event_using_agent_streamconfig_map(driver_event)
         else:
@@ -668,18 +741,24 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_attribute_value_event_using_agent_streamconfig_map(self, driver_event):
 
+        log.debug("%r: driver_event = %s", self._platform_id, driver_event)
+
+        param_name =  driver_event.attr_id
+        param_value = driver_event.value
+
         # NOTE: we are using platform_id as the stream_name, see comment
         # elsewhere in this file.
         stream_name = self._get_platform_name(self._platform_id)
 
+        # TODO HACK(input_voltage): REMOVE/CLEAN-UP HACK
+        stream_name = param_name
+
         publisher = self._data_publishers.get(stream_name, None)
         if not publisher:
-            log.warn('%r: no publisher configured for stream_name=%r',
-                     self._platform_id, stream_name)
+            log.warn('%r: no publisher configured for stream_name=%r. '
+                     'Configured streams are: %s',
+                     self._platform_id, stream_name, self._data_publishers.keys())
             return
-
-        param_name =  driver_event.attr_id
-        param_value = driver_event.value
 
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
