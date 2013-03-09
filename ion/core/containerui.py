@@ -396,12 +396,13 @@ def build_commands(resource_id, restype):
     fragments.append(build_command("Delete", "/cmd/delete?rid=%s" % resource_id, confirm="Are you sure to delete resource?"))
 
     from pyon.ion.resource import CommonResourceLifeCycleSM
-    event_list = list(CommonResourceLifeCycleSM.MAT_EVENTS) + CommonResourceLifeCycleSM.AVAIL_EVENTS
+    event_list = CommonResourceLifeCycleSM.MAT_EVENTS + CommonResourceLifeCycleSM.AVAIL_EVENTS
     options = zip(event_list, event_list)
     args = [('select','lcevent',options)]
     fragments.append(build_command("Execute Lifecycle Event", "/cmd/execute_lcs?rid=%s" % resource_id, args))
 
-    options = zip(CommonResourceLifeCycleSM.BASE_STATES, CommonResourceLifeCycleSM.BASE_STATES)
+    state_list = CommonResourceLifeCycleSM.MATURITY + CommonResourceLifeCycleSM.AVAILABILITY
+    options = zip(state_list, state_list)
     args = [('select','lcstate',options)]
     fragments.append(build_command("Change Lifecycle State", "/cmd/set_lcs?rid=%s" % resource_id, args))
 
