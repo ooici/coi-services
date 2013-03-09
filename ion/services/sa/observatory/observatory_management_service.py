@@ -1171,7 +1171,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         for device_obj in instrument_device_obj_list:
             # first check the instrument lifecycle state
-            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
+#            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
+            # TODO: check that this is the intended lcs behavior and maybe check availability
+            if not ( device_obj.lcstate in [LCS.DEPLOYED, LCS.INTEGRATED] ):
                 non_op.append(device_obj)
 
             else:
