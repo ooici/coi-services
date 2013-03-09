@@ -3,7 +3,6 @@ from unittest.case import SkipTest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import Unauthorized, Inconsistent, NotFound, BadRequest
-from pyon.ion.resource import get_maturity_visibility
 from pyon.public import IonObject
 from pyon.public import RT
 from ooi.logging import log
@@ -886,9 +885,7 @@ class GenericIntHelperTestCase(IonIntegrationTestCase):
         lcsmethod(resource_id, lc_event)
         resource_obj = readmethod(resource_id)
 
-        parts = get_maturity_visibility(resource_obj.lcstate)
-
-        self.assertEqual(lc_state, parts[0])
+        self.assertEqual(lc_state, resource_obj.lcstate)
 
 
 

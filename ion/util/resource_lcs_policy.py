@@ -7,7 +7,7 @@
 
 
 from pyon.public import PRED, RT, LCS
-from pyon.ion.resource import get_maturity_visibility, LCE
+from pyon.ion.resource import LCE
 from ion.services.sa.instrument.flag import KeywordFlag
 from ooi.logging import log
 
@@ -224,11 +224,9 @@ class ResourceLCSPolicy(object):
         if permissible_states is None:
             permissible_states = []
                 
-        parts = get_maturity_visibility(resource_obj.lcstate)
-
-        return self._make_result(parts[0] in permissible_states,
+        return self._make_result(resource_obj.lcstate in permissible_states,
                                  "'%s' resource is in state '%s', wanted [%s]" %
-                                 (resource_obj._get_type(), parts[0], str(permissible_states)))
+                                 (resource_obj._get_type(), resource_obj.lcstate, str(permissible_states)))
 
 
 

@@ -16,7 +16,7 @@ from pyon.datastore.datastore import DatastoreManager
 from pyon.event.event import EventRepository
 
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound, Unauthorized, InstStateError
-from pyon.public import PRED, RT, IonObject, CFG, log, OT, LCS, LCE
+from pyon.public import PRED, RT, IonObject, CFG, log, OT, LCS, LCE, AS
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -1221,7 +1221,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Ensure the instrument agent has been created
         ia_list,_ = self.rr_client.find_resources(restype=RT.InstrumentAgent)
         self.assertEqual(len(ia_list),1)
-        self.assertEquals(ia_list[0].lcstate, LCS.DRAFT_PRIVATE)
+        self.assertEquals(ia_list[0].lcstate, LCS.DRAFT)
+        self.assertEquals(ia_list[0].availability, AS.PRIVATE)
 
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
         with self.assertRaises(Unauthorized) as cm:
@@ -1231,7 +1232,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR
         self.ims_client.execute_instrument_agent_lifecycle(ia_list[0]._id, LCE.PLAN, headers=actor_header)
         ia = self.rr_client.read(ia_list[0]._id)
-        self.assertEquals(ia.lcstate, LCS.PLANNED_PRIVATE)
+        self.assertEquals(ia.lcstate, LCS.PLANNED)
 
 
         #First make a acquire resource request with an non-enrolled user.
@@ -1869,7 +1870,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Reads are always allowed anonymously
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
-        self.assertEqual(inst_dev_obj.lcstate, LCS.DRAFT_PRIVATE)
+        self.assertEqual(inst_dev_obj.lcstate, LCS.DRAFT)
 
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
         with self.assertRaises(Unauthorized) as cm:
@@ -1894,7 +1895,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=inst_operator_actor_header)
 
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
-        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED)
 
         #Advance the Life cycle to DEVELOP - should fail since not owner or acquried resource
         with self.assertRaises(Unauthorized) as cm:
@@ -1902,7 +1903,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
-        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED)
 
         #Have the Obs Operator acquire the resource since not the owner
         commitment_id = self.org_client.create_resource_commitment(org2_id, obs_operator_actor_id, inst_dev_id)
@@ -1946,12 +1947,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
-        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_PRIVATE)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED)
+        self.assertEquals(inst_dev_obj.availability, AS.PRIVATE)
+
         #print "old state: " + inst_dev_obj.lcstate
 
         self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.ANNOUNCE, headers=inst_operator_actor_header)
         inst_dev_obj = self.ims_client.read_instrument_device(inst_dev_id)
-        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED_DISCOVERABLE)
+        self.assertEquals(inst_dev_obj.lcstate, LCS.PLANNED)
+        self.assertEquals(inst_dev_obj.availability, AS.DISCOVERABLE)
         #print "new state: " + inst_dev_obj.lcstate
 
 

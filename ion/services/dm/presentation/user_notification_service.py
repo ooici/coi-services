@@ -615,7 +615,7 @@ class UserNotificationService(BaseUserNotificationService):
         event_types = [event.type_] + event.base_types
         summary = ""
         if "ResourceLifecycleEvent" in event_types:
-            summary = "%s lifecycle state change: %s" % (event.origin_type, event.new_state)
+            summary = "%s lifecycle state change: %s_%s" % (event.origin_type, event.lcstate, event.availability)
         elif "ResourceModifiedEvent" in event_types:
             summary = "%s modified: %s" % (event.origin_type, event.sub_type)
 
