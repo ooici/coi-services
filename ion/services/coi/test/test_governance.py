@@ -1396,6 +1396,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Release the exclusive commitment to the resource
         self.org_client.release_commitment(exclusive_contract[0]._id, headers=actor_header)
 
+        """
         #Check commitment to be inactive
         commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.Commitment)
         self.assertEqual(len(commitments),2)
@@ -1418,6 +1419,28 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(commitments),2)
         for com in commitments:
             self.assertEqual(com.lcstate, LCS.RETIRED)
+
+        """
+
+        #Check exclusive commitment to be inactive
+        commitments, _ = self.rr_client.find_resources(restype=RT.Commitment, lcstate=LCS.RETIRED)
+        self.assertEqual(len(commitments),1)
+        self.assertEqual(commitments[0].commitment.exclusive, True)
+
+        #Shared commitment is still actove
+        commitments, _ = self.rr_client.find_objects(ia_list[0],PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),1)
+        self.assertNotEqual(commitments[0].lcstate, LCS.RETIRED)
+
+        #Now release the shared commitment
+        self.org_client.release_commitment(resource_commitment[0]._id, headers=actor_header)
+
+        #Check for both commitments to be inactive
+        commitments, _ = self.rr_client.find_resources(restype=RT.Commitment, lcstate=LCS.RETIRED)
+        self.assertEqual(len(commitments),2)
+
+        commitments, _ = self.rr_client.find_objects(ia_list[0],PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),0)
 
 
         #Now check some negative cases...
@@ -1670,6 +1693,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.execute_agent(cmd, headers=actor_header)
         self.assertIn('(execute_agent) has been denied',cm.exception.message)
 
+
+        """
         #Now release the shared commitment
         #Check commitment to be inactive
         commitments, _ = self.rr_client.find_objects(inst_obj_id,PRED.hasCommitment, RT.Commitment)
@@ -1688,6 +1713,28 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(commitments),2)
         for com in commitments:
             self.assertEqual(com.lcstate, LCS.RETIRED)
+
+        """
+
+        #Check exclusive commitment to be inactive
+        commitments, _ = self.rr_client.find_resources(restype=RT.Commitment, lcstate=LCS.RETIRED)
+        self.assertEqual(len(commitments),1)
+        self.assertEqual(commitments[0].commitment.exclusive, True)
+
+        #Shared commitment is still actove
+        commitments, _ = self.rr_client.find_objects(inst_obj_id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),1)
+        self.assertNotEqual(commitments[0].lcstate, LCS.RETIRED)
+
+        #Now release the shared commitment
+        self.org_client.release_commitment(resource_commitment[0]._id, headers=actor_header)
+
+        #Check for both commitments to be inactive
+        commitments, _ = self.rr_client.find_resources(restype=RT.Commitment, lcstate=LCS.RETIRED)
+        self.assertEqual(len(commitments),2)
+
+        commitments, _ = self.rr_client.find_objects(inst_obj_id,PRED.hasCommitment, RT.Commitment)
+        self.assertEqual(len(commitments),0)
 
 
         #Try again with user with only Instrument Operator role, but should fail with out acquiring a resource
@@ -1977,7 +2024,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Clean up
         self.org_client.release_commitment(commitment_id)
-        self.ims_client.delete_instrument_device(inst_dev_id, headers=inst_operator_actor_header)
+        self.ims_client.force_delete_instrument_device(inst_dev_id, headers=inst_operator_actor_header)
 
         self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
         self.rr_client.delete(member_actor_id, headers=self.system_actor_header)
