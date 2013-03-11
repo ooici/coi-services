@@ -132,7 +132,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         start = time.time()
         while not done:
             try:
-                callback(stream_id, rdt)
+                self.add_granule(stream_id, rdt)
                 done = True
             except:
                 log.exception('An issue with coverage, retrying after a bit')
