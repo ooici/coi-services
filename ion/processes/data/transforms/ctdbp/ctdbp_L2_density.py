@@ -81,7 +81,7 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         conductivity = rdt['conductivity']
         pressure = rdt['pressure']
-        temperature = rdt['temperature']
+        temperature = rdt['temp']
 
         longitude = rdt['lon'] if rdt['lon'] is not None else 0
         latitude = rdt['lat'] if rdt['lat'] is not None else 0
@@ -107,7 +107,7 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         for key, value in rdt.iteritems():
             if key in out_rdt:
-                if key=='conductivity' or key=='temperature' or key=='pressure':
+                if key=='conductivity' or key=='temp' or key=='pressure':
                     continue
                 out_rdt[key] = value[:]
 

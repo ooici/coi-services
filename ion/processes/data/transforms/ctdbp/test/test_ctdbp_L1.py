@@ -105,7 +105,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
             pc_list.append(ctxt_id)
             if parameter_dict_name == 'input_param_dict':
                 self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
-            if  parameter_dict_name == 'output_param_dict' and pc[1].name == 'temp':
+            elif  parameter_dict_name == 'output_param_dict' and pc[1].name == 'temp':
                 self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
 
         pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)

@@ -84,7 +84,7 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         conductivity = rdt['conductivity']
         pressure = rdt['pressure']
-        temperature = rdt['temperature']
+        temperature = rdt['temp']
 
         sal_value = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)
 
@@ -92,7 +92,7 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         for key, value in rdt.iteritems():
             if key in out_rdt:
-                if key=='conductivity' or key=='temperature' or key=='pressure':
+                if key=='conductivity' or key=='temp' or key=='pressure':
                     continue
                 out_rdt[key] = value[:]
 
