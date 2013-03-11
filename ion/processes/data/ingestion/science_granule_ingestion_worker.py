@@ -123,6 +123,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             return
         if not len(rdt):
             log.debug('Empty granule for stream %s', stream_id)
+            return
+
         self.persist_or_timeout(stream_id, rdt)
 
     def persist_or_timeout(self, stream_id, rdt):
@@ -177,7 +179,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         if debugging:
             path = DatasetManagementService._get_coverage_path(dataset_id)
             log.debug('%s: add_granule stream %s dataset %s coverage %r file %s',
-                self._id, stream_id, dataset_id, coverage, path)
+                      self._id, stream_id, dataset_id, coverage, path)
 
         if not coverage:
             log.error('Could not persist coverage from granule, coverage is None')
