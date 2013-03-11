@@ -25,15 +25,20 @@ class AttributeValueDriverEvent(DriverEvent):
     """
     Event to notify the retrieved value for a platform attribute.
     """
-    def __init__(self, platform_id, attr_id, value):
+    def __init__(self, platform_id, stream_name, attr_id, value):
         DriverEvent.__init__(self)
         self._platform_id = platform_id
+        self._stream_name = stream_name
         self._attr_id = attr_id
         self._value = value
 
     @property
     def platform_id(self):
         return self._platform_id
+
+    @property
+    def stream_name(self):
+        return self._stream_name
 
     @property
     def attr_id(self):
@@ -44,9 +49,9 @@ class AttributeValueDriverEvent(DriverEvent):
         return self._value
 
     def __str__(self):
-        return "%s(platform_id=%r, attr_id=%r, value=%r)" % (
-            self.__class__.__name__, self.platform_id, self.attr_id,
-            self.value)
+        return "%s(platform_id=%r, stream_name=%r, attr_id=%r, value=%r)" % (
+            self.__class__.__name__, self.platform_id, self.stream_name,
+            self.attr_id, self.value)
 
 
 class ExternalEventDriverEvent(DriverEvent):

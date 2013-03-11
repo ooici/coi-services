@@ -161,6 +161,7 @@ class PlatformAgent(ResourceAgent):
 
         #This is the type of Resource managed by this agent
         self.resource_type = RT.PlatformDevice
+        self.resource_id = None
 
         #########################################
         # <platform configuration and dependent elements>
@@ -418,6 +419,19 @@ class PlatformAgent(ResourceAgent):
         return publisher
 
     def _construct_data_publishers(self):
+        """
+        Construct the stream publishers from the stream_config agent
+        config variable.
+        @retval None
+        """
+
+        agent_info = self.CFG.get('agent', None)
+        if not agent_info:
+            log.warning("%r: No agent config found in agent config.", self._platform_id)
+        else:
+            self.resource_id = agent_info['resource_id']
+            log.debug("%r: resource_id set to %r", self.resource_id, self.resource_id)
+
         #
         # TODO simplify method as only CFG.stream_config will be used.
         #
@@ -433,51 +447,34 @@ class PlatformAgent(ResourceAgent):
             # self._construct_data_publishers_using_agent_streamconfig_map()
 
         else:
-            stream_config = self.CFG.get('stream_config', None)
-            if stream_config is None:
+            stream_configs = self.CFG.get('stream_config', None)
+            if stream_configs is None:
                 raise PlatformConfigurationException(
                     "%r: No stream_config given in CFG", self._platform_id)
 
-            parsed = stream_config.get('parsed', None)
-            if parsed is None:
-                raise PlatformConfigurationException(
-                    "%r: No 'parsed' in stream_config", self._platform_id)
-
-            self._construct_data_publishers_using_stream_config(parsed)
+            for stream_name, stream_config in stream_configs.iteritems():
+                self._construct_data_publishers_using_stream_config(stream_name, stream_config)
 
             # TODO remove the following
             # self._construct_data_publishers_using_CFG_stream_config()
 
         log.debug("%r: _construct_data_publishers complete", self._platform_id)
 
-    def _construct_data_publishers_using_stream_config(self, stream_config):
+    def _construct_data_publishers_using_stream_config(self, stream_name, stream_config):
 
         # granule_publish_rate
         # records_per_granule
 
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: _construct_data_publishers_using_stream_config: "
-                      "stream_config=%s", self._platform_id, self._pp.pformat(stream_config))
+                      "stream_name:%r, stream_config=%s",
+                      self._platform_id, stream_name, self._pp.pformat(stream_config))
 
         routing_key           = stream_config['routing_key']
         stream_id             = stream_config['stream_id']
         exchange_point        = stream_config['exchange_point']
         parameter_dictionary  = stream_config['parameter_dictionary']
         stream_definition_ref = stream_config['stream_definition_ref']
-
-        #
-        # TODO Note: using a single stream for the platform.
-        #
-        stream_name = self._get_platform_name(self._platform_id)
-
-        log.debug("%r: stream_name=%r, routing_key=%r", self._platform_id, stream_name, routing_key)
-
-        ###############################################
-        # TODO HACK(input_voltage): REMOVE/CLEAN-UP HACK
-        if 'input_voltage' in parameter_dictionary:
-            stream_name = 'input_voltage'
-            log.warn("%r: TEMPORARY HACK stream_name set to %s", self._platform_id, stream_name)
-        ###############################################
 
         self._data_streams[stream_name] = stream_id
         self._param_dicts[stream_name] = ParameterDictionary.load(parameter_dictionary)
@@ -743,15 +740,7 @@ class PlatformAgent(ResourceAgent):
 
         log.debug("%r: driver_event = %s", self._platform_id, driver_event)
 
-        param_name =  driver_event.attr_id
-        param_value = driver_event.value
-
-        # NOTE: we are using platform_id as the stream_name, see comment
-        # elsewhere in this file.
-        stream_name = self._get_platform_name(self._platform_id)
-
-        # TODO HACK(input_voltage): REMOVE/CLEAN-UP HACK
-        stream_name = param_name
+        stream_name = driver_event.stream_name
 
         publisher = self._data_publishers.get(stream_name, None)
         if not publisher:
@@ -763,6 +752,9 @@ class PlatformAgent(ResourceAgent):
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
+
+        param_name  = driver_event.attr_id
+        param_value = driver_event.value
 
         if param_name not in rdt:
             if param_name not in self._unconfigured_params:
@@ -801,47 +793,12 @@ class PlatformAgent(ResourceAgent):
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
             publisher.publish(g)
-        except AssertionError as e:
-            #
-            # Occurs but not always, at least locally. But it shows up
-            # repeatedly in the coi_coverage buildbot with test_oms_launch:
-            #
-            # Traceback (most recent call last):
-            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/ion/agents/platform/platform_agent.py", line 505, in _handle_attribute_value_event_using_agent_streamconfig_map
-            #     publisher.publish(g)
-            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/ion/stream.py", line 80, in publish
-            #     super(StreamPublisher,self).publish(msg, to_name=xp.create_route(stream_route.routing_key), headers={'exchange_point':stream_route.exchange_point, 'stream':stream_id or self.stream_id})
-            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 647, in publish
-            #     self._pub_ep.send(msg, headers)
-            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 133, in send
-            #     return self._send(_msg, _header, **kwargs)
-            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/endpoint.py", line 153, in _send
-            #     self.channel.send(new_msg, new_headers)
-            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 691, in send
-            #     self._declare_exchange(self._send_name.exchange)
-            #   File "/home/buildbot-runner/bbot/slaves/centoslca6_py27/coi_coverage/build/extern/pyon/pyon/net/channel.py", line 156, in _declare_exchange
-            #     assert self._transport
-            # AssertionError
-            #
-            # Not sure what the reason is, perhaps the route is no longer
-            # valid, or the publisher gets closed somehow (?)
-            # TODO determine what's going on here
-            #
-            exc_msg = "%s: %s" % (e.__class__.__name__, str(e))
-            msg = "%r: AssertionError while calling publisher.publish(g) on stream %r, exception=%s" % (
-                            self._platform_id, stream_name, exc_msg)
+            log.debug("%r: Platform agent published data granule on stream %r.",
+                      self._platform_id, stream_name)
 
-            # do not inundate the output with stacktraces, just log an error
-            # line for the time being.
-#            print msg
-#            import traceback
-#            traceback.print_exc()
-            log.error(msg)
-            return
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
-                self._platform_id, stream_name, str(rdt), str(g))
+        except:
+            log.exception("%r: Platform agent could not publish data on stream %s.",
+                          self._platform_id, stream_name)
 
     def _handle_attribute_value_event_using_CFG_stream_config(self, driver_event):
         """
@@ -899,9 +856,6 @@ class PlatformAgent(ResourceAgent):
         timestamp = event_instance.get('timestamp', None)
         group = event_instance.get('group', None)
 
-        # TODO appropriate origin for the event
-        origin = platform_id  # self.resource_id
-
         description  = "message: %s" % message
         description += "; group: %s" % group
         description += "; external_event_type: %s" % event_type
@@ -919,7 +873,7 @@ class PlatformAgent(ResourceAgent):
             self._event_publisher.publish_event(
                 event_type='DeviceEvent',
                 origin_type=self.ORIGIN_TYPE,
-                origin=origin,
+                origin=self.resource_id,
                 **event_data)
 
         except Exception as e:

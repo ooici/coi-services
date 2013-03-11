@@ -20,6 +20,10 @@ import logging
 from gevent import Greenlet, sleep
 
 
+# Platform attribute values are reported for the stream name "parsed".
+# TODO confirm this.
+_STREAM_NAME = "parsed"
+
 # A small "ION System time" compliant increment to the latest received timestamp
 # for purposes of the next request so we don't get that last sample repeated.
 # Since "ION system time" is in milliseconds, this delta is in milliseconds.
@@ -162,6 +166,7 @@ class ResourceMonitor(object):
         log.debug("%r: _values_retrieved: _last_ts=%s", self._platform_id, self._last_ts)
 
         driver_event = AttributeValueDriverEvent(self._platform_id,
+                                                 _STREAM_NAME,
                                                  self._attr_id, values)
         self._notify_driver_event(driver_event)
 
