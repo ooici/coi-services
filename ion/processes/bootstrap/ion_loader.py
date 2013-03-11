@@ -871,7 +871,7 @@ class IONLoader(ImmediateProcess):
 
         which would translate back to
         { "PARAMETERS": { "TXWAVESTATS": False, "TXREALTIME": True, "TXWAVEBURST": "false" },
-          "SCHEDULER": { "ACQUIRE_STATUS": { }, "CLOCK_SYNC", 48.3, "VERSION": "3.0"}
+          "SCHEDULER": { "ACQUIRE_STATUS": { }, "CLOCK_SYNC", 48.2, "VERSION": "3.0"}
         }
 
         """
