@@ -465,8 +465,12 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
+        event_tuples = []
 
-        event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
+        try:
+            event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
+        except Exception as exc:
+            log.warning("The UNS find_events operation for event origin = %s and type = %s failed. Error message = %s", origin, type, exc.message)
 
         events = [item[2] for item in event_tuples]
         log.debug("(find_events) UNS found the following relevant events: %s", events)
@@ -611,7 +615,7 @@ class UserNotificationService(BaseUserNotificationService):
         event_types = [event.type_] + event.base_types
         summary = ""
         if "ResourceLifecycleEvent" in event_types:
-            summary = "%s lifecycle state change: %s" % (event.origin_type, event.new_state)
+            summary = "%s lifecycle state change: %s_%s" % (event.origin_type, event.lcstate, event.availability)
         elif "ResourceModifiedEvent" in event_types:
             summary = "%s modified: %s" % (event.origin_type, event.sub_type)
 

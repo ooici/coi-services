@@ -4,15 +4,24 @@
 @file ion/services/dm/utility/types.py
 @date Thu Jan 17 15:51:16 EST 2013
 '''
-import re
+from pyon.core.exception import BadRequest, NotFound
+
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
 from coverage_model.parameter_types import QuantityType, ArrayType 
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType
+from coverage_model import ParameterFunctionType
 
+from copy import deepcopy
 
 import ast
 import numpy as np
+import re
+
+
+function_lookups = {}
+parameter_lookups = {}
 
 
 def get_array_type(parameter_type=None):
@@ -85,7 +94,7 @@ def get_fill_value(val, encoding, ptype=None):
     else:
         raise TypeError('Invalid Fill Value: %s' % val) # May never be called
 
-def get_parameter_type(parameter_type, encoding, code_set=None):
+def get_parameter_type(parameter_type, encoding, code_set=None, pfid=None, pmap=None):
     if parameter_type == 'quantity':
         return get_quantity_type(parameter_type,encoding)
     elif re.match(r'array<.*>', parameter_type):
@@ -102,9 +111,58 @@ def get_parameter_type(parameter_type, encoding, code_set=None):
         return get_range_type(parameter_type, encoding)
     elif re.match(r'record<.*>', parameter_type):
         return get_record_type()
+    elif parameter_type == 'function':
+        return get_function_type(parameter_type, encoding, pfid, pmap)
     else:
         raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
+
+def get_param_name(pdid):
+    global parameter_lookups
+    try:
+        param_name = parameter_lookups[pdid]
+    except KeyError:
+        raise KeyError('Parameter %s was not loaded' % pdid)
+    return param_name
+
+def get_pfunc(pfid):
+    global function_lookups
+    try:
+        resource_id = function_lookups[pfid]
+    except KeyError:
+        raise KeyError('Function %s was not loaded' % pfid) 
+    try:
+        pfunc = DatasetManagementService.get_parameter_function(resource_id)
+    except NotFound:
+        raise TypeError('Unable to locate functionf or PFID: %s' % pfid)
+    except BadRequest:
+        raise ValueError('Processing error trying to get PFID: %s' % pfid)
+    except:
+        raise ValueError('Error making service request')
+
+    return pfunc
+
+def evaluate_pmap(pfid, pmap):
+    for k,v in pmap.iteritems():
+        if isinstance(v, dict) or 'PFID' in k:
+            pmap[k] = evaluate_pmap(k, v)
+        if isinstance(v, basestring) and 'PD' in v:
+            print 'looking up ', v
+            pmap[k] = get_param_name(v)
+    func = deepcopy(get_pfunc(pfid))
+    func.param_map = pmap
+    return func
+
+def get_function_type(parameter_type, encoding, pfid, pmap):
+    if pfid is None or pmap is None:
+        raise TypeError('Function Types require proper function IDs and maps')
+    try:
+        pmap = ast.literal_eval(pmap)
+    except:
+        raise TypeError('Invalid Parameter Map Syntax')
+    func = evaluate_pmap(pfid, pmap) # Parse out nested PFIDs and such
+    param_type = ParameterFunctionType(func)
+    return param_type
 
 def get_quantity_type(parameter_type, encoding):
     if encoding[0] == 'S':

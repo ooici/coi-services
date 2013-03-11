@@ -16,12 +16,13 @@ from pyon.util.log import log
 from ion.services.dm.utility.granule_utils import SimplexCoverage, ParameterDictionary, GridDomain, ParameterContext
 from ion.util.time_utils import TimeUtils
 
-from interface.objects import ParameterContext as ParameterContextResource, ParameterDictionary as ParameterDictionaryResource
+from interface.objects import ParameterContext as ParameterContextResource, ParameterDictionary as ParameterDictionaryResource, ParameterFunction as ParameterFunctionResource
 from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
 from coverage_model import SimplexCoverage as ViewCoverage
+from coverage_model.parameter_functions import AbstractFunction
 
 import os
 
@@ -143,7 +144,8 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_context(self, name='', parameter_context=None, description='', parameter_type='', value_encoding='', unit_of_measure=''):
+    def create_parameter_context(self, name='', parameter_context=None, description='', parameter_type='', value_encoding='', unit_of_measure='', parameter_function_ids=None):
+        parameter_function_ids = parameter_function_ids or []
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
@@ -157,6 +159,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         pc_res.value_encoding  = value_encoding
         pc_res.unit_of_measure = unit_of_measure
         pc_id, ver = self.clients.resource_registry.create(pc_res)
+        for pfunc_id in parameter_function_ids:
+            self.read_parameter_function(pfunc_id)
+            self.clients.resource_registry.create_association(subject=pc_id, predicate=PRED.hasParameterFunction, object=pfunc_id)
         
         return pc_id
 
@@ -177,6 +182,35 @@ class DatasetManagementService(BaseDatasetManagementService):
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
         return res[0]
+
+#--------
+
+    def create_parameter_function(self, name='', parameter_function=None, description=''):
+        validate_true(name, 'Name field may not be empty')
+        validate_is_instance(parameter_function, dict, 'parameter_function field is not dictable.')
+        pf_res = ParameterFunctionResource(name=name, parameter_function=parameter_function, description=description)
+        pf_id, ver = self.clients.resource_registry.create(pf_res)
+        return pf_id
+
+    def read_parameter_function(self, parameter_function_id=''):
+        res = self.clients.resource_registry.read(parameter_function_id)
+        validate_is_instance(res, ParameterFunctionResource)
+        return res
+
+    def delete_parameter_function(self, parameter_function_id=''):
+        self.read_parameter_function(parameter_function_id)
+        self.clients.resource_registry.delete(parameter_function_id)
+        return True
+
+#--------
+
+    def read_parameter_function_by_name(self, name='', id_only=False):
+        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterFunction,name=name, id_only=id_only)
+        if not len(res):
+            raise NotFound('Unable to locate parameter function with name: %s' % name)
+        return res[0]
+
+
 
 #--------
 
@@ -218,7 +252,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_parameter_dictionary_by_name(self, name='', id_only=False):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=id_only)
         if not len(res):
-            raise NotFound('Unable to locate context with name: %s' % name)
+            raise NotFound('Unable to locate dictionary with name: %s' % name)
         return res[0]
 
 #--------
@@ -294,6 +328,17 @@ class DatasetManagementService(BaseDatasetManagementService):
         pc = ParameterContext.load(pc_res.parameter_context)
         pc._identifier = pc_res._id
         return pc
+
+    @classmethod
+    def get_parameter_function(cls, parameter_function_id=''):
+        '''
+        Preferred client-side class method for constructing a parameter function
+        '''
+        dms_cli = DatasetManagementServiceClient()
+        pf_res = dms_cli.read_parameter_function(parameter_function_id=parameter_function_id)
+        pf = AbstractFunction.load(pf_res.parameter_function)
+        pf._identifier = pf._id
+        return pf
 
     @classmethod
     def get_parameter_context_by_name(cls, name=''):

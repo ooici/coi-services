@@ -8,7 +8,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 import math
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 import unittest
-from ion.processes.bootstrap.ion_loader import TESTED_DOC
+from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
 
 class TestLoader(IonIntegrationTestCase):
 
@@ -71,17 +71,70 @@ class TestLoader(IonIntegrationTestCase):
         """
         self.assert_can_load("BASE,BETA,DEVS", path='master')
 
-    def find_object_by_name(self, name, type):
-        objects,_ = self.container.resource_registry.find_resources(type, id_only=False)
-        self.assertTrue(len(objects)>=1)
-        found = None
-        for object in objects:
-            print object.name
-            if object.name==name:
-                self.assertFalse(found, msg='Found more than one %s "%s" (was expecting just one)'%(type,name))
-                found = object
-        self.assertTrue(found, msg='Did not find %s "%s"'%(type,name))
-        return found
+    def find_object_by_name(self, name, resource_type):
+        objects,_ = self.container.resource_registry.find_resources(resource_type, id_only=False)
+        self.assertGreaterEqual(len(objects), 1)
+
+        filtered_objs = [obj for obj in objects if obj.name == name]
+        self.assertEquals(len(filtered_objs), 1)
+
+        return filtered_objs[0]
+
+
+    @attr('UNIT', group='loader')
+    def test_parse_alarms(self):
+        loader = IONLoader()
+        out = loader._parse_alarm('5<temp<10')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alarm('5<=temp<10')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alarm('5<temp<=10')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alarm('5<=temp<=10')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alarm('5<temp')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual(3, len(out), msg='value: %r'%out)
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alarm('5<=temp')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
+        out = loader._parse_alarm('temp<10')
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
+        out = loader._parse_alarm('temp<=10')
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
 
     @attr('INT', group='loader')
     @attr('SMOKE', group='loader')
@@ -143,12 +196,20 @@ class TestLoader(IonIntegrationTestCase):
         agent = self.find_object_by_name('Unit Test Platform Agent', RT.PlatformAgent)
         self.assertEquals(2, len(agent.stream_configurations))
         parsed = agent.stream_configurations[1]
-        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
+#        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
+        self.assertEquals('ctd_parsed_param_dict', parsed.parameter_dictionary_name)
+        # check that alarm was added to StreamConfig
+        self.assertEquals(1, len(parsed.alarms), msg='alarms: %r'%parsed.alarms)
+        self.assertEquals('temp', parsed.alarms[0]['kwargs']['value_id'])
 
         # check for platform agents
-        found_it = self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
+        self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
 
         # check for platform model boolean values
         model = self.find_object_by_name('Nose Testing Platform Model', RT.PlatformModel)
         self.assertEquals(True, model.shore_networked)
         self.assertNotEqual('str', model.shore_networked.__class__.__name__)
+
+        # check for data process definition
+        self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)
+

@@ -23,6 +23,7 @@ import socket
 import re
 import json
 import unittest
+import os
 
 # 3rd party imports.
 import gevent
@@ -120,7 +121,7 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.4-py2.7.egg'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.5-py2.7.egg'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -131,13 +132,24 @@ DVR_CONFIG = {
     'dvr_mod' : DRV_MOD,
     'dvr_cls' : DRV_CLS,
     'workdir' : WORK_DIR,
-    'process_type' : (DriverProcessType.EGG,)
+    'process_type' : None
 }
 
-# Dynamically load the egg into the test path
-launcher = ZMQEggDriverProcess(DVR_CONFIG)
-egg = launcher._get_egg(DRV_URI)
-if not egg in sys.path: sys.path.insert(0, egg)
+# Launch from egg or a local MI repo.
+LAUNCH_FROM_EGG=True
+
+if LAUNCH_FROM_EGG:
+    # Dynamically load the egg into the test path
+    launcher = ZMQEggDriverProcess(DVR_CONFIG)
+    egg = launcher._get_egg(DRV_URI)
+    if not egg in sys.path: sys.path.insert(0, egg)
+    DVR_CONFIG['process_type'] = (DriverProcessType.EGG,)
+
+else:
+    mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
+    if not mi_repo in sys.path: sys.path.insert(0, mi_repo)
+    DVR_CONFIG['process_type'] = (DriverProcessType.PYTHON_MODULE,)
+    DVR_CONFIG['mi_repo'] = mi_repo
 
 # Load MI modules from the egg
 from mi.core.instrument.instrument_driver import DriverProtocolState
@@ -845,8 +857,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    self._ia_client.get_resource()
+        with self.assertRaises(BadRequest):
+            self._ia_client.get_resource()
                 
         # Attempt to get with bogus parameters.
         params = [
@@ -856,15 +868,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    retval = self._ia_client.get_resource(params)
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_resource(params)
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
         # Attempt to set with no parameters.
         # Set without parameters.
-        #with self.assertRaises(BadRequest):
-        #    retval = self._ia_client.set_resource()
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.set_resource()
         
         # Attempt to set with bogus parameters.
         params = {
@@ -873,8 +885,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         }
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    self._ia_client.set_resource(params)
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_resource(params)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)

@@ -1,4 +1,5 @@
-from pyon.public import Container, log, IonObject
+from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
+from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -23,7 +24,6 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from interface.objects import AgentCommand, StreamConfiguration, ProcessStateEnum, ProcessDefinition
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
@@ -74,6 +74,21 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.omsclient = ObservatoryManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataset_management = DatasetManagementServiceClient()
+
+        # create missing data process definition
+        dpd_obj = IonObject(RT.DataProcessDefinition,
+                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
+                            description="normally in preload",
+                            module='ion.processes.data.transforms.logical_transform',
+                            class_name='logical_transform')
+        self.dataprocessclient.create_data_process_definition(dpd_obj)
+
+        # deactivate all data processes when tests are complete
+        def killAllDataProcesses():
+            for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
+                self.dataprocessclient.deactivate_data_process(proc_id)
+                self.dataprocessclient.delete_data_process(proc_id)
+        self.addCleanup(killAllDataProcesses)
 
 
     def create_logger(self, name, stream_id=''):
@@ -262,8 +277,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1',
             description="SBE37IMAgentInstanceYear1",
-            comms_device_address='sbe37-simulator.oceanobservatories.org',
-            comms_device_port=4001,
             port_agent_config = port_agent_config,
             stream_configurations = [raw_config, parsed_config])
 
@@ -358,8 +371,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2',
             description="SBE37IMAgentInstanceYear2",
-            comms_device_address='sbe37-simulator.oceanobservatories.org',
-            comms_device_port=4004,
             port_agent_config = port_agent_config)
 
 

@@ -5,7 +5,10 @@ from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder, InstrumentAgentConfigurationBuilder
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from pyon.core.exception import BadRequest
+
 from pyon.datastore.datastore import DataStore
 from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
@@ -54,6 +57,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.DSC  = DatasetManagementServiceClient(node=self.container.node)
         self.PDC  = ProcessDispatcherServiceClient(node=self.container.node)
+
+        self.RR2 = EnhancedResourceRegistryClient(self.RR)
 
         print 'started services'
 
@@ -228,11 +233,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # cleanup
         c = DotDict()
         c.resource_registry = self.RR
-        resource_impl = ResourceImpl(c)
-        resource_impl.pluck(instrument_agent_id)
-        resource_impl.pluck(instrument_model_id)
-        resource_impl.pluck(instrument_device_id)
-        resource_impl.pluck(platform_agent_id)
+        self.RR2.pluck(instrument_agent_id)
+        self.RR2.pluck(instrument_model_id)
+        self.RR2.pluck(instrument_device_id)
+        self.RR2.pluck(platform_agent_id)
         self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)
@@ -334,8 +338,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
-                                          comms_device_port=4001,
                                           port_agent_config = port_agent_config)
 
 
@@ -436,3 +438,243 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DP.delete_data_product(data_product_id1)
         self.DP.delete_data_product(data_product_id2)
 
+
+
+    def test_agent_instance_config(self):
+        """
+        Verify that agent configurations are being built properly
+        """
+        clients = DotDict()
+        clients.resource_registry  = self.RR
+        clients.pubsub_management  = self.PSC
+        clients.dataset_management = self.DSC
+        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
+        iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
+
+
+        tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+        org_id = self.RR2.create(any_old(RT.Org))
+
+        inst_startup_config = {'startup': 'config'}
+
+        required_config_keys = [
+            'org_name',
+            'device_type',
+            'agent',
+            'driver_config',
+            'stream_config',
+            'startup_config',
+            'alarm_defs',
+            'children']
+
+
+
+        def verify_instrument_config(config, device_id):
+            for key in required_config_keys:
+                self.assertIn(key, config)
+            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(RT.InstrumentDevice, config['device_type'])
+            self.assertIn('driver_config', config)
+            driver_config = config['driver_config']
+            expected_driver_fields = {'process_type': ('ZMQPyClassDriverLauncher',),
+                                      }
+            for k, v in expected_driver_fields.iteritems():
+                self.assertIn(k, driver_config)
+                self.assertEqual(v, driver_config[k])
+            self.assertEqual
+
+            self.assertEqual({'resource_id': device_id}, config['agent'])
+            self.assertEqual(inst_startup_config, config['startup_config'])
+            self.assertIn('stream_config', config)
+            for key in ['alarm_defs', 'children']:
+                self.assertEqual({}, config[key])
+
+
+        def verify_child_config(config, device_id, inst_device_id=None):
+            for key in required_config_keys:
+                self.assertIn(key, config)
+            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(RT.PlatformDevice, config['device_type'])
+            self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
+            self.assertEqual({'resource_id': device_id}, config['agent'])
+            self.assertIn('stream_config', config)
+
+            if None is inst_device_id:
+                for key in ['alarm_defs', 'children', 'startup_config']:
+                    self.assertEqual({}, config[key])
+            else:
+                for key in ['alarm_defs', 'startup_config']:
+                    self.assertEqual({}, config[key])
+
+                self.assertIn(inst_device_id, config['children'])
+                verify_instrument_config(config['children'][inst_device_id], inst_device_id)
+
+
+        def verify_parent_config(config, parent_device_id, child_device_id, inst_device_id=None):
+            for key in required_config_keys:
+                self.assertIn(key, config)
+            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(RT.PlatformDevice, config['device_type'])
+            self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
+            self.assertEqual({'resource_id': parent_device_id}, config['agent'])
+            self.assertIn('stream_config', config)
+            for key in ['alarm_defs', 'startup_config']:
+                self.assertEqual({}, config[key])
+
+            self.assertIn(child_device_id, config['children'])
+            verify_child_config(config['children'][child_device_id], child_device_id, inst_device_id)
+
+
+
+
+
+
+        rpdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
+        raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary_id=rpdict_id)
+        #todo: create org and figure out which agent resource needs to get assigned to it
+
+
+        def _make_platform_agent_structure(agent_config=None):
+            if None is agent_config: agent_config = {}
+
+            # instance creation
+            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance)
+            platform_agent_instance_obj.agent_config = agent_config
+            platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
+
+            # agent creation
+            raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":[raw_config]})
+            platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
+
+            # device creation
+            platform_device_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
+
+            # data product creation
+            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
+            self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
+            self.DP.activate_data_product_persistence(data_product_id=dp_id)
+
+            # assignments
+            self.RR2.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
+            self.RR2.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+            self.RR2.assign_platform_device_to_org_with_has_resource(platform_agent_instance_id, org_id)
+
+            return platform_agent_instance_id, platform_agent_id, platform_device_id
+
+
+        def _make_instrument_agent_structure(agent_config=None):
+            if None is agent_config: agent_config = {}
+
+            # instance creation
+            instrument_agent_instance_obj = any_old(RT.InstrumentAgentInstance, {"startup_config": inst_startup_config})
+            instrument_agent_instance_obj.agent_config = agent_config
+            instrument_agent_instance_id = self.IMS.create_instrument_agent_instance(instrument_agent_instance_obj)
+
+            # agent creation
+            raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+            instrument_agent_obj = any_old(RT.InstrumentAgent, {"stream_configurations":[raw_config]})
+            instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
+
+            # device creation
+            instrument_device_id = self.IMS.create_instrument_device(any_old(RT.InstrumentDevice))
+
+            # data product creation
+            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
+            self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=dp_id)
+            self.DP.activate_data_product_persistence(data_product_id=dp_id)
+
+            # assignments
+            self.RR2.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
+            self.RR2.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
+            self.RR2.assign_instrument_device_to_org_with_has_resource(instrument_agent_instance_id, org_id)
+
+            return instrument_agent_instance_id, instrument_agent_id, instrument_device_id
+
+
+
+        # can't do anything without an agent instance obj
+        log.debug("Testing that preparing a launcher without agent instance raises an error")
+        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
+
+        log.debug("Making the structure for a platform agent, which will be the child")
+        platform_agent_instance_child_id, _, platform_device_child_id  = _make_platform_agent_structure()
+        platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
+
+        log.debug("Preparing a valid agent instance launch, for config only")
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_child_obj)
+        child_config = pconfig_builder.prepare(will_launch=False)
+        verify_child_config(child_config, platform_device_child_id)
+
+
+        log.debug("Making the structure for a platform agent, which will be the parent")
+        platform_agent_instance_parent_id, _, platform_device_parent_id  = _make_platform_agent_structure()
+        platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
+
+        log.debug("Testing child-less parent as a child config")
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        parent_config = pconfig_builder.prepare(will_launch=False)
+        verify_child_config(parent_config, platform_device_parent_id)
+
+        log.debug("assigning child platform to parent")
+        self.RR2.assign_platform_device_to_platform_device(platform_device_child_id, platform_device_parent_id)
+        child_device_ids = self.RR2.find_platform_device_ids_of_device(platform_device_parent_id)
+        self.assertNotEqual(0, len(child_device_ids))
+
+        log.debug("Testing parent + child as parent config")
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        parent_config = pconfig_builder.prepare(will_launch=False)
+        verify_parent_config(parent_config, platform_device_parent_id, platform_device_child_id)
+
+
+        log.debug("making the structure for an instrument agent")
+        instrument_agent_instance_id, _, instrument_device_id = _make_instrument_agent_structure()
+        instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
+
+        log.debug("Testing instrument config")
+        iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
+        instrument_config = iconfig_builder.prepare(will_launch=False)
+        verify_instrument_config(instrument_config, instrument_device_id)
+
+        log.debug("assigning instrument to platform")
+        self.RR2.assign_instrument_device_to_platform_device(instrument_device_id, platform_device_child_id)
+        child_device_ids = self.RR2.find_instrument_device_ids_of_device(platform_device_child_id)
+        self.assertNotEqual(0, len(child_device_ids))
+
+        log.debug("Testing entire config")
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        full_config = pconfig_builder.prepare(will_launch=False)
+        verify_parent_config(full_config, platform_device_parent_id, platform_device_child_id, instrument_device_id)
+
+        #self.fail(parent_config)
+        #plauncher.prepare(will_launch=False)
+
+
+    def sample_nested_platform_agent_instance_config(self):
+        """
+        for informational purposes
+        """
+
+        ret = {'org_name': 'Org_1',
+               'alarm_defs': {},
+               'driver_config': {'process_type': ('ZMQPyClassDriverLauncher',)},
+               'stream_config': {'parameter_dictionary': 'lots of stuff'},
+               'agent': {'resource_id': '33e54106c4444444862da082098bc123'},
+               'startup_config': {},
+               'device_type': 'PlatformDevice',
+               'children': {'76a39596eeff4fd5b409c4cb93f0e581':
+                                    {'org_name': 'Org_1',
+                                     'alarm_defs': {},
+                                     'driver_config': {'process_type': ('ZMQPyClassDriverLauncher',)},
+                                     'stream_config': {'parameter_dictionary': 'lots of stuff'},
+                                     'agent': {'resource_id': '76a39596eeff4fd5b409c4cb93f0e581'},
+                                     'startup_config': {},
+                                     'device_type': 'PlatformDevice',
+                                     'children': {}}}}
+
+        return ret

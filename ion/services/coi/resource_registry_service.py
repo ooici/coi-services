@@ -105,9 +105,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
             object_type=object_type, assoc=assoc, id_only=id_only)
 
     @mask_couch_error
-    def find_objects(self, subject="", predicate="", object_type="", id_only=False):
+    def find_objects(self, subject="", predicate="", object_type="", id_only=False, limit=0, skip=0, descending=False):
         return self.resource_registry.find_objects(subject=subject, predicate=predicate,
-            object_type=object_type, id_only=id_only)
+            object_type=object_type, id_only=id_only, limit=limit, skip=skip, descending=descending)
 
     @mask_couch_error
     def read_subject(self, subject_type="", predicate="", object="", assoc="", id_only=False):
@@ -115,14 +115,14 @@ class ResourceRegistryService(BaseResourceRegistryService):
             object=object, assoc=assoc, id_only=id_only)
 
     @mask_couch_error
-    def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
+    def find_subjects(self, subject_type="", predicate="", object="", id_only=False, limit=0, skip=0, descending=False):
         return self.resource_registry.find_subjects(subject_type=subject_type, predicate=predicate,
-            object=object, id_only=id_only)
+            object=object, id_only=id_only, limit=limit, skip=skip, descending=descending)
 
     @mask_couch_error
-    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
+    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False, limit=0, skip=0, descending=False):
         return self.resource_registry.find_associations(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type, id_only=id_only)
+            object=object, assoc_type=assoc_type, id_only=id_only, limit=limit, skip=skip, descending=descending)
     @mask_couch_error
     def find_objects_mult(self, subjects=[], id_only=False):
         return self.resource_registry.find_objects_mult(subjects=subjects, id_only=id_only)

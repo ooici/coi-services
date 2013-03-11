@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.cgsn.cgsn_listener
-@file    ion/agents/platform/cgsn/cgsn_listener.py
+@package ion.agents.platform.cgsn.cgsn_state
+@file    ion/agents/platform/cgsn/cgsn_state.py
 @author  Carlos Rueda
 @brief   CgsnState
 """
@@ -12,10 +12,7 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
-import logging
 import re
-
-from ion.agents.platform.cgsn.defs import MessageIds, CIPOP, CICGINT, EOL
 
 
 class CgsnState(object):
@@ -33,8 +30,7 @@ class CgsnState(object):
 
         self._an = {}
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CgsnState created.")
+        log.debug("CgsnState created.")
 
     def get_ack_nack(self, dcl_id, cmd):
         """
@@ -48,20 +44,14 @@ class CgsnState(object):
             res = None
         return res
 
-    def listener(self, line):
+    def listener(self, src, msg_type, msg):
         """
-        The line listener
+        Listener for received messages from CG services endpoint.
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CgsnState.listener called. line=%r" % line)
 
-        toks = line.split(',')
-        (dst, src, nnn, lng) = tuple(int(toks[i]) for i in range(4))
-        msg = toks[4]
 
-        assert CIPOP == dst
-        assert CICGINT == nnn
-        assert lng == len(msg)
+        log.debug("CgsnState.listener called: src=%d, msg_type=%d, msg=%s",
+                  src, msg_type, msg)
 
         m = re.match(r"(ACK|NACK) (.*)", msg)
         if m:
@@ -69,8 +59,7 @@ class CgsnState(object):
             cmd = m.group(2)
             key = (src, cmd)
             self._an[key] = an
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("Set %s to %s" % (str(key), an))
+            log.debug("Set %s to %s", key, an)
         else:
             # TODO handle remaining cases
             pass

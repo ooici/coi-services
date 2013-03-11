@@ -39,15 +39,10 @@ class IdentityManagementService(BaseIdentityManagementService):
     def read_actor_identity(self, actor_id=''):
         # Read ActorIdentity object with _id matching passed user id
         actor_identity = self.clients.resource_registry.read(actor_id)
-        if not actor_identity:
-            raise NotFound("ActorIdentity %s does not exist" % actor_id)
         return actor_identity
 
     def delete_actor_identity(self, actor_id=''):
-        # Read and delete specified ActorIdentity object
-        actor_identity = self.clients.resource_registry.read(actor_id)
-        if not actor_identity:
-            raise NotFound("ActorIdentity %s does not exist" % actor_id)
+        # Delete specified ActorIdentity object
         self.clients.resource_registry.delete(actor_id)
 
     def find_actor_identity_by_name(self, name=''):
@@ -58,7 +53,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         @throws NotFound    failed to find ActorIdentity
         @throws Inconsistent    Multiple ActorIdentity objects matched name
         """
-        objects, matches = self.clients.resource_registry.find_resources(RT.ActorIdentity, None, name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.ActorIdentity, None, name, id_only=False)
         if not objects:
             raise NotFound("ActorIdentity with name %s does not exist" % name)
         if len(objects) > 1:
@@ -73,7 +68,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def unregister_user_credentials(self, actor_id='', credentials_name=''):
         # Read UserCredentials
-        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, credentials_name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, credentials_name, id_only=False)
         if not objects or len(objects) == 0:
             raise NotFound("UserCredentials %s does not exist" % credentials_name)
         if len(objects) > 1:
@@ -106,8 +101,6 @@ class IdentityManagementService(BaseIdentityManagementService):
     def read_user_info(self, user_info_id=''):
         # Read UserInfo object with _id matching passed user id
         user_info = self.clients.resource_registry.read(user_info_id)
-        if not user_info:
-            raise NotFound("UserInfo %s does not exist" % user_info_id)
         return user_info
 
     def delete_user_info(self, user_info_id='', actor_identity_id=''):
@@ -133,10 +126,11 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def find_user_info_by_email(self, user_email=''):
         #return self.clients.resource_registry.find_resources_ext(restype=RT.UserInfo, attr_name="contact.email", attr_value=user_email, id_only=False)
-        user_infos, _ = self.clients.resource_registry.find_resources(RT.UserInfo)
-        for user_info in user_infos:
-            if hasattr(user_info.contact, 'email') and user_info.contact.email == user_email:
-                return user_info
+        user_infos, _ = self.clients.resource_registry.find_resources_ext(RT.UserInfo, attr_name="contact.email", attr_value=user_email)
+        if len(user_infos) > 1:
+            log.warn("More than one UserInfo found for email '%s': %s" % (user_email, [ui._id for ui in user_infos]))
+        if user_infos:
+            return user_infos[0]
         return None
 
     def find_user_info_by_id(self, actor_id=''):
@@ -148,7 +142,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         return user_info
 
     def find_user_info_by_name(self, name=''):
-        objects, matches = self.clients.resource_registry.find_resources(RT.UserInfo, None, name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserInfo, None, name, id_only=False)
         if not objects:
             raise NotFound("UserInfo with name %s does not exist" % name)
         if len(objects) > 1:
@@ -157,7 +151,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def find_user_info_by_subject(self, subject=''):
         # Find UserCredentials
-        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, id_only=False)
         if not objects:
             raise NotFound("UserCredentials with subject %s does not exist" % subject)
         if len(objects) > 1:
@@ -197,8 +191,6 @@ class IdentityManagementService(BaseIdentityManagementService):
         objects, assocs = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, True)
         if len(objects) > 1:
             raise Conflict("More than one UserCredentials object was found for subject %s" % subject)
-        if len(assocs) > 1:
-            raise Conflict("More than one ActorIdentity object is associated with subject %s" % subject)
         if len(objects) == 1:
             log.debug("Signon known subject %s" % (subject))
             # Known user, get ActorIdentity object
@@ -219,10 +211,11 @@ class IdentityManagementService(BaseIdentityManagementService):
         else:
             log.debug("Signon new subject %s" % (subject))
             # New user.  Create ActorIdentity and UserCredentials
-            actor_identity = IonObject("ActorIdentity", {"name": subject})
+            actor_name = "Identity for %s" % subject
+            actor_identity = IonObject("ActorIdentity", name=actor_name)
             actor_id = self.create_actor_identity(actor_identity)
 
-            user_credentials = IonObject("UserCredentials", {"name": subject})
+            user_credentials = IonObject("UserCredentials", name=subject, description="Default credentials for %s" % subject)
             self.register_user_credentials(actor_id, user_credentials)
             log.debug("Signon returning actor_id, valid_until, registered: %s, %s, False" % (actor_id, valid_until))
             return actor_id, valid_until, False
