@@ -111,7 +111,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         log.debug("L1 transform applying conductivity algorithm")
 
         CONDWAT_L0 = input_rdt['conductivity']
-        TEMPWAT_L1 = out_rdt['temperature']
+        TEMPWAT_L1 = out_rdt['temp']
         PRESWAT_L1 = out_rdt['pressure']
 
 
@@ -175,7 +175,7 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
             if key in out_rdt:
                 out_rdt[key] = value[:]
 
-        out_rdt['temperature'] = TEMPWAT_L1
+        out_rdt['temp'] = TEMPWAT_L1
 
         log.debug("L1 transform temperature algorithm returning: %s", out_rdt)
 

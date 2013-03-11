@@ -82,7 +82,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pres_ctxt.uom = ''
         pdict.add_context(pres_ctxt)
 
-        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        if parameter_dict_name == 'input_param_dict':
+            temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        else:
+            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+
         temp_ctxt.uom = ''
         pdict.add_context(temp_ctxt)
 
@@ -99,7 +103,10 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         for pc_k, pc in pdict.iteritems():
             ctxt_id = self.dataset_management.create_parameter_context(pc_k, pc[1].dump())
             pc_list.append(ctxt_id)
-            self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
+            if parameter_dict_name == 'input_param_dict':
+                self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
+            elif  parameter_dict_name == 'output_param_dict' and pc[1].name == 'temp':
+                self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
 
         pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
 
@@ -184,12 +191,18 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         tdom = tdom.dump()
 
         # Get the stream definition for the stream using the parameter dictionary
-        L0_pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'fictitious_ctdp_param_dict')
+        L0_pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'input_param_dict')
 
         L0_stream_def_id = self.pubsub.create_stream_definition(name='parsed', parameter_dictionary_id=L0_pdict_id)
 
+        L1_pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'output_param_dict')
+        L1_stream_def_id = self.pubsub.create_stream_definition(name='L1_out', parameter_dictionary_id=L1_pdict_id)
+
+
         log.debug("Got the parsed parameter dictionary: id: %s", L0_pdict_id)
         log.debug("Got the stream def for parsed input: %s", L0_stream_def_id)
+
+        log.debug("got the stream def for the output: %s", L1_stream_def_id)
 
         # Input data product
         L0_stream_dp_obj = IonObject(RT.DataProduct,
@@ -210,7 +223,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         L1_stream_dp_id = self.dataproduct_management.create_data_product(data_product=L1_stream_dp_obj,
-            stream_definition_id=L0_stream_def_id
+            stream_definition_id=L1_stream_def_id
         )
 
         # We need the key name here to be "L1_stream", since when the data process is launched, this name goes into
@@ -281,7 +294,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
-        self.assertTrue(rdt.__contains__('pressure') and rdt.__contains__('temperature') and rdt.__contains__('conductivity'))
+        self.assertTrue(rdt.__contains__('pressure') and rdt.__contains__('temp') and rdt.__contains__('conductivity'))
         self.assertTrue(rdt.__contains__('time') and rdt.__contains__('lat') and rdt.__contains__('lon'))
 
         #todo: need to check the algorithms here for the granule
