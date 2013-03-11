@@ -1851,6 +1851,9 @@ Reason: %s
             self._load_InstrumentAgent(fakerow)
 
     def _load_InstrumentAgentInstance(self, row):
+
+        startup_config = self._parse_dict(row['startup_config'])
+
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
                                                     'port':  int(row['comms_server_port']),
@@ -1868,7 +1871,9 @@ Reason: %s
 
         res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
             "instrument_management", "create_instrument_agent_instance",
-            set_attributes=dict(driver_config=driver_config, port_agent_config=port_agent_config),
+            set_attributes=dict(driver_config=driver_config,
+                                port_agent_config=port_agent_config,
+                                startup_config=startup_config),
             support_bulk=True)
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
