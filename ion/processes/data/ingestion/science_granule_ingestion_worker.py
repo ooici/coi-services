@@ -40,7 +40,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
         self._bad_coverages = {}
 
-        self.time_stats = Accumulator('%3f')
+        self.time_stats = Accumulator(format='%3f')
         # unique ID to identify this worker in log msgs
         self._id = uuid.uuid1()
 
