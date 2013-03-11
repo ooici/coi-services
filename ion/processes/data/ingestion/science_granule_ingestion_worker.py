@@ -215,7 +215,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 finally:
                     self._bad_coverages[stream_id] = 1
                     raise CorruptionError(e.message)
-            DatasetManagementService._save_coverage(coverage)
+        if debugging:
+            timer.complete_step('keys')
+        DatasetManagementService._save_coverage(coverage)
         if debugging:
             timer.complete_step('save')
         self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
@@ -231,7 +233,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
         if log.isEnabledFor(TRACE):
             # report per step
-            for step in 'checks', 'insert', 'save', 'notify':
+            for step in 'checks', 'insert', 'keys', 'save', 'notify':
                 log.debug('%s step %s times: %s', self._id, step, self.time_stats.to_string(step))
         # report totals
         log.debug('%s total times: %s', self._id, self.time_stats)
