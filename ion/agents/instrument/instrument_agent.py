@@ -42,14 +42,6 @@ import copy
 import numpy
 import gevent
 
-# MI exceptions
-from ion.core.includes.mi_exceptions import InstrumentTimeoutException
-from ion.core.includes.mi_exceptions import InstrumentParameterException
-from ion.core.includes.mi_exceptions import SampleException
-from ion.core.includes.mi_exceptions import InstrumentStateException
-from ion.core.includes.mi_exceptions import InstrumentProtocolException
-from ion.core.includes.mi_exceptions import InstrumentException
-
 # ION imports.
 from ion.agents.instrument.driver_process import DriverProcess
 from ion.agents.instrument.common import BaseEnum
@@ -355,12 +347,12 @@ class InstrumentAgent(ResourceAgent):
             try:
                 next_state = self._dvr_client.cmd_dvr('discover_state')
                 break
-            except InstrumentTimeoutException, InstrumentProtocolException:
+            except Timeout, ResourceError:
                 no_tries += 1
                 if no_tries >= max_tries:
                     self._dvr_client.cmd_dvr('disconnect')
-                    # fixfix
-                    raise ResourceError('Could not discover instrument state.')
+                    log.error("Could not discover instrument state")
+                    raise 
         
         return (next_state, None)
 
