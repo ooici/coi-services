@@ -90,10 +90,11 @@ TESTED_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-expor
 CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates'
 
 ### this master URL has the latest changes, but if columns have changed, it may no longer work with this commit of the loader code
+# Edit the doc here: https://docs.google.com/spreadsheet/ccc?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDFSc1RSaVFqVVR4OS1iS0dzejZkRmc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdG1JMXlBamZrbnRSWmdjcjhqeE5XbFE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -901,6 +902,8 @@ class IONLoader(ImmediateProcess):
         out = { }
         pairs = text.split(',') # pairs separated by commas
         for pair in pairs:
+            if 0 == pair.count(':'):
+                continue
             fields = pair.split(':') # pair separated by colon
             key = fields[0].strip()
             value = fields[1].strip()
