@@ -849,16 +849,80 @@ class IONLoader(ImmediateProcess):
         self.contact_defs[id] = contact
 
     def _parse_dict(self, text):
-        """ parse a SIMPLE dictionary of unquoted string keys and values
         """
+        parse a "simple" dictionary of unquoted string keys and values. -- no nested values, no complex characters
+
+        But is it really simple?  Not quite.  The following substitutions are made:
+
+        keys with dots ('.') will be split into dictionaries.
+        booleans "True", "False" will be parsed
+        numbers will be parsed as floats unless they begin with "0" or include one "." and end with "0"
+        "{}" will be converted to {}
+        "[]" will be converted to [] (that's "[ ]" with no space)
+
+        For example, an entry in preload would be this:
+
+        PARAMETERS.TXWAVESTATS: False,
+        PARAMETERS.TXREALTIME: True,
+        PARAMETERS.TXWAVEBURST: false,
+        SCHEDULER.ACQUIRE_STATUS: {},
+        SCHEDULER.CLOCK_SYNC: 48.2
+        SCHEDULER.VERSION: 3.0
+
+        which would translate back to
+        { "PARAMETERS": { "TXWAVESTATS": False, "TXREALTIME": True, "TXWAVEBURST": "false" },
+          "SCHEDULER": { "ACQUIRE_STATUS": { }, "CLOCK_SYNC", 48.3, "VERSION": "3.0"}
+        }
+
+        """
+
+        substitutions = {"{}": {}, "[]": [], "True": True, "False": False}
+
+        def parse_value(some_val):
+            if some_val in substitutions:
+                return substitutions[some_val]
+
+            try:
+                int_val = int(some_val)
+                if str(int_val) == some_val:
+                    return int_val
+            except ValueError:
+                pass
+
+            try:
+                float_val = float(some_val)
+                if str(float_val) == some_val:
+                    return float_val
+            except ValueError:
+                pass
+
+            return some_val
+
         out = { }
-        pairs = text.split(',')
+        pairs = text.split(',') # pairs separated by commas
         for pair in pairs:
-            fields = pair.split(':')
+            fields = pair.split(':') # pair separated by colon
             key = fields[0].strip()
             value = fields[1].strip()
-            out[key] = value
+
+            dotcount = key.count(".")
+            if 1 < dotcount:
+                raise iex.BadRequest("Key field has %s '.' separators, can only handle 0 or 1" % dotcount)
+            elif 0 == dotcount:
+                out[key] = parse_value(value)
+            else:
+                keypart = key.split(".")
+                k0 = keypart[0]
+                k1 = keypart[1]
+                if not k0 in out:
+                    out[k0] = {}
+                else:
+                    if type(out[k0]) != type({}):
+                        raise iex.BadRequest("Building a dict in %s field, but it exists as %s already" %
+                                             (k0, type(out[k0])))
+                    out[k0][k1] = parse_value(value)
         return out
+
 
     def _parse_phones(self, text):
         if ':' in text:
