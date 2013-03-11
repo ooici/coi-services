@@ -30,7 +30,8 @@ from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStat
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER
+from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER, get_system_actor, get_system_actor_header
+from pyon.core.governance import get_actor_header
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 
@@ -164,10 +165,10 @@ class TestGovernanceHeaders(IonIntegrationTestCase):
         self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
 
         #Get info on the ION System Actor
-        self.system_actor = self.container.governance_controller.get_system_actor()
+        self.system_actor = get_system_actor()
         log.info('system actor:' + self.system_actor._id)
 
-        self.system_actor_header = self.container.governance_controller.get_system_actor_header()
+        self.system_actor_header = get_system_actor_header()
 
         self.resource_id_header_value = ''
 
@@ -334,17 +335,17 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Get info on the ION System Actor
-        self.system_actor = self.container.governance_controller.get_system_actor()
+        self.system_actor = get_system_actor()
         log.info('system actor:' + self.system_actor._id)
 
-        self.system_actor_header = self.container.governance_controller.get_system_actor_header()
+        self.system_actor_header = get_system_actor_header()
 
         #Create a Actor which represents an originator like a web server.
         apache_obj = IonObject(RT.ActorIdentity, name='ApacheWebServer', description='Represents a non user actor like an apache web server')
         apache_actor_id,_ = self.rr_client.create(apache_obj, headers=self.system_actor_header)
         self.apache_actor = self.rr_client.read(apache_actor_id)
 
-        self.apache_actor_header = self.container.governance_controller.get_actor_header(self.apache_actor._id)
+        self.apache_actor_header = get_actor_header(self.apache_actor._id)
 
         self.anonymous_user_headers = {'ion-actor-id':'anonymous'}
 
@@ -523,7 +524,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #now try creating a new user with a valid actor
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.info( "actor id=" + actor_id)
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #User without OPERATOR or MANAGER role should not be allowed
         with self.assertRaises(Unauthorized) as cm:
@@ -534,7 +535,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.grant_role(self.ion_org._id, actor_id, ORG_MANAGER_ROLE,  headers=self.system_actor_header)
 
         #Refresh headers with new role
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #User with proper role should now be allowed to access this service operation.
         id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=actor_header)
@@ -572,7 +573,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #now try creating a new user with a valid actor
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.info( "actor id=" + actor_id)
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
@@ -580,7 +581,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now enroll the user as a member of the Second Org
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Add a new Org boundary policy which deny's all anonymous access
         test_policy_id = self.pol_client.create_resource_access_policy( org2_id, 'Org_Test_Policy',
@@ -641,7 +642,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         log.info( "actor id=" + actor_id)
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Attempt to enroll a user anonymously - should not be allowed
         with self.assertRaises(Unauthorized) as cm:
@@ -799,7 +800,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         log.info( "actor id=" + actor_id)
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
         self.assertEqual(len(users),4)  # WIll include the ION system actor and the non user actor from setup
@@ -1002,7 +1003,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(ret, False)
 
         #Refresh headers with new role
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Now the user with the proper role should be able to create an instrument.
         self.ims_client.create_instrument_agent(ia_obj, headers=actor_header)
@@ -1065,7 +1066,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.enroll_member(org2_id, actor_id,headers=self.system_actor_header )
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Test the invitation process
 
@@ -1089,7 +1090,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(ret, True)
 
         #Build the message headers used with this user
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
 
@@ -1316,7 +1317,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.revoke_role(org2_id, actor_id, INSTRUMENT_OPERATOR_ROLE,  headers=self.system_actor_header)
 
         #Refresh headers with new role
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Make a proposal to acquire a resource with an enrolled user that does not have the right role
         with self.assertRaises(BadRequest) as cm:
@@ -1353,7 +1354,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.debug( "actor id=" + actor_id)
 
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Create a second Org
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
@@ -1406,7 +1407,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
 
         #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #Next try a basic agent operation with a user that is a member of the Org but not an Instrument Operator - it should be allowed
         retval = ia_client.get_capabilities(headers=actor_header)
@@ -1437,7 +1438,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
 
         #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
         #This operation should now be allowed with the Instrument Operator role - just checking policy not agent functionality
         with self.assertRaises(Conflict) as cm:
@@ -1583,7 +1584,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.org_client.grant_role(org2_id,actor_id, ORG_MANAGER_ROLE, headers=self.system_actor_header)
 
         #Refresh header with updated roles
-        actor_header = self.container.governance_controller.get_actor_header(actor_id)
+        actor_header = get_actor_header(actor_id)
 
 
         #Try again with user with also Org Manager role and should pass even with out acquiring a resource
@@ -1687,7 +1688,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         inst_operator_actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.debug( "actor id=" + inst_operator_actor_id)
 
-        inst_operator_actor_header = self.container.governance_controller.get_actor_header(inst_operator_actor_id)
+        inst_operator_actor_header = get_actor_header(inst_operator_actor_id)
 
         #Create a second user to be used as regular member
         member_actor_obj = IonObject(RT.ActorIdentity, name='org member actor')
@@ -1736,9 +1737,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Refresh header with updated roles
-        inst_operator_actor_header = self.container.governance_controller.get_actor_header(inst_operator_actor_id)
-        member_actor_header = self.container.governance_controller.get_actor_header(member_actor_id)
-        obs_operator_actor_header = self.container.governance_controller.get_actor_header(obs_operator_actor_id)
+        inst_operator_actor_header = get_actor_header(inst_operator_actor_id)
+        member_actor_header = get_actor_header(member_actor_id)
+        obs_operator_actor_header = get_actor_header(obs_operator_actor_id)
 
         #Attempt to Create Test InstrumentDevice as Org Member
         inst_dev = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')

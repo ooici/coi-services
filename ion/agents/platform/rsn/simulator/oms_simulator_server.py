@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.oms.simulator.oms_simulator_server
-@file    ion/agents/platform/oms/simulator/oms_simulator_server.py
+@package ion.agents.platform.rsn.simulator.oms_simulator_server
+@file    ion/agents/platform/rsn/simulator/oms_simulator_server.py
 @author  Carlos Rueda
 @brief   OMS simulator XML/RPC server. Program intended to be run outside of
          pyon.
 
  USAGE:
-    $ bin/python ion/agents/platform/oms/simulator/oms_simulator_server.py
+    $ bin/python ion/agents/platform/rsn/simulator/oms_simulator_server.py
     ...
     2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :107 <module> Listening on localhost:7700
     2012-09-27 21:15:51,335 INFO     MainThread oms_simulator  :108 <module> Enter ^D to exit
@@ -19,17 +19,18 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
-from ion.agents.platform.oms.simulator.logger import Logger
+from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
-from ion.agents.platform.oms.simulator.oms_simulator import OmsSimulator
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
+from ion.agents.platform.util.network_util import NetworkUtil
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from threading import Thread
 
 
-class OmsSimulatorServer(object):
+class CIOMSSimulatorServer(object):
     """
-    Dispatches an OmsSimulator with a SimpleXMLRPCServer. Normally,
+    Dispatches an CIOMSSimulator with a SimpleXMLRPCServer. Normally,
     this is intended to be run outside of pyon.
     """
 
@@ -43,7 +44,7 @@ class OmsSimulatorServer(object):
                       behavior that doesn't play well with threading.Thread
                       (you'll likely see the thread blocked). By default False.
         """
-        self._sim = OmsSimulator()
+        self._sim = CIOMSSimulator()
         self._server = SimpleXMLRPCServer((host, port), allow_none=True)
         self._server.register_introspection_functions()
         self._server.register_instance(self._sim, allow_dotted_names=True)
@@ -105,11 +106,12 @@ if __name__ == "__main__":  # pragma: no cover
     host = opts.host
     port = int(opts.port)
 
-    oss = OmsSimulatorServer(host, port, thread=True)
+    oss = CIOMSSimulatorServer(host, port, thread=True)
     sim = oss.oms_simulator
 
-    log.info("network.dump():\n   |%s" % sim.dump().replace('\n', '\n   |'))
-    log.info("network.get_map() = %s\n" % sim.config.getPlatformMap())
+    ser = NetworkUtil.serialize_network_definition(sim._ndef)
+    log.info("network serialization:\n   %s" % ser.replace('\n', '\n   '))
+    log.info("network.get_map() = %s\n" % sim.config.get_platform_map())
 
     log.info("Methods:\n\t%s", "\n\t".join(oss.methods))
 

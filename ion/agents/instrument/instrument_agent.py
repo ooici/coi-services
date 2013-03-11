@@ -19,7 +19,7 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
-from pyon.core.governance.governance_controller import ORG_MANAGER_ROLE, GovernanceHeaderValues
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 from pyon.public import IonObject
 
@@ -65,6 +65,7 @@ from interface.objects import StreamAlarmType
 from interface.objects import AlarmDef
 from ion.agents.alarms.alarms import construct_alarm_expression
 from ion.agents.alarms.alarms import eval_alarm
+from ion.agents.alarms.alarms import make_event_data
 from interface.objects import StreamWarningAlaramEvent
 from interface.objects import StreamAlertAlarmEvent
 from interface.objects import StreamAllClearAlarmEvent
@@ -244,6 +245,7 @@ class InstrumentAgent(ResourceAgent):
     # Governance interfaces
     ##############################################################
 
+    #TODO - When/If the Instrument and Platform agents are dervied from a common device agent class, then relocate to the parent class and share
     def check_resource_operation_policy(self, msg,  headers):
         '''
         This function is used for governance validation for certain agent operations.
@@ -257,13 +259,13 @@ class InstrumentAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
             return True, ''
 
-        if not self.container.governance_controller.has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
-        com = self.container.governance_controller.get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
+        com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
         if com is None:
             return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
 
@@ -839,24 +841,76 @@ class InstrumentAgent(ResourceAgent):
         except KeyError:
             log.error('Tomato missing stream_name or values keys. Could not process alarms.')
             return
+
+        stream_alarms = []
+        first_time_alarms = []
+        og_alarms = []
  
         for v in values:
             try:
+                # Grab the value and id.
                 value_id = v['value_id']
                 value = v['value']
-            except KeyError:
-                log.error('Tomato value missing value_id or value keys. Could not process alarms.')
+
+                # Retrieve the alarms relevant to this stream and id.
+                [stream_alarms.append(a) for a in self.aparam_alarms if
+                    a.stream_name == stream_name and a.value_id == value_id]
                 
-            else:           
-                for a in self.aparam_alarms:
-                    if a.stream_name == stream_name and a.value_id == value_id:
-                        (a, event_data) = eval_alarm(a, value)
-                        if event_data:
-                            self._event_publisher.publish_event(
-                                event_data['event_type'],
-                                origin=self._resource_id,
-                                origin_type=self.ORIGIN_TYPE,
-                                **event_data)
+            except KeyError:
+                log.error('Tomato value missing value_id or value keys. Could not process alarms for stream %s, value_id %s.',
+                          stream_name, value_id)
+
+        # Evaluate relevant alarms.
+        [eval_alarm(a, value) for a in stream_alarms]
+
+        # Determine first time alarms.
+        first_time_alarms = [a for a in stream_alarms if a.first_time == 1]
+                
+        # Ongoing alarms.
+        og_alarms = [a for a in stream_alarms if a.first_time > 1]
+        
+        # Determine newly cleared alarms.
+        new_pos_alarms = [a for a in og_alarms if a.status and not a.old_status]
+                
+        # Determine newly bad alarms.
+        new_neg_alarms = [a for a in og_alarms if a.old_status and not a.status]
+                
+        # Determine all cleared alarms.
+        # pos_alarms = [a for a in og_alarms if a.status and not a.first_time]
+                
+        # Publish all statuses first time.
+        if first_time_alarms:
+            self._publish_alarms(first_time_alarms)
+                
+        # Publish newly bad alarms.                
+        if new_neg_alarms:
+            self._publish_alarms(new_neg_alarms)
+        
+        # Publish newly cleared alarms.                
+        if new_pos_alarms:
+            self._publish_alarms(new_pos_alarms)
+            
+        # TODO.
+        # Publish stream all clear if something cleared and there
+        # are no more bad alarms.
+                            
+    def _publish_alarms(self, alarms):
+        """
+        """
+        events = [make_event_data(a) for a in alarms]
+        events = [x for x in events if x]
+        for event_data in events:
+            try:
+                self._event_publisher.publish_event(
+                    origin=self.resource_id,
+                    origin_type=self.ORIGIN_TYPE,
+                    **event_data)
+                log.info('Instrument agent %s published alarm event %s.',
+                        self._proc_name, str(event_data))
+                
+            except Exception as ex:
+                log.error('Instrument agent %s could not publish alarm event %s. Exception: %s',
+                        self._proc_name, str(event_data), str(ex))
         
     def _publish_stream_buffer(self, stream_name):
         """
@@ -907,9 +961,7 @@ class InstrumentAgent(ResourceAgent):
                                 if tval_dict.get('binary', None):
                                     tval_val = base64.b64decode(tval_val)
                                 data_arrays[tval_id][i] = tval_val
-                                
-                                self._eval_alarms(stream_name, tval_id, tval_val)
-                                
+                                                               
                     elif tk in rdt:
                         data_arrays[tk][i] = tv
                         if tk == 'driver_timestamp':
@@ -927,33 +979,6 @@ class InstrumentAgent(ResourceAgent):
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
                 self._proc_name, stream_name)
-        
-        
-    def _eval_alarms(self, stream_name, value_id, value):
-        """
-        """
-        no_changed = 0
-        went_true = []
-        for a in self.aparam_alarms:
-            if a.stream_name == stream_name and a.value_id == value_id:
-                if eval(a.expr):
-                    if not a.status:
-                        a.status = True
-                        no_changed += 1
-                        went_true.append(a)
-                else:
-                    if a.status:
-                        a.status = False
-                        no_changed += 1
-
-        if no_changed > 0:
-            if len(went_true)>0:
-                # publish all true events
-                pass
-        
-            else:
-                #publish all clear
-                pass    
                          
     def _async_driver_event_error(self, val, ts):
         """
@@ -1277,9 +1302,22 @@ class InstrumentAgent(ResourceAgent):
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)
                     self.aparam_streams[stream_name] = rdt.fields
                     
-                    alarms = stream_config.get('alarms',None)
-                    if isinstance(alarms, (list,tuple)):
-                        self.aparam_set_alarms(['add'].extend(alarms))
+                    alarm_defs = stream_config.get('alarms',None)
+                    if isinstance(alarm_defs, (list,tuple)):
+                        alarms = []
+                        for x in alarm_defs:
+                            try:
+                                type = x['type']
+                                kwargs = x['kwargs']
+                                a = IonObject(type,**kwargs)
+                                alarms.append(a)
+                            except:
+                                log.error('Instrument agent %s failed to create alarm from def %s', str(x))
+                    
+                        if len(alarms) > 0:
+                            params = ['set']
+                            params.extend(alarms)
+                            self.aparam_set_alarms(params)
                     
     def _start_publisher_greenlets(self):
         """
@@ -1371,7 +1409,10 @@ class InstrumentAgent(ResourceAgent):
                     log.error('Attempted to remove an invalid alarm.')
                     
             self.aparam_alarms = new_alarms
-            
+        
+        for a in self.aparam_alarms:
+            log.info('Instrument agent %s has alarm: %s', self._proc_name, str(a))
+                
         return len(self.aparam_alarms)
         
     ###############################################################################

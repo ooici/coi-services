@@ -6,12 +6,14 @@ __author__ = 'Stephen P. Henrie'
 """
 Process that loads the system policy
 """
+
+from pyon.core.governance import get_system_actor, get_system_actor_header
 from pyon.public import CFG, log, ImmediateProcess, iex, Container, IonObject, RT, OT
+
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 
-from pyon.public import CFG, log, ImmediateProcess, iex, Container
 
 class LoadSystemPolicy(ImmediateProcess):
     """
@@ -47,10 +49,10 @@ class LoadSystemPolicy(ImmediateProcess):
 
         id_client = IdentityManagementServiceProcessClient(node=Container.instance.node, process=calling_process )
 
-        system_actor = Container.instance.governance_controller.get_system_actor()
+        system_actor = get_system_actor()
         log.info('system actor:' + system_actor._id)
 
-        sa_user_header = Container.instance.governance_controller.get_system_actor_header()
+        sa_user_header = get_system_actor_header()
 
         policy_client = PolicyManagementServiceProcessClient(node=Container.instance.node, process=calling_process)
 
@@ -349,10 +351,15 @@ class LoadSystemPolicy(ImmediateProcess):
                 </Resources>
 
                 <Actions>
-
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">signon</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_user_info</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
