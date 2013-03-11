@@ -87,6 +87,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_lost_connection
 """
 
 ###############################################################################
@@ -1931,5 +1932,56 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # We could be surgical here and check for parsed granules only
         self.assertGreaterEqual(len(self._samples_received), 16)
 
+    @unittest.skip('Skip until driver eggs updated again.')
+    def test_lost_connection(self):
+        """
+        test_lost_connection
+        """
+        # Start in uninitialized.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        # Initialize the agent.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
 
+        # Activate.
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
 
+        # Go into command mode.
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Start streaming.
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        # Wait for a while, collect some samples.
+        gevent.sleep(10)
+        
+        # Blow the port agent out from under the agent.
+        self._support.stop_pagent()
+        
+        # Loop until we resyncronize to LOST_CONNECTION/DISCONNECTED.
+        # Test will timeout if this dosn't occur.
+        while True:
+            state = self._ia_client.get_agent_state()
+            if state == ResourceAgentState.LOST_CONNECTION:
+                break
+            else:
+                gevent.sleep(1)
+        
+        # Verify the driver has transitioned to disconnected
+        while True:
+            state = self._ia_client.get_resource_state()
+            if state == DriverConnectionState.DISCONNECTED:
+                break
+            else:
+                gevent.sleep(1)
