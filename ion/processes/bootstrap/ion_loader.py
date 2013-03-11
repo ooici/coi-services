@@ -66,6 +66,7 @@ from coverage_model import NumexprFunction, PythonFunction
 
 
 from interface import objects
+from interface.objects import StreamAlarmType
 
 import logging
 import simplejson as json
@@ -92,7 +93,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydFZocTR4S0xZZURkN01pVnJhcmV4NVE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDFSc1RSaVFqVVR4OS1iS0dzejZkRmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -108,6 +109,7 @@ DEFAULT_CATEGORIES = [
     'ParameterFunctions',
     'ParameterDefs',
     'ParameterDictionary',
+    "Alarms",
     'StreamConfiguration',
     'SensorModel',
     'PlatformModel',
@@ -123,7 +125,6 @@ DEFAULT_CATEGORIES = [
     'InstrumentAgent',
     'InstrumentDevice',
     'SensorDevice',
-#    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
     'TransformFunction',
@@ -164,6 +165,7 @@ class IONLoader(ImmediateProcess):
         self.constraint_defs = {} # alias -> value for refs, since not stored in DB
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
         self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
+        self.alarms = {} # id -> alarm definition dict
 
         self.object_definitions = None
 
@@ -1682,8 +1684,55 @@ Reason: %s
                     headers=headers)
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
+    def _parse_alarm(self, expression):
+#        lower_bound	lower_rel_op	value_id	upper_rel_op	upper_bound
+        out = {}
+        # split string expression into one of 3 possible arrays:
+        # 5<temp or 5<=temp        --> lower bound only: number, [=]field
+        # temp<5 or temp<=5        --> upper bound only: field, [=]number
+        # 5<temp<10 or 5<=temp<=10 --> upper and lower: number, [=]field, [=]number
+        parts = expression.split('<')
+        try:
+            # if first part is a number, expression begins with: number <[=] field ...
+            # evaluate lower bound
+            out['lower_bound'] = float(parts[0])
+            lower_closed = parts[1].startswith('=')
+            out['lower_rel_op'] = '<=' if lower_closed else '<'
+            out['value_id'] = parts[1][1:] if lower_closed else parts[1]
+            if len(parts)==2:
+                return out
+            # shift value for evaluation of upper bound
+            parts = parts[1:]
+        except ValueError:
+            # otherwise expression must be: field <[=] number
+            out['value_id'] = parts[0]
+        # evaluate upper bound
+        upper_closed = parts[1].startswith('=')
+        out['upper_rel_op'] = '<=' if upper_closed else '<'
+        upper_value = parts[1][1:] if upper_closed else parts[1]
+        out['upper_bound'] = float(upper_value)
+        return out
+
+    def _load_Alarms(self, row):
+        # ID	alarm_type	name	stream_name	message	type	range
+        args = self._parse_alarm(row['range'])
+        for key in 'name', 'message':
+            args[key] = row[key]
+        # type StreamAlarmType
+        args['type'] = getattr(StreamAlarmType, row['type'])
+        alarm = { 'type': row['alarm_type'], 'kwargs': args }
+        self.alarms[row[COL_ID]] = alarm
+
     def _load_StreamConfiguration(self, row):
         """ parse and save for use in *AgentInstance objects """
+        alarms = []
+        if row['alarms']:
+            for id in row['alarms'].split(','):
+                copy = dict(self.alarms[id])
+                copy['kwargs']['stream_name'] = row['cfg/stream_name']
+                alarms.append(copy)
+            row['cfg/alarms'] = repr(alarms)  # _create_object_from_row won't take list directly, tries to eval(str) or raise ValueException
+            log.trace('adding alarms to StreamConfiguration %s: %r', row[COL_ID], alarms)
         obj = self._create_object_from_row("StreamConfiguration", row, "cfg/")
         self.stream_config[row['ID']] = obj
 
