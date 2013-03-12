@@ -217,3 +217,6 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEqual(iai.startup_config, {'SCHEDULER': {'VERSION': 3.0, 'CLOCK_SYNC': 48.2},
                                               'PARAMETERS': {'TXWAVEBURST': 'false', 'TXREALTIME': True}})
 
+        orgs, _ = self.container.resource_registry.find_subjects(RT.Org, PRED.hasResource, iai._id, True)
+        self.assertEqual(1, len(orgs))
+        self.assertEqual(org._id, orgs[0])
