@@ -19,6 +19,9 @@ from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
 import string
 from lxml import etree
+from datetime import datetime
+from ion.util.time_utils import TimeUtils
+
 import numpy as np
 
 class DataProductManagementService(BaseDataProductManagementService):
@@ -789,7 +792,21 @@ class DataProductManagementService(BaseDataProductManagementService):
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
                 retval = {}
                 for k,v in rdt.iteritems():
-                    retval[k] = '%s: %s' %(k, np.atleast_1d(rdt[k]).flatten()[0])
+                    element = np.atleast_1d(rdt[k]).flatten()[0]
+                    if element == rdt._pdict.get_context(k).fill_value:
+                        retval[k] = '%s: Empty' % k
+                    elif 'seconds' in rdt._pdict.get_context(k).uom:
+                        units = rdt._pdict.get_context(k).uom
+                        element = np.atleast_1d(rdt[k]).flatten()[0]
+                        unix_ts = TimeUtils.units_to_ts(units, element)
+                        dtg = datetime.utcfromtimestamp(unix_ts)
+                        try:
+                            retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                        except:
+                            retval[k] = '%s: %s' %(k, element)
+
+                    else:
+                        retval[k] = '%s: %s' %(k, element)
                 ret.value = retval
 #                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
