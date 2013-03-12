@@ -45,8 +45,7 @@ GATEWAY_ERROR_TRACE = 'Trace'
 DEFAULT_EXPIRY = '0'
 
 #Stuff for specifying other return types
-RETURN_FORMAT_PARAM = 'return_format'
-RETURN_FORMAT_RAW_JSON = 'raw_json'
+RETURN_MIMETYPE_PARAM = 'return_mimetype'
 
 
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
@@ -338,10 +337,9 @@ def json_response(response_data):
 
 def gateway_json_response(response_data):
 
-    if request.args.has_key(RETURN_FORMAT_PARAM):
-        return_format = str(request.args[RETURN_FORMAT_PARAM])
-        if return_format == RETURN_FORMAT_RAW_JSON:
-            return service_gateway_app.response_class(response_data, mimetype='application/json')
+    if request.args.has_key(RETURN_MIMETYPE_PARAM):
+        return_mimetype = str(request.args[RETURN_MIMETYPE_PARAM])
+        return service_gateway_app.response_class(response_data, mimetype=return_mimetype)
 
     return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
@@ -373,10 +371,9 @@ def build_error_response(e):
         GATEWAY_ERROR_TRACE : full_error
     }
 
-    if request.args.has_key(RETURN_FORMAT_PARAM):
-        return_format = str(request.args[RETURN_FORMAT_PARAM])
-        if return_format == RETURN_FORMAT_RAW_JSON:
-            return service_gateway_app.response_class(result, mimetype='application/json')
+    if request.args.has_key(RETURN_MIMETYPE_PARAM):
+        return_mimetype = str(request.args[RETURN_MIMETYPE_PARAM])
+        return service_gateway_app.response_class(result, mimetype=return_mimetype)
 
     return json_response({'data': {GATEWAY_ERROR: result }} )
 
