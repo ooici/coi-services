@@ -126,15 +126,17 @@ class EnhancedResourceRegistryClient(object):
         return ret
 
 
-    def create(self, resource_obj=None):
+    def create(self, resource_obj=None, specific_type=None):
         """
         create a single object of the predefined type
         @param resource_obj an IonObject resource of the proper type
+        @param specific_type the name of an Ion type (e.g. RT.Resource)
         @retval the resource ID
         """
         if None == resource_obj: resource_obj = {}
 
         # Validate the input
+        self._check_type(resource_obj, specific_type, "to be created")
         self._check_name(resource_obj, "to be created")
 
         #persist
@@ -143,17 +145,33 @@ class EnhancedResourceRegistryClient(object):
 
         return resource_id
 
+    def read(self, resource_id='', specific_type=None):
+        """
+        update a single object of the predefined type
+        @param resource_id the id to be deleted
+        @param specific_type the name of an Ion type (e.g. RT.Resource)
+        """
 
-    def update(self, resource_obj=None):
+        resource_obj = self.RR.read(resource_id)
+
+        self._check_type(resource_obj, specific_type, "to be read")
+
+        return resource_obj
+
+
+    def update(self, resource_obj=None, specific_type=None):
         """
         update a single object of the predefined type
         @param resource_obj the updated resource
+        @param specific_type the name of an Ion type (e.g. RT.Resource)
         """
         if None == resource_obj: resource_obj = {}
+
+        self._check_type(resource_obj, specific_type, "to be updated")
+
         if not hasattr(resource_obj, "_id") or "" == resource_obj._id:
             raise BadRequest("The _id field was not set in the "
-            + "%s resource to be updated" % self.iontype)
-
+            + "%s resource to be updated" % type(resource_obj).__name__)
 
         #if the name is being changed, make sure it's not
         # being changed to a duplicate
@@ -164,31 +182,43 @@ class EnhancedResourceRegistryClient(object):
 
 
 
-    def delete(self, resource_id=''):
+    def retire(self, resource_id='', specific_type=None):
         """
         alias for LCS retire -- the default "delete operation" in ION
 
         @param resource_id the id to be deleted
+        @param specific_type the name of an Ion type (e.g. RT.Resource)
         """
 
-        #resource_obj = self.RR.read(resource_id)
+        if None is not specific_type:
+            resource_obj = self.RR.read(resource_id)
+            self._check_type(resource_obj, specific_type, "to be retired")
 
-        self.advance_lcs(resource_id, LCE.RETIRE)
+        self.RR.retire(resource_id)
 
         return
 
 
+    def delete(self, resource_id):
 
-    def force_delete(self, resource_id=''):
+        raise NotImplementedError("TODO: remove me")
+
+
+    def pluck_delete(self, resource_id='', specific_type=None):
         """
         delete a single object of the predefined type
         AND its history
         AND any associations to/from it
         (i.e., NOT retiring!)
         @param resource_id the id to be deleted
+        @param specific_type the name of an Ion type (e.g. RT.Resource)
         """
 
         #primary_object_obj = self.RR.read(primary_object_id)
+
+        if None is not specific_type:
+            resource_obj = self.RR.read(resource_id)
+            self._check_type(resource_obj, specific_type, "to be deleted")
 
         self.pluck(resource_id)
 
@@ -331,6 +361,7 @@ class EnhancedResourceRegistryClient(object):
 
         self.predicates_for_subj_obj[RT.SubjectType][RT.ObjectType] = [PRED.typeOfPred1, PRED.typeOfPred2]
         """
+        
 
         # if no extends are found, just return the base type as a list
         def my_getextends(iontype):
@@ -872,6 +903,24 @@ class EnhancedResourceRegistryClient(object):
 
         ret = freeze()
         return ret
+
+
+    def _check_type(self, resource_obj, specific_type, verb):
+        """
+        determine whether the given resource matches the given type (if indeed given)
+        @param resource_obj the IonObject resource to be checked
+        @param specific_type a string type, or None
+        @param verb what will happen to this  object (like "to be created")
+        @raises BadRequest if name exists already or wasn't set
+        """
+
+        if None is specific_type: return
+
+        resource_type = type(resource_obj).__name__
+        if resource_type != specific_type:
+            raise BadRequest("Expected a %s for the resource %s, but received type %s" %
+                            (specific_type, verb, resource_type))
+
 
 
     def _check_name(self, resource_obj, verb):
