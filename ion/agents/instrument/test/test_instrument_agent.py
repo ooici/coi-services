@@ -929,11 +929,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         raw_fields = ['quality_flag', 'preferred_timestamp', 'port_timestamp',
             'lon', 'raw', 'internal_timestamp', 'time',
-            'lat', 'driver_timestamp']
+            'lat', 'driver_timestamp','ingestion_timestamp']
         parsed_fields = ['quality_flag', 'preferred_timestamp', 'temp',
             'density', 'port_timestamp', 'lon', 'salinity', 'pressure',
             'internal_timestamp', 'time', 'lat', 'driver_timestamp',
-            'conductivity']
+            'conductivity','ingestion_timestamp']
 
         retval = self._ia_client.get_agent(['streams'])['streams']
         self.assertIn('raw', retval)
