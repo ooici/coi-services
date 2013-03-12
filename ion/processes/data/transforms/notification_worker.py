@@ -104,7 +104,6 @@ class NotificationWorker(TransformEventListener):
             log.debug("Notification worker checking for users interested in %s" % msg.type_)
             user_ids = check_user_notification_interest(event = msg, reverse_user_info = self.reverse_user_info)
 
-        log.debug("Notification worker deduced the following users were interested in the event: %s, event_type: %s, origin: %s" % (user_ids, msg.type_, msg.origin ))
         #------------------------------------------------------------------------------------
         # Send email to the users
         #------------------------------------------------------------------------------------
