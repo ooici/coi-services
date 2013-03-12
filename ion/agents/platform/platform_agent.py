@@ -441,7 +441,7 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: _agent_streamconfig_map = %s", self._platform_id, self._agent_streamconfig_map)
 
             stream_config = self._agent_streamconfig_map[self._platform_id]
-            self._construct_data_publishers_using_stream_config(stream_config)
+            self._construct_data_publisher_using_stream_config(stream_config)
 
             # TODO remove the following
             # self._construct_data_publishers_using_agent_streamconfig_map()
@@ -453,20 +453,20 @@ class PlatformAgent(ResourceAgent):
                     "%r: No stream_config given in CFG", self._platform_id)
 
             for stream_name, stream_config in stream_configs.iteritems():
-                self._construct_data_publishers_using_stream_config(stream_name, stream_config)
+                self._construct_data_publisher_using_stream_config(stream_name, stream_config)
 
             # TODO remove the following
             # self._construct_data_publishers_using_CFG_stream_config()
 
         log.debug("%r: _construct_data_publishers complete", self._platform_id)
 
-    def _construct_data_publishers_using_stream_config(self, stream_name, stream_config):
+    def _construct_data_publisher_using_stream_config(self, stream_name, stream_config):
 
         # granule_publish_rate
         # records_per_granule
 
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _construct_data_publishers_using_stream_config: "
+            log.debug("%r: _construct_data_publisher_using_stream_config: "
                       "stream_name:%r, stream_config=%s",
                       self._platform_id, stream_name, self._pp.pformat(stream_config))
 
@@ -724,20 +724,6 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_attribute_value_event(self, driver_event):
 
-        #
-        # TODO clean up!
-        #
-        self._handle_attribute_value_event_using_agent_streamconfig_map(driver_event)
-
-        return
-
-        if self._agent_streamconfig_map:
-            self._handle_attribute_value_event_using_agent_streamconfig_map(driver_event)
-        else:
-            self._handle_attribute_value_event_using_CFG_stream_config(driver_event)
-
-    def _handle_attribute_value_event_using_agent_streamconfig_map(self, driver_event):
-
         log.debug("%r: driver_event = %s", self._platform_id, driver_event)
 
         stream_name = driver_event.stream_name
@@ -753,37 +739,47 @@ class PlatformAgent(ResourceAgent):
         stream_def = self._stream_defs[stream_name]
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
-        param_name  = driver_event.attr_id
-        param_value = driver_event.value
+        selected_timestamps = None
 
-        if param_name not in rdt:
-            if param_name not in self._unconfigured_params:
-                # an unrecognized attribute for this platform:
-                self._unconfigured_params.add(param_name)
-                log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
-                         self._platform_id, param_name, stream_name)
+        for param_name, param_value in driver_event.vals_dict.iteritems():
+
+            if param_name not in rdt:
+                if param_name not in self._unconfigured_params:
+                    # an unrecognized attribute for this platform:
+                    self._unconfigured_params.add(param_name)
+                    log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
+                             self._platform_id, param_name, stream_name)
+                continue
+
+            # Note that notification from the driver has the form
+            # of a non-empty list of pairs (val, ts)
+            assert isinstance(param_value, list)
+            assert isinstance(param_value[0], tuple)
+
+            log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
+                     self._platform_id, param_name, len(param_value), str(param_value))
+
+            # separate values and timestamps:
+            vals, timestamps = zip(*param_value)
+
+            # Set values in rdt:
+            rdt[param_name] = numpy.array(vals)
+
+            # TODO: do proper handling of the timestamps for the assignment
+            # to the rdt. For the moment, just arbitrarily picking the
+            # array of timestamps from the last iteration here.
+            selected_timestamps = timestamps
+
+        if selected_timestamps is None:
+            # that is, all param_name's were unrecognized; just return:
             return
-
-        # Note that notification from the driver has the form
-        # of a non-empty list of pairs (val, ts)
-        assert isinstance(param_value, list)
-        assert isinstance(param_value[0], tuple)
-
-        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
-                 self._platform_id, param_name, len(param_value), str(param_value))
-
-        # separate values and timestamps:
-        vals, timestamps = zip(*param_value)
-
-        # Set values in rdt:
-        rdt[param_name] = numpy.array(vals)
 
         # Set timestamp info in rdt:
         if param_dict.temporal_parameter_name is not None:
             temp_param_name = param_dict.temporal_parameter_name
-            rdt[temp_param_name]       = numpy.array(timestamps)
+            rdt[temp_param_name]       = numpy.array(selected_timestamps)
             #@TODO: Ensure that the preferred_timestamp field is correct
-            rdt['preferred_timestamp'] = numpy.array(['internal_timestamp'] * len(timestamps))
+            rdt['preferred_timestamp'] = numpy.array(['internal_timestamp'] * len(selected_timestamps))
             log.warn('Preferred timestamp is unresolved, using "internal_timestamp"')
         else:
             log.warn("%r: Not including timestamp info in granule: "
@@ -799,52 +795,6 @@ class PlatformAgent(ResourceAgent):
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",
                           self._platform_id, stream_name)
-
-    def _handle_attribute_value_event_using_CFG_stream_config(self, driver_event):
-        """
-        Old mechanism, before using _agent_streamconfig_map
-        """
-        #
-        # TODO Clean up (remove) this old mechanism.
-        #
-        stream_name = driver_event._attr_id
-        if not stream_name in self._data_streams:
-            log.warn('%r: got attribute value event for unconfigured stream %r',
-                     self._platform_id, stream_name)
-            return
-
-        publisher = self._data_publishers.get(stream_name, None)
-        if not publisher:
-            log.warn('%r: no publisher configured for stream %r',
-                     self._platform_id, stream_name)
-            return
-
-        param_dict = self._param_dicts.get(stream_name, None)
-        if not param_dict:
-            log.warn('%r: No ParameterDictionary given for stream %r',
-                     self._platform_id, stream_name)
-            return
-
-        # note: values = [ (val, ts), ...]
-        values = driver_event.value
-
-        # notify only array of actual values
-        only_values = [v for v, t in values]
-
-        # TODO determine how to pass the whole array of (val, ts) pairs or some
-        # equivalent variation appropriately.
-
-        rdt = RecordDictionaryTool(param_dictionary=param_dict)
-
-        rdt['value'] = numpy.array(only_values)
-
-        g = rdt.to_granule(data_producer_id=self.resource_id)
-
-        stream_id = self._data_streams[stream_name]
-        publisher.publish(g, stream_id=stream_id)
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: published data granule on stream %r, rdt=%s, granule=%s",
-                self._platform_id, stream_name, str(rdt), str(g))
 
     def _handle_external_event_driver_event(self, driver_event):
 
