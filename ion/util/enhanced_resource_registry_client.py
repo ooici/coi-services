@@ -5,6 +5,8 @@
 @author   Ian Katz
 """
 
+# THIS SHOULD BE FALSE IN COMMITTED CODE
+#TEST_LOCALLY=True
 
 import re
 from ooi.logging import log
@@ -361,7 +363,15 @@ class EnhancedResourceRegistryClient(object):
 
         self.predicates_for_subj_obj[RT.SubjectType][RT.ObjectType] = [PRED.typeOfPred1, PRED.typeOfPred2]
         """
-        
+
+        if TEST_LOCALLY:
+            import pickle
+            try:
+                self.predicates_for_subj_obj = pickle.load( open( "/tmp/save.p", "rb" ) )
+                return
+            except:
+                pass
+
 
         # if no extends are found, just return the base type as a list
         def my_getextends(iontype):
@@ -394,6 +404,10 @@ class EnhancedResourceRegistryClient(object):
         for s, range in self.predicates_for_subj_obj.iteritems():
             for o, preds in range.iteritems():
                 self.predicates_for_subj_obj[s][o] = self.predicates_for_subj_obj[s][o].keys()
+
+        if TEST_LOCALLY:
+            pickle.dump( self.predicates_for_subj_obj, open( "/tmp/save.p", "wb" ) )
+
 
 
     def _parse_function_name_for_subj_pred_obj(self, genre, fn_name, regexp, required_fields=None, group_names=None):
