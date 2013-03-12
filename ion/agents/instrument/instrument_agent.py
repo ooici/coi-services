@@ -526,7 +526,6 @@ class InstrumentAgent(ResourceAgent):
         super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
         log.error('Instrument agent %s lost connection to the device.',
                   self._proc_name)
-        print '######## pulishing lost connection error'
         self._event_publisher.publish_event(
             event_type='ResourceAgentConnectionLostErrorEvent',
             origin_type=self.ORIGIN_TYPE,
@@ -640,10 +639,6 @@ class InstrumentAgent(ResourceAgent):
         try:
             stream_name = val['stream_name']
             self._stream_buffers[stream_name].insert(0,val)
-
-            if stream_name == 'parsed':
-                print '############################ IA got parsed sample:'
-                print str(val)
 
         except KeyError:
             log.error('Instrument agent %s received sample with bad \

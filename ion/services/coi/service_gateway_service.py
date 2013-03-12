@@ -699,6 +699,7 @@ def get_version_info():
     pkg_list = ["coi-services",
                 "pyon",
                 "coverage-model",
+                "ion-functions",
                 "eeagent",
                 "epu",
                 "utilities",

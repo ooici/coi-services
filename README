@@ -47,6 +47,12 @@ For Mac, use homebrew
     (If you have trouble with brew 'MD5 mismatch' errors, try running 'brew update'
     and try the install again)
 
+- Install libgswteos-10 for marine science calculations
+    > brew tap lukecampbell/homebrew-libgswteos
+    > brew install libgswteos-10
+    > brew test -v libgswteos-10
+    
+
 
 installation
 - Install
