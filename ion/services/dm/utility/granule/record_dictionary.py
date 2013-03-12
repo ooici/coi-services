@@ -252,7 +252,8 @@ class RecordDictionaryTool(object):
                 pfv._pval_callback = self._pval_callback
                 retval = pfv[:]
                 return retval
-            except:
+            except Exception as e:
+                log.warning(e.message)
                 return None
         else:
             return None
