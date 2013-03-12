@@ -1081,6 +1081,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(negotiations),3)
 
+        closed_negotiations = self.org_client.find_org_closed_negotiations(org2_id, headers=self.system_actor_header)
+        self.assertEqual(len(closed_negotiations),2)
+
         #Create an instrument resource
         ia_list,_ = self.rr_client.find_resources(restype=RT.InstrumentAgent)
 
