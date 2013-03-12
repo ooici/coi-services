@@ -12,7 +12,6 @@ __license__ = 'Apache 2.0'
 
 
 from pyon.public import log
-import logging
 
 from ion.agents.platform.resource_monitor import ResourceMonitor
 
@@ -39,11 +38,42 @@ class PlatformResourceMonitor(object):
         self._get_attribute_values = get_attribute_values
         self._notify_driver_event = notify_driver_event
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: PlatformResourceMonitor instance created", self._platform_id)
+        log.debug("%r: PlatformResourceMonitor instance created", self._platform_id)
 
-        # _monitors: dict { attr_id: ResourceMonitor }
+        # _monitors: dict { rate_millis: ResourceMonitor }
         self._monitors = {}
+
+    def _group_by_monitoring_rate(self, group_size_millis=1000):
+        """
+        Groups the list of attr defs according to similar monitoring rate.
+
+        @param group_size_millis
+                    each group will contain the attributes having a
+                    monitoring rate within this interval in milliseconds.
+                    By default, 1000).
+
+        @return { rate_millis : [attr_defn, ...], ... },
+                    where rate_millis is an int indicating the monitoring
+                    rate to be used for the corresponding list of attr defs.
+        """
+        groups = {}
+        for attr_defn in self._attr_info.itervalues():
+            if 'monitorCycleSeconds' not in attr_defn:
+                log.warn("%r: unexpected: attribute info does not contain %r. "
+                         "attr_defn = %s",
+                         self._platform_id,
+                         'monitorCycleSeconds', attr_defn)
+                continue
+
+            monitorCycleSeconds = float(attr_defn['monitorCycleSeconds'])
+            monitorCycleMillis = monitorCycleSeconds * 1000
+            rate_millis = int(group_size_millis) * int(round(monitorCycleMillis / group_size_millis))
+            if rate_millis not in groups:
+                groups[rate_millis] = []
+            groups[rate_millis].append(attr_defn)
+
+        log.debug("%r: _group_by_monitoring_rate = %s", self._platform_id, groups)
+        return groups
 
     def start_resource_monitoring(self):
         """
@@ -51,52 +81,34 @@ class PlatformResourceMonitor(object):
         associated with my platform, and do corresponding event notifications.
         """
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: starting resource monitoring: attr_info=%s",
-                  self._platform_id, str(self._attr_info))
+        log.debug("%r: starting resource monitoring: attr_info=%s",
+                  self._platform_id, self._attr_info)
 
-        #
-        # TODO attribute grouping so one single greenlet is launched for a
-        # group of attributes having same or similar monitoring rate. For
-        # simplicity at the moment, start a greenlet per attribute.
-        #
+        # attributes ar grouped by similar monitoring rate so a single
+        # greenlet is used for each group:
+        groups = self._group_by_monitoring_rate()
+        for rate_millis, attr_defns in groups.iteritems():
+            self._start_monitor_greenlet(rate_millis, attr_defns)
 
-        for attr_id, attr_defn in self._attr_info.iteritems():
-            if log.isEnabledFor(logging.DEBUG):
-                log.debug("CIDEVSA-450 %r: dispatching resource monitoring for attr_id=%r attr_defn=%s",
-                      self._platform_id, attr_id, attr_defn)
-
-            if 'monitorCycleSeconds' in attr_defn:
-                self._start_monitor_greenlet(attr_id, attr_defn)
-            else:
-                log.warn(
-                    "CIDEVSA-450 %r: unexpected: attribute info does not contain %r "
-                    "for attribute %r. attr_defn = %s",
-                        self._platform_id,
-                        'monitorCycleSeconds', attr_id, str(attr_defn))
-
-    def _start_monitor_greenlet(self, attr_id, attr_defn):
+    def _start_monitor_greenlet(self, rate_millis, attr_defns):
         """
         Creates and starts a ResourceMonitor
         """
-        assert 'monitorCycleSeconds' in attr_defn
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: _start_monitor_greenlet attr_id=%r attr_defn=%s",
-                  self._platform_id, attr_id, attr_defn)
+        log.debug("%r: _start_monitor_greenlet rate_millis=%d attr_defns=%s",
+                  self._platform_id, rate_millis, attr_defns)
 
         resmon = ResourceMonitor(self._platform_id,
-                                 attr_id, attr_defn,
+                                 rate_millis, attr_defns,
                                  self._get_attribute_values,
                                  self._notify_driver_event)
-        self._monitors[attr_id] = resmon
+        self._monitors[rate_millis] = resmon
         resmon.start()
 
     def stop_resource_monitoring(self):
         """
         Stops all the monitoring greenlets.
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("CIDEVSA-450 %r: stopping resource monitoring", self._platform_id)
+        log.debug("%r: stopping resource monitoring", self._platform_id)
 
         for resmon in self._monitors.itervalues():
             resmon.stop()
