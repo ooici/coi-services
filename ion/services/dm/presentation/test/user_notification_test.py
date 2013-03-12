@@ -278,11 +278,12 @@ class UserNotificationEventsTest(PyonTestCase):
         self.uns.find_events.side_effect = side_effect
 
     event_list1 = [
-        dict(et='ResourceLifecycleEvent', o='ID_1', ot='InstrumentDevice', st='DEPLOYED_AVAILABLE',
-            attr=dict(new_state="DEPLOYED_AVAILABLE",
-                  old_state="DEPLOYED_PRIVATE",
-                  resource_type="",
-                  transition_event="")),
+        dict(et='ResourceLifecycleEvent', o='ID_1', ot='InstrumentDevice', st='DEPLOYED.AVAILABLE',
+            attr=dict(lcstate="DEPLOYED",
+                      availability="AVAILABLE",
+                      lcstate_before="DEPLOYED",
+                      availability_before="PRIVATE",
+                      transition_event="enable")),
 
         dict(et='ResourceModifiedEvent', o='ID_1', ot='InstrumentDevice', st='CREATE',
             attr=dict(mod_type=1)),

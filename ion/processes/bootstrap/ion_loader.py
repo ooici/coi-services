@@ -48,23 +48,25 @@ from pyon.core.exception import NotFound
 from pyon.datastore.datastore import DatastoreManager
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
-from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT
+from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS
 from pyon.util.containers import get_ion_ts, named_any
 from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups
+from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups, parameter_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.util.xlsparser import XLSParser
+
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
 from coverage_model.basic_types import AxisTypeEnum
 from coverage_model import NumexprFunction, PythonFunction
-from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 
 
 from interface import objects
+from interface.objects import StreamAlarmType
 
 import logging
 import simplejson as json
@@ -91,7 +93,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGV4dkg2d284b0h6RUZNVXNjdWNNbXc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDFSc1RSaVFqVVR4OS1iS0dzejZkRmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -107,6 +109,7 @@ DEFAULT_CATEGORIES = [
     'ParameterFunctions',
     'ParameterDefs',
     'ParameterDictionary',
+    "Alarms",
     'StreamConfiguration',
     'SensorModel',
     'PlatformModel',
@@ -122,7 +125,6 @@ DEFAULT_CATEGORIES = [
     'InstrumentAgent',
     'InstrumentDevice',
     'SensorDevice',
-#    'InstrumentAgent',
     'InstrumentAgentInstance',
     'DataProduct',
     'TransformFunction',
@@ -137,17 +139,18 @@ DEFAULT_CATEGORIES = [
 
 COL_SCENARIO = "Scenario"
 COL_ID = "ID"
+COL_OWNER = "owner_id"
+COL_LCSTATE = "lcstate"
+COL_ORGS = "org_ids"
+
+ID_ORG_ION = "ORG_ION"
+ID_SYSTEM_ACTOR = "USER_SYSTEM"
+ID_WEB_AUTH_ACTOR = "USER_WEB_AUTH"
 
 UUID_RE = '^[0-9a-fA-F]{32}$'
 
 class IONLoader(ImmediateProcess):
 
-    COL_OWNER = "owner_id"
-    COL_LCSTATE = "lcstate"
-    COL_ORGS = "org_ids"
-    ID_ORG_ION = "ORG_ION"
-    ID_SYSTEM_ACTOR = "USER_SYSTEM"
-    ID_WEB_AUTH_ACTOR = "USER_WEB_AUTH"
 
     def __init__(self,*a, **b):
         super(IONLoader,self).__init__(*a,**b)
@@ -162,6 +165,7 @@ class IONLoader(ImmediateProcess):
         self.constraint_defs = {} # alias -> value for refs, since not stored in DB
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
         self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
+        self.alarms = {} # id -> alarm definition dict
 
         self.object_definitions = None
 
@@ -392,17 +396,17 @@ class IONLoader(ImmediateProcess):
         if not org_objs:
             raise iex.BadRequest("ION org not found. Was system force_cleaned since bootstrap?")
         ion_org_id = org_objs[0]._id
-        self._register_id(self.ID_ORG_ION, ion_org_id, org_objs[0])
+        self._register_id(ID_ORG_ION, ion_org_id, org_objs[0])
 
         system_actor, _ = self.container.resource_registry.find_resources(
             RT.ActorIdentity, name=self.CFG.system.system_actor, id_only=False)
         system_actor_id = system_actor[0]._id if system_actor else 'anonymous'
-        self._register_id(self.ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
+        self._register_id(ID_SYSTEM_ACTOR, system_actor_id, system_actor[0] if system_actor else None)
 
         webauth_actor, _ = self.container.resource_registry.find_resources(
             RT.ActorIdentity, name=self.CFG.get_safe("system.web_authentication_actor", "web_authentication"), id_only=False)
         webauth_actor_id = webauth_actor[0]._id if webauth_actor else 'anonymous'
-        self._register_id(self.ID_WEB_AUTH_ACTOR, webauth_actor_id, webauth_actor[0] if webauth_actor else None)
+        self._register_id(ID_WEB_AUTH_ACTOR, webauth_actor_id, webauth_actor[0] if webauth_actor else None)
 
     def _prepare_incremental(self):
         """
@@ -635,7 +639,7 @@ class IONLoader(ImmediateProcess):
 
     def _get_op_headers(self, row, force_user=False):
         headers = {}
-        owner_id = row.get(self.COL_OWNER, None)
+        owner_id = row.get(COL_OWNER, None)
         if owner_id:
             owner_id = self.resource_ids[owner_id]
             headers['ion-actor-id'] = owner_id
@@ -721,25 +725,30 @@ class IONLoader(ImmediateProcess):
         Change lifecycle state of object to requested state. Supports bulk.
         """
         lcsm = get_restype_lcsm(restype)
-        initial_lcstate = lcsm.initial_state if lcsm else "DEPLOYED_AVAILABLE"
+        initial_lcmat = lcsm.initial_state if lcsm else LCS.DEPLOYED
+        initial_lcav = lcsm.initial_availability if lcsm else AS.AVAILABLE
 
-        lcstate = row.get(self.COL_LCSTATE, None)
+        lcstate = row.get(COL_LCSTATE, None)
         if lcstate:
+            row_lcmat, row_lcav = lcstate.split("_", 1)
             if self.bulk and res_id in self.bulk_objects:
-                self.bulk_objects[res_id].lcstate = lcstate
+                self.bulk_objects[res_id].lcstate = row_lcmat
+                self.bulk_objects[res_id].availability = row_lcav
             else:
-                imat, ivis = initial_lcstate.split("_")
-                mat, vis = lcstate.split("_")
-                if mat != imat:
-                    self.container.resource_registry.set_lifecycle_state(res_id, "%s_PRIVATE" % mat)
-                if vis != ivis:
-                    self.container.resource_registry.set_lifecycle_state(res_id, "%s_%s" % (mat, vis))
+                if row_lcmat != initial_lcmat:    # Vertical transition
+                    self.container.resource_registry.set_lifecycle_state(res_id, row_lcmat)
+                if row_lcav != initial_lcav:      # Horizontal transition
+                    self.container.resource_registry.set_lifecycle_state(res_id, row_lcav)
+        elif self.bulk and res_id in self.bulk_objects:
+            # Set the lcs to resource type appropriate initial values
+            self.bulk_objects[res_id].lcstate = initial_lcmat
+            self.bulk_objects[res_id].availability = initial_lcav
 
     def _resource_assign_org(self, row, res_id):
         """
         Shares the resource in the given orgs. Supports bulk.
         """
-        org_ids = row.get(self.COL_ORGS, None)
+        org_ids = row.get(COL_ORGS, None)
         if org_ids:
             org_ids = self._get_typed_value(org_ids, targettype="simplelist")
             for org_id in org_ids:
@@ -919,12 +928,12 @@ class IONLoader(ImmediateProcess):
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
     def _get_system_actor_headers(self):
-        return {'ion-actor-id': self.resource_ids[self.ID_SYSTEM_ACTOR],
+        return {'ion-actor-id': self.resource_ids[ID_SYSTEM_ACTOR],
                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
                'expiry':'0'}
 
     def _get_webauth_actor_headers(self):
-        return {'ion-actor-id': self.resource_ids[self.ID_WEB_AUTH_ACTOR],
+        return {'ion-actor-id': self.resource_ids[ID_WEB_AUTH_ACTOR],
                 'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
                 'expiry':'0'}
 
@@ -1527,6 +1536,7 @@ Reason: %s
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
         self._register_id(row[COL_ID], context_id)
+        parameter_lookups[row[COL_ID]] = name
 
 
     def _load_PlatformDevice(self, row):
@@ -1674,8 +1684,55 @@ Reason: %s
                     headers=headers)
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
+    def _parse_alarm(self, expression):
+#        lower_bound	lower_rel_op	value_id	upper_rel_op	upper_bound
+        out = {}
+        # split string expression into one of 3 possible arrays:
+        # 5<temp or 5<=temp        --> lower bound only: number, [=]field
+        # temp<5 or temp<=5        --> upper bound only: field, [=]number
+        # 5<temp<10 or 5<=temp<=10 --> upper and lower: number, [=]field, [=]number
+        parts = expression.split('<')
+        try:
+            # if first part is a number, expression begins with: number <[=] field ...
+            # evaluate lower bound
+            out['lower_bound'] = float(parts[0])
+            lower_closed = parts[1].startswith('=')
+            out['lower_rel_op'] = '<=' if lower_closed else '<'
+            out['value_id'] = parts[1][1:] if lower_closed else parts[1]
+            if len(parts)==2:
+                return out
+            # shift value for evaluation of upper bound
+            parts = parts[1:]
+        except ValueError:
+            # otherwise expression must be: field <[=] number
+            out['value_id'] = parts[0]
+        # evaluate upper bound
+        upper_closed = parts[1].startswith('=')
+        out['upper_rel_op'] = '<=' if upper_closed else '<'
+        upper_value = parts[1][1:] if upper_closed else parts[1]
+        out['upper_bound'] = float(upper_value)
+        return out
+
+    def _load_Alarms(self, row):
+        # ID	alarm_type	name	stream_name	message	type	range
+        args = self._parse_alarm(row['range'])
+        for key in 'name', 'message':
+            args[key] = row[key]
+        # type StreamAlarmType
+        args['type'] = getattr(StreamAlarmType, row['type'])
+        alarm = { 'type': row['alarm_type'], 'kwargs': args }
+        self.alarms[row[COL_ID]] = alarm
+
     def _load_StreamConfiguration(self, row):
         """ parse and save for use in *AgentInstance objects """
+        alarms = []
+        if row['alarms']:
+            for id in row['alarms'].split(','):
+                copy = dict(self.alarms[id])
+                copy['kwargs']['stream_name'] = row['cfg/stream_name']
+                alarms.append(copy)
+            row['cfg/alarms'] = repr(alarms)  # _create_object_from_row won't take list directly, tries to eval(str) or raise ValueException
+            log.trace('adding alarms to StreamConfiguration %s: %r', row[COL_ID], alarms)
         obj = self._create_object_from_row("StreamConfiguration", row, "cfg/")
         self.stream_config[row['ID']] = obj
 

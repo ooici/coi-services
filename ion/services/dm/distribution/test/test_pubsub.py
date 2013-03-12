@@ -70,14 +70,14 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
 
         # Test comparisons
-        in_stream_definition_id = self.pubsub_management.create_stream_definition('L0 products', parameter_dictionary=pdict.identifier, available_fields=['time','temp','conductivity','pressure'])
+        in_stream_definition_id = self.pubsub_management.create_stream_definition('L0 products', parameter_dictionary_id=pdict.identifier, available_fields=['time','temp','conductivity','pressure'])
         self.addCleanup(self.pubsub_management.delete_stream_definition, in_stream_definition_id)
 
         out_stream_definition_id = in_stream_definition_id
         self.assertTrue(self.pubsub_management.compare_stream_definition(in_stream_definition_id, out_stream_definition_id))
         self.assertTrue(self.pubsub_management.compatible_stream_definitions(in_stream_definition_id, out_stream_definition_id))
 
-        out_stream_definition_id = self.pubsub_management.create_stream_definition('L2 Products', parameter_dictionary=pdict.identifier, available_fields=['time','salinity','density'])
+        out_stream_definition_id = self.pubsub_management.create_stream_definition('L2 Products', parameter_dictionary_id=pdict.identifier, available_fields=['time','salinity','density'])
         self.addCleanup(self.pubsub_management.delete_stream_definition, out_stream_definition_id)
         self.assertFalse(self.pubsub_management.compare_stream_definition(in_stream_definition_id, out_stream_definition_id))
 

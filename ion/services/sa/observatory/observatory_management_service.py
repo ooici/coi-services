@@ -774,6 +774,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             possible_sites = [s for s in site_models.keys()
                               if device_model in site_models[s]]
                                     #and self.streamdef_of_site(s) in self.streamdefs_of_device(device_id)]
+            if not possible_sites:
+                raise BadRequest("No sites were found in the deployment")
             problem.addVariable("device_%s" % device_id, possible_sites)
 
         # add the constraint that all the variables have to pick their own site
@@ -793,7 +795,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         if 1 > len(solutions):
             raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
-                             "model and streamdefs")
+                             "models") # and streamdefs")
         elif 1 < len(solutions):
             log.warn("Found %d possible ways to map device and site, but just picking the first one", len(solutions))
             log.warn("Here is the %s of all of them:", type(solutions).__name__)
@@ -1169,7 +1171,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         for device_obj in instrument_device_obj_list:
             # first check the instrument lifecycle state
-            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
+#            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
+            # TODO: check that this is the intended lcs behavior and maybe check availability
+            if not ( device_obj.lcstate in [LCS.DEPLOYED, LCS.INTEGRATED] ):
                 non_op.append(device_obj)
 
             else:

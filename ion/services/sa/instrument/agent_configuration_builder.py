@@ -141,7 +141,8 @@ class AgentConfigurationBuilder(object):
             streams_dict[stream_cfg.stream_name] = {'param_dict_name':stream_cfg.parameter_dictionary_name,
                                                     'stream_def_id':stream_def_id,
                                                     'records_per_granule': stream_cfg.records_per_granule,
-                                                    'granule_publish_rate':stream_cfg.granule_publish_rate }
+                                                    'granule_publish_rate':stream_cfg.granule_publish_rate,
+                                                    'alarms'              :stream_cfg.alarms  }
 
         #retrieve the output products
         device_id = device_obj._id
@@ -153,7 +154,7 @@ class AgentConfigurationBuilder(object):
             out_streams.append(stream_id)
 
 
-        stream_config_too = {}
+        stream_config = {}
 
         log.debug("Creating a stream config got each stream (dataproduct) assoc with this agent/device")
         for product_stream_id in out_streams:
@@ -169,18 +170,19 @@ class AgentConfigurationBuilder(object):
                     model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
                     stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
 
-                    stream_config_too[model_stream_name] = {'routing_key'           : stream_route.routing_key,
+                    stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                             'stream_id'             : product_stream_id,
                                                             'stream_definition_ref' : stream_def_id,
                                                             'exchange_point'        : stream_route.exchange_point,
                                                             'parameter_dictionary'  : model_param_dict.dump(),
                                                             'records_per_granule'  : stream_info_dict.get('records_per_granule'),
-                                                            'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate')
+                                                            'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
+                                                            'alarms'                : stream_info_dict.get('alarms')
                     }
 
         log.debug("Stream config generated")
-        log.trace("generate_stream_config: %s", str(stream_config_too) )
-        return stream_config_too
+        log.trace("generate_stream_config: %s", str(stream_config) )
+        return stream_config
 
     def _generate_agent_config(self):
         # should override this
@@ -376,6 +378,9 @@ class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
 
         return instrument_agent_lookup_means
 
+
+    def _generate_startup_config(self):
+        return self.agent_instance_obj.startup_config
 
     def _generate_driver_config(self):
 
