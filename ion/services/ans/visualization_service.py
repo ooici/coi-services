@@ -214,7 +214,7 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
 
-        print " >>>>>>>>>>>>>>> get_realtime_visualization_data : QUERY TOKEN : ", query_token, "CB : ", callback, "TQX : ", tqx
+        log.debug("Query token : ", query_token, "CB : ", callback, "TQX : ", tqx)
 
         reqId = 0
         # If a reqId was passed in tqx, extract it
@@ -268,8 +268,6 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
-        print ">>>>>>>>> TERMINATING REALTIME QUEUES  "
-
         subscription_ids = self.clients.resource_registry.find_resources(restype=RT.Subscription, name=query_token, id_only=True)
 
         if not subscription_ids:
@@ -290,7 +288,7 @@ class VisualizationService(BaseVisualizationService):
 
         self.container.ex_manager.delete_xn(xq)
 
-        print ">>>>>>>>> REALTIME QUEUES AND STUFF CLEANED UP "
+        log.debug("Real-time queues cleaned up")
 
 
     def _create_google_dt_data_process_definition(self):
@@ -352,10 +350,6 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    object with specified id, query does not exist
         """
 
-        print ">>>>>>>>>  DP ID , ", data_product_id , " visualization_params = ", visualization_parameters , "  TQX = ", tqx
-
-        gvd_start_time = time.time()
-
         # error check
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
@@ -413,18 +407,16 @@ class VisualizationService(BaseVisualizationService):
         if ds_ids is None or not ds_ids:
             raise NotFound("Could not find dataset associated with data product")
 
-        retrieve_start_time = time.time()
         if use_direct_access:
             retrieved_granule = DataRetrieverService.retrieve_oob(ds_ids[0], query=query)
         else:
             #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
             retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
 
-        print ">>>>>>>>>>>>  Time taken by the data retrieve call : ", time.time() - retrieve_start_time
         if retrieved_granule is None:
             return None
 
-        temp_rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
+        #temp_rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
 
         # send the granule through the transform to get the google datatable
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
@@ -472,8 +464,6 @@ class VisualizationService(BaseVisualizationService):
         gdt = gviz_api.DataTable(gdt_description)
         gdt.LoadData(gdt_content)
 
-        print " >>>>>>>> Total time taken by the get_visualization_data call : ", time.time() - gvd_start_time
-
         # return the json version of the table
         if callback == '':
             return gdt.ToJSonResponse(req_id = reqId)
@@ -518,7 +508,7 @@ class VisualizationService(BaseVisualizationService):
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
         if ds_ids is None or not ds_ids:
-            log.warn("Specified dataproduct does not have an associated dataset")
+            log.warn("Specified data_product does not have an associated dataset")
             return None
 
         # Ideally just need the latest granule to figure out the list of images
@@ -558,7 +548,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def get_dataproduct_kml(self, visualization_parameters = None):
+    def get_data_product_kml(self, visualization_parameters = None):
 
         kml_content = ""
         ui_server = "http://localhost:3000" # This server hosts the UI and is used for creating all embedded links within KML
@@ -617,7 +607,7 @@ class VisualizationService(BaseVisualizationService):
 
             # name of placemark
             kml_content += "<name>"
-            kml_content += "Data Products at : " + str(_lon_center) + "," + str(_lat_center)
+            kml_content += "Data Products at : " + str(_lat_center) + "," + str(_lon_center)
             kml_content += "</name>\n"
 
             # Description
@@ -688,7 +678,7 @@ class VisualizationService(BaseVisualizationService):
         return google_dt
 
 
-    def get_dataproduct_metadata(self, data_product_id="", callback=""):
+    def get_data_product_metadata(self, data_product_id="", callback=""):
 
         dp_meta_data = {}
         if not data_product_id:
@@ -698,7 +688,7 @@ class VisualizationService(BaseVisualizationService):
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
         if ds_ids is None or not ds_ids:
-            log.warn("Specified dataproduct does not have an associated dataset")
+            log.warn("Specified data_product does not have an associated dataset")
             return None
 
         # Start collecting the data to populate the output dictionary
@@ -708,11 +698,10 @@ class VisualizationService(BaseVisualizationService):
         dp_meta_data['time_bounds'] = time_bounds
         dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents(ds_ids[0])['time'][0]
 
-        print " >>>>>>>> DP META DATA = ", dp_meta_data
-
         dp_meta_data_json = simplejson.dumps(dp_meta_data)
 
         if callback:
             return callback + "(" + dp_meta_data_json + ")"
         else:
             return dp_meta_data_json
+

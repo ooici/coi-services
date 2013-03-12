@@ -19,6 +19,7 @@ from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
 import string
 from lxml import etree
+import numpy as np
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -786,7 +787,10 @@ class DataProductManagementService(BaseDataProductManagementService):
                 replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
                 #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
                 rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
+                retval = {}
+                for k,v in rdt.iteritems():
+                    retval[k] = '%s: %s' %(k, np.atleast_1d(rdt[k]).flatten()[0])
+                ret.value = retval
 #                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
                 ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
