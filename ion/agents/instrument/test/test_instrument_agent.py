@@ -1937,6 +1937,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         test_lost_connection
         """
+        
+        # Set up a subscriber to collect command events.
+        self._start_event_subscriber('ResourceAgentConnectionLostErrorEvent', 1)
+        self.addCleanup(self._stop_event_subscriber)    
+        
         # Start in uninitialized.
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
@@ -1985,3 +1990,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 break
             else:
                 gevent.sleep(1)
+
+        # Make sure the lost connection error event arrives.
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)                        
+        self.assertEqual(len(self._events_received), 1)        

@@ -516,9 +516,6 @@ class InstrumentAgent(ResourceAgent):
         """
         Handle a connection lost event from the driver.
         """
-        
-        print '################ LOST CONNECTION HANDLER'
-        
         return (ResourceAgentState.LOST_CONNECTION, None)
 
     ##############################################################
@@ -527,7 +524,16 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_connection_lost_enter(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
-
+        log.error('Instrument agent %s lost connection to the device.',
+                  self._proc_name)
+        print '######## pulishing lost connection error'
+        self._event_publisher.publish_event(
+            event_type='ResourceAgentConnectionLostErrorEvent',
+            origin_type=self.ORIGIN_TYPE,
+            origin=self.resource_id)
+        
+        # Setup reconnect timer.
+        
     def _handler_connection_lost_exit(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
 
@@ -575,6 +581,8 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         try:
+            log.info('Instrument agent %s driver state change: %s',
+                     self._proc_name, val)
             event_data = { 'state' : val }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceStateEvent',
@@ -936,6 +944,8 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
         
         # STREAMING state event handlers.
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.ENTER, self._handler_streaming_enter)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXIT, self._handler_streaming_exit)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GO_INACTIVE, self._handler_streaming_go_inactive)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -981,6 +991,8 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # LOST_CONNECTION state event handlers.
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_connection_lost_enter)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_connection_lost_exit)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_connection_lost_reset)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_connection_lost_go_inactive)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
