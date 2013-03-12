@@ -172,6 +172,9 @@ class InstrumentAgent(ResourceAgent):
         # Dictionary of stream publication rates.
         self.aparam_pubfreq = {}
 
+        # Autoreconnect thread.
+        self._autoreconnect_greenlet = None
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -533,9 +536,20 @@ class InstrumentAgent(ResourceAgent):
             origin=self.resource_id)
         
         # Setup reconnect timer.
-        
+        self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
+
+    def _autoreconnect(self):
+        while self._autoreconnect_greenlet:
+            gevent.sleep(10)
+            try:
+                self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
+            except:
+                pass
+    
     def _handler_connection_lost_exit(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
+        if self._autoreconnect_greenlet:
+            self._autoreconnect_greenlet = None
 
     def _handler_connection_lost_reset(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
@@ -569,6 +583,8 @@ class InstrumentAgent(ResourceAgent):
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
                     #self._dvr_client.cmd_dvr('disconnect')
                     #raise 
+
+        return (next_state, None)
 
     ##############################################################
     # ACTIVE_UNKNOWN event handlers.
