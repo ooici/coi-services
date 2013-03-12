@@ -13,13 +13,16 @@ from pyon.public import log, RT, PRED, CFG, OT
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
 from ion.core.process.transform import TransformStreamListener
+from ion.util.time_utils import TimeUtils
+
+from ooi.timer import Timer, Accumulator
+from ooi.logging import TRACE
+from logging import DEBUG
+
 import collections
 import gevent
 import time
 import uuid
-from logging import DEBUG
-from ooi.timer import Timer, Accumulator
-from ooi.logging import TRACE
 
 
 REPORT_FREQUENCY=100
@@ -217,6 +220,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 finally:
                     self._bad_coverages[stream_id] = 1
                     raise CorruptionError(e.message)
+        if 'ingestion_timestamp' in coverage.list_parameters():
+            t_now = time.time()
+            ntp_time = TimeUtils.ts_to_units(coverage.get_parameter_context('ingestion_timestamp').uom, t_now)
+            coverage.set_parameter_values(param_name='ingestion_timestamp', tdoa=slice_, value=ntp_time)
         if debugging:
             timer.complete_step('keys')
         DatasetManagementService._save_coverage(coverage)
