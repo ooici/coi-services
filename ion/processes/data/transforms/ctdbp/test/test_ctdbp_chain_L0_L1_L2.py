@@ -56,7 +56,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         self.queue_cleanup = []
         self.data_process_cleanup = []
 
-    def _get_new_ctd_L1_packet(self, stream_definition_id, length):
+    def _get_new_ctd_L0_packet(self, stream_definition_id, length):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
         rdt['time'] = numpy.arange(self.i, self.i+length)
@@ -89,7 +89,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         #todo Check whether the right parameter dictionary is being used
-        self._prepare_stream_def_for_transform_chain(parameter_dict_name='ctd_parsed_param_dict')
+        self._prepare_stream_def_for_transform_chain()
 
         #-------------------------------------------------------------------------------------
         # Prepare the data proc defs and in and out data products for the transforms
@@ -147,15 +147,19 @@ class TestCTDPChain(IonIntegrationTestCase):
         self._check_granule_from_L2_salinity_transform(ar_L2_salinity)
 
 
-    def _prepare_stream_def_for_transform_chain(self, parameter_dict_name = ''):
+    def _prepare_stream_def_for_transform_chain(self):
 
         # Get the stream definition for the stream using the parameter dictionary
 #        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(parameter_dict_name, id_only=True)
-        pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'fictitious_ctdp_param_dict')
+        pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'input_param_for_L0')
+        self.in_stream_def_id_for_L0 = self.pubsub.create_stream_definition(name='stream_def_for_L0', parameter_dictionary_id=pdict_id)
+
+        pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'params_for_other_transforms')
         self.stream_def_id = self.pubsub.create_stream_definition(name='stream_def_for_CTDBP_transforms', parameter_dictionary_id=pdict_id)
 
         log.debug("Got the parsed parameter dictionary: id: %s", pdict_id)
-        log.debug("Got the stream def for parsed input: %s", self.stream_def_id)
+        log.debug("Got the stream def for parsed input to L0: %s", self.in_stream_def_id_for_L0)
+        log.debug("Got the stream def for other other streams: %s", self.stream_def_id)
 
     def _prepare_things_you_need_to_launch_transform(self, name_of_transform = ''):
 
@@ -262,8 +266,14 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         log.debug("the stream def id: %s", self.stream_def_id)
 
+        if name_of_transform == 'L0':
+            stream_def_id = self.in_stream_def_id_for_L0
+        else:
+            stream_def_id = self.stream_def_id
+
+
         dpod_id = self.dataproduct_management.create_data_product(data_product=dpod_obj,
-            stream_definition_id=self.stream_def_id
+            stream_definition_id= stream_def_id
         )
 
         log.debug("got the data product out. id: %s", dpod_id)
@@ -278,8 +288,13 @@ class TestCTDPChain(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
+        if name_of_transform == 'L0':
+            stream_def_id = self.in_stream_def_id_for_L0
+        else:
+            stream_def_id = self.stream_def_id
+
         dpod_id = self.dataproduct_management.create_data_product(data_product=dpod_obj,
-            stream_definition_id=self.stream_def_id
+            stream_definition_id=stream_def_id
         )
 
         return dpod_id
@@ -440,7 +455,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         for key, value in rdt.iteritems():
-            list_of_expected_keys = ['lat', 'lon', 'time', 'pressure', 'conductivity', 'temperature']
+            list_of_expected_keys = ['lat', 'lon', 'time', 'pressure', 'conductivity', 'temp']
             if key not in list_of_expected_keys:
                 self.fail("The L1 transform is sending out data for more parameters than it should")
 
@@ -471,7 +486,7 @@ class TestCTDPChain(IonIntegrationTestCase):
     def _publish_to_transform(self, stream_id = '', stream_route = None):
 
         pub = StandaloneStreamPublisher(stream_id, stream_route)
-        publish_granule = self._get_new_ctd_L1_packet(stream_definition_id=self.stream_def_id, length = 5)
+        publish_granule = self._get_new_ctd_L0_packet(stream_definition_id=self.in_stream_def_id_for_L0, length = 5)
         pub.publish(publish_granule)
 
         log.debug("Published the following granule: %s", publish_granule)
@@ -504,7 +519,11 @@ class TestCTDPChain(IonIntegrationTestCase):
         pres_ctxt.uom = ''
         pdict.add_context(pres_ctxt)
 
-        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        if parameter_dict_name == 'input_param_for_L0':
+            temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        else:
+            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+
         temp_ctxt.uom = ''
         pdict.add_context(temp_ctxt)
 
@@ -521,7 +540,10 @@ class TestCTDPChain(IonIntegrationTestCase):
         for pc_k, pc in pdict.iteritems():
             ctxt_id = self.dataset_management.create_parameter_context(pc_k, pc[1].dump())
             pc_list.append(ctxt_id)
-            self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
+            if parameter_dict_name == 'input_param_for_L0':
+                self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
+            elif pc[1].name == 'temp':
+                self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
 
         pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
 

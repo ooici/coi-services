@@ -471,25 +471,25 @@ class TestResourceRegistry(IonIntegrationTestCase):
         subject1 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254"
 
         actor_identity_obj1 = IonObject("ActorIdentity", {"name": subject1})
-        user_id1,_ = self.resource_registry_service.create(actor_identity_obj1)
+        actor_id1,_ = self.resource_registry_service.create(actor_identity_obj1)
 
         user_info_obj1 = IonObject("UserInfo", {"name": "Foo"})
         user_info_id1,_ = self.resource_registry_service.create(user_info_obj1)
-        self.resource_registry_service.create_association(user_id1, PRED.hasInfo, user_info_id1)
+        self.resource_registry_service.create_association(actor_id1, PRED.hasInfo, user_info_id1)
 
         subject2 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256"
 
         actor_identity_obj2 = IonObject("ActorIdentity", {"name": subject2})
-        user_id2,_ = self.resource_registry_service.create(actor_identity_obj2)
+        actor_id2,_ = self.resource_registry_service.create(actor_identity_obj2)
 
         user_info_obj2 = IonObject("UserInfo", {"name": "Foo2"})
         user_info_id2,_ = self.resource_registry_service.create(user_info_obj2)
-        self.resource_registry_service.create_association(user_id2, PRED.hasInfo, user_info_id2)
+        self.resource_registry_service.create_association(actor_id2, PRED.hasInfo, user_info_id2)
 
         test_obj = IonObject('InformationResource',  {"name": "TestResource"})
         test_obj_id,_ = self.resource_registry_service.create(test_obj)
-        self.resource_registry_service.create_association(test_obj_id, PRED.hasOwner, user_id1)
-        self.resource_registry_service.create_association(test_obj_id, PRED.hasOwner, user_id2)
+        self.resource_registry_service.create_association(test_obj_id, PRED.hasOwner, actor_id1)
+        self.resource_registry_service.create_association(test_obj_id, PRED.hasOwner, actor_id2)
 
         extended_resource = self.resource_registry_service.get_resource_extension(test_obj_id, 'ExtendedInformationResource')
 
