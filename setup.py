@@ -31,6 +31,7 @@ setup(  name = 'coi-services',
         install_requires = [
             'pyzmq==2.2.0',
             'coverage-model',
+            'ion-functions',
             'pyon',
             'Flask==0.9',
             'python-dateutil==1.5',

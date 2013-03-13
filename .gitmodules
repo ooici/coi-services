@@ -17,3 +17,6 @@
 [submodule "extern/eeagent"]
 	path = extern/eeagent
 	url = https://github.com/ooici/eeagent.git
+[submodule "extern/ion-functions"]
+	path = extern/ion-functions
+	url = https://github.com/ooici/ion-functions.git
