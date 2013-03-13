@@ -126,7 +126,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         for producer_id in producer_ids:
             self.RR2.delete(producer_id)
 
-        self.clients.resource_registry.delete(data_product_id)
+        self.RR2.pluck_delete(data_product_id, RT.DataProduct)
 
     def remove_streams(self, data_product_id=''):
         streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
