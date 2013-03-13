@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+###############################################################################
+# NOTE: Deprecated -- test_platform_launch.py is the new test file.
+#
+# TODO: To be removed once the new file fully re-enables the needed lauch tests
+###############################################################################
+
 """
 @package ion.services.sa.observatory.test.test_oms_launch2.py
 @file    ion/services/sa/observatory/test/test_oms_launch2.py
@@ -93,6 +99,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 
+@skip("Obsolete file to be removed once the launch tests are reenabled elsewhere")
 @attr('INT', group='sa')
 class TestOmsLaunch(IonIntegrationTestCase):
 
@@ -534,7 +541,7 @@ class TestOmsLaunch(IonIntegrationTestCase):
     def test_hierarchy(self):
         self._create_launch_verify(BASE_PLATFORM_ID)
 
-    @attr('INT', group='sa')
+    @skip("Needs alignment with recent IMS changes")
     def test_single_platform(self):
         self._create_launch_verify('LJ01D')
 

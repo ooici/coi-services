@@ -492,6 +492,27 @@ class OrgManagementService(BaseOrgManagementService):
 
         return neg_list
 
+    def find_org_closed_negotiations(self, org_id='', proposal_type=''):
+        """Returns a list of closed negotiations for an Org - those which are Accepted or Rejected.
+        Will throw a not NotFound exception if any of the specified ids do not exist.
+
+        @param org_id    str
+        @param proposal_type    str
+        @retval negotiation    list
+        @throws NotFound    object with specified id does not exist
+        """
+        param_objects = self._validate_parameters(org_id=org_id)
+
+        neg_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasNegotiation)
+
+        if proposal_type != '':
+            neg_list = [neg for neg in neg_list if neg.proposals[0].type_ == proposal_type]
+
+
+        neg_list = [neg for neg in neg_list if neg.negotiation_status != NegotiationStatusEnum.OPEN]
+
+        return neg_list
+
     def find_user_negotiations(self, user_id='', org_id='', proposal_type='', negotiation_status=''):
         """Returns a list of negotiations for a specified User. All negotiations for all Orgs will be returned
         unless an org_id is specified. An optional proposal_type can be supplied
@@ -1157,7 +1178,33 @@ class OrgManagementService(BaseOrgManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
-        log.debug("get_marine_facility_extension: extended_org 1:  %s ", str(extended_org))
+
+        #Fill out service request information for requesting data products
+        extended_org.data_products_request.service_name = 'resource_registry'
+        extended_org.data_products_request.service_operation = 'find_objects'
+        extended_org.data_products_request.query_string_params = {
+            'subject': org_id,
+            'predicate': 'hasResource',
+            'object_type': 'DataProduct',
+            'id_only': False,
+            'limit': 10,
+            'skip': 0
+            }
+
+        #Fill out service request information for requesting open negotiations
+        extended_org.open_negotiations_request.service_name = 'org_management'
+        extended_org.open_negotiations_request.service_operation = 'find_org_negotiations'
+        extended_org.open_negotiations_request.query_string_params = {
+            'org_id': org_id,
+            'negotiation_status': 0
+        }
+
+        #Fill out service request information for requesting open negotiations
+        extended_org.closed_negotiations_request.service_name = 'org_management'
+        extended_org.closed_negotiations_request.service_operation = 'find_org_closed_negotiations'
+        extended_org.closed_negotiations_request.query_string_params = {
+            'org_id': org_id,
+        }
 
         # set org members from the ION org
         ion_org = self.find_org()
@@ -1185,7 +1232,6 @@ class OrgManagementService(BaseOrgManagementService):
 
                 extended_org.members = user_info_list
 
-        log.debug("get_marine_facility_extension: extended_org 2:  %s ", str(extended_org))
 
         instruments_not_deployed = []
         #compute the non deployed devices

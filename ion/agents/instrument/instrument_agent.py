@@ -172,6 +172,9 @@ class InstrumentAgent(ResourceAgent):
         # Dictionary of stream publication rates.
         self.aparam_pubfreq = {}
 
+        # Autoreconnect thread.
+        self._autoreconnect_greenlet = None
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -350,9 +353,10 @@ class InstrumentAgent(ResourceAgent):
             except Timeout, ResourceError:
                 no_tries += 1
                 if no_tries >= max_tries:
-                    self._dvr_client.cmd_dvr('disconnect')
                     log.error("Could not discover instrument state")
-                    raise 
+                    next_state = ResourceAgentState.ACTIVE_UNKNOWN
+                    #self._dvr_client.cmd_dvr('disconnect')
+                    #raise 
         
         return (next_state, None)
 
@@ -516,9 +520,6 @@ class InstrumentAgent(ResourceAgent):
         """
         Handle a connection lost event from the driver.
         """
-        
-        print '################ LOST CONNECTION HANDLER'
-        
         return (ResourceAgentState.LOST_CONNECTION, None)
 
     ##############################################################
@@ -527,9 +528,28 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_connection_lost_enter(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
+        log.error('Instrument agent %s lost connection to the device.',
+                  self._proc_name)
+        self._event_publisher.publish_event(
+            event_type='ResourceAgentConnectionLostErrorEvent',
+            origin_type=self.ORIGIN_TYPE,
+            origin=self.resource_id)
+        
+        # Setup reconnect timer.
+        self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
 
+    def _autoreconnect(self):
+        while self._autoreconnect_greenlet:
+            gevent.sleep(10)
+            try:
+                self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
+            except:
+                pass
+    
     def _handler_connection_lost_exit(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
+        if self._autoreconnect_greenlet:
+            self._autoreconnect_greenlet = None
 
     def _handler_connection_lost_reset(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
@@ -539,6 +559,96 @@ class InstrumentAgent(ResourceAgent):
     def _handler_connection_lost_go_inactive(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         return (ResourceAgentState.INACTIVE, None)
+
+    def _handler_connection_lost_autoreconnect(self, *args, **kwargs):
+    
+        try:
+            self._dvr_client.cmd_dvr('connect')
+
+        except:
+            return (None, None)
+
+        max_tries = kwargs.get('max_tries', 5)
+        if not isinstance(max_tries, int) or max_tries < 1:
+            max_tries = 5
+        no_tries = 0
+        while True:
+            try:
+                next_state = self._dvr_client.cmd_dvr('discover_state')
+                break
+            except Timeout, ResourceError:
+                no_tries += 1
+                if no_tries >= max_tries:
+                    log.error("Could not discover instrument state")
+                    next_state = ResourceAgentState.ACTIVE_UNKNOWN
+                    #self._dvr_client.cmd_dvr('disconnect')
+                    #raise 
+
+        return (next_state, None)
+
+    ##############################################################
+    # ACTIVE_UNKNOWN event handlers.
+    ##############################################################    
+
+    def _handler_active_unknown_go_active(self, *args, **kwargs):
+        max_tries = kwargs.get('max_tries', 5)
+        if not isinstance(max_tries, int) or max_tries < 1:
+            max_tries = 5
+        no_tries = 0
+        while True:
+            try:
+                next_state = self._dvr_client.cmd_dvr('discover_state')
+                break
+            except Timeout, ResourceError:
+                no_tries += 1
+                if no_tries >= max_tries:
+                    log.error("Could not discover instrument state")
+                    next_state = None
+    
+    def _handler_active_unknown_go_inactive(self, *args, **kwargs):
+        self._dvr_client.cmd_dvr('initialize')        
+        return (ResourceAgentState.INACTIVE, None)
+
+    def _handler_active_unknown_reset(self, *args, **kwargs):
+        self._dvr_client.cmd_dvr('initialize')        
+        result = self._stop_driver()
+        return (ResourceAgentState.UNINITIALIZED, result)
+
+    def _handler_active_unknown_go_direct_access(self, *args, **kwargs):
+        session_timeout = kwargs.get('session_timeout', 10)
+        inactivity_timeout = kwargs.get('inactivity_timeout', 5)
+        session_type = kwargs.get('session_type', None)
+
+        if not session_type:
+            raise BadRequest('Instrument parameter error attempting direct access: session_type not present') 
+
+        log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d,  session_type=%s",
+                 session_timeout, inactivity_timeout, dir(DirectAccessTypes)[session_type])
+
+        # get 'address' of host
+        hostname = socket.gethostname()
+        ip_addresses = socket.gethostbyname_ex(hostname)
+        log.debug("hostname: %s, ip address: %s", hostname, ip_addresses)
+#        ip_address = ip_addresses[2][0]
+        ip_address = hostname
+        
+        # create a DA server instance (TODO: just telnet for now) and pass in callback method
+        try:
+            self._da_server = DirectAccessServer(session_type, 
+                                                self._da_server_input_processor, 
+                                                ip_address,
+                                                session_timeout,
+                                                inactivity_timeout)
+        except Exception as ex:
+            log.warning("InstrumentAgent: failed to start DA Server <%s>",ex)
+            raise ex
+        
+        # get the connection info from the DA server to return to the user
+        port, token = self._da_server.get_connection_info()
+        result = {'ip_address':ip_address, 'port':port, 'token':token}
+        # tell driver to start direct access mode
+        next_state, _ = self._dvr_client.cmd_dvr('start_direct')
+        return (next_state, result)        
 
     ##############################################################
     # Asynchronous driver event callback and handlers.
@@ -575,6 +685,8 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         try:
+            log.info('Instrument agent %s driver state change: %s',
+                     self._proc_name, val)
             event_data = { 'state' : val }
             self._event_publisher.publish_event(
                 event_type='ResourceAgentResourceStateEvent',
@@ -632,10 +744,6 @@ class InstrumentAgent(ResourceAgent):
         try:
             stream_name = val['stream_name']
             self._stream_buffers[stream_name].insert(0,val)
-
-            if stream_name == 'parsed':
-                print '############################ IA got parsed sample:'
-                print str(val)
 
         except KeyError:
             log.error('Instrument agent %s received sample with bad \
@@ -936,6 +1044,8 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
         
         # STREAMING state event handlers.
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.ENTER, self._handler_streaming_enter)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXIT, self._handler_streaming_exit)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GO_INACTIVE, self._handler_streaming_go_inactive)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -981,12 +1091,24 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # LOST_CONNECTION state event handlers.
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_connection_lost_enter)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_connection_lost_exit)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_connection_lost_reset)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_connection_lost_autoreconnect)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_connection_lost_go_inactive)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
-        
+
+        # ACTIVE_UNKNOWN state event handlers.
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GO_ACTIVE, self._handler_active_unknown_go_active)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.RESET, self._handler_active_unknown_reset)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GO_INACTIVE, self._handler_active_unknown_go_inactive)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GO_DIRECT_ACCESS, self._handler_active_unknown_go_direct_access)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+
     ##############################################################
     # Start and stop driver.
     ##############################################################    

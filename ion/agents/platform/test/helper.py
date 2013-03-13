@@ -65,8 +65,8 @@ class HelperTestMixin:
             cls.PLATFORM_ID = 'Node1D'
             print("PLAT_NETWORK=small -> using base platform: %r" % cls.PLATFORM_ID)
             cls.SUBPLATFORM_IDS = ['MJ01C']
-            cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
-            cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
+            cls.ATTR_NAMES = ['input_voltage', 'input_bus_current']
+            cls.WRITABLE_ATTR_NAMES = ['input_bus_current']
 
             cls.PORT_ID = 'Node1D_port_1'
             cls.INSTRUMENT_ID = 'Node1D_port_1_instrument_1'
@@ -77,8 +77,8 @@ class HelperTestMixin:
             cls.PLATFORM_ID = 'LJ01D'
             print("PLAT_NETWORK=single -> using base platform: %r" % cls.PLATFORM_ID)
             cls.SUBPLATFORM_IDS = []
-            cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
-            cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
+            cls.ATTR_NAMES = ['input_voltage', 'input_bus_current']
+            cls.WRITABLE_ATTR_NAMES = ['input_bus_current']
 
             cls.PORT_ID = 'LJ01D_port_1'
             cls.INSTRUMENT_ID = 'LJ01D_port_1_instrument_1'
