@@ -175,6 +175,9 @@ class InstrumentAgent(ResourceAgent):
         # Autoreconnect thread.
         self._autoreconnect_greenlet = None
 
+        # State when lost.
+        self._state_when_lost = None
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -519,6 +522,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handle a connection lost event from the driver.
         """
+        self._state_when_lost = self._fsm.get_current_state()
         return (ResourceAgentState.LOST_CONNECTION, None)
 
     ##############################################################
@@ -535,7 +539,7 @@ class InstrumentAgent(ResourceAgent):
             origin=self.resource_id)
         
         # Setup reconnect timer.
-        # self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
+        self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
 
     def _handler_lost_connection_exit(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
@@ -546,6 +550,7 @@ class InstrumentAgent(ResourceAgent):
         while self._autoreconnect_greenlet:
             gevent.sleep(10)
             try:
+                print '## attempting reconnect...'
                 self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
             except:
                 pass
@@ -580,9 +585,11 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-                    #self._dvr_client.cmd_dvr('disconnect')
-                    #raise 
-
+   
+        if next_state == ResourceAgentState.IDLE and \
+            self._state_when_lost == ResourceAgentState.COMMAND:
+                next_state = ResourceAgentState.COMMAND
+   
         return (next_state, None)
 
     ##############################################################
