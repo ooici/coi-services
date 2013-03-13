@@ -6,7 +6,7 @@
 """
 
 # THIS SHOULD BE FALSE IN COMMITTED CODE
-#TEST_LOCALLY=True
+TEST_LOCALLY=False
 
 import re
 from ooi.logging import log
