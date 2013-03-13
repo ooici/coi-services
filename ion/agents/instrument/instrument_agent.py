@@ -237,7 +237,8 @@ class InstrumentAgent(ResourceAgent):
     # Governance interfaces
     ##############################################################
 
-    #TODO - When/If the Instrument and Platform agents are dervied from a common device agent class, then relocate to the parent class and share
+    #TODO - When/If the Instrument and Platform agents are dervied from a
+    # common device agent class, then relocate to the parent class and share
     def check_resource_operation_policy(self, msg,  headers):
         '''
         This function is used for governance validation for certain agent operations.
@@ -251,15 +252,20 @@ class InstrumentAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(),
+                        ORG_MANAGER_ROLE):
             return True, ''
 
-        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(),
+                            INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
-        com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
+        com = get_resource_commitments(gov_values.actor_id,
+                                       gov_values.resource_id)
         if com is None:
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' \
+                % (self.name, gov_values.op, gov_values.actor_id,
+                   self.resource_id)
 
         return True, ''
 
@@ -294,7 +300,8 @@ class InstrumentAgent(ResourceAgent):
         return (None, result)
 
     def _handler_ping_resource(self, *args, **kwargs):
-        result = '%s, time:%s' % (self._dvr_client.cmd_dvr('process_echo', *args, **kwargs), get_ion_ts())
+        result = '%s, time:%s' % (self._dvr_client.cmd_dvr('process_echo', *args, **kwargs),
+                                  get_ion_ts())
         return (None, result)
 
     def _handler_done(self, *args, **kwargs):
@@ -431,7 +438,8 @@ class InstrumentAgent(ResourceAgent):
             raise BadRequest('Instrument parameter error attempting direct access: session_type not present') 
 
         log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d,  session_type=%s",
-                 session_timeout, inactivity_timeout, dir(DirectAccessTypes)[session_type])
+                 session_timeout, inactivity_timeout,
+                 dir(DirectAccessTypes)[session_type])
 
         # get 'address' of host
         hostname = socket.gethostname()
@@ -440,7 +448,8 @@ class InstrumentAgent(ResourceAgent):
 #        ip_address = ip_addresses[2][0]
         ip_address = hostname
         
-        # create a DA server instance (TODO: just telnet for now) and pass in callback method
+        # create a DA server instance (TODO: just telnet for now) and pass
+        # in callback method
         try:
             self._da_server = DirectAccessServer(session_type, 
                                                 self._da_server_input_processor, 
@@ -490,7 +499,8 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################    
 
     def _handler_direct_access_go_command(self, *args, **kwargs):
-        log.info("Instrument agent requested to stop direct access mode - %s", self._da_session_close_reason)
+        log.info("Instrument agent requested to stop direct access mode - %s",
+                 self._da_session_close_reason)
         # tell driver to stop direct access mode
         next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
         # stop DA server
@@ -650,7 +660,8 @@ class InstrumentAgent(ResourceAgent):
             val = evt['value']
             ts = evt['time']
         except KeyError, ValueError:
-            log.error('Instrument agent %s received driver event %s has missing required fields.', self.id, evt)
+            log.error('Instrument agent %s received driver event %s has missing required fields.',
+                      self.id, evt)
             return
         
         if type == DriverAsyncEvent.STATE_CHANGE:
@@ -668,7 +679,8 @@ class InstrumentAgent(ResourceAgent):
         elif type == DriverAsyncEvent.AGENT_EVENT:
             self._async_driver_event_agent_event(val, ts)
         else:
-            log.error('Instrument agent %s received unknown driver event %s.', self._proc_name, str(evt))
+            log.error('Instrument agent %s received unknown driver event %s.',
+                      self._proc_name, str(evt))
 
     def _async_driver_event_state_change(self, val, ts):
         """
