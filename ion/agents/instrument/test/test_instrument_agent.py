@@ -1915,8 +1915,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
-        #gevent.sleep(60)
-        gevent.sleep(10)
+        gevent.sleep(35)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)

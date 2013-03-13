@@ -186,10 +186,7 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_config = self.CFG.get('driver_config', None)
         
         # Set the test mode.
-        self._test_mode = self.CFG.get('test_mode', False)
-
-        # Construct stream publishers.
-        self._construct_data_publishers()
+        self._test_mode = self.CFG.get('test_mode', False)        
 
     ##############################################################
     # Capabilities interface and event handlers.
@@ -464,15 +461,7 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################
     # STREAMING event handlers.
     ##############################################################    
-
-    def _handler_streaming_enter(self, *args, **kwargs):
-        self._start_publisher_greenlets()
-        super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
-
-    def _handler_streaming_exit(self, *args, **kwargs):
-        self._stop_publisher_greenlets()
-        super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
-
+    
     def _handler_streaming_reset(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
@@ -526,7 +515,7 @@ class InstrumentAgent(ResourceAgent):
     # CONNECTION_LOST event handlers.
     ##############################################################    
 
-    def _handler_connection_lost_enter(self, *args, **kwargs):
+    def _handler_lost_connection_enter(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
         log.error('Instrument agent %s lost connection to the device.',
                   self._proc_name)
@@ -536,7 +525,12 @@ class InstrumentAgent(ResourceAgent):
             origin=self.resource_id)
         
         # Setup reconnect timer.
-        self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
+        # self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
+
+    def _handler_lost_connection_exit(self, *args, **kwargs):
+        super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
+        if self._autoreconnect_greenlet:
+            self._autoreconnect_greenlet = None
 
     def _autoreconnect(self):
         while self._autoreconnect_greenlet:
@@ -546,11 +540,6 @@ class InstrumentAgent(ResourceAgent):
             except:
                 pass
     
-    def _handler_connection_lost_exit(self, *args, **kwargs):
-        super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
-        if self._autoreconnect_greenlet:
-            self._autoreconnect_greenlet = None
-
     def _handler_connection_lost_reset(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
@@ -1044,8 +1033,6 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
         
         # STREAMING state event handlers.
-        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.ENTER, self._handler_streaming_enter)
-        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXIT, self._handler_streaming_exit)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GO_INACTIVE, self._handler_streaming_go_inactive)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1091,8 +1078,8 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # LOST_CONNECTION state event handlers.
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_connection_lost_enter)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_connection_lost_exit)
+        #self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_connection_lost_enter)
+        #self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_connection_lost_exit)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_connection_lost_reset)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_connection_lost_autoreconnect)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_connection_lost_go_inactive)
@@ -1139,12 +1126,15 @@ class InstrumentAgent(ResourceAgent):
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
+        self._construct_data_publishers()        
+        self._start_publisher_greenlets()        
         log.info('Instrument agent %s started its driver.', self._proc_name)
         
     def _stop_driver(self):
         """
         Stop the driver process and driver client.
         """
+        self._stop_publisher_greenlets()        
         self._dvr_proc.stop()
         log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
