@@ -6,7 +6,7 @@
 """
 
 # THIS SHOULD BE FALSE IN COMMITTED CODE
-TEST_LOCALLY=False
+#TEST_LOCALLY=True
 
 import re
 from ooi.logging import log
@@ -968,12 +968,12 @@ class EnhancedResourceRegistryClient(object):
             if not hasattr(resource_obj, "_id"):
                 # must not be any matching names
                 if 0 < len(found_res):
-                    raise BadRequest("%s resource named '%s' already exists with ID '%s'"
+                    raise BadRequest("Duplicate: %s resource named '%s' already exists with ID '%s'"
                     % (resource_type, name, found_res[0]))
             else: #updating
             # any existing name must match the id
                 if 1 == len(found_res) and resource_obj._id != found_res[0]:
-                    raise BadRequest("%s resource named '%s' already exists with a different ID"
+                    raise BadRequest("Duplicate: %s resource named '%s' already exists with a different ID"
                     % (resource_type, name))
 
 
