@@ -645,7 +645,6 @@ class VisualizationService(BaseVisualizationService):
             kml_content += "\n]]>\n</description>\n"
 
             # Point information
-            _lat_center = _lon_center = 0 ############# REMOVE THIS *************
             kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "," + starting_altitude + "</coordinates>\n</Point>\n"
 
             # Close Placemark
