@@ -14,6 +14,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from seawater.gibbs import SP_from_cndr
 from seawater.gibbs import cte
 
+import pygsw.vectors as gsw
+
 # For usage: please refer to the integration tests in
 # ion/processes/data/transforms/ctd/test/test_ctd_transforms.py
 
@@ -85,8 +87,7 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
         conductivity = rdt['conductivity']
         pressure = rdt['pressure']
         temperature = rdt['temp']
-
-        sal_value = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)
+        sal_value = gsw.sp_from_c(conductivity * 10, temperature, pressure)
 
         log.debug("CTDBP Salinity algorithm calculated the sp (practical salinity) values: %s", sal_value)
 

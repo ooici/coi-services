@@ -48,6 +48,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
 
         # Cleanup of queue created by the subscriber
         self.queue_cleanup = []
+        self.addCleanup(self.clean_queues)
         self.data_process_cleanup = []
 
     def _get_new_ctd_packet(self, stream_definition_id, length):
@@ -69,36 +70,32 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             xn = self.container.ex_manager.create_xn_queue(queue)
             xn.delete()
 
-    def cleaning_operations(self):
-        for dproc_id in self.data_process_cleanup:
-            self.data_process_management.delete_data_process(dproc_id)
-
     def _create_input_param_dict_for_test(self, parameter_dict_name = ''):
 
         pdict = ParameterDictionary()
 
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('float64')))
         t_ctxt.axis = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 01-01-1970'
+        t_ctxt.uom = 'seconds since 01-01-1900'
         pdict.add_context(t_ctxt)
 
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         cond_ctxt.uom = ''
         pdict.add_context(cond_ctxt)
 
-        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         pres_ctxt.uom = ''
         pdict.add_context(pres_ctxt)
 
-        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         temp_ctxt.uom = ''
         pdict.add_context(temp_ctxt)
 
-        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         dens_ctxt.uom = ''
         pdict.add_context(dens_ctxt)
 
-        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         sal_ctxt.uom = ''
         pdict.add_context(sal_ctxt)
 
@@ -110,6 +107,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
 
         pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
         return pdict_id
 
@@ -127,6 +125,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
             class_name='CTDBP_L0_all')
 
         dprocdef_id = self.data_process_management.create_data_process_definition(dpd_obj)
+        self.addCleanup(self.data_process_management.delete_data_process_definition, dprocdef_id)
 
         log.debug("created data process definition: id = %s", dprocdef_id)
 
@@ -176,22 +175,21 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         output_stream_id = out_stream_ids[0]
 
         dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products)
-
-        self.data_process_cleanup.append(dproc_id)
-        self.addCleanup(self.cleaning_operations)
+        self.addCleanup(self.data_process_management.delete_data_process, dproc_id)
 
         log.debug("Created a data process for ctdbp_L0. id: %s", dproc_id)
 
         # Activate the data process
         self.data_process_management.activate_data_process(dproc_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, dproc_id)
 
         #----------- Find the stream that is associated with the input data product when it was created by create_data_product() --------------------------------
 
         stream_ids, _ = self.resource_registry.find_objects(input_dp_id, PRED.hasStream, RT.Stream, True)
+        self.assertTrue(len(stream_ids))
 
         input_stream_id = stream_ids[0]
-        input_stream = self.resource_registry.read(input_stream_id)
-        stream_route = input_stream.stream_route
+        stream_route = self.pubsub.read_stream_route(input_stream_id)
 
         log.debug("The input stream for the L0 transform: %s", input_stream_id)
 
@@ -206,12 +204,11 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         sub_id = self.pubsub.create_subscription('subscriber_to_transform',
             stream_ids=[output_stream_id],
             exchange_name='sub')
+        self.addCleanup(self.pubsub.delete_subscription, sub_id)
 
         self.pubsub.activate_subscription(sub_id)
+        self.addCleanup(self.pubsub.deactivate_subscription, sub_id)
 
-        self.addCleanup(sub.stop)
-        self.queue_cleanup.append(sub.xn.queue)
-        self.addCleanup(self.clean_queues)
 
         sub.start()
 
