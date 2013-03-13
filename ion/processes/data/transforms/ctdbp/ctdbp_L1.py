@@ -32,10 +32,7 @@ class CTDBP_L1_Transform(TransformDataProcess):
 
         self.L1_stream_id = self.CFG.process.publish_streams.L1_stream
 
-        calibration_coeffs = {}
-        calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
-        calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
-        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
+        calibration_coeffs= self.CFG.process.calibration_coeffs
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -82,6 +79,8 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         pres_calibration_coeffs= params['calibration_coeffs']['pres_calibration_coeffs']
         cond_calibration_coeffs = params['calibration_coeffs']['cond_calibration_coeffs']
 
+        log.debug("params['calibration_coeffs']: %s", params['calibration_coeffs'])
+
         # Set the temperature values for the output granule
         out_rdt = CTDBP_L1_TransformAlgorithm.calculate_temperature(    input_rdt = rdt,
                                                                         out_rdt = out_rdt,
@@ -116,12 +115,12 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
 
 
         #------------  CALIBRATION COEFFICIENTS FOR CONDUCTIVITY  --------------
-        g = cond_calibration_coeffs['g']
-        h = cond_calibration_coeffs['h']
+        g = cond_calibration_coeffs['G']
+        h = cond_calibration_coeffs['H']
         I = cond_calibration_coeffs['I']
-        j = cond_calibration_coeffs['j']
-        CTcor = cond_calibration_coeffs['CTcor']
-        CPcor = cond_calibration_coeffs['CPcor']
+        j = cond_calibration_coeffs['J']
+        CTcor = cond_calibration_coeffs['CTCOR']
+        CPcor = cond_calibration_coeffs['CPCOR']
 
         if not (g and h and I and j and CTcor and CPcor):
             raise BadRequest("All the conductivity calibration coefficients (g,h,I,j,CTcor, CPcor) were not passed through"
@@ -156,10 +155,10 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         TEMPWAT_L0 = input_rdt['temperature']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
-        a0 = temp_calibration_coeffs['a0']
-        a1 = temp_calibration_coeffs['a1']
-        a2 = temp_calibration_coeffs['a2']
-        a3 = temp_calibration_coeffs['a3']
+        a0 = temp_calibration_coeffs['TA0']
+        a1 = temp_calibration_coeffs['TA1']
+        a2 = temp_calibration_coeffs['TA2']
+        a3 = temp_calibration_coeffs['TA3']
 
         if not (a0 and a1 and a2 and a3):
             raise BadRequest("All the temperature calibration coefficients (a0,a1,a2,a3) were not passed through"
@@ -205,16 +204,10 @@ class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
         PTCB1 = pres_calibration_coeffs['PTCB1']
         PTCB2 = pres_calibration_coeffs['PTCB2']
 
-        PA0 = pres_calibration_coeffs['PTCB0']
+        PA0 = pres_calibration_coeffs['PA0']
         PA1 = pres_calibration_coeffs['PA1']
         PA2 = pres_calibration_coeffs['PA2']
 
-        cond = PTEMPA0 and PTEMPA0 and PTEMPA2 and PTCA0 and PTCA1 and PTCA2 and PTCB0 and PTCB1 and PTCB2
-        cond = cond and PA0 and PA1 and PA2
-
-        if not cond:
-            raise BadRequest("All the pressure calibration coefficients were not passed through"
-                             "the config. Example: config.process.calibration_coeffs.pres_calibration_coeffs['PTEMPA0']")
 
         #------------  Computation -------------------------------------
         tvolt = TEMPWAT_L0 / 13107

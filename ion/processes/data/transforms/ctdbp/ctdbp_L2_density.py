@@ -14,6 +14,8 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from seawater.gibbs import SP_from_cndr, rho, SA_from_SP, conservative_t
 from seawater.gibbs import cte
 
+import numpy as np
+
 class CTDBP_DensityTransform(TransformDataProcess):
     """ A basic transform that receives input through a subscription,
     parses the input from a CTD, extracts the pressure value and scales it according to
@@ -30,9 +32,14 @@ class CTDBP_DensityTransform(TransformDataProcess):
                              "using a special keyword (ex: density)")
         self.dens_stream_id = self.CFG.process.publish_streams.density
 
+        lat = self.CFG.lat
+        lon = self.CFG.lon
+
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
         self.stream_definition = pubsub.read_stream_definition(stream_id=self.dens_stream_id)
+        
+        self.params = {'stream_def' : self.stream_definition._id, 'lat': lat, 'lon' : lon}
 
     def recv_packet(self, packet, stream_route, stream_id):
         """
@@ -42,7 +49,7 @@ class CTDBP_DensityTransform(TransformDataProcess):
             return
         log.debug("CTDBP L2 density transform received granule with record dict: %s", packet.record_dictionary)
 
-        granule = CTDBP_DensityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
+        granule = CTDBP_DensityTransformAlgorithm.execute(packet, params=self.params)
 
         log.debug("CTDBP L2 density transform publishing granule with record dict: %s", granule.record_dictionary)
 
@@ -72,10 +79,13 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         https://docs.google.com/spreadsheet/ccc?key=0Au7PUzWoCKU4dDRMeVI0RU9yY180Z0Y5U0hyMUZERmc#gid=0
 
         """
+        lat = params['lat']
+        lon = params['lon']
+        stream_def_id = params['stream_def']
 
 
         rdt = RecordDictionaryTool.load_from_granule(input)
-        out_rdt = RecordDictionaryTool(stream_definition_id=params)
+        out_rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
 
         out_rdt['time'] = rdt['time']
 
@@ -83,8 +93,10 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         pressure = rdt['pressure']
         temperature = rdt['temp']
 
-        longitude = rdt['lon'] if rdt['lon'] is not None else 0
-        latitude = rdt['lat'] if rdt['lat'] is not None else 0
+        latitude = np.ones(len(conductivity)) * lat
+        longitude = np.ones(len(conductivity)) * lon
+
+        log.debug("Using latitude: %s,\n longitude: %s", latitude, longitude)
 
         # Doing: PRACSAL = gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)
         pracsal = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)

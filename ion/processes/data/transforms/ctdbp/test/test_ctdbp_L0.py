@@ -82,16 +82,6 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         t_ctxt.uom = 'seconds since 01-01-1970'
         pdict.add_context(t_ctxt)
 
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
-        lat_ctxt.axis = AxisTypeEnum.LAT
-        lat_ctxt.uom = ''
-        pdict.add_context(lat_ctxt)
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
-        lon_ctxt.axis = AxisTypeEnum.LON
-        lon_ctxt.uom = ''
-        pdict.add_context(lon_ctxt)
-
         cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
         cond_ctxt.uom = ''
         pdict.add_context(cond_ctxt)
