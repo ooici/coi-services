@@ -82,6 +82,9 @@ DVR_CONFIG = {
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
+# TODO clean up the use of 'driver_config' entry in the platform_config,
+# which also set at the agent level (with a wrong definition BTW).
+
 # TIMEOUT: timeout for each execute_agent call.
 TIMEOUT = 90
 
@@ -219,7 +222,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         finally:
             self._event_subscribers = []
 
-    def _create_platform_configuration(self):
+    def _create_platform_configuration(self, platform_id):
         """
         Verify that agent configurations are being built properly
         """
@@ -333,11 +336,11 @@ class TestPlatformLaunch(IonIntegrationTestCase):
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
             # agent creation
-            raw_config = StreamConfiguration(stream_name='parsed',
-                                             parameter_dictionary_name='platform_eng_parsed',
-                                             records_per_granule=2,
-                                             granule_publish_rate=5)
-            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":[raw_config]})
+            parsed_config = StreamConfiguration(stream_name='parsed',
+                                                parameter_dictionary_name='platform_eng_parsed',
+                                                records_per_granule=2,
+                                                granule_publish_rate=5)
+            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":[parsed_config]})
             platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
 
             # device creation
@@ -366,7 +369,10 @@ class TestPlatformLaunch(IonIntegrationTestCase):
             instrument_agent_instance_id = self.IMS.create_instrument_agent_instance(instrument_agent_instance_obj)
 
             # agent creation
-            raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+            raw_config = StreamConfiguration(stream_name='raw',
+                                             parameter_dictionary_name='ctd_raw_param_dict',
+                                             records_per_granule=2,
+                                             granule_publish_rate=5)
             instrument_agent_obj = any_old(RT.InstrumentAgent, {"stream_configurations":[raw_config]})
             instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
 
@@ -392,7 +398,17 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
 
         log.debug("Making the structure for a platform agent, which will be the child")
-        platform_agent_instance_child_id, _, platform_device_child_id  = _make_platform_agent_structure()
+        child_agent_config = {
+            'platform_config': {
+
+                # TODO this id is temporary
+                'platform_id':             "CHILD_PLATFORM_ID",
+
+                'driver_config':           DVR_CONFIG,
+                'network_definition' :     self._network_definition_ser
+            }
+        }
+        platform_agent_instance_child_id, _, platform_device_child_id  = _make_platform_agent_structure(child_agent_config)
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
         log.debug("Preparing a valid agent instance launch, for config only")
@@ -401,7 +417,17 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         verify_child_config(child_config, platform_device_child_id)
 
         log.debug("Making the structure for a platform agent, which will be the parent")
-        platform_agent_instance_parent_id, _, platform_device_parent_id  = _make_platform_agent_structure()
+        parent_agent_config = {
+            'platform_config': {
+
+                # TODO this id is temporary
+                'platform_id':             "PARENT_PLATFORM_ID",
+
+                'driver_config':           DVR_CONFIG,
+                'network_definition' :     self._network_definition_ser
+            }
+        }
+        platform_agent_instance_parent_id, _, platform_device_parent_id  = _make_platform_agent_structure(parent_agent_config)
         platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
 
         log.debug("Testing child-less parent as a child config")
@@ -411,6 +437,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
 
         log.debug("assigning child platform to parent")
         self.RR2.assign_platform_device_to_platform_device(platform_device_child_id, platform_device_parent_id)
+        self.platform_device_parent_id = platform_device_parent_id
         child_device_ids = self.RR2.find_platform_device_ids_of_device(platform_device_parent_id)
         self.assertNotEqual(0, len(child_device_ids))
 
@@ -435,16 +462,22 @@ class TestPlatformLaunch(IonIntegrationTestCase):
 
         log.debug("Testing entire config")
         pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
-        full_config = pconfig_builder.prepare(will_launch=False)
-        verify_parent_config(full_config, platform_device_parent_id, platform_device_child_id, instrument_device_id)
+        agent_config = pconfig_builder.prepare(will_launch=False)
+        verify_parent_config(agent_config, platform_device_parent_id, platform_device_child_id, instrument_device_id)
 
-        if log.isEnabledFor(logging.TRACE):
+        agent_config['platform_config'] = {
+            'platform_id':             platform_id,
+            'driver_config':           DVR_CONFIG,
+            'network_definition' :     self._network_definition_ser
+        }
+
+        if log.isEnabledFor(logging.DEBUG):
             import pprint
-            pp = pprint.PrettyPrinter()
-            pp.pprint(full_config)
-            log.trace("full_config = %s", pp.pformat(full_config))
+            outname = "pretty_agent_config.txt"
+            pprint.PrettyPrinter(stream=file(outname, "w")).pprint(agent_config)
+            log.debug("agent_config pretty-printed to %s", outname)
 
-        return full_config
+        return agent_config
 
     def get_streamConfigs(self):
         #
@@ -472,9 +505,9 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         pass
 
     def test_single_platform(self):
-        full_config = self._create_platform_configuration()
-
+        
         platform_id = 'LJ01D'
+        agent_config = self._create_platform_configuration(platform_id)
 
 
         stream_configurations = self.get_streamConfigs()
@@ -483,9 +516,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
                                description='%s_PlatformAgent platform agent' % platform_id,
                                stream_configurations=stream_configurations)
 
-
         agent_id = self.IMS.create_platform_agent(agent__obj)
-
 
         device__obj = IonObject(RT.PlatformDevice,
             name='%s_PlatformDevice' % platform_id,
@@ -519,7 +550,8 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         # dataset
 
         stream_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasStream, None, True)
-        log.debug( 'Data product streams1 = %s', stream_ids)
+        log.debug( 'Data product stream_ids = %s', stream_ids)
+        stream_id = stream_ids[0]
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         dataset_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
@@ -527,20 +559,10 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         self.parsed_dataset = dataset_ids[0]
         #######################################
 
-
-
-        full_config['platform_config'] = {
-            'platform_id':             platform_id,
-
-            'driver_config':           DVR_CONFIG,
-
-            'network_definition' :     self._network_definition_ser
-        }
-
         agent_instance_obj = IonObject(RT.PlatformAgentInstance,
             name='%s_PlatformAgentInstance' % platform_id,
             description="%s_PlatformAgentInstance" % platform_id,
-            agent_config=full_config)
+            agent_config=agent_config)
 
 
         agent_instance_id = self.IMS.create_platform_agent_instance(
@@ -549,7 +571,14 @@ class TestPlatformLaunch(IonIntegrationTestCase):
             platform_device_id = self.device_id)
 
 
-        stream_id = stream_ids[0]
+        log.debug("assigning parent to grandparent")
+        self.RR2.assign_platform_device_to_platform_device(
+            self.platform_device_parent_id,
+            self.device_id
+        )
+        child_device_ids = self.RR2.find_platform_device_ids_of_device(self.platform_device_parent_id)
+        self.assertNotEqual(0, len(child_device_ids))
+
         self._start_data_subscriber(agent_instance_id, stream_id)
 
         log.debug("about to call imsclient.start_platform_agent_instance with id=%s", agent_instance_id)
