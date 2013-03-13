@@ -339,14 +339,14 @@ class UnitTestGenerator(object):
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "create")
-            bad_sample_resource = IonObject(RT.Resource)
+            bad_sample_resource = IonObject(RT.Resource, name="Generic Resource")
 
 
             #configure Mock
             if all_in_one: svc.clients.resource_registry.create.reset_mock()
             svc.clients.resource_registry.create.return_value = ('111', 'bla')
 
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
+            self.assertRaisesRegexp(BadRequest, "type", testfun, bad_sample_resource)
             self.assertEqual(0, svc.clients.resource_registry.create.call_count)
 
 
@@ -366,7 +366,7 @@ class UnitTestGenerator(object):
             svc.clients.resource_registry.create.return_value = ('111', 'bla')
             svc.clients.resource_registry.find_resources.return_value = ([], [])
 
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
+            self.assertRaisesRegexp(BadRequest, "name", testfun, bad_sample_resource)
             self.assertEqual(0, svc.clients.resource_registry.create.call_count)
 
 
@@ -386,7 +386,7 @@ class UnitTestGenerator(object):
             svc.clients.resource_registry.create.return_value = ('111', 'bla')
             svc.clients.resource_registry.find_resources.return_value = ([0], [0])
 
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
+            self.assertRaisesRegexp(BadRequest, "uplicate", testfun, bad_sample_resource)
             self.assertEqual(0, svc.clients.resource_registry.create.call_count)
 
 
@@ -419,14 +419,14 @@ class UnitTestGenerator(object):
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "read")
-            myret = IonObject(RT.Resource)
+            myret = IonObject(RT.Resource, name="Generic Resource")
 
             #configure Mock
             if all_in_one: svc.clients.resource_registry.read.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
 
             self.assertEqual(0, svc.clients.resource_registry.read.call_count)
-            self.assertRaises(BadRequest, testfun, "111")
+            self.assertRaisesRegexp(BadRequest, "type", testfun, "111")
             svc.clients.resource_registry.read.assert_called_once_with("111", "")
 
 
@@ -436,7 +436,7 @@ class UnitTestGenerator(object):
             """
             self is an instance of the tester class
             """
-            log.debug(test_update_fun)
+            log.debug("test_update_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "update")
@@ -470,7 +470,7 @@ class UnitTestGenerator(object):
             if all_in_one: svc.clients.resource_registry.update.reset_mock()
             svc.clients.resource_registry.find_resources.return_value = ([0], [0])
 
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
+            self.assertRaisesRegexp(BadRequest, "uplicate", testfun, bad_sample_resource)
             self.assertEqual(0, svc.clients.resource_registry.update.call_count)
 
 
@@ -483,10 +483,11 @@ class UnitTestGenerator(object):
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "update")
-            bad_sample_resource = IonObject(RT.Resource)
+            bad_sample_resource = IonObject(RT.Resource, name="Generic Name")
+            setattr(bad_sample_resource, "_id", "111")
 
             if all_in_one: svc.clients.resource_registry.update.reset_mock()
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
+            self.assertRaisesRegexp(BadRequest, "type", testfun, bad_sample_resource)
             self.assertEqual(0, svc.clients.resource_registry.update.call_count)
 
 
@@ -503,6 +504,7 @@ class UnitTestGenerator(object):
             myret = sample_resource()
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
             if all_in_one: svc.clients.resource_registry.delete.reset_mock()
             if all_in_one: svc.clients.resource_registry.retire.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
@@ -536,14 +538,24 @@ class UnitTestGenerator(object):
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "delete")
-            myret = IonObject(RT.Resource)
+            myret = IonObject(RT.Resource, name="Generic Name")
 
             #configure Mock
             if all_in_one: svc.clients.resource_registry.delete.reset_mock()
             if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
 
-            self.assertRaises(BadRequest, testfun, "111")
+            try:
+                self.assertRaisesRegexp(BadRequest, "type", testfun, "111")
+            except TypeError as te:
+                # for logic tests that run into mock trouble
+                if "'Mock' object is not iterable" != te.message:
+                    raise te
+                elif all_in_one:
+                    return
+                else:
+                    raise SkipTest("Must test this with INT test")
             self.assertEqual(0, svc.clients.resource_registry.retire.call_count)
             self.assertEqual(0, svc.clients.resource_registry.delete.call_count)
 
@@ -574,7 +586,6 @@ class UnitTestGenerator(object):
                 if "'Mock' object is not iterable" != te.message:
                     raise te
                 elif all_in_one:
-                    svc.clients.resource_registry.reset_mock()
                     return
                 else:
                     raise SkipTest("Must test this with INT test")
@@ -593,24 +604,26 @@ class UnitTestGenerator(object):
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "force_delete")
-            myret = IonObject(RT.Resource)
+            myret = IonObject(RT.Resource, name="Generic Name")
 
             #configure Mock
             if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
+            svc.clients.resource_registry.find_objects.return_value = ([], [])
+            svc.clients.resource_registry.find_subjects.return_value = ([], [])
             svc.clients.resource_registry.read.return_value = myret
 
             try:
-                self.assertRaises(BadRequest, testfun, "111")
+                self.assertRaisesRegexp(BadRequest, "type", testfun, "111")
             except TypeError as te:
                 # for logic tests that run into mock trouble
                 if "'Mock' object is not iterable" != te.message:
                     raise te
                 elif all_in_one:
-                    svc.clients.resource_registry.reset_mock()
                     return
                 else:
                     raise SkipTest("Must test this with INT test")
-
 
 
             self.assertEqual(0, svc.clients.resource_registry.retire.call_count)
@@ -633,7 +646,7 @@ class UnitTestGenerator(object):
             """
             name = make_name("%s_create_bad_wrongtype" % resource_label)
             doc  = make_doc("Creation of a (bad) new %s resource (wrong type)" % resource_iontype)
-            add_test_method(name, doc, test_create_bad_noname_fun)
+            add_test_method(name, doc, test_create_bad_wrongtype_fun)
 
 
         def gen_test_create_bad_noname():
