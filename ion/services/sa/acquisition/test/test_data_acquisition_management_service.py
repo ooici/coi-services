@@ -115,7 +115,7 @@ class TestDataAcquisitionManagement(PyonTestCase):
 utg = UnitTestGenerator(TestDataAcquisitionManagement,
                         DataAcquisitionManagementService)
 
-#utg.test_all_in_one(True)
+utg.test_all_in_one(True)
 
 utg.add_resource_unittests(RT.ExternalDataProvider, "external_data_provider", {})
 utg.add_resource_unittests(RT.DataSource, "data_source", {})
