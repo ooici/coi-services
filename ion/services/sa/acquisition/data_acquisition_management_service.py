@@ -541,7 +541,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.RR2.retire(external_dataset_id, RT.ExternalDataset)
 
     def force_delete_external_dataset(self, external_dataset_id=''):
-        self.RR2.pluck_delete(external_dataset_id)
+        self.RR2.pluck_delete(external_dataset_id, RT.ExternalDataset)
 
     def create_external_dataset_model(self, external_dataset_model=None):
         # Persist ExternalDatasetModel object and return object _id as OOI id
@@ -601,7 +601,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def force_delete_external_dataset_agent(self, external_dataset_agent_id=''):
 
-        self.RR2.pluck_delete(external_dataset_agent_id)
+        self.RR2.pluck_delete(external_dataset_agent_id, RT.ExternalDatasetAgent)
 
 
     def create_external_dataset_agent_instance(self, external_dataset_agent_instance=None, external_dataset_agent_id='', external_dataset_id=''):
