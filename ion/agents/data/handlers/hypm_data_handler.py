@@ -223,9 +223,11 @@ class HYPM_01_WFP_ENGParser(object):
 
         self.data_map = {}
 
-        self.sensor_names = ['Time', 'Core', 'Fluorometer', 'Turbidity', 'Optode', 'Par', 'Puck', 'BioSuite', 'FLBB']
+        self.sensor_names = []
 
-        self.component_details = {
+        components = ['Time', 'Core', 'Fluorometer', 'Turbidity', 'Optode', 'Par', 'Puck', 'BioSuite', 'FLBB']
+
+        component_details = {
             'Time': [('Time', 'int', 8)],
             'Core': [('Current', 'float', 8), ('Voltage', 'float', 8), ('Pressure', 'float', 8)],
             'Fluorometer': [('Value', 'float', 8), ('Gain', 'int', 8)],
@@ -251,20 +253,20 @@ class HYPM_01_WFP_ENGParser(object):
                     #8 Component Flags  (UINT16)
                     for i in range(1, 9):
                         components_on[i] = (int(line[(i - 1) * 4:(i * 4)], 16) != 0)
-                    print components_on
                     first_line = True
                 elif not second_line:
                     #2 POSIX timestamps (UINT32), sensor-on time, profile start time
                     second_line = True
                 #check to see if the termination string has been hit
                 elif not (line.startswith(self.termination_string)):
-                    for i in xrange(8):
+                    for i in range(0,9):
                         pos = 0
                         if components_on[i]:
-                            name = self.sensor_names[i]
-                            if not name in self.data_map.keys():
-                                self.data_map[name] = []
-                            for component in self.component_details[name]:
+                            for component in component_details[components[i]]:
+                                name = components[i] + '_' + component[0]
+                                if not name in self.data_map.keys():
+                                    self.sensor_names.append(name)
+                                    self.data_map[name] = []
                                 if component[1] == 'int':
                                     self.data_map[name].append(int(line[pos:pos+component[2]], 16))
                                 elif component[1] == 'float':
