@@ -902,6 +902,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
         # Test with a bad parameter name.
         with self.assertRaises(BadRequest):
             retval = self._ia_client.get_agent(['a bad param name'])
@@ -1046,6 +1051,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._ia_client.set_agent({'alarms' : ['clear']})
         retval = self._ia_client.get_agent(['alarms'])['alarms']
         self.assertEqual(retval,[])
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
     def test_poll(self):
         """
