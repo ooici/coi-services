@@ -116,6 +116,10 @@ class HypmBase(IonIntegrationTestCase):
         cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
         _ia_client.execute_resource(command=cmd)
 
+    def get_coverage(self):
+        return DatasetManagementService._get_coverage(self.dataset_id)
+
+
 @attr('INT', group='eoi')
 class TestHypm_WPF_CTD(HypmBase):
 
@@ -249,6 +253,133 @@ class TestHypm_WPF_ACM(HypmBase):
                 'stream_route': self.route,
                 'stream_def': self.stream_def_id,
                 'data_producer_id': 'hypm_acm_data_producer_id',
+                'max_records': 4,
+                }
+        }
+        return DVR_CONFIG
+
+@attr('INT', group='eoi')
+class TestHypm_WPF_ENG(HypmBase):
+
+    def setup_resources(self):
+        self.name = 'hypm_01_wpf_eng'
+        self.description = 'eng instrument test'
+        self.EDA_NAME = 'ExampleEDA'
+        self.EDA_MOD = 'ion.agents.data.external_dataset_agent'
+        self.EDA_CLS = 'ExternalDatasetAgent'
+
+    def build_param_contexts(self):
+        context_ids = []
+        t_ctxt = ParameterContext('Time_Time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Time_Time', parameter_context=t_ctxt.dump()))
+
+        core_current_ctxt = ParameterContext('Core_Current', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        core_current_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Core_Current', parameter_context=core_current_ctxt.dump()))
+
+        core_voltage_ctxt = ParameterContext('Core_Voltage', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        core_voltage_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Core_Voltage', parameter_context=core_voltage_ctxt.dump()))
+
+        core_pressure_ctxt = ParameterContext('Core_Pressure', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        core_pressure_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Core_Pressure', parameter_context=core_pressure_ctxt.dump()))
+
+        fluorometer_value_ctxt = ParameterContext('Fluorometer_Value', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        fluorometer_value_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Fluorometer_Value', parameter_context=fluorometer_value_ctxt.dump()))
+
+        fluorometer_gain_ctxt = ParameterContext('Fluorometer_Gain', param_type=QuantityType(value_encoding=np.dtype('int32')))
+        fluorometer_gain_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Fluorometer_Gain', parameter_context=fluorometer_gain_ctxt.dump()))
+
+        turbidity_value_ctxt = ParameterContext('Turbidity_Value', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        turbidity_value_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Turbidity_Value', parameter_context=turbidity_value_ctxt.dump()))
+
+        turbidity_gain_ctxt = ParameterContext('Turbidity_Gain', param_type=QuantityType(value_encoding=np.dtype('int32')))
+        turbidity_gain_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Turbidity_Gain', parameter_context=turbidity_gain_ctxt.dump()))
+
+        optode_oxygen_ctxt = ParameterContext('Optode_Oxygen', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        optode_oxygen_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Optode_Oxygen', parameter_context=optode_oxygen_ctxt.dump()))
+
+        optode_temp_ctxt = ParameterContext('Optode_Temp', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        optode_temp_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Optode_Temp', parameter_context=optode_temp_ctxt.dump()))
+
+        par_value_ctxt = ParameterContext('Par_Value', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        par_value_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Par_Value', parameter_context=par_value_ctxt.dump()))
+
+        puck_scatter_ctxt = ParameterContext('Puck_Scatter', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        puck_scatter_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Puck_Scatter', parameter_context=puck_scatter_ctxt.dump()))
+
+        puck_chla_ctxt = ParameterContext('Puck_Chla', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        puck_chla_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Puck_Chla', parameter_context=puck_chla_ctxt.dump()))
+
+        puck_cdom_ctxt = ParameterContext('Puck_CDOM', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        puck_cdom_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='Puck_CDOM', parameter_context=puck_cdom_ctxt.dump()))
+
+        biosuite_scatter_ctxt = ParameterContext('BioSuite_Scatter', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        biosuite_scatter_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='BioSuite_Scatter', parameter_context=biosuite_scatter_ctxt.dump()))
+
+        biosuite_chla_ctxt = ParameterContext('BioSuite_Chla', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        biosuite_chla_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='BioSuite_Chla', parameter_context=biosuite_chla_ctxt.dump()))
+
+        biosuite_cdom_ctxt = ParameterContext('BioSuite_CDOM', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        biosuite_cdom_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='BioSuite_CDOM', parameter_context=biosuite_cdom_ctxt.dump()))
+
+        biosuite_temp_ctxt = ParameterContext('BioSuite_Temp', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        biosuite_temp_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='BioSuite_Temp', parameter_context=biosuite_temp_ctxt.dump()))
+
+        biosuite_par_ctxt = ParameterContext('BioSuite_Par', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        biosuite_par_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='BioSuite_Par', parameter_context=biosuite_par_ctxt.dump()))
+
+        flbb_chla_ctxt = ParameterContext('FLBB_Chla', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        flbb_chla_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='FLBB_Chla', parameter_context=flbb_chla_ctxt.dump()))
+
+        flbb_turb_ctxt = ParameterContext('FLBB_Turb', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        flbb_turb_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='FLBB_Turb', parameter_context=flbb_turb_ctxt.dump()))
+
+        flbb_temp_ctxt = ParameterContext('FLBB_Temp', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        flbb_temp_ctxt.uom = 'unknown'
+        context_ids.append(self.dataset_management.create_parameter_context(name='FLBB_Temp', parameter_context=flbb_temp_ctxt.dump()))
+
+        return context_ids
+
+    def create_external_dataset(self):
+        ds_name = 'hypm_01_wfp_eng_dataset'
+        dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
+
+        dset.dataset_description.parameters['base_url'] = 'test_data'
+        dset.dataset_description.parameters['list_pattern'] = 'E*.HEX'
+
+        return self.data_acquisition_management.create_external_dataset(external_dataset=dset)
+
+    def get_dvr_config(self):
+        DVR_CONFIG = {
+            'dvr_mod': 'ion.agents.data.handlers.hypm_data_handler',
+            'dvr_cls': 'HYPMDataHandler',
+            'dh_cfg': {
+                'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
+                'parser_cls': 'HYPM_01_WFP_ENGParser',
+                'stream_id': self.stream_id,
+                'stream_route': self.route,
+                'stream_def': self.stream_def_id,
+                'data_producer_id': 'hypm_eng_data_producer_id',
                 'max_records': 4,
                 }
         }
