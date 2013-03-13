@@ -11,8 +11,6 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
-from seawater.gibbs import SP_from_cndr
-from seawater.gibbs import cte
 
 import pygsw.vectors as gsw
 

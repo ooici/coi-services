@@ -47,9 +47,6 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         self.i = 0
 
         # Cleanup of queue created by the subscriber
-        self.queue_cleanup = []
-        self.addCleanup(self.clean_queues)
-        self.data_process_cleanup = []
 
     def _get_new_ctd_packet(self, stream_definition_id, length):
 
@@ -64,11 +61,6 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         self.i+=length
 
         return g
-
-    def clean_queues(self):
-        for queue in self.queue_cleanup:
-            xn = self.container.ex_manager.create_xn_queue(queue)
-            xn.delete()
 
     def _create_input_param_dict_for_test(self, parameter_dict_name = ''):
 
@@ -142,6 +134,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         # Get the stream definition for the stream using the parameter dictionary
 #        input_param_dict = self.dataset_management.read_parameter_dictionary_by_name('ctdbp_cdef_sample', id_only=True)
         input_stream_def_dict = self.pubsub.create_stream_definition(name='parsed', parameter_dictionary_id=input_param_dict)
+        self.addCleanup(self.pubsub.delete_stream_definition, input_stream_def_dict)
 
         log.debug("Got the parsed parameter dictionary: id: %s", input_param_dict)
         log.debug("Got the stream def for parsed input: %s", input_stream_def_dict)
@@ -156,6 +149,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         input_dp_id = self.dataproduct_management.create_data_product(data_product=parsed_stream_dp_obj,
             stream_definition_id=input_stream_def_dict
         )
+        self.addCleanup(self.dataproduct_management.delete_data_product, input_dp_id)
 
         # output data product
         L0_stream_dp_obj = IonObject(RT.DataProduct,
@@ -167,11 +161,13 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         L0_stream_dp_id = self.dataproduct_management.create_data_product(data_product=L0_stream_dp_obj,
                                                                     stream_definition_id=input_stream_def_dict
                                                                     )
+        self.addCleanup(self.dataproduct_management.delete_data_product, L0_stream_dp_id)
 
         # We need the key name here to be "L0_stream", since when the data process is launched, this name goes into
         # the config as in config.process.publish_streams.L0_stream when the config is used to launch the data process
         self.output_products = {'L0_stream' : L0_stream_dp_id}
         out_stream_ids, _ = self.resource_registry.find_objects(L0_stream_dp_id, PRED.hasStream, RT.Stream, True)
+        self.assertTrue(len(out_stream_ids))
         output_stream_id = out_stream_ids[0]
 
         dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products)
@@ -211,6 +207,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
 
 
         sub.start()
+        self.addCleanup(sub.stop)
 
         #----------- Publish on that stream so that the transform can receive it --------------------------------
 
