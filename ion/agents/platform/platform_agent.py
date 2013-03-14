@@ -216,8 +216,8 @@ class PlatformAgent(ResourceAgent):
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
 
-        if log.isEnabledFor(logging.DEBUG): # pragma: no cover
-            log.debug("on_init: CFG = %s", self._pp.pformat(self.CFG))
+        if log.isEnabledFor(logging.TRACE): # pragma: no cover
+            log.trace("on_init: CFG = %s", self._pp.pformat(self.CFG))
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -324,8 +324,8 @@ class PlatformAgent(ResourceAgent):
 
         @raises PlatformException if the verification fails for some reason.
         """
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("_pre_initialize: plat_config=%s", self._pp.pformat(self._plat_config))
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("_pre_initialize: plat_config=%s", self._pp.pformat(self._plat_config))
 
         if not self._plat_config:
             msg = "'platform_config' entry not provided in agent configuration"
