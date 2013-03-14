@@ -175,6 +175,9 @@ class InstrumentAgent(ResourceAgent):
         # Autoreconnect thread.
         self._autoreconnect_greenlet = None
 
+        # State when lost.
+        self._state_when_lost = None
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -519,6 +522,7 @@ class InstrumentAgent(ResourceAgent):
         """
         Handle a connection lost event from the driver.
         """
+        self._state_when_lost = self._fsm.get_current_state()
         return (ResourceAgentState.LOST_CONNECTION, None)
 
     ##############################################################
@@ -535,7 +539,7 @@ class InstrumentAgent(ResourceAgent):
             origin=self.resource_id)
         
         # Setup reconnect timer.
-        # self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
+        self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
 
     def _handler_lost_connection_exit(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
@@ -546,20 +550,21 @@ class InstrumentAgent(ResourceAgent):
         while self._autoreconnect_greenlet:
             gevent.sleep(10)
             try:
+                print '## attempting reconnect...'
                 self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
             except:
                 pass
     
-    def _handler_connection_lost_reset(self, *args, **kwargs):
+    def _handler_lost_connection__reset(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
         return (ResourceAgentState.UNINITIALIZED, result)
     
-    def _handler_connection_lost_go_inactive(self, *args, **kwargs):
+    def _handler_lost_connection__go_inactive(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         return (ResourceAgentState.INACTIVE, None)
 
-    def _handler_connection_lost_autoreconnect(self, *args, **kwargs):
+    def _handler_lost_connection__autoreconnect(self, *args, **kwargs):
     
         try:
             self._dvr_client.cmd_dvr('connect')
@@ -580,9 +585,11 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-                    #self._dvr_client.cmd_dvr('disconnect')
-                    #raise 
-
+   
+        if next_state == ResourceAgentState.IDLE and \
+            self._state_when_lost == ResourceAgentState.COMMAND:
+                next_state = ResourceAgentState.COMMAND
+   
         return (next_state, None)
 
     ##############################################################
@@ -1090,11 +1097,9 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # LOST_CONNECTION state event handlers.
-        #self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_connection_lost_enter)
-        #self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_connection_lost_exit)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_connection_lost_reset)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_connection_lost_autoreconnect)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_connection_lost_go_inactive)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_lost_connection__reset)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_lost_connection__autoreconnect)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_lost_connection__go_inactive)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
