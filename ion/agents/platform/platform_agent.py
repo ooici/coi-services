@@ -337,14 +337,20 @@ class PlatformAgent(ResourceAgent):
             return
 
         log.debug("verifying/processing _plat_config ...")
-        for k in ['platform_id', 'driver_config', 'network_definition']:
+        if not 'driver_config' in self.CFG:
+            msg = "'driver_config' key not in configuration"
+            log.error(msg)
+            raise PlatformException(msg)
+
+        driver_config = self.CFG['driver_config']
+
+        for k in ['platform_id', 'network_definition']:
             if not k in self._plat_config:
-                msg = "'%s' key not given in plat_config=%s" % (k, self._plat_config)
+                msg = "'%s' key not given in configuration" % k
                 log.error(msg)
                 raise PlatformException(msg)
 
         self._platform_id = self._plat_config['platform_id']
-        driver_config = self._plat_config['driver_config']
         self._network_definition_ser = self._plat_config['network_definition']
 
         for k in ['dvr_mod', 'dvr_cls']:
@@ -558,7 +564,7 @@ class PlatformAgent(ResourceAgent):
 
         NOTE: the driver object is created directly (not via a spawned process)
         """
-        driver_config = self._plat_config['driver_config']
+        driver_config = self.CFG['driver_config']
         driver_module = driver_config['dvr_mod']
         driver_class = driver_config['dvr_cls']
 
@@ -595,7 +601,7 @@ class PlatformAgent(ResourceAgent):
         """
         Configures the platform driver object for this platform agent.
         """
-        driver_config = self._plat_config['driver_config']
+        driver_config = self.CFG['driver_config']
         if log.isEnabledFor(logging.DEBUG):
             log.debug('%r: configuring driver: %s' % (self._platform_id, driver_config))
 
@@ -849,18 +855,18 @@ class PlatformAgent(ResourceAgent):
             'parent_platform_id' : self._platform_id,
 
             'agent_streamconfig_map': self._agent_streamconfig_map,
-            'driver_config': self._plat_config['driver_config'],
         }
 
         agent_config = {
             'agent':            {'resource_id': subplatform_id},
+            'driver_config':    self.CFG['driver_config'],
             'stream_config':    self.CFG.get('stream_config', None),
 
             'platform_config':  platform_config,
         }
 
         log.debug("%r: launching sub-platform agent %r",
-            self._platform_id, subplatform_id)
+                  self._platform_id, subplatform_id)
         pid = self._launcher.launch(subplatform_id, agent_config)
 
         pa_client = self._create_resource_agent_client(subplatform_id)

@@ -108,9 +108,6 @@ DVR_CONFIG = {
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
-# TODO clean up the use of 'driver_config' entry in the platform_config,
-# which is also set at the agent level (with a wrong definition BTW).
-
 # TIMEOUT: timeout for each execute_agent call.
 TIMEOUT = 90
 
@@ -449,12 +446,13 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         log.debug("Making the structure for a platform agent, which will be the child")
         child_agent_config = {
+            #
+            # TODO Note: the 'platform_config' entry is a mechanism that the
+            # platform agent uses. The two specific pieces (platform_id and
+            # network_definition) refer to aspects that still need discussion/alignment.
+            #
             'platform_config': {
-
-                # TODO this id is temporary
                 'platform_id':             platform_id,
-
-                'driver_config':           DVR_CONFIG,
                 'network_definition' :     self._network_definition_ser
             }
         }
