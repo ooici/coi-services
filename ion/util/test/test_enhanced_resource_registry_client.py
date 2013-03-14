@@ -37,19 +37,32 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         """
         # get objects
         good_sample_resource = self.sample_resource()
-        saved_resource = self.sample_resource()
-        #saved_resource.lcstate = LCS.REGISTERED
 
         #configure Mock
         self.rr.create.return_value = ('111', 'bla')
         self.rr.find_resources.return_value = ([], [])
-        self.rr.read.return_value = saved_resource
 
-        sample_resource_id = self.RR2.create(good_sample_resource)
+        sample_resource_id = self.RR2.create(good_sample_resource, RT.InstrumentDevice)
 
         self.rr.create.assert_called_once_with(good_sample_resource)
         self.assertEqual(sample_resource_id, '111')
 
+
+
+    def test_create_bad_wrongtype(self):
+        """
+        test resource creation failure for wrong type
+        """
+        # get objects
+
+        bad_sample_resource = any_old(RT.PlatformDevice)
+        delattr(bad_sample_resource, "name")
+
+        #configure Mock
+        self.rr.create.return_value = ('111', 'bla')
+        self.rr.find_resources.return_value = ([], [])
+
+        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
 
 
     def test_create_bad_noname(self):
@@ -65,7 +78,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.create.return_value = ('111', 'bla')
         self.rr.find_resources.return_value = ([], [])
 
-        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource)
+        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
 
 
     def test_create_bad_dupname(self):
@@ -81,7 +94,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.create.return_value = ('111', 'bla')
         self.rr.find_resources.return_value = ([0], [0])
 
-        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource)
+        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
 
 
 
@@ -95,12 +108,25 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         #configure Mock
         self.rr.read.return_value = myret
 
-        response = self.RR2.read("111")
+        response = self.RR2.read("111", RT.InstrumentDevice)
         self.rr.read.assert_called_once_with("111")
         self.assertEqual(response, myret)
         #self.assertDictEqual(response.__dict__,
         #                     self.sample_resource().__dict__)
 
+
+    def test_read_bad_wrongtype(self):
+        """
+        test resource read (passthru)
+        """
+        # get objects
+        myret = self.sample_resource()
+
+        #configure Mock
+        self.rr.read.return_value = myret
+
+        self.assertRaises(BadRequest, self.RR2.read, "111", RT.PlatformDevice)
+        self.rr.read.assert_called_once_with("111")
 
 
     def test_update(self):
@@ -116,9 +142,20 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.update.return_value = ('111', 'bla')
         self.rr.find_resources.return_value = ([], [])
 
-        self.RR2.update(good_sample_resource)
+        self.RR2.update(good_sample_resource, RT.InstrumentDevice)
 
         self.rr.update.assert_called_once_with(good_sample_resource)
+
+
+    def test_update_bad_wrongtype(self):
+        """
+        test update failure due to duplicate name
+        """
+        # get objects
+
+        bad_sample_resource = self.sample_resource()
+
+        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.PlatformDevice)
 
 
     def test_update_bad_dupname(self):
@@ -131,7 +168,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         setattr(bad_sample_resource, "_id", "111")
 
         self.rr.find_resources.return_value = ([0], [0])
-        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource)
+        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.InstrumentDevice)
 
 
     def test_update_bad_noid(self):
@@ -144,12 +181,12 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
 
 
         self.rr.find_resources.return_value = ([0], [0])
-        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource)
+        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.InstrumentDevice)
 
 
-    def test_delete(self):
+    def test_retire(self):
         """
-        test deletion under normal circumstances
+        test retire
         """
         # get objects
 
@@ -161,7 +198,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.retire.return_value = None
 
         try:
-            self.RR2.delete("111")
+            self.RR2.retire("111", RT.InstrumentDevice)
         except TypeError as te:
             # for logic tests that run into mock trouble
             if "'Mock' object is not iterable" != te.message:
@@ -175,9 +212,23 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.retire.assert_called_once_with("111")
 
 
-    def test_delete_destroy(self):
+    def test_retire_bad_wrongtype(self):
         """
-        self is an instance of the tester class
+        test resource read (passthru)
+        """
+        # get objects
+        myret = self.sample_resource()
+
+        #configure Mock
+        self.rr.read.return_value = myret
+
+        self.assertRaises(BadRequest, self.RR2.retire, "111", RT.PlatformDevice)
+        self.rr.read.assert_called_once_with("111")
+
+
+    def test_pluck_delete(self):
+        """
+        test delete
         """
         # get objects
 
@@ -190,7 +241,7 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.rr.find_objects.return_value = (["2"], ["2"])
         self.rr.find_subjects.return_value = (["3"], ["3"])
 
-        self.RR2.force_delete("111")
+        self.RR2.pluck_delete("111", RT.InstrumentDevice)
 
         self.rr.delete.assert_called_once_with("111")
 

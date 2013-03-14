@@ -168,7 +168,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         # create the marine facility
-        observatory_id = self.RR2.create(observatory)
+        observatory_id = self.RR2.create(observatory, RT.Observatory)
 
         if org_id:
             self.assign_resource_to_observatory_org(observatory_id, org_id)
@@ -182,7 +182,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval observatory    Observatory
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.read(observatory_id)
+        return self.RR2.read(observatory_id, RT.Observatory)
 
     def update_observatory(self, observatory=None):
         """Update a Observatory resource
@@ -190,7 +190,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory    Observatory
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.update(observatory)
+        return self.RR2.update(observatory, RT.Observatory)
 
     def delete_observatory(self, observatory_id=''):
         """Delete a Observatory resource
@@ -198,10 +198,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.delete(observatory_id)
+        return self.RR2.retire(observatory_id, RT.Observatory)
 
     def force_delete_observatory(self, observatory_id=''):
-        return self.RR2.force_delete(observatory_id)
+        return self.RR2.pluck_delete(observatory_id, RT.Observatory)
 
 
 
@@ -215,7 +215,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        subsite_id = self.RR2.create(subsite)
+        subsite_id = self.RR2.create(subsite, RT.Subsite)
 
         if parent_id:
             self.assign_site_to_site(subsite_id, parent_id)
@@ -229,7 +229,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval subsite    Subsite
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.read(subsite_id)
+        return self.RR2.read(subsite_id, RT.Subsite)
 
     def update_subsite(self, subsite=None):
         """Update a Subsite resource
@@ -237,7 +237,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite    Subsite
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.update(subsite)
+        return self.RR2.update(subsite, RT.Subsite)
 
     def delete_subsite(self, subsite_id=''):
         """Delete a subsite resource, removes assocations to parents
@@ -245,10 +245,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.RR2.delete(subsite_id)
+        self.RR2.retire(subsite_id, RT.Subsite)
 
     def force_delete_subsite(self, subsite_id=''):
-        self.RR2.force_delete(subsite_id)
+        self.RR2.pluck_delete(subsite_id, RT.Subsite)
 
 
 
@@ -262,7 +262,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        platform_site_id = self.RR2.create(platform_site)
+        platform_site_id = self.RR2.create(platform_site, RT.PlatformSite)
 
         if parent_id:
             self.RR2.assign_site_to_one_site_with_has_site(platform_site_id, parent_id)
@@ -276,7 +276,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval platform_site    PlatformSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.read(platform_site_id)
+        return self.RR2.read(platform_site_id, RT.PlatformSite)
 
     def update_platform_site(self, platform_site=None):
         """Update a PlatformSite resource
@@ -284,7 +284,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site    PlatformSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.update(platform_site)
+        return self.RR2.update(platform_site, RT.PlatformSite)
 
     def delete_platform_site(self, platform_site_id=''):
         """Delete a PlatformSite resource, removes assocations to parents
@@ -292,10 +292,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.RR2.delete(platform_site_id)
+        self.RR2.retire(platform_site_id, RT.PlatformSite)
 
     def force_delete_platform_site(self, platform_site_id=''):
-        self.RR2.force_delete(platform_site_id)
+        self.RR2.pluck_delete(platform_site_id, RT.PlatformSite)
 
 
     def create_instrument_site(self, instrument_site=None, parent_id=''):
@@ -308,7 +308,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        instrument_site_id = self.RR2.create(instrument_site)
+        instrument_site_id = self.RR2.create(instrument_site, RT.InstrumentSite)
 
         if parent_id:
             self.RR2.assign_site_to_one_site_with_has_site(instrument_site_id, parent_id)
@@ -322,7 +322,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval instrument_site    InstrumentSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.read(instrument_site_id)
+        return self.RR2.read(instrument_site_id, RT.InstrumentSite)
 
     def update_instrument_site(self, instrument_site=None):
         """Update a InstrumentSite resource
@@ -330,7 +330,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param instrument_site    InstrumentSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.RR2.update(instrument_site)
+        return self.RR2.update(instrument_site, RT.InstrumentSite)
 
     def delete_instrument_site(self, instrument_site_id=''):
         """Delete a InstrumentSite resource, removes assocations to parents
@@ -339,10 +339,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.RR2.delete(instrument_site_id)
+        self.RR2.retire(instrument_site_id, RT.InstrumentSite)
 
     def force_delete_instrument_site(self, instrument_site_id=''):
-        self.RR2.force_delete(instrument_site_id)
+        self.RR2.pluck_delete(instrument_site_id, RT.InstrumentSite)
 
 
 
@@ -355,7 +355,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         deployment on a platform at an observatory site.
         """
 
-        deployment_id = self.RR2.create(deployment)
+        deployment_id = self.RR2.create(deployment, RT.Deployment)
 
         #Verify that site and device exist, add links if they do
         if site_id:
@@ -373,12 +373,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def update_deployment(self, deployment=None):
         # Overwrite Deployment object
-        self.RR2.update(deployment)
+        self.RR2.update(deployment, RT.Deployment)
 
     def read_deployment(self, deployment_id=''):
         # Read Deployment object with _id matching id
         log.debug("Reading Deployment object id: %s", deployment_id)
-        deployment_obj = self.RR2.read(deployment_id)
+        deployment_obj = self.RR2.read(deployment_id, RT.Deployment)
 
         return deployment_obj
 
@@ -387,13 +387,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Delete a Deployment resource
         """
 
-        self.RR2.delete_subject_associations(PRED.hasDeployment, deployment_id)
-
-        # Delete the deployment
-        self.RR2.retire(deployment_id)
+        self.RR2.retire(deployment_id, RT.Deployment)
 
     def force_delete_deployment(self, deployment_id=''):
-        self.RR2.force_delete(deployment_id)
+        self.RR2.pluck_delete(deployment_id, RT.Deployment)
 
 
     ############################

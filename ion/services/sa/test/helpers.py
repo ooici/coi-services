@@ -2,6 +2,7 @@ import hashlib
 from unittest.case import SkipTest
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from mock import Mock
 from pyon.core.exception import Unauthorized, Inconsistent, NotFound, BadRequest
 from pyon.public import IonObject
 from pyon.public import RT
@@ -11,6 +12,7 @@ from interface.objects import AttachmentType
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
 
+import inspect
 
 _sa_test_helpers_ionobj_count = {}
 
@@ -309,30 +311,50 @@ class UnitTestGenerator(object):
             """
             self is an instance of the tester class
             """
+            log.debug("test_create_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "create")
             good_sample_resource = sample_resource()
-            saved_resource = sample_resource()
-            #saved_resource.lcstate = LCS.REGISTERED
+
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.create.reset_mock()
             svc.clients.resource_registry.create.return_value = ('111', 'bla')
             svc.clients.resource_registry.find_resources.return_value = ([], [])
-            svc.clients.resource_registry.read.return_value = saved_resource
 
             sample_resource_id = testfun(good_sample_resource)
 
             svc.clients.resource_registry.create.assert_called_once_with(good_sample_resource)
             self.assertEqual(sample_resource_id, '111')
 
-            if all_in_one: svc.clients.resource_registry.reset_mock()
+
+
+
+        def test_create_bad_wrongtype_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            log.debug("test_create_bad_wrongtype_fun")
+            # get objects
+            svc = self._utg_getservice()
+            testfun = self._utg_getcrudmethod(resource_label, "create")
+            bad_sample_resource = IonObject(RT.Resource, name="Generic Resource")
+
+
+            #configure Mock
+            if all_in_one: svc.clients.resource_registry.create.reset_mock()
+            svc.clients.resource_registry.create.return_value = ('111', 'bla')
+
+            self.assertRaisesRegexp(BadRequest, "type", testfun, bad_sample_resource)
+            self.assertEqual(0, svc.clients.resource_registry.create.call_count)
 
 
         def test_create_bad_noname_fun(self):
             """
             self is an instance of the tester class
             """
+            log.debug("test_create_bad_noname_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "create")
@@ -340,17 +362,19 @@ class UnitTestGenerator(object):
             delattr(bad_sample_resource, "name")
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.create.reset_mock()
             svc.clients.resource_registry.create.return_value = ('111', 'bla')
             svc.clients.resource_registry.find_resources.return_value = ([], [])
 
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
+            self.assertRaisesRegexp(BadRequest, "name", testfun, bad_sample_resource)
+            self.assertEqual(0, svc.clients.resource_registry.create.call_count)
 
-            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
 
         def test_create_bad_dupname_fun(self):
             """
             self is an instance of the tester class
             """
+            log.debug("test_create_bad_dupname_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "create")
@@ -358,37 +382,61 @@ class UnitTestGenerator(object):
             #really, the resource doesn't matter; it's the retval from find that matters
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.create.reset_mock()
             svc.clients.resource_registry.create.return_value = ('111', 'bla')
             svc.clients.resource_registry.find_resources.return_value = ([0], [0])
 
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
+            self.assertRaisesRegexp(BadRequest, "uplicate", testfun, bad_sample_resource)
+            self.assertEqual(0, svc.clients.resource_registry.create.call_count)
 
-            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
 
         def test_read_fun(self):
             """
             self is an instance of the tester class
             """
+            log.debug("test_read_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "read")
             myret = sample_resource()
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
 
             response = testfun("111")
             svc.clients.resource_registry.read.assert_called_once_with("111", "")
             self.assertEqual(response, myret)
-            #self.assertDictEqual(response.__dict__,
-            #                     sample_resource().__dict__)
 
             if all_in_one: svc.clients.resource_registry.reset_mock()
+
+
+        def test_read_bad_wrongtype_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            log.debug("test_read_bad_wrongtype_fun")
+            # get objects
+            svc = self._utg_getservice()
+            testfun = self._utg_getcrudmethod(resource_label, "read")
+            myret = IonObject(RT.Resource, name="Generic Resource")
+
+            #configure Mock
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
+            svc.clients.resource_registry.read.return_value = myret
+
+            self.assertEqual(0, svc.clients.resource_registry.read.call_count)
+            self.assertRaisesRegexp(BadRequest, "type", testfun, "111")
+            svc.clients.resource_registry.read.assert_called_once_with("111", "")
+
+
+
 
         def test_update_fun(self):
             """
             self is an instance of the tester class
             """
+            log.debug("test_update_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "update")
@@ -396,6 +444,7 @@ class UnitTestGenerator(object):
             setattr(good_sample_resource, "_id", "111")
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.update.reset_mock()
             svc.clients.resource_registry.update.return_value = ('111', 'bla')
             svc.clients.resource_registry.find_resources.return_value = ([], [])
 
@@ -403,33 +452,61 @@ class UnitTestGenerator(object):
 
             svc.clients.resource_registry.update.assert_called_once_with(good_sample_resource)
 
-            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
+
+
 
         def test_update_bad_dupname_fun(self):
             """
             self is an instance of the tester class
             """
+            log.debug("test_update_bad_dupname_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "update")
             bad_sample_resource = sample_resource()
             setattr(bad_sample_resource, "_id", "111")
 
+            #configure Mock
+            if all_in_one: svc.clients.resource_registry.update.reset_mock()
             svc.clients.resource_registry.find_resources.return_value = ([0], [0])
-            self.assertRaises(BadRequest, testfun, bad_sample_resource)
 
-            if all_in_one: svc.clients.resource_registry.find_resources.reset_mock()
+            self.assertRaisesRegexp(BadRequest, "uplicate", testfun, bad_sample_resource)
+            self.assertEqual(0, svc.clients.resource_registry.update.call_count)
+
+
+
+        def test_update_bad_wrongtype_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            log.debug("test_update_bad_wrongtype_fun")
+            # get objects
+            svc = self._utg_getservice()
+            testfun = self._utg_getcrudmethod(resource_label, "update")
+            bad_sample_resource = IonObject(RT.Resource, name="Generic Name")
+            setattr(bad_sample_resource, "_id", "111")
+
+            if all_in_one: svc.clients.resource_registry.update.reset_mock()
+            self.assertRaisesRegexp(BadRequest, "type", testfun, bad_sample_resource)
+            self.assertEqual(0, svc.clients.resource_registry.update.call_count)
+
+
+
 
         def test_delete_fun(self):
             """
             self is an instance of the tester class
             """
+            log.debug("test_delete_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "delete")
             myret = sample_resource()
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
+            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
             svc.clients.resource_registry.delete.return_value = None
             svc.clients.resource_registry.retire.return_value = None
@@ -445,28 +522,62 @@ class UnitTestGenerator(object):
                     return
                 else:
                     raise SkipTest("Must test this with INT test")
-            except Exception as e:
-                raise e
+
 
             svc.clients.resource_registry.retire.assert_called_once_with("111")
+            self.assertEqual(0, svc.clients.resource_registry.delete.call_count)
 
-            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
 
-        def test_delete_destroy_fun(self):
+
+
+        def test_delete_bad_wrongtype_fun(self):
             """
             self is an instance of the tester class
             """
+            log.debug("test_delete_bad_wrongtype_fun")
+            # get objects
+            svc = self._utg_getservice()
+            testfun = self._utg_getcrudmethod(resource_label, "delete")
+            myret = IonObject(RT.Resource, name="Generic Name")
+
+            #configure Mock
+            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
+            svc.clients.resource_registry.read.return_value = myret
+
+            try:
+                self.assertRaisesRegexp(BadRequest, "type", testfun, "111")
+            except TypeError as te:
+                # for logic tests that run into mock trouble
+                if "'Mock' object is not iterable" != te.message:
+                    raise te
+                elif all_in_one:
+                    return
+                else:
+                    raise SkipTest("Must test this with INT test")
+            self.assertEqual(0, svc.clients.resource_registry.retire.call_count)
+            self.assertEqual(0, svc.clients.resource_registry.delete.call_count)
+
+
+        def test_force_delete_fun(self):
+            """
+            self is an instance of the tester class
+            """
+            log.debug("test_force_delete_fun")
             # get objects
             svc = self._utg_getservice()
             testfun = self._utg_getcrudmethod(resource_label, "force_delete")
             myret = sample_resource()
 
             #configure Mock
+            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
             svc.clients.resource_registry.read.return_value = myret
             svc.clients.resource_registry.delete.return_value = None
             svc.clients.resource_registry.find_resources.return_value = None
-            svc.clients.resource_registry.find_objects.return_value = (["2"], ["2"])
-            svc.clients.resource_registry.find_subjects.return_value = (["3"], ["3"])
+            svc.clients.resource_registry.find_objects.return_value = ([], [])
+            svc.clients.resource_registry.find_subjects.return_value = ([], [])
 
             try:
                 testfun("111")
@@ -475,129 +586,49 @@ class UnitTestGenerator(object):
                 if "'Mock' object is not iterable" != te.message:
                     raise te
                 elif all_in_one:
-                    svc.clients.resource_registry.reset_mock()
                     return
                 else:
                     raise SkipTest("Must test this with INT test")
-            except Exception as e:
-                raise e
+
 
 
             svc.clients.resource_registry.delete.assert_called_once_with("111")
 
-            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
 
-        def test_find_fun(self):
+
+        def test_force_delete_bad_wrongtype_fun(self):
             """
-            self is an instance of the tester class
+            self is an inst ance of the tester class
             """
+            log.debug("test_force_delete_bad_wrongtype_fun")
             # get objects
             svc = self._utg_getservice()
-            testfun = self._utg_getcrudmethod(resource_label, "find")
+            testfun = self._utg_getcrudmethod(resource_label, "force_delete")
+            myret = IonObject(RT.Resource, name="Generic Name")
 
             #configure Mock
-            svc.clients.resource_registry.find_resources.return_value = ([0], [0])
+            if all_in_one: svc.clients.resource_registry.delete.reset_mock()
+            if all_in_one: svc.clients.resource_registry.retire.reset_mock()
+            if all_in_one: svc.clients.resource_registry.read.reset_mock()
+            svc.clients.resource_registry.find_objects.return_value = ([], [])
+            svc.clients.resource_registry.find_subjects.return_value = ([], [])
+            svc.clients.resource_registry.read.return_value = myret
 
-            response = testfun({})
-            self.assertIsInstance(response, list)
-            self.assertNotEqual(0, len(response))
-            svc.clients.resource_registry.find_resources.assert_called_once_with(resource_iontype,
-                                                                                 None,
-                                                                                 None,
-                                                                                 False)
-            if all_in_one: svc.clients.find_resources.resource_registry.reset_mock()
+            try:
+                self.assertRaisesRegexp(BadRequest, "type", testfun, "111")
+            except TypeError as te:
+                # for logic tests that run into mock trouble
+                if "'Mock' object is not iterable" != te.message:
+                    raise te
+                elif all_in_one:
+                    return
+                else:
+                    raise SkipTest("Must test this with INT test")
 
 
-#        def test_find_having_freeze(find_name):
-#            """
-#            must freeze this so the loop doesn't overwrite the parts varible
-#            """
-#
-#            def fun(self):
-#                svc = self._utg_getservice()
-#                myimpl = getattr(svc, impl_attr)
-#                myfind = getattr(myimpl, find_name)
-#
-#                #set up Mock
-#                reply = (['333'], ['444'])
-#                svc.clients.resource_registry.find_subjects.return_value = reply
-#
-#                #call the impl
-#                response = myfind("111")
-#                self.assertEqual(response, ['333'])
-#
-#                if all_in_one: svc.clients.resource_registry.find_subjects.reset_mock()
-#
-#            return fun
-#
-#        def test_find_stemming_freeze(find_name):
-#
-#            def fun(self):
-#                svc = self._utg_getservice()
-#                myimpl = getattr(svc, impl_attr)
-#                myfind = getattr(myimpl, find_name)
-#
-#                #set up Mock
-#                reply = (['333'], ['444'])
-#                fo = svc.clients.resource_registry.find_objects
-#                fo.return_value = reply
-#
-#                #call the impl
-#                response = myfind("111")
-#                self.assertIn('333', response)
-#
-#                if all_in_one: svc.clients.resource_registry.find_objects.reset_mock()
-#
-#            return fun
-#
-#        def test_links_freeze(link_name):
-#
-#            def fun(self):
-#
-#                svc = self._utg_getservice()
-#                myimpl = getattr(svc, impl_attr)
-#                mylink = getattr(myimpl, link_name)
-#
-#                #set up Mock
-#                find_reply = ([], []) #for exclusive associations
-#                svc.clients.resource_registry.find_subjects.return_value = find_reply
-#                svc.clients.resource_registry.find_objects.return_value = find_reply
-#                svc.clients.resource_registry.find_associations.return_value = find_reply
-#
-#                reply = ('333', "trying %s %s" % (impl_attr, link_name))
-#                svc.clients.resource_registry.create_association.return_value = reply
-#
-#                #call the impl
-#                try:
-#                    response = mylink("111", "222")
-#                    self.assertEqual(reply, response)
-#                except BadRequest:
-#                    pass # assumed to be a problem with a precondition check
-#                except Exception as e:
-#                    raise e
-#
-#                if all_in_one: svc.clients.resource_registry.reset_mock()
-#
-#            return fun
-#
-#        def test_unlinks_freeze(link_name):
-#
-#            def fun(self):
-#
-#                svc = self._utg_getservice()
-#                myimpl = getattr(svc, impl_attr)
-#                myunlink = getattr(myimpl, link_name)
-#
-#                svc.clients.resource_registry.find_associations.return_value = ([], [])
-#
-#                #call the impl
-#                myunlink("111", "222")
-#
-#                #there is no response, self.assertEqual("f", str(response))
-#
-#                if all_in_one: svc.clients.resource_registry.reset_mock()
-#
-#            return fun
+            self.assertEqual(0, svc.clients.resource_registry.retire.call_count)
+            self.assertEqual(0, svc.clients.resource_registry.delete.call_count)
+
 
 
         def gen_test_create():
@@ -607,6 +638,15 @@ class UnitTestGenerator(object):
             name = make_name("%s_create" % resource_label)
             doc  = make_doc("Creation of a new %s resource" % resource_iontype)
             add_test_method(name, doc, test_create_fun)
+
+
+        def gen_test_create_bad_wrongtype():
+            """
+            generate the function to test the create for the wrong resource type
+            """
+            name = make_name("%s_create_bad_wrongtype" % resource_label)
+            doc  = make_doc("Creation of a (bad) new %s resource (wrong type)" % resource_iontype)
+            add_test_method(name, doc, test_create_bad_wrongtype_fun)
 
 
         def gen_test_create_bad_noname():
@@ -636,19 +676,36 @@ class UnitTestGenerator(object):
             add_test_method(name, doc, test_read_fun)
 
 
+        def gen_test_read_bad_wrongtype():
+            """
+            generate the function to test the read with bad type
+            """
+            name = make_name("%s_read_bad_wrongtype" % resource_label)
+            doc  = make_doc("Reading a %s resource but having it come back as wrong type" % resource_iontype)
+            add_test_method(name, doc, test_read_bad_wrongtype_fun)
+
 
         def gen_test_update():
             """
-            generate the function to test the create
+            generate the function to test the update
             """
             name = make_name("%s_update" % resource_label)
             doc  = make_doc("Updating a %s resource" % resource_iontype)
             add_test_method(name, doc, test_update_fun)
 
 
+        def gen_test_update_bad_wrongtype():
+            """
+            generate the function to test the update with wrong type
+            """
+            name = make_name("%s_update_bad_wrongtype" % resource_label)
+            doc  = make_doc("Updating a %s resource with the wrong type" % resource_iontype)
+            add_test_method(name, doc, test_update_bad_wrongtype_fun)
+
+
         def gen_test_update_bad_dupname():
             """
-            generate the function to test the create
+            generate the function to test the update with wrong type
             """
             name = make_name("%s_update_bad_duplicate" % resource_label)
             doc  = make_doc("Updating a %s resource to a duplicate name" % resource_iontype)
@@ -659,112 +716,38 @@ class UnitTestGenerator(object):
             """
             generate the function to test the delete
             """
-
             name = make_name("%s_delete" % resource_label)
             doc  = make_doc("Deleting (retiring) a %s resource" % resource_iontype)
             add_test_method(name, doc, test_delete_fun)
 
-        def gen_test_delete_destroy():
+
+        def gen_test_delete_bad_wrongtype():
+            """
+            generate the function to test the delete with wrong type
+            """
+            name = make_name("%s_delete_bad_wrongtype" % resource_label)
+            doc  = make_doc("Deleting (retiring) a %s resource of the wrong type" % resource_iontype)
+            add_test_method(name, doc, test_delete_bad_wrongtype_fun)
+
+
+        def gen_test_force_delete():
             """
             generate the function to test the delete
             """
-
             name = make_name("%s_force_delete" % resource_label)
             doc  = make_doc("Deleting -- destructively -- a %s resource" % resource_iontype)
-            add_test_method(name, doc, test_delete_destroy_fun)
+            add_test_method(name, doc, test_force_delete_fun)
 
 
-        def gen_test_find():
+        def gen_test_force_delete_bad_wrongtype():
             """
-            generate the function to test the find op
+            generate the function to test the delete with the wrong type
             """
-            name = make_name("%s_find" % resource_label)
-            doc  = make_doc("Finding (all) %s resources" % resource_iontype)
-            add_test_method(name, doc, test_find_fun)
+            name = make_name("%s_force_delete_bad_wrongtype" % resource_label)
+            doc  = make_doc("Deleting -- destructively -- a %s resource of the wrong type" % resource_iontype)
+            add_test_method(name, doc, test_force_delete_bad_wrongtype_fun)
 
 
-#        def gen_tests_associated_finds():
-#            gen_tests_find_having()
-#            gen_tests_find_stemming()
-#
-#
-#        def gen_tests_find_having():
-#            """
-#            create a test for each of the find_having_* methods in the impl
-#            """
-#            for k in dir(impl_instance):
-#                parts = k.split("_", 2)
-#                if "find" == parts[0] and "having" == parts[1]:
-#                    def freeze(parts_):
-#                        assn_type = parts_[2]
-#                        name = make_name("resource_impl_find_having_%s_link" % assn_type)
-#                        doc  = make_doc("Checking find %s having %s" % (resource_iontype, assn_type))
-#                        add_test_method(name, doc, test_find_having_freeze(k))
-#
-#                    freeze(parts)
-#
-#
-#        def gen_tests_find_stemming():
-#            """
-#            create a test for each of the find_stemming_* methods in the impl
-#            """
-#            for k in dir(impl_instance):
-#                parts = k.split("_", 2)
-#                if "find" == parts[0] and "stemming" == parts[1]:
-#                    def freeze(parts_):
-#                        """
-#                        must freeze this so the loop doesn't overwrite the parts varible
-#                        """
-#                        assn_type = parts_[2]
-#                        name = make_name("resource_impl_find_stemming_%s_links" % assn_type)
-#                        doc  = make_doc("Checking find %s stemming from %s" % (assn_type, resource_iontype))
-#                        add_test_method(name, doc, test_find_stemming_freeze(k))
-#
-#                    freeze(parts)
-#
-#
-#
-#        def gen_tests_associations():
-#            gen_tests_links()
-#            gen_tests_unlinks()
-#
-#        def gen_tests_links():
-#            """
-#            create a test for each of the create_association tests in the impl
-#            """
-#            for k in dir(impl_instance):
-#                parts = k.split("_", 1)
-#                if "link" == parts[0]:
-#                    def freeze(parts_):
-#                        """
-#                        must freeze this so the loop doesn't overwrite the parts varible
-#                        """
-#                        assn_type = parts_[1]
-#                        name = make_name("resource_impl_association_%s_link" % assn_type)
-#                        doc  = make_doc("Checking create_association of a %s resource with its %s" % (resource_iontype, assn_type))
-#                        add_test_method(name, doc, test_links_freeze(k))
-#
-#                    freeze(parts)
-#
-#
-#        def gen_tests_unlinks():
-#            """
-#            create a test for each of the delete_association tests in the impl
-#            """
-#            for k in dir(impl_instance):
-#                parts = k.split("_", 1)
-#                if "unlink" == parts[0]:
-#
-#                    def freeze(parts_):
-#                        """
-#                        must freeze this so the loop doesn't overwrite the parts varible
-#                        """
-#                        assn_type = parts_[1]
-#                        name = make_name("resource_impl_association_%s_unlink" % assn_type)
-#                        doc  = make_doc("Checking delete_association of a %s resource from its %s" % (resource_iontype, assn_type))
-#                        add_test_method(name, doc, test_unlinks_freeze(k))
-#
-#                    freeze(parts)
 
 
         def gen_test_allinone():
@@ -776,29 +759,20 @@ class UnitTestGenerator(object):
                 self is an instance of the tester class
                 """
                 test_create_fun(self)
+                test_create_bad_wrongtype_fun(self)
                 test_create_bad_noname_fun(self)
                 test_create_bad_dupname_fun(self)
                 test_read_fun(self)
+                test_read_bad_wrongtype_fun(self)
                 test_update_fun(self)
+                test_update_bad_wrongtype_fun(self)
                 test_update_bad_dupname_fun(self)
                 test_delete_fun(self)
-                test_delete_destroy_fun(self)
+                test_delete_bad_wrongtype_fun(self)
+                test_force_delete_fun(self)
+                test_force_delete_bad_wrongtype_fun(self)
 
-#                test_find_fun(self)
 
-#                for k in dir(impl_instance):
-#                    parts = k.split("_", 2)
-#                    if "find" == parts[0] and "having" == parts[1]:
-#                        test_find_having_freeze(k)(self)
-#
-#                    if "find" == parts[0] and "stemming" == parts[1]:
-#                        test_find_stemming_freeze(k)(self)
-#
-#                    if "link" == parts[0]:
-#                        test_links_freeze(k)(self)
-#
-#                    if "unlink" == parts[0]:
-#                        test_unlinks_freeze(k)(self)
 
             name = make_name("%s_allinone" % resource_label)
             doc  = make_doc("Performing all CRUD tests on %s resources" % resource_iontype)
@@ -810,22 +784,23 @@ class UnitTestGenerator(object):
         # it's time to add each method to the tester class
         # add each method to the tester class
         gen_svc_lookup()
-        if self.all_in_one:
+        if all_in_one:
             gen_test_allinone()
         else:
             gen_test_create()
+            gen_test_create_bad_wrongtype()
             gen_test_create_bad_noname()
             gen_test_create_bad_dupname()
             gen_test_read()
+            gen_test_read_bad_wrongtype()
             gen_test_update()
+            gen_test_update_bad_wrongtype()
             gen_test_update_bad_dupname()
             gen_test_delete()
-            gen_test_delete_destroy()
+            gen_test_delete_bad_wrongtype()
+            gen_test_force_delete()
+            gen_test_force_delete_bad_wrongtype()
 
-#            gen_test_find()
-#            gen_tests_associations()
-#            gen_tests_associated_finds()
-            #gen_svc_cleanup()
 
 
 
