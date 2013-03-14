@@ -34,6 +34,10 @@ from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
 
+# PIL
+#import Image
+#import StringIO
+
 # for direct hdf access
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 
@@ -214,7 +218,7 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
 
-        log.debug("Query token : ", query_token, "CB : ", callback, "TQX : ", tqx)
+        log.debug("Query token : " + query_token + " CB : " + callback + "TQX : " + tqx)
 
         reqId = 0
         # If a reqId was passed in tqx, extract it
@@ -552,6 +556,10 @@ class VisualizationService(BaseVisualizationService):
 
         kml_content = ""
         ui_server = "http://localhost:3000" # This server hosts the UI and is used for creating all embedded links within KML
+        #observatory_icon_file = "/static/img/r2/li.observatories.png"
+        starting_altitude = "20000"
+        observatory_icon_file = "/static/img/Observatory-icon1.png"
+
         if visualization_parameters:
             if "ui_server" in visualization_parameters:
                 ui_server = visualization_parameters["ui_server"]
@@ -563,11 +571,15 @@ class VisualizationService(BaseVisualizationService):
         # Common KML tags
         kml_content += "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         kml_content += "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
-        #kml_content += "\txmlns:atom=\"http://www.w3.org/2005/Atom\">\n"
         kml_content += "<Document>\n"
-        kml_content += "<name>DataProduct geo-reference information</name>\n"
+        kml_content += "<name>DataProduct geo-reference information, ID: " + str(create_unique_identifier('google_flush_key')) + "</name>\n"
         # define line styles. Used for polygons
         kml_content += "<Style id=\"yellowLine\">\n<LineStyle>\n<color>ff61f2f2</color>\n<width>4</width>\n</LineStyle>\n</Style>"
+
+        # Embed the icon images. Each as a separate style
+        kml_content += "<Style id=\"observatory-icon\">\n<IconStyle>\n<Icon>\n<href>"
+        kml_content += ui_server + observatory_icon_file
+        kml_content += "</href>\n</Icon>\n</IconStyle>\n</Style>\n"
 
         dp_cluster = {}
         # Several Dataproducts are basically coming from the same geo-location. Start clustering them
@@ -610,6 +622,9 @@ class VisualizationService(BaseVisualizationService):
             kml_content += "Data Products at : " + str(_lat_center) + "," + str(_lon_center)
             kml_content += "</name>\n"
 
+            # style /icon for placemark
+            kml_content += "<styleUrl>#observatory-icon</styleUrl>\n"
+
             # Description
             kml_content += "<description>\n<![CDATA[\n"
             # insert HTML here as a table containing info about the data products
@@ -630,7 +645,8 @@ class VisualizationService(BaseVisualizationService):
             kml_content += "\n]]>\n</description>\n"
 
             # Point information
-            kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "</coordinates>\n</Point>\n"
+            #_lat_center = _lon_center = 0 ############# REMOVE THIS *************
+            kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "," + starting_altitude + "</coordinates>\n</Point>\n"
 
             # Close Placemark
             kml_content += "</Placemark>\n"
@@ -641,41 +657,6 @@ class VisualizationService(BaseVisualizationService):
 
         return kml_content
 
-
-    # **** TEMP METHOD for some profiling .. to be removed as soon as testing is done. Do not check in to Git
-    def get_dummy_googledt(self, dt_size = ""):
-
-        size = int(dt_size)
-        start_time = time.time()
-
-        # generate a dummy json string containing google DT
-        google_dt= "google.visualization.Query.setResponse({\"status\":\"ok\",\"table\":{\"rows\":["
-
-        count = 0
-        while True:
-
-            google_dt += "{\"c\":[{\"v\":\""
-
-            count = count + 1
-            d = datetime.fromtimestamp(start_time + count)
-            google_dt += "Date(" + str(d.year) + "," + str(d.month) + "," + str(d.day) + "," + str(d.hour) + "," + str(d.minute) + "," + str(d.second) + ")\"},"
-
-            # keep adding  rows
-            if count % 2 == 1:
-                google_dt += "{\"v\":2.828434467315674},{\"v\":0.0},{\"v\":-119.5999984741211},{\"v\":0.0},{\"v\":6.928213596343994},{\"v\":32.79999923706055},{\"v\":5.243098257778911e-06}]}"
-            else:
-                google_dt += "{\"v\":-2.828434467315674},{\"v\":0.0},{\"v\":119.5999984741211},{\"v\":0.0},{\"v\":-6.928213596343994},{\"v\":-32.79999923706055},{\"v\":-5.243098257778911e-06}]}"
-
-            if len(google_dt) < size:
-                google_dt += ","
-            else:
-                break
-
-
-        google_dt += "],\"cols\":[{\"type\":\"datetime\",\"id\":\"tget_ime\",\"label\":\"time\"},{\"type\":\"number\",\"id\":\"temp\",\"label\":\"temp\"},{\"type\":\"number\",\"id\":\"density\",\"label\":\"density\"},{\"type\":\"number\",\"id\":\"lon\",\"label\":\"lon\"},{\"type\":\"number\",\"id\":\"salinity\",\"label\":\"salinity\"},{\"type\":\"number\",\"id\":\"pressure\",\"label\":\"pressure\"},{\"type\":\"number\",\"id\":\"lat\",\"label\":\"lat\"},{\"type\":\"number\",\"id\":\"conductivity\",\"label\":\"conductivity\"}]},\"reqId\":\"0\",\"version\":\"0.6\"});"
-
-        #print " >>>>>>>>>>>> TIME TAKEN BY get_dummy_googledt() = ", time.time() - start_time, " secs"
-        return google_dt
 
 
     def get_data_product_metadata(self, data_product_id="", callback=""):

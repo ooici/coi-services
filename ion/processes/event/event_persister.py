@@ -15,7 +15,14 @@ class EventPersister(StandaloneProcess):
 
     def on_init(self):
         # Time in between event persists
-        self.persist_interval = float(self.CFG.get_safe("event_persist_interval", 1.0))
+        self.persist_interval = float(self.CFG.get_safe("process.event_persister.persist_interval", 1.0))
+
+        self.persist_blacklist = self.CFG.get_safe("process.event_persister.persist_blacklist", 1.0)
+
+        self._event_type_blacklist = [entry['event_type'] for entry in self.persist_blacklist if entry.get('event_type', None) and len(entry) == 1]
+        self._complex_blacklist = [entry for entry in self.persist_blacklist if not (entry.get('event_type', None) and len(entry) == 1)]
+        if self._complex_blacklist:
+            log.warn("EventPersister does not yet support complex blacklist expressions: %s", self._complex_blacklist)
 
         # Holds received events FIFO in syncronized queue
         self.event_queue = Queue()
@@ -54,7 +61,18 @@ class EventPersister(StandaloneProcess):
         self._persist_greenlet.join(timeout=10)
 
     def _on_event(self, event, *args, **kwargs):
-        self.event_queue.put(event)
+        if not self._in_blacklist(event):
+            self.event_queue.put(event)
+
+    def _in_blacklist(self, event):
+        if event.type_ in self._event_type_blacklist:
+            return True
+        if event.base_types:
+            for base_type in event.base_types:
+                if base_type in self._event_type_blacklist:
+                    return True
+            # TODO: Complex event blacklist
+        return False
 
     def _trigger_func(self, persist_interval):
         log.debug('Starting event persister thread with persist_interval=%s', persist_interval)

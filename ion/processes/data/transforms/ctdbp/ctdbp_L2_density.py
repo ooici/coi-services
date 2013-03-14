@@ -11,8 +11,9 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 
-from seawater.gibbs import SP_from_cndr, rho, SA_from_SP, conservative_t
-from seawater.gibbs import cte
+import pygsw.vectors as gsw
+
+import numpy as np
 
 class CTDBP_DensityTransform(TransformDataProcess):
     """ A basic transform that receives input through a subscription,
@@ -30,9 +31,19 @@ class CTDBP_DensityTransform(TransformDataProcess):
                              "using a special keyword (ex: density)")
         self.dens_stream_id = self.CFG.process.publish_streams.density
 
+        lat = self.CFG.get_safe('process.lat',None)
+        if lat is None:
+            raise BadRequest('Latitude is required to determine density')
+        lon = self.CFG.get_safe('process.lon',None)
+        if lon is None:
+            raise BadRequest('Lonitude is required to determine density')
+
+
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
         self.stream_definition = pubsub.read_stream_definition(stream_id=self.dens_stream_id)
+        
+        self.params = {'stream_def' : self.stream_definition._id, 'lat': lat, 'lon' : lon}
 
     def recv_packet(self, packet, stream_route, stream_id):
         """
@@ -42,7 +53,7 @@ class CTDBP_DensityTransform(TransformDataProcess):
             return
         log.debug("CTDBP L2 density transform received granule with record dict: %s", packet.record_dictionary)
 
-        granule = CTDBP_DensityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
+        granule = CTDBP_DensityTransformAlgorithm.execute(packet, params=self.params)
 
         log.debug("CTDBP L2 density transform publishing granule with record dict: %s", granule.record_dictionary)
 
@@ -72,10 +83,13 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         https://docs.google.com/spreadsheet/ccc?key=0Au7PUzWoCKU4dDRMeVI0RU9yY180Z0Y5U0hyMUZERmc#gid=0
 
         """
+        lat = params['lat']
+        lon = params['lon']
+        stream_def_id = params['stream_def']
 
 
         rdt = RecordDictionaryTool.load_from_granule(input)
-        out_rdt = RecordDictionaryTool(stream_definition_id=params)
+        out_rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
 
         out_rdt['time'] = rdt['time']
 
@@ -83,25 +97,27 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         pressure = rdt['pressure']
         temperature = rdt['temp']
 
-        longitude = rdt['lon'] if rdt['lon'] is not None else 0
-        latitude = rdt['lat'] if rdt['lat'] is not None else 0
+        latitude = np.ones(conductivity.shape) * lat
+        longitude = np.ones(conductivity.shape) * lon
+
+        log.debug("Using latitude: %s,\n longitude: %s", latitude, longitude)
 
         # Doing: PRACSAL = gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)
-        pracsal = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)
+        pracsal = gsw.sp_from_c(conductivity * 10, temperature, pressure)
 
         log.debug("CTDBP Density algorithm calculated the pracsal (practical salinity) values: %s", pracsal)
 
         # Doing: absolute_salinity = gsw_SA_from_SP(PRACSAL,PRESWAT_L1,longitude,latitude)
-        absolute_salinity = SA_from_SP(pracsal, pressure, longitude, latitude)
+        absolute_salinity = gsw.sa_from_sp(pracsal, pressure, longitude, latitude)
 
         log.debug("CTDBP Density algorithm calculated the absolute_salinity (actual salinity) values: %s", absolute_salinity)
 
-        conservative_temperature = conservative_t(absolute_salinity, temperature, pressure)
+        conservative_temperature = gsw.ct_from_t(absolute_salinity, temperature, pressure)
 
         log.debug("CTDBP Density algorithm calculated the conservative temperature values: %s", conservative_temperature)
 
         # Doing: DENSITY = gsw_rho(absolute_salinity,conservative_temperature,PRESWAT_L1)
-        dens_value = rho(absolute_salinity, conservative_temperature, pressure)
+        dens_value = gsw.rho(absolute_salinity, conservative_temperature, pressure)
 
         log.debug("Calculated density values: %s", dens_value)
 

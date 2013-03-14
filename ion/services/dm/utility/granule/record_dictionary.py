@@ -168,6 +168,8 @@ class RecordDictionaryTool(object):
         return self._pdict.get_context(name).fill_value
 
     def _replace_hook(self, name,vals):
+        if vals is None:
+            return None
         if not isinstance(self._pdict.get_context(name).param_type, QuantityType):
             return vals
         if isinstance(vals, (list,tuple)):
@@ -252,7 +254,8 @@ class RecordDictionaryTool(object):
                 pfv._pval_callback = self._pval_callback
                 retval = pfv[:]
                 return retval
-            except:
+            except Exception as e:
+                log.warning(e.message)
                 return None
         else:
             return None

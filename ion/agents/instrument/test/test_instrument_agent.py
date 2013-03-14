@@ -88,6 +88,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_lost_connection
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autoreconnect
 """
 
 ###############################################################################
@@ -902,6 +903,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
         # Test with a bad parameter name.
         with self.assertRaises(BadRequest):
             retval = self._ia_client.get_agent(['a bad param name'])
@@ -1046,6 +1052,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._ia_client.set_agent({'alarms' : ['clear']})
         retval = self._ia_client.get_agent(['alarms'])['alarms']
         self.assertEqual(retval,[])
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
     def test_poll(self):
         """
@@ -1915,8 +1926,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
-        #gevent.sleep(60)
-        gevent.sleep(10)
+        gevent.sleep(35)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
@@ -1994,3 +2004,75 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Make sure the lost connection error event arrives.
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)                        
         self.assertEqual(len(self._events_received), 1)        
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+    @unittest.skip('Skip until driver eggs updated again.')
+    def test_autoreconnect(self):
+        """
+        test_autoreconnect
+        """
+        # Set up a subscriber to collect command events.
+        self._start_event_subscriber('ResourceAgentConnectionLostErrorEvent', 1)
+        self.addCleanup(self._stop_event_subscriber)    
+        
+        # Start in uninitialized.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        # Initialize the agent.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Activate.
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        # Go into command mode.
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+
+        def poll_func(test):
+            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+            while True:
+                try:
+                    gevent.sleep(.5)
+                    test._ia_client.execute_resource(cmd)
+                except:
+                    print "### poll failed!"
+                    break
+                
+            while True:
+                try:
+                    gevent.sleep(.5)
+                    test._ia_client.execute_resource(cmd)
+                except:
+                    pass
+                else:
+                    print '### poll succeeded'
+                    break
+        
+        gl = gevent.spawn(poll_func, self)
+        
+        # Let the poll go for a bit.
+        gevent.sleep(10)
+        
+        # Blow the port agent out from under the agent.
+        self._support.stop_pagent()
+
+        # Wait for a while, the supervisor is restarting the port agent.
+        gevent.sleep(5)
+        self._support.start_pagent()
+
+        gl.join()
+        print '### done'

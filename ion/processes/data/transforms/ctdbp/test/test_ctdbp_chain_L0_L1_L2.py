@@ -30,8 +30,6 @@ from coverage_model.parameter import ParameterDictionary
 import gevent
 import numpy, random
 
-from seawater.gibbs import SP_from_cndr, rho, SA_from_SP
-from seawater.gibbs import cte
 
 @attr('INT', group='dm')
 class TestCTDPChain(IonIntegrationTestCase):
@@ -153,9 +151,11 @@ class TestCTDPChain(IonIntegrationTestCase):
 #        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(parameter_dict_name, id_only=True)
         pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'input_param_for_L0')
         self.in_stream_def_id_for_L0 = self.pubsub.create_stream_definition(name='stream_def_for_L0', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub.delete_stream_definition, self.in_stream_def_id_for_L0)
 
         pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'params_for_other_transforms')
         self.stream_def_id = self.pubsub.create_stream_definition(name='stream_def_for_CTDBP_transforms', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub.delete_stream_definition, self.stream_def_id)
 
         log.debug("Got the parsed parameter dictionary: id: %s", pdict_id)
         log.debug("Got the stream def for parsed input to L0: %s", self.in_stream_def_id_for_L0)
@@ -176,6 +176,7 @@ class TestCTDPChain(IonIntegrationTestCase):
             class_name=class_name)
 
         data_proc_def_id = self.data_process_management.create_data_process_definition(dpd_obj)
+        self.addCleanup(self.data_process_management.delete_data_process_definition, data_proc_def_id)
         log.debug("created data process definition: id = %s", data_proc_def_id)
 
         #-------------------------------------------------------------------------
@@ -275,6 +276,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         dpod_id = self.dataproduct_management.create_data_product(data_product=dpod_obj,
             stream_definition_id= stream_def_id
         )
+        self.addCleanup(self.dataproduct_management.delete_data_product, dpod_id)
 
         log.debug("got the data product out. id: %s", dpod_id)
 
@@ -296,6 +298,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         dpod_id = self.dataproduct_management.create_data_product(data_product=dpod_obj,
             stream_definition_id=stream_def_id
         )
+        self.addCleanup(self.dataproduct_management.delete_data_product, dpod_id)
 
         return dpod_id
 
@@ -316,11 +319,15 @@ class TestCTDPChain(IonIntegrationTestCase):
         config = None
         if name_of_transform == 'L1':
             config = self._create_calibration_coefficients_dict()
+        elif name_of_transform == 'L2_density':
+            config = DotDict()
+            config.process = {'lat' : 32.7153, 'lon' : 117.1564}
 
         data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products, config)
-        self.data_process_cleanup.append(data_proc_id)
+        self.addCleanup(self.data_process_management.delete_data_process, data_proc_id)
 
         self.data_process_management.activate_data_process(data_proc_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_proc_id)
 
         log.debug("Created a data process for ctdbp %s transform: id = %s", name_of_transform, data_proc_id)
 
@@ -393,15 +400,13 @@ class TestCTDPChain(IonIntegrationTestCase):
         sub_id = self.pubsub.create_subscription('subscriber_to_transform_%s' % name_of_transform,
             stream_ids=[stream_id],
             exchange_name='sub_%s' % name_of_transform)
+        self.addCleanup(self.pubsub.delete_subscription, sub_id)
 
         self.pubsub.activate_subscription(sub_id)
-
-        # Cleanups for the subscriber
-        self.addCleanup(sub.stop)
-        self.queue_cleanup.append(sub.xn.queue)
-        self.addCleanup(self.clean_queues)
+        self.addCleanup(self.pubsub.deactivate_subscription, sub_id)
 
         sub.start()
+        self.addCleanup(sub.stop)
 
         return ar
 
@@ -445,7 +450,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         for key, value in rdt.iteritems():
-            list_of_expected_keys = ['lat', 'lon', 'time', 'pressure', 'conductivity', 'temperature']
+            list_of_expected_keys = ['time', 'pressure', 'conductivity', 'temperature']
             if key not in list_of_expected_keys:
                 self.fail("The L0 transform is sending out data for more parameters than it should")
 
@@ -455,7 +460,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         for key, value in rdt.iteritems():
-            list_of_expected_keys = ['lat', 'lon', 'time', 'pressure', 'conductivity', 'temp']
+            list_of_expected_keys = [ 'time', 'pressure', 'conductivity', 'temp']
             if key not in list_of_expected_keys:
                 self.fail("The L1 transform is sending out data for more parameters than it should")
 
@@ -464,7 +469,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         for key, value in rdt.iteritems():
-            list_of_expected_keys = ['lat', 'lon', 'time', 'density']
+            list_of_expected_keys = ['time', 'density']
             if key not in list_of_expected_keys:
                 self.fail("The L2 density transform is sending out data for more parameters than it should")
 
@@ -473,7 +478,7 @@ class TestCTDPChain(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
         for key, value in rdt.iteritems():
-            list_of_expected_keys = ['lat', 'lon', 'time', 'salinity']
+            list_of_expected_keys = ['time', 'salinity']
             if key not in list_of_expected_keys:
                 self.fail("The L2 salinity transform is sending out data for more parameters than it should")
 
@@ -496,42 +501,32 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         pdict = ParameterDictionary()
 
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('float64')))
         t_ctxt.axis = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 01-01-1970'
+        t_ctxt.uom = 'seconds since 01-01-1900'
         pdict.add_context(t_ctxt)
 
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
-        lat_ctxt.axis = AxisTypeEnum.LAT
-        lat_ctxt.uom = ''
-        pdict.add_context(lat_ctxt)
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
-        lon_ctxt.axis = AxisTypeEnum.LON
-        lon_ctxt.uom = ''
-        pdict.add_context(lon_ctxt)
-
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         cond_ctxt.uom = ''
         pdict.add_context(cond_ctxt)
 
-        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         pres_ctxt.uom = ''
         pdict.add_context(pres_ctxt)
 
         if parameter_dict_name == 'input_param_for_L0':
-            temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+            temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         else:
-            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
 
         temp_ctxt.uom = ''
         pdict.add_context(temp_ctxt)
 
-        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         dens_ctxt.uom = ''
         pdict.add_context(dens_ctxt)
 
-        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         sal_ctxt.uom = ''
         pdict.add_context(sal_ctxt)
 
@@ -546,44 +541,53 @@ class TestCTDPChain(IonIntegrationTestCase):
                 self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
 
         pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
         return pdict_id
 
 
 
     def _create_calibration_coefficients_dict(self):
-
-    #        calibration_coeffs = {}
-    #        calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
-    #        calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
-    #        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
-
         config = DotDict()
-        config.process = DotDict()
-        config.process.calibration_coeffs = {}
-        config.process.calibration_coeffs['temp_calibration_coeffs'] = {'a0' : 1, 'a1' : 1, 'a2' : 1, 'a3' : 1}
+        config.process.calibration_coeffs = {
+                  'temp_calibration_coeffs': {
+                      'TA0' : 1.561342e-03,
+                      'TA1' : 2.561486e-04,
+                      'TA2' : 1.896537e-07,
+                      'TA3' : 1.301189e-07,
+                      'TOFFSET' : 0.000000e+00
+                  },
 
-        config.process.calibration_coeffs['pres_calibration_coeffs'] = { 'PTEMPA0' : 1,
-                                                                         'PTEMPA1' : 1,
-                                                                         'PTEMPA2' : 1,
-                                                                         'PTCA0' : 0.1,
-                                                                         'PTCA1' : 0.1,
-                                                                         'PTCA2' : 0.1,
-                                                                         'PTCB0' : 1,
-                                                                         'PTCB1' : 1,
-                                                                         'PTCB2' : 1,
-                                                                         'PA0' : 1,
-                                                                         'PA1' : 1,
-                                                                         'PA2' : 1}
+                  'cond_calibration_coeffs':  {
+                      'G' : -9.896568e-01,
+                      'H' : 1.316599e-01,
+                      'I' : -2.213854e-04,
+                      'J' : 3.292199e-05,
+                      'CPCOR' : -9.570000e-08,
+                      'CTCOR' : 3.250000e-06,
+                      'CSLOPE' : 1.000000e+00
+                  },
 
-        config.process.calibration_coeffs['cond_calibration_coeffs'] = {'g' : 1, 'h' : 1, 'I'  :1, 'j' : 1,
-                                                                        'CTcor' : 0.1, 'CPcor' : 0.2}
+                  'pres_calibration_coeffs' : {
+                      'PA0' : 4.960417e-02,
+                      'PA1' : 4.883682e-04,
+                      'PA2' : -5.687309e-12,
+                      'PTCA0' : 5.249802e+05,
+                      'PTCA1' : 7.595719e+00,
+                      'PTCA2' : -1.322776e-01,
+                      'PTCB0' : 2.503125e+01,
+                      'PTCB1' : 5.000000e-05,
+                      'PTCB2' : 0.000000e+00,
+                      'PTEMPA0' : -6.431504e+01,
+                      'PTEMPA1' : 5.168177e+01,
+                      'PTEMPA2' : -2.847757e-01,
+                      'POFFSET' : 0.000000e+00
+                  }
+
+              }
+
 
         return config
-
-
-
-
 
 
 

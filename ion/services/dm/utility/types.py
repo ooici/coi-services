@@ -144,10 +144,10 @@ def get_pfunc(pfid):
 
 def evaluate_pmap(pfid, pmap):
     for k,v in pmap.iteritems():
-        if isinstance(v, dict) or 'PFID' in k:
-            pmap[k] = evaluate_pmap(k, v)
+        if isinstance(v, dict):
+            pfid_,pmap_ = v.popitem()
+            pmap[k] = evaluate_pmap(pfid_, pmap_)
         if isinstance(v, basestring) and 'PD' in v:
-            print 'looking up ', v
             pmap[k] = get_param_name(v)
     func = deepcopy(get_pfunc(pfid))
     func.param_map = pmap

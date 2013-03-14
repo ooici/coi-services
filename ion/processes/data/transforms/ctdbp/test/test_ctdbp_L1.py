@@ -59,42 +59,32 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         pdict = ParameterDictionary()
 
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=numpy.dtype('float64')))
         t_ctxt.axis = AxisTypeEnum.TIME
-        t_ctxt.uom = 'seconds since 01-01-1970'
+        t_ctxt.uom = 'seconds since 01-01-1900'
         pdict.add_context(t_ctxt)
 
-        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
-        lat_ctxt.axis = AxisTypeEnum.LAT
-        lat_ctxt.uom = ''
-        pdict.add_context(lat_ctxt)
-
-        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
-        lon_ctxt.axis = AxisTypeEnum.LON
-        lon_ctxt.uom = ''
-        pdict.add_context(lon_ctxt)
-
-        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         cond_ctxt.uom = ''
         pdict.add_context(cond_ctxt)
 
-        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         pres_ctxt.uom = ''
         pdict.add_context(pres_ctxt)
 
         if parameter_dict_name == 'input_param_dict':
-            temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+            temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         else:
-            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+            temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
 
         temp_ctxt.uom = ''
         pdict.add_context(temp_ctxt)
 
-        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         dens_ctxt.uom = ''
         pdict.add_context(dens_ctxt)
 
-        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('int32')))
+        sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
         sal_ctxt.uom = ''
         pdict.add_context(sal_ctxt)
 
@@ -109,6 +99,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
                 self.addCleanup(self.dataset_management.delete_parameter_context,ctxt_id)
 
         pdict_id = self.dataset_management.create_parameter_dictionary(parameter_dict_name, pc_list)
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
         return pdict_id
 
@@ -127,32 +118,43 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         return g
 
     def _create_calibration_coefficients_dict(self):
-
-#        calibration_coeffs = {}
-#        calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
-#        calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
-#        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
-
         config = DotDict()
-        config.process = DotDict()
-        config.process.calibration_coeffs = {}
-        config.process.calibration_coeffs['temp_calibration_coeffs'] = {'a0' : 1, 'a1' : 1, 'a2' : 1, 'a3' : 1}
+        config.process.calibration_coeffs =  {
+              'temp_calibration_coeffs': {
+                  'TA0' : 1.561342e-03,
+                  'TA1' : 2.561486e-04,
+                  'TA2' : 1.896537e-07,
+                  'TA3' : 1.301189e-07,
+                  'TOFFSET' : 0.000000e+00
+              },
 
-        config.process.calibration_coeffs['pres_calibration_coeffs'] = { 'PTEMPA0' : 1,
-                                                          'PTEMPA1' : 1,
-                                                          'PTEMPA2' : 1,
-                                                          'PTCA0' : 0.1,
-                                                          'PTCA1' : 0.1,
-                                                          'PTCA2' : 0.1,
-                                                          'PTCB0' : 1,
-                                                          'PTCB1' : 1,
-                                                          'PTCB2' : 1,
-                                                          'PA0' : 1,
-                                                          'PA1' : 1,
-                                                          'PA2' : 1}
+              'cond_calibration_coeffs':  {
+                  'G' : -9.896568e-01,
+                  'H' : 1.316599e-01,
+                  'I' : -2.213854e-04,
+                  'J' : 3.292199e-05,
+                  'CPCOR' : -9.570000e-08,
+                  'CTCOR' : 3.250000e-06,
+                  'CSLOPE' : 1.000000e+00
+              },
 
-        config.process.calibration_coeffs['cond_calibration_coeffs'] = {'g' : 1, 'h' : 1, 'I'  :1, 'j' : 1,
-                                                         'CTcor' : 0.1, 'CPcor' : 0.2}
+              'pres_calibration_coeffs' : {
+                  'PA0' : 4.960417e-02,
+                  'PA1' : 4.883682e-04,
+                  'PA2' : -5.687309e-12,
+                  'PTCA0' : 5.249802e+05,
+                  'PTCA1' : 7.595719e+00,
+                  'PTCA2' : -1.322776e-01,
+                  'PTCB0' : 2.503125e+01,
+                  'PTCB1' : 5.000000e-05,
+                  'PTCB2' : 0.000000e+00,
+                  'PTEMPA0' : -6.431504e+01,
+                  'PTEMPA1' : 5.168177e+01,
+                  'PTEMPA2' : -2.847757e-01,
+                  'POFFSET' : 0.000000e+00
+              }
+
+          }
 
         return config
 
@@ -179,6 +181,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
             class_name='CTDBP_L1_Transform')
 
         dprocdef_id = self.data_process_management.create_data_process_definition(dpd_obj)
+        self.addCleanup(self.data_process_management.delete_data_process_definition, dprocdef_id)
 
         log.debug("created data process definition: id = %s", dprocdef_id)
 
@@ -194,9 +197,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         L0_pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'input_param_dict')
 
         L0_stream_def_id = self.pubsub.create_stream_definition(name='parsed', parameter_dictionary_id=L0_pdict_id)
+        self.addCleanup(self.pubsub.delete_stream_definition, L0_stream_def_id)
 
         L1_pdict_id = self._create_input_param_dict_for_test(parameter_dict_name = 'output_param_dict')
         L1_stream_def_id = self.pubsub.create_stream_definition(name='L1_out', parameter_dictionary_id=L1_pdict_id)
+        self.addCleanup(self.pubsub.delete_stream_definition, L1_stream_def_id)
 
 
         log.debug("Got the parsed parameter dictionary: id: %s", L0_pdict_id)
@@ -214,6 +219,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         input_dp_id = self.dataproduct_management.create_data_product(data_product=L0_stream_dp_obj,
             stream_definition_id=L0_stream_def_id
         )
+        self.addCleanup(self.dataproduct_management.delete_data_product, input_dp_id)
 
         # output data product
         L1_stream_dp_obj = IonObject(RT.DataProduct,
@@ -225,20 +231,23 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         L1_stream_dp_id = self.dataproduct_management.create_data_product(data_product=L1_stream_dp_obj,
             stream_definition_id=L1_stream_def_id
         )
+        self.addCleanup(self.dataproduct_management.delete_data_product, L1_stream_dp_id)
 
         # We need the key name here to be "L1_stream", since when the data process is launched, this name goes into
         # the config as in config.process.publish_streams.L1_stream when the config is used to launch the data process
         self.output_products = {'L1_stream' : L1_stream_dp_id}
         out_stream_ids, _ = self.resource_registry.find_objects(L1_stream_dp_id, PRED.hasStream, RT.Stream, True)
+        self.assertTrue(len(out_stream_ids))
         output_stream_id = out_stream_ids[0]
 
         config = self._create_calibration_coefficients_dict()
         dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products, config)
-        self.data_process_cleanup.append(dproc_id)
+        self.addCleanup(self.data_process_management.delete_data_process, dproc_id)
         log.debug("Created a data process for ctdbp_L1. id: %s", dproc_id)
 
         # Activate the data process
         self.data_process_management.activate_data_process(dproc_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, dproc_id)
 
         #----------- Find the stream that is associated with the input data product when it was created by create_data_product() --------------------------------
 
@@ -261,14 +270,14 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         sub_id = self.pubsub.create_subscription('subscriber_to_transform',
             stream_ids=[output_stream_id],
             exchange_name='sub')
+        self.addCleanup(self.pubsub.delete_subscription, sub_id)
 
         self.pubsub.activate_subscription(sub_id)
+        self.addCleanup(self.pubsub.deactivate_subscription, sub_id)
 
-        self.addCleanup(sub.stop)
-        self.queue_cleanup.append(sub.xn.queue)
-        self.addCleanup(self.clean_queues)
 
         sub.start()
+        self.addCleanup(sub.stop)
 
         #----------- Publish on that stream so that the transform can receive it --------------------------------
 
@@ -293,10 +302,10 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         """
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
-
-        self.assertTrue(rdt.__contains__('pressure') and rdt.__contains__('temp') and rdt.__contains__('conductivity'))
-        self.assertTrue(rdt.__contains__('time') and rdt.__contains__('lat') and rdt.__contains__('lon'))
-
+        self.assertIn('pressure', rdt)
+        self.assertIn('temp', rdt)
+        self.assertIn('conductivity', rdt)
+        self.assertIn('time', rdt)
         #todo: need to check the algorithms here for the granule
 
 

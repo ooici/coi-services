@@ -290,7 +290,7 @@ class PubsubManagementService(BasePubsubManagementService):
             if dot.isEnabledFor(logging.INFO):
                 import re
                 queue_name = re.sub(r'[ -]','_',subscription.exchange_name)
-                dot.info('  %s -> %s' %(stream.stream_route.routing_key.strip('.stream'), queue_name))
+                dot.info('  %s -> %s' %(stream.stream_route.routing_key[:-len('.stream')], queue_name))
 
             self._bind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
 
