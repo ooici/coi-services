@@ -11,16 +11,26 @@ __author__ = 'Carlos Rueda, Maurice Manning'
 __license__ = 'Apache 2.0'
 
 #
-# The set-up of this test suite adapts pieces from various sources, including:
+# The original set-up of this test suite adapted pieces from various sources:
 # - test_instrument_management_service_integration.py
 # - test_driver_egg.py
 # - test_oms_launch2.py  (now deprecated).
+
+# NOTE: the platform IDs used here are organized as follows:
+#   Node1D -> MJ01C -> LJ01D
 #
+# where -> goes from parent platform to child platform.
+# This is a subset of the whole topology defined in the simulated platform
+# network (network.yml), which in turn is used by the RSN OMS simulator.
+#
+# - 'LJ01D'  is the root platform used in test_single_platform
+# - 'Node1D' is the root platform used in test_hierarchy
+
+# developer conveniences:
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy
-#
 
-from pyon.public import log, IonObject
+from pyon.public import log
 import logging
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -50,14 +60,12 @@ from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.services.dm.utility.granule_utils import time_series_domain
 
 from gevent.event import AsyncResult
-from gevent import sleep
 
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from unittest import skip
 import os
 
 from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder
@@ -81,7 +89,7 @@ DVR_CONFIG = {
 }
 
 # TODO clean up the use of 'driver_config' entry in the platform_config,
-# which also set at the agent level (with a wrong definition BTW).
+# which is also set at the agent level (with a wrong definition BTW).
 
 # TIMEOUT: timeout for each execute_agent call.
 TIMEOUT = 90
@@ -91,6 +99,17 @@ DATA_TIMEOUT = 25
 
 # EVENT_TIMEOUT: timeout for reception of event
 EVENT_TIMEOUT = 25
+
+
+required_config_keys = [
+    'org_name',
+    'device_type',
+    'agent',
+    'driver_config',
+    'stream_config',
+    'startup_config',
+    'alarm_defs',
+    'children']
 
 
 class FakeProcess(LocalContextMixin):
@@ -120,28 +139,8 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         self.IDS  = IdentityManagementServiceClient(node=self.container.node)
         self.RR2  = EnhancedResourceRegistryClient(self.RR)
 
-
-        self.parsed_stream_def_id = self._create_parsed_stream_definition()
-
-        tdom, sdom = time_series_domain()
-        self.sdom = sdom.dump()
-        self.tdom = tdom.dump()
-
         self.org_id = self.RR2.create(any_old(RT.Org))
-
-        self.inst_startup_config = {'startup': 'config'}
-
-        self.required_config_keys = [
-            'org_name',
-            'device_type',
-            'agent',
-            'driver_config',
-            'stream_config',
-            'startup_config',
-            'alarm_defs',
-            'children']
-
-
+        log.debug("Org created: %s", self.org_id)
 
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
@@ -162,14 +161,6 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         self._events_received = []
         self.addCleanup(self._stop_event_subscribers)
         self._start_event_subscriber()
-
-    def _create_parsed_stream_definition(self):
-        parsed_rpdict_id = self.DSC.read_parameter_dictionary_by_name(
-            'platform_eng_parsed',
-            id_only=True)
-
-        return self.PSC.create_stream_definition(name='parsed',
-                                                 parameter_dictionary_id=parsed_rpdict_id)
 
     def _start_data_subscriber(self, stream_name, stream_id):
         """
@@ -250,214 +241,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         finally:
             self._event_subscribers = []
 
-    def _verify_child_config(self, config, device_id):
-        for key in self.required_config_keys:
-            self.assertIn(key, config)
-        self.assertEqual('Org_1', config['org_name'])
-        self.assertEqual(RT.PlatformDevice, config['device_type'])
-        self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
-        self.assertEqual({'resource_id': device_id}, config['agent'])
-        self.assertIn('stream_config', config)
-
-        for key in ['alarm_defs', 'children', 'startup_config']:
-            self.assertEqual({}, config[key])
-
-    def _verify_parent_config(self, config, parent_device_id, child_device_id):
-        for key in self.required_config_keys:
-            self.assertIn(key, config)
-        self.assertEqual('Org_1', config['org_name'])
-        self.assertEqual(RT.PlatformDevice, config['device_type'])
-        self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
-        self.assertEqual({'resource_id': parent_device_id}, config['agent'])
-        self.assertIn('stream_config', config)
-        for key in ['alarm_defs', 'startup_config']:
-            self.assertEqual({}, config[key])
-
-        self.assertIn(child_device_id, config['children'])
-        self._verify_child_config(config['children'][child_device_id], child_device_id)
-
-    def _create_platform(self, platform_id):
-        agent_obj = any_old(RT.PlatformAgent, {
-            #'name'       : '%s_PlatformAgent' % platform_id,
-            'description': '%s_PlatformAgent platform agent' % platform_id,
-            "stream_configurations": self._get_platform_stream_configs()
-        })
-        agent_id = self.IMS.create_platform_agent(agent_obj)
-        return agent_obj, agent_id
-
-    def _make_platform_agent_structure(self, platform_id, agent_config=None):
-        if None is agent_config: agent_config = {}
-
-        # instance creation
-        platform_agent_instance_obj = any_old(RT.PlatformAgentInstance)
-        platform_agent_instance_obj.agent_config = agent_config
-        platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
-
-        # agent creation
-        platform_agent_obj, platform_agent_id = self._create_platform(platform_id)
-
-        # device creation
-        platform_device_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
-
-        # data product creation
-        dp_obj = any_old(RT.DataProduct, {"temporal_domain":self.tdom,
-                                          "spatial_domain": self.sdom})
-        dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id)
-        self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
-        self.DP.activate_data_product_persistence(data_product_id=dp_id)
-
-        # assignments
-        self.RR2.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
-        self.RR2.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
-        self.RR2.assign_platform_device_to_org_with_has_resource(platform_agent_instance_id, self.org_id)
-
-        return platform_agent_instance_id, platform_agent_id, platform_device_id
-
-    def _create_platform_config_builder(self):
-        clients = DotDict()
-        clients.resource_registry  = self.RR
-        clients.pubsub_management  = self.PSC
-        clients.dataset_management = self.DSC
-        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
-        return pconfig_builder
-
-    def _create_single_platform_configuration(self, platform_id):
-        pconfig_builder = self._create_platform_config_builder()
-
-        # can't do anything without an agent instance obj
-        log.debug("Testing that preparing a launcher without agent instance raises an error")
-        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
-
-        log.debug("Making the structure for a platform agent, which will be the child")
-        child_agent_config = {
-            'platform_id': platform_id,
-            'platform_config': {
-
-                # TODO this id is temporary
-                'platform_id':             platform_id,
-
-                'driver_config':           DVR_CONFIG,
-                'network_definition' :     self._network_definition_ser
-            }
-        }
-        platform_agent_instance_child_id, _, platform_device_child_id = \
-            self._make_platform_agent_structure(platform_id, child_agent_config)
-        platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
-
-        log.debug("Preparing a valid agent instance launch, for config only")
-        pconfig_builder.set_agent_instance_object(platform_agent_instance_child_obj)
-        child_config = pconfig_builder.prepare(will_launch=False)
-        self._verify_child_config(child_config, platform_device_child_id)
-        self._debug_config(child_config, "%s_config.txt" % platform_id)
-
-        return child_config, platform_agent_instance_child_id, platform_device_child_id
-
-    def _create_platform_configuration(self, platform_id):
-        """
-        Verify that agent configurations are being built properly
-        """
-        #
-        # This method is an adaptation of test_agent_instance_config in
-        # test_instrument_management_service_integration.py
-        #
-
-        clients = DotDict()
-        clients.resource_registry  = self.RR
-        clients.pubsub_management  = self.PSC
-        clients.dataset_management = self.DSC
-        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
-
-        rpdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
-        self.raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary_id=rpdict_id)
-
-
-        # can't do anything without an agent instance obj
-        log.debug("Testing that preparing a launcher without agent instance raises an error")
-        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
-
-        log.debug("Making the structure for a platform agent, which will be the child")
-        child_platform_id = "THE_CHILD_PLATFORM"
-        child_agent_config = {
-            'platform_id': child_platform_id,
-            'platform_config': {
-
-                # TODO this id is temporary
-                'platform_id':             child_platform_id,
-
-                'driver_config':           DVR_CONFIG,
-                'network_definition' :     self._network_definition_ser
-            }
-        }
-        platform_agent_instance_child_id, _, platform_device_child_id = \
-            self._make_platform_agent_structure(child_platform_id, child_agent_config)
-        platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
-
-        log.debug("Preparing a valid agent instance launch, for config only")
-        pconfig_builder.set_agent_instance_object(platform_agent_instance_child_obj)
-        child_config = pconfig_builder.prepare(will_launch=False)
-        self._verify_child_config(child_config, platform_device_child_id)
-        self._debug_config(child_config, "child_config.txt")
-
-        log.debug("Making the structure for a platform agent, which will be the parent")
-        parent_platform_id = "THE_MIDDLE_PLATFORM"
-        parent_agent_config = {
-            'platform_id': parent_platform_id,
-            'platform_config': {
-
-                # TODO this id is temporary
-                'platform_id':             parent_platform_id,
-
-                'driver_config':           DVR_CONFIG,
-                'network_definition' :     self._network_definition_ser
-            }
-        }
-        platform_agent_instance_parent_id, _, platform_device_parent_id = \
-            self._make_platform_agent_structure(parent_platform_id, parent_agent_config)
-        platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
-
-        log.debug("Testing child-less parent as a child config")
-        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
-        parent_config1 = pconfig_builder.prepare(will_launch=False)
-        self._verify_child_config(parent_config1, platform_device_parent_id)
-        self._debug_config(parent_config1, "parent_config1.txt")
-
-        log.debug("assigning child platform to parent")
-        self.RR2.assign_platform_device_to_platform_device(platform_device_child_id, platform_device_parent_id)
-        self.platform_device_parent_id = platform_device_parent_id
-        child_device_ids = self.RR2.find_platform_device_ids_of_device(platform_device_parent_id)
-        self.assertNotEqual(0, len(child_device_ids))
-
-        log.debug("Testing parent + child as parent config")
-        platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
-        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
-        parent_config2 = pconfig_builder.prepare(will_launch=False)
-        self._verify_parent_config(parent_config2, platform_device_parent_id, platform_device_child_id)
-        self._debug_config(parent_config2, "parent_config2.txt")
-
-        log.debug("Testing entire config")
-        platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
-        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
-        agent_config = pconfig_builder.prepare(will_launch=False)
-        self._verify_parent_config(agent_config, platform_device_parent_id, platform_device_child_id)
-
-        # agent_config['platform_id'] = platform_id
-        # agent_config['platform_config'] = {
-        #     'platform_id':             platform_id,
-        #     'driver_config':           DVR_CONFIG,
-        #     'network_definition' :     self._network_definition_ser
-        # }
-
-        self._debug_config(agent_config, "complete_agent_config.txt")
-
-        return agent_config
-
-    def _debug_config(self, config, outname):  # pragma: no cover
-        # if log.isEnabledFor(logging.DEBUG):
-        import pprint
-        pprint.PrettyPrinter(stream=file(outname, "w")).pprint(config)
-        log.debug("config pretty-printed to %s", outname)
-
-    def _get_platform_stream_configs(self):
+    def get_platform_stream_configs(self):
         #
         # This method is an adaptation of get_streamConfigs in
         # test_driver_egg.py
@@ -467,99 +251,178 @@ class TestPlatformLaunch(IonIntegrationTestCase):
                                 parameter_dictionary_name='platform_eng_parsed',
                                 records_per_granule=2,
                                 granule_publish_rate=5)
-            # TODO "raw" stream also needed?
+
+            # TODO include a "raw" stream?
         ]
 
-    def _create_and_assign_parsed_data_product_to_device(self, device_id):
-        """
-        @return stream_id
-        """
+    def _debug_config(self, config, outname):
+        if log.isEnabledFor(logging.DEBUG):
+            import pprint
+            pprint.PrettyPrinter(stream=file(outname, "w")).pprint(config)
+            log.debug("config pretty-printed to %s", outname)
 
-        #######################################
-        # data product  (adapted from test_instrument_management_service_integration)
-        dp_obj = IonObject(RT.DataProduct,
-            name='the parsed data',
-            description='DataProduct test',
-            processing_level_code='Parsed_Canonical',
-            temporal_domain = self.tdom,
-            spatial_domain = self.sdom)
-        data_product_id1 = self.DP.create_data_product(data_product=dp_obj,
-                                                       stream_definition_id=self.parsed_stream_def_id)
-        log.debug('data_product_id1 = %s', data_product_id1)
+    def verify_child_config(self, config, device_id):
+        for key in required_config_keys:
+            self.assertIn(key, config)
+        self.assertEqual(RT.PlatformDevice, config['device_type'])
+        self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
+        self.assertEqual({'resource_id': device_id}, config['agent'])
+        self.assertIn('stream_config', config)
 
-        self.DAMS.assign_data_product(input_resource_id=device_id, data_product_id=data_product_id1)
-        self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
+        for key in ['alarm_defs', 'children', 'startup_config']:
+            self.assertEqual({}, config[key])
 
-        #######################################
-        # dataset
+    def verify_parent_config(self, config, parent_device_id, child_device_id):
+        for key in required_config_keys:
+            self.assertIn(key, config)
+        self.assertEqual(RT.PlatformDevice, config['device_type'])
+        self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
+        self.assertEqual({'resource_id': parent_device_id}, config['agent'])
+        self.assertIn('stream_config', config)
+        for key in ['alarm_defs', 'startup_config']:
+            self.assertEqual({}, config[key])
 
-        stream_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasStream, None, True)
-        log.debug( 'Data product stream_ids = %s', stream_ids)
-        stream_id = stream_ids[0]
+        self.assertIn(child_device_id, config['children'])
+        self.verify_child_config(config['children'][child_device_id], child_device_id)
 
-        # Retrieve the id of the OUTPUT stream from the out Data Product
-        dataset_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
-        log.debug('Data set for data_product_id1 = %s', dataset_ids[0])
-        self.parsed_dataset = dataset_ids[0]
+    def _create_platform_configuration(self, platform_id):
+        #
+        # This method is an adaptation of test_agent_instance_config in
+        # test_instrument_management_service_integration.py
+        #
 
-        return stream_id
+        tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+        parsed_rpdict_id = self.DSC.read_parameter_dictionary_by_name(
+            'platform_eng_parsed',
+            id_only=True)
+        self.parsed_stream_def_id = self.PSC.create_stream_definition(
+            name='parsed',
+            parameter_dictionary_id=parsed_rpdict_id)
+
+        def _make_platform_agent_structure(agent_config=None):
+            if None is agent_config: agent_config = {}
+
+            # instance creation
+            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance)
+            platform_agent_instance_obj.agent_config = agent_config
+            platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
+
+            # agent creation
+            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":self.get_platform_stream_configs()})
+            platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
+
+            # device creation
+            platform_device_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
+
+            # data product creation
+            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id)
+            self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
+            self.DP.activate_data_product_persistence(data_product_id=dp_id)
+
+            # assignments
+            self.RR2.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
+            self.RR2.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+            self.RR2.assign_platform_device_to_org_with_has_resource(platform_agent_instance_id, self.org_id)
+
+            #######################################
+            # dataset
+
+            log.debug('data product = %s', dp_id)
+
+            stream_ids, _ = self.RR.find_objects(dp_id, PRED.hasStream, None, True)
+            log.debug('Data product stream_ids = %s', stream_ids)
+            stream_id = stream_ids[0]
+
+            # Retrieve the id of the OUTPUT stream from the out Data Product
+            dataset_ids, _ = self.RR.find_objects(dp_id, PRED.hasDataset, RT.Dataset, True)
+            log.debug('Data set for data_product_id1 = %s', dataset_ids[0])
+            #######################################
+
+            return platform_agent_instance_id, platform_agent_id, platform_device_id, stream_id
+
+        log.debug("Making the structure for a platform agent, which will be the child")
+        child_agent_config = {
+            'platform_config': {
+
+                # TODO this id is temporary
+                'platform_id':             platform_id,
+
+                'driver_config':           DVR_CONFIG,
+                'network_definition' :     self._network_definition_ser
+            }
+        }
+        platform_agent_instance_child_id, _, platform_device_child_id, stream_id = \
+            _make_platform_agent_structure(child_agent_config)
+
+        platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
+
+        child_config = self._generate_config(platform_agent_instance_child_obj, platform_id)
+        self.verify_child_config(child_config, platform_device_child_id)
+
+        self.platform_device_parent_id = platform_device_child_id
+
+        p_obj = DotDict()
+        p_obj.platform_id = platform_id
+        p_obj.agent_config = child_config
+        p_obj.platform_agent_instance_obj = platform_agent_instance_child_obj
+        p_obj.platform_device_id = platform_device_child_id
+        p_obj.platform_agent_instance_id = platform_agent_instance_child_id
+        p_obj.stream_id = stream_id
+        return p_obj
 
     def _start_platform(self, agent_instance_id):
-        log.debug("about to call imsclient.start_platform_agent_instance with id=%s", agent_instance_id)
+        log.debug("about to call start_platform_agent_instance with id=%s", agent_instance_id)
         pid = self.IMS.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
         log.debug("start_platform_agent_instance returned pid=%s", pid)
 
         #wait for start
-        instance_obj = self.IMS.read_platform_agent_instance(agent_instance_id)
+        agent_instance_obj = self.IMS.read_platform_agent_instance(agent_instance_id)
         gate = ProcessStateGate(self.PDC.read_process,
-                                instance_obj.agent_process_id,
+                                agent_instance_obj.agent_process_id,
                                 ProcessStateEnum.RUNNING)
         self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
 
-        agent_instance_obj= self.IMS.read_instrument_agent_instance(agent_instance_id)
-        log.debug('Platform agent instance obj')
-
-        # Start a resource agent client to talk with the instrument agent.
+        # Start a resource agent client to talk with the agent.
         self._pa_client = ResourceAgentClient('paclient',
                                               name=agent_instance_obj.agent_process_id,
                                               process=FakeProcess())
         log.debug("got platform agent client %s", str(self._pa_client))
 
     def _run_commands(self):
+
         # ping_agent can be issued before INITIALIZE
         retval = self._pa_client.ping_agent(timeout=TIMEOUT)
-        log.debug('Base Platform ping_agent = %s', str(retval) )
+        log.debug('Base Platform ping_agent = %s', str(retval))
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform INITIALIZE = %s', str(retval) )
-
+        log.debug('Base Platform INITIALIZE = %s', str(retval))
 
         # GO_ACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform GO_ACTIVE = %s', str(retval) )
+        log.debug('Base Platform GO_ACTIVE = %s', str(retval))
 
         # RUN:
         cmd = AgentCommand(command=PlatformAgentEvent.RUN)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform RUN = %s', str(retval) )
+        log.debug('Base Platform RUN = %s', str(retval))
 
         # START_MONITORING:
         cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform START_MONITORING = %s', str(retval) )
+        log.debug('Base Platform START_MONITORING = %s', str(retval))
 
         # wait for data sample
         # just wait for at least one -- see consume_data above
         log.info("waiting for reception of a data sample...")
         self._async_data_result.get(timeout=DATA_TIMEOUT)
         self.assertTrue(len(self._samples_received) >= 1)
-
-        log.info("waiting a bit more for reception of more data samples...")
-        sleep(15)
-        log.info("Got data samples: %d", len(self._samples_received))
-
+        log.info("Received data samples: %s", len(self._samples_received))
 
         # wait for event
         # just wait for at least one event -- see consume_event above
@@ -567,138 +430,107 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         self._async_event_result.get(timeout=EVENT_TIMEOUT)
         log.info("Received events: %s", len(self._events_received))
 
-        #get the extended platfrom which wil include platform aggreate status fields
-        # extended_platform = self.IMS.get_platform_device_extension(device_id)
-        # log.debug( 'test_single_platform   extended_platform: %s', str(extended_platform) )
-        # log.debug( 'test_single_platform   power_status_roll_up: %s', str(extended_platform.computed.power_status_roll_up.value) )
-        # log.debug( 'test_single_platform   comms_status_roll_up: %s', str(extended_platform.computed.communications_status_roll_up.value) )
-
         # STOP_MONITORING:
         cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform STOP_MONITORING = %s', str(retval) )
+        log.debug('Base Platform STOP_MONITORING = %s', str(retval))
 
         # GO_INACTIVE
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform GO_INACTIVE = %s', str(retval) )
+        log.debug('Base Platform GO_INACTIVE = %s', str(retval))
 
         # RESET: Resets the base platform agent, which includes termination of
         # its sub-platforms processes:
         cmd = AgentCommand(command=PlatformAgentEvent.RESET)
         retval = self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-        log.debug( 'Base Platform RESET = %s', str(retval) )
+        log.debug('Base Platform RESET = %s', str(retval))
 
     def _stop_platform(self, agent_instance_id):
         self.IMS.stop_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
 
     def test_single_platform(self):
+        #
+        # Tests the launch of a single platform, corresponding to the
+        # platform ID 'LJ01D', which is a leaf in the simulated network.
+        #
 
-        platform_id = 'LJ01D'
-        agent_config, agent_instance_id, device_id = self._create_single_platform_configuration(platform_id)
+        p_root = self._create_platform_configuration('LJ01D')
 
-        stream_id = self._create_and_assign_parsed_data_product_to_device(device_id)
-
+        agent_instance_id = p_root.platform_agent_instance_id
+        stream_id = p_root.stream_id
         self._start_data_subscriber(agent_instance_id, stream_id)
 
         self._start_platform(agent_instance_id)
         self._run_commands()
         self._stop_platform(agent_instance_id)
 
+    def _assign_child_to_parent(self, p_child, p_parent):
 
-    @skip("Still needs alignment with new configuration structure")
-    def test_hierarchy(self):
+        log.debug("assigning child platform %r to parent %r",
+                  p_child.platform_id, p_parent.platform_id)
 
-        platform_id = 'LJ01D'
-        agent_config, platform_device_child_id = self._create_single_platform_configuration(platform_id)
-
-        agent__obj, agent_id = self._create_platform(platform_id)
-
-        device__obj = IonObject(RT.PlatformDevice,
-            name='%s_PlatformDevice' % platform_id,
-            description='%s_PlatformDevice platform device' % platform_id,
-            #                        ports=port_objs,
-            #                        platform_monitor_attributes = monitor_attribute_objs
-        )
-
-        device_id = self.IMS.create_platform_device(device__obj)
-
-
-        #######################################
-        # data product  (adapted from test_instrument_management_service_integration)
-        dp_obj = IonObject(RT.DataProduct,
-            name='the parsed data',
-            description='DataProduct test',
-            processing_level_code='Parsed_Canonical',
-            temporal_domain = self.tdom,
-            spatial_domain = self.sdom)
-        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id)
-        log.debug('data_product_id1 = %s', data_product_id1)
-
-        self.DAMS.assign_data_product(input_resource_id=device_id, data_product_id=data_product_id1)
-        self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
-        #######################################
-
-        #######################################
-        # dataset
-
-        stream_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasStream, None, True)
-        log.debug( 'Data product stream_ids = %s', stream_ids)
-        stream_id = stream_ids[0]
-
-        # Retrieve the id of the OUTPUT stream from the out Data Product
-        dataset_ids, _ = self.RR.find_objects(data_product_id1, PRED.hasDataset, RT.Dataset, True)
-        log.debug('Data set for data_product_id1 = %s', dataset_ids[0])
-        self.parsed_dataset = dataset_ids[0]
-        #######################################
-
-        agent_instance_obj = IonObject(RT.PlatformAgentInstance,
-            name='%s_PlatformAgentInstance' % platform_id,
-            description="%s_PlatformAgentInstance" % platform_id,
-            agent_config=agent_config)
-
-
-        agent_instance_id = self.IMS.create_platform_agent_instance(
-            platform_agent_instance = agent_instance_obj,
-            platform_agent_id = agent_id,
-            platform_device_id = device_id)
-
-
-        self.RR2.assign_platform_device_to_platform_device(
-            platform_device_child_id,
-            device_id
-        )
-        child_device_ids = self.RR2.find_platform_device_ids_of_device(self.platform_device_parent_id)
+        self.RR2.assign_platform_device_to_platform_device(p_child.platform_device_id,
+                                                           p_parent.platform_device_id)
+        child_device_ids = self.RR2.find_platform_device_ids_of_device(p_parent.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
 
+        self._generate_parent_with_child_config(p_parent, p_child)
+
+    def _create_platform_config_builder(self):
+        clients = DotDict()
+        clients.resource_registry  = self.RR
+        clients.pubsub_management  = self.PSC
+        clients.dataset_management = self.DSC
+        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
+
+        # can't do anything without an agent instance obj
+        log.debug("Testing that preparing a launcher without agent instance raises an error")
+        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
+
+        return pconfig_builder
+
+    def _generate_parent_with_child_config(self, p_parent, p_child):
+        log.debug("Testing parent + child as parent config")
+        pconfig_builder = self._create_platform_config_builder()
+        pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
+        parent_config = pconfig_builder.prepare(will_launch=False)
+        self.verify_parent_config(parent_config,
+                                  p_parent.platform_device_id,
+                                  p_child.platform_device_id)
+
+        self._debug_config(parent_config,
+                           "platform_agent_config_%s_->_%s.txt" % (
+                           p_parent.platform_id, p_child.platform_id))
+
+    def _generate_config(self, platform_agent_instance_obj, platform_id, suffix=''):
+        pconfig_builder = self._create_platform_config_builder()
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_obj)
+        config = pconfig_builder.prepare(will_launch=False)
+
+        self._debug_config(config, "platform_agent_config_%s%s.txt" % (platform_id, suffix))
+
+        return config
+
+    def test_hierarchy(self):
+        #
+        # Tests a small platform network consisting of 3 platforms as follows:
+        #   Node1D -> MJ01C -> LJ01D
+        # where -> goes from parent to child.
+
+        p_root       = self._create_platform_configuration('Node1D')
+        p_child      = self._create_platform_configuration('MJ01C')
+        p_grandchild = self._create_platform_configuration('LJ01D')
+
+        self._assign_child_to_parent(p_child, p_root)
+        self._assign_child_to_parent(p_grandchild, p_child)
+
+        self._generate_config(p_root.platform_agent_instance_obj, p_root.platform_id, "_final")
+
+        agent_instance_id = p_root.platform_agent_instance_id
+        stream_id = p_root.stream_id
         self._start_data_subscriber(agent_instance_id, stream_id)
 
-        log.debug("about to call imsclient.start_platform_agent_instance with id=%s", agent_instance_id)
-        pid = self.IMS.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
-        log.debug("start_platform_agent_instance returned pid=%s", pid)
-
-        #wait for start
-        instance_obj = self.IMS.read_platform_agent_instance(agent_instance_id)
-        gate = ProcessStateGate(self.PDC.read_process,
-                                instance_obj.agent_process_id,
-                                ProcessStateEnum.RUNNING)
-        self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
-
-
-
-        agent_instance_obj= self.IMS.read_instrument_agent_instance(agent_instance_id)
-        log.debug('Platform agent instance obj')
-
-        # Start a resource agent client to talk with the instrument agent.
-        self._pa_client = ResourceAgentClient('paclient',
-                                              name=agent_instance_obj.agent_process_id,
-                                              process=FakeProcess())
-        log.debug("got platform agent client %s", str(self._pa_client))
-
-
-        self._run_commands(agent_instance_id)
-
-        #-------------------------------
-        # Stop Base Platform AgentInstance
-        #-------------------------------
-        self.IMS.stop_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
+        self._start_platform(agent_instance_id)
+        self._run_commands()
+        self._stop_platform(agent_instance_id)
