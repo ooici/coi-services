@@ -358,7 +358,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         for key in required_config_keys:
             self.assertIn(key, config)
         self.assertEqual(RT.PlatformDevice, config['device_type'])
-        self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
+        for key in DVR_CONFIG.iterkeys():
+            self.assertIn(key, config['driver_config'])
         self.assertEqual({'resource_id': device_id}, config['agent'])
         self.assertIn('stream_config', config)
 
@@ -369,7 +370,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         for key in required_config_keys:
             self.assertIn(key, config)
         self.assertEqual(RT.PlatformDevice, config['device_type'])
-        self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
+        for key in DVR_CONFIG.iterkeys():
+            self.assertIn(key, config['driver_config'])
         self.assertEqual({'resource_id': parent_device_id}, config['agent'])
         self.assertIn('stream_config', config)
         for key in ['alarm_defs', 'startup_config']:
@@ -406,7 +408,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             if None is agent_config: agent_config = {}
 
             # instance creation
-            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance)
+            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, {
+                'driver_config': DVR_CONFIG})
             platform_agent_instance_obj.agent_config = agent_config
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
