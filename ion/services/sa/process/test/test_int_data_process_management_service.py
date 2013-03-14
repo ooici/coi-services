@@ -14,6 +14,7 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.poller import poll
+from pyon.util.containers import DotDict
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -24,7 +25,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from interface.objects import LastUpdate, ComputedValueAvailability
+from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType
 from mock import patch
@@ -32,7 +33,11 @@ from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentTy
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 import gevent
 from sets import Set
-
+import unittest
+import os
+from pyon.ion.stream import StandaloneStreamPublisher
+from ion.services.dm.utility.granule import RecordDictionaryTool
+import time
 
 class FakeProcess(LocalContextMixin):
     """
@@ -544,4 +549,115 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         self.dataprocessclient.delete_transform_function(tf_id)
         self.assertRaises(NotFound, self.dataprocessclient.read_transform_function, tf_id)
+    
+
+@attr('INT',grou='sa')
+class TestDataProcessManagementPrime(IonIntegrationTestCase):
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        self.dataset_management      = DatasetManagementServiceClient()
+        self.resource_registry       = self.container.resource_registry
+        self.pubsub_management       = PubsubManagementServiceClient()
+        self.data_process_management = DataProcessManagementServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
+
+
+    def lc_preload(self):
+        config = DotDict()
+        config.op = 'load'
+        config.scenario = 'BASE,LC_TEST'
+        config.categories = 'ParameterFunctions,ParameterDefs,ParameterDictionary'
+        config.path = 'res/preload/r2_ioc'
+        
+        self.container.spawn_process('preload','ion.processes.bootstrap.ion_loader','IONLoader', config)
+
+    def ctd_instrument_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_LC_TEST', id_only=True)
+        available_fields = [
+                'internal_timestamp', 
+                'temp', 
+                'preferred_timestamp', 
+                'time', 
+                'port_timestamp', 
+                'quality_flag', 
+                'lat', 
+                'conductivity', 
+                'driver_timestamp', 
+                'lon', 
+                'pressure']
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd instrument', parameter_dictionary_id=pdict_id, available_fields=available_fields)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = DataProduct(name='ctd instrument test')
+        dp_obj.temporal_domain = tdom
+        dp_obj.spatial_domain = sdom
+        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+        return data_product_id
+
+    def ctd_derived_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_LC_TEST', id_only=True)
+        # No available fields implies all
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd derived', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+
+        dp_obj = DataProduct(name='ctd derived products')
+        dp_obj.temporal_domain = tdom
+        dp_obj.spatial_domain = sdom
+        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+        return data_product_id
+        
+    def publish_to_data_product(self, data_product_id):
+        stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        self.assertTrue(len(stream_ids))
+        stream_id = stream_ids.pop()
+        route = self.pubsub_management.read_stream_route(stream_id)
+        stream_definition = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        stream_def_id = stream_definition._id
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        now = time.time()
+        ntp_now = now + 2208988800 # Do not use in production, this is a loose translation
+
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [195000]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['time'] = [ntp_now]
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['lat'] = [45]
+        rdt['conductivity'] = [4341400]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['lon'] = [-71]
+        rdt['pressure'] = [256.8]
+
+
+
+   
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_data_process_prime(self):
+        self.lc_preload()
+        instrument_data_product_id = self.ctd_instrument_data_product()
+        derived_data_product_id = self.ctd_derived_data_product()
+
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[derived_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+    
+        self.publish_to_data_product(instrument_data_product_id)
+        
+
+
+
 
