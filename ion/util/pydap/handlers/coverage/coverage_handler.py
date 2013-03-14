@@ -80,9 +80,10 @@ class Handler(BaseHandler):
                     
                     data = np.array([])
                     time_data = np.array([])
-                    if response == "dods":
+                    if response == "dods" or response == "dds":
                         data = self.get_data(cov, name, slice_)
                         time_data = self.get_time_data(cov, slice_)
+                        
 
                     time_attrs  = self.get_attrs(cov, name)
                     attrs  = self.get_attrs(cov, name)
