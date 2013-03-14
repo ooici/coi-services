@@ -22,11 +22,13 @@ import unittest
 from pyon.ion.resource import RT
 from pyon.util.unit_test import PyonTestCase
 
+unittest # block pycharm inspection
 
 @attr('UNIT', group='sa')
 class TestInstrumentManagement(PyonTestCase):
 
     def setUp(self):
+
         self.mock_ionobj = self._create_IonObject_mock('ion.services.sa.instrument.instrument_management_service.IonObject')
 
         #self.mock_ionobj = IonObject
@@ -41,6 +43,8 @@ class TestInstrumentManagement(PyonTestCase):
         self.addCleanup(delattr, self, "instrument_mgmt_service")
         self.addCleanup(delattr, self, "mock_ionobj")
         #self.resource_impl_cleanup()
+
+        log.debug("setUp complete")
 
     #def resource_impl_cleanup(self):
         #pass

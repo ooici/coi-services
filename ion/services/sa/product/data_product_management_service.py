@@ -40,9 +40,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         @retval     data_product_id
         """
 
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.DataProduct, name=data_product.name, id_only=True)
-        validate_false(len(res), 'A data product with the name %s already exists.' % data_product.name)
-        log.info('Creating DataProduct: %s', data_product.name)
 
         # Create will validate and register a new data product within the system
         # If the stream definition has a parameter dictionary, use that
@@ -56,7 +53,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
         #--------------------------------------------------------------------------------
-        data_product_id, rev = self.clients.resource_registry.create(data_product)
+        data_product_id = self.RR2.create(data_product, RT.DataProduct)
 
 
         #-----------------------------------------------------------------------------------------------
@@ -86,8 +83,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Retrieve all metadata for a specific data product
         # Return data product resource
 
-        data_product = self.RR2.read(data_product_id)
-        validate_is_instance(data_product,DataProduct)
+        data_product = self.RR2.read(data_product_id, RT.DataProduct)
 
         return data_product
 
@@ -99,19 +95,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product    DataProduct
         @throws NotFound    object with specified id does not exist
         """
-        validate_is_instance(data_product, DataProduct)
 
-        self.RR2.update(data_product)
+        self.RR2.update(data_product, RT.DataProduct)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
     def delete_data_product(self, data_product_id=''):
-
-        #Check if this data product is associated to a producer
-        producer_objs = self.RR2.find_data_producers_of_data_product(data_product_id)
-
-        for producer_obj in producer_objs:
-            self.clients.data_acquisition_management.unassign_data_product(data_product_id, producer_obj._id)
 
         #--------------------------------------------------------------------------------
         # suspend persistence
@@ -123,35 +112,21 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         #self.remove_streams(data_product_id)
 
-        #--------------------------------------------------------------------------------
-        # remove dataset associations
-        #--------------------------------------------------------------------------------
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
 
-#        for dataset_id in dataset_ids:
-#            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
+        self.RR2.retire(data_product_id, RT.DataProduct)
 
-        #--------------------------------------------------------------------------------
-        # Delete the data product
-        #--------------------------------------------------------------------------------
-
-        self.RR2.delete(data_product_id)
 
     def force_delete_data_product(self, data_product_id=''):
 
-        # if not yet deleted, the first execute delete logic
-        dp_obj = self.read_data_product(data_product_id)
-        if dp_obj.lcstate != LCS.RETIRED:
-            self.delete_data_product(data_product_id)
 
         #get the assoc producers before deleteing the links
-        producers, producer_assns = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+        producer_ids = self.RR2.find_data_producer_ids_of_data_product(data_product_id)
 
         self.RR2.pluck(data_product_id)
-        for producer in producers:
-            self.clients.resource_registry.delete(producer)
+        for producer_id in producer_ids:
+            self.RR2.delete(producer_id)
 
-        self.clients.resource_registry.delete(data_product_id)
+        self.RR2.pluck_delete(data_product_id, RT.DataProduct)
 
     def remove_streams(self, data_product_id=''):
         streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
@@ -369,9 +344,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        validate_is_not_none(data_product_collection, "Should not pass in a None object")
 
-        self.clients.resource_registry.update(data_product_collection)
+        self.RR2.update(data_product_collection, RT.DataProductCollection)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
@@ -383,9 +357,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product_collection_id    str
         @retval data_product    DataProductVersion
         """
-        result = self.clients.resource_registry.read(data_product_collection_id)
-
-        validate_is_not_none(result, "Should not have returned an empty result")
+        result = self.RR2.read(data_product_collection_id, RT.DataProductCollection)
 
         return result
 
@@ -403,10 +375,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             if dataproduct_obj.lcstate != LCS.RETIRED:
                 raise BadRequest("All Data Products in a collection must be deleted before the collection is deleted.")
 
-        data_product_collection_obj = self.read_data_product_collection(data_product_collection_id)
-
-        if data_product_collection_obj.lcstate != LCS.RETIRED:
-            self.clients.resource_registry.retire(data_product_collection_id)
+        self.RR2.retire(data_product_collection_id, RT.DataProductCollection)
 
     def force_delete_data_product_collection(self, data_product_collection_id=''):
 
@@ -415,8 +384,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if dp_obj.lcstate != LCS.RETIRED:
             self.delete_data_product_collection(data_product_collection_id)
 
-        self.RR2.pluck(data_product_collection_id)
-        self.clients.resource_registry.delete(data_product_collection_id)
+        self.RR2.pluck_delete(data_product_collection_id, RT.DataProductCollection)
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
 

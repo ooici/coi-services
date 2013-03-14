@@ -9,13 +9,18 @@ and the relationships between them
 '''
 
 from interface.services.sa.idata_acquisition_management_service import BaseDataAcquisitionManagementService
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, LCS, PRED, OT
 
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
 
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
+
+    def on_init(self):
+        self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+
 
 
     # -----------------
@@ -294,69 +299,69 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return
 
-
-    def create_data_producer(name='', description=''):
-        """Create a data producer resource, create a stream reource via DM then associate the two resources. Currently, data producers and streams are one-to-one. If the data producer is a process, connect the data producer to any parent data producers.
-
-        @param name    str
-        @param description    str
-        @retval data_producer_id    str
-        @throws BadRequest    if object passed has _id or _rev attribute
-        """
-        pass
-
-    def update_data_producer(self, data_producer=None):
-        '''
-        Update an existing data producer.
-
-        @param data_producer The data_producer object with updated properties.
-        @retval success Boolean to indicate successful update.
-        @todo Add logic to validate optional attributes. Is this interface correct?
-        '''
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        log.debug("Updating data_producer object: %s" % data_producer.name)
-        return self.clients.resource_registry.update(data_producer)
-
-    def read_data_producer(self, data_producer_id=''):
-        '''
-        Get an existing data_producer object.
-
-        @param data_producer The id of the stream.
-        @retval data_producer The data_producer object.
-        @throws NotFound when data_producer doesn't exist.
-        '''
-        # Return Value
-        # ------------
-        # data_producer: {}
-        #
-        log.debug("Reading data_producer object id: %s" % data_producer_id)
-        data_producer_obj = self.clients.resource_registry.read(data_producer_id)
-
-        return data_producer_obj
-
-    def delete_data_producer(self, data_producer_id=''):
-        '''
-        Delete an existing data_producer.
-
-        @param data_producer_id The id of the stream.
-        @retval success Boolean to indicate successful deletion.
-        @throws NotFound when data_producer doesn't exist.
-        '''
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        log.debug("Deleting data_producer id: %s" % data_producer_id)
-
-        return self.clients.resource_registry.retire(data_producer_id)
-
-
-    def force_delete_data_producer(self, data_producer_id=''):
-        self._remove_associations(data_producer_id)
-        self.clients.resource_registry.delete(data_producer_id)
+#
+#    def create_data_producer(name='', description=''):
+#        """Create a data producer resource, create a stream reource via DM then associate the two resources. Currently, data producers and streams are one-to-one. If the data producer is a process, connect the data producer to any parent data producers.
+#
+#        @param name    str
+#        @param description    str
+#        @retval data_producer_id    str
+#        @throws BadRequest    if object passed has _id or _rev attribute
+#        """
+#        pass
+#
+#    def update_data_producer(self, data_producer=None):
+#        '''
+#        Update an existing data producer.
+#
+#        @param data_producer The data_producer object with updated properties.
+#        @retval success Boolean to indicate successful update.
+#        @todo Add logic to validate optional attributes. Is this interface correct?
+#        '''
+#        # Return Value
+#        # ------------
+#        # {success: true}
+#        #
+#        log.debug("Updating data_producer object: %s" % data_producer.name)
+#        return self.clients.resource_registry.update(data_producer)
+#
+#    def read_data_producer(self, data_producer_id=''):
+#        '''
+#        Get an existing data_producer object.
+#
+#        @param data_producer_id The id of the stream.
+#        @retval data_producer The data_producer object.
+#        @throws NotFound when data_producer doesn't exist.
+#        '''
+#        # Return Value
+#        # ------------
+#        # data_producer: {}
+#        #
+#        log.debug("Reading data_producer object id: %s" % data_producer_id)
+#        data_producer_obj = self.clients.resource_registry.read(data_producer_id)
+#
+#        return data_producer_obj
+#
+#    def delete_data_producer(self, data_producer_id=''):
+#        '''
+#        Delete an existing data_producer.
+#
+#        @param data_producer_id The id of the stream.
+#        @retval success Boolean to indicate successful deletion.
+#        @throws NotFound when data_producer doesn't exist.
+#        '''
+#        # Return Value
+#        # ------------
+#        # {success: true}
+#        #
+#        log.debug("Deleting data_producer id: %s" % data_producer_id)
+#
+#        return self.clients.resource_registry.retire(data_producer_id)
+#
+#
+#    def force_delete_data_producer(self, data_producer_id=''):
+#        self._remove_associations(data_producer_id)
+#        self.clients.resource_registry.delete(data_producer_id)
 
     # -----------------
     # The following operations manage EOI resources
@@ -370,26 +375,21 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def create_external_data_provider(self, external_data_provider=None):
         # Persist ExternalDataProvider object and return object _id as OOI id
-        external_data_provider_id, version = self.clients.resource_registry.create(external_data_provider)
-        return external_data_provider_id
+        return self.RR2.create(external_data_provider, RT.ExternalDataProvider)
 
     def update_external_data_provider(self, external_data_provider=None):
         # Overwrite ExternalDataProvider object
-        self.clients.resource_registry.update(external_data_provider)
-        return
+        self.RR2.update(external_data_provider, RT.ExternalDataProvider)
 
     def read_external_data_provider(self, external_data_provider_id=''):
         # Read ExternalDataProvider object with _id matching passed user id
-        external_data_provider = self.clients.resource_registry.read(external_data_provider_id)
-        return external_data_provider
+        return self.RR2.read(external_data_provider_id, RT.ExternalDataProvider)
 
     def delete_external_data_provider(self, external_data_provider_id=''):
-        self.clients.resource_registry.retire(external_data_provider_id)
-        return
+        self.RR2.retire(external_data_provider_id, RT.ExternalDataProvider)
 
     def force_delete_external_data_provider(self, external_data_provider_id=''):
-        self._remove_associations(external_data_provider_id)
-        self.clients.resource_registry.delete(external_data_provider_id)
+        self.RR2.pluck_delete(external_data_provider_id, RT.ExternalDataProvider)
 
     ##########################################################################
     #
@@ -399,133 +399,100 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def create_data_source(self, data_source=None):
         # Persist DataSource object and return object _id as OOI id
-        data_source_id, version = self.clients.resource_registry.create(data_source)
-        return data_source_id
+        return self.RR2.create(data_source, RT.DataSource)
 
     def update_data_source(self, data_source=None):
         # Overwrite DataSource object
-        self.clients.resource_registry.update(data_source)
+        self.RR2.update(data_source, RT.DataSource)
 
     def read_data_source(self, data_source_id=''):
         # Read DataSource object with _id matching passed user id
         log.debug("Reading DataSource object id: %s" % data_source_id)
-        data_source_obj = self.clients.resource_registry.read(data_source_id)
+        data_source_obj = self.RR2.read(data_source_id, RT.DataSource)
         return data_source_obj
 
     def delete_data_source(self, data_source_id=''):
         # Read and delete specified DataSource object
         log.debug("Deleting DataSource id: %s" % data_source_id)
-        self.clients.resource_registry.retire(data_source_id)
+        self.RR2.retire(data_source_id, RT.DataSource)
         return
 
     def force_delete_data_source(self, data_source_id=''):
-        self._remove_associations(data_source_id)
-        self.clients.resource_registry.delete(data_source_id)
+        self.RR2.pluck_delete(data_source_id, RT.DataSource)
+
 
     def create_data_source_model(self, data_source_model=None):
         # Persist DataSourceModel object and return object _id as OOI id
-        data_source_model_id, version = self.clients.resource_registry.create(data_source_model)
-        return data_source_model_id
+        return self.RR2.create(data_source_model, RT.DataSourceModel)
 
     def update_data_source_model(self, data_source_model=None):
         # Overwrite DataSourceModel object
-        self.clients.resource_registry.update(data_source_model)
+        self.RR2.update(data_source_model, RT.DataSourceModel)
 
     def read_data_source_model(self, data_source_model_id=''):
         # Read DataSourceModel object with _id matching passed user id
-        data_source_model = self.clients.resource_registry.read(data_source_model_id)
-        return data_source_model
+        return self.RR2.read(data_source_model_id, RT.DataSourceModel)
 
     def delete_data_source_model(self, data_source_model_id=''):
         # Read and delete specified ExternalDatasetModel object
-        self.clients.resource_registry.retire(data_source_model_id)
+        self.RR2.retire(data_source_model_id, RT.DataSourceModel)
         return
 
     def force_delete_data_source_model(self, data_source_model_id=''):
-        self._remove_associations(data_source_model_id)
-        self.clients.resource_registry.delete(data_source_model_id)
+        self.RR2.pluck_delete(data_source_model_id, RT.DataSourceModel)
 
     def create_data_source_agent(self, data_source_agent=None, data_source_model_id='' ):
         # Persist ExternalDataSourcAgent object and return object _id as OOI id
-        data_source_agent_id, version = self.clients.resource_registry.create(data_source_agent)
+        data_source_agent_id = self.RR2.create(data_source_agent, RT.DataSourceAgent)
 
         if data_source_model_id:
-            self.clients.resource_registry.create_association(data_source_agent_id,  PRED.hasModel, data_source_model_id)
+            self.RR2.assign_data_source_model_to_data_source_agent(data_source_model_id, data_source_agent_id)
         return data_source_agent_id
 
     def update_data_source_agent(self, data_source_agent=None):
         # Overwrite DataSourceAgent object
-        self.clients.resource_registry.update(data_source_agent)
+        self.RR2.update(data_source_agent, RT.DataSourceAgent)
 
     def read_data_source_agent(self, data_source_agent_id=''):
         # Read DataSourceAgent object with _id matching passed user id
-        data_source_agent = self.clients.resource_registry.read(data_source_agent_id)
+        data_source_agent = self.RR2.read(data_source_agent_id, RT.DataSourceAgent)
         return data_source_agent
 
     def delete_data_source_agent(self, data_source_agent_id=''):
         # Read and delete specified DataSourceAgent object
-        data_source_agent = self.clients.resource_registry.read(data_source_agent_id)
-
-
-        # Find and break association with DataSource Model
-        assocs = self.clients.resource_registry.find_associations(data_source_agent_id, PRED.hasModel)
-        if assocs is None:
-            raise NotFound("DataSource Agent to External Data Source Model association for data source agent id %s does not exist" % data_source_agent_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with DataSource Models
-
-        self.clients.resource_registry.retire(data_source_agent_id)
+        self.RR2.retire(data_source_agent_id, RT.DataSourceAgent)
 
     def force_delete_data_source_agent(self, data_source_agent_id=''):
-        self._remove_associations(data_source_agent_id)
-        self.clients.resource_registry.delete(data_source_agent_id)
+        self.RR2.pluck_delete(data_source_agent_id, RT.DataSourceAgent)
 
 
     def create_data_source_agent_instance(self, data_source_agent_instance=None, data_source_agent_id='', data_source_id=''):
         # Persist DataSourceAgentInstance object and return object _id as OOI id
-        data_source_agent_instance_id, version = self.clients.resource_registry.create(data_source_agent_instance)
+        data_source_agent_instance_id = self.RR2.create(data_source_agent_instance, RT.DataSourceAgentInstance)
 
         if data_source_id:
-            self.clients.resource_registry.create_association(data_source_id,  PRED.hasAgentInstance, data_source_agent_instance_id)
+            self.RR2.assign_data_source_agent_instance_to_data_source(data_source_agent_instance_id, data_source_id)
 
         if data_source_agent_id:
-            self.clients.resource_registry.create_association(data_source_agent_instance_id,  PRED.hasAgentDef, data_source_agent_id)
+            self.RR2.assign_data_source_agent_to_data_source_agent_instance(data_source_agent_id, data_source_agent_instance_id)
 
         return data_source_agent_instance_id
 
     def update_data_source_agent_instance(self, data_source_agent_instance=None):
         # Overwrite DataSourceAgentInstance object
-        self.clients.resource_registry.update(data_source_agent_instance)
+        self.RR2.update(data_source_agent_instance, RT.DataSourceAgentInstance)
 
     def read_data_source_agent_instance(self, data_source_agent_instance_id=''):
         # Read DataSourceAgentInstance object with _id matching passed user id
-        data_source_agent_instance = self.clients.resource_registry.read(data_source_agent_instance_id)
+        data_source_agent_instance = self.RR2.read(data_source_agent_instance_id, RT.DataSourceAgentInstance)
         return data_source_agent_instance
 
     def delete_data_source_agent_instance(self, data_source_agent_instance_id=''):
         # Read and delete specified DataSourceAgentInstance object
-        data_source_agent_instance = self.clients.resource_registry.read(data_source_agent_instance_id)
-
-
-        # Find and break association with ExternalDataSource
-        assocs = self.clients.resource_registry.find_associations(RT.ExternalDataSource, PRED.hasAgentInstance, data_source_agent_instance_id)
-        if assocs is None:
-            raise NotFound("ExternalDataSource  to External DataSource Agent Instance association for datasource agent instance id %s does not exist" % data_source_agent_instance_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDataSource
-
-        # Find and break association with ExternalDataSourceAgent
-        assocs = self.clients.resource_registry.find_associations(data_source_agent_instance_id, PRED.hasAgentDefinition,  RT.ExternalDataSourceAgent,)
-        if assocs is None:
-            raise NotFound("ExternalDataSourceAgent  to External DataSource Agent Instance association for datasource agent instance id %s does not exist" % data_source_agent_instance_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDataSourceAgent
-
-        self.clients.resource_registry.retire(data_source_agent_instance_id)
+        self.RR2.retire(data_source_agent_instance_id, RT.DataSourceAgentInstance)
 
     def force_delete_data_source_agent_instance(self, data_source_agent_instance_id=''):
-        self._remove_associations(data_source_agent_instance_id)
-        self.clients.resource_registry.delete(data_source_agent_instance_id)
+        self.RR2.pluck_delete(data_source_agent_instance_id, RT.DataSourceAgentInstance)
 
     def start_data_source_agent_instance(self, data_source_agent_instance_id=''):
         """Launch an data source agent instance process and return its process id. Agent instance resource
@@ -553,61 +520,55 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     ##########################################################################
     def create_external_dataset(self, external_dataset=None, external_dataset_model_id=''):
         # Persist ExternalDataSet object and return object _id as OOI id
-        external_dataset_id, version = self.clients.resource_registry.create(external_dataset)
+        external_dataset_id = self.RR2.create(external_dataset, RT.ExternalDataset)
         if external_dataset_model_id:
-            self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasModel, external_dataset_model_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset(external_dataset_model_id, external_dataset_id)
         return external_dataset_id
 
     def update_external_dataset(self, external_dataset=None):
         # Overwrite ExternalDataSet object
-        self.clients.resource_registry.update(external_dataset)
+        self.RR2.update(external_dataset, RT.ExternalDataset)
 
     def read_external_dataset(self, external_dataset_id=''):
         # Read ExternalDataSet object with _id matching passed user id
-        external_dataset = self.clients.resource_registry.read(external_dataset_id)
+        external_dataset = self.RR2.read(external_dataset_id, RT.ExternalDataset)
 
         return external_dataset
 
     def delete_external_dataset(self, external_dataset_id=''):
         # Read and delete specified ExternalDataSet object
-        external_dataset = self.clients.resource_registry.read(external_dataset_id)
 
-        self.clients.resource_registry.retire(external_dataset_id)
+        self.RR2.retire(external_dataset_id, RT.ExternalDataset)
 
     def force_delete_external_dataset(self, external_dataset_id=''):
-        self._remove_associations(external_dataset_id)
-        self.clients.resource_registry.delete(external_dataset_id)
+        self.RR2.pluck_delete(external_dataset_id, RT.ExternalDataset)
 
     def create_external_dataset_model(self, external_dataset_model=None):
         # Persist ExternalDatasetModel object and return object _id as OOI id
-        external_dataset_model_id, version = self.clients.resource_registry.create(external_dataset_model)
-        return external_dataset_model_id
+        return self.RR2.create(external_dataset_model, RT.ExternalDatasetModel)
 
     def update_external_dataset_model(self, external_dataset_model=None):
         # Overwrite ExternalDatasetModel object
-        self.clients.resource_registry.update(external_dataset_model)
+        self.RR2.update(external_dataset_model, RT.ExternalDatasetModel)
 
     def read_external_dataset_model(self, external_dataset_model_id=''):
         # Read ExternalDatasetModel object with _id matching passed user id
-        external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
+        external_dataset_model = self.RR2.read(external_dataset_model_id, RT.ExternalDatasetModel)
 
         return external_dataset_model
 
     def delete_external_dataset_model(self, external_dataset_model_id=''):
         # Read and delete specified ExternalDatasetModel object
-        external_dataset_model = self.clients.resource_registry.read(external_dataset_model_id)
-
-        self.clients.resource_registry.retire(external_dataset_model_id)
+        self.RR2.retire(external_dataset_model_id, RT.ExternalDatasetModel)
 
     def force_delete_external_dataset_model(self, external_dataset_model_id=''):
-        self._remove_associations(external_dataset_model_id)
-        self.clients.resource_registry.delete(external_dataset_model_id)
+        self.RR2.pluck_delete(external_dataset_model_id, RT.ExternalDatasetModel)
 
     def create_external_dataset_agent(self, external_dataset_agent=None, external_dataset_model_id=''):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
-        external_dataset_agent_id, version = self.clients.resource_registry.create(external_dataset_agent)
+        external_dataset_agent_id = self.RR2.create(external_dataset_agent, RT.ExternalDatasetAgent)
         if external_dataset_model_id:
-            self.clients.resource_registry.create_association(external_dataset_agent_id,  PRED.hasModel, external_dataset_model_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_agent(external_dataset_model_id, external_dataset_agent_id)
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
@@ -619,89 +580,56 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         log.debug("create_external_dataset_agent: create_process_definition id %s"  +  str(process_definition_id))
 
         #associate the agent and the process def
-        self.clients.resource_registry.create_association(external_dataset_agent_id,  PRED.hasProcessDefinition, process_definition_id)
+        self.RR2.assign_process_definition_to_external_dataset_agent(process_definition_id, external_dataset_agent_id)
 
         return external_dataset_agent_id
 
     def update_external_dataset_agent(self, external_dataset_agent=None):
         # Overwrite ExternalDataAgent object
-        self.clients.resource_registry.update(external_dataset_agent)
+        self.RR2.update(external_dataset_agent, RT.ExternalDatasetAgent)
 
     def read_external_dataset_agent(self, external_dataset_agent_id=''):
         # Read ExternalDatasetAgent object with _id matching passed user id
-        external_dataset_agent = self.clients.resource_registry.read(external_dataset_agent_id)
+        external_dataset_agent = self.RR2.read(external_dataset_agent_id, RT.ExternalDatasetAgent)
 
         return external_dataset_agent
 
     def delete_external_dataset_agent(self, external_dataset_agent_id=''):
         # Read and delete specified ExternalDataAgent object
-        external_dataset_agent = self.clients.resource_registry.read(external_dataset_agent_id)
 
-        # Find and break association with Dataset Model
-        assocs = self.clients.resource_registry.find_associations(external_dataset_agent_id, PRED.hasModel)
-        if assocs is None:
-            raise NotFound("Dataset Agent to External Dataset Model association for dataset agent id %s does not exist" % external_dataset_agent_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with Dataset Models
-
-        self.clients.resource_registry.retire(external_dataset_agent_id)
+        self.RR2.retire(external_dataset_agent_id, RT.ExternalDatasetAgent)
 
     def force_delete_external_dataset_agent(self, external_dataset_agent_id=''):
 
-    # if not yet deleted, the first execute delete logic
-        dp_obj = self.read_external_dataset_agent(external_dataset_agent_id)
-        if dp_obj.lcstate != LCS.RETIRED:
-            self.delete_external_dataset_agent(external_dataset_agent_id)
-        self._remove_associations(external_dataset_agent_id)
-        self.clients.resource_registry.delete(external_dataset_agent_id)
+        self.RR2.pluck_delete(external_dataset_agent_id, RT.ExternalDatasetAgent)
+
 
     def create_external_dataset_agent_instance(self, external_dataset_agent_instance=None, external_dataset_agent_id='', external_dataset_id=''):
         # Persist ExternalDatasetAgentInstance object and return object _id as OOI id
-        external_dataset_agent_instance_id, version = self.clients.resource_registry.create(external_dataset_agent_instance)
+        external_dataset_agent_instance_id = self.RR2.create(external_dataset_agent_instance, RT.ExternalDatasetAgentInstance)
 
         if external_dataset_id:
-            self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasAgentInstance, external_dataset_agent_instance_id)
+            self.RR2.assign_external_dataset_agent_instance_to_external_dataset(external_dataset_agent_instance_id, external_dataset_id)
+
         self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
         return external_dataset_agent_instance_id
 
     def update_external_dataset_agent_instance(self, external_dataset_agent_instance=None):
         # Overwrite ExternalDataAgent object
-        self.clients.resource_registry.update(external_dataset_agent_instance)
+        self.RR2.update(external_dataset_agent_instance, RT.ExternalDatasetAgentInstance)
 
     def read_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         # Read ExternalDatasetAgent object with _id matching passed user id
-        external_dataset_agent_instance = self.clients.resource_registry.read(external_dataset_agent_instance_id)
+        external_dataset_agent_instance = self.RR2.read(external_dataset_agent_instance_id, RT.ExternalDatasetAgentInstance)
 
         return external_dataset_agent_instance
 
     def delete_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
-        # Read and delete specified ExternalDataAgent object
-        external_dataset_agent_instance = self.clients.resource_registry.read(external_dataset_agent_instance_id)
 
-        # Find and break association with ExternalDataset
-        assocs = self.clients.resource_registry.find_associations(RT.ExternalDataset, PRED.hasAgentInstance, external_dataset_agent_instance_id)
-        if assocs is None:
-            raise NotFound("ExteranlDataset  to External Dataset Agent Instance association for dataset agent instance id %s does not exist" % external_dataset_agent_instance_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDataset
-
-        # Find and break association with ExternalDatasetAgent
-        assocs = self.clients.resource_registry.find_associations(external_dataset_agent_instance_id, PRED.hasAgentDefinition,  RT.ExternalDataAgent)
-        if assocs is None:
-            raise NotFound("ExteranlDatasetAgent  to External Dataset Agent Instance association for dataset agent instance id %s does not exist" % external_dataset_agent_instance_id)
-        for assoc in assocs:
-            self.clients.resource_registry.delete_association(assoc._id)        # Find and break association with ExternalDatasetAgent
-
-        self.clients.resource_registry.retire(external_dataset_agent_instance_id)
+        self.RR2.retire(external_dataset_agent_instance_id, RT.ExternalDatasetAgentInstance)
 
     def force_delete_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
-    # if not yet deleted, the first execute delete logic
-        dp_obj = self.read_external_dataset_agent_instance(external_dataset_agent_instance_id)
-        if dp_obj.lcstate != LCS.RETIRED:
-            self.delete_external_dataset_agent_instance(external_dataset_agent_instance_id)
-
-        self._remove_associations(external_dataset_agent_instance_id)
-        self.clients.resource_registry.delete(external_dataset_agent_instance_id)
+        self.RR2.pluck_delete(external_dataset_agent_instance_id, RT.ExternalDatasetAgentInstance)
 
     def start_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
         """Launch an dataset agent instance process and return its process id. Agent instance resource
@@ -983,37 +911,4 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
-
-
-
-    def _remove_associations(self, resource_id=''):
-        """
-        delete all associations to/from a resource
-        """
-
-        # find all associations where this is the subject
-        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
-
-        # find all associations where this is the object
-        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
-
-        log.debug("_remove_associations will remove %s subject associations and %s object associations",
-                 len(sbj_assns), len(obj_assns))
-
-        for assn in obj_assns:
-            log.debug("_remove_associations deleting object association %s", assn)
-            self.clients.resource_registry.delete_association(assn)
-
-        for assn in sbj_assns:
-            log.debug("_remove_associations deleting subject association %s", assn)
-            self.clients.resource_registry.delete_association(assn)
-
-        # find all associations where this is the subject
-        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
-
-        # find all associations where this is the object
-        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
-
-        log.debug("post-deletions, _remove_associations found %s subject associations and %s object associations",
-                 len(sbj_assns), len(obj_assns))
 
