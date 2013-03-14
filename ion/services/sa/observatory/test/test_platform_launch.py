@@ -3,11 +3,11 @@
 """
 @package ion.services.sa.observatory.test.test_platform_launch.py
 @file    ion/services/sa/observatory/test/test_platform_launch.py
-@author  Carlos Rueda, Maurice Manning
+@author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   Test cases for launching platform agent network
 """
 
-__author__ = 'Carlos Rueda, Maurice Manning'
+__author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
 
 #
@@ -25,6 +25,13 @@ __license__ = 'Apache 2.0'
 #
 # - 'LJ01D'  is the root platform used in test_single_platform
 # - 'Node1D' is the root platform used in test_hierarchy
+#
+# In DEBUG logging level, the tests generate files like the following:
+#   platform_agent_config_LJ01D.txt
+#   platform_agent_config_Node1D_->_MJ01C.txt
+#   platform_agent_config_Node1D_final.txt
+# containing the corresponding platform agent configurations.
+
 
 # developer conveniences:
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform
@@ -169,7 +176,8 @@ class TestPlatformLaunch(IonIntegrationTestCase):
 
         def consume_data(message, stream_route, stream_id):
             # A callback for processing subscribed-to data.
-            log.info('Subscriber received data message: %s.', str(message))
+            log.info('Subscriber received data message: %s. stream_name=%r stream_id=%r',
+                     str(message), stream_name, stream_id)
             self._samples_received.append(message)
             self._async_data_result.set()
 
@@ -241,11 +249,11 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         finally:
             self._event_subscribers = []
 
-    def get_platform_stream_configs(self):
-        #
-        # This method is an adaptation of get_streamConfigs in
-        # test_driver_egg.py
-        #
+    def _get_platform_stream_configs(self):
+        """
+        This method is an adaptation of get_streamConfigs in
+        test_driver_egg.py
+        """
         return [
             StreamConfiguration(stream_name='parsed',
                                 parameter_dictionary_name='platform_eng_parsed',
@@ -261,7 +269,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
             pprint.PrettyPrinter(stream=file(outname, "w")).pprint(config)
             log.debug("config pretty-printed to %s", outname)
 
-    def verify_child_config(self, config, device_id):
+    def _verify_child_config(self, config, device_id):
         for key in required_config_keys:
             self.assertIn(key, config)
         self.assertEqual(RT.PlatformDevice, config['device_type'])
@@ -272,7 +280,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         for key in ['alarm_defs', 'children', 'startup_config']:
             self.assertEqual({}, config[key])
 
-    def verify_parent_config(self, config, parent_device_id, child_device_id):
+    def _verify_parent_config(self, config, parent_device_id, child_device_id):
         for key in required_config_keys:
             self.assertIn(key, config)
         self.assertEqual(RT.PlatformDevice, config['device_type'])
@@ -283,20 +291,27 @@ class TestPlatformLaunch(IonIntegrationTestCase):
             self.assertEqual({}, config[key])
 
         self.assertIn(child_device_id, config['children'])
-        self.verify_child_config(config['children'][child_device_id], child_device_id)
+        self._verify_child_config(config['children'][child_device_id], child_device_id)
 
     def _create_platform_configuration(self, platform_id):
-        #
-        # This method is an adaptation of test_agent_instance_config in
-        # test_instrument_management_service_integration.py
-        #
+        """
+        This method is an adaptation of test_agent_instance_config in
+        test_instrument_management_service_integration.py
+
+        @return a DotDict with various of the constructed elements associated
+                to the platform.
+        """
 
         tdom, sdom = time_series_domain()
         sdom = sdom.dump()
         tdom = tdom.dump()
 
+        #
+        # TODO will each platform have its own param dictionary?
+        #
+        param_dict_name = 'platform_eng_parsed'
         parsed_rpdict_id = self.DSC.read_parameter_dictionary_by_name(
-            'platform_eng_parsed',
+            param_dict_name,
             id_only=True)
         self.parsed_stream_def_id = self.PSC.create_stream_definition(
             name='parsed',
@@ -311,7 +326,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
             # agent creation
-            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":self.get_platform_stream_configs()})
+            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":self._get_platform_stream_configs()})
             platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
 
             # device creation
@@ -361,7 +376,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
         child_config = self._generate_config(platform_agent_instance_child_obj, platform_id)
-        self.verify_child_config(child_config, platform_device_child_id)
+        self._verify_child_config(child_config, platform_device_child_id)
 
         self.platform_device_parent_id = platform_device_child_id
 
@@ -372,6 +387,19 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         p_obj.platform_device_id = platform_device_child_id
         p_obj.platform_agent_instance_id = platform_agent_instance_child_id
         p_obj.stream_id = stream_id
+        return p_obj
+
+    def _create_platform(self, platform_id):
+        """
+        The main method to create a platform configuration and do other
+        preparations for a given platform.
+        """
+        p_obj = self._create_platform_configuration(platform_id)
+
+        # start corresponding data subscriber:
+        self._start_data_subscriber(p_obj.platform_agent_instance_id,
+                                    p_obj.stream_id)
+
         return p_obj
 
     def _start_platform(self, agent_instance_id):
@@ -455,15 +483,11 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         # platform ID 'LJ01D', which is a leaf in the simulated network.
         #
 
-        p_root = self._create_platform_configuration('LJ01D')
+        p_root = self._create_platform('LJ01D')
 
-        agent_instance_id = p_root.platform_agent_instance_id
-        stream_id = p_root.stream_id
-        self._start_data_subscriber(agent_instance_id, stream_id)
-
-        self._start_platform(agent_instance_id)
+        self._start_platform(p_root.platform_agent_instance_id)
         self._run_commands()
-        self._stop_platform(agent_instance_id)
+        self._stop_platform(p_root.platform_agent_instance_id)
 
     def _assign_child_to_parent(self, p_child, p_parent):
 
@@ -495,7 +519,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         pconfig_builder = self._create_platform_config_builder()
         pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
         parent_config = pconfig_builder.prepare(will_launch=False)
-        self.verify_parent_config(parent_config,
+        self._verify_parent_config(parent_config,
                                   p_parent.platform_device_id,
                                   p_child.platform_device_id)
 
@@ -518,19 +542,15 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         #   Node1D -> MJ01C -> LJ01D
         # where -> goes from parent to child.
 
-        p_root       = self._create_platform_configuration('Node1D')
-        p_child      = self._create_platform_configuration('MJ01C')
-        p_grandchild = self._create_platform_configuration('LJ01D')
+        p_root       = self._create_platform('Node1D')
+        p_child      = self._create_platform('MJ01C')
+        p_grandchild = self._create_platform('LJ01D')
 
         self._assign_child_to_parent(p_child, p_root)
         self._assign_child_to_parent(p_grandchild, p_child)
 
         self._generate_config(p_root.platform_agent_instance_obj, p_root.platform_id, "_final")
 
-        agent_instance_id = p_root.platform_agent_instance_id
-        stream_id = p_root.stream_id
-        self._start_data_subscriber(agent_instance_id, stream_id)
-
-        self._start_platform(agent_instance_id)
+        self._start_platform(p_root.platform_agent_instance_id)
         self._run_commands()
-        self._stop_platform(agent_instance_id)
+        self._stop_platform(p_root.platform_agent_instance_id)
