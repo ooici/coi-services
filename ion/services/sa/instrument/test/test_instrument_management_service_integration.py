@@ -658,28 +658,3 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #self.fail(parent_config)
         #plauncher.prepare(will_launch=False)
-
-
-    def sample_nested_platform_agent_instance_config(self):
-        """
-        for informational purposes
-        """
-
-        ret = {'org_name': 'Org_1',
-               'alarm_defs': {},
-               'driver_config': {'process_type': ('ZMQPyClassDriverLauncher',)},
-               'stream_config': {'parameter_dictionary': 'lots of stuff'},
-               'agent': {'resource_id': '33e54106c4444444862da082098bc123'},
-               'startup_config': {},
-               'device_type': 'PlatformDevice',
-               'children': {'76a39596eeff4fd5b409c4cb93f0e581':
-                                    {'org_name': 'Org_1',
-                                     'alarm_defs': {},
-                                     'driver_config': {'process_type': ('ZMQPyClassDriverLauncher',)},
-                                     'stream_config': {'parameter_dictionary': 'lots of stuff'},
-                                     'agent': {'resource_id': '76a39596eeff4fd5b409c4cb93f0e581'},
-                                     'startup_config': {},
-                                     'device_type': 'PlatformDevice',
-                                     'children': {}}}}
-
-        return ret
