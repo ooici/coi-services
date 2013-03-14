@@ -479,20 +479,24 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
             if request.args.has_key(arg):
                 param_type = get_message_class_in_parm_type(service_name, operation, arg)
                 if param_type == 'str':
-                    param_list[arg] = str(request.args[arg])
+                    if isinstance(request.args[arg], unicode):
+                        param_list[arg] = str(request.args[arg].encode('utf8'))
+                    else:
+                        param_list[arg] = str(request.args[arg])
                 else:
                     param_list[arg] = ast.literal_eval(str(request.args[arg]))
         else:
             if json_params[request_type]['params'].has_key(arg):
 
-                #TODO - Potentially remove these conversions whenever ION objects support unicode
-                # UNICODE strings are not supported with ION objects
                 object_params = json_params[request_type]['params'][arg]
                 if is_ion_object_dict(object_params):
                     param_list[arg] = create_ion_object(object_params)
                 else:
                     #Not an ION object so handle as a simple type then.
-                    param_list[arg] = json_params[request_type]['params'][arg]
+                    if isinstance(json_params[request_type]['params'][arg], unicode):
+                        param_list[arg] = str(json_params[request_type]['params'][arg].encode('utf8'))
+                    else:
+                        param_list[arg] = json_params[request_type]['params'][arg]
 
     return param_list
 
