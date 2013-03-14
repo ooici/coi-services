@@ -122,8 +122,7 @@ class AgentConfigurationBuilder(object):
         return type(self._get_device()).__name__
 
     def _generate_driver_config(self):
-        # should override this
-        return {}
+        return self.agent_instance_obj.driver_config
 
     def _generate_stream_config(self):
         dsm = self.clients.dataset_management
@@ -383,18 +382,25 @@ class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
         return self.agent_instance_obj.startup_config
 
     def _generate_driver_config(self):
+        # get default config
+        driver_config = super(InstrumentAgentConfigurationBuilder, self)._generate_driver_config()
 
         instrument_agent_instance_obj = self.agent_instance_obj
         agent_obj = self._get_agent()
 
         # Create driver config.
-        driver_config = {
+        add_driver_config = {
             'workdir'      : tempfile.gettempdir(),
             'comms_config' : instrument_agent_instance_obj.driver_config.get('comms_config'),
             'pagent_pid'   : instrument_agent_instance_obj.driver_config.get('pagent_pid'),
             'dvr_mod'      : agent_obj.driver_module,
             'dvr_cls'      : agent_obj.driver_class
         }
+
+        for k, v in add_driver_config.iteritems():
+            if k in driver_config:
+                log.warn("Overwriting Agent driver_config[%s] of '%s' with '%s'", k, driver_config[k], v)
+            driver_config[k] = v
 
         return driver_config
 
