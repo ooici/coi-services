@@ -449,38 +449,41 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
-        for key, value in rdt.iteritems():
-            list_of_expected_keys = ['time', 'pressure', 'conductivity', 'temperature']
-            if key not in list_of_expected_keys:
-                self.fail("The L0 transform is sending out data for more parameters than it should")
+        list_of_expected_keys = ['time', 'pressure', 'conductivity', 'temperature']
 
+        for key in list_of_expected_keys:
+            self.assertIn(key, rdt)
+            self.assertIsNotNone(rdt[key])
 
     def _check_application_of_L1_algorithm(self, granule = None):
         """ Check the algorithm applied by the L1 transform """
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
-        for key, value in rdt.iteritems():
-            list_of_expected_keys = [ 'time', 'pressure', 'conductivity', 'temp']
-            if key not in list_of_expected_keys:
-                self.fail("The L1 transform is sending out data for more parameters than it should")
+        list_of_expected_keys = [ 'time', 'pressure', 'conductivity', 'temp']
+
+        for key in list_of_expected_keys:
+            self.assertIn(key, rdt)
+            self.assertIsNotNone(rdt[key])
 
     def _check_application_of_L2_density_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
-        for key, value in rdt.iteritems():
-            list_of_expected_keys = ['time', 'density']
-            if key not in list_of_expected_keys:
-                self.fail("The L2 density transform is sending out data for more parameters than it should")
+        list_of_expected_keys = ['time', 'density']
+
+        for key in list_of_expected_keys:
+            self.assertIn(key, rdt)
+            self.assertIsNotNone(rdt[key])
 
     def _check_application_of_L2_salinity_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
         rdt = RecordDictionaryTool.load_from_granule(granule)
 
-        for key, value in rdt.iteritems():
-            list_of_expected_keys = ['time', 'salinity']
-            if key not in list_of_expected_keys:
-                self.fail("The L2 salinity transform is sending out data for more parameters than it should")
+        list_of_expected_keys = ['time', 'salinity']
+
+        for key in list_of_expected_keys:
+            self.assertIn(key, rdt)
+            self.assertIsNotNone(rdt[key])
 
 
     def _publish_for_L0_transform(self, input_stream_id = None, stream_route = None):
