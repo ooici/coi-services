@@ -1182,7 +1182,7 @@ class OrgManagementService(BaseOrgManagementService):
         #Fill out service request information for requesting data products
         extended_org.data_products_request.service_name = 'resource_registry'
         extended_org.data_products_request.service_operation = 'find_objects'
-        extended_org.data_products_request.query_string_params = {
+        extended_org.data_products_request.request_parameters = {
             'subject': org_id,
             'predicate': 'hasResource',
             'object_type': 'DataProduct',
@@ -1194,7 +1194,7 @@ class OrgManagementService(BaseOrgManagementService):
         #Fill out service request information for requesting open negotiations
         extended_org.open_negotiations_request.service_name = 'org_management'
         extended_org.open_negotiations_request.service_operation = 'find_org_negotiations'
-        extended_org.open_negotiations_request.query_string_params = {
+        extended_org.open_negotiations_request.request_parameters = {
             'org_id': org_id,
             'negotiation_status': 0
         }
@@ -1202,7 +1202,7 @@ class OrgManagementService(BaseOrgManagementService):
         #Fill out service request information for requesting open negotiations
         extended_org.closed_negotiations_request.service_name = 'org_management'
         extended_org.closed_negotiations_request.service_operation = 'find_org_closed_negotiations'
-        extended_org.closed_negotiations_request.query_string_params = {
+        extended_org.closed_negotiations_request.request_parameters = {
             'org_id': org_id,
         }
 
