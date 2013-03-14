@@ -498,9 +498,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                 self.assertIn(key, config)
             self.assertEqual('Org_1', config['org_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
-            self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
             self.assertEqual({'resource_id': device_id}, config['agent'])
             self.assertIn('stream_config', config)
+            self.assertIn('driver_config', config)
+            self.assertIn('foo', config['driver_config'])
+            self.assertEqual('bar', config['driver_config']['foo'])
+            self.assertIn('process_type', config['driver_config'])
+            self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
 
             if None is inst_device_id:
                 for key in ['alarm_defs', 'children', 'startup_config']:
@@ -518,7 +522,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
                 self.assertIn(key, config)
             self.assertEqual('Org_1', config['org_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
-            self.assertEqual({'process_type': ('ZMQPyClassDriverLauncher',)}, config['driver_config'])
+            self.assertIn('process_type', config['driver_config'])
+            self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
             self.assertEqual({'resource_id': parent_device_id}, config['agent'])
             self.assertIn('stream_config', config)
             for key in ['alarm_defs', 'startup_config']:
@@ -541,7 +546,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             if None is agent_config: agent_config = {}
 
             # instance creation
-            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance)
+            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, {'driver_config': {'foo': 'bar'}})
             platform_agent_instance_obj.agent_config = agent_config
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
@@ -653,28 +658,3 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #self.fail(parent_config)
         #plauncher.prepare(will_launch=False)
-
-
-    def sample_nested_platform_agent_instance_config(self):
-        """
-        for informational purposes
-        """
-
-        ret = {'org_name': 'Org_1',
-               'alarm_defs': {},
-               'driver_config': {'process_type': ('ZMQPyClassDriverLauncher',)},
-               'stream_config': {'parameter_dictionary': 'lots of stuff'},
-               'agent': {'resource_id': '33e54106c4444444862da082098bc123'},
-               'startup_config': {},
-               'device_type': 'PlatformDevice',
-               'children': {'76a39596eeff4fd5b409c4cb93f0e581':
-                                    {'org_name': 'Org_1',
-                                     'alarm_defs': {},
-                                     'driver_config': {'process_type': ('ZMQPyClassDriverLauncher',)},
-                                     'stream_config': {'parameter_dictionary': 'lots of stuff'},
-                                     'agent': {'resource_id': '76a39596eeff4fd5b409c4cb93f0e581'},
-                                     'startup_config': {},
-                                     'device_type': 'PlatformDevice',
-                                     'children': {}}}}
-
-        return ret

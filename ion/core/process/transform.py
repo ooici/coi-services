@@ -92,8 +92,22 @@ class TransformStreamListener(TransformStreamProcess):
         super(TransformStreamListener,self).on_start()
         self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
 
-        self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.recv_packet)
+        self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.receive_callback)
         self.subscriber.start()
+
+    def receive_callback(self, *a, **b):
+        """ wrapper to capture errors """
+        try:
+            self.recv_packet(*a,**b)
+        except:
+            # try to get the individual transform's logger
+            try:
+                log = logging.getLogger(self.__class__.__module__)
+            except:
+                pass
+            # but settle for ion.core.process.transform's logger if you have to
+            log.warning('transform %s failed to handle message', self.id, exc_info=True)
+            raise
 
     def recv_packet(self, msg, stream_route, stream_id):
         '''
