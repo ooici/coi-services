@@ -30,7 +30,9 @@ __license__ = 'Apache 2.0'
 #   platform_agent_config_LJ01D.txt
 #   platform_agent_config_Node1D_->_MJ01C.txt
 #   platform_agent_config_Node1D_final.txt
-# containing the corresponding platform agent configurations.
+# containing the corresponding platform agent configurations as they are
+# constructed. In particular, the latter will be the whole configuration used
+# for the hierarchy launch test.
 
 
 # developer conveniences:
