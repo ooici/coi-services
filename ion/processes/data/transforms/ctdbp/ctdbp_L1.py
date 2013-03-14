@@ -47,7 +47,7 @@ class CTDBP_L1_Transform(TransformDataProcess):
 
         l0_values = RecordDictionaryTool.load_from_granule(packet)
         l1_values = RecordDictionaryTool(stream_definition_id=self.stream_definition_id)
-        log.debug("CTDBP L1 transform using L0 values: tempurature %f, pressure %f, conductivity %f",
+        log.debug("CTDBP L1 transform using L0 values: tempurature %s, pressure %s, conductivity %s",
                   l0_values['temperature'], l0_values['pressure'], l0_values['conductivity'])
 
         #for key, value in 'lat', 'lon', 'time', ...:   <-- do we want to be a little more specific here?
@@ -59,7 +59,7 @@ class CTDBP_L1_Transform(TransformDataProcess):
         l1_values['pressure'] = self.calculate_pressure(l0=l0_values)
         l1_values['conductivity'] = self.calculate_conductivity(l0=l0_values, l1=l1_values)
 
-        log.debug('calculated L1 values: temp %f, pressure %f, conductivity %f',
+        log.debug('calculated L1 values: temp %s, pressure %s, conductivity %s',
                   l1_values['temp'], l1_values['pressure'], l1_values['conductivity'])
         self.L1_stream.publish(msg=l1_values.to_granule())
 
@@ -130,7 +130,7 @@ class CTDBP_L1_Transform(TransformDataProcess):
         freq = (CONDWAT_L0 / 256000.0)
         numerator = (g + h * freq**2 + I * freq**3 + j * freq**4)
         denominator = (1 + CTcor * TEMPWAT_L1 + CPcor * PRESWAT_L1)
-        log.debug('freq %f, cond = %f / %f', freq, numerator, denominator)
+        log.debug('freq %s, cond = %s / %s', freq, numerator, denominator)
         CONDWAT_L1 = numerator / denominator
 #        CONDWAT_L1 = (g + h * freq**2 + I * freq**3 + j * freq**4) / (1 + CTcor * TEMPWAT_L1 + CPcor * PRESWAT_L1)
 
