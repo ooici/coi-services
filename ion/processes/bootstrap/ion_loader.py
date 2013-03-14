@@ -94,7 +94,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdHllUjFzcDdCbWZ0MlY5NzdPaXV1WHc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdExHa196Q1dUSkoycnBhUDM5MzV4Z2c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -868,11 +868,11 @@ class IONLoader(ImmediateProcess):
         PARAMETERS.TXWAVEBURST: false,
         SCHEDULER.ACQUIRE_STATUS: {},
         SCHEDULER.CLOCK_SYNC: 48.2
-        SCHEDULER.VERSION: 3.0
+        SCHEDULER.VERSION.number: 3.0
 
         which would translate back to
         { "PARAMETERS": { "TXWAVESTATS": False, "TXREALTIME": True, "TXWAVEBURST": "false" },
-          "SCHEDULER": { "ACQUIRE_STATUS": { }, "CLOCK_SYNC", 48.2, "VERSION": "3.0"}
+          "SCHEDULER": { "ACQUIRE_STATUS": { }, "CLOCK_SYNC", 48.2, "VERSION": {"number": "3.0"}}
         }
 
         """
@@ -899,6 +899,26 @@ class IONLoader(ImmediateProcess):
 
             return some_val
 
+
+        def chomp_key_list(out_dict, keys, value):
+            """
+            turn keys like ['a', 'b', 'c', 'd'] and a value into
+            out_dict['a']['b']['c']['d'] = value
+            """
+            dict_ptr = out_dict
+            last_ptr = out_dict
+            for i, key in enumerate(keys):
+                last_ptr = dict_ptr
+                if not key in dict_ptr:
+                    dict_ptr[key] = {}
+                else:
+                    if type(dict_ptr[key]) != type({}):
+                        raise iex.BadRequest("Building a dict in %s field, but it exists as %s already" %
+                                             (key, type(dict_ptr[key])))
+                dict_ptr = dict_ptr[key]
+            last_ptr[keys[-1]] = value
+
+
         out = { }
         pairs = text.split(',') # pairs separated by commas
         for pair in pairs:
@@ -908,22 +928,10 @@ class IONLoader(ImmediateProcess):
             key = fields[0].strip()
             value = fields[1].strip()
 
-            dotcount = key.count(".")
-            if 1 < dotcount:
-                raise iex.BadRequest("Key field has %s '.' separators, can only handle 0 or 1" % dotcount)
-            elif 0 == dotcount:
-                out[key] = parse_value(value)
-            else:
-                keypart = key.split(".")
-                k0 = keypart[0]
-                k1 = keypart[1]
-                if not k0 in out:
-                    out[k0] = {}
-                else:
-                    if type(out[k0]) != type({}):
-                        raise iex.BadRequest("Building a dict in %s field, but it exists as %s already" %
-                                             (k0, type(out[k0])))
-                    out[k0][k1] = parse_value(value)
+            keyparts = key.split(".")
+            chomp_key_list(out, keyparts, parse_value(value))
+
+
         return out
 
 

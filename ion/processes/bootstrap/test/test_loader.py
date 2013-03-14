@@ -214,8 +214,9 @@ class TestLoader(IonIntegrationTestCase):
         self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)
 
         iai = self.find_object_by_name("Test InstrumentAgentInstance", RT.InstrumentAgentInstance)
-        self.assertEqual(iai.startup_config, {'SCHEDULER': {'VERSION': 3.0, 'CLOCK_SYNC': 48.2},
-                                              'PARAMETERS': {'TXWAVEBURST': 'false', 'TXREALTIME': True}})
+        self.assertEqual({'SCHEDULER': {'VERSION': {'number': 3.0}, 'CLOCK_SYNC': 48.2, 'ACQUIRE_STATUS': {}},
+                          'PARAMETERS': {"TXWAVESTATS": False, 'TXWAVEBURST': 'false', 'TXREALTIME': True}},
+                        iai.startup_config)
 
         orgs, _ = self.container.resource_registry.find_subjects(RT.Org, PRED.hasResource, iai._id, True)
         self.assertEqual(1, len(orgs))
