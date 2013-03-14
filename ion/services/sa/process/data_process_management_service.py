@@ -259,6 +259,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         '''
         configuration = configuration or DotDict()
         routes = configuration.get_safe('process.routes', {})
+
         self.validate_compatibility(in_data_product_ids, out_data_product_ids)
         configuration.process.routes = self._manage_routes(routes)
 
@@ -269,6 +270,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         dproc._id = dproc_id
         dproc._rev = rev
 
+        for data_product_id in in_data_product_ids:
+            self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasInputProduct, object=data_product_id)
+        
         self._manage_producers(dproc_id, out_data_product_ids)
 
         self._manage_attachments()
@@ -624,24 +628,22 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         #Stops processes and deletes the data process associations
         #TODO: Delete the processes also?
-        assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=RT.hasProcess, id_only=False)
-        for assoc in assocs:
-            self._stop_process(data_process=assoc.o)
+        self.deactivate_data_process2(data_process_id)
+        processes, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcess, id_only=False)
+        for process, assoc in zip(processes,assocs):
+            self._stop_process(data_process=process)
             self.clients.resource_registry.delete_association(assoc)
 
         #Delete all subscriptions associations
-        assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=RT.hasSubscription, id_only=False)
-        for assoc in assocs:
-            #Delete subscription
-            self.clients.pubsub_management.deactivate_subscription(subscription_id=assoc.o._id)
-            self.clients.pubsub_management.delete_subscription(subscription_id=assoc.o._id)
-
+        subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
+        for subscription_id, assoc in zip(subscription_ids, assocs):
             self.clients.resource_registry.delete_association(assoc)
+            self.clients.pubsub_management.delete_subscription(subscription_id)
 
         #Unassign data products
-        assocs = self.clients.resource_registry.find_associations(subject=data_process_id, predicate=RT.hasOutputProduct, id_only=False)
-        for assoc in assocs:
-            self.clients.data_acquisition_management.unassign_data_product(input_resource_id=data_process_id, data_product_id=assoc.o._id)
+        data_product_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
+        for data_product_id, assoc in zip(data_product_ids, assocs):
+            self.clients.data_acquisition_management.unassign_data_product(input_resource_id=data_process_id, data_product_id=data_product_id)
 
         #Unregister the data process with acquisition
         self.clients.data_acquisition_management.unregister_process(data_process_id=data_process_id)
@@ -675,6 +677,23 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_list , _ = self.clients.resource_registry.find_resources(RT.DataProcess, None, None, True)
         return data_process_list
 
+    def activate_data_process2(self, data_process_id=''):
+        #@Todo: Data Process Producer context stuff
+        subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
+        for subscription_id in subscription_ids:
+            if not self.clients.pubsub_management.subscription_is_active(subscription_id):
+                self.clients.pubsub_management.activate_subscription(subscription_id)
+        return True
+
+    def deactivate_data_process2(self, data_process_id=''):
+        #@todo: data process producer context stuff
+        subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
+        for subscription_id in subscription_ids:
+            if self.clients.pubsub_management.subscription_is_active(subscription_id):
+                self.clients.pubsub_management.deactivate_subscription(subscription_id)
+
+        return True
+    
     def activate_data_process(self, data_process_id=""):
 
         data_process_obj = self.read_data_process(data_process_id)
