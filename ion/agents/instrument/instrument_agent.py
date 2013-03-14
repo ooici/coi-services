@@ -37,6 +37,7 @@ import socket
 import json
 import base64
 import copy
+import uuid
 
 # Packages
 import numpy
@@ -177,6 +178,12 @@ class InstrumentAgent(ResourceAgent):
 
         # State when lost.
         self._state_when_lost = None
+
+        # Connection ID.
+        self._connection_ID = None
+        
+        # Connection index.
+        self._connection_index = None
 
     def on_init(self):
         """
@@ -348,6 +355,10 @@ class InstrumentAgent(ResourceAgent):
         dvr_comms = self._dvr_config.get('comms_config', None)   
         self._dvr_client.cmd_dvr('configure', dvr_comms)
         self._dvr_client.cmd_dvr('connect')
+        
+        # Reset the connection id and index.
+        self._connection_ID = uuid.uuid4()
+        self._connection_index = {key : 0 for key in self.aparam_streams.keys()}
 
         max_tries = kwargs.get('max_tries', 5)
         if not isinstance(max_tries, int) or max_tries < 1:
@@ -568,6 +579,10 @@ class InstrumentAgent(ResourceAgent):
     
         try:
             self._dvr_client.cmd_dvr('connect')
+
+            # Reset the connection id and index.
+            self._connection_ID = uuid.uuid4()
+            self._connection_index = {key : 0 for key in self.aparam_streams.keys()}
 
         except:
             return (None, None)
@@ -910,9 +925,15 @@ class InstrumentAgent(ResourceAgent):
             
             log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
             g = rdt.to_granule(data_producer_id=self.resource_id)
+            g.connection_id = self._connection_ID.hex
+            g.connection_index = self._connection_index[stream_name]
+            self._connection_index[stream_name] += 1
+            
             publisher.publish(g)
             log.info('Instrument agent %s published data granule on stream %s.',
                 self._proc_name, stream_name)
+            log.info('Connection id: %s, connection index: %i.',
+                     self._connection_ID.hex, self._connection_index[stream_name]-1)
             
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
