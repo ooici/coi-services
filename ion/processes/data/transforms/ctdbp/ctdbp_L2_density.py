@@ -28,17 +28,17 @@ class CTDBP_DensityTransform(TransformDataProcess):
         super(CTDBP_DensityTransform, self).on_start()
 
         if not self.CFG.process.publish_streams.has_key('density'):
-            raise BadRequest("For CTD transforms, please send the stream_id "
-                             "using a special keyword (ex: density)")
+            raise BadRequest("For CTD transforms, please send the stream_id using a special keyword (ex: density)")
         self.dens_stream_id = self.CFG.process.publish_streams.density
 
+        # should get these from the geo_constraints already on the DataProduct
         lat = self.CFG.lat
         lon = self.CFG.lon
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
         self.stream_definition = pubsub.read_stream_definition(stream_id=self.dens_stream_id)
-        
+
         self.params = {'stream_def' : self.stream_definition._id, 'lat': lat, 'lon' : lon}
 
     def recv_packet(self, packet, stream_route, stream_id):
@@ -93,10 +93,13 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
         pressure = rdt['pressure']
         temperature = rdt['temp']
 
+        log.debug('L2 transform using L1 values: temp %f, pressure %f, conductivity %f',
+                  temperature, pressure, conductivity)
+
         latitude = np.ones(len(conductivity)) * lat
         longitude = np.ones(len(conductivity)) * lon
 
-        log.debug("Using latitude: %s,\n longitude: %s", latitude, longitude)
+        log.debug("Using latitude: %s, longitude: %s", latitude, longitude)
 
         # Doing: PRACSAL = gsw_SP_from_C((CONDWAT_L1 * 10),TEMPWAT_L1,PRESWAT_L1)
         pracsal = SP_from_cndr(conductivity * 10, t=temperature, p=pressure)
@@ -105,6 +108,8 @@ class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):
 
         # Doing: absolute_salinity = gsw_SA_from_SP(PRACSAL,PRESWAT_L1,longitude,latitude)
         absolute_salinity = SA_from_SP(pracsal, pressure, longitude, latitude)
+        log.debug('absolute_salinity = SA_from_SP(pracsal=%s, pressure=%s, longitude=%s, latitude=%s)=%s',
+                  pracsal, pressure, longitude, latitude, absolute_salinity)
 
         log.debug("CTDBP Density algorithm calculated the absolute_salinity (actual salinity) values: %s", absolute_salinity)
 
