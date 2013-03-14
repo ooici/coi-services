@@ -649,7 +649,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id=data_process_id)
 
         #Delete the data process from the resource registry
-        self.clients.resource_registry.delete(object_id=data_process_id)
+        self.RR2.retire(data_process_id, RT.DataProcess)
 
     def force_delete_data_process(self, data_process_id=""):
 
@@ -658,8 +658,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if dp_obj.lcstate != LCS.RETIRED:
             self.delete_data_process(data_process_id)
 
-        self._remove_associations(data_process_id)
-        self.clients.resource_registry.delete(data_process_id)
+        self.RR2.pluck_delete(data_process_id, RT.DataProcess)
 
     def _stop_process(self, data_process):
         log.debug("stopping data process '%s'" % data_process.process_id)
