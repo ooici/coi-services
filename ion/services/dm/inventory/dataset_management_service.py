@@ -144,7 +144,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name=''):
+    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
@@ -155,6 +155,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
         pc_res = ParameterContextResource(name=name, parameter_context=parameter_context, description=description)
         pc_res.reference_urls = reference_urls or []
+        pc_res.parameter_type = parameter_type
         pc_res.internal_name = internal_name or name
         pc_res.value_encoding = value_encoding
         pc_res.code_report = code_report or {}

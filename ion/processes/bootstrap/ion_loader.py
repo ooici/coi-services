@@ -1623,6 +1623,7 @@ Reason: %s
                 name=name, parameter_context=context_dump,
                 description=description,
                 reference_urls=[references],
+                parameter_type=ptype,
                 internal_name=name,
                 value_encoding=encoding,
                 code_report=code_set,
