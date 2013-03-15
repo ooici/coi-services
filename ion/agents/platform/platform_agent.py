@@ -178,8 +178,6 @@ class PlatformAgent(ResourceAgent):
         self._network_definition = None  # NetworkDefinition object
         self._pnode = None  # PlatformNode object corresponding to this platform
 
-        self._agent_streamconfig_map = None
-
         # </platform configuration>
         #########################################
 
@@ -386,9 +384,6 @@ class PlatformAgent(ResourceAgent):
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
-        if 'agent_streamconfig_map' in self._plat_config:
-            self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
-
         self._plat_config_processed = True
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
@@ -444,31 +439,13 @@ class PlatformAgent(ResourceAgent):
             self.resource_id = agent_info['resource_id']
             log.debug("%r: resource_id set to %r", self.resource_id, self.resource_id)
 
-        #
-        # TODO simplify method as only CFG.stream_config will be used.
-        #
+        stream_configs = self.CFG.get('stream_config', None)
+        if stream_configs is None:
+            raise PlatformConfigurationException(
+                "%r: No stream_config given in CFG", self._platform_id)
 
-        if self._agent_streamconfig_map:
-            # TODO this part to be removed.
-            log.debug("%r: _agent_streamconfig_map = %s", self._platform_id, self._agent_streamconfig_map)
-
-            stream_config = self._agent_streamconfig_map[self._platform_id]
-            self._construct_data_publisher_using_stream_config(stream_config)
-
-            # TODO remove the following
-            # self._construct_data_publishers_using_agent_streamconfig_map()
-
-        else:
-            stream_configs = self.CFG.get('stream_config', None)
-            if stream_configs is None:
-                raise PlatformConfigurationException(
-                    "%r: No stream_config given in CFG", self._platform_id)
-
-            for stream_name, stream_config in stream_configs.iteritems():
-                self._construct_data_publisher_using_stream_config(stream_name, stream_config)
-
-            # TODO remove the following
-            # self._construct_data_publishers_using_CFG_stream_config()
+        for stream_name, stream_config in stream_configs.iteritems():
+            self._construct_data_publisher_using_stream_config(stream_name, stream_config)
 
         log.debug("%r: _construct_data_publishers complete", self._platform_id)
 
@@ -497,65 +474,7 @@ class PlatformAgent(ResourceAgent):
 
         log.debug("%r: created publisher for stream_name=%r", self._platform_id, stream_name)
 
-    # TODO remove this obsolete method
-    def _construct_data_publishers_using_agent_streamconfig_map(self):
-        log.debug("%r: _agent_streamconfig_map = %s",
-            self._platform_id, self._agent_streamconfig_map)
-
-        stream_config = self._agent_streamconfig_map[self._platform_id]
-
-        routing_key = stream_config['routing_key']
-        stream_id = stream_config['stream_id']
-        exchange_point = stream_config['exchange_point']
-
-        #
-        # TODO Note: using a single stream for the platform
-        #
-
-        stream_name = self._get_platform_name(self._platform_id)
-
-        log.debug("%r: stream_name=%r, routing_key=%r",
-            self._platform_id, stream_name, routing_key)
-
-        self._data_streams[stream_name] = stream_id
-        self._param_dicts[stream_name] = ParameterDictionary.load(stream_config['parameter_dictionary'])
-        self._stream_defs[stream_name] = stream_config['stream_definition_ref']
-        stream_route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
-        publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
-        self._data_publishers[stream_name] = publisher
-        log.debug("%r: created publisher for stream_name=%r",
-              self._platform_id, stream_name)
-
-    # TODO remove this obsolete method
-    def _construct_data_publishers_using_CFG_stream_config(self):
-        """
-        Construct the stream publishers from the stream_config agent
-        config variable.
-        """
-
-        stream_info = self.CFG.get('stream_config', None)
-        if stream_info is None:
-            log.warn("%r: No stream_config given in CFG", self._platform_id)
-            return
-
-        log.debug("%r: stream_info = %s", self._platform_id, stream_info)
-
-        for (stream_name, stream_config) in stream_info.iteritems():
-
-            stream_route = stream_config['stream_route']
-
-            log.debug("%r: stream_name=%r, stream_route=%r",
-                self._platform_id, stream_name, stream_route)
-
-            stream_id = stream_config['stream_id']
-            self._data_streams[stream_name] = stream_id
-            self._param_dicts[stream_name] = adhoc_get_parameter_dictionary(stream_name)
-            publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
-            self._data_publishers[stream_name] = publisher
-            log.debug("%r: created publisher for stream_name=%r",
-                  self._platform_id, stream_name)
-
-    def _get_platform_name(self, platform_id):
+   def _get_platform_name(self, platform_id):
         """
         Interim helper to get the platform name associated with a platform_id.
         """
@@ -585,7 +504,7 @@ class PlatformAgent(ResourceAgent):
             driver = classobj(self._pnode, self.evt_recv)
 
         except Exception as e:
-            msg = '%r: could not import/construct driver: module=%s, class=%s' % (
+            msg = '%r: could not import/construct driver: module=%r, class=%r' % (
                 self._platform_id, driver_module, driver_class)
             log.error("%s; reason=%s", msg, str(e))  #, exc_Info=True)
             raise CannotInstantiateDriverException(msg=msg, reason=e)
@@ -857,8 +776,6 @@ class PlatformAgent(ResourceAgent):
             'platform_id': subplatform_id,
             'network_definition' : self._network_definition_ser,
             'parent_platform_id' : self._platform_id,
-
-            'agent_streamconfig_map': self._agent_streamconfig_map,
         }
 
         agent_config = {
