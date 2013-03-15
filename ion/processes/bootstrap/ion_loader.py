@@ -1947,40 +1947,25 @@ Reason: %s
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
-        platform_agent = self.resource_objs[row['platform_agent_id']]
 
         driver_config = self._parse_dict(row['driver_config'])
-        driver_config['dvr_cls'] = platform_agent.driver_class
-        driver_config['dvr_mod'] = platform_agent.driver_module
+        log.debug("driver_config = %s", driver_config)
 
-        # ***** previously: *****
-        # #TODO: allow child platforms
-        # platform_topology = { platform_id: [] }
-        #
-        # #
-        # device_dict = self._HACK_get_device_dict(platform_id)
-        #
-        # admap = { platform_id: device_dict }
-        # platform_config = { 'platform_id':             platform_id,
-        #                     'platform_topology':       platform_topology,
-        #                     'agent_device_map':        admap,
-        #                     'agent_streamconfig_map':  None,  # can we just omit?
-        #                     'driver_config':           driver_config }
-        #
-
-        # ***** now using platform network definition
+        # Note: hack for some definition needed by platform agent,
+        # but this should come from the spreadsheet
         network_definition_ser = self._HACK_get_platform_network_definition()
         platform_config = { 'platform_id':             platform_id,
-                            'driver_config':           driver_config,
                             'network_definition' :     network_definition_ser
         }
 
-        agent_config = { 'platform_config': platform_config }
+        agent_config = {
+            'platform_config': platform_config }
 
 
         res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
             "instrument_management", "create_platform_agent_instance",
-            set_attributes=dict(agent_config=agent_config),
+            set_attributes=dict(agent_config=agent_config,
+                                driver_config=driver_config),
             support_bulk=True)
 
         client = self._get_service_client("instrument_management")
@@ -2009,30 +1994,30 @@ Reason: %s
         network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
         return network_definition_ser
 
-    def _HACK_get_device_dict(self, platform_id):
-        """ TODO: remove from preload and the initial object def.  instead query CIOMSClient from IMS when the platform agent is started
-            TODO: set a property in the agent instance to identify which CIOMSClient to use (need to support platforms from different Orgs)
-
-            query the simulated CIOMSClient for information about the platform
-        """
-
-        simulator = CIOMSClientFactory.create_instance()
-
-        # get network information (from: test_oms_launch2._prepare_platform_ports)
-        port_dicts = []
-        platform_port_info = simulator.get_platform_ports(platform_id)
-        for port_id, port in platform_port_info[platform_id].iteritems():
-            port_dicts.append(dict(port_id=port_id, ip_address=port['network']))
-
-        # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
-        attribute_dicts = []
-        platform_attribute_info = simulator.get_platform_attributes(platform_id)
-        for name, attribute in platform_attribute_info[platform_id].iteritems():
-            attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
-
-        # package as needed by agent instance
-        return { 'ports': port_dicts,
-                 'platform_monitor_attributes': attribute_dicts }
+    # def _HACK_get_device_dict(self, platform_id):
+    #     """ TODO: remove from preload and the initial object def.  instead query CIOMSClient from IMS when the platform agent is started
+    #         TODO: set a property in the agent instance to identify which CIOMSClient to use (need to support platforms from different Orgs)
+    #
+    #         query the simulated CIOMSClient for information about the platform
+    #     """
+    #
+    #     simulator = CIOMSClientFactory.create_instance()
+    #
+    #     # get network information (from: test_oms_launch2._prepare_platform_ports)
+    #     port_dicts = []
+    #     platform_port_info = simulator.get_platform_ports(platform_id)
+    #     for port_id, port in platform_port_info[platform_id].iteritems():
+    #         port_dicts.append(dict(port_id=port_id, ip_address=port['network']))
+    #
+    #     # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
+    #     attribute_dicts = []
+    #     platform_attribute_info = simulator.get_platform_attributes(platform_id)
+    #     for name, attribute in platform_attribute_info[platform_id].iteritems():
+    #         attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
+    #
+    #     # package as needed by agent instance
+    #     return { 'ports': port_dicts,
+    #              'platform_monitor_attributes': attribute_dicts }
 
 
 
