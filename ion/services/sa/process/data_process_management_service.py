@@ -252,17 +252,21 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @param configuration : The configuration dictionary for the process, and the routing table:
 
         The routing table is defined as such:
-            { (in_data_product_id, out_data_product_id) : actor }
+            { in_data_product_id: {out_data_product_id : actor }}
 
         Routes are specified in the configuration dictionary under the item "routes"
         actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
         '''
         configuration = configuration or DotDict()
         routes = configuration.get_safe('process.routes', {})
+        if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
+            routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
+        elif not routes:
+            raise BadRequest('No valid route defined for this data process.')
 
         self.validate_compatibility(in_data_product_ids, out_data_product_ids)
-        configuration.process.routes = self._manage_routes(routes)
-
+        routes = self._manage_routes(routes)
+        configuration.process.routes = routes
         dproc = DataProcess()
         dproc.name = 'data_process_%s' % self.get_unique_id()
         dproc.configuration = configuration
@@ -762,16 +766,18 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def _manage_routes(self, routes):
         retval = {}
-        for path,actor in routes.iteritems():
-            in_data_product_id, out_data_product_id = path
-            in_stream_id = self._get_stream_from_dp(in_data_product_id)
-            out_stream_id = self._get_stream_from_dp(out_data_product_id)
-            if actor:
-                self.clients.resource_registry.read(actor)
-                if isinstance(actor,TransformFunction):
-                    actor = 'TODO: figure this out' 
-                    
-            retval[(in_stream_id, out_stream_id)] = actor
+        for in_data_product_id,route in routes.iteritems():
+            for out_data_product_id, actor in route.iteritems():
+                in_stream_id = self._get_stream_from_dp(in_data_product_id)
+                out_stream_id = self._get_stream_from_dp(out_data_product_id)
+                if actor:
+                    self.clients.resource_registry.read(actor)
+                    if isinstance(actor,TransformFunction):
+                        actor = 'TODO: figure this out' 
+                        
+                if in_stream_id not in retval:
+                    retval[in_stream_id] =  {}
+                retval[in_stream_id][out_stream_id] = actor
         return retval
 
     def _manage_producers(self, data_process_id, data_product_ids):
