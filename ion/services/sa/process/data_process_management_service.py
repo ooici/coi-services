@@ -257,7 +257,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         Routes are specified in the configuration dictionary under the item "routes"
         actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
         '''
-        configuration = configuration or DotDict()
+        configuration = DotDict(configuration) or DotDict()
         routes = configuration.get_safe('process.routes', {})
         if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
             routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
@@ -772,9 +772,11 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 in_stream_id = self._get_stream_from_dp(in_data_product_id)
                 out_stream_id = self._get_stream_from_dp(out_data_product_id)
                 if actor:
-                    self.clients.resource_registry.read(actor)
+                    actor = self.clients.resource_registry.read(actor)
                     if isinstance(actor,TransformFunction):
-                        actor = 'TODO: figure this out' 
+                        actor = {'module': actor.module, 'class':actor.cls}
+                    else:
+                        raise BadRequest('This actor type is not currently supported')
                         
                 if in_stream_id not in retval:
                     retval[in_stream_id] =  {}
