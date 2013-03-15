@@ -474,7 +474,7 @@ class PlatformAgent(ResourceAgent):
 
         log.debug("%r: created publisher for stream_name=%r", self._platform_id, stream_name)
 
-   def _get_platform_name(self, platform_id):
+    def _get_platform_name(self, platform_id):
         """
         Interim helper to get the platform name associated with a platform_id.
         """
