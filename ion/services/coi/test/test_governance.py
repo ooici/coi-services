@@ -923,15 +923,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(self.ion_org._id)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER])
 
         roles = self.org_client.find_org_roles_by_user(self.ion_org._id, self.system_actor._id, headers=self.system_actor_header)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MEMBER_ROLE, ORG_MANAGER_ROLE, ION_MANAGER])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MEMBER_ROLE, ORG_MANAGER_ROLE, ION_MANAGER])
 
         roles = self.org_client.find_org_roles_by_user(self.ion_org._id, actor_id, headers=self.system_actor_header)
         self.assertEqual(len(roles),1)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MEMBER_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MEMBER_ROLE])
 
 
         #Create a second Org
@@ -947,10 +947,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),2)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
 
         #Create the Instrument Operator Role
-        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE,label='Instrument Operator', description='Instrument Operator')
+        operator_role = IonObject(RT.UserRole, governance_name=INSTRUMENT_OPERATOR_ROLE,name='Instrument Operator', description='Instrument Operator')
 
         #First try to add the user role anonymously
         with self.assertRaises(Unauthorized) as cm:
@@ -961,7 +961,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE,  INSTRUMENT_OPERATOR_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE,  INSTRUMENT_OPERATOR_ROLE])
 
         #Add the same role to the first Org as well
         self.org_client.add_user_role(self.ion_org._id, operator_role, headers=self.system_actor_header)
@@ -1167,10 +1167,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),2)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
 
         #Create the Instrument Operator Role
-        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE,label='Instrument Operator', description='Instrument Operator')
+        operator_role = IonObject(RT.UserRole, governance_name=INSTRUMENT_OPERATOR_ROLE,name='Instrument Operator', description='Instrument Operator')
 
         #And add it to all Orgs
         self.org_client.add_user_role(self.ion_org._id, operator_role, headers=self.system_actor_header)
@@ -1398,31 +1398,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Release the exclusive commitment to the resource
         self.org_client.release_commitment(exclusive_contract[0]._id, headers=actor_header)
 
-        """
-        #Check commitment to be inactive
-        commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),2)
-        for com in commitments:
-            if com.commitment.exclusive:
-                self.assertEqual(com.lcstate, LCS.RETIRED)
-            else:
-                self.assertNotEqual(com.lcstate, LCS.RETIRED)
-
-        #Release the resource
-        self.org_client.release_commitment(resource_commitment[0]._id, headers=actor_header)
-
-        #Check commitment to be inactive
-        commitments, _ = self.rr_client.find_objects(ia_list[0]._id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),2)
-        for com in commitments:
-            self.assertEqual(com.lcstate, LCS.RETIRED)
-
-        commitments, _ = self.rr_client.find_objects(actor_id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),2)
-        for com in commitments:
-            self.assertEqual(com.lcstate, LCS.RETIRED)
-
-        """
 
         #Check exclusive commitment to be inactive
         commitments, _ = self.rr_client.find_resources(restype=RT.Commitment, lcstate=LCS.RETIRED)
@@ -1506,15 +1481,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),2)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
 
         #Create Instrument Operator Role and add it to the second Org
-        operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, label='Instrument Operator', description='Instrument Operator')
+        operator_role = IonObject(RT.UserRole, governance_name=INSTRUMENT_OPERATOR_ROLE, name='Instrument Operator', description='Instrument Operator')
         self.org_client.add_user_role(org2_id, operator_role, headers=self.system_actor_header)
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE])
 
 
         #Create Test InstrumentDevice - use the system admin for now
@@ -1695,29 +1670,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.execute_agent(cmd, headers=actor_header)
         self.assertIn('(execute_agent) has been denied',cm.exception.message)
 
-
-        """
-        #Now release the shared commitment
-        #Check commitment to be inactive
-        commitments, _ = self.rr_client.find_objects(inst_obj_id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),2)
-        for com in commitments:
-            if com.commitment.exclusive:
-                self.assertEqual(com.lcstate, LCS.RETIRED)
-            else:
-                self.assertNotEqual(com.lcstate, LCS.RETIRED)
-                #Release the resource
-                self.org_client.release_commitment(resource_commitment[0]._id, headers=actor_header)
-
-
-        #Check commitment to be inactive
-        commitments, _ = self.rr_client.find_objects(inst_obj_id,PRED.hasCommitment, RT.Commitment)
-        self.assertEqual(len(commitments),2)
-        for com in commitments:
-            self.assertEqual(com.lcstate, LCS.RETIRED)
-
-        """
-
         #Check exclusive commitment to be inactive
         commitments, _ = self.rr_client.find_resources(restype=RT.Commitment, lcstate=LCS.RETIRED)
         self.assertEqual(len(commitments),1)
@@ -1874,20 +1826,20 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),2)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE])
 
         #Create Instrument Operator Role and add it to the second Org
-        inst_operator_role = IonObject(RT.UserRole, name=INSTRUMENT_OPERATOR_ROLE, label='Instrument Operator', description='Instrument Operator')
+        inst_operator_role = IonObject(RT.UserRole, governance_name=INSTRUMENT_OPERATOR_ROLE, name='Instrument Operator', description='Instrument Operator')
         self.org_client.add_user_role(org2_id, inst_operator_role, headers=self.system_actor_header)
 
         #Create Instrument Operator Role and add it to the second Org
-        obs_operator_role = IonObject(RT.UserRole, name=OBSERVATORY_OPERATOR_ROLE, label='Observatory Operator', description='Observatory Operator')
+        obs_operator_role = IonObject(RT.UserRole, governance_name=OBSERVATORY_OPERATOR_ROLE, name='Observatory Operator', description='Observatory Operator')
         self.org_client.add_user_role(org2_id, obs_operator_role, headers=self.system_actor_header)
 
 
         roles = self.org_client.find_org_roles(org2_id)
         self.assertEqual(len(roles),4)
-        self.assertItemsEqual([r.name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
 
         self.org_client.enroll_member(org2_id,inst_operator_actor_id, headers=self.system_actor_header)
         self.org_client.enroll_member(org2_id,member_actor_id, headers=self.system_actor_header)
