@@ -42,7 +42,8 @@ class TestPolicyManagementService(PyonTestCase):
 
         # UserRole
         self.user_role = Mock()
-        self.user_role.name = 'COI_Test_Administrator'
+        self.user_role.name = 'COI Test Administrator'
+        self.user_role.governance_name = 'COI_Test_Administrator'
 
         # Resource
         self.resource = Mock()
@@ -267,21 +268,29 @@ class TestPolicyManagementServiceInt(IonIntegrationTestCase):
 
 
     def test_role_crud(self):
-        user_role_obj = IonObject("UserRole", {"name": "Test_User_Role"})
+
+        with self.assertRaises(BadRequest) as br:
+            self.policy_management_service.create_role(IonObject("UserRole", {"name": "Test User Role", "governance_name": "Test User Role"}))
+        self.assertTrue("can only contain alphanumeric and underscore characters" in br.exception.message)
+
+
+        user_role_obj = IonObject("UserRole", {"name": "Test User Role"})
         user_role_id = self.policy_management_service.create_role(user_role_obj)
         self.assertNotEqual(user_role_id, None)
 
         user_role = None
         user_role = self.policy_management_service.read_role(user_role_id)
         self.assertNotEqual(user_role, None)
+        self.assertEqual(user_role.governance_name, 'Test_User_Role')
 
-        user_role.name = 'Test_User_Role_2'
+        user_role.name = 'Test User Role 2'
         self.policy_management_service.update_role(user_role)
 
         user_role = None
         user_role = self.policy_management_service.read_role(user_role_id)
         self.assertNotEqual(user_role, None)
-        self.assertEqual(user_role.name, 'Test_User_Role_2')
+        self.assertEqual(user_role.name, 'Test User Role 2')
+        self.assertEqual(user_role.governance_name, 'Test_User_Role')
 
         self.policy_management_service.delete_role(user_role_id)
 

@@ -8,7 +8,7 @@ __license__ = 'Apache 2.0'
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import PRED, RT, Container, CFG, OT, IonObject
-from pyon.util.containers import is_basic_identifier
+from pyon.util.containers import is_basic_identifier, create_basic_identifier
 from pyon.util.log import log
 from pyon.event.event import EventPublisher
 from pyon.ion.endpoint import ProcessEventSubscriber
@@ -560,8 +560,12 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
 
-        if not is_basic_identifier(user_role.name):
-            raise BadRequest("The role name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+        #If this governance identifier is not set, then set to a safe version of the policy name.
+        if not user_role.governance_name:
+            user_role.governance_name = create_basic_identifier(user_role.name)
+
+        if not is_basic_identifier(user_role.governance_name):
+            raise BadRequest("The governance_name field '%s' can only contain alphanumeric and underscore characters" % user_role.governance_name)
 
         user_role_id, version = self.clients.resource_registry.create(user_role)
         return user_role_id
@@ -580,8 +584,12 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws Conflict    object not based on latest persisted object version
         """
 
-        if not is_basic_identifier(user_role.name):
-            raise BadRequest("The role name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+        #If this governance identifier is not set, then set to a safe version of the policy name.
+        if not user_role.governance_name:
+            user_role.governance_name = create_basic_identifier(user_role.name)
+
+        if not is_basic_identifier(user_role.governance_name):
+            raise BadRequest("The governance_name field '%s' can only contain alphanumeric and underscore characters" % user_role.governance_name)
 
         self.clients.resource_registry.update(user_role)
 
