@@ -257,7 +257,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         Routes are specified in the configuration dictionary under the item "routes"
         actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
         '''
-        configuration = DotDict(configuration) or DotDict()
+        configuration = DotDict(configuration or {}) 
         routes = configuration.get_safe('process.routes', {})
         if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
             routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
