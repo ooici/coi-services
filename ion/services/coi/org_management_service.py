@@ -196,10 +196,10 @@ class OrgManagementService(BaseOrgManagementService):
         directory = Directory(orgname=org.name)
 
         #Instantiate initial set of User Roles for this Org
-        manager_role = IonObject(RT.UserRole, name=ORG_MANAGER_ROLE, label='Observatory Administrator', description='Change Observatory Information, assign Roles, post Observatory events')
+        manager_role = IonObject(RT.UserRole, name='Observatory Administrator', governance_name=ORG_MANAGER_ROLE, description='Change Observatory Information, assign Roles, post Observatory events')
         self.add_user_role(org_id, manager_role)
 
-        member_role = IonObject(RT.UserRole, name=ORG_MEMBER_ROLE, label='Observatory Member', description='Subscribe to events, set personal preferences')
+        member_role = IonObject(RT.UserRole, name='Observatory Member', governance_name=ORG_MEMBER_ROLE, description='Subscribe to events, set personal preferences')
         self.add_user_role(org_id, member_role)
 
         return org_id
@@ -286,8 +286,8 @@ class OrgManagementService(BaseOrgManagementService):
         if not user_role:
             raise BadRequest("The user_role parameter is missing")
 
-        if self._find_role(org_id, user_role.name) is not None:
-            raise BadRequest("The user role '%s' is already associated with this Org" % user_role.name)
+        if self._find_role(org_id, user_role.governance_name) is not None:
+            raise BadRequest("The user role '%s' is already associated with this Org" % user_role.governance_name)
 
         user_role.org_governance_name = org.org_governance_name
         user_role_id = self.clients.policy_management.create_role(user_role)
@@ -344,17 +344,17 @@ class OrgManagementService(BaseOrgManagementService):
         return user_role
 
 
-    def _find_role(self, org_id='', name=''):
+    def _find_role(self, org_id='', role_name=''):
 
         if not org_id:
             raise BadRequest("The org_id parameter is missing")
 
-        if not name:
-            raise BadRequest("The name parameter is missing")
+        if not role_name:
+            raise BadRequest("The governance_name parameter is missing")
 
         org_roles = self.find_org_roles(org_id)
         for role in org_roles:
-            if role.name == name:
+            if role.governance_name == role_name:
                 return role
 
         return None
@@ -731,9 +731,9 @@ class OrgManagementService(BaseOrgManagementService):
         if not aid:
             return False
 
-        self.event_pub.publish_event(event_type=OT.UserRoleGrantedEvent, origin=org._id, origin_type='Org', sub_type=user_role.name,
+        self.event_pub.publish_event(event_type=OT.UserRoleGrantedEvent, origin=org._id, origin_type='Org', sub_type=user_role.governance_name,
             description='Granted the %s role' % user_role.name,
-            actor_id=user._id, role_name=user_role.name, org_name=org.name )
+            actor_id=user._id, role_name=user_role.governance_name, org_name=org.name )
 
         return True
 
@@ -744,9 +744,9 @@ class OrgManagementService(BaseOrgManagementService):
 
         self.clients.resource_registry.delete_association(aid)
 
-        self.event_pub.publish_event(event_type=OT.UserRoleRevokedEvent, origin=org._id, origin_type='Org', sub_type=user_role.name,
+        self.event_pub.publish_event(event_type=OT.UserRoleRevokedEvent, origin=org._id, origin_type='Org', sub_type=user_role.governance_name,
             description='Revoked the %s role' % user_role.name,
-            actor_id=user._id, role_name=user_role.name, org_name=org.name )
+            actor_id=user._id, role_name=user_role.governance_name, org_name=org.name )
 
         return True
 
@@ -787,7 +787,7 @@ class OrgManagementService(BaseOrgManagementService):
         role_list = self._find_org_roles_by_user(org, user)
 
         for role in role_list:
-            if role.name == role_name:
+            if role.governance_name == role_name:
                 return True
 
         return False
