@@ -9,7 +9,7 @@ from pyon.ion.resource import ExtendedResourceContainer
 from pyon.core.registry import issubtype
 from pyon.util.log import log
 from pyon.event.event import EventPublisher
-from pyon.util.containers import is_basic_identifier, get_ion_ts
+from pyon.util.containers import is_basic_identifier, get_ion_ts, create_basic_identifier
 from pyon.core.governance.negotiation import Negotiation
 from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability, ComputedIntValue, StatusType
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
@@ -64,7 +64,11 @@ class OrgManagementService(BaseOrgManagementService):
 
 
     def _get_root_org_name(self):
-        return CFG.get_safe('system.root_org' , "ION")
+
+        if self.container is None or self.container.governance_controller is None:
+            return CFG.get_safe('system.root_org' , "ION")
+
+        return self.container.governance_controller.system_root_org_name
 
     def _validate_parameters(self, **kwargs):
 
@@ -159,7 +163,7 @@ class OrgManagementService(BaseOrgManagementService):
         return parameter_objects
 
     def create_org(self, org=None):
-        """Persists the provided Org object. The id string returned
+        """Creates an Org based on the provided object. The id string returned
         is the internal id by which Org will be identified in the data store.
 
         @param org    Org
@@ -176,8 +180,12 @@ class OrgManagementService(BaseOrgManagementService):
             if len(res_list) > 0:
                 raise BadRequest('There can only be one Org named %s' % self._get_root_org_name())
 
-        if not is_basic_identifier(org.name):
-            raise BadRequest("The Org name '%s' can only contain alphanumeric and underscore characters" % org.name)
+        #If this governance identifier is not set, then set to a safe version of the org name.
+        if not org.org_governance_name:
+            org.org_governance_name = create_basic_identifier(org.name)
+
+        if not is_basic_identifier(org.org_governance_name):
+            raise BadRequest("The Org org_governance_name '%s' can only contain alphanumeric and underscore characters" % org.org_governance_name)
 
 
         org_id, org_rev = self.clients.resource_registry.create(org)
@@ -197,10 +205,7 @@ class OrgManagementService(BaseOrgManagementService):
         return org_id
 
     def update_org(self, org=None):
-        """Updates the provided Org object.  Throws NotFound exception if
-        an existing version of Org is not found.  Throws Conflict if
-        the provided Policy object is not based on the latest persisted
-        version of the object.
+        """Updates the Org based on provided object.
 
         @param org    Org
         @throws BadRequest    if object does not have _id or _rev attribute
@@ -210,11 +215,18 @@ class OrgManagementService(BaseOrgManagementService):
         if not org:
             raise BadRequest("The org parameter is missing")
 
+        #If this governance identifier is not set, then set to a safe version of the org name.
+        if not org.org_governance_name:
+            org.org_governance_name = create_basic_identifier(org.name)
+
+        if not is_basic_identifier(org.org_governance_name):
+            raise BadRequest("The Org org_governance_name '%s' can only contain alphanumeric and underscore characters" % org.org_governance_name)
+
         self.clients.resource_registry.update(org)
 
     def read_org(self, org_id=''):
-        """Returns the Org object for the specified policy id.
-        Throws exception if id does not match any persisted Policy
+        """Returns the Org object for the specified id.
+        Throws exception if id does not match any persisted Org
         objects.
 
         @param org_id    str
@@ -227,10 +239,9 @@ class OrgManagementService(BaseOrgManagementService):
 
     def delete_org(self, org_id=''):
         """Permanently deletes Org object with the specified
-        id. Throws exception if id does not match any persisted Policy.
+        id. Throws exception if id does not match any persisted Org object.
 
         @param org_id    str
-        @retval success    bool
         @throws NotFound    object with specified id does not exist
         """
         if not org_id:
@@ -278,7 +289,7 @@ class OrgManagementService(BaseOrgManagementService):
         if self._find_role(org_id, user_role.name) is not None:
             raise BadRequest("The user role '%s' is already associated with this Org" % user_role.name)
 
-        user_role.org_name = org.name
+        user_role.org_governance_name = org.org_governance_name
         user_role_id = self.clients.policy_management.create_role(user_role)
 
         aid = self.clients.resource_registry.create_association(org, PRED.hasRole, user_role_id)
@@ -795,10 +806,10 @@ class OrgManagementService(BaseOrgManagementService):
         #better indexing/views are available in couch
         ret_list = []
         for role in role_list:
-            if role.org_name == org.name:
+            if role.org_governance_name == org.org_governance_name:
                 ret_list.append(role)
 
-        if org.name == self.container.governance_controller.system_root_org_name:
+        if org.org_governance_name == self.container.governance_controller.system_root_org_name:
 
             #Because a user is automatically enrolled with the ION Org then the membership role is implied - so add it to the list
             member_role = self._find_role(org._id, ORG_MEMBER_ROLE)
@@ -829,8 +840,8 @@ class OrgManagementService(BaseOrgManagementService):
 
 
     def find_all_roles_by_user(self, user_id=''):
-        """Returns a dict of all User Roles roles by Org associated with the specified user.
-        Will throw a not NotFound exception if either of the IDs do not exist.
+        """Returns a dict of all User Roles roles by Org associated with the specified user. The dict will be keyed by
+        the Org.org_governance_name value. Will throw a not NotFound exception if either of the IDs do not exist.
 
         @param user_id    str
         @retval user_roles_by_org    dict
@@ -846,7 +857,7 @@ class OrgManagementService(BaseOrgManagementService):
         #Membership with the ION Root Org is implied
         for org in org_list:
             role_list = self._find_org_roles_by_user(org, user)
-            ret_val[org.name] = role_list
+            ret_val[org.org_governance_name] = role_list
 
         return ret_val
 
@@ -1084,7 +1095,7 @@ class OrgManagementService(BaseOrgManagementService):
         org = param_objects['org']
 
         #Containers in the Root ION Org are implied
-        if org.name == self._get_root_org_name():
+        if org.org_governance_name == self._get_root_org_name():
             container_list,_ = self.clients.resource_registry.find_resources(RT.CapabilityContainer)
             container_list[:] = [container for container in container_list if not self.is_in_org(container)]
         else:

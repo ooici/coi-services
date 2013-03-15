@@ -262,11 +262,11 @@ class InstrumentAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(),
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
                         ORG_MANAGER_ROLE):
             return True, ''
 
-        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(),
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
                             INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
