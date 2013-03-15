@@ -87,7 +87,7 @@ class TestTransformPrime(IonIntegrationTestCase):
         out_stream_id, out_stream_def_id = stream_info[1]
 
         routes = {}
-        routes[(in_stream_id, out_stream_id)]= None
+        routes[in_stream_id] = {out_stream_id: None}
 
         config = DotDict()
 
@@ -119,7 +119,7 @@ class TestTransformPrime(IonIntegrationTestCase):
         out_stream_id, out_stream_def_id = stream_info[1]
 
         routes = {}
-        routes[(in_stream_id, out_stream_id)]= None
+        routes[in_stream_id] = {out_stream_id: None}
 
         config = DotDict()
 

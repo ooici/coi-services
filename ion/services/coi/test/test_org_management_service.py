@@ -39,9 +39,10 @@ class TestOrgManagementService(PyonTestCase):
         self.mock_find_resources = mock_clients.resource_registry.find_resources
         self.mock_find_subjects = mock_clients.resource_registry.find_subjects
 
-        # Exchange Space
+        # Org
         self.org = Mock()
         self.org.name = "Foo"
+        self.org.org_governance_name = ''
 
         self.user_role = Mock()
         self.user_role2 = Mock()
@@ -118,19 +119,21 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
     def test_org_crud(self):
 
         with self.assertRaises(BadRequest) as br:
-            self.org_management_service.create_org(IonObject("Org", {"name": "Test Facility"}))
+            self.org_management_service.create_org(IonObject("Org", {"name": "Test Facility", "org_governance_name": "Test Facility" }))
         self.assertTrue("can only contain alphanumeric and underscore characters" in br.exception.message)
 
         with self.assertRaises(BadRequest):
             self.org_management_service.create_org()
 
-        org_obj = IonObject("Org", {"name": "TestFacility"})
+        org_obj = IonObject("Org", {"name": "Test Facility"})
         org_id = self.org_management_service.create_org(org_obj)
         self.assertNotEqual(org_id, None)
+
 
         org = None
         org = self.org_management_service.read_org(org_id)
         self.assertNotEqual(org, None)
+        self.assertEqual(org.org_governance_name, 'Test_Facility')
 
         #Check that the roles got associated to them
         role_list = self.org_management_service.find_org_roles(org_id)
@@ -138,13 +141,14 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
 
         with self.assertRaises(BadRequest):
             self.org_management_service.update_org()
-        org.name = 'Updated_TestFacility'
+        org.name = 'Updated Test Facility'
         self.org_management_service.update_org(org)
 
         org = None
         org = self.org_management_service.read_org(org_id)
         self.assertNotEqual(org, None)
-        self.assertEqual(org.name, 'Updated_TestFacility')
+        self.assertEqual(org.name, 'Updated Test Facility')
+        self.assertEqual(org.org_governance_name, 'Test_Facility')
 
         user_role = self.org_management_service.find_org_role_by_name(org_id, ORG_MANAGER_ROLE)
         self.assertNotEqual(user_role, None)

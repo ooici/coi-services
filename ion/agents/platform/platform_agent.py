@@ -406,10 +406,10 @@ class PlatformAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), ORG_MANAGER_ROLE):
             return True, ''
 
-        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), INSTRUMENT_OPERATOR_ROLE):
             return False, ''
 
         com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)

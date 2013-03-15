@@ -31,7 +31,7 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER, get_system_actor, get_system_actor_header
-from pyon.core.governance import get_actor_header
+from pyon.core.governance import get_actor_header, get_web_authentication_actor
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 from pyon.event.event import EventPublisher
@@ -43,7 +43,7 @@ from mi.core.instrument.instrument_driver import DriverConnectionState
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
-ORG2 = 'Org2'
+ORG2 = 'Org 2'
 
 
 USER1_CERTIFICATE =  """-----BEGIN CERTIFICATE-----
@@ -341,10 +341,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.system_actor_header = get_system_actor_header()
 
-        #Create a Actor which represents an originator like a web server.
-        apache_obj = IonObject(RT.ActorIdentity, name='ApacheWebServer', description='Represents a non user actor like an apache web server')
-        apache_actor_id,_ = self.rr_client.create(apache_obj, headers=self.system_actor_header)
-        self.apache_actor = self.rr_client.read(apache_actor_id)
+        #Get info on the Web Authentication Actor
+        self.apache_actor = get_web_authentication_actor()
+        if not self.apache_actor:
+            #Can't find the apache actor so just use the system actor
+            self.apache_actor = self.system_actor
 
         self.apache_actor_header = get_actor_header(self.apache_actor._id)
 
@@ -369,8 +370,6 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
 
-        #Clean up the non user actor
-        self.rr_client.delete(self.apache_actor._id, headers=self.system_actor_header)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -664,7 +663,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound) as nf:
             org2 = self.org_client.find_org(ORG2)
-        self.assertIn('The Org with name Org2 does not exist',nf.exception.message)
+        self.assertIn('The Org with name Org 2 does not exist',nf.exception.message)
 
         #Create a second Org
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
@@ -675,7 +674,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),3) #Should include the ION System Actor, Web auth actor and non-user actor from setup as well.
+        self.assertEqual(len(users),2) #Should include the ION System Actor, Web auth actor.
 
         log.debug('Begin testing with policies')
 
@@ -692,7 +691,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),4) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),3) #Should include the ION System Actor and web auth actor as well.
 
         #Now enroll the user as a member of the Second Org
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
@@ -706,7 +705,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
 
         #Hack to force container into an Org Boundary for second Org
-        self.container.governance_controller._container_org_name = org2.name
+        self.container.governance_controller._container_org_name = org2.org_governance_name
         self.container.governance_controller._is_container_org_boundary = True
 
         #First try to get a list of Users by hitting the RR anonymously - should be denied.
@@ -715,9 +714,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'resource_registry(find_resources) has been denied',cm.exception.message)
 
 
-        #Now try to hit the RR with a real user and should noe bw allowed
+        #Now try to hit the RR with a real user and should now be allowed
         users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=actor_header)
-        self.assertEqual(len(users),4) #Should include the ION System Actor and non-user actor from setup as well.
+        self.assertEqual(len(users),3) #Should include the ION System Actor and web auth actor as well.
 
         #TODO - figure out how to right a XACML rule to be a member of the specific Org as well
 
@@ -786,12 +785,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn( 'org_management(find_enrolled_users) has been denied',cm.exception.message)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),4)  # WIll include the ION system actor and the non user actor from setup
+        self.assertEqual(len(users),3)  # WIll include the ION system actor
 
         #Create a second Org
         with self.assertRaises(NotFound) as nf:
             org2 = self.org_client.find_org(ORG2)
-        self.assertIn('The Org with name Org2 does not exist',nf.exception.message)
+        self.assertIn('The Org with name Org 2 does not exist',nf.exception.message)
 
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
         org2_id = self.org_client.create_org(org2, headers=self.system_actor_header)
@@ -918,7 +917,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         actor_header = get_actor_header(actor_id)
 
         users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),4)  # WIll include the ION system actor and the non user actor from setup
+        self.assertEqual(len(users),3)  # WIll include the ION system actor and the non user actor from setup
 
         ## test_org_roles and policies
 
@@ -938,7 +937,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Create a second Org
         with self.assertRaises(NotFound) as nf:
             org2 = self.org_client.find_org(ORG2)
-        self.assertIn('The Org with name Org2 does not exist',nf.exception.message)
+        self.assertIn('The Org with name Org 2 does not exist',nf.exception.message)
 
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
         org2_id = self.org_client.create_org(org2, headers=self.system_actor_header)
@@ -1525,7 +1524,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
         from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
         ia_client = start_instrument_agent_process(self.container, resource_id=inst_obj_id, resource_name=inst_obj.name,
-            org_name=org2.name, message_headers=self.system_actor_header)
+            org_governance_name=org2.org_governance_name, message_headers=self.system_actor_header)
 
         #First try a basic agent operation anonymously - it should be denied
         with self.assertRaises(Unauthorized) as cm:
