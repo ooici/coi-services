@@ -775,7 +775,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if has_org_role(gov_values.actor_roles, org.name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
+                if has_org_role(gov_values.actor_roles, org.org_governance_name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
                     return True, ''
 
         else:
@@ -790,7 +790,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if has_org_role(gov_values.actor_roles, org.name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
+                if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
                     return True, ''
 
         return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, gov_values.op, gov_values.actor_id, lifecycle_event)
