@@ -35,9 +35,11 @@ import gevent
 from sets import Set
 import unittest
 import os
-from pyon.ion.stream import StandaloneStreamPublisher
+from pyon.ion.stream import StandaloneStreamPublisher, StandaloneStreamSubscriber
 from ion.services.dm.utility.granule import RecordDictionaryTool
 import time
+import numpy as np
+from gevent.event import Event
 
 class FakeProcess(LocalContextMixin):
     """
@@ -628,7 +630,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         ntp_now = now + 2208988800 # Do not use in production, this is a loose translation
 
         rdt['internal_timestamp'] = [ntp_now]
-        rdt['temp'] = [195000]
+        rdt['temp'] = [300000]
         rdt['preferred_timestamp'] = ['driver_timestamp']
         rdt['time'] = [ntp_now]
         rdt['port_timestamp'] = [ntp_now]
@@ -639,7 +641,26 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         rdt['lon'] = [-71]
         rdt['pressure'] = [256.8]
 
+        granule = rdt.to_granule()
+        publisher.publish(granule)
 
+    def setup_subscriber(self, data_product_id, callback):
+        stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        self.assertTrue(len(stream_ids))
+        stream_id = stream_ids.pop()
+
+
+        sub_id = self.pubsub_management.create_subscription('validator', stream_ids=[stream_id])
+        self.addCleanup(self.pubsub_management.delete_subscription, sub_id)
+
+        self.pubsub_management.activate_subscription(sub_id)
+        self.addCleanup(self.pubsub_management.deactivate_subscription, sub_id)
+
+        subscriber = StandaloneStreamSubscriber('validator', callback=callback)
+        subscriber.start()
+        self.addCleanup(subscriber.stop)
+
+        return subscriber
 
    
     @attr('LOCOINT')
@@ -655,7 +676,24 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.data_process_management.activate_data_process2(data_process_id)
         self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
     
+
+        validated = Event()
+
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+
+            np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
+            np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881]))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283]))
+
+            validated.set()
+
+        subscriber = self.setup_subscriber(derived_data_product_id, callback=validation)
         self.publish_to_data_product(instrument_data_product_id)
+        
+        self.assertTrue(validated.wait(10))
         
 
 

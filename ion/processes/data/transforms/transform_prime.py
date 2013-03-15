@@ -37,14 +37,14 @@ class TransformPrime(TransformDataProcess):
     
     def recv_packet(self, msg, stream_route, stream_id):
         process_routes = self.CFG.get_safe('process.routes', {})
-        for streams,actor in process_routes.iteritems():
-            stream_in_id, stream_out_id = streams
+        for stream_in_id,routes in process_routes.iteritems():
             if stream_id == stream_in_id:
-                if actor is None:
-                    rdt_out = self._execute_transform(msg, streams)
-                else:
-                    rdt_out = self._execute_actor(msg, actor, streams)
-                self.publish(rdt_out.to_granule(), stream_out_id)
+                for stream_out_id, actor in routes.iteritems():
+                    if actor is None:
+                        rdt_out = self._execute_transform(msg, (stream_in_id, stream_out_id))
+                    else:
+                        rdt_out = self._execute_actor(msg, actor, (stream_in_id, stream_out_id))
+                    self.publish(rdt_out.to_granule(), stream_out_id)
 
     def publish(self, msg, stream_out_id):
         publisher = getattr(self, stream_out_id)
