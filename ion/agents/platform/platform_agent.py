@@ -342,19 +342,7 @@ class PlatformAgent(ResourceAgent):
 
         log.debug("verifying/processing _plat_config ...")
 
-        self._driver_config = None
-
-        ###########################################################
-        # TODO mechanism while configuration for the UI is fixed.
-        # (_driver_config should only be provided in self.CFG['driver_config'])
-        #
-        if 'driver_config' in self._plat_config:
-            self._driver_config = self._plat_config['driver_config']
-            log.warn("Got driver_config from temporary 'platform_config' dict")
-        ###########################################################
-        if self._driver_config is None and 'driver_config' in self.CFG:
-            self._driver_config = self.CFG['driver_config']
-
+        self._driver_config = self.CFG.get('driver_config', None)
         if None is self._driver_config:
             msg = "'driver_config' key not in configuration"
             log.error(msg)
