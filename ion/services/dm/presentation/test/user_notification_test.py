@@ -2051,7 +2051,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
             notifications = method(**kwargs)
             return len(notifications) == expected_value
 
-        poller(expected_value = 2, method = self.unsc.get_user_notifications, user_info_id = user_id)
+        poll(poller, expected_value = 2, method = self.unsc.get_user_notifications, user_info_id = user_id)
 
         notifications= self.unsc.get_user_notifications(user_id)
 
@@ -2075,7 +2075,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         self.unsc.delete_notification(notification_id=notification_id2)
 
-        poller(expected_value = 1, method = self.unsc.get_user_notifications, user_info_id = user_id)
+        poll(poller, expected_value = 1, method = self.unsc.get_user_notifications, user_info_id = user_id)
 
         # Get the notifications for the user
         notifications = self.unsc.get_user_notifications(user_id)
