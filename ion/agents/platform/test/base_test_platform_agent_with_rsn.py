@@ -103,8 +103,6 @@ from ion.services.sa.test.helpers import any_old
 # the "oms_uri" parameter include "localsimulator" and "simulator".
 # See CIOMSClientFactory.
 DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
-    'dvr_cls': 'RSNPlatformDriver',
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
 
@@ -411,7 +409,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
             # agent creation
-            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":self._get_platform_stream_configs()})
+            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":self._get_platform_stream_configs(),
+                                                            'driver_module': 'ion.agents.platform.rsn.rsn_platform_driver',
+                                                            'driver_class': 'RSNPlatformDriver'})
             platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
 
             # device creation
