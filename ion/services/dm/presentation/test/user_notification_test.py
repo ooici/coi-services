@@ -26,6 +26,7 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.core.bootstrap import get_sys_name, CFG
 from pyon.util.context import LocalContextMixin
 from pyon.util.log import log
+from pyon.util.poller import poll
 from pyon.event.event import EventPublisher, EventSubscriber
 
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
@@ -2046,8 +2047,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Get the notifications for the user
         #--------------------------------------------------------------------------------------
 
+        def poller(expected_value, method, **kwargs):
+            notifications = method(**kwargs)
+            return len(notifications) == expected_value
+
+        poller(expected_value = 2, method = self.unsc.get_user_notifications, user_info_id = user_id)
+
         notifications= self.unsc.get_user_notifications(user_id)
-        self.assertEquals(len(notifications),2)
 
         names = []
         origins = []
@@ -2069,9 +2075,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         self.unsc.delete_notification(notification_id=notification_id2)
 
+        poller(expected_value = 1, method = self.unsc.get_user_notifications, user_info_id = user_id)
+
         # Get the notifications for the user
         notifications = self.unsc.get_user_notifications(user_id)
-        self.assertEquals(len(notifications),1)
         notification = notifications[0]
 
         self.assertEquals(notification.name, 'notification_1' )
