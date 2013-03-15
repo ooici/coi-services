@@ -404,8 +404,11 @@ class PlatformAgent(ResourceAgent):
         if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
             return True, ''
 
-        if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+            INSTRUMENT_OPERATOR_ROLE):
+            return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
+                          % (self.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                             self._get_process_org_governance_name())
 
         com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
         if com is None:
