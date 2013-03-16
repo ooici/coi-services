@@ -153,7 +153,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.read_mult(object_ids)
 
     @mask_couch_error
-    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, user_id=''):
+    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None):
         """Returns any ExtendedResource object containing additional related information derived from associations
 
         @param resource_id    str

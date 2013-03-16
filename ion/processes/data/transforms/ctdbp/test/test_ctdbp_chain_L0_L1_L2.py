@@ -453,7 +453,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
+            self.assertNotEquals(len(rdt[key]), 0)
 
     def _check_application_of_L1_algorithm(self, granule = None):
         """ Check the algorithm applied by the L1 transform """
@@ -463,7 +463,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
+            self.assertNotEquals(len(rdt[key]), 0)
 
     def _check_application_of_L2_density_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
@@ -473,7 +473,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
+            self.assertNotEquals(len(rdt[key]), 0)
 
     def _check_application_of_L2_salinity_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
@@ -483,8 +483,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
-
+            self.assertNotEquals(len(rdt[key]), 0)
 
     def _publish_for_L0_transform(self, input_stream_id = None, stream_route = None):
 
