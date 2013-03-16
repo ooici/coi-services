@@ -87,6 +87,7 @@ from mock import patch
 
 import os
 import time
+import copy
 
 from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
@@ -105,6 +106,10 @@ from ion.services.sa.test.helpers import any_old
 DVR_CONFIG = {
     'oms_uri': os.getenv('OMS', 'embsimulator'),
 }
+
+DVR_MOD = 'ion.agents.platform.rsn.rsn_platform_driver'
+DVR_CLS = 'RSNPlatformDriver'
+
 
 # TIMEOUT: timeout for each execute_agent call.
 TIMEOUT = 90
@@ -187,9 +192,26 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
         # get serialized version for the configuration:
         self._network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
-        if log.isEnabledFor(logging.TRACE):
-            log.trace("NetworkDefinition serialization:\n%s", self._network_definition_ser)
+        log.trace("NetworkDefinition serialization:\n%s", self._network_definition_ser)
 
+        # set attributes for the platforms:
+        self._platform_attributes = {}
+        for platform_id in self._network_definition.pnodes:
+            pnode = self._network_definition.pnodes[platform_id]
+            dic = dict((attr.attr_id, attr.defn) for attr in pnode.attrs.itervalues())
+            self._platform_attributes[platform_id] = dic
+        log.trace("_platform_attributes: %s", self._platform_attributes)
+
+        # set ports for the platforms:
+        self._platform_ports = {}
+        for platform_id in self._network_definition.pnodes:
+            pnode = self._network_definition.pnodes[platform_id]
+            dic = {}
+            for port_id, port in pnode.ports.iteritems():
+                dic[port_id] = dict(port_id=port_id,
+                                    network=port.network)
+            self._platform_ports[platform_id] = dic
+        log.trace("_platform_ports: %s", self._platform_attributes)
 
         self._async_data_result = AsyncResult()
         self._data_subscribers = []
@@ -402,16 +424,22 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         def _make_platform_agent_structure(agent_config=None):
             if None is agent_config: agent_config = {}
 
+            driver_config = copy.deepcopy(DVR_CONFIG)
+            driver_config['attributes'] = self._platform_attributes[platform_id]
+            driver_config['ports']      = self._platform_ports[platform_id]
+            log.debug("driver_config: %s", driver_config)
+
             # instance creation
             platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, {
-                'driver_config': DVR_CONFIG})
+                'driver_config': driver_config})
             platform_agent_instance_obj.agent_config = agent_config
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
             # agent creation
-            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":self._get_platform_stream_configs(),
-                                                            'driver_module': 'ion.agents.platform.rsn.rsn_platform_driver',
-                                                            'driver_class': 'RSNPlatformDriver'})
+            platform_agent_obj = any_old(RT.PlatformAgent, {
+                "stream_configurations": self._get_platform_stream_configs(),
+                'driver_module':         DVR_MOD,
+                'driver_class':          DVR_CLS})
             platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
 
             # device creation

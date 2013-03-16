@@ -376,8 +376,37 @@ class PlatformAgent(ResourceAgent):
         self._pnode = self._network_definition.pnodes[self._platform_id]
         assert self._pnode.platform_id == self._platform_id
 
-        self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
-                                         in self._pnode.attrs.itervalues())
+        #
+        # set platform attributes:
+        #
+        if 'attributes' in self._driver_config:
+            attrs = self._driver_config['attributes']
+            self._platform_attributes = attrs
+            log.debug("%r: platform attributes taken from driver_config: %s",
+                      self._platform_id, self._platform_attributes)
+        else:
+            self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
+                                             in self._pnode.attrs.itervalues())
+            log.warn("%r: platform attributes taken from network definition: %s",
+                     self._platform_id, self._platform_attributes)
+
+        #
+        # set platform ports:
+        # TODO the ports may probably be applicable only in particular
+        # drivers (like in RSN), so moved these there if that's the case.
+        #
+        if 'ports' in self._driver_config:
+            ports = self._driver_config['ports']
+            self._platform_ports = ports
+            log.debug("%r: platform ports taken from driver_config: %s",
+                      self._platform_id, self._platform_ports)
+        else:
+            self._platform_ports = {}
+            for port_id, port in self._pnode.ports.iteritems():
+                self._platform_ports[port_id] = dict(port_id=port_id,
+                                                     network=port.network)
+            log.warn("%r: platform ports taken from network definition: %s",
+                     self._platform_id, self._platform_ports)
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
