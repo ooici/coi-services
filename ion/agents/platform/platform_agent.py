@@ -507,15 +507,6 @@ class PlatformAgent(ResourceAgent):
 
         log.debug("%r: created publisher for stream_name=%r", self._platform_id, stream_name)
 
-    def _get_platform_name(self, platform_id):
-        """
-        Interim helper to get the platform name associated with a platform_id.
-        """
-
-        # simply returning the same platform_id, because those are the IDs
-        # currently passed from configuration -- see test_oms_launch
-        return platform_id
-
     def _create_driver(self):
         """
         Creates the platform driver object for this platform agent.
