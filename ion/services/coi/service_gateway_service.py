@@ -89,7 +89,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #Initialize an LRU Cache to keep user roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
         #maxAgeMs = oldest entry to keep
-        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
+        self.user_role_cache = LRUCache(self.user_cache_size,0,0)
 
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
@@ -154,15 +154,15 @@ class ServiceGatewayService(BaseServiceGatewayService):
         log.debug("User Role modified: %s %s %s" % (org_id, actor_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(actor_id):
-            log.debug('Evicting user from the user_data_cache: %s' % actor_id)
-            service_gateway_instance.user_data_cache.evict(actor_id)
+        if service_gateway_instance.user_role_cache and service_gateway_instance.user_role_cache.has_key(actor_id):
+            log.debug('Evicting user from the user_role_cache: %s' % actor_id)
+            service_gateway_instance.user_role_cache.evict(actor_id)
 
     def user_role_reset_callback(self, *args, **kwargs):
         '''
         This method is a callback function for when an event is received to clear the user data cache
         '''
-        self.user_data_cache.clear()
+        self.user_role_cache.clear()
 
 @service_gateway_app.errorhandler(403)
 def custom_403(error):
@@ -443,8 +443,8 @@ def build_message_headers( ion_actor_id, expiry):
 
     try:
         #Check to see if the user's roles are cached already - keyed by user id
-        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
-            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+        if service_gateway_instance.user_role_cache.has_key(ion_actor_id):
+            role_header = service_gateway_instance.user_role_cache.get(ion_actor_id)
             if role_header is not None:
                 headers['ion-actor-roles'] = role_header
                 return headers
@@ -457,7 +457,7 @@ def build_message_headers( ion_actor_id, expiry):
         role_header = get_role_message_headers(org_roles)
 
         #Cache the roles by user id
-        service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
+        service_gateway_instance.user_role_cache.put(ion_actor_id, role_header)
 
     except Exception, e:
         role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
