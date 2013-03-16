@@ -32,205 +32,110 @@ class CTDBP_L1_Transform(TransformDataProcess):
 
         self.L1_stream_id = self.CFG.process.publish_streams.L1_stream
 
-        calibration_coeffs = {}
-        calibration_coeffs['temp_calibration_coeffs'] = self.CFG.process.calibration_coeffs.temp_calibration_coeffs
-        calibration_coeffs['pres_calibration_coeffs'] = self.CFG.process.calibration_coeffs.pres_calibration_coeffs
-        calibration_coeffs['cond_calibration_coeffs'] = self.CFG.process.calibration_coeffs.cond_calibration_coeffs
-
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
-        self.stream_definition = pubsub.read_stream_definition(stream_id=self.L1_stream_id)
+        stream_def = pubsub.read_stream_definition(stream_id=self.L1_stream_id)
+        self.stream_definition_id = stream_def._id
 
-        self.params = {}
-        self.params['stream_def_id'] = self.stream_definition._id
-        self.params['calibration_coeffs'] = calibration_coeffs
+        self.temp_calibration_coeffs = self.CFG.process.calibration_coeffs['temp_calibration_coeffs']
+        self.pres_calibration_coeffs = self.CFG.process.calibration_coeffs['pres_calibration_coeffs']
+        self.cond_calibration_coeffs = self.CFG.process.calibration_coeffs['cond_calibration_coeffs']
 
     def recv_packet(self, packet, stream_route, stream_id):
-        """Processes incoming data!!!!
-        """
-
-        log.debug("CTDBP L1 transform received a packet: %s", packet)
-
         if packet == {}:
             return
 
-        granule = CTDBP_L1_TransformAlgorithm.execute(packet, params= self.params)
-        self.L1_stream.publish(msg=granule)
+        l0_values = RecordDictionaryTool.load_from_granule(packet)
+        l1_values = RecordDictionaryTool(stream_definition_id=self.stream_definition_id)
+        log.debug("CTDBP L1 transform using L0 values: tempurature %s, pressure %s, conductivity %s",
+                  l0_values['temperature'], l0_values['pressure'], l0_values['conductivity'])
 
-class CTDBP_L1_TransformAlgorithm(SimpleGranuleTransformFunction):
-    """
-    Compute conductivity, temperature and pressure using the calibration coefficients
+        #for key, value in 'lat', 'lon', 'time', ...:   <-- do we want to be a little more specific here?
+        for key, value in l0_values.iteritems():
+            if key in l1_values:
+                l1_values[key] = value[:]
 
-    Reference
-    ---------
-    The calculations below are based on the following spreadsheet document:
-    https://docs.google.com/spreadsheet/ccc?key=0Au7PUzWoCKU4dDRMeVI0RU9yY180Z0Y5U0hyMUZERmc#gid=0
+        l1_values['temp'] = self.calculate_temperature(l0=l0_values)
+        l1_values['pressure'] = self.calculate_pressure(l0=l0_values)
+        l1_values['conductivity'] = self.calculate_conductivity(l0=l0_values, l1=l1_values)
 
-    """
-    @staticmethod
-    @SimpleGranuleTransformFunction.validate_inputs
-    def execute(input=None, context=None, config=None, params=None, state=None):
+        log.debug('calculated L1 values: temp %s, pressure %s, conductivity %s',
+                  l1_values['temp'], l1_values['pressure'], l1_values['conductivity'])
+        self.L1_stream.publish(msg=l1_values.to_granule())
 
-        rdt = RecordDictionaryTool.load_from_granule(input)
-        out_rdt = RecordDictionaryTool(stream_definition_id=params['stream_def_id'])
-
-        # Fill the time values
-        out_rdt['time'] = rdt['time']
-
-        # The calibration coefficients
-        temp_calibration_coeffs= params['calibration_coeffs']['temp_calibration_coeffs']
-        pres_calibration_coeffs= params['calibration_coeffs']['pres_calibration_coeffs']
-        cond_calibration_coeffs = params['calibration_coeffs']['cond_calibration_coeffs']
-
-        # Set the temperature values for the output granule
-        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_temperature(    input_rdt = rdt,
-                                                                        out_rdt = out_rdt,
-                                                                        temp_calibration_coeffs= temp_calibration_coeffs )
-
-        # Set the pressure values for the output granule
-        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_pressure(   input_rdt= rdt,
-                                                                    out_rdt = out_rdt,
-                                                                    pres_calibration_coeffs= pres_calibration_coeffs)
-
-        # Set the conductivity values for the output granule
-        # Note that since the conductivity caculation depends on whether TEMPWAT_L1, PRESWAT_L1 have been calculated, we need to do this last
-        out_rdt = CTDBP_L1_TransformAlgorithm.calculate_conductivity(   input_rdt = rdt,
-                                                                        out_rdt = out_rdt,
-                                                                        cond_calibration_coeffs = cond_calibration_coeffs
-        )
-
-        # build the granule for the L1 stream
-        return out_rdt.to_granule()
-
-    @staticmethod
-    def calculate_conductivity(input_rdt = None, out_rdt = None, cond_calibration_coeffs = None):
-        """
-        Dependencies: conductivity calibration coefficients, TEMPWAT_L1, PRESWAT_L1
-        """
-
-        log.debug("L1 transform applying conductivity algorithm")
-
-        CONDWAT_L0 = input_rdt['conductivity']
-        TEMPWAT_L1 = out_rdt['temp']
-        PRESWAT_L1 = out_rdt['pressure']
-
-
-        #------------  CALIBRATION COEFFICIENTS FOR CONDUCTIVITY  --------------
-        g = cond_calibration_coeffs['g']
-        h = cond_calibration_coeffs['h']
-        I = cond_calibration_coeffs['I']
-        j = cond_calibration_coeffs['j']
-        CTcor = cond_calibration_coeffs['CTcor']
-        CPcor = cond_calibration_coeffs['CPcor']
-
-        if not (g and h and I and j and CTcor and CPcor):
-            raise BadRequest("All the conductivity calibration coefficients (g,h,I,j,CTcor, CPcor) were not passed through"
-                             "the config. Example: config.process.calibration_coeffs.cond_calibration_coeffs['g']")
-
-        #------------  Computation -------------------------------------
-        freq = (CONDWAT_L0 / 256) / 1000
-        CONDWAT_L1 = (g + h * freq**2 + I * freq**3 + j * freq**4) / (1 + CTcor * TEMPWAT_L1 + CPcor * PRESWAT_L1)
-
-
-        #------------  Update the output record dictionary with the values -------
-        for key, value in input_rdt.iteritems():
-            if key in out_rdt:
-                out_rdt[key] = value[:]
-
-        #------------------------------------------------------------------------
-        # Update the conductivity values
-        #------------------------------------------------------------------------
-        out_rdt['conductivity'] = CONDWAT_L1
-
-        log.debug("L1 transform conductivity algorithm returning: %s", out_rdt)
-
-        return out_rdt
-
-    @staticmethod
-    def calculate_temperature(input_rdt = None, out_rdt = None, temp_calibration_coeffs = None):
-        """
-        Dependencies: temperature calibration coefficients
-        """
-        log.debug("L1 transform applying temperature algorithm")
-
-        TEMPWAT_L0 = input_rdt['temperature']
+    def calculate_temperature(self, l0):
+        TEMPWAT_L0 = l0['temperature']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
-        a0 = temp_calibration_coeffs['a0']
-        a1 = temp_calibration_coeffs['a1']
-        a2 = temp_calibration_coeffs['a2']
-        a3 = temp_calibration_coeffs['a3']
-
-        if not (a0 and a1 and a2 and a3):
-            raise BadRequest("All the temperature calibration coefficients (a0,a1,a2,a3) were not passed through"
-                             "the config. Example: config.process.calibration_coeffs.temp_calibration_coeffs['a0']")
+        a0 = self.temp_calibration_coeffs['TA0']
+        a1 = self.temp_calibration_coeffs['TA1']
+        a2 = self.temp_calibration_coeffs['TA2']
+        a3 = self.temp_calibration_coeffs['TA3']
 
         #------------  Computation -------------------------------------
         MV = (TEMPWAT_L0 - 524288) / 1.6e+007
         R = (MV * 2.900e+009 + 1.024e+008) / (2.048e+004 - MV * 2.0e+005)
-        TEMPWAT_L1 = 1 / (a0 + a1 * np.log(R) + a2 * (np.log(R))**2 + a3 * (np.log(R))**3) - 273.15
+        logR = np.log(R)
+        TEMPWAT_L1 = 1 / (a0 + a1 * logR + a2 * logR**2 + a3 * logR**3) - 273.15
 
-        #------------  Update the output record dictionary with the values --------------
-        for key, value in input_rdt.iteritems():
-            if key in out_rdt:
-                out_rdt[key] = value[:]
+        return TEMPWAT_L1
 
-        out_rdt['temp'] = TEMPWAT_L1
-
-        log.debug("L1 transform temperature algorithm returning: %s", out_rdt)
-
-        return out_rdt
-
-    @staticmethod
-    def calculate_pressure(input_rdt = None, out_rdt = None, pres_calibration_coeffs = None):
-        """
-            Dependencies: TEMPWAT_L0, PRESWAT_L0, pressure calibration coefficients
-        """
-
-        log.debug("L1 transform applying pressure algorithm")
-
-        PRESWAT_L0 = input_rdt['pressure']
-        TEMPWAT_L0 = input_rdt['temperature']
+    def calculate_pressure(self, l0):
+        PRESWAT_L0 = l0['pressure']
+        TEMPWAT_L0 = l0['temperature']
 
         #------------  CALIBRATION COEFFICIENTS FOR TEMPERATURE  --------------
-        PTEMPA0 = pres_calibration_coeffs['PTEMPA0']
-        PTEMPA1 = pres_calibration_coeffs['PTEMPA1']
-        PTEMPA2 = pres_calibration_coeffs['PTEMPA2']
+        PTEMPA0 = self.pres_calibration_coeffs['PTEMPA0']
+        PTEMPA1 = self.pres_calibration_coeffs['PTEMPA1']
+        PTEMPA2 = self.pres_calibration_coeffs['PTEMPA2']
 
-        PTCA0 = pres_calibration_coeffs['PTCA0']
-        PTCA1 = pres_calibration_coeffs['PTCA1']
-        PTCA2 = pres_calibration_coeffs['PTCA2']
+        PTCA0 = self.pres_calibration_coeffs['PTCA0']
+        PTCA1 = self.pres_calibration_coeffs['PTCA1']
+        PTCA2 = self.pres_calibration_coeffs['PTCA2']
 
-        PTCB0 = pres_calibration_coeffs['PTCB0']
-        PTCB1 = pres_calibration_coeffs['PTCB1']
-        PTCB2 = pres_calibration_coeffs['PTCB2']
+        PTCB0 = self.pres_calibration_coeffs['PTCB0']
+        PTCB1 = self.pres_calibration_coeffs['PTCB1']
+        PTCB2 = self.pres_calibration_coeffs['PTCB2']
 
-        PA0 = pres_calibration_coeffs['PTCB0']
-        PA1 = pres_calibration_coeffs['PA1']
-        PA2 = pres_calibration_coeffs['PA2']
-
-        cond = PTEMPA0 and PTEMPA0 and PTEMPA2 and PTCA0 and PTCA1 and PTCA2 and PTCB0 and PTCB1 and PTCB2
-        cond = cond and PA0 and PA1 and PA2
-
-        if not cond:
-            raise BadRequest("All the pressure calibration coefficients were not passed through"
-                             "the config. Example: config.process.calibration_coeffs.pres_calibration_coeffs['PTEMPA0']")
+        PA0 = self.pres_calibration_coeffs['PA0']
+        PA1 = self.pres_calibration_coeffs['PA1']
+        PA2 = self.pres_calibration_coeffs['PA2']
 
         #------------  Computation -------------------------------------
-        tvolt = TEMPWAT_L0 / 13107
+        tvolt = TEMPWAT_L0 / 13107.0
         temp = PTEMPA0 + PTEMPA1 * tvolt + PTEMPA2 * tvolt**2
         x = PRESWAT_L0 - PTCA0 - PTCA1 * temp - PTCA2 * temp**2
         n = x * PTCB0 / (PTCB0 + PTCB1 * temp + PTCB2 * temp**2)
         absolute_pressure = PA0 + PA1 * n + PA2 * n**2
         PRESWAT_L1 = (absolute_pressure * 0.689475729) - 10.1325
 
-        #------------  Update the output record dictionary with the values ---------
-        for key, value in input_rdt.iteritems():
-            if key in out_rdt:
-                out_rdt[key] = value[:]
+        return PRESWAT_L1
 
-        out_rdt['pressure'] = PRESWAT_L1
+    def calculate_conductivity(self, l0, l1):
+        CONDWAT_L0 = l0['conductivity']
+        TEMPWAT_L1 = l1['temp']
+        PRESWAT_L1 = l1['pressure']
 
-        log.debug("L1 transform pressure algorithm returning: %s", out_rdt)
+        #------------  CALIBRATION COEFFICIENTS FOR CONDUCTIVITY  --------------
+        g = self.cond_calibration_coeffs['G']
+        h = self.cond_calibration_coeffs['H']
+        I = self.cond_calibration_coeffs['I']
+        j = self.cond_calibration_coeffs['J']
+        CTcor = self.cond_calibration_coeffs['CTCOR']
+        CPcor = self.cond_calibration_coeffs['CPCOR']
 
-        return out_rdt
+        log.debug('g %e, h %e, i %e, j %e, CTcor %e, CPcor %e', g, h, I, j, CTcor, CPcor)
+
+        #------------  Computation -------------------------------------
+        freq = (CONDWAT_L0 / 256000.0)
+        numerator = (g + h * freq**2 + I * freq**3 + j * freq**4)
+        denominator = (1 + CTcor * TEMPWAT_L1 + CPcor * PRESWAT_L1)
+        log.debug('freq %s, cond = %s / %s', freq, numerator, denominator)
+        CONDWAT_L1 = numerator / denominator
+#        CONDWAT_L1 = (g + h * freq**2 + I * freq**3 + j * freq**4) / (1 + CTcor * TEMPWAT_L1 + CPcor * PRESWAT_L1)
+
+        #------------------------------------------------------------------------
+        # Update the conductivity values
+        #------------------------------------------------------------------------
+        return CONDWAT_L1
+

@@ -14,6 +14,7 @@ from pyon.core.exception import BadRequest, NotFound
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.poller import poll
+from pyon.util.containers import DotDict
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
@@ -24,7 +25,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from interface.objects import LastUpdate, ComputedValueAvailability
+from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct
 from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType
 from mock import patch
@@ -32,7 +33,13 @@ from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentTy
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 import gevent
 from sets import Set
-
+import unittest
+import os
+from pyon.ion.stream import StandaloneStreamPublisher, StandaloneStreamSubscriber
+from ion.services.dm.utility.granule import RecordDictionaryTool
+import time
+import numpy as np
+from gevent.event import Event
 
 class FakeProcess(LocalContextMixin):
     """
@@ -527,21 +534,263 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             self.rrclient.read(ctd_l0_all_data_process_id)
 
 
-    def test_transform_function_crd(self):
-        tf = TransformFunction(name='simple', module='pyon.ion.process', cls='SimpleProcess')
+    
 
-        tf_id = self.dataprocessclient.create_transform_function(tf)
-        self.assertTrue(tf_id)
+@attr('INT',grou='sa')
+class TestDataProcessManagementPrime(IonIntegrationTestCase):
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        tf2_id = self.dataprocessclient.create_transform_function(tf)
-        self.assertEquals(tf_id, tf2_id)
+        self.dataset_management      = DatasetManagementServiceClient()
+        self.resource_registry       = self.container.resource_registry
+        self.pubsub_management       = PubsubManagementServiceClient()
+        self.data_process_management = DataProcessManagementServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
 
-        tf_obj = self.dataprocessclient.read_transform_function(tf_id)
-        self.assertEquals([tf.name, tf.module, tf.cls, tf.function_type], [tf_obj.name, tf_obj.module, tf_obj.cls, tf_obj.function_type])
 
-        tf.module = 'dev.null'
-        self.assertRaises(BadRequest, self.dataprocessclient.create_transform_function, tf)
+    def lc_preload(self):
+        config = DotDict()
+        config.op = 'load'
+        config.scenario = 'BASE,LC_TEST'
+        config.categories = 'ParameterFunctions,ParameterDefs,ParameterDictionary'
+        config.path = 'res/preload/r2_ioc'
+        
+        self.container.spawn_process('preload','ion.processes.bootstrap.ion_loader','IONLoader', config)
 
-        self.dataprocessclient.delete_transform_function(tf_id)
-        self.assertRaises(NotFound, self.dataprocessclient.read_transform_function, tf_id)
+    def ctd_plain_input_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        available_fields = [
+                'internal_timestamp', 
+                'temp', 
+                'preferred_timestamp', 
+                'time', 
+                'port_timestamp', 
+                'quality_flag', 
+                'lat', 
+                'conductivity', 
+                'driver_timestamp', 
+                'lon', 
+                'pressure']
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd plain parsed', parameter_dictionary_id=pdict_id, available_fields=available_fields)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = DataProduct(name='ctd plain test')
+        dp_obj.temporal_domain = tdom
+        dp_obj.spatial_domain = sdom
+        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+        return data_product_id
+
+    def ctd_plain_density(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        available_fields = [
+                'internal_timestamp', 
+                'preferred_timestamp', 
+                'time', 
+                'port_timestamp', 
+                'quality_flag', 
+                'lat', 
+                'driver_timestamp', 
+                'lon', 
+                'density']
+        stream_def_id = self.pubsub_management.create_stream_definition('density stream', parameter_dictionary_id=pdict_id, available_fields=available_fields)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = DataProduct(name='density')
+        dp_obj.temporal_domain = tdom
+        dp_obj.spatial_domain = sdom
+        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+        return data_product_id
+
+    def ctd_instrument_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_LC_TEST', id_only=True)
+        available_fields = [
+                'internal_timestamp', 
+                'temp', 
+                'preferred_timestamp', 
+                'time', 
+                'port_timestamp', 
+                'quality_flag', 
+                'lat', 
+                'conductivity', 
+                'driver_timestamp', 
+                'lon', 
+                'pressure']
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd instrument', parameter_dictionary_id=pdict_id, available_fields=available_fields)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = DataProduct(name='ctd instrument test')
+        dp_obj.temporal_domain = tdom
+        dp_obj.spatial_domain = sdom
+        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+        return data_product_id
+
+    def ctd_derived_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_LC_TEST', id_only=True)
+        # No available fields implies all
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd derived', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+
+        dp_obj = DataProduct(name='ctd derived products')
+        dp_obj.temporal_domain = tdom
+        dp_obj.spatial_domain = sdom
+        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+        return data_product_id
+        
+    def publish_to_plain_data_product(self, data_product_id):
+        stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        self.assertTrue(len(stream_ids))
+        stream_id = stream_ids.pop()
+        route = self.pubsub_management.read_stream_route(stream_id)
+        stream_definition = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        stream_def_id = stream_definition._id
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        now = time.time()
+        ntp_now = now + 2208988800 # Do not use in production, this is a loose translation
+
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [20.0]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['time'] = [ntp_now]
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['lat'] = [45]
+        rdt['conductivity'] = [4.2914]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['lon'] = [-71]
+        rdt['pressure'] = [3.068]
+
+        granule = rdt.to_granule()
+        publisher.publish(granule)
+
+    def publish_to_data_product(self, data_product_id):
+        stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        self.assertTrue(len(stream_ids))
+        stream_id = stream_ids.pop()
+        route = self.pubsub_management.read_stream_route(stream_id)
+        stream_definition = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        stream_def_id = stream_definition._id
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        now = time.time()
+        ntp_now = now + 2208988800 # Do not use in production, this is a loose translation
+
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [300000]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['time'] = [ntp_now]
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['lat'] = [45]
+        rdt['conductivity'] = [4341400]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['lon'] = [-71]
+        rdt['pressure'] = [256.8]
+
+        granule = rdt.to_granule()
+        publisher.publish(granule)
+
+    def setup_subscriber(self, data_product_id, callback):
+        stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        self.assertTrue(len(stream_ids))
+        stream_id = stream_ids.pop()
+
+
+        sub_id = self.pubsub_management.create_subscription('validator', stream_ids=[stream_id])
+        self.addCleanup(self.pubsub_management.delete_subscription, sub_id)
+
+        self.pubsub_management.activate_subscription(sub_id)
+        self.addCleanup(self.pubsub_management.deactivate_subscription, sub_id)
+
+        subscriber = StandaloneStreamSubscriber('validator', callback=callback)
+        subscriber.start()
+        self.addCleanup(subscriber.stop)
+
+        return subscriber
+
+    def create_density_transform_function(self):
+        tf = TransformFunction(name='ctdbp_l2_density', module='ion.processes.data.transforms.ctdbp.ctdbp_L2_density', cls='CTDBP_DensityTransformAlgorithm')
+        tf_id = self.data_process_management.create_transform_function(tf)
+        self.addCleanup(self.data_process_management.delete_transform_function, tf_id)
+        return tf_id
+
+
+   
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_data_process_prime(self):
+        self.lc_preload()
+        instrument_data_product_id = self.ctd_instrument_data_product()
+        derived_data_product_id = self.ctd_derived_data_product()
+
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[derived_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+    
+
+        validated = Event()
+
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+
+            np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
+            np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881]))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283]))
+
+            validated.set()
+
+        subscriber = self.setup_subscriber(derived_data_product_id, callback=validation)
+        self.publish_to_data_product(instrument_data_product_id)
+        
+        self.assertTrue(validated.wait(10))
+        
+
+    def test_actors(self):
+        input_data_product_id = self.ctd_plain_input_data_product()
+        output_data_product_id = self.ctd_plain_density()
+        actor = self.create_density_transform_function()
+
+        route = {input_data_product_id: {output_data_product_id: actor}}
+        config = DotDict()
+        config.process.routes = route
+        config.process.params.lat = 45.
+        config.process.params.lon = -71.
+
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id], configuration=config)
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+
+        validated = Event()
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            # The value I use is a double, the value coming back is only a float32 so there's some data loss but it should be precise to the 4th digit
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.6839775385847]), decimal=4) 
+            validated.set()
+
+        subscriber = self.setup_subscriber(output_data_product_id, callback=validation)
+
+        self.publish_to_plain_data_product(input_data_product_id)
+        self.assertTrue(validated.wait(10))
+
+
 

@@ -89,7 +89,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #Initialize an LRU Cache to keep user roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
         #maxAgeMs = oldest entry to keep
-        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
+        self.user_role_cache = LRUCache(self.user_cache_size,0,0)
 
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
@@ -154,15 +154,15 @@ class ServiceGatewayService(BaseServiceGatewayService):
         log.debug("User Role modified: %s %s %s" % (org_id, actor_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(actor_id):
-            log.debug('Evicting user from the user_data_cache: %s' % actor_id)
-            service_gateway_instance.user_data_cache.evict(actor_id)
+        if service_gateway_instance.user_role_cache and service_gateway_instance.user_role_cache.has_key(actor_id):
+            log.debug('Evicting user from the user_role_cache: %s' % actor_id)
+            service_gateway_instance.user_role_cache.evict(actor_id)
 
     def user_role_reset_callback(self, *args, **kwargs):
         '''
         This method is a callback function for when an event is received to clear the user data cache
         '''
-        self.user_data_cache.clear()
+        self.user_role_cache.clear()
 
 @service_gateway_app.errorhandler(403)
 def custom_403(error):
@@ -443,8 +443,8 @@ def build_message_headers( ion_actor_id, expiry):
 
     try:
         #Check to see if the user's roles are cached already - keyed by user id
-        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
-            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+        if service_gateway_instance.user_role_cache.has_key(ion_actor_id):
+            role_header = service_gateway_instance.user_role_cache.get(ion_actor_id)
             if role_header is not None:
                 headers['ion-actor-roles'] = role_header
                 return headers
@@ -457,7 +457,7 @@ def build_message_headers( ion_actor_id, expiry):
         role_header = get_role_message_headers(org_roles)
 
         #Cache the roles by user id
-        service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
+        service_gateway_instance.user_role_cache.put(ion_actor_id, role_header)
 
     except Exception, e:
         role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
@@ -479,20 +479,24 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
             if request.args.has_key(arg):
                 param_type = get_message_class_in_parm_type(service_name, operation, arg)
                 if param_type == 'str':
-                    param_list[arg] = str(request.args[arg])
+                    if isinstance(request.args[arg], unicode):
+                        param_list[arg] = str(request.args[arg].encode('utf8'))
+                    else:
+                        param_list[arg] = str(request.args[arg])
                 else:
                     param_list[arg] = ast.literal_eval(str(request.args[arg]))
         else:
             if json_params[request_type]['params'].has_key(arg):
 
-                #TODO - Potentially remove these conversions whenever ION objects support unicode
-                # UNICODE strings are not supported with ION objects
                 object_params = json_params[request_type]['params'][arg]
                 if is_ion_object_dict(object_params):
                     param_list[arg] = create_ion_object(object_params)
                 else:
                     #Not an ION object so handle as a simple type then.
-                    param_list[arg] = json_params[request_type]['params'][arg]
+                    if isinstance(json_params[request_type]['params'][arg], unicode):
+                        param_list[arg] = str(json_params[request_type]['params'][arg].encode('utf8'))
+                    else:
+                        param_list[arg] = json_params[request_type]['params'][arg]
 
     return param_list
 

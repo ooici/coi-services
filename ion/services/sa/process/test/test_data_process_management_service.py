@@ -7,6 +7,7 @@
 @test ion.services.sa.process.data_process_management_service
           Unit test suite to cover all service code
 """
+from ion.services.sa.test.helpers import UnitTestGenerator
 
 from nose.plugins.attrib import attr
 from pyon.util.unit_test import pop_last_call, PyonTestCase
@@ -18,9 +19,10 @@ import time
 
 mockDataProcessObj = \
     'ion.services.sa.process.data_process_management_service.IonObject'
-    
+
+
+
 @attr('UNIT', group='sa')
-@unittest.skip('not working')
 class Test_DataProcessManagementService_Unit(PyonTestCase):
 
     def setUp(self):
@@ -28,6 +30,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.mock_clients = self._create_service_mock('data_process_management')
         self.data_process_mgmt_service = DataProcessManagementService()
         self.data_process_mgmt_service.clients = self.mock_clients
+        self.data_process_mgmt_service.on_init()
 
         # Create a data process definition
         self.data_process_def_name = "TestDataProcessDef_X"
@@ -52,6 +55,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         
         self.transform_id = "ID4transform"
 
+    @unittest.skip('not working')
     def test_create_data_process(self):
         # setup
         self.resource_registry.read.return_value = (self.data_process_def_obj)
@@ -92,7 +96,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
                                                                           PRED.hasInputProduct,
                                                                           self.in_product_A,
                                                                           None)
-
+    @unittest.skip('not working')
     def test_read_data_process(self):
         # setup
         self.resource_registry.find_associations.return_value = ([self.transform_id], "don't care")
@@ -110,4 +114,16 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.assertEqual(out_id, self.out_product_A)
         self.resource_registry.find_associations.assert_called_once_with(self.data_process_id, PRED.hasTransform, '', None, False)
         self.transform_management_service.read_transform.assert_called_once_with(self.transform_id)
+
+
+
+utg = UnitTestGenerator(Test_DataProcessManagementService_Unit,
+                        DataProcessManagementService)
+
+utg.test_all_in_one(True)
+
+utg.add_resource_unittests(RT.TransformFunction, "transform_function", {})
+utg.add_resource_unittests(RT.DataProcessDefinition, "data_process_definition", {})
+#utg.add_resource_unittests(RT.DataProcess, "data_process", {})
+#utg.add_resource_unittests(RT.DataProcess, "data_process2", {})
 

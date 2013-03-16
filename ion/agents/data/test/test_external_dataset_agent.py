@@ -815,21 +815,21 @@ class TestExternalDatasetAgent_Dummy(ExternalDatasetAgentTestBase, IonIntegratio
         rr_cli = ResourceRegistryServiceClient()
         pubsub_cli = PubsubManagementServiceClient()
 
-        eda = ExternalDatasetAgent(handler_module=self.DVR_CONFIG['dvr_mod'], handler_class=self.DVR_CONFIG['dvr_cls'])
+        eda = ExternalDatasetAgent(name='example dataset agent', handler_module=self.DVR_CONFIG['dvr_mod'], handler_class=self.DVR_CONFIG['dvr_cls'])
         eda_id = dams_cli.create_external_dataset_agent(eda)
 
-        eda_inst = ExternalDatasetAgentInstance()
+        eda_inst = ExternalDatasetAgentInstance(name='example dataset agent instance')
         eda_inst_id = dams_cli.create_external_dataset_agent_instance(eda_inst, external_dataset_agent_id=eda_id)
 
         # Create and register the necessary resources/objects
 
         # Create DataProvider
-        dprov = ExternalDataProvider(institution=Institution(), contact=ContactInformation())
+        dprov = ExternalDataProvider(name='example data provider', institution=Institution(), contact=ContactInformation())
         dprov.contact.individual_names_given = 'Christopher Mueller'
         dprov.contact.email = 'cmueller@asascience.com'
 
         # Create DataSource
-        dsrc = DataSource(protocol_type='DAP', institution=Institution(), contact=ContactInformation())
+        dsrc = DataSource(name='example datasource', protocol_type='DAP', institution=Institution(), contact=ContactInformation())
         dsrc.connection_params['base_data_url'] = ''
         dsrc.contact.individual_names_given = 'Tim Giguere'
         dsrc.contact.email = 'tgiguere@asascience.com'

@@ -12,7 +12,7 @@ import sys
 if sys.platform == 'darwin':
     os.environ['C_INCLUDE_PATH'] = '/usr/local/include'
 
-version = '2.0.16-dev'
+version = '2.0.17-dev'
 
 setup(  name = 'coi-services',
         version = version,
@@ -38,6 +38,7 @@ setup(  name = 'coi-services',
             'WebTest==1.4.0',
             'requests==0.13.5',
             'seawater==2.0.1',
+            'pygsw==0.0.6',
             'matplotlib==1.1.1',
             'Pydap==3.1.RC1',
             'netCDF4>=1.0',

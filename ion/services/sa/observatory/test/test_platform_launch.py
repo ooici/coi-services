@@ -471,6 +471,7 @@ class TestPlatformLaunch(IonIntegrationTestCase):
         # TODO re-implement.
         pass
 
+    @skip("Still needs alignment with new configuration structure")
     def test_single_platform(self):
         full_config = self._create_platform_configuration()
 

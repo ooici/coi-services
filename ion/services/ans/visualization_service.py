@@ -218,7 +218,7 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
 
-        print ">>>>>>>>>>>>>>>" "Query token : ", query_token, "CB : ", callback, "TQX : ", tqx
+        log.debug("Query token : " + query_token + " CB : " + callback + "TQX : " + tqx)
 
         reqId = 0
         # If a reqId was passed in tqx, extract it
@@ -645,6 +645,7 @@ class VisualizationService(BaseVisualizationService):
             kml_content += "\n]]>\n</description>\n"
 
             # Point information
+            #_lat_center = _lon_center = 0 ############# REMOVE THIS *************
             kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "," + starting_altitude + "</coordinates>\n</Point>\n"
 
             # Close Placemark

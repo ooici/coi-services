@@ -20,7 +20,7 @@ from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.public import IonObject
 
 # Pyon exceptions.
@@ -37,6 +37,7 @@ import socket
 import json
 import base64
 import copy
+import uuid
 
 # Packages
 import numpy
@@ -175,6 +176,15 @@ class InstrumentAgent(ResourceAgent):
         # Autoreconnect thread.
         self._autoreconnect_greenlet = None
 
+        # State when lost.
+        self._state_when_lost = None
+
+        # Connection ID.
+        self._connection_ID = None
+        
+        # Connection index.
+        self._connection_index = None
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -186,10 +196,7 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_config = self.CFG.get('driver_config', None)
         
         # Set the test mode.
-        self._test_mode = self.CFG.get('test_mode', False)
-
-        # Construct stream publishers.
-        self._construct_data_publishers()
+        self._test_mode = self.CFG.get('test_mode', False)        
 
     ##############################################################
     # Capabilities interface and event handlers.
@@ -240,7 +247,8 @@ class InstrumentAgent(ResourceAgent):
     # Governance interfaces
     ##############################################################
 
-    #TODO - When/If the Instrument and Platform agents are dervied from a common device agent class, then relocate to the parent class and share
+    #TODO - When/If the Instrument and Platform agents are dervied from a
+    # common device agent class, then relocate to the parent class and share
     def check_resource_operation_policy(self, msg,  headers):
         '''
         This function is used for governance validation for certain agent operations.
@@ -254,15 +262,22 @@ class InstrumentAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+                        [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
             return True, ''
 
-        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+                            INSTRUMENT_OPERATOR_ROLE):
+            return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
+                          % (self.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                             self._get_process_org_governance_name())
 
-        com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
+        com = get_resource_commitments(gov_values.actor_id,
+                                       gov_values.resource_id)
         if com is None:
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' \
+                % (self.name, gov_values.op, gov_values.actor_id,
+                   self.resource_id)
 
         return True, ''
 
@@ -297,7 +312,8 @@ class InstrumentAgent(ResourceAgent):
         return (None, result)
 
     def _handler_ping_resource(self, *args, **kwargs):
-        result = '%s, time:%s' % (self._dvr_client.cmd_dvr('process_echo', *args, **kwargs), get_ion_ts())
+        result = '%s, time:%s' % (self._dvr_client.cmd_dvr('process_echo', *args, **kwargs),
+                                  get_ion_ts())
         return (None, result)
 
     def _handler_done(self, *args, **kwargs):
@@ -341,6 +357,10 @@ class InstrumentAgent(ResourceAgent):
         dvr_comms = self._dvr_config.get('comms_config', None)   
         self._dvr_client.cmd_dvr('configure', dvr_comms)
         self._dvr_client.cmd_dvr('connect')
+        
+        # Reset the connection id and index.
+        self._connection_ID = uuid.uuid4()
+        self._connection_index = {key : 0 for key in self.aparam_streams.keys()}
 
         max_tries = kwargs.get('max_tries', 5)
         if not isinstance(max_tries, int) or max_tries < 1:
@@ -434,7 +454,8 @@ class InstrumentAgent(ResourceAgent):
             raise BadRequest('Instrument parameter error attempting direct access: session_type not present') 
 
         log.info("Instrument agent requested to start direct access mode: sessionTO=%d, inactivityTO=%d,  session_type=%s",
-                 session_timeout, inactivity_timeout, dir(DirectAccessTypes)[session_type])
+                 session_timeout, inactivity_timeout,
+                 dir(DirectAccessTypes)[session_type])
 
         # get 'address' of host
         hostname = socket.gethostname()
@@ -443,7 +464,8 @@ class InstrumentAgent(ResourceAgent):
 #        ip_address = ip_addresses[2][0]
         ip_address = hostname
         
-        # create a DA server instance (TODO: just telnet for now) and pass in callback method
+        # create a DA server instance (TODO: just telnet for now) and pass
+        # in callback method
         try:
             self._da_server = DirectAccessServer(session_type, 
                                                 self._da_server_input_processor, 
@@ -464,15 +486,7 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################
     # STREAMING event handlers.
     ##############################################################    
-
-    def _handler_streaming_enter(self, *args, **kwargs):
-        self._start_publisher_greenlets()
-        super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
-
-    def _handler_streaming_exit(self, *args, **kwargs):
-        self._stop_publisher_greenlets()
-        super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
-
+    
     def _handler_streaming_reset(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('disconnect')
         self._dvr_client.cmd_dvr('initialize')        
@@ -501,7 +515,8 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################    
 
     def _handler_direct_access_go_command(self, *args, **kwargs):
-        log.info("Instrument agent requested to stop direct access mode - %s", self._da_session_close_reason)
+        log.info("Instrument agent requested to stop direct access mode - %s",
+                 self._da_session_close_reason)
         # tell driver to stop direct access mode
         next_state, _ = self._dvr_client.cmd_dvr('stop_direct')
         # stop DA server
@@ -520,13 +535,14 @@ class InstrumentAgent(ResourceAgent):
         """
         Handle a connection lost event from the driver.
         """
+        self._state_when_lost = self._fsm.get_current_state()
         return (ResourceAgentState.LOST_CONNECTION, None)
 
     ##############################################################
     # CONNECTION_LOST event handlers.
     ##############################################################    
 
-    def _handler_connection_lost_enter(self, *args, **kwargs):
+    def _handler_lost_connection_enter(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_enter(*args, **kwargs)
         log.error('Instrument agent %s lost connection to the device.',
                   self._proc_name)
@@ -538,32 +554,37 @@ class InstrumentAgent(ResourceAgent):
         # Setup reconnect timer.
         self._autoreconnect_greenlet = gevent.spawn(self._autoreconnect)
 
-    def _autoreconnect(self):
-        while self._autoreconnect_greenlet:
-            gevent.sleep(10)
-            try:
-                self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
-            except:
-                pass
-    
-    def _handler_connection_lost_exit(self, *args, **kwargs):
+    def _handler_lost_connection_exit(self, *args, **kwargs):
         super(InstrumentAgent, self)._common_state_exit(*args, **kwargs)
         if self._autoreconnect_greenlet:
             self._autoreconnect_greenlet = None
 
-    def _handler_connection_lost_reset(self, *args, **kwargs):
+    def _autoreconnect(self):
+        while self._autoreconnect_greenlet:
+            gevent.sleep(10)
+            try:
+                print '## attempting reconnect...'
+                self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
+            except:
+                pass
+    
+    def _handler_lost_connection__reset(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         result = self._stop_driver()
         return (ResourceAgentState.UNINITIALIZED, result)
     
-    def _handler_connection_lost_go_inactive(self, *args, **kwargs):
+    def _handler_lost_connection__go_inactive(self, *args, **kwargs):
         self._dvr_client.cmd_dvr('initialize')        
         return (ResourceAgentState.INACTIVE, None)
 
-    def _handler_connection_lost_autoreconnect(self, *args, **kwargs):
+    def _handler_lost_connection__autoreconnect(self, *args, **kwargs):
     
         try:
             self._dvr_client.cmd_dvr('connect')
+
+            # Reset the connection id and index.
+            self._connection_ID = uuid.uuid4()
+            self._connection_index = {key : 0 for key in self.aparam_streams.keys()}
 
         except:
             return (None, None)
@@ -581,9 +602,11 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-                    #self._dvr_client.cmd_dvr('disconnect')
-                    #raise 
-
+   
+        if next_state == ResourceAgentState.IDLE and \
+            self._state_when_lost == ResourceAgentState.COMMAND:
+                next_state = ResourceAgentState.COMMAND
+   
         return (next_state, None)
 
     ##############################################################
@@ -661,7 +684,8 @@ class InstrumentAgent(ResourceAgent):
             val = evt['value']
             ts = evt['time']
         except KeyError, ValueError:
-            log.error('Instrument agent %s received driver event %s has missing required fields.', self.id, evt)
+            log.error('Instrument agent %s received driver event %s has missing required fields.',
+                      self.id, evt)
             return
         
         if type == DriverAsyncEvent.STATE_CHANGE:
@@ -679,7 +703,8 @@ class InstrumentAgent(ResourceAgent):
         elif type == DriverAsyncEvent.AGENT_EVENT:
             self._async_driver_event_agent_event(val, ts)
         else:
-            log.error('Instrument agent %s received unknown driver event %s.', self._proc_name, str(evt))
+            log.error('Instrument agent %s received unknown driver event %s.',
+                      self._proc_name, str(evt))
 
     def _async_driver_event_state_change(self, val, ts):
         """
@@ -902,9 +927,15 @@ class InstrumentAgent(ResourceAgent):
             
             log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
             g = rdt.to_granule(data_producer_id=self.resource_id)
+            g.connection_id = self._connection_ID.hex
+            g.connection_index = self._connection_index[stream_name]
+            self._connection_index[stream_name] += 1
+            
             publisher.publish(g)
             log.info('Instrument agent %s published data granule on stream %s.',
                 self._proc_name, stream_name)
+            log.info('Connection id: %s, connection index: %i.',
+                     self._connection_ID.hex, self._connection_index[stream_name]-1)
             
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
@@ -1044,8 +1075,6 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
         
         # STREAMING state event handlers.
-        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.ENTER, self._handler_streaming_enter)
-        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.EXIT, self._handler_streaming_exit)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GO_INACTIVE, self._handler_streaming_go_inactive)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1091,11 +1120,9 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # LOST_CONNECTION state event handlers.
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_connection_lost_enter)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_connection_lost_exit)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_connection_lost_reset)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_connection_lost_autoreconnect)
-        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_connection_lost_go_inactive)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_lost_connection__reset)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_lost_connection__autoreconnect)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_lost_connection__go_inactive)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
@@ -1139,12 +1166,15 @@ class InstrumentAgent(ResourceAgent):
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
+        self._construct_data_publishers()        
+        self._start_publisher_greenlets()        
         log.info('Instrument agent %s started its driver.', self._proc_name)
         
     def _stop_driver(self):
         """
         Stop the driver process and driver client.
         """
+        self._stop_publisher_greenlets()        
         self._dvr_proc.stop()
         log.info('Instrument agent %s stopped its driver.', self._proc_name)
 

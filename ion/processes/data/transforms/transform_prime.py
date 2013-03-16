@@ -12,6 +12,7 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 from coverage_model import get_value_class
 from coverage_model.parameter_types import ParameterFunctionType
 from pyon.util.memoize import memoize_lru
+from pyon.util.log import log
 
 class TransformPrime(TransformDataProcess):
     binding=['output']
@@ -37,24 +38,55 @@ class TransformPrime(TransformDataProcess):
     
     def recv_packet(self, msg, stream_route, stream_id):
         process_routes = self.CFG.get_safe('process.routes', {})
-        for streams,actor in process_routes.iteritems():
-            stream_in_id, stream_out_id = streams
+        for stream_in_id,routes in process_routes.iteritems():
             if stream_id == stream_in_id:
-                if actor is None:
-                    rdt_out = self._execute_transform(msg, streams)
-                else:
-                    rdt_out = self._execute_actor(msg, actor, streams)
-                self.publish(rdt_out.to_granule(), stream_out_id)
+                for stream_out_id, actor in routes.iteritems():
+                    if actor is None:
+                        rdt_out = self._execute_transform(msg, (stream_in_id, stream_out_id))
+                        self.publish(rdt_out.to_granule(), stream_out_id)
+                    else:
+                        outgoing = self._execute_actor(msg, actor, (stream_in_id, stream_out_id))
+                        self.publish(outgoing, stream_out_id)
 
     def publish(self, msg, stream_out_id):
         publisher = getattr(self, stream_out_id)
         publisher.publish(msg)
+
+    def _load_actor(self, actor):
+        '''
+        Returns callable execute method if it exists, otherwise it raises a BadRequest
+        '''
+        try:
+            module = __import__(actor['module'], fromlist=[''])
+        except ImportError:
+            log.exception('Actor could not be loaded')
+            raise
+        try:
+            cls = getattr(module, actor['class'])
+        except AttributeError:
+            log.exception('Module %s does not have class %s', repr(module), actor['class'])
+            raise
+        try:
+            execute = getattr(cls,'execute')
+        except AttributeError:
+            log.exception('Actor class does not contain execute method')
+            raise
+        return execute
+
    
     def _execute_actor(self, msg, actor, streams):
         stream_in_id,stream_out_id = streams
-        stream_def_out = self._read_stream_def(stream_out_id)
+        stream_def_out = self.read_stream_def(stream_out_id)
+        params = self.CFG.get_safe('process.params', {})
+        config = self.CFG.get_safe('process')
         #do the stuff with the actor
-        rdt_out = RecordDictionaryTool(stream_definition_id=stream_def_out._id)
+        params['stream_def'] = stream_def_out._id
+        executor = self._load_actor(actor)
+        try:
+            rdt_out = executor(msg, None, config, params, None)
+        except:
+            log.exception('Error running actor for %s', self.id)
+            raise
         return rdt_out
 
     def _execute_transform(self, msg, streams):

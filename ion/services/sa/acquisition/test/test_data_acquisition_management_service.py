@@ -5,6 +5,7 @@
 @author Maurice Manning
 @test ion.services.sa.acquisition.data_acquisition_management_service Unit test suite to cover all service code
 '''
+from ion.services.sa.test.helpers import UnitTestGenerator
 
 from mock import Mock, sentinel, patch
 from pyon.util.unit_test import PyonTestCase
@@ -24,6 +25,9 @@ class TestDataAcquisitionManagement(PyonTestCase):
 
         self.data_acquisition_mgmt_service = DataAcquisitionManagementService()
         self.data_acquisition_mgmt_service.clients = mock_clients
+
+        # must call this manually
+        self.data_acquisition_mgmt_service.on_init()
 
         # save some typing
         self.mock_create = mock_clients.resource_registry.create
@@ -51,34 +55,6 @@ class TestDataAcquisitionManagement(PyonTestCase):
         self.instrument.name = 'inst'
         self.instrument.description = 'inst desc'
 
-    ##############################################################################################
-    #
-    #  DataSource
-    #
-    ##############################################################################################
-
-
-    def test_create_data_source(self):
-        self.mock_create.return_value = ('111', 'bla')
-
-        data_source_id = self.data_acquisition_mgmt_service.create_data_source(self.data_source)
-
-        self.mock_create.assert_called_once_with(self.data_source)
-        self.assertEqual(data_source_id, '111')
-
-    def test_read_and_update_data_source(self):
-        self.mock_read.return_value = self.data_source
-
-        dsrc = self.data_acquisition_mgmt_service.read_data_source('111')
-
-        assert dsrc is self.mock_read.return_value
-        self.mock_read.assert_called_once_with('111', '')
-
-        dsrc.type = 'Bar'
-        self.mock_update.return_value = ['111', 2]
-
-        self.data_acquisition_mgmt_service.update_data_source(dsrc)
-        self.mock_update.assert_called_once_with(dsrc)
 
 
 
@@ -134,3 +110,18 @@ class TestDataAcquisitionManagement(PyonTestCase):
 #
 #        self.data_acquisition_mgmt_service.register_instrument('111')
 
+
+
+utg = UnitTestGenerator(TestDataAcquisitionManagement,
+                        DataAcquisitionManagementService)
+
+utg.test_all_in_one(True)
+
+utg.add_resource_unittests(RT.ExternalDataProvider, "external_data_provider", {})
+utg.add_resource_unittests(RT.DataSource, "data_source", {})
+utg.add_resource_unittests(RT.DataSourceModel, "data_source_model", {})
+utg.add_resource_unittests(RT.DataSourceAgent, "data_source_agent", {})
+utg.add_resource_unittests(RT.DataSourceAgentInstance, "data_source_agent_instance", {})
+utg.add_resource_unittests(RT.ExternalDataset, "external_dataset", {})
+utg.add_resource_unittests(RT.ExternalDatasetAgent, "external_dataset_agent", {})
+utg.add_resource_unittests(RT.ExternalDatasetAgentInstance, "external_dataset_agent_instance", {})

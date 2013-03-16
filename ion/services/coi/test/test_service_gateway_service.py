@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# coding: utf-8
 
 
 
@@ -6,7 +7,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import simplejson, json, collections
+import simplejson, collections
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 from webtest import TestApp
@@ -49,9 +50,14 @@ f8b270icOVgkOKRdLP/Q4r/x8skKSCRz1ZsRdR+7+B/EgksAJj7Ut3yiWoUekEMxCaTdAHPTMD/g
 Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 -----END CERTIFICATE-----"""
 
+#These are supposed to be unicode fields that contain unicode characters.
+DATA_PRODUCT_NAME = u"♣ TestDataProduct ♥"
+DATA_PRODUCT_DESCRIPTION = u"A test data product Ĕ ∆"
+
+
 def convert_unicode(data):
     if isinstance(data, unicode):
-        return str(data)
+        return str(data.encode('utf8'))
     elif isinstance(data, collections.Mapping):
         return dict(map(convert_unicode, data.iteritems()))
     elif isinstance(data, collections.Iterable):
@@ -151,14 +157,14 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
                 "object": {
                     "type_": "DataProduct",
                     "lcstate": "DRAFT",
-                    "description": "A test data product",
-                    "name": "TestDataProduct"
+                    "description": DATA_PRODUCT_DESCRIPTION,
+                    "name": DATA_PRODUCT_NAME
                 }
             }
         }
         }
 
-        response = self.test_app.post('/ion-service/resource_registry/create', {'payload': json.dumps(data_product_create_request) })
+        response = self.test_app.post('/ion-service/resource_registry/create', {'payload': simplejson.dumps(data_product_create_request) })
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
@@ -184,9 +190,13 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
     @attr('SMOKE')
     def test_anonymous_resource_registry_operations_through_gateway(self):
+        """
+        This test ensures that requests make through the service gateway through messaging to the Resource Registry and
+        back; including the support of unicode characters.
+        @return:
+        """
 
-
-        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True')
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
@@ -210,8 +220,15 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
         data_product_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
 
+
+        #Verify the the name and description fields containing unicode characters match all the way through couch and the messaging
+        self.assertEqual(data_product_obj['name'], convert_unicode(DATA_PRODUCT_NAME))
+        self.assertEqual(data_product_obj['description'], convert_unicode(DATA_PRODUCT_DESCRIPTION))
+
+        updated_description_text = data_product_obj['description'] + '---Updated!!'
+
         #modify some fields in the data for testing update
-        data_product_obj['description'] = 'An updated description for test data'
+        data_product_obj['description'] = updated_description_text
 
         data_product_update_request = {
             "serviceRequest": {
@@ -232,12 +249,12 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         updated_data_product_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
-        self.assertEqual(updated_data_product_obj['description'], 'An updated description for test data', )
+        self.assertEqual(updated_data_product_obj['description'], updated_description_text )
 
         differ = DictDiffer(updated_data_product_obj, data_product_obj)
         self.assertEqual(len(differ.changed()), 2)  # Only the _rev and ts_updated fields should be different after an update
 
-        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True')
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
@@ -252,7 +269,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
 
-        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True')
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
@@ -387,10 +404,10 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         #Check the contents of the user role cache for this user
-        service_gateway_user_cache = self.container.proc_manager.procs_by_name['service_gateway'].user_data_cache
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+        service_gateway_user_role_cache = self.container.proc_manager.procs_by_name['service_gateway'].user_role_cache
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), True)
 
-        role_header = service_gateway_user_cache.get(actor_id)
+        role_header = service_gateway_user_role_cache.get(actor_id)
         self.assertIn('ION', role_header)
         self.assertEqual(len(role_header['ION']), 1)
         self.assertIn('ORG_MEMBER', role_header['ION'])
@@ -400,13 +417,13 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         ion_org = org_client.find_org()
         manager_role = org_client.find_org_role_by_name(org_id=ion_org._id, role_name='ORG_MANAGER')
 
-        org_client.grant_role(org_id=ion_org._id, user_id=actor_id, role_name='ORG_MANAGER')
+        org_client.grant_role(org_id=ion_org._id, actor_id=actor_id, role_name='ORG_MANAGER')
 
         #Just allow some time for event processing on slower platforms
         gevent.sleep(2)
 
         #The user should be evicted from the cache due to a change in roles
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), False)
 
         #Do it again to check for new roles
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True&requester=' + actor_id)
@@ -414,9 +431,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         #Check the contents of the user role cache for this user
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), True)
 
-        role_header = service_gateway_user_cache.get(actor_id)
+        role_header = service_gateway_user_role_cache.get(actor_id)
         self.assertIn('ION', role_header)
         self.assertEqual(len(role_header['ION']), 2)
         self.assertIn('ORG_MEMBER', role_header['ION'])
@@ -429,17 +446,17 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         #Just allow some time for event processing on slower platforms
         gevent.sleep(2)
 
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
-        self.assertEqual(service_gateway_user_cache.size(), 0)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), False)
+        self.assertEqual(service_gateway_user_role_cache.size(), 0)
 
         #Change the role once again and see if it is there again
-        org_client.revoke_role(org_id=ion_org._id, user_id=actor_id, role_name='ORG_MANAGER')
+        org_client.revoke_role(org_id=ion_org._id, actor_id=actor_id, role_name='ORG_MANAGER')
 
         #Just allow some time for event processing on slower platforms
         gevent.sleep(2)
 
         #The user should still not be there
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), False)
 
         #Do it again to check for new roles
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True&requester=' + actor_id)
@@ -447,9 +464,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         #Check the contents of the user role cache for this user
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), True)
 
-        role_header = service_gateway_user_cache.get(actor_id)
+        role_header = service_gateway_user_role_cache.get(actor_id)
         self.assertIn('ION', role_header)
         self.assertEqual(len(role_header['ION']), 1)
         self.assertIn('ORG_MEMBER', role_header['ION'])
