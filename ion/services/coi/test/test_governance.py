@@ -349,7 +349,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.apache_actor_header = get_actor_header(self.apache_actor._id)
 
-        self.anonymous_user_headers = {'ion-actor-id':'anonymous'}
+        self.anonymous_actor_headers = {'ion-actor-id':'anonymous'}
 
         self.ion_org = self.org_client.find_org()
 
@@ -391,7 +391,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Attempt to access an operation in service which does not have specific policies set
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
         #Add a new policy to allow the the above service call.
@@ -404,7 +404,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(BadRequest) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
         #disable the test policy to try again
@@ -415,7 +415,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
         #now enable the test policy to try again
@@ -426,7 +426,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(BadRequest) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
 
@@ -444,7 +444,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
         #now enable the test policy to try again
@@ -455,7 +455,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(BadRequest) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
 
@@ -481,7 +481,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
 
@@ -494,7 +494,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(BadRequest) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
 
@@ -525,7 +525,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(BadRequest) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
 
@@ -546,7 +546,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Denied for from a operation precondition function',cm.exception.message)
 
 
@@ -559,7 +559,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(BadRequest) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
         #try to enable the precondition policy
@@ -570,7 +570,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Denied for from a operation precondition function',cm.exception.message)
 
         #Delete the precondition policy
@@ -581,7 +581,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The previous attempt at this operations should now be allowed.
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(BadRequest) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'Arguments not set',cm.exception.message)
 
 
@@ -592,7 +592,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #The same request that previously was allowed should now be denied
         es_obj = IonObject(RT.ExchangeSpace, description= 'ION test XS', name='ioncore2' )
         with self.assertRaises(Unauthorized) as cm:
-            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_user_headers)
+            self.ems_client.create_exchange_space(es_obj, headers=self.anonymous_actor_headers)
         self.assertIn( 'exchange_management(create_exchange_space) has been denied',cm.exception.message)
 
         ###########
@@ -600,7 +600,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Anonymous users should not be allowed
         with self.assertRaises(Unauthorized) as cm:
-            id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=self.anonymous_user_headers)
+            id = self.ssclient.create_interval_timer(start_time="now", event_origin="Interval_Timer_233", headers=self.anonymous_actor_headers)
         self.assertIn( 'scheduler(create_interval_timer) has been denied',cm.exception.message)
 
         #now try creating a new user with a valid actor
@@ -673,33 +673,33 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(org2_id, org2._id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
-        users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),2) #Should include the ION System Actor, Web auth actor.
+        actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
+        self.assertEqual(len(actors),2) #Should include the ION System Actor, Web auth actor.
 
         log.debug('Begin testing with policies')
 
-        #Create a new user - should be denied for anonymous access
+        #Create a new actor - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
-            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_user_headers)
+            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_actor_headers)
         self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
 
 
-        #now try creating a new user with a valid actor
+        #now try creating a new actors with a valid actor
         actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
         log.info( "actor id=" + actor_id)
         actor_header = get_actor_header(actor_id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
-        users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
-        self.assertEqual(len(users),3) #Should include the ION System Actor and web auth actor as well.
+        actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
+        self.assertEqual(len(actors),3) #Should include the ION System Actor and web auth actor as well.
 
-        #Now enroll the user as a member of the Second Org
+        #Now enroll the actor as a member of the Second Org
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
         actor_header = get_actor_header(actor_id)
 
         #Add a new Org boundary policy which deny's all anonymous access
         test_policy_id = self.pol_client.create_resource_access_policy( org2_id, 'Org_Test_Policy',
-            'Deny all access for anonymous user',
+            'Deny all access for anonymous actor',
             TEST_BOUNDARY_POLICY_TEXT, headers=self.system_actor_header)
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
@@ -710,13 +710,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to get a list of Users by hitting the RR anonymously - should be denied.
         with self.assertRaises(Unauthorized) as cm:
-            users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=self.anonymous_user_headers)
+            actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=self.anonymous_actor_headers)
         self.assertIn( 'resource_registry(find_resources) has been denied',cm.exception.message)
 
 
         #Now try to hit the RR with a real user and should now be allowed
-        users,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=actor_header)
-        self.assertEqual(len(users),3) #Should include the ION System Actor and web auth actor as well.
+        actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=actor_header)
+        self.assertEqual(len(actors),3) #Should include the ION System Actor and web auth actor as well.
 
         #TODO - figure out how to right a XACML rule to be a member of the specific Org as well
 
@@ -748,7 +748,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
-            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_user_headers)
+            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_actor_headers)
         self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
 
         #Now create user with proper credentials
@@ -760,7 +760,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Attempt to enroll a user anonymously - should not be allowed
         with self.assertRaises(Unauthorized) as cm:
-            self.org_client.enroll_member(self.ion_org._id,actor_id, headers=self.anonymous_user_headers)
+            self.org_client.enroll_member(self.ion_org._id,actor_id, headers=self.anonymous_actor_headers)
         self.assertIn( 'org_management(enroll_member) has been denied',cm.exception.message)
 
         #Attempt to let a user enroll themselves - should not be allowed
@@ -776,16 +776,16 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Verify that anonymous user cannot find a list of enrolled users in an Org
         with self.assertRaises(Unauthorized) as cm:
-            users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.anonymous_user_headers)
+            actors = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.anonymous_actor_headers)
         self.assertIn('org_management(find_enrolled_users) has been denied',cm.exception.message)
 
         #Verify that a user without the proper Org Manager cannot find a list of enrolled users in an Org
         with self.assertRaises(Unauthorized) as cm:
-            users = self.org_client.find_enrolled_users(self.ion_org._id, headers=actor_header)
+            actors = self.org_client.find_enrolled_users(self.ion_org._id, headers=actor_header)
         self.assertIn( 'org_management(find_enrolled_users) has been denied',cm.exception.message)
 
-        users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),3)  # WIll include the ION system actor
+        actors = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
+        self.assertEqual(len(actors),3)  # WIll include the ION system actor
 
         #Create a second Org
         with self.assertRaises(NotFound) as nf:
@@ -859,8 +859,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=self.system_actor_header)
         self.assertEqual(len(negotiations),2)
 
-        users = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
-        self.assertEqual(len(users),0)
+        actors = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
+        self.assertEqual(len(actors),0)
 
         #Manager approves proposal
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
@@ -872,8 +872,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
-        users = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
-        self.assertEqual(len(users),1)
+        actors = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
+        self.assertEqual(len(actors),1)
 
         #User tried requesting enrollment again - this should fail
         with self.assertRaises(BadRequest) as cm:
@@ -906,7 +906,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
-            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_user_headers)
+            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_actor_headers)
         self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
 
         #Now create user with proper credentials
@@ -916,8 +916,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Build the message headers used with this user
         actor_header = get_actor_header(actor_id)
 
-        users = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
-        self.assertEqual(len(users),3)  # WIll include the ION system actor and the non user actor from setup
+        actors = self.org_client.find_enrolled_users(self.ion_org._id, headers=self.system_actor_header)
+        self.assertEqual(len(actors),3)  # WIll include the ION system actor and the non user actor from setup
 
         ## test_org_roles and policies
 
@@ -954,7 +954,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to add the user role anonymously
         with self.assertRaises(Unauthorized) as cm:
-            self.org_client.add_user_role(org2_id, operator_role, headers=self.anonymous_user_headers)
+            self.org_client.add_user_role(org2_id, operator_role, headers=self.anonymous_actor_headers)
         self.assertIn('org_management(add_user_role) has been denied',cm.exception.message)
 
         self.org_client.add_user_role(org2_id, operator_role, headers=self.system_actor_header)
@@ -970,7 +970,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to find user requests anonymously
         with self.assertRaises(Unauthorized) as cm:
-            requests = self.org_client.find_org_negotiations(org2_id, headers=self.anonymous_user_headers)
+            requests = self.org_client.find_org_negotiations(org2_id, headers=self.anonymous_actor_headers)
         self.assertIn('org_management(find_org_negotiations) has been denied',cm.exception.message)
 
         #Next try to find user requests as as a basic member
@@ -987,7 +987,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         # First try to request a role anonymously
         with self.assertRaises(Unauthorized) as cm:
-            sap_response = self.org_client.negotiate(sap, headers=self.anonymous_user_headers)
+            sap_response = self.org_client.negotiate(sap, headers=self.anonymous_actor_headers)
         self.assertIn('org_management(negotiate) has been denied',cm.exception.message)
 
         # Next try to propose to assign a role without being a member
@@ -1009,8 +1009,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=self.system_actor_header)
         self.assertEqual(len(negotiations),1)
 
-        users = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
-        self.assertEqual(len(users),0)
+        actors = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
+        self.assertEqual(len(actors),0)
 
         #Manager approves proposal
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
@@ -1019,8 +1019,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response = Negotiation.create_counter_proposal(negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
-        users = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
-        self.assertEqual(len(users),1)
+        actors = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
+        self.assertEqual(len(actors),1)
 
         #Create a proposal to add a role to a user
         sap = IonObject(OT.RequestRoleProposal,consumer=actor_id, provider=org2_id, role_name=INSTRUMENT_OPERATOR_ROLE )
@@ -1092,7 +1092,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Intruments should not be able to be created by anoymous users
         with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.create_instrument_agent(ia_obj, headers=self.anonymous_user_headers)
+            self.ims_client.create_instrument_agent(ia_obj, headers=self.anonymous_actor_headers)
         self.assertIn('instrument_management(create_instrument_agent) has been denied',cm.exception.message)
 
         #Intruments should not be able to be created by users that are not Instrument Operators
@@ -1151,7 +1151,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
-            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_user_headers)
+            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_actor_headers)
         self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
 
         #Now create user with proper credentials
@@ -1228,7 +1228,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
         with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_agent_lifecycle(ia_list[0]._id, LCE.PLAN, headers=self.anonymous_user_headers)
+            self.ims_client.execute_instrument_agent_lifecycle(ia_list[0]._id, LCE.PLAN, headers=self.anonymous_actor_headers)
         self.assertIn( 'instrument_management(execute_instrument_agent_lifecycle) has been denied',cm.exception.message)
 
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR
@@ -1463,7 +1463,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Create a new user - should be denied for anonymous access
         with self.assertRaises(Unauthorized) as cm:
-            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_user_headers)
+            actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.anonymous_actor_headers)
         self.assertIn( 'identity_management(signon) has been denied',cm.exception.message)
 
         #Create user
@@ -1503,7 +1503,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try a basic agent operation anonymously - it should be denied
         with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_capabilities(headers=self.anonymous_user_headers )
+            retval = ia_client.get_capabilities(headers=self.anonymous_actor_headers )
         self.assertIn('(get_capabilities) has been denied',cm.exception.message)
 
         #However the ION Manager should be allowed
@@ -1517,7 +1517,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Attempt to grant role to user but not as a Member of the Org so it will fail
         with self.assertRaises(BadRequest) as cm:
             self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
-        self.assertIn('The user is not a member of the specified Org',cm.exception.message)
+        self.assertIn('The actor is not a member of the specified Org',cm.exception.message)
 
         #Enroll user in second Org
         self.org_client.enroll_member(org2_id,actor_id, headers=self.system_actor_header)
@@ -1530,7 +1530,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #This agent operation should not be allowed for anonymous user
         with self.assertRaises(Unauthorized) as cm:
-            retval = ia_client.get_resource_state(headers=self.anonymous_user_headers)
+            retval = ia_client.get_resource_state(headers=self.anonymous_actor_headers)
         self.assertIn('(get_resource_state) has been denied',cm.exception.message)
 
         #This agent operation should not be allowed for a user that is not an Instrument Operator
@@ -1587,7 +1587,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try anonymously - should be denied
         with self.assertRaises(Unauthorized) as cm:
-            ia_client.set_resource(new_params, headers=self.anonymous_user_headers)
+            ia_client.set_resource(new_params, headers=self.anonymous_actor_headers)
         self.assertIn('(set_resource) has been denied',cm.exception.message)
 
         #THey try with user with Instrument Operator role, but should fail with out acquiring a resource
@@ -1875,7 +1875,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
         with self.assertRaises(Unauthorized) as cm:
-            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=self.anonymous_user_headers)
+            self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=self.anonymous_actor_headers)
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
