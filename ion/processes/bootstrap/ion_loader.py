@@ -433,7 +433,7 @@ class IONLoader(ImmediateProcess):
         self.resource_objs.update(res_obj_mapping)
 
     def _finalize_bulk(self, category):
-        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
+        res = self.resource_ds.create_mult(self.bulk_objects.values())
         log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
         num_objects = len([1 for obj in self.bulk_objects.values() if obj._get_type() != "Association"])
         self.bulk_objects.clear()
@@ -2369,7 +2369,7 @@ Reason: %s
 
         # TODO: Also delete associations
 
-        self.resource_ds.create_doc_mult(docs, allow_ids=True)
+        self.resource_ds.update_doc_mult(docs)
         log.info("Deleted %s OOI resources and associations", len(docs))
 
 
