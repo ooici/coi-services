@@ -93,7 +93,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.resource_registry.create_association(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type)
+            obj=object, assoc_type=assoc_type)
 
     @mask_couch_error
     def delete_association(self, association=''):
