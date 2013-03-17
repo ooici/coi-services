@@ -174,7 +174,6 @@ class PlatformAgent(ResourceAgent):
         # platform ID of my parent, if any. -mainly for diagnostic purposes
         self._parent_platform_id = None
 
-        self._network_definition_ser = None  # string
         self._network_definition = None  # NetworkDefinition object
         self._pnode = None  # PlatformNode object corresponding to this platform
 
@@ -215,8 +214,9 @@ class PlatformAgent(ResourceAgent):
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
 
-        if log.isEnabledFor(logging.DEBUG): # pragma: no cover
-            log.debug("on_init: CFG = %s", self._pp.pformat(self.CFG))
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            platform_id = self.CFG.get_safe("platform_config.platform_id", "?")
+            log.debug("%r: on_init: CFG = %s", platform_id, self._pp.pformat(self.CFG))
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -348,14 +348,13 @@ class PlatformAgent(ResourceAgent):
 
         log.debug("driver_config: %s", self._driver_config)
 
-        for k in ['platform_id', 'network_definition']:
+        for k in ['platform_id']:
             if not k in self._plat_config:
                 msg = "'%s' key not given in configuration" % k
                 log.error(msg)
                 raise PlatformException(msg)
 
         self._platform_id = self._plat_config['platform_id']
-        self._network_definition_ser = self._plat_config['network_definition']
 
         for k in ['dvr_mod', 'dvr_cls']:
             if not k in self._driver_config:
@@ -364,8 +363,9 @@ class PlatformAgent(ResourceAgent):
                 log.error(msg)
                 raise PlatformException(msg)
 
-        self._network_definition = NetworkUtil.deserialize_network_definition(
-            self._network_definition_ser)
+        # Create network definition from the provided CFG:
+        self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
+        log.debug("%r: created network_definition from CFG", self._platform_id)
 
         # verify the given platform_id is contained in the NetworkDefinition:
         if not self._platform_id in self._network_definition.pnodes:
@@ -373,6 +373,7 @@ class PlatformAgent(ResourceAgent):
             log.error(msg)
             raise PlatformException(msg)
 
+        # get PlatformNode corresponding to this agent:
         self._pnode = self._network_definition.pnodes[self._platform_id]
         assert self._pnode.platform_id == self._platform_id
 
@@ -393,7 +394,7 @@ class PlatformAgent(ResourceAgent):
         #
         # set platform ports:
         # TODO the ports may probably be applicable only in particular
-        # drivers (like in RSN), so moved these there if that's the case.
+        # drivers (like in RSN), so move these there if that's the case.
         #
         if 'ports' in self._driver_config:
             ports = self._driver_config['ports']
@@ -415,8 +416,7 @@ class PlatformAgent(ResourceAgent):
 
         self._plat_config_processed = True
 
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("%r: _plat_config_processed complete" % self._platform_id)
+        log.debug("%r: _plat_config_processed complete",  self._platform_id)
 
     ##############################################################
     # Governance interfaces
@@ -487,8 +487,8 @@ class PlatformAgent(ResourceAgent):
         # granule_publish_rate
         # records_per_granule
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _construct_data_publisher_using_stream_config: "
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("%r: _construct_data_publisher_using_stream_config: "
                       "stream_name:%r, stream_config=%s",
                       self._platform_id, stream_name, self._pp.pformat(stream_config))
 
@@ -794,52 +794,45 @@ class PlatformAgent(ResourceAgent):
         @param subplatform_id Platform ID
         """
 
-        # platform configuration:
-        # TODO general config under revision
-        platform_config = {
-            'platform_id': subplatform_id,
-            'network_definition' : self._network_definition_ser,
-            'parent_platform_id' : self._platform_id,
-        }
+        # get PlatformNode, corresponding CFG, and resource_id:
+        sub_pnode = self._pnode.subplatforms[subplatform_id]
+        sub_agent_config = sub_pnode.CFG
+        sub_resource_id = sub_agent_config.get("agent", {}).get("resource_id", None)
 
-        agent_config = {
-            'agent':            {'resource_id': subplatform_id},
-            'driver_config':    self._driver_config,
-            'stream_config':    self.CFG.get('stream_config', None),
+        assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
 
-            'platform_config':  platform_config,
-        }
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            log.debug("%r: launching sub-platform agent %r: CFG=%s",
+                      self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
 
-        log.debug("%r: launching sub-platform agent %r",
-                  self._platform_id, subplatform_id)
-        pid = self._launcher.launch(subplatform_id, agent_config)
+        pid = self._launcher.launch(subplatform_id, sub_agent_config)
 
-        pa_client = self._create_resource_agent_client(subplatform_id)
+        pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
 
         self._pa_clients[subplatform_id] = (pa_client, pid)
 
         self._ping_subplatform(subplatform_id)
         self._initialize_subplatform(subplatform_id)
 
-    def _create_resource_agent_client(self, subplatform_id):
+    def _create_resource_agent_client(self, subplatform_id, sub_resource_id):
         """
         Creates and returns a ResourceAgentClient instance.
 
-        @param subplatform_id Platform ID
+        @param subplatform_id  Platform ID
+        @param sub_resource_id Id for ResourceAgentClient
         """
-        log.debug("%r: _create_resource_agent_client: subplatform_id=%s",
-            self._platform_id, subplatform_id)
+        log.debug("%r: _create_resource_agent_client: subplatform_id=%r, sub_resource_id=%r",
+                  self._platform_id, subplatform_id, sub_resource_id)
 
-        pa_client = ResourceAgentClient(subplatform_id, process=self)
+        pa_client = ResourceAgentClient(sub_resource_id, process=self)
 
-        log.debug("%r: got platform agent client %s",
-            self._platform_id, str(pa_client))
+        log.debug("%r: got platform agent client %s", self._platform_id, pa_client)
 
         state = pa_client.get_agent_state()
         assert PlatformAgentState.UNINITIALIZED == state
 
-        log.debug("%r: ResourceAgentClient CREATED: subplatform_id=%s",
-            self._platform_id, subplatform_id)
+        log.debug("%r: ResourceAgentClient CREATED: subplatform_id=%r, sub_resource_id=%r",
+                  self._platform_id, subplatform_id, sub_resource_id)
 
         return pa_client
 

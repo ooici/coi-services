@@ -397,11 +397,13 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertIn(child_device_id, config['children'])
         self._verify_child_config(config['children'][child_device_id], child_device_id)
 
-    def _create_platform_configuration(self, platform_id):
+    def _create_platform_configuration(self, platform_id, parent_platform_id=None):
         """
         This method is an adaptation of test_agent_instance_config in
         test_instrument_management_service_integration.py
 
+        @param platform_id
+        @param parent_platform_id
         @return a DotDict with various of the constructed elements associated
                 to the platform.
         """
@@ -472,17 +474,18 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
             return platform_agent_instance_id, platform_agent_id, platform_device_id, stream_id
 
-        log.debug("Making the structure for a platform agent, which will be the child")
+        log.debug("Making the structure for a platform agent")
+
+        # TODO Note: the 'platform_config' entry is a mechanism that the
+        # platform agent expects to know the platform_id and parent_platform_id.
+        # Determine how to finally indicate this info.
+        platform_config = {
+            'platform_id':             platform_id,
+            'parent_platform_id':      parent_platform_id,
+        }
+
         child_agent_config = {
-            #
-            # TODO Note: the 'platform_config' entry is a mechanism that the
-            # platform agent uses. The two specific pieces (platform_id and
-            # network_definition) refer to aspects that still need discussion/alignment.
-            #
-            'platform_config': {
-                'platform_id':             platform_id,
-                'network_definition' :     self._network_definition_ser
-            }
+            'platform_config': platform_config
         }
         platform_agent_instance_child_id, _, platform_device_child_id, stream_id = \
             _make_platform_agent_structure(child_agent_config)
@@ -496,6 +499,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         p_obj = DotDict()
         p_obj.platform_id = platform_id
+        p_obj.parent_platform_id = parent_platform_id
         p_obj.agent_config = child_config
         p_obj.platform_agent_instance_obj = platform_agent_instance_child_obj
         p_obj.platform_device_id = platform_device_child_id
@@ -503,12 +507,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         p_obj.stream_id = stream_id
         return p_obj
 
-    def _create_platform(self, platform_id):
+    def _create_platform(self, platform_id, parent_platform_id=None):
         """
         The main method to create a platform configuration and do other
         preparations for a given platform.
         """
-        p_obj = self._create_platform_configuration(platform_id)
+        p_obj = self._create_platform_configuration(platform_id, parent_platform_id)
 
         # start corresponding data subscriber:
         self._start_data_subscriber(p_obj.platform_agent_instance_id,
@@ -552,8 +556,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         """
 
         p_root       = self._create_platform('Node1D')
-        p_child      = self._create_platform('MJ01C')
-        p_grandchild = self._create_platform('LJ01D')
+        p_child      = self._create_platform('MJ01C', parent_platform_id='Node1D')
+        p_grandchild = self._create_platform('LJ01D', parent_platform_id='MJ01C')
 
         self._assign_child_to_parent(p_child, p_root)
         self._assign_child_to_parent(p_grandchild, p_child)
