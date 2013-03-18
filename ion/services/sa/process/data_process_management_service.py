@@ -264,7 +264,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         elif not routes:
             raise BadRequest('No valid route defined for this data process.')
 
-        self.validate_compatibility(in_data_product_ids, out_data_product_ids)
+        self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
         routes = self._manage_routes(routes)
         configuration.process.routes = routes
         dproc = DataProcess()
@@ -849,7 +849,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             raise BadRequest('No valid stream definition defined for data product stream')
         return self.clients.pubsub_management.compatible_stream_definitions(in_stream_definition_id=in_stream_defs[0], out_stream_definition_id=out_stream_defs[0])
     
-    def validate_compatibility(self, in_data_product_ids=None, out_data_product_ids=None, routes=None):
+    def validate_compatibility(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, routes=None):
         '''
         Validates compatibility between input and output data products
         routes are in this form:
@@ -857,19 +857,40 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             if actor is None then the data process is assumed to use parameter functions.
             if actor is a TransformFunction, the validation is done at runtime
         '''
+        if data_process_definition_id:
+            input_stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasInputStreamDefinition, id_only=True)
+            output_stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            for in_data_product_id in in_data_product_ids:
+                input_stream_def = self.stream_def_from_data_product(in_data_product_id)
+                if input_stream_def not in input_stream_def_ids:
+                    log.warning('Creating a data process with an unmatched stream definition input')
+            for out_data_product_id in out_data_product_ids:
+                output_stream_def = self.stream_def_from_data_product(out_data_product_id)
+                if output_stream_def not in output_stream_def_ids:
+                    log.warning('Creating a data process with an unmatched stream definition output')
+        
         if len(out_data_product_ids)>1 and not routes:
             raise BadRequest('Multiple output data products but no routes defined')
         if len(out_data_product_ids)==1:
             return all( [self._validator(i, out_data_product_ids[0]) for i in in_data_product_ids] )
         elif len(out_data_product_ids)>1:
-            for path,actor in routes.iteritems():
-                in_dp_id, out_dp_id = path
-                if not self._validator(in_dp_id, out_dp_id):
-                    return False
+            for in_dp_id,out in routes.iteritems():
+                for out_dp_id, actor in out.iteritems():
+                    if not self._validator(in_dp_id, out_dp_id):
+                        return False
             return True
         else:
             raise BadRequest('No input data products specified')
 
+
+    def stream_def_from_data_product(self, data_product_id=''):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        validate_true(stream_ids, 'No stream found for this data product: %s' % data_product_id)
+        stream_id = stream_ids.pop()
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=True)
+        validate_true(stream_def_ids, 'No stream definition found for this stream: %s' % stream_def_ids)
+        stream_def_id = stream_def_ids.pop()
+        return stream_def_id
 
 
     def _get_process_producer(self, data_process_id=""):
