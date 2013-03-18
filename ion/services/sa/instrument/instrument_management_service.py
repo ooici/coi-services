@@ -1744,6 +1744,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         s_unknown = StatusType.STATUS_UNKNOWN
 
+        # clean up platform agent list as it sometimes includes the device
+        pa = []
+        for agent in extended_platform.platform_agent:
+            if agent.type_ == 'PlatformAgent':
+                pa.append(agent)
+        extended_platform.platform_agent = pa
+
         # Status computation
         extended_platform.computed.instrument_status = [s_unknown] * len(extended_platform.instrument_devices)
         extended_platform.computed.platform_status   = [s_unknown] * len(extended_platform.platforms)
