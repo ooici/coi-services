@@ -1573,6 +1573,12 @@ Reason: %s
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
             context.fill_value = get_fill_value(fill_value, encoding, param_type)
+            context.reference_urls = references
+            context.internal_name = name
+            context.display_name = display_name
+            context.standard_name = std_name
+            context.ooi_short_name = sname
+            context.description = description
         except TypeError as e:
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)

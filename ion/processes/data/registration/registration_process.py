@@ -180,8 +180,7 @@ class RegistrationProcess(StandaloneProcess):
                     dataset_element.appendChild(add_attributes_element)
 
                 for var_name in vars:
-                    param = cov.get_parameter(var_name)
-                    var = param.context
+                    var = cov.get_parameter_context(var_name)
                     
                     units = "unknown"
                     try:
@@ -204,8 +203,10 @@ class RegistrationProcess(StandaloneProcess):
                     data_element.appendChild(destination_name_element)
                     
                     add_attributes_element = doc.createElement('addAttributes')
-                    if not var.attributes is None:
-                        for key, val in var.attributes.iteritems():
+                    if var.ATTRS is not None:
+                        for key in var.ATTRS:
+                            if not hasattr(var,key):
+                                continue
                             att_element = doc.createElement('att')
                             att_element.setAttribute('name', key)
                             text_node = doc.createTextNode(val)
@@ -221,7 +222,7 @@ class RegistrationProcess(StandaloneProcess):
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', 'long_name')
                     long_name = ""
-                    if var.long_name is not None:
+                    if hasattr(var,'long_name') and var.long_name is not None:
                         long_name = var.long_name
                         text_node = doc.createTextNode(long_name)
                         att_element.appendChild(text_node)
@@ -229,7 +230,7 @@ class RegistrationProcess(StandaloneProcess):
                     
                     att_element = doc.createElement('att')
                     standard_name = ""
-                    if var.standard_name is not None:
+                    if hasattr(var,'standard_name') and var.standard_name is not None:
                         standard_name = var.standard_name
                         att_element.setAttribute('name', 'standard_name')
                         text_node = doc.createTextNode(standard_name)
