@@ -559,7 +559,6 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.container.spawn_process('preload','ion.processes.bootstrap.ion_loader','IONLoader', config)
 
     def ctd_plain_input_data_product(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         available_fields = [
                 'internal_timestamp', 
                 'temp', 
@@ -572,20 +571,10 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 'driver_timestamp', 
                 'lon', 
                 'pressure']
-        stream_def_id = self.pubsub_management.create_stream_definition('ctd plain parsed', parameter_dictionary_id=pdict_id, available_fields=available_fields)
-        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
-        dp_obj = DataProduct(name='ctd plain test')
-        dp_obj.temporal_domain = tdom
-        dp_obj.spatial_domain = sdom
-        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
-        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
-        return data_product_id
+        return self.make_data_product('ctd_parsed_param_dict', 'ctd plain test', available_fields)
+
 
     def ctd_plain_density(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         available_fields = [
                 'internal_timestamp', 
                 'preferred_timestamp', 
@@ -596,20 +585,9 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 'driver_timestamp', 
                 'lon', 
                 'density']
-        stream_def_id = self.pubsub_management.create_stream_definition('density stream', parameter_dictionary_id=pdict_id, available_fields=available_fields)
-        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
-        dp_obj = DataProduct(name='density')
-        dp_obj.temporal_domain = tdom
-        dp_obj.spatial_domain = sdom
-        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
-        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
-        return data_product_id
+        return self.make_data_product('ctd_parsed_param_dict', 'density', available_fields)
 
     def ctd_instrument_data_product(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_LC_TEST', id_only=True)
         available_fields = [
                 'internal_timestamp', 
                 'temp', 
@@ -622,33 +600,27 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 'driver_timestamp', 
                 'lon', 
                 'pressure']
-        stream_def_id = self.pubsub_management.create_stream_definition('ctd instrument', parameter_dictionary_id=pdict_id, available_fields=available_fields)
+        return self.make_data_product('ctd_LC_TEST', 'ctd instrument', available_fields)
+
+    def make_data_product(self, pdict_name, dp_name, available_fields=[]):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(pdict_name, id_only=True)
+        stream_def_id = self.pubsub_management.create_stream_definition('%s stream_def' % dp_name, parameter_dictionary_id=pdict_id, available_fields=available_fields or None)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
         tdom, sdom = time_series_domain()
         tdom = tdom.dump()
         sdom = sdom.dump()
-        dp_obj = DataProduct(name='ctd instrument test')
+        dp_obj = DataProduct(name=dp_name)
         dp_obj.temporal_domain = tdom
         dp_obj.spatial_domain = sdom
         data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
         return data_product_id
+
+    def google_dt_data_product(self):
+        return self.make_data_product('google_dt', 'visual')
 
     def ctd_derived_data_product(self):
-        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_LC_TEST', id_only=True)
-        # No available fields implies all
-        stream_def_id = self.pubsub_management.create_stream_definition('ctd derived', parameter_dictionary_id=pdict_id)
-        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
-
-        dp_obj = DataProduct(name='ctd derived products')
-        dp_obj.temporal_domain = tdom
-        dp_obj.spatial_domain = sdom
-        data_product_id = self.data_product_management.create_data_product(dp_obj, stream_definition_id=stream_def_id)
-        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
-        return data_product_id
+        return self.make_data_product('ctd_LC_TEST', 'ctd derived products')
         
     def publish_to_plain_data_product(self, data_product_id):
         stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
@@ -767,7 +739,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         input_data_product_id = self.ctd_plain_input_data_product()
         output_data_product_id = self.ctd_plain_density()
         actor = self.create_density_transform_function()
-
+        from pyon.core.bootstrap import get_sys_name
+        raw_input('%s: ' % get_sys_name())
         route = {input_data_product_id: {output_data_product_id: actor}}
         config = DotDict()
         config.process.routes = route
@@ -793,4 +766,5 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.assertTrue(validated.wait(10))
 
 
-
+    def test_visual_transform(self):
+        pass
