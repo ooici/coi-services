@@ -204,7 +204,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = tl1_pmap
         tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
-        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, tempL1_ctxt_id)
         contexts['TEMPWAT_L1'] = tempL1_ctxt, tempL1_ctxt_id
 
@@ -219,7 +219,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = cl1_pmap
         condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
-        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, condL1_ctxt_id)
         contexts['CONDWAT_L1'] = condL1_ctxt, condL1_ctxt_id
 
@@ -235,7 +235,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = pl1_pmap
         presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
-        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, presL1_ctxt_id)
         contexts['PRESWAT_L1'] = presL1_ctxt, presL1_ctxt_id
 
@@ -256,7 +256,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = sal_pmap
         sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
-        sal_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_ids=[expr_id])
+        sal_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, sal_ctxt_id)
         contexts['PRACSAL'] = sal_ctxt, sal_ctxt_id
 
