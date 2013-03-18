@@ -183,12 +183,8 @@ class RegistrationProcess(StandaloneProcess):
                     var = cov.get_parameter_context(var_name)
                     
                     units = "unknown"
-                    try:
+                    if hasattr(var,'uom') and var.uom:
                         units = var.uom
-                    except:
-                        pass
-                    if units is None:
-                        units = "unknown"
 
                     #if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
                     data_element = doc.createElement('dataVariable')
@@ -207,6 +203,7 @@ class RegistrationProcess(StandaloneProcess):
                         for key in var.ATTRS:
                             if not hasattr(var,key):
                                 continue
+                            val = getattr(var,key)
                             att_element = doc.createElement('att')
                             att_element.setAttribute('name', key)
                             text_node = doc.createTextNode(val)
@@ -222,8 +219,8 @@ class RegistrationProcess(StandaloneProcess):
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', 'long_name')
                     long_name = ""
-                    if hasattr(var,'long_name') and var.long_name is not None:
-                        long_name = var.long_name
+                    if hasattr(var,'display_name') and var.display_name is not None:
+                        long_name = var.display_name
                         text_node = doc.createTextNode(long_name)
                         att_element.appendChild(text_node)
                         add_attributes_element.appendChild(att_element)
