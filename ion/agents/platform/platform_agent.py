@@ -205,7 +205,7 @@ class PlatformAgent(ResourceAgent):
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
-        self._pp = pprint.PrettyPrinter(indent=4, depth=12)
+        self._pp = pprint.PrettyPrinter()
 
     def on_init(self):
         super(PlatformAgent, self).on_init()
@@ -215,8 +215,13 @@ class PlatformAgent(ResourceAgent):
         self._plat_config_processed = False
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            platform_id = self.CFG.get_safe("platform_config.platform_id", "?")
-            log.debug("%r: on_init: CFG = %s", platform_id, self._pp.pformat(self.CFG))
+            platform_id = self.CFG.get_safe('platform_config.platform_id', '')
+            outname = "logs/platform_CFG_%s.txt" % platform_id
+            try:
+                pprint.PrettyPrinter(stream=file(outname, "w")).pprint(self.CFG)
+                log.debug("%r: on_init: CFG printed to %s", platform_id, outname)
+            except Exception as e:
+                log.warn("%r: on_init: error printing CFG to %s: %s", platform_id, outname, e)
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -323,11 +328,6 @@ class PlatformAgent(ResourceAgent):
 
         @raises PlatformException if the verification fails for some reason.
         """
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            platform_id = self.CFG.get_safe('platform_config.platform_id', '')
-            outname = "platform_CFG_%s.txt" % platform_id
-            pprint.PrettyPrinter(stream=file(outname, "w")).pprint(self.CFG)
-            log.debug("_pre_initialize: CFG printed to %s", outname)
 
         if not self._plat_config:
             msg = "'platform_config' entry not provided in agent configuration"
@@ -801,9 +801,12 @@ class PlatformAgent(ResourceAgent):
 
         assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
 
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("%r: launching sub-platform agent %r: CFG=%s",
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r: launching sub-platform agent %r: CFG=%s",
                       self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
+        elif log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            log.debug("%r: launching sub-platform agent %r",
+                      self._platform_id, subplatform_id)
 
         pid = self._launcher.launch(subplatform_id, sub_agent_config)
 
