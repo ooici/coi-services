@@ -35,11 +35,11 @@ class Handler(BaseHandler):
     def get_attrs(self, cov, name):
         pc = cov.get_parameter_context(name)
         attrs = {}
-        try:
+        if hasattr(pc,'uom'):
             attrs['units'] = pc.uom
-        except:
-            pass
-        attrs['long_name'] = pc.long_name
+
+        if hasattr(pc,'display_name'):
+            attrs['long_name'] = pc.display_name
         return attrs
 
     def get_data(self,cov, name, slice_):

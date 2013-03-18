@@ -553,33 +553,33 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
     def _get_pdict(self, filter_values):
         t_ctxt = ParameterContext('TIME', param_type=QuantityType(value_encoding=np.dtype('int64')))
         t_ctxt.uom = 'seconds since 01-01-1900'
-        t_ctxt_id = self.dataset_management.create_parameter_context(name='TIME', parameter_context=t_ctxt.dump(), parameter_type='quantity<int64>', unit_of_measure=t_ctxt.uom)
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='TIME', parameter_context=t_ctxt.dump(), parameter_type='quantity<int64>', units=t_ctxt.uom)
 
         lat_ctxt = ParameterContext('LAT', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
         lat_ctxt.axis = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
-        lat_ctxt_id = self.dataset_management.create_parameter_context(name='LAT', parameter_context=lat_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=lat_ctxt.uom)
+        lat_ctxt_id = self.dataset_management.create_parameter_context(name='LAT', parameter_context=lat_ctxt.dump(), parameter_type='quantity<float32>', units=lat_ctxt.uom)
 
         lon_ctxt = ParameterContext('LON', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
         lon_ctxt.axis = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
-        lon_ctxt_id = self.dataset_management.create_parameter_context(name='LON', parameter_context=lon_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=lon_ctxt.uom)
+        lon_ctxt_id = self.dataset_management.create_parameter_context(name='LON', parameter_context=lon_ctxt.dump(), parameter_type='quantity<float32>', units=lon_ctxt.uom)
 
         # Independent Parameters
          # Temperature - values expected to be the decimal results of conversion from hex
         temp_ctxt = ParameterContext('TEMPWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         temp_ctxt.uom = 'deg_C'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='TEMPWAT_L0', parameter_context=temp_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=temp_ctxt.uom)
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='TEMPWAT_L0', parameter_context=temp_ctxt.dump(), parameter_type='quantity<float32>', units=temp_ctxt.uom)
 
         # Conductivity - values expected to be the decimal results of conversion from hex
         cond_ctxt = ParameterContext('CONDWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         cond_ctxt.uom = 'S m-1'
-        cond_ctxt_id = self.dataset_management.create_parameter_context(name='CONDWAT_L0', parameter_context=cond_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=cond_ctxt.uom)
+        cond_ctxt_id = self.dataset_management.create_parameter_context(name='CONDWAT_L0', parameter_context=cond_ctxt.dump(), parameter_type='quantity<float32>', units=cond_ctxt.uom)
 
         # Pressure - values expected to be the decimal results of conversion from hex
         press_ctxt = ParameterContext('PRESWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         press_ctxt.uom = 'dbar'
-        press_ctxt_id = self.dataset_management.create_parameter_context(name='PRESWAT_L0', parameter_context=press_ctxt.dump(), parameter_type='quantity<float32>', unit_of_measure=press_ctxt.uom)
+        press_ctxt_id = self.dataset_management.create_parameter_context(name='PRESWAT_L0', parameter_context=press_ctxt.dump(), parameter_type='quantity<float32>', units=press_ctxt.uom)
 
         # Dependent Parameters
 
@@ -589,7 +589,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         expr = NumexprFunction('TEMPWAT_L1', tl1_func, ['T'], param_map=tl1_pmap)
         tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
-        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name=tempL1_ctxt.name, parameter_context=tempL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=tempL1_ctxt.uom)
+        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name=tempL1_ctxt.name, parameter_context=tempL1_ctxt.dump(), parameter_type='pfunc', units=tempL1_ctxt.uom)
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
         cl1_func = '(C / 100000) - 0.5'
@@ -597,7 +597,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         expr = NumexprFunction('CONDWAT_L1', cl1_func, ['C'], param_map=cl1_pmap)
         condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
-        condL1_ctxt_id = self.dataset_management.create_parameter_context(name=condL1_ctxt.name, parameter_context=condL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=condL1_ctxt.uom)
+        condL1_ctxt_id = self.dataset_management.create_parameter_context(name=condL1_ctxt.name, parameter_context=condL1_ctxt.dump(), parameter_type='pfunc', units=condL1_ctxt.uom)
 
         # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
         #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
@@ -606,7 +606,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         expr = NumexprFunction('PRESWAT_L1', pl1_func, ['P', 'p_range'], param_map=pl1_pmap)
         presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
-        presL1_ctxt_id = self.dataset_management.create_parameter_context(name=presL1_ctxt.name, parameter_context=presL1_ctxt.dump(), parameter_type='pfunc', unit_of_measure=presL1_ctxt.uom)
+        presL1_ctxt_id = self.dataset_management.create_parameter_context(name=presL1_ctxt.name, parameter_context=presL1_ctxt.dump(), parameter_type='pfunc', units=presL1_ctxt.uom)
 
         # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
         #       https://code.google.com/p/python-gsw/ & http://pypi.python.org/pypi/gsw/3.0.1
@@ -620,7 +620,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         expr = PythonFunction('PRACSAL', owner, sal_func, sal_arglist, sal_kwargmap, sal_pmap)
         sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
-        sal_ctxt_id = self.dataset_management.create_parameter_context(name=sal_ctxt.name, parameter_context=sal_ctxt.dump(), parameter_type='pfunc', unit_of_measure=sal_ctxt.uom)
+        sal_ctxt_id = self.dataset_management.create_parameter_context(name=sal_ctxt.name, parameter_context=sal_ctxt.dump(), parameter_type='pfunc', units=sal_ctxt.uom)
 
         # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
         # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
@@ -631,7 +631,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         dens_expr = PythonFunction('DENSITY', owner, 'rho', [abs_sal_expr, cons_temp_expr, 'PRESWAT_L1'])
         dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_expr), variability=VariabilityEnum.TEMPORAL)
         dens_ctxt.uom = 'kg m-3'
-        dens_ctxt_id = self.dataset_management.create_parameter_context(name=dens_ctxt.name, parameter_context=dens_ctxt.dump(), parameter_type='pfunc', unit_of_measure=dens_ctxt.uom)
+        dens_ctxt_id = self.dataset_management.create_parameter_context(name=dens_ctxt.name, parameter_context=dens_ctxt.dump(), parameter_type='pfunc', units=dens_ctxt.uom)
         
         ids = [t_ctxt_id, lat_ctxt_id, lon_ctxt_id, temp_ctxt_id, cond_ctxt_id, press_ctxt_id, tempL1_ctxt_id, condL1_ctxt_id, presL1_ctxt_id, sal_ctxt_id, dens_ctxt_id]
         contexts = [t_ctxt, lat_ctxt, lon_ctxt, temp_ctxt, cond_ctxt, press_ctxt, tempL1_ctxt, condL1_ctxt, presL1_ctxt, sal_ctxt, dens_ctxt]
