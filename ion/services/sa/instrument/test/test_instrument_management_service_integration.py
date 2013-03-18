@@ -186,7 +186,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check agent
         inst_agent_obj = self.RR.read(instrument_agent_id)
         #compound assoc return list of lists so check the first element
-        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent[0].name)
+        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent.name)
 
         #check platform device
         plat_device_obj = self.RR.read(platform_device_id)
@@ -198,6 +198,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_device_id, extended_platform.instrument_devices[0]._id)
         self.assertEqual(1, len(extended_platform.instrument_models))
         self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
+        self.assertEquals(extended_platform.platform_agent._id, platform_agent_id)
 
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))

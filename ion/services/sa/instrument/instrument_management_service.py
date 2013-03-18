@@ -1558,10 +1558,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             user_id=user_id)
 
         # clean up InstAgent list as it sometimes includes the device
-        ia = []
+        ia = None
         for agent in extended_instrument.instrument_agent:
             if agent.type_ == 'InstrumentAgent':
-                ia.append(agent)
+                ia = agent
+                break
         extended_instrument.instrument_agent = ia
 
         # Status computation
@@ -1745,10 +1746,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         s_unknown = StatusType.STATUS_UNKNOWN
 
         # clean up platform agent list as it sometimes includes the device
-        pa = []
+        pa = None
         for agent in extended_platform.platform_agent:
             if agent.type_ == 'PlatformAgent':
-                pa.append(agent)
+                pa = agent
+                break
         extended_platform.platform_agent = pa
 
         # Status computation
