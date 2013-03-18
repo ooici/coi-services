@@ -15,6 +15,8 @@ from pyon.public import log
 
 from ion.agents.platform.resource_monitor import ResourceMonitor
 
+from math import ceil
+
 
 class PlatformResourceMonitor(object):
     """
@@ -67,7 +69,7 @@ class PlatformResourceMonitor(object):
 
             monitorCycleSeconds = float(attr_defn['monitorCycleSeconds'])
             monitorCycleMillis = monitorCycleSeconds * 1000
-            rate_millis = int(group_size_millis) * int(round(monitorCycleMillis / group_size_millis))
+            rate_millis = int(group_size_millis) * int(ceil(monitorCycleMillis / group_size_millis))
             if rate_millis not in groups:
                 groups[rate_millis] = []
             groups[rate_millis].append(attr_defn)

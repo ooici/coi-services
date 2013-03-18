@@ -765,7 +765,7 @@ class PlatformAgent(ResourceAgent):
 
         self._publish_granule(stream_name, publisher, param_dict, rdt,
                               pub_param_names,
-                              selected_timestamps)
+                              selected_timestamps, len(selected_timestamps))
 
     def _publish_granule_with_single_param(self, publisher, driver_event,
                                            param_name, param_value,
@@ -803,10 +803,10 @@ class PlatformAgent(ResourceAgent):
         pub_param_names = [param_name]
 
         self._publish_granule(stream_name, publisher, param_dict, rdt,
-                              pub_param_names, timestamps)
+                              pub_param_names, timestamps, len(vals))
 
     def _publish_granule(self, stream_name, publisher, param_dict, rdt,
-                         pub_param_names, timestamps):
+                         pub_param_names, timestamps, no_vals):
 
         # Set timestamp info in rdt:
         if param_dict.temporal_parameter_name is not None:
@@ -823,8 +823,9 @@ class PlatformAgent(ResourceAgent):
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
             publisher.publish(g)
-            log.debug("%r: Platform agent published data granule on stream %r with parameters=%s",
-                      self._platform_id, stream_name, pub_param_names)
+            log.debug("%r: Platform agent published data granule on stream %r "
+                      "with %d values (parameters=%s)",
+                      self._platform_id, stream_name, no_vals, pub_param_names)
 
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",
