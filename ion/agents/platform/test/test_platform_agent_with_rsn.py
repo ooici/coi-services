@@ -1,335 +1,71 @@
 #!/usr/bin/env python
 
 """
-@package ion.agents.platform.test.test_platform_agent_with_oms
-@file    ion/agents/platform/test/test_platform_agent_with_oms.py
+@package ion.agents.platform.test.test_platform_agent_with_rsn
+@file    ion/agents/platform/test/test_platform_agent_with_rsn.py
 @author  Carlos Rueda
-@brief   Test cases for R2 platform agent interacting with OMS
+@brief   Test cases for platform agent interacting with RSN
 """
 
 __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
-# Locally, the following can be prefixed with PLAT_NETWORK=small to exercise
-# a small network (a root and some children) to the testing takes less time
-# but still representative. See HelperTestMixin.
+# The following can be prefixed with PLAT_NETWORK=single to exercise the tests
+# with a single platform (with no sub-platforms). Otherwise a small network is
+# used. See HelperTestMixin.
 #
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_capabilities
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_state_transitions
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_get_set_resources
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_some_commands
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_resource_monitoring
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_external_event_dispatch
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_connect_disconnect_instrument
-# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_oms.py:TestPlatformAgent.test_check_sync
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_capabilities
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_state_transitions
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_get_set_resources
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_some_commands
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_monitoring
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_connect_disconnect_instrument
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_check_sync
 #
 
 
 from pyon.public import log
-import logging
-
-from pyon.event.event import EventSubscriber
 
 from pyon.util.containers import get_ion_ts
-from pyon.core.exception import ServerError
-from pyon.util.context import LocalContextMixin
-from pyon.public import CFG
 
-from pyon.agent.agent import ResourceAgentClient
 from interface.objects import AgentCommand
 from interface.objects import CapabilityType
 from interface.objects import AgentCapability
 
-from pyon.util.int_test import IonIntegrationTestCase
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
-from ion.agents.platform.platform_agent_launcher import LauncherFactory
-
-from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
-from ion.agents.platform.rsn.oms_util import RsnOmsUtil
-from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.responses import NormalResponse
 
-from ion.agents.platform.test.helper import HelperTestMixin
-
-from pyon.ion.stream import StandaloneStreamSubscriber
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-
-from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
-from ion.agents.platform.test.adhoc import adhoc_get_stream_names
-
-from gevent.event import AsyncResult
-from mock import patch
-
-import os
-import time
 from nose.plugins.attrib import attr
-from unittest import skip
 
-
-# By default, test against "embedded" simulator. The OMS environment variable
-# can be used to indicate a different RSN OMS server endpoint. Some aliases for
-# the "oms_uri" parameter include "localsimulator" and "simulator".
-# See CIOMSClientFactory.
-DVR_CONFIG = {
-    'dvr_mod': 'ion.agents.platform.rsn.rsn_platform_driver',
-    'dvr_cls': 'RSNPlatformDriver',
-    'oms_uri': os.getenv('OMS', 'embsimulator'),
-}
-
-# Agent parameters.
-PA_RESOURCE_ID = 'platform_agent_001'
-PA_NAME = 'PlatformAgent001'
-PA_MOD = 'ion.agents.platform.platform_agent'
-PA_CLS = 'PlatformAgent'
-
-# DATA_TIMEOUT: timeout for reception of data sample
-DATA_TIMEOUT = 25
-
-# EVENT_TIMEOUT: timeout for reception of event
-EVENT_TIMEOUT = 25
-
-class FakeProcess(LocalContextMixin):
-    """
-    A fake process used because the test case is not an ion process.
-    """
-    name = ''
-    id=''
-    process_type = ''
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
 
 @attr('INT', group='sa')
-@skip("skipped while aligning with new configuration structure")
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 180}}})
-class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
-
-    @classmethod
-    def setUpClass(cls):
-        HelperTestMixin.setUpClass()
-
-        # Use the network definition provided by RSN OMS directly.
-        rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
-        network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
-        network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("NetworkDefinition serialization:\n%s", network_definition_ser)
-
-        cls.PLATFORM_CONFIG = {
-            'platform_id': cls.PLATFORM_ID,
-            'driver_config': DVR_CONFIG,
-
-            'network_definition' : network_definition_ser
-        }
-
-        NetworkUtil._gen_open_diagram(network_definition.pnodes[cls.PLATFORM_ID])
+class TestPlatformAgent(BaseIntTestPlatform):
 
     def setUp(self):
-        self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        super(TestPlatformAgent, self).setUp()
 
-        self._pubsub_client = PubsubManagementServiceClient(node=self.container.node)
+        #
+        # NOTE The tests expect to use values set up by HelperTestMixin for
+        # for the following networks (see ion/agents/platform/test/helper.py)
+        #
+        if self.PLATFORM_ID == 'Node1D':
+            self.p_root = self._create_small_hierarchy()
 
-        # Start data subscribers, add stop to cleanup.
-        # Define stream_config.
-        self._async_data_result = AsyncResult()
-        self._data_greenlets = []
-        self._stream_config = {}
-        self._samples_received = []
-        self._data_subscribers = []
-        self._start_data_subscribers()
-        self.addCleanup(self._stop_data_subscribers)
+        elif self.PLATFORM_ID == 'LJ01D':
+            self.p_root = self._create_single_platform()
 
-        # start event subscriber:
-        self._async_event_result = AsyncResult()
-        self._event_subscribers = []
-        self._events_received = []
-        self.addCleanup(self._stop_event_subscribers)
-        self._start_event_subscriber()
+        else:
+            self.fail("self.PLATFORM_ID expected to be one of: 'Node1D', 'LJ01D'")
 
-
-        self._agent_config = {
-            'agent'         : {'resource_id': PA_RESOURCE_ID},
-            'stream_config' : self._stream_config,
-
-            # pass platform config here
-            'platform_config': self.PLATFORM_CONFIG
-        }
-
-        if log.isEnabledFor(logging.TRACE):
-            log.trace("launching with agent_config=%s" % str(self._agent_config))
-
-        self._launcher = LauncherFactory.createLauncher()
-        self._pid = self._launcher.launch(self.PLATFORM_ID, self._agent_config)
-
-        log.debug("LAUNCHED PLATFORM_ID=%r", self.PLATFORM_ID)
-
-        # Start a resource agent client to talk with the agent.
-        self._pa_client = ResourceAgentClient(PA_RESOURCE_ID, process=FakeProcess())
-        log.info('Got pa client %s.' % str(self._pa_client))
+        self._start_platform(self.p_root.platform_agent_instance_id)
 
     def tearDown(self):
-        try:
-            self._launcher.cancel_process(self._pid)
-        finally:
-            super(TestPlatformAgent, self).tearDown()
-
-    def _start_data_subscribers(self):
-        """
-        """
-
-        # Create streams and subscriptions for each stream named in driver.
-        self._stream_config = {}
-        self._data_subscribers = []
-
-        #
-        # TODO retrieve appropriate stream definitions; for the moment, using
-        # adhoc_get_stream_names
-        #
-
-        # A callback for processing subscribed-to data.
-        def consume_data(message, stream_route, stream_id):
-            log.info('Subscriber received data message: %s.' % str(message))
-            self._samples_received.append(message)
-            self._async_data_result.set()
-
-        for stream_name in adhoc_get_stream_names():
-            log.info('creating stream %r ...', stream_name)
-
-            # TODO use appropriate exchange_point
-            stream_id, stream_route = self._pubsub_client.create_stream(
-                name=stream_name, exchange_point='science_data')
-
-            log.info('create_stream(%r): stream_id=%r, stream_route=%s',
-                     stream_name, stream_id, str(stream_route))
-
-            pdict = adhoc_get_parameter_dictionary(stream_name)
-            stream_config = dict(stream_route=stream_route.routing_key,
-                                 stream_id=stream_id,
-                                 parameter_dictionary=pdict.dump())
-
-            self._stream_config[stream_name] = stream_config
-            log.info('_stream_config[%r]= %r', stream_name, stream_config)
-
-            # Create subscriptions for each stream.
-            exchange_name = '%s_queue' % stream_name
-            self._purge_queue(exchange_name)
-            sub = StandaloneStreamSubscriber(exchange_name, consume_data)
-            sub.start()
-            self._data_subscribers.append(sub)
-            sub_id = self._pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-            self._pubsub_client.activate_subscription(sub_id)
-            sub.subscription_id = sub_id
-
-    def _purge_queue(self, queue):
-        xn = self.container.ex_manager.create_xn_queue(queue)
-        xn.purge()
-
-    def _stop_data_subscribers(self):
-        """
-        Stop the data subscribers on cleanup.
-        """
-        for sub in self._data_subscribers:
-            if hasattr(sub, 'subscription_id'):
-                try:
-                    self._pubsub_client.deactivate_subscription(sub.subscription_id)
-                except:
-                    pass
-                self._pubsub_client.delete_subscription(sub.subscription_id)
-            sub.stop()
-
-    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
-        """
-        Starts event subscriber for events of given event_type ("DeviceEvent"
-        by default) and given sub_type ("platform_event" by default).
-        """
-
-        def consume_event(evt, *args, **kwargs):
-            # A callback for consuming events.
-            log.info('Event subscriber received evt: %s.', str(evt))
-            self._events_received.append(evt)
-            self._async_event_result.set(evt)
-
-        sub = EventSubscriber(event_type=event_type,
-            sub_type=sub_type,
-            callback=consume_event)
-
-        sub.start()
-        log.info("registered event subscriber for event_type=%r, sub_type=%r",
-            event_type, sub_type)
-
-        self._event_subscribers.append(sub)
-        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
-
-    def _stop_event_subscribers(self):
-        """
-        Stops the event subscribers on cleanup.
-        """
-        try:
-            for sub in self._event_subscribers:
-                if hasattr(sub, 'subscription_id'):
-                    try:
-                        self.pubsubcli.deactivate_subscription(sub.subscription_id)
-                    except:
-                        pass
-                    self.pubsubcli.delete_subscription(sub.subscription_id)
-                sub.stop()
-        finally:
-            self._event_subscribers = []
-
-    def _get_state(self):
-        state = self._pa_client.get_agent_state()
-        return state
-
-    def _assert_state(self, state):
-        self.assertEquals(self._get_state(), state)
-
-    #def _execute_agent(self, cmd, timeout=TIMEOUT):
-    def _execute_agent(self, cmd):
-        log.info("_execute_agent: cmd=%r kwargs=%r ...", cmd.command, cmd.kwargs)
-        time_start = time.time()
-        #retval = self._pa_client.execute_agent(cmd, timeout=timeout)
-        retval = self._pa_client.execute_agent(cmd)
-        elapsed_time = time.time() - time_start
-        log.info("_execute_agent: cmd=%r elapsed_time=%s, retval = %s",
-                 cmd.command, elapsed_time, str(retval))
-        return retval
-
-    def _reset(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.RESET)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-
-    def _ping_agent(self):
-        retval = self._pa_client.ping_agent()
-        self.assertIsInstance(retval, str)
-
-    def _ping_resource(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.PING_RESOURCE)
-        if self._get_state() == PlatformAgentState.UNINITIALIZED:
-            # should get ServerError: "Command not handled in current state"
-            with self.assertRaises(ServerError):
-                #self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
-                self._pa_client.execute_agent(cmd)
-        else:
-            # In all other states the command should be accepted:
-            retval = self._execute_agent(cmd)
-            self.assertEquals("PONG", retval.result)
-
-    def _get_metadata(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GET_METADATA)
-        retval = self._execute_agent(cmd)
-        md = retval.result
-        self.assertIsInstance(md, dict)
-        # TODO verify possible subset of required entries in the dict.
-        log.info("GET_METADATA = %s", md)
-
-    def _get_ports(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GET_PORTS)
-        retval = self._execute_agent(cmd)
-        md = retval.result
-        self.assertIsInstance(md, dict)
-        # TODO verify possible subset of required entries in the dict.
-        log.info("GET_PORTS = %s", md)
+        self._stop_platform(self.p_root.platform_agent_instance_id)
+        super(TestPlatformAgent, self).tearDown()
 
     def _connect_instrument(self):
         #
@@ -473,74 +209,11 @@ class TestPlatformAgent(IonIntegrationTestCase, HelperTestMixin):
         for attrName in writ_attrNames:
             self._verify_attribute_value_out_of_range(attrName, attr_values)
 
-    def _initialize(self):
-        self._assert_state(PlatformAgentState.UNINITIALIZED)
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.INACTIVE)
-
-    def _go_active(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.IDLE)
-
-    def _run(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.RUN)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.COMMAND)
-
-    def _pause(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.PAUSE)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.STOPPED)
-
-    def _resume(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.RESUME)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.COMMAND)
-
-    def _start_resource_monitoring(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.START_MONITORING)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.MONITORING)
-
-    def _wait_for_a_data_sample(self):
-        log.info("waiting for reception of a data sample...")
-        # just wait for at least one -- see consume_data
-        self._async_data_result.get(timeout=DATA_TIMEOUT)
-        self.assertTrue(len(self._samples_received) >= 1)
-        log.info("Received samples: %s", len(self._samples_received))
-
-    def _stop_resource_monitoring(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.STOP_MONITORING)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.COMMAND)
-
-    def _go_inactive(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
-        retval = self._execute_agent(cmd)
-        self._assert_state(PlatformAgentState.INACTIVE)
-
     def _get_subplatform_ids(self):
         cmd = AgentCommand(command=PlatformAgentEvent.GET_SUBPLATFORM_IDS)
         retval = self._execute_agent(cmd)
         self.assertIsInstance(retval.result, list)
         self.assertTrue(x in retval.result for x in self.SUBPLATFORM_IDS)
-        return retval.result
-
-    def _wait_for_external_event(self):
-        log.info("waiting for reception of an external event...")
-        # just wait for at least one -- see consume_event
-        self._async_event_result.get(timeout=EVENT_TIMEOUT)
-        self.assertTrue(len(self._events_received) >= 1)
-        log.info("Received events: %s", len(self._events_received))
-
-    def _check_sync(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.CHECK_SYNC)
-        retval = self._execute_agent(cmd)
-        log.info("CHECK_SYNC result: %s", retval.result)
-        self.assertTrue(retval.result is not None)
-        self.assertEquals(retval.result[0:3], "OK:")
         return retval.result
 
     def test_capabilities(self):
