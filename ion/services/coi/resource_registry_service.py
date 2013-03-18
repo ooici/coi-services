@@ -93,7 +93,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.resource_registry.create_association(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type)
+                                                         object=object, assoc_type=assoc_type)
 
     @mask_couch_error
     def delete_association(self, association=''):
@@ -153,7 +153,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.read_mult(object_ids)
 
     @mask_couch_error
-    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, user_id=''):
+    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None):
         """Returns any ExtendedResource object containing additional related information derived from associations
 
         @param resource_id    str
