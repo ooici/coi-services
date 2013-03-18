@@ -548,6 +548,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.data_process_management = DataProcessManagementServiceClient()
         self.data_product_management = DataProductManagementServiceClient()
 
+        self.validators = 0
+
 
     def lc_preload(self):
         config = DotDict()
@@ -573,6 +575,19 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 'pressure']
         return self.make_data_product('ctd_parsed_param_dict', 'ctd plain test', available_fields)
 
+
+    def ctd_plain_salinity(self):
+        available_fields = [
+                'internal_timestamp', 
+                'preferred_timestamp', 
+                'time', 
+                'port_timestamp', 
+                'quality_flag', 
+                'lat', 
+                'driver_timestamp', 
+                'lon', 
+                'salinity']
+        return self.make_data_product('ctd_parsed_param_dict', 'salinity', available_fields)
 
     def ctd_plain_density(self):
         available_fields = [
@@ -681,16 +696,17 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.assertTrue(len(stream_ids))
         stream_id = stream_ids.pop()
 
-
-        sub_id = self.pubsub_management.create_subscription('validator', stream_ids=[stream_id])
+        sub_id = self.pubsub_management.create_subscription('validator_%s'%self.validators, stream_ids=[stream_id])
         self.addCleanup(self.pubsub_management.delete_subscription, sub_id)
+
 
         self.pubsub_management.activate_subscription(sub_id)
         self.addCleanup(self.pubsub_management.deactivate_subscription, sub_id)
 
-        subscriber = StandaloneStreamSubscriber('validator', callback=callback)
+        subscriber = StandaloneStreamSubscriber('validator_%s' % self.validators, callback=callback)
         subscriber.start()
         self.addCleanup(subscriber.stop)
+        self.validators+=1
 
         return subscriber
 
@@ -700,6 +716,11 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_transform_function, tf_id)
         return tf_id
 
+    def create_salinity_transform_function(self):
+        tf = TransformFunction(name='ctdbp_l2_salinity', module='ion.processes.data.transforms.ctdbp.ctdbp_L2_salinity', cls='CTDBP_SalinityTransformAlgorithm')
+        tf_id = self.data_process_management.create_transform_function(tf)
+        self.addCleanup(self.data_process_management.delete_transform_function, tf_id)
+        return tf_id
 
    
     @attr('LOCOINT')
@@ -763,6 +784,69 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_plain_data_product(input_data_product_id)
         self.assertTrue(validated.wait(10))
 
+    def test_multi_in_out(self):
+        input1 = self.ctd_plain_input_data_product()
+        input2 = self.make_data_product('ctd_parsed_param_dict', 'input2')
+
+        density_dp_id = self.ctd_plain_density()
+        salinity_dp_id = self.ctd_plain_salinity()
+
+        density_actor = self.create_density_transform_function()
+        salinity_actor = self.create_salinity_transform_function()
+
+        routes = {
+            input1 : {
+                density_dp_id : density_actor,
+                salinity_dp_id : salinity_actor
+                },
+            input2 : {
+                density_dp_id : density_actor
+                }
+            }
+
+        config = DotDict()
+        config.process.routes = routes
+        config.process.params.lat = 45.
+        config.process.params.lon = -71.
+
+
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[input1, input2], out_data_product_ids=[density_dp_id, salinity_dp_id], configuration=config)
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+
+        density_validated = Event()
+        salinity_validated = Event()
+
+        def density_validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.6839775385847]), decimal=4) 
+            density_validated.set()
+
+        def salinity_validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.93513240786831]), decimal=4) 
+            salinity_validated.set()
+
+        self.setup_subscriber(density_dp_id, callback=density_validation)
+        self.setup_subscriber(salinity_dp_id, callback=salinity_validation)
+        
+        self.publish_to_plain_data_product(input1)
+
+        self.assertTrue(density_validated.wait(10))
+        self.assertTrue(salinity_validated.wait(10))
+        density_validated.clear()
+        salinity_validated.clear()
+
+
+        self.publish_to_plain_data_product(input2)
+        self.assertTrue(density_validated.wait(10))
+        self.assertFalse(salinity_validated.wait(0.75))
+        density_validated.clear()
+        salinity_validated.clear()
+
+
 
     def test_visual_transform(self):
         input_data_product_id = self.ctd_plain_input_data_product()
@@ -781,6 +865,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
     
         data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id])
         self.addCleanup(self.data_process_management.delete_data_process2,data_process_id)
+
 
         self.data_process_management.activate_data_process2(data_process_id)
         self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)

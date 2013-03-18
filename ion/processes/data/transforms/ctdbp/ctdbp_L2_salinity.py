@@ -47,7 +47,7 @@ class CTDBP_SalinityTransform(TransformDataProcess):
 
         log.debug("CTDBP L2 salinity transform received granule with record dict: %s", packet.record_dictionary)
 
-        granule = CTDBP_SalinityTransformAlgorithm.execute(packet, params=self.stream_definition._id)
+        granule = CTDBP_SalinityTransformAlgorithm.execute(packet, params={'stream_def':self.stream_definition._id})
 
         log.debug("CTDBP L2 salinity transform publishing granule with record dict: %s", granule.record_dictionary)
 
@@ -78,7 +78,7 @@ class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
         """
 
         rdt = RecordDictionaryTool.load_from_granule(input)
-        out_rdt = RecordDictionaryTool(stream_definition_id=params)
+        out_rdt = RecordDictionaryTool(stream_definition_id=params['stream_def'])
 
         out_rdt['time'] = rdt['time']
 
