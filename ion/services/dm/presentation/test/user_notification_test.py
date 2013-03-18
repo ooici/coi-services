@@ -1374,16 +1374,23 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n1.origin, notification_request_1.origin)
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
 
+        #--------------------------------------------------------------------------------------
+        # Get the notifications for the user
+        #--------------------------------------------------------------------------------------
+
+        def poller(expected_value, proc, **kwargs):
+
+            self.assertEquals(len(proc.notifications.values()), 2)
+
+            # Check the user info dictionary of the UNS process
+            user_info = proc.user_info
+            notifications_held = user_info[user_id]['notifications']
+
+            return len(proc.notifications.values()) == expected_value and len(notifications_held) == expected_value
+
         # Check the user notification service process
         proc = self.container.proc_manager.procs_by_name['user_notification']
-
-        self.assertEquals(len(proc.notifications.values()), 2)
-
-        # Check the user info dictionary of the UNS process
-        user_info = proc.user_info
-        notifications_held = user_info[user_id]['notifications']
-
-        self.assertEquals(len(notifications_held), 2)
+        poll(poller, expected_value = 2, proc = proc, user_id = user_id)
 
         def _compare_notifications(notifications):
 
@@ -1402,6 +1409,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     self.assertEquals(notif.origin_type, notification_request_2.origin_type)
                     self.assertEquals(notif._id, notification_id2)
 
+        notifications_held =proc.user_info[user_id]['notifications']
         _compare_notifications(notifications_held)
 
 
