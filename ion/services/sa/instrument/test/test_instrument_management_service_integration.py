@@ -456,7 +456,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        org_id = self.RR2.create(any_old(RT.Org))
+        org_obj = any_old(RT.Org)
+        org_id = self.RR2.create(org_obj)
 
         inst_startup_config = {'startup': 'config'}
 
@@ -475,7 +476,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_instrument_config(config, device_id):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(org_obj.name, config['org_name'])
             self.assertEqual(RT.InstrumentDevice, config['device_type'])
             self.assertIn('driver_config', config)
             driver_config = config['driver_config']
@@ -496,7 +497,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_child_config(config, device_id, inst_device_id=None):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(org_obj.name, config['org_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertEqual({'resource_id': device_id}, config['agent'])
             self.assertIn('stream_config', config)
@@ -520,7 +521,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_parent_config(config, parent_device_id, child_device_id, inst_device_id=None):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(org_obj.name, config['org_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertIn('process_type', config['driver_config'])
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
