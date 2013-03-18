@@ -81,10 +81,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         obj_id, obj_rev = self.resource_registry_service.create(obj)
         read_obj = self.resource_registry_service.read(obj_id)
 
-        # Cannot create object with _id and _rev fields pre-set        
+        # Cannot create object with _id and _rev fields pre-set
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create(read_obj)
-        self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
 
         # Update object
         read_obj.name = "John Doe"
@@ -93,7 +92,6 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # Update should fail with revision mismatch
         with self.assertRaises(Conflict) as cm:
             self.resource_registry_service.update(read_obj)
-        self.assertTrue(cm.exception.message.startswith("Object not based on most current version"))
 
         # Re-read and update object
         read_obj = self.resource_registry_service.read(obj_id)
@@ -263,12 +261,12 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # _id missing from subject
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(actor_identity_obj, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Subject id or rev not available")
+        self.assertTrue(cm.exception.message == "Subject id not available")
 
         # _id missing from object
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasInfo, user_info_obj)
-        self.assertTrue(cm.exception.message == "Object id or rev not available")
+        self.assertTrue(cm.exception.message == "Object id not available")
 
         # Wrong subject type
         with self.assertRaises(BadRequest) as cm:
