@@ -56,7 +56,6 @@ from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups, parameter_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.util.xlsparser import XLSParser
 
 from coverage_model.parameter import ParameterContext
@@ -1523,7 +1522,7 @@ Reason: %s
     def _load_ParameterFunctions(self, row):
         if row['SKIP']:
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
-            return 
+            return
 
         name      = row['Name']
         ftype     = row['Function Type']
@@ -1542,7 +1541,7 @@ Reason: %s
         else:
             self._conflict_report(row['ID'], row['Name'], 'Unsupported Function Type: %s' % ftype)
             return
-            
+
         func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(), description=descr, headers=self._get_system_actor_headers())
         self._register_id(row[COL_ID], func_id)
         function_lookups[row[COL_ID]] = func_id
@@ -1579,7 +1578,7 @@ Reason: %s
         except:
             log.exception('Could not load the following parameter definition: %s', row)
             return
-        
+
 
         dataset_management = self._get_service_client('dataset_management')
         context_dump = context.dump()
@@ -1951,16 +1950,11 @@ Reason: %s
         driver_config = self._parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
 
-        # Note: hack for some definition needed by platform agent,
-        # but this should come from the spreadsheet
-        network_definition_ser = self._HACK_get_platform_network_definition()
-        platform_config = { 'platform_id':             platform_id,
-                            'network_definition' :     network_definition_ser
-        }
-
+        # Note: platform_id currently expected by PlatformAgent as follows:
         agent_config = {
-            'platform_config': platform_config }
-
+            'platform_config': {'platform_id': platform_id}
+        }
+        # TODO determine how to finally indicate this platform_id.
 
         res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
             "instrument_management", "create_platform_agent_instance",
@@ -1973,53 +1967,6 @@ Reason: %s
         client.assign_platform_agent_instance_to_platform_device(res_id, platform_device_id)
 
         self.resource_ids[row['ID']] = res_id
-
-
-    #       TODO:
-    #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.
-    #        driver_config = self._parse_dict(row['driver_config'])
-    #        agent_config = self._parse_dict(row['agent_config'])
-    #        stream_definition = self.resource_objs[row['stream_definition']]
-
-    def _HACK_get_platform_network_definition(self):
-        """
-        This replaces _HACK_get_device_dict.
-        Here, we still use the simulator, but via a utility that provides the
-        network definition in yaml format suitable for the platform configuration.
-        """
-        from ion.agents.platform.rsn.oms_util import RsnOmsUtil
-        from ion.agents.platform.util.network_util import NetworkUtil
-        simulator = CIOMSClientFactory.create_instance()
-        network_definition = RsnOmsUtil.build_network_definition(simulator)
-        network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
-        return network_definition_ser
-
-    # def _HACK_get_device_dict(self, platform_id):
-    #     """ TODO: remove from preload and the initial object def.  instead query CIOMSClient from IMS when the platform agent is started
-    #         TODO: set a property in the agent instance to identify which CIOMSClient to use (need to support platforms from different Orgs)
-    #
-    #         query the simulated CIOMSClient for information about the platform
-    #     """
-    #
-    #     simulator = CIOMSClientFactory.create_instance()
-    #
-    #     # get network information (from: test_oms_launch2._prepare_platform_ports)
-    #     port_dicts = []
-    #     platform_port_info = simulator.get_platform_ports(platform_id)
-    #     for port_id, port in platform_port_info[platform_id].iteritems():
-    #         port_dicts.append(dict(port_id=port_id, ip_address=port['network']))
-    #
-    #     # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
-    #     attribute_dicts = []
-    #     platform_attribute_info = simulator.get_platform_attributes(platform_id)
-    #     for name, attribute in platform_attribute_info[platform_id].iteritems():
-    #         attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
-    #
-    #     # package as needed by agent instance
-    #     return { 'ports': port_dicts,
-    #              'platform_monitor_attributes': attribute_dicts }
-
-
 
     def _load_TransformFunction(self,row):
         res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
