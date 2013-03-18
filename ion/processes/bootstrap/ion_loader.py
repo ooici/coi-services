@@ -432,7 +432,7 @@ class IONLoader(ImmediateProcess):
         self.resource_objs.update(res_obj_mapping)
 
     def _finalize_bulk(self, category):
-        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
+        res = self.resource_ds.create_mult(self.bulk_objects.values())
         log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
         num_objects = len([1 for obj in self.bulk_objects.values() if obj._get_type() != "Association"])
         self.bulk_objects.clear()
@@ -1561,16 +1561,23 @@ Reason: %s
         display_name = row['Display Name']
         std_name     = row['Standard Name']
         long_name    = row['Long Name']
-        references   = row['Reference URLS']
+        references   = row['confluence']
         description  = row['Description']
         pfid         = row['Parameter Function ID']
         pmap         = row['Parameter Function Map']
+        sname        = row['Data Product Identifier']
 
         try:
             param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
             context.fill_value = get_fill_value(fill_value, encoding, param_type)
+            context.reference_urls = references
+            context.internal_name = name
+            context.display_name = display_name
+            context.standard_name = std_name
+            context.ooi_short_name = sname
+            context.description = description
         except TypeError as e:
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)
@@ -1589,16 +1596,52 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         try:
+#--------------------------------------------------------------------------------
+#   confluence ->
+#   reference_urls
+#   Parameter Type
+#   -> parameter_type
+#   Name
+#   -> internal_name (new attribute)
+#   Value Encoding 
+#   -> value_encoding (new attribute)
+#   Code Set
+#   -> code_report
+#   Unit of Measure 
+#   -> units
+#   Fill Value
+#   -> fill_value
+#   Display Name 
+#   -> display_name (renamed from ion_name)
+#   Parameter Function ID
+#   -> parameter_function_id (new attribute)
+#   Parameter Function Map
+#   -> parameter_function_map (new attribute)
+#   Standard Name 
+#   -> standard_name
+#   Data Product Identifier
+#   -> ooi_short_name
+#   Description
+#   -> description
+#--------------------------------------------------------------------------------
             creation_args = dict(
                 name=name, parameter_context=context_dump,
                 description=description,
+                reference_urls=[references],
                 parameter_type=ptype,
+                internal_name=name,
                 value_encoding=encoding,
-                unit_of_measure=uom,
+                code_report=code_set,
+                units=uom,
+                fill_value=fill_value,
+                display_name=display_name,
+                parameter_function_map=pmap,
+                standard_name=std_name,
+                ooi_short_name=sname,
                 headers=self._get_system_actor_headers())
             if pfid:
                 try:
-                    creation_args['parameter_function_ids'] = [self.resource_ids[pfid]]
+                    creation_args['parameter_function_id'] = self.resource_ids[pfid]
                 except KeyError:
                     pass
             context_id = dataset_management.create_parameter_context(**creation_args)
@@ -2301,7 +2344,7 @@ Reason: %s
 
         # TODO: Also delete associations
 
-        self.resource_ds.create_doc_mult(docs, allow_ids=True)
+        self.resource_ds.update_doc_mult(docs)
         log.info("Deleted %s OOI resources and associations", len(docs))
 
 

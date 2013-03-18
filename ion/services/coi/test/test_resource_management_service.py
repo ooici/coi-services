@@ -61,7 +61,7 @@ Policy9: !Extends_InformationResource
 
         self.rms.clients.resource_registry.read.assert_called_once_with(object_id, '')
         self.rms.clients.resource_registry.create.assert_called_once_with(rt)
-        self.rms.clients.resource_registry.create_association.assert_called_once_with(resource_id_return_value, PRED.hasObjectType, object_id, 'H2H')
+        self.rms.clients.resource_registry.create_association.assert_called_once_with(resource_id_return_value, PRED.hasObjectType, object_id, None)
 
     def test_read_resource(self):
         with self.assertRaises(BadRequest):

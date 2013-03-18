@@ -144,8 +144,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_context(self, name='', parameter_context=None, description='', parameter_type='', value_encoding='', unit_of_measure='', parameter_function_ids=None):
-        parameter_function_ids = parameter_function_ids or []
+    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
@@ -155,13 +154,23 @@ class DatasetManagementService(BaseDatasetManagementService):
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
         pc_res = ParameterContextResource(name=name, parameter_context=parameter_context, description=description)
-        pc_res.parameter_type  = parameter_type
-        pc_res.value_encoding  = value_encoding
-        pc_res.unit_of_measure = unit_of_measure
+        pc_res.reference_urls = reference_urls or []
+        pc_res.parameter_type = parameter_type
+        pc_res.internal_name = internal_name or name
+        pc_res.value_encoding = value_encoding
+        pc_res.code_report = code_report or {}
+        pc_res.units = units
+        pc_res.fill_value = fill_value
+        pc_res.display_name = display_name
+        pc_res.parameter_function_id = ''
+        pc_res.parameter_function_map = {}
+        pc_res.standard_name = ''
+        pc_res.ooi_short_name = ''
+
         pc_id, ver = self.clients.resource_registry.create(pc_res)
-        for pfunc_id in parameter_function_ids:
-            self.read_parameter_function(pfunc_id)
-            self.clients.resource_registry.create_association(subject=pc_id, predicate=PRED.hasParameterFunction, object=pfunc_id)
+        if parameter_function_id:
+            self.read_parameter_function(parameter_function_id)
+            self.clients.resource_registry.create_association(subject=pc_id, predicate=PRED.hasParameterFunction, object=parameter_function_id)
         
         return pc_id
 

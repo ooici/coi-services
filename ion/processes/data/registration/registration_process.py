@@ -180,16 +180,11 @@ class RegistrationProcess(StandaloneProcess):
                     dataset_element.appendChild(add_attributes_element)
 
                 for var_name in vars:
-                    param = cov.get_parameter(var_name)
-                    var = param.context
+                    var = cov.get_parameter_context(var_name)
                     
                     units = "unknown"
-                    try:
+                    if hasattr(var,'uom') and var.uom:
                         units = var.uom
-                    except:
-                        pass
-                    if units is None:
-                        units = "unknown"
 
                     #if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
                     data_element = doc.createElement('dataVariable')
@@ -204,8 +199,11 @@ class RegistrationProcess(StandaloneProcess):
                     data_element.appendChild(destination_name_element)
                     
                     add_attributes_element = doc.createElement('addAttributes')
-                    if not var.attributes is None:
-                        for key, val in var.attributes.iteritems():
+                    if var.ATTRS is not None:
+                        for key in var.ATTRS:
+                            if not hasattr(var,key):
+                                continue
+                            val = getattr(var,key)
                             att_element = doc.createElement('att')
                             att_element.setAttribute('name', key)
                             text_node = doc.createTextNode(val)
@@ -221,15 +219,15 @@ class RegistrationProcess(StandaloneProcess):
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', 'long_name')
                     long_name = ""
-                    if var.long_name is not None:
-                        long_name = var.long_name
+                    if hasattr(var,'display_name') and var.display_name is not None:
+                        long_name = var.display_name
                         text_node = doc.createTextNode(long_name)
                         att_element.appendChild(text_node)
                         add_attributes_element.appendChild(att_element)
                     
                     att_element = doc.createElement('att')
                     standard_name = ""
-                    if var.standard_name is not None:
+                    if hasattr(var,'standard_name') and var.standard_name is not None:
                         standard_name = var.standard_name
                         att_element.setAttribute('name', 'standard_name')
                         text_node = doc.createTextNode(standard_name)

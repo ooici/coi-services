@@ -69,7 +69,7 @@ class UILoader(object):
 
         # TODO: Also delete associations
 
-        ds.create_doc_mult(docs, allow_ids=True)
+        ds.update_doc_mult(docs)
         log.info("Deleted %s UI resources and associations", len(docs))
 
 
@@ -187,7 +187,7 @@ class UILoader(object):
                 # Write the full set of UIResource objects
                 self._finalize_uirefs()
                 ds = DatastoreManager.get_datastore_instance("resources")
-                res = ds.create_mult(self.ui_obj_by_id.values(), allow_ids=True)
+                res = ds.create_mult(self.ui_obj_by_id.values())
                 log.info("Stored %s UI resource objects into resource registry" % (len(res)))
                 res = ds.create_mult(self.ui_assocs)
                 log.info("Stored %s UI resource associations into resource registry" % (len(res)))
