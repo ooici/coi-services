@@ -53,6 +53,7 @@ class RSNPlatformDriver(PlatformDriver):
         Driver config must include 'oms_uri' entry.
         """
         if not 'oms_uri' in driver_config:
+            log.error("'oms_uri' not present in driver_config = %s", driver_config)
             raise PlatformDriverException(msg="driver_config does not indicate 'oms_uri'")
 
     def configure(self, driver_config):

@@ -102,11 +102,13 @@ class ResourceMonitor(object):
         rate_secs = self._rate_millis / 1000.0
         while self._active:
             slept = 0
-            # loop to promptly react to request for termination
+            # loop to incrementally sleep up to rate_secs while promptly
+            # reacting to request for termination
             while self._active and slept < rate_secs:
-                s = min(0.5, rate_secs - slept)
-                sleep(s)
-                slept += s
+                # sleep in increments of 0.5 secs
+                incr = min(0.5, rate_secs - slept)
+                sleep(incr)
+                slept += incr
 
             if self._active:
                 self._retrieve_attribute_values()
@@ -122,11 +124,15 @@ class ResourceMonitor(object):
 
         # determine from_time for the request:
         if self._last_ts is None:
+            #
             # This is the very first retrieval request, so pick a from_time
-            # that makes sense. At the moment, setting from_time to be current
-            # system minus the monitoring rate.
+            # that makes sense. At the moment, setting from_time to current
+            # system time minus a small multiple of the monitoring rate, but
+            # from_time will be not more than a few minutes ago (note: this
+            # is rather arbitrary at the moment):
             # TODO: determine actual criteria here.
-            from_time = current_time_millis() - self._rate_millis
+            win_size_millis = min(10 * 60 * 1000, self._rate_millis * 3)
+            from_time = current_time_millis() - win_size_millis
 
             # TODO: Also note that the "from_time" parameter for the request was
             # influenced by the RSN case (see CI-OMS interface). Need to see
