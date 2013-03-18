@@ -38,7 +38,6 @@ from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDri
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 import numpy
-from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 
 from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMStateError
 
