@@ -258,7 +258,7 @@ network:
                 precision: 1
                 read_write: read
                 group: power
-                monitorCycleSeconds: 5
+                monitorCycleSeconds: 2.5
               - attr_id: input_bus_current
                 type: float
                 units: Amps
@@ -276,7 +276,7 @@ network:
                 precision: 0.06
                 read_write: read
                 group: temperature
-                monitorCycleSeconds: 10
+                monitorCycleSeconds: 3.33
               - attr_id: MVPC_pressure_1
                 type: float
                 units: PSI
@@ -285,7 +285,7 @@ network:
                 precision: 0.04
                 read_write: read
                 group: pressure
-                monitorCycleSeconds: 10
+                monitorCycleSeconds: 15
               ports:
               - port_id: LJ01D_port_1
                 network: LJ01D_port_1_IP
