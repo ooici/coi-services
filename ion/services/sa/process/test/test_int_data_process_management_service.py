@@ -27,7 +27,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct
 from ion.services.dm.utility.granule_utils import time_series_domain
-from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType
+from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum
 from mock import patch
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
@@ -729,7 +729,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
             validated.set()
 
-        subscriber = self.setup_subscriber(derived_data_product_id, callback=validation)
+        self.setup_subscriber(derived_data_product_id, callback=validation)
         self.publish_to_data_product(instrument_data_product_id)
         
         self.assertTrue(validated.wait(10))
@@ -739,8 +739,6 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         input_data_product_id = self.ctd_plain_input_data_product()
         output_data_product_id = self.ctd_plain_density()
         actor = self.create_density_transform_function()
-        from pyon.core.bootstrap import get_sys_name
-        raw_input('%s: ' % get_sys_name())
         route = {input_data_product_id: {output_data_product_id: actor}}
         config = DotDict()
         config.process.routes = route
@@ -760,11 +758,42 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.6839775385847]), decimal=4) 
             validated.set()
 
-        subscriber = self.setup_subscriber(output_data_product_id, callback=validation)
+        self.setup_subscriber(output_data_product_id, callback=validation)
 
         self.publish_to_plain_data_product(input_data_product_id)
         self.assertTrue(validated.wait(10))
 
 
     def test_visual_transform(self):
-        pass
+        input_data_product_id = self.ctd_plain_input_data_product()
+        output_data_product_id = self.google_dt_data_product()
+        dpd = DataProcessDefinition(name='visual transform')
+        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM
+        dpd.module = 'ion.processes.data.transforms.viz.google_dt'
+        dpd.class_name = 'VizTransformGoogleDT'
+
+        #--------------------------------------------------------------------------------
+        # Walk before we base jump
+        #--------------------------------------------------------------------------------
+
+        data_process_definition_id = self.data_process_management.create_data_process_definition(dpd)
+        self.addCleanup(self.data_process_management.delete_data_process_definition, data_process_definition_id)
+    
+        data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process2,data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+
+        validated = Event()
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            # The value I use is a double, the value coming back is only a float32 so there's some data loss but it should be precise to the 4th digit
+            self.assertTrue(rdt['google_dt_components'] is not None)
+            validated.set()
+
+        self.setup_subscriber(output_data_product_id, callback=validation)
+
+        self.publish_to_plain_data_product(input_data_product_id)
+        self.assertTrue(validated.wait(10))
+
