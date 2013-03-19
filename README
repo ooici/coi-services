@@ -90,7 +90,7 @@ PACKAGE DEPENDENCIES
 ====================
 
 Use Buildout to install the python package dependencies (including pyon itself) with:
-    > python bootstrap.py -v 1.7
+    > python bootstrap.py
     > bin/buildout
 
 ** Add following to your .bashrc profile on Macs if buildout fails to
