@@ -385,6 +385,23 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
 
+    def create_data_subscription(self, data_product_id=''):
+        pass
+
+    def read_data_subscription(self, data_subscription_id=''):
+        pass
+
+    def delete_data_subscription(self, data_subscription_id=''):
+        pass
+
+    def activate_data_subscription(self, data_subscription_id=''):
+        pass
+
+    def deactivate_data_subscription(self, data_subscription_id=''):
+        pass
+
+    #--------------------------------------------------------------------------------
+
     def create_topic(self, name='', exchange_point='', parent_topic_id='', description=''):
         validate_true(exchange_point, 'An exchange point must be provided for the topic')
         name = name or create_unique_identifier()
