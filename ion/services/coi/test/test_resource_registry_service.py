@@ -261,12 +261,12 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # _id missing from subject
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(actor_identity_obj, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Subject id not available")
+        self.assertTrue(cm.exception.message.startswith("Subject id"))
 
         # _id missing from object
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasInfo, user_info_obj)
-        self.assertTrue(cm.exception.message == "Object id not available")
+        self.assertTrue(cm.exception.message.startswith("Object id"))
 
         # Wrong subject type
         with self.assertRaises(BadRequest) as cm:
