@@ -221,7 +221,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                                                           " definition id: %s" % data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
-        data_process_definition_obj.output_bindings[binding] = stream_definition_id
+        if binding:
+            data_process_definition_obj.output_bindings[binding] = stream_definition_id
         self.clients.resource_registry.update(data_process_definition_obj)
 
     def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
@@ -261,7 +262,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         routes = configuration.get_safe('process.routes', {})
         if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
             routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
-        elif not routes:
+        # Routes are not supported for processes with discrete data process definitions
+        elif not routes and not data_process_definition_id:
             raise BadRequest('No valid route defined for this data process.')
 
         self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
@@ -831,9 +833,22 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         process_definition_id = self._get_process_definition(data_process_definition_id)
 
         out_streams = {}
+        if data_process_definition_id:
+            dpd = self.read_data_process_definition(data_process_definition_id)
+
         for dp_id in out_data_product_ids:
             stream_id = self._get_stream_from_dp(dp_id)
             out_streams[stream_id] = stream_id
+            if data_process_definition_id:
+                stream_definition = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
+                stream_definition_id = stream_definition._id
+
+                # Check the binding to see if it applies here
+
+                for binding,stream_def_id in dpd.output_bindings.iteritems():
+                    if stream_def_id == stream_definition_id:
+                        out_streams[binding] = stream_id
+                        break
 
         return self._launch_process(queue_name, out_streams, process_definition_id, configuration)
 
@@ -869,7 +884,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 if output_stream_def not in output_stream_def_ids:
                     log.warning('Creating a data process with an unmatched stream definition output')
         
-        if len(out_data_product_ids)>1 and not routes:
+        if len(out_data_product_ids)>1 and not routes and not data_process_definition_id:
             raise BadRequest('Multiple output data products but no routes defined')
         if len(out_data_product_ids)==1:
             return all( [self._validator(i, out_data_product_ids[0]) for i in in_data_product_ids] )

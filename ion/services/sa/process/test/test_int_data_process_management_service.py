@@ -755,6 +755,63 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         
         self.assertTrue(validated.wait(10))
         
+    def test_older_transform(self):
+        input_data_product_id = self.ctd_plain_input_data_product()
+
+        conductivity_data_product_id = self.make_data_product('ctd_parsed_param_dict', 'conductivity_product', ['time', 'conductivity'])
+        conductivity_stream_def_id = self.get_named_stream_def('conductivity_product stream_def')
+        temperature_data_product_id = self.make_data_product('ctd_parsed_param_dict', 'temperature_product', ['time', 'temp'])
+        temperature_stream_def_id = self.get_named_stream_def('temperature_product stream_def')
+        pressure_data_product_id = self.make_data_product('ctd_parsed_param_dict', 'pressure_product', ['time', 'pressure'])
+        pressure_stream_def_id = self.get_named_stream_def('pressure_product stream_def')
+
+        dpd = DataProcessDefinition(name='ctdL0')
+        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM
+        dpd.module = 'ion.processes.data.transforms.ctd.ctd_L0_all'
+        dpd.class_name = 'ctd_L0_all'
+
+        data_process_definition_id = self.data_process_management.create_data_process_definition(dpd)
+        self.addCleanup(self.data_process_management.delete_data_process_definition, data_process_definition_id)
+
+        self.data_process_management.assign_stream_definition_to_data_process_definition(conductivity_stream_def_id, data_process_definition_id, binding='conductivity')
+        self.data_process_management.assign_stream_definition_to_data_process_definition(temperature_stream_def_id, data_process_definition_id, binding='temperature')
+        self.data_process_management.assign_stream_definition_to_data_process_definition(pressure_stream_def_id, data_process_definition_id, binding='pressure')
+
+        data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[conductivity_data_product_id, temperature_data_product_id, pressure_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+
+        conductivity_validated = Event()
+        def validate_conductivity(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['conductivity'], np.array([4.2914]))
+            conductivity_validated.set()
+
+        self.setup_subscriber(conductivity_data_product_id, callback=validate_conductivity)
+        temperature_validated = Event()
+        def validate_temperature(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['temp'], np.array([20.0]))
+            temperature_validated.set()
+        self.setup_subscriber(temperature_data_product_id, callback=validate_temperature)
+        pressure_validated = Event()
+        def validate_pressure(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['pressure'], np.array([3.068]))
+            pressure_validated.set()
+        self.setup_subscriber(pressure_data_product_id, callback=validate_pressure)
+        self.publish_to_plain_data_product(input_data_product_id)
+        self.assertTrue(conductivity_validated.wait(10))
+        self.assertTrue(temperature_validated.wait(10))
+        self.assertTrue(pressure_validated.wait(10))
+
+
+
+    def get_named_stream_def(self, name):
+        stream_def_ids, _ = self.resource_registry.find_resources(name=name, restype=RT.StreamDefinition, id_only=True)
+        return stream_def_ids[0]
 
     def test_actors(self):
         input_data_product_id = self.ctd_plain_input_data_product()
@@ -873,7 +930,6 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         validated = Event()
         def validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
-            # The value I use is a double, the value coming back is only a float32 so there's some data loss but it should be precise to the 4th digit
             self.assertTrue(rdt['google_dt_components'] is not None)
             validated.set()
 
