@@ -1942,7 +1942,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # We could be surgical here and check for parsed granules only
         self.assertGreaterEqual(len(self._samples_received), 16)
 
-    @unittest.skip('Skip until driver eggs updated again.')
+    #@unittest.skip('Skip until driver eggs updated again.')
     def test_lost_connection(self):
         """
         test_lost_connection
@@ -2010,7 +2010,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-    @unittest.skip('Skip until driver eggs updated again.')
+    #@unittest.skip('Skip until driver eggs updated again.')
     def test_autoreconnect(self):
         """
         test_autoreconnect
@@ -2049,7 +2049,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                     gevent.sleep(.5)
                     test._ia_client.execute_resource(cmd)
                 except:
-                    print "### poll failed!"
                     break
                 
             while True:
@@ -2059,7 +2058,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 except:
                     pass
                 else:
-                    print '### poll succeeded'
                     break
         
         gl = gevent.spawn(poll_func, self)
@@ -2075,4 +2073,4 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._support.start_pagent()
 
         gl.join()
-        print '### done'
+
