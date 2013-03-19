@@ -2,19 +2,21 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.core.includes.mi import DriverEvent
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.objects import DataProduct, AgentCommand, ExternalDataset
 from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
-from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
+from pyon.event.event import EventSubscriber
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType
-from pyon.public import RT, log, PRED
+from pyon.public import RT, log, PRED, OT
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from pyon.util.context import LocalContextMixin
 import numpy as np
 from nose.plugins.attrib import attr
+from gevent.event import Event
 from pyon.util.int_test import IonIntegrationTestCase
 
 class FakeProcess(LocalContextMixin):
@@ -36,7 +38,7 @@ class HypmBase(IonIntegrationTestCase):
         self.dataset_management   = DatasetManagementServiceClient()
         self.data_product_management = DataProductManagementServiceClient()
         self.data_acquisition_management = DataAcquisitionManagementServiceClient()
-        self.ingestion_management = IngestionManagementServiceClient()
+        self.data_retriever = DataRetrieverServiceClient()
         self.resource_registry       = self.container.resource_registry
         self.context_ids = self.build_param_contexts()
         self.setup_resources()
@@ -63,7 +65,7 @@ class HypmBase(IonIntegrationTestCase):
         return self.dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=self.context_ids, temporal_context='time')
 
     def create_stream_def(self, name='', pdict_id=''):
-        return self.pubsub_management.create_stream_definition(name='hypm_01_wpf_ctd', parameter_dictionary_id=pdict_id)
+        return self.pubsub_management.create_stream_definition(name=name, parameter_dictionary_id=pdict_id)
 
     def create_data_product(self, name='', description='', stream_def_id=''):
         tdom, sdom = time_series_domain()
@@ -104,20 +106,44 @@ class HypmBase(IonIntegrationTestCase):
             cls=self.EDA_CLS,
             config=agent_config)
 
-        _ia_client = ResourceAgentClient(self.external_dataset_id, process=FakeProcess())
-        log.info('Got ia client %s.', str(_ia_client))
+        self._ia_client = ResourceAgentClient(self.external_dataset_id, process=FakeProcess())
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        _ia_client.execute_agent(cmd)
+        self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-        _ia_client.execute_agent(cmd)
+        self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
-        _ia_client.execute_agent(cmd)
+        self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
-        _ia_client.execute_resource(command=cmd)
+        self._ia_client.execute_resource(command=cmd)
 
-    def get_coverage(self):
-        return DatasetManagementService._get_coverage(self.dataset_id)
+        self.start_listener(self.dataset_id)
+
+    def stop_agent(self):
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        self._ia_client.execute_agent(cmd)
+
+    def start_listener(self, dataset_id=''):
+        dataset_modified = Event()
+        def cb(*args, **kwargs):
+            dataset_modified.set()
+            self.stop_agent()
+            self.get_retrieve_client(dataset_id=dataset_id)
+        es = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb, origin='BaseDataHandler._acquire_sample')
+        es.start()
+
+        self.addCleanup(es.stop)
+
+        #let it go for up to 120 seconds, then stop the agent and reset it
+        dataset_modified.wait(120)
+
+    def get_retrieve_client(self, dataset_id=''):
+        replay_data = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(replay_data)
+        print len(rdt['temperature'])
+        print len(rdt['pressure'])
+        print len(rdt['conductivity'])
+        self.assertIsNotNone(rdt['temperature'])
 
 
 @attr('INT', group='eoi')
@@ -175,6 +201,7 @@ class TestHypm_WPF_CTD(HypmBase):
                 'stream_def': self.stream_def_id,
                 'data_producer_id': 'hypm_ctd_data_producer_id',
                 'max_records': 4,
+                'TESTING': True,
                 }
         }
         return DVR_CONFIG
@@ -254,6 +281,7 @@ class TestHypm_WPF_ACM(HypmBase):
                 'stream_def': self.stream_def_id,
                 'data_producer_id': 'hypm_acm_data_producer_id',
                 'max_records': 4,
+                'TESTING': True,
                 }
         }
         return DVR_CONFIG
@@ -381,22 +409,8 @@ class TestHypm_WPF_ENG(HypmBase):
                 'stream_def': self.stream_def_id,
                 'data_producer_id': 'hypm_eng_data_producer_id',
                 'max_records': 4,
+                'TESTING': True,
                 }
         }
         return DVR_CONFIG
-
-#ingest_configs, _  = resource_registry.find_resources(restype=RT.IngestionConfiguration,id_only=True)
-
-#ingest_config_id = ingest_configs[0]
-#ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingest_config_id, dataset_id=dataset_id)
-
-# Create ExternalDataset
-
-#pid = cc.spawn_process(
-#	name='test_logger',
-#	module='ion.processes.data.stream_granule_logger',
-#	cls='StreamGranuleLogger',
-#	config={'process': {'stream_id': stream_id}}
-#)
-#log.info('Started StreamGranuleLogger \'{0}\' subscribed to stream_id={1}'.format(pid, stream_id))
 

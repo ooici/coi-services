@@ -10,7 +10,7 @@
 """
 import msgpack
 
-from pyon.public import log
+from pyon.public import log, OT
 from pyon.util.async import spawn
 from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
@@ -554,7 +554,7 @@ class BaseDataHandler(object):
         # Publish a 'TestFinished' event
         if get_safe(config, 'TESTING'):
             #log.debug('Publish TestingFinished event')
-            pub = EventPublisher('DeviceCommonLifecycleEvent')
+            pub = EventPublisher(OT.DeviceCommonLifecycleEvent)
             pub.publish_event(origin='BaseDataHandler._acquire_sample', description='TestingFinished')
 
     @classmethod
