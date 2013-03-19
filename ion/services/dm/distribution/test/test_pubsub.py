@@ -13,10 +13,14 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+
+from interface.objects import DataProduct
 
 from gevent.event import Event
 from gevent.queue import Queue, Empty
@@ -35,9 +39,10 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        self.pubsub_management  = PubsubManagementServiceClient()
-        self.resource_registry  = ResourceRegistryServiceClient()
-        self.dataset_management = DatasetManagementServiceClient()
+        self.pubsub_management       = PubsubManagementServiceClient()
+        self.resource_registry       = ResourceRegistryServiceClient()
+        self.dataset_management      = DatasetManagementServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
 
         self.pdicts = {}
         self.queue_cleanup = list()
@@ -220,6 +225,43 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         self.pubsub_management.delete_topic(topic2_id)
         self.pubsub_management.delete_stream_definition(stream_def_id)
 
+
+    def test_data_product_subscription(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        tdom, sdom = time_series_domain()
+        dp = DataProduct(name='ctd parsed')
+        dp.spatial_domain = sdom.dump()
+        dp.temporal_domain = tdom.dump()
+
+        data_product_id = self.data_product_management.create_data_product(data_product=dp, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+
+        subscription_id = self.pubsub_management.create_subscription('validator', data_product_ids=[data_product_id])
+        self.addCleanup(self.pubsub_management.delete_subscription, subscription_id)
+
+        validated = Event()
+        def validation(msg, route, stream_id):
+            validated.set()
+
+        stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        dp_stream_id = stream_ids.pop()
+
+        validator = StandaloneStreamSubscriber('validator', callback=validation)
+        validator.start()
+        self.addCleanup(validator.stop)
+
+        self.pubsub_management.activate_subscription(subscription_id)
+        self.addCleanup(self.pubsub_management.deactivate_subscription, subscription_id)
+
+        route = self.pubsub_management.read_stream_route(dp_stream_id)
+
+        publisher = StandaloneStreamPublisher(dp_stream_id, route)
+        publisher.publish('hi')
+        self.assertTrue(validated.wait(10))
+            
 
     def test_subscription_crud(self):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', stream_type='stream')
