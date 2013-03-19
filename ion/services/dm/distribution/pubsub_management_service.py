@@ -218,9 +218,10 @@ class PubsubManagementService(BasePubsubManagementService):
     #--------------------------------------------------------------------------------
     
     def create_subscription(self, name='', stream_ids=None, exchange_points=None, topic_ids=None, exchange_name='', credentials=None, description='', data_product_ids=[]):
-        stream_ids      = stream_ids or []
-        exchange_points = exchange_points or []
-        topic_ids       = topic_ids or []
+        stream_ids       = stream_ids or []
+        exchange_points  = exchange_points or []
+        topic_ids        = topic_ids or []
+        data_product_ids = data_product_ids or []
 
         exchange_name = exchange_name or name
         validate_true(exchange_name, 'Clients must provide an exchange name')
