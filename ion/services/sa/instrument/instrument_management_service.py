@@ -413,27 +413,25 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         @param fn_name the name of the RPC function that will be
         """
-        out = {}
-        reply_by = None
-        # there may be multiple listeners, so iterate through them all
-        for i, listener in enumerate(self._process.listeners):
-            ctx = listener._process.get_context()
-            out[i] = ctx
-            # make sure the op matches our function name
-            if "op" in ctx and fn_name == ctx["op"]:
-                # look for the reply-by field
-                if "reply-by" in ctx:
-                    # convert to int and only allow it if it's nonzero
-                    reply_by_val = int(ctx["reply-by"])
-                    if 0 < reply_by_val:
-                        reply_by = reply_by_val
 
-        if None is reply_by:
-            raise BadRequest("Could not find reply-by for %s in these listener contexts: %s" % (fn_name, out))
+        ctx = self.get_context()
+        # make sure the op matches our function name
+        if "op" not in ctx or fn_name != ctx["op"]:
+            raise BadRequest("Could not find reply-by for %s in get_context: %s" % (fn_name, ctx))
 
+        # look for the reply-by field
+        if "reply-by" not in ctx:
+            raise BadRequest("Could not find reply-by field in context %s" % ctx)
+
+        # convert to int and only allow it if it's nonzero
+        reply_by_val = int(ctx["reply-by"])
+        if 0 == reply_by_val:
+            raise BadRequest("Got a zero value when parsing 'reply-by' field of '%s'" % ctx["reply_by"])
+
+        # get latest time
         now = int(get_ion_ts())
 
-        return reply_by - now
+        return reply_by_val - now
 
 
     def _start_port_agent(self, instrument_agent_instance_obj=None):
