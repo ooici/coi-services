@@ -13,10 +13,14 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+
+from interface.objects import DataProduct
 
 from gevent.event import Event
 from gevent.queue import Queue, Empty
@@ -35,9 +39,10 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        self.pubsub_management  = PubsubManagementServiceClient()
-        self.resource_registry  = ResourceRegistryServiceClient()
-        self.dataset_management = DatasetManagementServiceClient()
+        self.pubsub_management       = PubsubManagementServiceClient()
+        self.resource_registry       = ResourceRegistryServiceClient()
+        self.dataset_management      = DatasetManagementServiceClient()
+        self.data_product_management = DataProductManagementServiceClient()
 
         self.pdicts = {}
         self.queue_cleanup = list()
@@ -56,6 +61,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         # Test Creation
         pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
         stream_definition_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict.identifier)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_definition_id)
 
         # Make sure there is an assoc
         self.assertTrue(self.resource_registry.find_associations(subject=stream_definition_id, predicate=PRED.hasParameterDictionary, object=pdict.identifier, id_only=True))
@@ -63,10 +69,6 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         # Test Reading
         stream_definition = self.pubsub_management.read_stream_definition(stream_definition_id)
         self.assertTrue(PubsubManagementService._compare_pdicts(pdict.dump(), stream_definition.parameter_dictionary))
-
-        # Test Deleting
-        self.pubsub_management.delete_stream_definition(stream_definition_id)
-        self.assertFalse(self.resource_registry.find_associations(subject=stream_definition_id, predicate=PRED.hasParameterDictionary, object=pdict.identifier, id_only=True))
 
 
         # Test comparisons
@@ -90,7 +92,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = []
         available_fields_out = []
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_0', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_0', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
     
@@ -100,7 +104,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
         available_fields_out = []
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_1', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_1', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
@@ -110,7 +116,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
         available_fields_out = ['DENSITY']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_2', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_2', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
 
@@ -120,7 +128,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
         available_fields_out = ['TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_3', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_3', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
 
@@ -130,7 +140,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_4', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_4', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
@@ -140,7 +152,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
         available_fields_out = ['DENSITY', 'PRACSAL', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_5', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_5', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
@@ -150,7 +164,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON', 'TEMPWAT_L1', 'CONDWAT_L1', 'PRESWAT_L1']
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_6', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_6', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertTrue(result)
         
@@ -160,7 +176,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON']
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_7', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_7', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
         
@@ -170,7 +188,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON']
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_8', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_8', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
         
@@ -180,7 +200,9 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         available_fields_in = ['TIME', 'LAT', 'LON', 'TEMPWAT_L0', 'CONDWAT_L0', 'PRESWAT_L0']
         available_fields_out = ['DENSITY', 'PRACSAL']
         incoming_stream_def_id = self.pubsub_management.create_stream_definition('in_sd_9', parameter_dictionary_id=incoming_pdict_id, available_fields=available_fields_in)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, incoming_stream_def_id)
         outgoing_stream_def_id = self.pubsub_management.create_stream_definition('out_sd_9', parameter_dictionary_id=outgoing_pdict_id, available_fields=available_fields_out)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, outgoing_stream_def_id)
         result = self.pubsub_management.validate_stream_defs(incoming_stream_def_id, outgoing_stream_def_id)
         self.assertFalse(result)
     
@@ -192,9 +214,12 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
     def test_stream_crud(self):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', stream_type='stream')
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
         topic_id = self.pubsub_management.create_topic(name='test_topic', exchange_point='test_exchange')
+        self.addCleanup(self.pubsub_management.delete_topic, topic_id)
         self.exchange_cleanup.append('test_exchange')
         topic2_id = self.pubsub_management.create_topic(name='another_topic', exchange_point='outside')
+        self.addCleanup(self.pubsub_management.delete_topic, topic2_id)
         stream_id, route = self.pubsub_management.create_stream(name='test_stream', topic_ids=[topic_id, topic2_id], exchange_point='test_exchange', stream_definition_id=stream_def_id)
 
         topics, assocs = self.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasTopic, id_only=True)
@@ -216,10 +241,44 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         topics, assocs = self.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasTopic, id_only=True)
         self.assertFalse(len(topics))
 
-        self.pubsub_management.delete_topic(topic_id)
-        self.pubsub_management.delete_topic(topic2_id)
-        self.pubsub_management.delete_stream_definition(stream_def_id)
 
+
+    def test_data_product_subscription(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        tdom, sdom = time_series_domain()
+        dp = DataProduct(name='ctd parsed')
+        dp.spatial_domain = sdom.dump()
+        dp.temporal_domain = tdom.dump()
+
+        data_product_id = self.data_product_management.create_data_product(data_product=dp, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+
+        subscription_id = self.pubsub_management.create_subscription('validator', data_product_ids=[data_product_id])
+        self.addCleanup(self.pubsub_management.delete_subscription, subscription_id)
+
+        validated = Event()
+        def validation(msg, route, stream_id):
+            validated.set()
+
+        stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        dp_stream_id = stream_ids.pop()
+
+        validator = StandaloneStreamSubscriber('validator', callback=validation)
+        validator.start()
+        self.addCleanup(validator.stop)
+
+        self.pubsub_management.activate_subscription(subscription_id)
+        self.addCleanup(self.pubsub_management.deactivate_subscription, subscription_id)
+
+        route = self.pubsub_management.read_stream_route(dp_stream_id)
+
+        publisher = StandaloneStreamPublisher(dp_stream_id, route)
+        publisher.publish('hi')
+        self.assertTrue(validated.wait(10))
+            
 
     def test_subscription_crud(self):
         stream_def_id = self.pubsub_management.create_stream_definition('test_definition', stream_type='stream')
@@ -403,21 +462,30 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         sub1 = StandaloneStreamSubscriber('sub1', subscriber1)
         self.queue_cleanup.append(sub1.xn.queue)
         sub1.start()
+        self.addCleanup(sub1.stop)
 
         sub2 = StandaloneStreamSubscriber('sub2', subscriber2)
         self.queue_cleanup.append(sub2.xn.queue)
         sub2.start()
+        self.addCleanup(sub2.stop)
 
         log_topic = self.pubsub_management.create_topic('instrument_logs', exchange_point='instruments')
+        self.addCleanup(self.pubsub_management.delete_topic, log_topic)
         science_topic = self.pubsub_management.create_topic('science_data', exchange_point='instruments')
+        self.addCleanup(self.pubsub_management.delete_topic, science_topic)
         events_topic = self.pubsub_management.create_topic('notifications', exchange_point='events')
+        self.addCleanup(self.pubsub_management.delete_topic, events_topic)
 
 
         log_stream, route = self.pubsub_management.create_stream('instrument1-logs', topic_ids=[log_topic], exchange_point='instruments')
+        self.addCleanup(self.pubsub_management.delete_stream, log_stream)
         ctd_stream, route = self.pubsub_management.create_stream('instrument1-ctd', topic_ids=[science_topic], exchange_point='instruments')
+        self.addCleanup(self.pubsub_management.delete_stream, log_stream)
         event_stream, route = self.pubsub_management.create_stream('notifications', topic_ids=[events_topic], exchange_point='events')
+        self.addCleanup(self.pubsub_management.delete_stream, log_stream)
         raw_stream, route = self.pubsub_management.create_stream('temp', exchange_point='global.data')
         self.exchange_cleanup.extend(['instruments','events','global.data'])
+        self.addCleanup(self.pubsub_management.delete_stream, log_stream)
 
 
         subscription1 = self.pubsub_management.create_subscription('subscription1', stream_ids=[log_stream,event_stream], exchange_name='sub1')
@@ -447,34 +515,57 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         sub1 = StandaloneStreamSubscriber('sub1', subscriber1)
         self.queue_cleanup.append(sub1.xn.queue)
         sub1.start()
+        self.addCleanup(sub1.stop)
 
         topic1 = self.pubsub_management.create_topic('topic1', exchange_point='xp1')
+        self.addCleanup(self.pubsub_management.delete_topic, topic1)
         topic2 = self.pubsub_management.create_topic('topic2', exchange_point='xp1', parent_topic_id=topic1)
+        self.addCleanup(self.pubsub_management.delete_topic, topic2)
         topic3 = self.pubsub_management.create_topic('topic3', exchange_point='xp1', parent_topic_id=topic1)
+        self.addCleanup(self.pubsub_management.delete_topic, topic3)
         topic4 = self.pubsub_management.create_topic('topic4', exchange_point='xp1', parent_topic_id=topic2)
+        self.addCleanup(self.pubsub_management.delete_topic, topic4)
         topic5 = self.pubsub_management.create_topic('topic5', exchange_point='xp1', parent_topic_id=topic2)
+        self.addCleanup(self.pubsub_management.delete_topic, topic5)
         topic6 = self.pubsub_management.create_topic('topic6', exchange_point='xp1', parent_topic_id=topic3)
+        self.addCleanup(self.pubsub_management.delete_topic, topic6)
         topic7 = self.pubsub_management.create_topic('topic7', exchange_point='xp1', parent_topic_id=topic3)
+        self.addCleanup(self.pubsub_management.delete_topic, topic7)
 
         # Tree 2
         topic8 = self.pubsub_management.create_topic('topic8', exchange_point='xp2')
+        self.addCleanup(self.pubsub_management.delete_topic, topic8)
         topic9 = self.pubsub_management.create_topic('topic9', exchange_point='xp2', parent_topic_id=topic8)
+        self.addCleanup(self.pubsub_management.delete_topic, topic9)
         topic10 = self.pubsub_management.create_topic('topic10', exchange_point='xp2', parent_topic_id=topic9)
+        self.addCleanup(self.pubsub_management.delete_topic, topic10)
         topic11 = self.pubsub_management.create_topic('topic11', exchange_point='xp2', parent_topic_id=topic9)
+        self.addCleanup(self.pubsub_management.delete_topic, topic11)
         topic12 = self.pubsub_management.create_topic('topic12', exchange_point='xp2', parent_topic_id=topic11)
+        self.addCleanup(self.pubsub_management.delete_topic, topic12)
         topic13 = self.pubsub_management.create_topic('topic13', exchange_point='xp2', parent_topic_id=topic11)
+        self.addCleanup(self.pubsub_management.delete_topic, topic13)
         self.exchange_cleanup.extend(['xp1','xp2'])
         
         stream1_id, route = self.pubsub_management.create_stream('stream1', topic_ids=[topic7, topic4, topic5], exchange_point='xp1')
+        self.addCleanup(self.pubsub_management.delete_stream, stream1_id)
         stream2_id, route = self.pubsub_management.create_stream('stream2', topic_ids=[topic8], exchange_point='xp2')
+        self.addCleanup(self.pubsub_management.delete_stream, stream2_id)
         stream3_id, route = self.pubsub_management.create_stream('stream3', topic_ids=[topic10,topic13], exchange_point='xp2')
+        self.addCleanup(self.pubsub_management.delete_stream, stream3_id)
         stream4_id, route = self.pubsub_management.create_stream('stream4', topic_ids=[topic9], exchange_point='xp2')
+        self.addCleanup(self.pubsub_management.delete_stream, stream4_id)
         stream5_id, route = self.pubsub_management.create_stream('stream5', topic_ids=[topic11], exchange_point='xp2')
+        self.addCleanup(self.pubsub_management.delete_stream, stream5_id)
 
         subscription1 = self.pubsub_management.create_subscription('sub1', topic_ids=[topic1])
+        self.addCleanup(self.pubsub_management.delete_subscription, subscription1)
         subscription2 = self.pubsub_management.create_subscription('sub2', topic_ids=[topic8], exchange_name='sub1')
+        self.addCleanup(self.pubsub_management.delete_subscription, subscription2)
         subscription3 = self.pubsub_management.create_subscription('sub3', topic_ids=[topic9], exchange_name='sub1')
+        self.addCleanup(self.pubsub_management.delete_subscription, subscription3)
         subscription4 = self.pubsub_management.create_subscription('sub4', topic_ids=[topic10,topic13, topic11], exchange_name='sub1')
+        self.addCleanup(self.pubsub_management.delete_subscription, subscription4)
         #--------------------------------------------------------------------------------
         self.pubsub_management.activate_subscription(subscription1)
 
@@ -486,7 +577,6 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
 
         self.pubsub_management.deactivate_subscription(subscription1)
-        self.pubsub_management.delete_subscription(subscription1)
         #--------------------------------------------------------------------------------
         self.pubsub_management.activate_subscription(subscription2)
         
@@ -496,7 +586,6 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
             self.msg_queue.get(timeout=0.1)
 
         self.pubsub_management.deactivate_subscription(subscription2)
-        self.pubsub_management.delete_subscription(subscription2)
 
         #--------------------------------------------------------------------------------
         self.pubsub_management.activate_subscription(subscription3)
@@ -510,7 +599,6 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
 
 
         self.pubsub_management.deactivate_subscription(subscription3)
-        self.pubsub_management.delete_subscription(subscription3)
 
         #--------------------------------------------------------------------------------
         self.pubsub_management.activate_subscription(subscription4)
@@ -525,61 +613,46 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
             self.msg_queue.get(timeout=0.3)
 
         self.pubsub_management.deactivate_subscription(subscription4)
-        self.pubsub_management.delete_subscription(subscription4)
         
         #--------------------------------------------------------------------------------
-        sub1.stop()
 
-        self.pubsub_management.delete_topic(topic13)
-        self.pubsub_management.delete_topic(topic12)
-        self.pubsub_management.delete_topic(topic11)
-        self.pubsub_management.delete_topic(topic10)
-        self.pubsub_management.delete_topic(topic9)
-        self.pubsub_management.delete_topic(topic8)
-        self.pubsub_management.delete_topic(topic7)
-        self.pubsub_management.delete_topic(topic6)
-        self.pubsub_management.delete_topic(topic5)
-        self.pubsub_management.delete_topic(topic4)
-        self.pubsub_management.delete_topic(topic3)
-        self.pubsub_management.delete_topic(topic2)
-        self.pubsub_management.delete_topic(topic1)
-
-        self.pubsub_management.delete_stream(stream1_id)
-        self.pubsub_management.delete_stream(stream2_id)
-        self.pubsub_management.delete_stream(stream3_id)
-        self.pubsub_management.delete_stream(stream4_id)
-        self.pubsub_management.delete_stream(stream5_id)
 
     def _get_pdict(self, filter_values):
         t_ctxt = ParameterContext('TIME', param_type=QuantityType(value_encoding=np.dtype('int64')))
         t_ctxt.uom = 'seconds since 01-01-1900'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='TIME', parameter_context=t_ctxt.dump(), parameter_type='quantity<int64>', units=t_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
 
         lat_ctxt = ParameterContext('LAT', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
         lat_ctxt.axis = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
         lat_ctxt_id = self.dataset_management.create_parameter_context(name='LAT', parameter_context=lat_ctxt.dump(), parameter_type='quantity<float32>', units=lat_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, lat_ctxt_id)
 
         lon_ctxt = ParameterContext('LON', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
         lon_ctxt.axis = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
         lon_ctxt_id = self.dataset_management.create_parameter_context(name='LON', parameter_context=lon_ctxt.dump(), parameter_type='quantity<float32>', units=lon_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, lon_ctxt_id)
 
         # Independent Parameters
          # Temperature - values expected to be the decimal results of conversion from hex
         temp_ctxt = ParameterContext('TEMPWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         temp_ctxt.uom = 'deg_C'
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='TEMPWAT_L0', parameter_context=temp_ctxt.dump(), parameter_type='quantity<float32>', units=temp_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
 
         # Conductivity - values expected to be the decimal results of conversion from hex
         cond_ctxt = ParameterContext('CONDWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         cond_ctxt.uom = 'S m-1'
         cond_ctxt_id = self.dataset_management.create_parameter_context(name='CONDWAT_L0', parameter_context=cond_ctxt.dump(), parameter_type='quantity<float32>', units=cond_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, cond_ctxt_id)
 
         # Pressure - values expected to be the decimal results of conversion from hex
         press_ctxt = ParameterContext('PRESWAT_L0', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         press_ctxt.uom = 'dbar'
         press_ctxt_id = self.dataset_management.create_parameter_context(name='PRESWAT_L0', parameter_context=press_ctxt.dump(), parameter_type='quantity<float32>', units=press_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, press_ctxt_id)
 
         # Dependent Parameters
 
@@ -590,6 +663,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
         tempL1_ctxt_id = self.dataset_management.create_parameter_context(name=tempL1_ctxt.name, parameter_context=tempL1_ctxt.dump(), parameter_type='pfunc', units=tempL1_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, tempL1_ctxt_id)
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
         cl1_func = '(C / 100000) - 0.5'
@@ -598,6 +672,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
         condL1_ctxt_id = self.dataset_management.create_parameter_context(name=condL1_ctxt.name, parameter_context=condL1_ctxt.dump(), parameter_type='pfunc', units=condL1_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, condL1_ctxt_id)
 
         # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
         #   PRESWAT_L1 = (PRESWAT_L0 * p_range / (0.85 * 65536)) - (0.05 * p_range)
@@ -607,6 +682,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
         presL1_ctxt_id = self.dataset_management.create_parameter_context(name=presL1_ctxt.name, parameter_context=presL1_ctxt.dump(), parameter_type='pfunc', units=presL1_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, presL1_ctxt_id)
 
         # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
         #       https://code.google.com/p/python-gsw/ & http://pypi.python.org/pypi/gsw/3.0.1
@@ -621,6 +697,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
         sal_ctxt_id = self.dataset_management.create_parameter_context(name=sal_ctxt.name, parameter_context=sal_ctxt.dump(), parameter_type='pfunc', units=sal_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, sal_ctxt_id)
 
         # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
         # conservative_temperature = gsw.CT_from_t(absolute_salinity, TEMPWAT_L1, PRESWAT_L1)
@@ -632,6 +709,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
         dens_ctxt = ParameterContext('DENSITY', param_type=ParameterFunctionType(dens_expr), variability=VariabilityEnum.TEMPORAL)
         dens_ctxt.uom = 'kg m-3'
         dens_ctxt_id = self.dataset_management.create_parameter_context(name=dens_ctxt.name, parameter_context=dens_ctxt.dump(), parameter_type='pfunc', units=dens_ctxt.uom)
+        self.addCleanup(self.dataset_management.delete_parameter_context, dens_ctxt_id)
         
         ids = [t_ctxt_id, lat_ctxt_id, lon_ctxt_id, temp_ctxt_id, cond_ctxt_id, press_ctxt_id, tempL1_ctxt_id, condL1_ctxt_id, presL1_ctxt_id, sal_ctxt_id, dens_ctxt_id]
         contexts = [t_ctxt, lat_ctxt, lon_ctxt, temp_ctxt, cond_ctxt, press_ctxt, tempL1_ctxt, condL1_ctxt, presL1_ctxt, sal_ctxt, dens_ctxt]
@@ -643,5 +721,7 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
             return self.pdicts[pdict_name]
         except KeyError:
             pdict_id = self.dataset_management.create_parameter_dictionary(pdict_name, parameter_context_ids=context_ids, temporal_context='time')
+            self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
             self.pdicts[pdict_name] = pdict_id
             return pdict_id
+
