@@ -130,7 +130,7 @@ class HYPM_01_WFP_CTDParser(object):
 
     termination_string = 'ffffffffffffffffffffff'
 
-    def __init__(self, url=None, header_size=17):
+    def __init__(self, url=None):
         """
         Constructor for the parser. Initializes headers and data
 
@@ -152,9 +152,9 @@ class HYPM_01_WFP_CTDParser(object):
                     line = line.strip()
                     #check to see if the termination string has been hit
                     if line != self.termination_string:
-                        self.data_map[self.sensor_names[0]].append((int(line[0:6], 16) / 10000) * 0.5)
-                        self.data_map[self.sensor_names[1]].append((int(line[6:12], 16) / 10000) * 5)
-                        self.data_map[self.sensor_names[2]].append((int(line[12:18], 16) / 100) * 10)
+                        self.data_map[self.sensor_names[0]].append((float(int(line[0:6], 16)) / 10000) * 0.5)
+                        self.data_map[self.sensor_names[1]].append((float(int(line[6:12], 16)) / 10000))
+                        self.data_map[self.sensor_names[2]].append((float(int(line[12:18], 16)) / 100) * 10)
                         #check to see if oxygen is included in data
                         if len(line) > 18:
                             self.data_map[self.sensor_names[3]].append(int(line[18:], 16))
