@@ -88,7 +88,6 @@ class BaseAlert(object):
 
         return status
 
-
     def make_event_data(self):
         """
         """
@@ -97,19 +96,19 @@ class BaseAlert(object):
             'stream_name' : self._stream_name,
             'message' : self._message,
             'value' : self._current_value,
-            'event_type' : None,
+            'event_type' : 'StreamAlertEvent',
             'origin' : self._resource_id,
             'origin_type' : self._origin_type
         }
         
         if self._status:
-            event_data['event_type'] = 'StreamAllClearAlertEvent'
+            event_data['sub_type'] = 'ALL_CLEAR'
             
         elif self._alert_type == StreamAlertType.WARNING:
-            event_data['event_type'] = 'StreamWarningAlertEvent'
+            event_data['sub_type'] = 'WARNING'
         
         elif self._alert_type == StreamAlertType.ALERT:
-            event_data['event_type'] = 'StreamAlarmAlertEvent'    
+            event_data['sub_type'] = 'ALERT'    
 
         return event_data
 
