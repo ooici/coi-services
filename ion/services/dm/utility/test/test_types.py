@@ -54,14 +54,14 @@ class TestTypes(PyonTestCase):
         granule = rdt.to_granule()
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
 
-        testval = comp_val or value_array
+        testval = comp_val if comp_val is not None else value_array
         actual = rdt2['test']
 
 
         if isinstance(testval, basestring):
             self.assertEquals(testval, actual)
         else:
-            self.assertTrue(np.array_equal(testval, actual))
+            np.testing.assert_array_equal(testval, actual)
 
     def test_quantity_type(self):
         ptype      = 'quantity'
@@ -213,8 +213,10 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
         paramval[:] = (0,1000)
         [self.assertEquals(paramval[i], (0,1000)) for i in xrange(20)]
+        testval = np.array([None])
+        testval[0] = (0,1000)
 
-        self.rdt_to_granule(context, (0,1000), (0,1000))
+        self.rdt_to_granule(context, (0,1000), testval)
 
 
     def test_bad_codeset(self):
