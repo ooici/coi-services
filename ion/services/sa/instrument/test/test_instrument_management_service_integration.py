@@ -60,8 +60,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.RR2 = EnhancedResourceRegistryClient(self.RR)
 
-        print 'started services'
-
 #    @unittest.skip('this test just for debugging setup')
 #    def test_just_the_setup(self):
 #        return
@@ -162,6 +160,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
+        # Lifecycle
+        self.assertEquals(len(extended_instrument.lcstate_transitions), 7)
+        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
+
         # Verify that computed attributes exist for the extended instrument
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
@@ -186,7 +188,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check agent
         inst_agent_obj = self.RR.read(instrument_agent_id)
         #compound assoc return list of lists so check the first element
-        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent[0].name)
+        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent.name)
 
         #check platform device
         plat_device_obj = self.RR.read(platform_device_id)
@@ -198,6 +200,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_device_id, extended_platform.instrument_devices[0]._id)
         self.assertEqual(1, len(extended_platform.instrument_models))
         self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
+        self.assertEquals(extended_platform.platform_agent._id, platform_agent_id)
+
+        self.assertEquals(len(extended_platform.lcstate_transitions), 7)
+        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
 
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
