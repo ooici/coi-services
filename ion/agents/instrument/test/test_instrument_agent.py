@@ -947,19 +947,20 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertItemsEqual(retval['raw'], raw_fields)
         self.assertItemsEqual(retval['parsed'], parsed_fields)
         
-        retval = self._ia_client.get_agent(['pubfreq'])
-        expected_pubfreq_result = {'pubfreq': {'raw': 0, 'parsed': 0}}
-        self.assertEqual(retval, expected_pubfreq_result)
+        retval = self._ia_client.get_agent(['pubrate'])
+        expected_pubrate_result = {'pubrate': {'raw': 0, 'parsed': 0}}
+        self.assertEqual(retval, expected_pubrate_result)
         
-        new_pubfreq = {'raw' : 30, 'parsed' : 30}
-        self._ia_client.set_agent({'pubfreq' : new_pubfreq})
-        retval = self._ia_client.get_agent(['pubfreq'])['pubfreq']
-        self.assertEqual(retval, new_pubfreq)
+        new_pubrate = {'raw' : 30, 'parsed' : 30}
+        self._ia_client.set_agent({'pubrate' : new_pubrate})
+        retval = self._ia_client.get_agent(['pubrate'])['pubrate']
+        self.assertEqual(retval, new_pubrate)
 
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        """
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
         self.assertItemsEqual(retval, [])
 
-        alarms = []
+        alerts = []
         
         kwargs1 = {
             'name' : 'lower_current_warning_interval',
@@ -970,8 +971,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'lower_bound' : 10.5,
             'lower_rel_op' : '<'
         }
-        alarm1 = IonObject('IntervalAlarmDef', **kwargs1)
-        alarms.append(alarm1)
+        alert1 = IonObject('IntervalAlarmDef', **kwargs1)
+        alerts.append(alert1)
         
         kwargs2 = {
             'name' : 'upper_current_warning_interval',
@@ -982,16 +983,16 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'upper_bound' : 30.5,
             'upper_rel_op' : '<'
         }
-        alarm2 = IonObject('IntervalAlarmDef', **kwargs2)
-        alarms.append(alarm2)
+        alert2 = IonObject('IntervalAlarmDef', **kwargs2)
+        alerts.append(alert2)
 
 
         decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
 
 
-        self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
+        self._ia_client.set_agent({'alerts' : ['set', alert1, alert2]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
+        self.assertItemsEqual([x.name for x in [alert1, alert2]],
             [x.name for x in retval])
         self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
@@ -1004,8 +1005,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'lower_bound' : 30.0,
             'lower_rel_op' : '<'
         }
-        alarm3 = IonObject('IntervalAlarmDef', **kwargs3)
-        alarms.append(alarm3)
+        alert3 = IonObject('IntervalAlarmDef', **kwargs3)
+        alerts.append(alert3)
         
         kwargs4 = {
             'name' : 'invalid_salinity_alert',
@@ -1016,43 +1017,44 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'upper_bound' : 0.0,
             'upper_rel_op' : '<'
         }
-        alarm4 = IonObject('IntervalAlarmDef', **kwargs4)
-        alarms.append(alarm4)
+        alert4 = IonObject('IntervalAlarmDef', **kwargs4)
+        alerts.append(alert4)
 
         params = ['add']
-        params.extend(alarms)
+        params.extend(alerts)
 
-        self._ia_client.set_agent({'alarms' : ['add', alarm3, alarm4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
-            alarm4]], [x.name for x in retval])
+        self._ia_client.set_agent({'alerts' : ['add', alert3, alert4]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
+        self.assertItemsEqual([x.name for x in [alert1, alert2, alert3,
+            alert4]], [x.name for x in retval])
         self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
-        self._ia_client.set_agent({'alarms' : ['remove', alarm3, alarm4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
+        self._ia_client.set_agent({'alerts' : ['remove', alert3, alert4]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
+        self.assertItemsEqual([x.name for x in [alert1, alert2]],
             [x.name for x in retval])
         self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
-        self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2,
-                alarm3, alarm4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
-            alarm4]], [x.name for x in retval])
+        self._ia_client.set_agent({'alerts' : ['set', alert1, alert2,
+                alert3, alert4]})
+        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
+        self.assertItemsEqual([x.name for x in [alert1, alert2, alert3,
+            alert4]], [x.name for x in retval])
         self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
-        self._ia_client.set_agent({'alarms' : ['remove',
+        self._ia_client.set_agent({'alerts' : ['remove',
                 'lower_current_warning_interval',
                 'upper_current_warning_interval']})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm3, alarm4]],
+        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
+        self.assertItemsEqual([x.name for x in [alert3, alert4]],
             [x.name for x in retval])
         self.assertTrue(all([len(x.expr)>0 for x in retval]))
 
-        self._ia_client.set_agent({'alarms' : ['clear']})
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+        self._ia_client.set_agent({'alerts' : ['clear']})
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
         self.assertEqual(retval,[])
-
+        """
+        
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
@@ -1201,9 +1203,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ]
         
         agt_pars_all = ['example',
-                        'alarms',
+                        'alerts',
                         'streams',
-                        'pubfreq'
+                        'pubrate'
                         ]
         
         res_cmds_all =[
@@ -1916,12 +1918,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         # Set buffering parameters.
-        pubfreq = {
+        pubrate = {
             'parsed':15,
             'raw':15
         }
-        self._ia_client.set_agent({'pubfreq':pubfreq})
-        retval = self._ia_client.get_agent(['pubfreq'])
+        self._ia_client.set_agent({'pubrate':pubrate})
+        retval = self._ia_client.get_agent(['pubrate'])
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
@@ -1942,7 +1944,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # We could be surgical here and check for parsed granules only
         self.assertGreaterEqual(len(self._samples_received), 16)
 
-    #@unittest.skip('Skip until driver eggs updated again.')
+    @unittest.skip('Skip until driver eggs updated again.')
     def test_lost_connection(self):
         """
         test_lost_connection
@@ -2010,7 +2012,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-    #@unittest.skip('Skip until driver eggs updated again.')
+    @unittest.skip('Skip until driver eggs updated again.')
     def test_autoreconnect(self):
         """
         test_autoreconnect
