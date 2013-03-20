@@ -23,7 +23,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from pyon.ion.stream import StandaloneStreamPublisher
 
 from interface.objects import DataProduct
-from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType
+from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType, create_guid, CRS, AxisTypeEnum, GridDomain, GridShape, MutabilityEnum, SimplexCoverage
 
 import numpy as np
 import gevent
@@ -63,6 +63,28 @@ class TestTypes(PyonTestCase):
         else:
             np.testing.assert_array_equal(testval, actual)
 
+    def cov_io(self, context, value_array, comp_val=None):
+        pdict = ParameterDictionary()
+        time = ParameterContext(name='time', param_type=QuantityType(value_encoding=np.float64))
+        pdict.add_context(context)
+        pdict.add_context(time, True)
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 0d spatial topology (station/trajectory)
+
+        # Instantiate the SimplexCoverage providing the ParameterDictionary, spatial Domain and temporal Domain
+        cov = SimplexCoverage('test_data', create_guid(), 'sample coverage_model', parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+
+        cov.insert_timesteps(len(value_array))
+        cov.set_parameter_values('test', tdoa=slice(0,len(value_array)), value=value_array)
+        comp_val = comp_val if comp_val is not None else value_array
+        testval = cov.get_parameter_values('test')
+        np.testing.assert_array_equal(testval, comp_val)
+
     def test_quantity_type(self):
         ptype      = 'quantity'
         encodings  = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'float32', 'float64']
@@ -74,7 +96,7 @@ class TestTypes(PyonTestCase):
             paramval[:] = np.arange(20)
             self.assertTrue((paramval[:] == np.arange(20)).all())
         self.rdt_to_granule(context, np.arange(20))
-
+        self.cov_io(context, np.arange(20))
 
     def test_string_type(self):
         ptype      = 'quantity'
@@ -104,6 +126,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
 
         self.rdt_to_granule(context, ['hi'] * 20)
+        self.cov_io(context, ['hi'] * 20)
 
     def test_string_arrays(self):
         ptype = 'array<quantity>'
@@ -119,6 +142,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
 
         self.rdt_to_granule(context,['hi'] * 20)
+        self.cov_io(context, ['hi'] * 20)
 
 
     def test_category_type(self):
@@ -140,6 +164,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], 'on') for i in xrange(20)]
 
         self.rdt_to_granule(context, [1] * 20, ['on'] * 20)
+        self.cov_io(context, [1]* 20, ['on'] * 20)
 
 
     def test_const_str(self):
@@ -162,6 +187,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], long_str[:12]) for i in xrange(20)]
 
         self.rdt_to_granule(context, 'hi')
+        self.cov_io(context, 'hi')
 
     def test_const(self):
         ptype      = 'constant<quantity>'
@@ -177,6 +203,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], 2) for i in xrange(20)]
 
         self.rdt_to_granule(context, 2)
+        self.cov_io(context, [2])
 
     def test_boolean(self):
         ptype      = 'boolean'
@@ -195,6 +222,7 @@ class TestTypes(PyonTestCase):
         self.assertEquals(get_fill_value('true',encoding), 1, ptype)
 
         self.rdt_to_granule(context, [1] * 20, [True] * 20)
+        self.cov_io(context, [1] * 20, [True] * 20)
 
     
     def test_range_type(self):
