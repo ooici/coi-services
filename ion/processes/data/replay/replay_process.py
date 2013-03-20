@@ -165,7 +165,7 @@ class ReplayProcess(BaseReplayProcess):
                     n = np.append(n,fill_arr)
                 elif coverage.get_data_extents(field)[0] > coverage.num_timesteps:
                     raise CorruptionError('The coverage is corrupted:\n\tfield: %s\n\textents: %s\n\ttimesteps: %s' % (field, coverage.get_data_extents(field), coverage.num_timesteps))
-                rdt[field] = n
+                rdt[field] = np.atleast_1d(n)
             else:
                 rdt[field] = [n]
         return rdt
