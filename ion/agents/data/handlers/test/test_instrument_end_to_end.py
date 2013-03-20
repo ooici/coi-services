@@ -114,12 +114,15 @@ class HypmBase(IonIntegrationTestCase):
         self._ia_client.execute_agent(cmd)
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command=DriverEvent.ACQUIRE_SAMPLE)
+        cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
         self._ia_client.execute_resource(command=cmd)
 
         self.start_listener(self.dataset_id)
 
     def stop_agent(self):
+        cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
+        self._ia_client.execute_resource(cmd)
+
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         self._ia_client.execute_agent(cmd)
 
