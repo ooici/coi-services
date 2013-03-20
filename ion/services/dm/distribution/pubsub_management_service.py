@@ -217,10 +217,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
     
-    def create_subscription(self, name='', stream_ids=None, exchange_points=None, topic_ids=None, exchange_name='', credentials=None, description=''):
-        stream_ids      = stream_ids or []
-        exchange_points = exchange_points or []
-        topic_ids       = topic_ids or []
+    def create_subscription(self, name='', stream_ids=None, exchange_points=None, topic_ids=None, exchange_name='', credentials=None, description='', data_product_ids=[]):
+        stream_ids       = stream_ids or []
+        exchange_points  = exchange_points or []
+        topic_ids        = topic_ids or []
+        data_product_ids = data_product_ids or []
 
         exchange_name = exchange_name or name
         validate_true(exchange_name, 'Clients must provide an exchange name')
@@ -258,6 +259,9 @@ class PubsubManagementService(BasePubsubManagementService):
         
         for topic_id in topic_ids:
             self._associate_topic_with_subscription(topic_id, subscription_id)
+
+        for data_product_id in data_product_ids:
+            self._associate_data_product_with_subscription(data_product_id, subscription_id)
         
         return subscription_id
 
@@ -274,6 +278,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         streams, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, object_type=RT.Stream, predicate=PRED.hasStream,id_only=False)
         topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
+        data_product_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasDataProduct, id_only=True)
 
         topic_topology = set()
         topics = []
@@ -302,6 +307,18 @@ class PubsubManagementService(BasePubsubManagementService):
             log.info('Topic %s -> %s', topic.name, subscription.exchange_name)
             self._bind(topic.exchange_point, subscription.exchange_name, '#.%s.#' % self._sanitize(topic.name))
 
+        for data_product_id in data_product_ids:
+            streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=False)
+            for stream in streams:
+                log.info('%s -> %s', stream.name, subscription.exchange_name)
+                if dot.isEnabledFor(logging.INFO):
+                    import re
+                    queue_name = re.sub(r'[ -]','_',subscription.exchange_name)
+                    dot.info('  %s -> %s' %(stream.stream_route.routing_key[:-len('.stream')], queue_name))
+
+                self._bind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
+
+
         subscription.activated = True
         self.clients.resource_registry.update(subscription)
 
@@ -312,6 +329,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         streams, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, object_type=RT.Stream, predicate=PRED.hasStream,id_only=False)
         topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
+        data_product_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasDataProduct, id_only=True)
 
         topic_topology = set()
 
@@ -332,6 +350,12 @@ class PubsubManagementService(BasePubsubManagementService):
         for exchange_point in subscription.exchange_points:
             log.info('Exchange %s -X-> %s', exchange_point, subscription.exchange_name)
             self._unbind(exchange_point, subscription.exchange_name, '*')
+
+        for data_product_id in data_product_ids:
+            streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=False)
+            for stream in streams:
+                log.info('%s -X-> %s', stream.name, subscription.exchange_name)
+                self._unbind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
 
 
         subscription.activated = False
@@ -507,6 +531,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
     def _associate_topic_with_subscription(self, topic_id, subscription_id):
         self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasTopic, object=topic_id)
+
+    def _associate_data_product_with_subscription(self, data_product_id, subscription_id):
+        self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasDataProduct, object=data_product_id)
 
     def _associate_topic_with_topic(self, parent_topic_id, child_topic_id):
         self.clients.resource_registry.create_association(subject=parent_topic_id, predicate=PRED.hasTopic, object=child_topic_id)
