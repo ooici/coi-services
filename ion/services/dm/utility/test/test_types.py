@@ -233,18 +233,17 @@ class TestTypes(PyonTestCase):
         context = self.get_context(ptype, encoding, fill_value)
         paramval = self.get_pval(context)
 
-        print '>>>>>>'
-        print context.fill_value
-        print type(context.fill_value)
-        print type(get_fill_value(fill_value, encoding, context.param_type))
-
         [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
         paramval[:] = (0,1000)
         [self.assertEquals(paramval[i], (0,1000)) for i in xrange(20)]
         testval = np.array([None])
         testval[0] = (0,1000)
-
         self.rdt_to_granule(context, (0,1000), testval)
+        testval = np.array([None]*20)
+        for i in xrange(20):
+            testval[i] = (0,1000)
+
+        self.cov_io(context, paramval, testval)
 
 
     def test_bad_codeset(self):
