@@ -330,8 +330,8 @@ class BaseDataHandler(object):
         log.debug('Entered execute_stop_autosample with args={0} & kwargs={1}'.format(args, kwargs))
         if self._polling and not self._polling_glet is None:
             log.debug("Terminating polling")
-            self._terminate_polling.set()
             self._stall_polling.set()
+            self._terminate_polling.set()
             self._polling_glet.join(timeout=30)
             log.debug("Polling terminated")
             self._polling = False
