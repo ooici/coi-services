@@ -3,9 +3,10 @@
 @file ion/services/sa/product/test/test_data_product_management_service_integration.py
 @brief Data Product Management Service Integration Tests
 '''
+from mock import patch
 from pyon.core.exception import NotFound
 from pyon.public import  IonObject
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, CFG
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
@@ -44,6 +45,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('INT', group='sa')
 #@unittest.skip('not working')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -150,7 +152,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             temporal_domain = tdom.dump(), 
             spatial_domain = sdom.dump())
 
-        log.debug("Created an IonObject for a data product: %s" % dp_obj)
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 200.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = 100.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 50.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = 100.0
 
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
@@ -162,7 +167,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertIsNotNone(dp_obj)
-
+        self.assertEquals(dp_obj.geospatial_point_center.lat, 150.0)
+        log.debug('Created data product %s', dp_obj)
         #------------------------------------------------------------------------------------------------
         # test creating a new data product with  a stream definition
         #------------------------------------------------------------------------------------------------
@@ -204,12 +210,19 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         # now tweak the object
         dp_obj.description = 'the very first dp'
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 300.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = 200.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 150.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = 200.0
         # now write the dp back to the registry
         update_result = self.dpsc_cli.update_data_product(dp_obj)
+
 
         # now get the dp back to see if it was updated
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertEquals(dp_obj.description,'the very first dp')
+        self.assertEquals(dp_obj.geospatial_point_center.lat, 250.0)
+        log.debug('Updated data product %s', dp_obj)
 
         #test extension
         extended_product = self.dpsc_cli.get_data_product_extension(dp_id)
@@ -238,7 +251,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         for event in events:
             log.debug("event time: %s" % event.ts_created)
 
-#        self.assertTrue(len(events) > 0)
+        self.assertTrue(len(events) > 0)
 
     def test_data_product_stream_def(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
