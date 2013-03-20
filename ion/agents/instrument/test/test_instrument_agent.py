@@ -989,16 +989,23 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         
         self._ia_client.set_agent({'alerts' : [alert_def1, alert_def2]})
-
         
         retval = self._ia_client.get_agent(['alerts'])['alerts']
         self.assertTrue(len(retval)==2)
-        
+
         """
         {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_warning_interval', 'upper_bound': 10.5, 'lower_bound': None, 'upper_rel_op': None, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is above normal range.'}
         {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_alarm_interval', 'upper_bound': 15.5, 'lower_bound': None, 'upper_rel_op': None, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is way above normal range.'}
         """
 
+        self._ia_client.set_agent({'alerts' : ['clear']})        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertItemsEqual(retval, [])
+
+        self._ia_client.set_agent({'alerts' : ['set', alert_def1, alert_def2]})
+        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==2)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
