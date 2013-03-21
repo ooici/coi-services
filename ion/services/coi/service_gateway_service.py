@@ -472,23 +472,19 @@ def build_message_headers( ion_actor_id, expiry):
 def create_parameter_list(request_type, service_name, target_client,operation, json_params):
     param_list = {}
     method_args = inspect.getargspec(getattr(target_client,operation))
-    for arg in method_args[0]:
-        if arg == 'self' or arg == 'headers': continue # skip self and headers from being set
+    for (arg_index, arg) in enumerate(method_args[0]):
+        if arg == 'self': continue # skip self
 
         if not json_params:
             if request.args.has_key(arg):
-
-                if arg == 'timeout': # the timeout parameter is handled by the endpoint layer, not the message classes
-                    param_list[arg] = ast.literal_eval(str(request.args[arg]))
-                else:
-                    param_type = get_message_class_in_parm_type(service_name, operation, arg)
-                    if param_type == 'str':
-                        if isinstance(request.args[arg], unicode):
-                            param_list[arg] = str(request.args[arg].encode('utf8'))
-                        else:
-                            param_list[arg] = str(request.args[arg])
+                #Handle strings differently because of unicode
+                if isinstance(method_args[3][arg_index-1], str):
+                    if isinstance(request.args[arg], unicode):
+                        param_list[arg] = str(request.args[arg].encode('utf8'))
                     else:
-                        param_list[arg] = ast.literal_eval(str(request.args[arg]))
+                        param_list[arg] = str(request.args[arg])
+                else:
+                    param_list[arg] = ast.literal_eval(str(request.args[arg]))
         else:
             if json_params[request_type]['params'].has_key(arg):
 
@@ -501,6 +497,7 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
                         param_list[arg] = str(json_params[request_type]['params'][arg].encode('utf8'))
                     else:
                         param_list[arg] = json_params[request_type]['params'][arg]
+
 
     return param_list
 

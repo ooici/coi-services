@@ -68,7 +68,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 
 # Alarms.
 from pyon.public import IonObject
-from interface.objects import StreamAlarmType
+from interface.objects import StreamAlertType
 
 """
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
@@ -956,105 +956,57 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_agent(['pubrate'])['pubrate']
         self.assertEqual(retval, new_pubrate)
 
-        """
+    
         retval = self._ia_client.get_agent(['alerts'])['alerts']
         self.assertItemsEqual(retval, [])
 
-        alerts = []
         
-        kwargs1 = {
-            'name' : 'lower_current_warning_interval',
+        alert_def1 = {
+            'name' : 'temp_warning_interval',
             'stream_name' : 'parsed',
-            'value_id' : 'port_current',
-            'message' : 'Current is below normal range.',
-            'type' : StreamAlarmType.WARNING,
-            'lower_bound' : 10.5,
-            'lower_rel_op' : '<'
-        }
-        alert1 = IonObject('IntervalAlarmDef', **kwargs1)
-        alerts.append(alert1)
-        
-        kwargs2 = {
-            'name' : 'upper_current_warning_interval',
-            'stream_name' : 'parsed',
-            'value_id' : 'port_current',
-            'message' : 'Current is above normal range.',
-            'type' : StreamAlarmType.WARNING,
-            'upper_bound' : 30.5,
-            'upper_rel_op' : '<'
-        }
-        alert2 = IonObject('IntervalAlarmDef', **kwargs2)
-        alerts.append(alert2)
-
-
-        decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
-
-
-        self._ia_client.set_agent({'alerts' : ['set', alert1, alert2]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
-        self.assertItemsEqual([x.name for x in [alert1, alert2]],
-            [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
-
-        kwargs3 = {
-            'name' : 'high_temperature_alert',
-            'stream_name' : 'parsed',
+            'message' : 'Temperature is above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
             'value_id' : 'temp',
-            'message' : 'Temp is above operating range.',
-            'type' : StreamAlarmType.ALERT,
-            'lower_bound' : 30.0,
-            'lower_rel_op' : '<'
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 10.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
         }
-        alert3 = IonObject('IntervalAlarmDef', **kwargs3)
-        alerts.append(alert3)
         
-        kwargs4 = {
-            'name' : 'invalid_salinity_alert',
+        alert_def2 = {
+            'name' : 'temp_alarm_interval',
             'stream_name' : 'parsed',
-            'value_id' : 'salinity',
-            'message' : 'Salinity value not valid.',
-            'type' : StreamAlarmType.ALERT,
-            'upper_bound' : 0.0,
-            'upper_rel_op' : '<'
+            'message' : 'Temperature is way above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'value_id' : 'temp',
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 15.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
         }
-        alert4 = IonObject('IntervalAlarmDef', **kwargs4)
-        alerts.append(alert4)
-
-        params = ['add']
-        params.extend(alerts)
-
-        self._ia_client.set_agent({'alerts' : ['add', alert3, alert4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
-        self.assertItemsEqual([x.name for x in [alert1, alert2, alert3,
-            alert4]], [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
-
-        self._ia_client.set_agent({'alerts' : ['remove', alert3, alert4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
-        self.assertItemsEqual([x.name for x in [alert1, alert2]],
-            [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
-
-        self._ia_client.set_agent({'alerts' : ['set', alert1, alert2,
-                alert3, alert4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
-        self.assertItemsEqual([x.name for x in [alert1, alert2, alert3,
-            alert4]], [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
-
-        self._ia_client.set_agent({'alerts' : ['remove',
-                'lower_current_warning_interval',
-                'upper_current_warning_interval']})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alerts'])['alerts'])
-        self.assertItemsEqual([x.name for x in [alert3, alert4]],
-            [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
-
-        self._ia_client.set_agent({'alerts' : ['clear']})
-        retval = self._ia_client.get_agent(['alerts'])['alerts']
-        self.assertEqual(retval,[])
-        """
         
+        
+        self._ia_client.set_agent({'alerts' : [alert_def1, alert_def2]})
+        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==2)
+
+        """
+        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_warning_interval', 'upper_bound': 10.5, 'lower_bound': None, 'upper_rel_op': None, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is above normal range.'}
+        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_alarm_interval', 'upper_bound': 15.5, 'lower_bound': None, 'upper_rel_op': None, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is way above normal range.'}
+        """
+
+        self._ia_client.set_agent({'alerts' : ['clear']})        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertItemsEqual(retval, [])
+
+        self._ia_client.set_agent({'alerts' : ['set', alert_def1, alert_def2]})
+        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==2)
+
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()

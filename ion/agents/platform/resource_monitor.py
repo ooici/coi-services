@@ -37,14 +37,14 @@ class ResourceMonitor(object):
     Monitor for specific attributes in a given platform.
     """
 
-    def __init__(self, platform_id, rate_millis, attr_defns,
+    def __init__(self, platform_id, rate_secs, attr_defns,
                  get_attribute_values, notify_driver_event):
         """
         Creates a monitor for a specific attribute in a given platform.
         Call start to start the monitoring greenlet.
 
         @param platform_id Platform ID
-        @param rate_millis Monitoring rate in millis
+        @param rate_secs   Monitoring rate in secs
         @param attr_defns  List of attribute definitions
         @param get_attribute_values
                            Function to retrieve attribute values for the specific
@@ -53,14 +53,14 @@ class ResourceMonitor(object):
         @param notify_driver_event
                            Callback to notify whenever a value is retrieved.
         """
-        log.debug("%r: ResourceMonitor entered. rate_millis=%d, attr_defns=%s",
-                  platform_id, rate_millis, attr_defns)
+        log.debug("%r: ResourceMonitor entered. rate_secs=%s, attr_defns=%s",
+                  platform_id, rate_secs, attr_defns)
 
         assert platform_id, "must give a valid platform ID"
 
         self._get_attribute_values = get_attribute_values
         self._platform_id = platform_id
-        self._rate_millis = rate_millis
+        self._rate_secs = rate_secs
         self._attr_defns = attr_defns
         self._notify_driver_event = notify_driver_event
 
@@ -78,13 +78,13 @@ class ResourceMonitor(object):
 
         self._active = False
 
-        log.debug("%r: ResourceMonitor created. rate_millis=%d, attr_ids=%s",
-                  platform_id, rate_millis, self._attr_ids)
+        log.debug("%r: ResourceMonitor created. rate_secs=%s, attr_ids=%s",
+                  platform_id, rate_secs, self._attr_ids)
 
     def __str__(self):
-        return "%s{platform_id=%r; rate_millis=%d; attr_ids=%s}" % (
+        return "%s{platform_id=%r; rate_secs=%s; attr_ids=%s}" % (
             self.__class__.__name__,
-            self._platform_id, self._rate_millis, str(self._attr_ids))
+            self._platform_id, self._rate_secs, str(self._attr_ids))
 
     def start(self):
         """
@@ -99,22 +99,21 @@ class ResourceMonitor(object):
         """
         The target function for the greenlet.
         """
-        rate_secs = self._rate_millis / 1000.0
         while self._active:
             slept = 0
             # loop to incrementally sleep up to rate_secs while promptly
             # reacting to request for termination
-            while self._active and slept < rate_secs:
+            while self._active and slept < self._rate_secs:
                 # sleep in increments of 0.5 secs
-                incr = min(0.5, rate_secs - slept)
+                incr = min(0.5, self._rate_secs - slept)
                 sleep(incr)
                 slept += incr
 
             if self._active:
                 self._retrieve_attribute_values()
 
-        log.debug("%r: greenlet stopped. rate_millis=%d; attr_ids=%s",
-                  self._platform_id, self._rate_millis, self._attr_ids)
+        log.debug("%r: monitoring greenlet stopped. rate_secs=%s; attr_ids=%s",
+                  self._platform_id, self._rate_secs, self._attr_ids)
 
     def _retrieve_attribute_values(self):
         """
@@ -131,8 +130,8 @@ class ResourceMonitor(object):
             # from_time will be not more than a few minutes ago (note: this
             # is rather arbitrary at the moment):
             # TODO: determine actual criteria here.
-            win_size_millis = min(10 * 60 * 1000, self._rate_millis * 3)
-            from_time = current_time_millis() - win_size_millis
+            win_size_secs = min(10 * 60, self._rate_secs * 3)
+            from_time = current_time_millis() / 1000.0 - win_size_secs
 
             # TODO: Also note that the "from_time" parameter for the request was
             # influenced by the RSN case (see CI-OMS interface). Need to see

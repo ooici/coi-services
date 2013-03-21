@@ -1242,10 +1242,10 @@ class InstrumentAgent(ResourceAgent):
                 try:
                     if not alert_def[stream_name] in self.aparam_streams.keys():
                         raise Exception()
-                    cls = alert_def.pop('alert_cls')
+                    cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
-                    alert = eval('%s(**alert_def)', cls)
+                    alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except:
                     log.error('Instrument agent %s could not construct alert %s, class %s, for stream %s',
@@ -1293,14 +1293,14 @@ class InstrumentAgent(ResourceAgent):
         if action in ('set', 'add'):
             for alert_def in params:
                 try:
-                    cls = alert_def.pop('alert_cls')
+                    cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
-                    alert = eval('%s(**alert_def)', cls)
+                    alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
-                except:
-                    log.error('Instrument agent %s error constructing alert %s.',
-                              self._proc_name, str(alert))
+                except Exception as ex:
+                    log.error('Instrument agent %s error constructing alert %s. Exception: %s.',
+                              self._proc_name, str(alert_def), str(ex))
                     
         elif action == 'remove':
             new_alerts = copy.deepcopy(self.aparam_alerts)
@@ -1311,6 +1311,12 @@ class InstrumentAgent(ResourceAgent):
             log.info('Instrument agent alert: %s', str(a))
                 
         return len(self.aparam_alerts)
+        
+    def aparam_get_alerts(self):
+        """
+        """
+        result = [x.get_status() for x in self.aparam_alerts]
+        return result
         
     ###############################################################################
     # Event callback and handling for direct access.
