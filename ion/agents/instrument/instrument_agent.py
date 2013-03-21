@@ -862,7 +862,12 @@ class InstrumentAgent(ResourceAgent):
                             data_arrays['time'][i] = tv    
             
             for (k,v) in data_arrays.iteritems():
-                rdt[k] = numpy.array(v)
+                try:
+                    rdt[k] = v
+                except:
+                    log.error('Problem with %s incorrect value: %s', repr(k), repr(v))
+                    raise
+
             
             log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
             g = rdt.to_granule(data_producer_id=self.resource_id)

@@ -19,7 +19,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.objects import Granule
 
 
-from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType
+from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType, CategoryType
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
 
@@ -170,7 +170,10 @@ class RecordDictionaryTool(object):
     def _replace_hook(self, name,vals):
         if vals is None:
             return None
-        if not isinstance(self._pdict.get_context(name).param_type, QuantityType):
+        ptype = self._pdict.get_context(name).param_type
+        if isinstance(ptype, CategoryType):
+            pass
+        elif not isinstance(self._pdict.get_context(name).param_type, QuantityType):
             return vals
         if isinstance(vals, (list,tuple)):
             vals = [i if i is not None else self.fill_value(name) for i in vals]
