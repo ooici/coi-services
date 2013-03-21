@@ -1566,6 +1566,7 @@ Reason: %s
         pfid         = row['Parameter Function ID']
         pmap         = row['Parameter Function Map']
         sname        = row['Data Product Identifier']
+        precision    = row['Precision']
 
         try:
             param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
@@ -1578,6 +1579,7 @@ Reason: %s
             context.standard_name = std_name
             context.ooi_short_name = sname
             context.description = description
+            context.precision = precision
         except TypeError as e:
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)
@@ -1638,6 +1640,7 @@ Reason: %s
                 parameter_function_map=pmap,
                 standard_name=std_name,
                 ooi_short_name=sname,
+                precision=precision,
                 headers=self._get_system_actor_headers())
             if pfid:
                 try:
