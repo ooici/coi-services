@@ -516,7 +516,6 @@ class PubsubManagementIntTest(IonIntegrationTestCase):
             self.msg_queue.put(m)
 
         sub1 = StandaloneStreamSubscriber('sub1', subscriber1)
-        self.queue_cleanup.append(sub1.xn.queue)
         sub1.start()
         self.addCleanup(sub1.stop)
 
