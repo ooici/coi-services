@@ -26,8 +26,6 @@ from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_o
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 
 
-from ion.agents.instrument.common import BaseEnum
-
 from ion.agents.platform.exceptions import PlatformException, PlatformConfigurationException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
@@ -39,7 +37,9 @@ from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDri
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 import numpy
 
-from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMStateError
+from pyon.agent.common import BaseEnum
+from pyon.agent.instrument_fsm import ThreadSafeFSM
+from pyon.agent.instrument_fsm import FSMStateError
 
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
@@ -1570,7 +1570,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("constructing fsm")
 
         # Instrument agent state machine.
-        self._fsm = InstrumentFSM(PlatformAgentState, PlatformAgentEvent,
+        self._fsm = ThreadSafeFSM(PlatformAgentState, PlatformAgentEvent,
                                   PlatformAgentEvent.ENTER, PlatformAgentEvent.EXIT)
 
         for state in PlatformAgentState.list():
