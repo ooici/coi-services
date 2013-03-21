@@ -134,18 +134,18 @@ _attribute_generators = {
     'input_bus_current':
     _create_sine_generator(sine_period=50,
                            gen_period=5,
-                           min_val=-30,
-                           max_val=+30),
+                           min_val=-300,
+                           max_val=+300),
 
     'MVPC_temperature':
     _create_sine_generator(sine_period=20,
-                           gen_period=3.33,
-                           min_val=-5,
-                           max_val=+5),
+                           gen_period=4,
+                           min_val=-200,
+                           max_val=+200),
 
     'MVPC_pressure_1':
-    _create_sine_generator(sine_period=90,
-                           gen_period=15,
+    _create_sine_generator(sine_period=20,
+                           gen_period=4,
                            min_val=-100,
                            max_val=+100),
     }

@@ -690,39 +690,18 @@ class PlatformAgent(ResourceAgent):
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
 
-        # TODO uniform handling regardless of the # of params.
-        # For the moment, publishing param by param.
-        #self._publish_granule_with_multiple_params(publisher, driver_event,
-        #                                           param_dict, stream_def)
-        if len(driver_event.vals_dict) == 1:
-
-            param_name, param_value = driver_event.vals_dict.items()[0]
-
-            self._publish_granule_with_single_param(publisher, driver_event,
-                                                     param_name, param_value,
-                                                     param_dict, stream_def)
-
-        else:
-            # for the moment, param by param:
-            for param_name, param_value in driver_event.vals_dict.iteritems():
-                self._publish_granule_with_single_param(publisher, driver_event,
-                                                        param_name, param_value,
-                                                        param_dict, stream_def)
-
+        self._publish_granule_with_multiple_params(publisher, driver_event,
+                                                   param_dict, stream_def)
 
     def _publish_granule_with_multiple_params(self, publisher, driver_event,
                                               param_dict, stream_def):
-
-        #
-        # TODO Not called yet because need to handle potential different
-        # sizes and timestamps in multiple parameters.
 
         stream_name = driver_event.stream_name
 
         rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(),
                                    stream_definition_id=stream_def)
 
-        pub_param_names = []
+        pub_params = {}
         selected_timestamps = None
 
         for param_name, param_value in driver_event.vals_dict.iteritems():
@@ -743,20 +722,26 @@ class PlatformAgent(ResourceAgent):
             assert isinstance(param_value, list)
             assert isinstance(param_value[0], tuple)
 
-            log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
-                     self._platform_id, param_name, len(param_value), str(param_value))
-
             # separate values and timestamps:
             vals, timestamps = zip(*param_value)
+
+            # Use fill_value in context to replace any None values:
+            param_ctx = param_dict.get_context(param_name)
+            if param_ctx:
+                fill_value = param_ctx.fill_value
+                log.debug("%r: param_name=%r fill_value=%s",
+                          self._platform_id, param_name, fill_value)
+                # do the replacement:
+                vals = [fill_value if val is None else val for val in vals]
+            else:
+                log.warn("%r: unexpected: parameter context not found for %r",
+                         self._platform_id, param_name)
 
             # Set values in rdt:
             rdt[param_name] = numpy.array(vals)
 
-            pub_param_names.append(param_name)
+            pub_params[param_name] = vals
 
-            # TODO: do proper handling of the timestamps for the assignment
-            # to the rdt. For the moment, just arbitrarily picking the
-            # array of timestamps from the last iteration here.
             selected_timestamps = timestamps
 
         if selected_timestamps is None:
@@ -764,49 +749,10 @@ class PlatformAgent(ResourceAgent):
             return
 
         self._publish_granule(stream_name, publisher, param_dict, rdt,
-                              pub_param_names,
-                              selected_timestamps, len(selected_timestamps))
-
-    def _publish_granule_with_single_param(self, publisher, driver_event,
-                                           param_name, param_value,
-                                           param_dict, stream_def):
-
-        stream_name = driver_event.stream_name
-
-        rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(),
-                                   stream_definition_id=stream_def)
-
-        param_name = param_name.lower()
-
-        if param_name not in rdt:
-            if param_name not in self._unconfigured_params:
-                # an unrecognized attribute for this platform:
-                self._unconfigured_params.add(param_name)
-                log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r'
-                         ' rdt.keys=%s',
-                         self._platform_id, param_name, stream_name. rdt.keys())
-            return
-
-        # Note that notification from the driver has the form
-        # of a non-empty list of pairs (val, ts)
-        assert isinstance(param_value, list)
-        assert isinstance(param_value[0], tuple)
-
-        log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
-                 self._platform_id, param_name, len(param_value), str(param_value))
-
-        # separate values and timestamps:
-        vals, timestamps = zip(*param_value)
-
-        # Set values in rdt:
-        rdt[param_name] = numpy.array(vals)
-        pub_param_names = [param_name]
-
-        self._publish_granule(stream_name, publisher, param_dict, rdt,
-                              pub_param_names, timestamps, len(vals))
+                              pub_params, selected_timestamps)
 
     def _publish_granule(self, stream_name, publisher, param_dict, rdt,
-                         pub_param_names, timestamps, no_vals):
+                         pub_params, timestamps):
 
         # Set timestamp info in rdt:
         if param_dict.temporal_parameter_name is not None:
@@ -823,9 +769,12 @@ class PlatformAgent(ResourceAgent):
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
             publisher.publish(g)
-            log.debug("%r: Platform agent published data granule on stream %r "
-                      "with %d values (parameters=%s)",
-                      self._platform_id, stream_name, no_vals, pub_param_names)
+
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("%r: Platform agent published data granule on stream %r: "
+                          "%s  timestamps: %s",
+                          self._platform_id, stream_name,
+                          self._pp.pformat(pub_params), self._pp.pformat(timestamps))
 
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",
