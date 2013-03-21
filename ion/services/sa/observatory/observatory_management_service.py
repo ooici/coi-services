@@ -174,6 +174,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(observatory)
 
         # create the marine facility
         observatory_id = self.RR2.create(observatory, RT.Observatory)
@@ -198,6 +200,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory    Observatory
         @throws NotFound    object with specified id does not exist
         """
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(observatory)
+
         return self.RR2.update(observatory, RT.Observatory)
 
     def delete_observatory(self, observatory_id=''):
@@ -223,6 +228,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(subsite)
+
         subsite_id = self.RR2.create(subsite, RT.Subsite)
 
         if parent_id:
@@ -245,6 +253,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite    Subsite
         @throws NotFound    object with specified id does not exist
         """
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(subsite)
+
         return self.RR2.update(subsite, RT.Subsite)
 
     def delete_subsite(self, subsite_id=''):
