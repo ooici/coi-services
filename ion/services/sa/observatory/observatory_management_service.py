@@ -93,7 +93,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
     def _calc_geospatial_point_center(self, site):
 
-        if site:
+        siteTypes = [RT.Site, RT.Subsite, RT.Observatory, RT.PlatformSite, RT.InstrumentSite]
+        if site and site.type_ in siteTypes:
             # if the geospatial_bounds is set then calculate the geospatial_point_center
             for constraint in site.constraint_list:
                 if constraint.type_ == OT.GeospatialBounds:
