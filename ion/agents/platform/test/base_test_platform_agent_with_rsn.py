@@ -368,8 +368,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     def _debug_config(self, config, outname):
         if log.isEnabledFor(logging.DEBUG):
             import pprint
-            pprint.PrettyPrinter(stream=file(outname, "w")).pprint(config)
-            log.debug("config pretty-printed to %s", outname)
+            outname = "logs/%s" % outname
+            try:
+                pprint.PrettyPrinter(stream=file(outname, "w")).pprint(config)
+                log.debug("config pretty-printed to %s", outname)
+            except Exception as e:
+                log.warn("error printing config to %s: %s", outname, e)
 
     def _verify_child_config(self, config, device_id):
         for key in required_config_keys:

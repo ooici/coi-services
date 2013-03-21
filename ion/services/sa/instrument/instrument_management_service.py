@@ -1616,13 +1616,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
-        # clean up InstAgent list as it sometimes includes the device
-        ia = None
-        for agent in extended_instrument.instrument_agent:
-            if agent.type_ == 'InstrumentAgent':
-                ia = agent
-                break
-        extended_instrument.instrument_agent = ia
 
         # Status computation
         status_rollups = self.outil.get_status_roll_ups(instrument_device_id, RT.InstrumentDevice)
@@ -1803,14 +1796,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                   RT.PlatformDevice)
 
         s_unknown = StatusType.STATUS_UNKNOWN
-
-        # clean up platform agent list as it sometimes includes the device
-        pa = None
-        for agent in extended_platform.platform_agent:
-            if agent.type_ == 'PlatformAgent':
-                pa = agent
-                break
-        extended_platform.platform_agent = pa
 
         # Status computation
         extended_platform.computed.instrument_status = [s_unknown] * len(extended_platform.instrument_devices)

@@ -93,7 +93,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdG5xVG45YTVUVXVIa0pkUUhpZkxZZHc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydElFSTFrbVhsZzQ3djRCOHdZVmVtZmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -432,7 +432,7 @@ class IONLoader(ImmediateProcess):
         self.resource_objs.update(res_obj_mapping)
 
     def _finalize_bulk(self, category):
-        res = self.resource_ds.create_mult(self.bulk_objects.values())
+        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
         log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
         num_objects = len([1 for obj in self.bulk_objects.values() if obj._get_type() != "Association"])
         self.bulk_objects.clear()
@@ -1566,6 +1566,7 @@ Reason: %s
         pfid         = row['Parameter Function ID']
         pmap         = row['Parameter Function Map']
         sname        = row['Data Product Identifier']
+        precision    = row['Precision']
 
         try:
             param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
@@ -1578,6 +1579,7 @@ Reason: %s
             context.standard_name = std_name
             context.ooi_short_name = sname
             context.description = description
+            context.precision = precision
         except TypeError as e:
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)
@@ -1638,6 +1640,7 @@ Reason: %s
                 parameter_function_map=pmap,
                 standard_name=std_name,
                 ooi_short_name=sname,
+                precision=precision,
                 headers=self._get_system_actor_headers())
             if pfid:
                 try:
