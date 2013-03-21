@@ -53,8 +53,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         exchange_point = exchange_point or 'science_data'
 
         # if the geospatial_bounds is set then calculate the geospatial_point_center
-        data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
-        log.debug("create_data_product data_product.geospatial_point_center: %s" % data_product.geospatial_point_center)
+        if data_product and data_product.type_ == RT.DataProduct:
+            data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
+            log.debug("create_data_product data_product.geospatial_point_center: %s" % data_product.geospatial_point_center)
 
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
@@ -103,7 +104,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         """
 
         # if the geospatial_bounds is set then calculate the geospatial_point_center
-        data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
+        if data_product and data_product.type_ == RT.DataProduct:
+            data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
 
         self.RR2.update(data_product, RT.DataProduct)
 
