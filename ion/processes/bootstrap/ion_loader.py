@@ -432,7 +432,7 @@ class IONLoader(ImmediateProcess):
         self.resource_objs.update(res_obj_mapping)
 
     def _finalize_bulk(self, category):
-        res = self.resource_ds.create_mult(self.bulk_objects.values())
+        res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
         log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
         num_objects = len([1 for obj in self.bulk_objects.values() if obj._get_type() != "Association"])
         self.bulk_objects.clear()
