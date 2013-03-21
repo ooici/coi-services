@@ -6,7 +6,7 @@ import unittest
 from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.public import RT, PRED
+from pyon.public import RT, PRED, OT
 from pyon.public import IonObject
 from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
@@ -314,6 +314,41 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                         description='some new mf')
         observatory_id = self.OMS.create_observatory(observatory_obj)
         self.OMS.force_delete_observatory(observatory_id)
+
+    #@unittest.skip("targeting")
+    def test_create_geospatial_point_center(self):
+        platformsite_obj = IonObject(RT.PlatformSite,
+                                        name='TestPlatformSite',
+                                        description='some new TestPlatformSite')
+        geo_index_obj = IonObject(OT.GeospatialBounds)
+        geo_index_obj.geospatial_latitude_limit_north = 200.0
+        geo_index_obj.geospatial_latitude_limit_south = 100.0
+        geo_index_obj.geospatial_longitude_limit_east = 150.0
+        geo_index_obj.geospatial_longitude_limit_west = 200.0
+        platformsite_obj.constraint_list = [geo_index_obj]
+
+        platformsite_id = self.OMS.create_platform_site(platformsite_obj)
+
+        # now get the dp back to see if it was updated
+        platformsite_obj = self.OMS.read_platform_site(platformsite_id)
+        self.assertEquals(platformsite_obj.description,'some new TestPlatformSite')
+        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 150.0)
+
+
+        #now adjust a few params
+        platformsite_obj.description ='some old TestPlatformSite'
+        geo_index_obj = IonObject(OT.GeospatialBounds)
+        geo_index_obj.geospatial_latitude_limit_north = 300.0
+        geo_index_obj.geospatial_latitude_limit_south = 200.0
+        platformsite_obj.constraint_list = [geo_index_obj]
+        update_result = self.OMS.update_platform_site(platformsite_obj)
+
+        # now get the dp back to see if it was updated
+        platformsite_obj = self.OMS.read_platform_site(platformsite_id)
+        self.assertEquals(platformsite_obj.description,'some old TestPlatformSite')
+        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 250.0)
+
+        self.OMS.force_delete_platform_site(platformsite_id)
 
 
     #@unittest.skip("targeting")
