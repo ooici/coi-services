@@ -187,9 +187,9 @@ class UILoader(object):
                 # Write the full set of UIResource objects
                 self._finalize_uirefs()
                 ds = DatastoreManager.get_datastore_instance("resources")
-                res = ds.create_mult(self.ui_obj_by_id.values())
+                res = ds.create_mult(self.ui_obj_by_id.values(), allow_ids=True)
                 log.info("Stored %s UI resource objects into resource registry" % (len(res)))
-                res = ds.create_mult(self.ui_assocs)
+                res = ds.create_mult(self.ui_assocs, allow_ids=True)
                 log.info("Stored %s UI resource associations into resource registry" % (len(res)))
         except Exception as ex:
             log.exception("Store in resource registry error err=%s" % (str(ex)))
