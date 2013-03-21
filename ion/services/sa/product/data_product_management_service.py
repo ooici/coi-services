@@ -21,6 +21,7 @@ import string
 from lxml import etree
 from datetime import datetime
 from ion.util.time_utils import TimeUtils
+from ion.util.geo_utils import GeoUtils
 
 import numpy as np
 
@@ -32,6 +33,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def on_init(self):
         self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+
 
     def create_data_product(self, data_product=None, stream_definition_id='', exchange_point=''):
         """
@@ -49,6 +51,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
         exchange_point = exchange_point or 'science_data'
+
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
+        log.debug("create_data_product data_product.geospatial_point_center: %s" % data_product.geospatial_point_center)
 
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
@@ -95,6 +101,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product    DataProduct
         @throws NotFound    object with specified id does not exist
         """
+
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
 
         self.RR2.update(data_product, RT.DataProduct)
 
