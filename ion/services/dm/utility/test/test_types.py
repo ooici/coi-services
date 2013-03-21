@@ -83,7 +83,11 @@ class TestTypes(PyonTestCase):
         cov.set_parameter_values('test', tdoa=slice(0,len(value_array)), value=value_array)
         comp_val = comp_val if comp_val is not None else value_array
         testval = cov.get_parameter_values('test')
-        np.testing.assert_array_equal(testval, comp_val)
+        try:
+            np.testing.assert_array_equal(testval, comp_val)
+        except:
+            print repr(value_array)
+            raise
 
     def test_quantity_type(self):
         ptype      = 'quantity'
@@ -121,9 +125,9 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
+        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
+        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
 
         self.rdt_to_granule(context, ['hi'] * 20)
         self.cov_io(context, ['hi'] * 20)
@@ -137,13 +141,31 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
+        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
+        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
 
         self.rdt_to_granule(context,['hi'] * 20)
         self.cov_io(context, ['hi'] * 20)
 
+    def test_array_type(self):
+        ptype      = 'array<quantity>'
+        encoding   = 'int32'
+        fill_value = 'empty'
+
+        context = self.get_context(ptype, encoding, fill_value)
+        paramval = self.get_pval(context)
+
+        paramval[:] = [context.fill_value] * 20
+        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
+        paramval[:] = [[1,2,3]] * 20
+        [np.testing.assert_array_equal(paramval[i], [1,2,3]) for i in xrange(20)]
+        testval = np.array([None] * 20)
+        for i in xrange(20):
+            testval[i] = [1,2,3]
+
+        self.rdt_to_granule(context, [[1,2,3]] * 20, testval)
+        self.cov_io(context, testval)
 
     def test_category_type(self):
         ptype      = 'category<int8:str>'
@@ -156,6 +178,9 @@ class TestTypes(PyonTestCase):
         
         for key in context.param_type.categories:
             self.assertIsInstance(key,np.int8)
+
+        paramval[:] = [None] * 20
+        [self.assertEquals(paramval[i], 'off') for i in xrange(20)]
 
         paramval[:] = [context.fill_value] * 20
         [self.assertEquals(paramval[i], 'off') for i in xrange(20)]
@@ -316,7 +341,10 @@ class TestTypes(PyonTestCase):
         paramval[:] = [{0:'a'}] * 20
         [self.assertEquals(paramval[i], {0:'a'}) for i in xrange(20)]
 
+        testval = [{0:'a'}] * 20
+
         self.rdt_to_granule(context, [{0:'a'}] * 20)
+        self.cov_io(context, testval)
 
     def test_bad_ptype(self):
         self.assertRaises(TypeError, get_parameter_type, 'flimsy','','')
