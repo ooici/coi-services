@@ -144,7 +144,7 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name=''):
+    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name='', precision=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
@@ -162,10 +162,11 @@ class DatasetManagementService(BaseDatasetManagementService):
         pc_res.units = units
         pc_res.fill_value = fill_value
         pc_res.display_name = display_name
-        pc_res.parameter_function_id = ''
-        pc_res.parameter_function_map = {}
-        pc_res.standard_name = ''
-        pc_res.ooi_short_name = ''
+        pc_res.parameter_function_id = parameter_function_id
+        pc_res.parameter_function_map = parameter_function_map
+        pc_res.standard_name = standard_name
+        pc_res.ooi_short_name = ooi_short_name
+        pc_res.precision = precision or '5'
 
         pc_id, ver = self.clients.resource_registry.create(pc_res)
         if parameter_function_id:

@@ -342,7 +342,9 @@ class ModelPolicy(ResourceLCSPolicy):
         model_type = self._get_resource_type_by_id(model_id)
 
         if RT.SensorModel == model_type:
-            return 0 == len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id))
+            if 0 < len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id)):
+                return self._make_fail("SensorDevice(s) are using this model")
+            return self._make_pass()
 
         if RT.InstrumentModel == model_type:
             if 0 < len(self._find_having(RT.InstrumentDevice, PRED.hasModel, model_id)):
