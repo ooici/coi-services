@@ -120,11 +120,16 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                 if not field in config['parameters']:
                     continue
 
-            # only consider fields which are supposed to be numbers.
+            # only consider fields which are allowed.
+            if rdt[field] == None:
+                continue
             if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
                 continue
 
-            data_description.append((field, 'number', field))
+            if (rdt[field].dtype == 'string'):
+                data_description.append((field, 'string', field))
+            else:
+                data_description.append((field, 'number', field))
 
         for i in xrange(len(rdt)):
             varTuple = []
