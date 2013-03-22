@@ -2000,7 +2000,7 @@ Reason: %s
 
         alerts_config  = self._parse_dict(row['alerts'])
 
-    # Note: platform_id currently expected by PlatformAgent as follows:
+        # Note: platform_id currently expected by PlatformAgent as follows:
         agent_config = {
             'platform_config': {'platform_id': platform_id}
         }
