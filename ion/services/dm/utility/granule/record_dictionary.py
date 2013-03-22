@@ -86,6 +86,15 @@ class RecordDictionaryTool(object):
         retval = np.atleast_1d(self[name])
         return retval[slice_]
 
+    def _get_field_name(self, field_name):
+        field_pool = [f for f in self.fields if f.startswith(field_name)]
+        if len(field_pool) == 1:
+            return field_pool[0]
+        elif len(field_pool) > 0:
+            raise KeyError('%s has multiple parameters' % field_name)
+        else:
+            return field_name # Let it happen
+
     @classmethod
     def get_paramval(cls, ptype, domain, values):
         paramval = get_value_class(ptype, domain_set=domain)
@@ -165,6 +174,7 @@ class RecordDictionaryTool(object):
         return self._pdict.temporal_parameter_name
 
     def fill_value(self,name):
+        name = self._get_field_name(name)
         return self._pdict.get_context(name).fill_value
 
     def _replace_hook(self, name,vals):
@@ -188,6 +198,7 @@ class RecordDictionaryTool(object):
         return np.atleast_1d(vals)
 
     def __setitem__(self, name, vals):
+        name = self._get_field_name(name)
         return self._set(name, self._replace_hook(name,vals))
 
     def _set(self, name, vals):
@@ -240,6 +251,7 @@ class RecordDictionaryTool(object):
         """
         Get an item by nick name from the record dictionary.
         """
+        name = self._get_field_name(name)
         if self._available_fields and name not in self._available_fields:
             raise KeyError(name)
         if self._rd[name] is not None:

@@ -836,11 +836,11 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
     def _get_new_ctd_packet(self, stream_definition_id, length):
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_definition_id)
-        rdt['time'] = numpy.arange(self.i, self.i+length)
 
         for field in rdt:
             if isinstance(rdt._pdict.get_context(field).param_type, QuantityType):
                 rdt[field] = numpy.array([random.uniform(0.0,75.0)  for i in xrange(length)])
+        rdt['time'] = numpy.arange(self.i, self.i+length)
 
         g = rdt.to_granule()
         self.i+=length
