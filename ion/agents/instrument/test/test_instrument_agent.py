@@ -45,6 +45,7 @@ from pyon.core.object import IonObjectDeserializer
 # Pyon exceptions.
 from pyon.core.exception import BadRequest
 from pyon.core.exception import Conflict
+from pyon.core.exception import ResourceError
 
 # Agent imports.
 from pyon.util.context import LocalContextMixin
@@ -89,6 +90,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_lost_connection
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autoreconnect
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_connect_failed
 """
 
 ###############################################################################
@@ -2031,4 +2033,33 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._support.start_pagent()
 
         gl.join()
+
+    def test_connect_failed(self):
+        """
+        test_connect_failed
+        """
+        # Stop the port agent.
+        self._support.stop_pagent()
+        
+        # Sleep a bit.
+        gevent.sleep(3)
+        
+        # Start in uninitialized.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        # Initialize the agent.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Activate. This should fail because there is no port agent to connect to.
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        with self.assertRaises(ResourceError):
+            retval = self._ia_client.execute_agent(cmd)
+            
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
 
