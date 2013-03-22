@@ -389,14 +389,32 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
 
-        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2(
-                                                        ctd_L0_all_dprocdef_id,
-                                                        [ctd_parsed_data_product],
-                                                        [ctd_l0_conductivity_output_dp_id, ctd_l0_pressure_output_dp_id, ctd_l0_temperature_output_dp_id]
-                                                        )
-        data_process = self.rrclient.read(ctd_l0_all_data_process_id)
-        process_id = data_process.process_id
-        self.addCleanup(self.process_dispatcher.cancel_process, process_id)
+        in_data_product_ids = [ctd_parsed_data_product]
+        out_data_product_ids = [ctd_l0_conductivity_output_dp_id, ctd_l0_pressure_output_dp_id, ctd_l0_temperature_output_dp_id]
+
+        ctd_L0_actor = self.create_L0_transform_function()
+
+        route = {ctd_parsed_data_product: {ctd_l0_conductivity_output_dp_id: ctd_L0_actor,
+                                           ctd_l0_pressure_output_dp_id : ctd_L0_actor,
+                                           ctd_l0_temperature_output_dp_id : ctd_L0_actor
+                                           }}
+        config = DotDict()
+        config.process.routes = route
+        config.process.params.lat = 45.
+        config.process.params.lon = -71.
+
+        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2( in_data_product_ids = in_data_product_ids,
+                                                                                    out_data_product_ids = out_data_product_ids,
+                                                                                    configuration= config
+                                                                                )
+
+        log.debug("created the data process: %s", ctd_l0_all_data_process_id)
+
+        results, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id,
+                                                predicate=PRED.hasProcess,
+                                                id_only = True)
+
+        process_id = results[0]
 
         #-------------------------------
         # Wait until the process launched in the create_data_process2() method is actually running, before proceeding further in this test
@@ -411,7 +429,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         # todo: Req: L4-CI-SA-RQ-366  Data processing shall manage data topic definitions
         # todo: data topics are being handled by pub sub at the level of streams
-        self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
+        self.dataprocessclient.activate_data_process2(ctd_l0_all_data_process_id)
         
 
         #todo: check that activate event is received L4-CI-SA-RQ-367
@@ -420,13 +438,16 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
 
         # todo: monitor process to see if it is active (sa-rq-182)
-        ctd_l0_all_data_process = self.rrclient.read(ctd_l0_all_data_process_id)
-        input_subscription_id = ctd_l0_all_data_process.input_subscription_id
+        rets, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id,
+                                                predicate=PRED.hasSubscription,
+                                                id_only=True)
+        input_subscription_id = rets[0]
+
         subs = self.rrclient.read(input_subscription_id)
         self.assertTrue(subs.activated)
 
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
-        self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process2(ctd_l0_all_data_process_id)
 
 
         #-------------------------------
@@ -461,7 +482,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 #            out_streams.extend(streams)
 
         # Deleting the data process
-        self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
+        self.dataprocessclient.delete_data_process2(ctd_l0_all_data_process_id)
 
         # Check that the data process got removed. Check the lcs state. It should be retired
         dp_obj = self.rrclient.read(ctd_l0_all_data_process_id)
