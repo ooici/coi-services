@@ -1288,7 +1288,7 @@ class InstrumentAgent(ResourceAgent):
             return -1
         
         if action in ('set', 'clear'):
-            [x.stop() for x in self.aparams_alerts]
+            [x.stop() for x in self.aparam_alerts]
             self.aparam_alerts = []
                 
         if action in ('set', 'add'):

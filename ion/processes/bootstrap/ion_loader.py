@@ -93,7 +93,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydElFSTFrbVhsZzQ3djRCOHdZVmVtZmc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGRneFo5dmhWNUVuR0tkMUVqUVA3LWc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1494,6 +1494,14 @@ Reason: %s
 
         name = row['name']
         definitions = row['parameter_ids'].replace(' ','').split(',')
+        try:
+            if row['temporal_parameter']:
+                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
+            else:
+                temporal_parameter_name = ''
+        except KeyError:
+            temporal_parameter_name = ''
+
 
         context_ids = {}
         for i in definitions:
@@ -1512,7 +1520,7 @@ Reason: %s
             return
         dataset_management = self._get_service_client('dataset_management')
         try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'], headers=self._get_system_actor_headers())
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=temporal_parameter_name, headers=self._get_system_actor_headers())
         except:
             log.exception( '%s has a problem', row['name'])
             return
@@ -1567,6 +1575,7 @@ Reason: %s
         pmap         = row['Parameter Function Map']
         sname        = row['Data Product Identifier']
         precision    = row['Precision']
+        param_id     = row['ID']
 
         try:
             param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
@@ -1655,7 +1664,7 @@ Reason: %s
             else:
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
-        self._register_id(row[COL_ID], context_id)
+        self._register_id(row[COL_ID], context_id, context)
         parameter_lookups[row[COL_ID]] = name
 
 
@@ -1909,6 +1918,7 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
 
         startup_config = self._parse_dict(row['startup_config'])
+        alerts_config  = self._parse_dict(row['alerts'])
 
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
@@ -1929,7 +1939,8 @@ Reason: %s
             "instrument_management", "create_instrument_agent_instance",
             set_attributes=dict(driver_config=driver_config,
                                 port_agent_config=port_agent_config,
-                                startup_config=startup_config),
+                                startup_config=startup_config,
+                                alerts=alerts_config),
             support_bulk=True)
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
@@ -1996,6 +2007,8 @@ Reason: %s
         driver_config = self._parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
 
+        alerts_config  = self._parse_dict(row['alerts'])
+
         # Note: platform_id currently expected by PlatformAgent as follows:
         agent_config = {
             'platform_config': {'platform_id': platform_id}
@@ -2005,7 +2018,8 @@ Reason: %s
         res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
             "instrument_management", "create_platform_agent_instance",
             set_attributes=dict(agent_config=agent_config,
-                                driver_config=driver_config),
+                                driver_config=driver_config,
+                                alerts=alerts_config),
             support_bulk=True)
 
         client = self._get_service_client("instrument_management")

@@ -19,7 +19,7 @@ import unittest
 import subprocess
 import os
 import pwd
-from urllib2 import urlopen
+from urllib2 import urlopen, urlparse
 
 """
 contents of the file encoded below:
@@ -166,6 +166,7 @@ class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
         if "driver_release_user" in CFG.service.data_process_management:
             cfg_user = CFG.service.data_process_management.process_release_user
 
+        cfg_remotepath = CFG.service.data_process_management.process_release_directory
 
         remotehost = "%s@%s" % (cfg_user, cfg_host)
 
@@ -180,6 +181,20 @@ class TestRegisterProcessDefinitionIntegration(IonIntegrationTestCase):
 
 
         remote_url = self.DPMS.register_data_process_definition(BASE64_PYFILE)
+
+        def delete_remote_file():
+            remote_filename = os.path.basename(urlparse.urlsplit(remote_url)[2])
+            remote_file = os.path.join(cfg_remotepath, remote_filename)
+
+            ssh_retval = subprocess.call(["ssh", "-o", "PasswordAuthentication=no",
+                                          "-o", "StrictHostKeyChecking=no",
+                                          remotehost, "-f", "rm", "-f", remote_file],
+                                          stdout=open(os.devnull),
+                                          stderr=open(os.devnull))
+            if 0 != ssh_retval:
+                print "Failed to delete remote file"
+
+        self.addCleanup(delete_remote_file)
 
         failmsg = ""
         try:

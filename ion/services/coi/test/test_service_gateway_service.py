@@ -73,7 +73,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to service
         self.service_gateway_service = ServiceGatewayServiceClient(node=self.container.node)

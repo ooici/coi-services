@@ -2,12 +2,13 @@
 
 """Process that subscribes to ALL events and persists them efficiently in bulk into the events datastore"""
 
-from pyon.core import bootstrap
+import pprint
+from gevent.queue import Queue
+from gevent.event import Event
+
 from pyon.event.event import EventSubscriber
 from pyon.ion.process import StandaloneProcess
 from pyon.util.async import spawn
-from gevent.queue import Queue
-from gevent.event import Event
 from pyon.public import log
 
 
@@ -30,6 +31,9 @@ class EventPersister(StandaloneProcess):
         # Temporarily holds list of events to persist while datastore operation are not yet completed
         # This is where events to persist will remain if datastore operation fails occasionally.
         self.events_to_persist = None
+
+        # Number of unsuccessful attempts to persist in a row
+        self.failure_count = 0
 
         # bookkeeping for timeout greenlet
         self._persist_greenlet = None
@@ -80,7 +84,26 @@ class EventPersister(StandaloneProcess):
         # Event.wait returns False on timeout (and True when set in on_quit), so we use this to both exit cleanly and do our timeout in a loop
         while not self._terminate_persist.wait(timeout=persist_interval):
             try:
-                if self.events_to_persist:
+                if self.events_to_persist and self.failure_count > 2:
+                    bad_events = []
+                    log.warn("Attempting to persist %s events individually" % (len(self.events_to_persist)))
+                    for event in self.events_to_persist:
+                        try:
+                            self.container.event_repository.put_event(event)
+                        except Exception:
+                            bad_events.append(event)
+
+                    if len(self.events_to_persist) != len(bad_events):
+                        log.warn("Succeeded to persist some of the events - rest must be bad")
+                        self._log_events(bad_events)
+                    elif bad_events:
+                        log.error("Discarding %s events after %s attempts!!" % (len(self.bad_events), self.failure_count))
+                        self._log_events(bad_events)
+
+                    self.events_to_persist = None
+                    self.failure_count = 0
+
+                elif self.events_to_persist:
                     # There was an error last time and we need to retry
                     log.info("Retry persisting %s events" % len(self.events_to_persist))
                     self._persist_events(self.events_to_persist)
@@ -90,12 +113,18 @@ class EventPersister(StandaloneProcess):
 
                 self._persist_events(self.events_to_persist)
                 self.events_to_persist = None
+                self.failure_count = 0
             except Exception as ex:
                 # Note: Persisting events may fail occasionally during test runs (when the "events" datastore is force
                 # deleted and recreated). We'll log and keep retrying forever.
                 log.exception("Failed to persist %s received events. Will retry next cycle" % len(self.events_to_persist))
-                return False
+                self.failure_count += 1
+                self._log_events(self.events_to_persist)
 
     def _persist_events(self, event_list):
         if event_list:
-            bootstrap.container_instance.event_repository.put_events(event_list)
+            self.container.event_repository.put_events(event_list)
+
+    def _log_events(self, events):
+        events_str = pprint.pformat([event.__dict__ for event in events]) if events else ""
+        log.warn("EVENTS:\n%s", events_str)

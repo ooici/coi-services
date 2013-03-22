@@ -490,7 +490,6 @@ class OrgManagementService(BaseOrgManagementService):
         @retval negotiation    list
         @throws NotFound    object with specified id does not exist
         """
-
         param_objects = self._validate_parameters(org_id=org_id)
 
         neg_list,_ = self.clients.resource_registry.find_objects(org_id, PRED.hasNegotiation)
@@ -1193,7 +1192,8 @@ class OrgManagementService(BaseOrgManagementService):
             computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
-            user_id=user_id)
+            user_id=user_id,
+            negotiation_status=0)
 
 
         #Fill out service request information for requesting data products
@@ -1239,48 +1239,43 @@ class OrgManagementService(BaseOrgManagementService):
                 if user_info_objs:
                     log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
                     extended_org.members.append( user_info_objs[0] )
-        else:
-            #For all other Orgs, flatten out the list of lists returned from the extended resource framework.
-            if extended_org.members:
-                user_info_list = list()
-                for m in extended_org.members:
-                    for u in m:
-                        user_info_list.append(u)
 
-                extended_org.members = user_info_list
-
-
+        #TODO -  discuss with Maurice - temporarily comment out
         instruments_not_deployed = []
         #compute the non deployed devices
-        if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') :
+        #if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') :
+        #    extended_org.instruments_deployed = extended_org.instruments_deployed
             # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between
             #     a site and a device so get the only element from inside this list
-            extended_org.instruments_deployed = [d[0] for d in extended_org.instruments_deployed
-                                                 if len(d) and hasattr(d, "type_") and d.type_ == RT.InstrumentDevice]
+        #    extended_org.instruments_deployed = [d[0] for d in extended_org.instruments_deployed
+        #                                         if len(d) and hasattr(d, "type_") and d.type_ == RT.InstrumentDevice]
 
 #            instruments_not_deployed = [x for x in extended_org.instruments
 #                                        if x not in extended_org.instruments_deployed]
 
+        #TODO -  discuss with Maurice - temporarily comment out
         platforms_not_deployed = []
-        if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
+        #if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
             # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between
             #     a site and a device so get the only element from inside this list
-            extended_org.platforms_deployed = [d[0] for d in extended_org.platforms_deployed
-                                                 if len(d) and hasattr(d, "type_") and d.type_ == RT.PlatformDevice]
+        #    extended_org.platforms_deployed = [d[0] for d in extended_org.platforms_deployed
+        #                                         if len(d) and hasattr(d, "type_") and d.type_ == RT.PlatformDevice]
 
 #            platforms_not_deployed = [x for x in extended_org.platforms
 #                                      if x not in extended_org.platforms_deployed]
 
-        open_negotiations = []
-        #filer out the accepted/rejected negotiations and place in closed_negotiations
-        if hasattr(extended_org, 'open_negotiations'):
-            for negotiation in extended_org.open_negotiations:
-                if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
-                    open_negotiations.append(negotiation)
-                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
-                     negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
-                    extended_org.closed_negotiations.append(negotiation)
-            extended_org.open_negotiations = open_negotiations
+
+        #TODO - discuss with Maurice - temporarily comment out
+#        open_negotiations = []
+#        #filer out the accepted/rejected negotiations and place in closed_negotiations
+#        if hasattr(extended_org, 'open_negotiations'):
+#            for negotiation in extended_org.open_negotiations:
+#                if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
+#                    open_negotiations.append(negotiation)
+#                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
+#                     negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
+#                    extended_org.closed_negotiations.append(negotiation)
+#            extended_org.open_negotiations = open_negotiations
 
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil
@@ -1349,13 +1344,13 @@ class OrgManagementService(BaseOrgManagementService):
         extended_org.computed.location_status_roll_up       = short_status_rollup("loc")
         extended_org.computed.aggregated_status             = short_status_rollup("agg")
 
-
+        #TODO -  discuss with Maurice - temporarily comment out
         #set counter attributes
-        extended_org.number_of_platforms            = len(extended_org.platforms)
-        extended_org.number_of_platforms_deployed   = len(extended_org.platforms_deployed)
-        extended_org.number_of_instruments          = len(extended_org.instruments)
-        extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
-        extended_org.number_of_data_products        = len(extended_org.data_products)
+        #extended_org.number_of_platforms            = len(extended_org.platforms)
+        #extended_org.number_of_platforms_deployed   = len(extended_org.platforms_deployed)
+        #extended_org.number_of_instruments          = len(extended_org.instruments)
+        #extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
+        #extended_org.number_of_data_products        = len(extended_org.data_products)
 
         return extended_org
 
