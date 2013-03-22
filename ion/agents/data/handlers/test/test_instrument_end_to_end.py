@@ -63,7 +63,7 @@ class TestHypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
             'dvr_cls': 'HYPMDataHandler',
             'dh_cfg': {
                 'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
-                'parser_cls': 'HYPM_01_WFP_CTDParser',
+                'parser_cls': 'HYPM_01_WFP_CTDParser2',
                 'stream_id': self.stream_id,
                 'stream_route': self.route,
                 'stream_def': self.stream_def_id,

@@ -88,7 +88,7 @@ class HYPMDataHandler(BaseDataHandler):
         return {'new_files': new_list}
 
     @classmethod
-    def _get_data(cls, config):
+    def _get_data_old(cls, config):
         """
         Iterable function that acquires data from a source iteratively based on constraints provided by config
         Passed into BaseDataHandler._publish_data and iterated to publish samples.
@@ -122,6 +122,49 @@ class HYPMDataHandler(BaseDataHandler):
                     #g = build_granule(data_producer_id=dprod_id, taxonomy=ttool, record_dictionary=rdt)
                     g = rdt.to_granule()
                     yield g
+            except HYPMException as ex:
+                # TODO: Decide what to do here, raise an exception or carry on
+                log.error('Error parsing data file \'{0}\': {1}'.format(f, ex))
+
+    @classmethod
+    def _get_data(cls, config):
+        """
+        Iterable function that acquires data from a source iteratively based on constraints provided by config
+        Passed into BaseDataHandler._publish_data and iterated to publish samples.
+        @param config dict containing configuration parameters, may include constraints, formatters, etc
+        @retval an iterable that returns well-formed Granule objects on each iteration
+        """
+        new_flst = get_safe(config, 'constraints.new_files', [])
+        parser_mod = get_safe(config, 'parser_mod', '')
+        parser_cls = get_safe(config, 'parser_cls', '')
+        module = __import__(parser_mod, fromlist=[parser_cls])
+        classobj = getattr(module, parser_cls)
+
+        for f in new_flst:
+            try:
+                parser = classobj(f[0])
+
+                max_rec = get_safe(config, 'max_records', 1)
+                dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
+
+                stream_def = get_safe(config, 'stream_def')
+
+                cnt = calculate_iteration_count(parser.get_record_count(), max_rec)
+
+                for x in xrange(cnt):
+                    rdt = RecordDictionaryTool(stream_definition_id=stream_def)
+
+                    data_map, file_pos = parser.read_next_data()
+
+                    for name in parser.sensor_names:
+                        d = data_map[name][x * max_rec:(x + 1) * max_rec]
+                        rdt[name] = d
+
+                    g = rdt.to_granule()
+                    yield g
+
+                parser.close()
+
             except HYPMException as ex:
                 # TODO: Decide what to do here, raise an exception or carry on
                 log.error('Error parsing data file \'{0}\': {1}'.format(f, ex))
@@ -173,6 +216,72 @@ class HYPM_01_WFP_CTDParser(object):
         except Exception as ex:
             log.error(ex)
             raise HYPMException('Error reading file: %s', url)
+
+class HYPM_01_WFP_CTDParser2(object):
+
+    termination_string = 'ffffffffffffffffffffff'
+
+    def __init__(self, url=None):
+        """
+        Constructor for the parser. Initializes headers and data
+
+        @param url the url/filepath of the file
+        """
+        if not url:
+            raise HYPMException('Must provide a filename')
+
+        self.sensor_names = ['time', 'conductivity', 'temperature', 'pressure', 'oxygen']
+
+        self.f = open(url, 'r')
+
+    def close(self):
+        if not self.f.closed:
+            self.f.close()
+
+    def read_next_data(self):
+
+        data_map = {}
+        time_step_array = {}
+        for name in self.sensor_names:
+            data_map[name] = []
+            time_step_array[name] = []
+
+        try:
+
+            while True:
+                #get rid of trailing spaces in the file
+                line = self.f.readline().strip()
+                if not line:
+                    break
+                #check to see if the termination string has been hit
+                if line != self.termination_string:
+                    time_step_array[self.sensor_names[1]].append((float(int(line[0:6], 16)) / 10000) * 0.5)
+                    time_step_array[self.sensor_names[2]].append((float(int(line[6:12], 16)) / 10000))
+                    time_step_array[self.sensor_names[3]].append((float(int(line[12:18], 16)) / 100) * 10)
+                    #check to see if oxygen is included in data
+                    if len(line) > 18:
+                        time_step_array[self.sensor_names[4]].append(int(line[18:], 16))
+                #termination string
+                else:
+                    #add array of data at this time step to the array type values in the param dict
+                    for name in self.sensor_names:
+                        if not name is 'time':
+                            data_map[name].append(time_step_array[name])
+                        #get next line which contains timestamp
+                    line = self.f.next().strip()
+                    data_map['time'].append(int(line[0:8], 16))
+                    break
+        except Exception as ex:
+            log.error(ex)
+            raise HYPMException('Error getting next data')
+
+        return data_map, self.f.tell()
+
+    def get_record_count(self):
+        self.f.seek(0)
+        lines = self.f.readlines()
+        self.f.seek(0)
+        return lines.count(self.termination_string + '\n')
 
 class HYPM_01_WFP_ACMParser(object):
 
