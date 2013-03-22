@@ -208,15 +208,14 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #---------------------------------------------------------------------------
         # Create the data process
         #---------------------------------------------------------------------------
-        def _create_data_process():
-            dproc_id = self.dataprocessclient.create_data_process2([input_dp_id], [conductivity_dp_id, pressure_dp_id,temp_dp_id], config )
-            self.addCleanup(self.data_process_management.delete_data_process2, dproc_id)
-            return dproc_id
 
-        dproc_id = _create_data_process()
+        dproc_id = self.dataprocessclient.create_data_process2( in_data_product_ids = [input_dp_id],
+                                                                out_data_product_ids = [conductivity_dp_id, pressure_dp_id,temp_dp_id],
+                                                                configuration= config )
+        self.addCleanup(self.dataprocessclient.delete_data_process2, dproc_id)
 
         # Make assertions on the data process created
-        data_process = self.dataprocessclient.read_data_process(dproc_id)
+        data_process = self.dataprocessclient.read_data_process2(dproc_id)
 
         # Assert that the data process has a process id attached
         self.assertIsNotNone(data_process.process_id)
