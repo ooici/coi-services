@@ -4,7 +4,7 @@ from interface.objects import ContactInformation, UpdateDescription, DatasetDesc
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.event.event import EventSubscriber
 from coverage_model.parameter import ParameterContext
-from coverage_model.parameter_types import QuantityType
+from coverage_model.parameter_types import QuantityType, ArrayType
 from pyon.public import RT, log, PRED, OT
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from pyon.util.context import LocalContextMixin
@@ -13,138 +13,9 @@ from nose.plugins.attrib import attr
 from gevent.event import Event
 from pyon.util.int_test import IonIntegrationTestCase
 
-# class FakeProcess(LocalContextMixin):
-#     """
-#     A fake process used because the test case is not an ion process.
-#     """
-#     name = ''
-#     id = ''
-#     process_type = ''
-
-
-# class HypmBase(IonIntegrationTestCase):
-#
-#     def setUp(self):
-#         self._start_container()
-#         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-#
-#         self.pubsub_management    = PubsubManagementServiceClient()
-#         self.dataset_management   = DatasetManagementServiceClient()
-#         self.data_product_management = DataProductManagementServiceClient()
-#         self.data_acquisition_management = DataAcquisitionManagementServiceClient()
-#         self.data_retriever = DataRetrieverServiceClient()
-#         self.resource_registry       = self.container.resource_registry
-#         self.context_ids = self.build_param_contexts()
-#         self.setup_resources()
-#
-#     def build_param_contexts(self):
-#         raise NotImplementedError('build_param_contexts must be implemented in child classes')
-#
-#     def create_external_dataset(self):
-#         raise NotImplementedError('create_external_dataset must be implemented in child classes')
-#
-#     def get_dvr_config(self):
-#         raise NotImplementedError('get_dvr_config must be implemented in child classes')
-#
-#     def test_end_to_end(self):
-#         self.pdict_id = self.create_parameter_dict(self.name)
-#         self.stream_def_id = self.create_stream_def(self.name, self.pdict_id)
-#         self.data_product_id = self.create_data_product(self.name, self.description, self.stream_def_id)
-#         self.dataset_id = self.get_dataset_id(self.data_product_id)
-#         self.stream_id, self.route = self.get_stream_id_and_route(self.data_product_id)
-#         self.external_dataset_id = self.create_external_dataset()
-#         self.start_agent()
-#
-#     def create_parameter_dict(self, name=''):
-#         return self.dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=self.context_ids, temporal_context='time')
-#
-#     def create_stream_def(self, name='', pdict_id=''):
-#         return self.pubsub_management.create_stream_definition(name=name, parameter_dictionary_id=pdict_id)
-#
-#     def create_data_product(self, name='', description='', stream_def_id=''):
-#         tdom, sdom = time_series_domain()
-#         tdom = tdom.dump()
-#         sdom = sdom.dump()
-#         dp_obj = DataProduct(
-#             name=name,
-#             description=description,
-#             processing_level_code='Parsed_Canonical',
-#             temporal_domain = tdom,
-#             spatial_domain = sdom)
-#
-#         data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)
-#         self.data_product_management.activate_data_product_persistence(data_product_id)
-#         return data_product_id
-#
-#     def get_dataset_id(self, data_product_id=''):
-#         dataset_ids, assocs = self.resource_registry.find_objects(subject=data_product_id, predicate='hasDataset', id_only=True)
-#         return dataset_ids[0]
-#
-#     def get_stream_id_and_route(self, data_product_id):
-#         stream_ids, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-#         stream_id = stream_ids[0]
-#         route = self.pubsub_management.read_stream_route(stream_id)
-#         return stream_id, route
-#
-#     def start_agent(self):
-#         agent_config = {
-#             'driver_config': self.get_dvr_config(),
-#             'stream_config': {},
-#             'agent': {'resource_id': self.external_dataset_id},
-#             'test_mode': True
-#         }
-#
-#         _ia_pid = self.container.spawn_process(
-#             name=self.EDA_NAME,
-#             module=self.EDA_MOD,
-#             cls=self.EDA_CLS,
-#             config=agent_config)
-#
-#         self._ia_client = ResourceAgentClient(self.external_dataset_id, process=FakeProcess())
-#
-#         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-#         self._ia_client.execute_agent(cmd)
-#         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-#         self._ia_client.execute_agent(cmd)
-#         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
-#         self._ia_client.execute_agent(cmd)
-#         cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
-#         self._ia_client.execute_resource(command=cmd)
-#
-#         self.start_listener(self.dataset_id)
-#
-#     def stop_agent(self):
-#         cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
-#         self._ia_client.execute_resource(cmd)
-#
-#         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-#         self._ia_client.execute_agent(cmd)
-#
-#     def start_listener(self, dataset_id=''):
-#         dataset_modified = Event()
-#         def cb(*args, **kwargs):
-#             dataset_modified.set()
-#             self.stop_agent()
-#             self.get_retrieve_client(dataset_id=dataset_id)
-#         es = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb, origin='BaseDataHandler._acquire_sample')
-#         es.start()
-#
-#         self.addCleanup(es.stop)
-#
-#         #let it go for up to 120 seconds, then stop the agent and reset it
-#         dataset_modified.wait(120)
-#
-#     def get_retrieve_client(self, dataset_id=''):
-#         replay_data = self.data_retriever.retrieve(dataset_id)
-#         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-#         print len(rdt['temperature'])
-#         print len(rdt['pressure'])
-#         print len(rdt['conductivity'])
-#         self.assertIsNotNone(rdt['temperature'])
-
 
 @attr('INT', group='eoi')
-class TestHypm_WPF_CTD(TestBulkIngestBase):
+class TestHypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'hypm_01_wpf_ctd'
@@ -159,19 +30,19 @@ class TestHypm_WPF_CTD(TestBulkIngestBase):
         t_ctxt.uom = 'seconds since 01-01-1970'
         context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
 
-        cnd_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        cnd_ctxt = ParameterContext('conductivity', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         cnd_ctxt.uom = 'mmho/cm'
         context_ids.append(self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cnd_ctxt.dump()))
 
-        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        temp_ctxt = ParameterContext('temperature', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         temp_ctxt.uom = 'degC'
         context_ids.append(self.dataset_management.create_parameter_context(name='temperature', parameter_context=temp_ctxt.dump()))
 
-        press_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        press_ctxt = ParameterContext('pressure', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         press_ctxt.uom = 'decibars'
         context_ids.append(self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump()))
 
-        oxy_ctxt = ParameterContext('oxygen', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        oxy_ctxt = ParameterContext('oxygen', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         oxy_ctxt.uom = 'Hz'
         context_ids.append(self.dataset_management.create_parameter_context(name='oxygen', parameter_context=oxy_ctxt.dump()))
 
@@ -206,13 +77,10 @@ class TestHypm_WPF_CTD(TestBulkIngestBase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        print len(rdt['temperature'])
-        print len(rdt['pressure'])
-        print len(rdt['conductivity'])
         self.assertIsNotNone(rdt['temperature'])
 
 @attr('INT', group='eoi')
-class TestHypm_WPF_ACM(TestBulkIngestBase):
+class TestHypm_WPF_ACM(TestBulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'hypm_01_wpf_acm'
@@ -297,7 +165,7 @@ class TestHypm_WPF_ACM(TestBulkIngestBase):
         print rdt
 
 @attr('INT', group='eoi')
-class TestHypm_WPF_ENG(TestBulkIngestBase):
+class TestHypm_WPF_ENG(TestBulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'hypm_01_wpf_eng'

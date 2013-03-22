@@ -14,7 +14,7 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
 from pyon.event.event import EventSubscriber
 
 from coverage_model.parameter import ParameterContext
-from coverage_model.parameter_types import QuantityType
+from coverage_model.parameter_types import QuantityType, ArrayType
 
 from interface.services.icontainer_agent import ContainerAgentClient
 from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
@@ -376,7 +376,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
 
-class TestBulkIngestBase(IonIntegrationTestCase):
+class TestBulkIngestBase(object):
 
     def setUp(self):
         self._start_container()
@@ -428,8 +428,8 @@ class TestBulkIngestBase(IonIntegrationTestCase):
             name=name,
             description=description,
             processing_level_code='Parsed_Canonical',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
+            temporal_domain=tdom,
+            spatial_domain=sdom)
 
         data_product_id = self.data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)
         self.data_product_management.activate_data_product_persistence(data_product_id)
@@ -446,6 +446,7 @@ class TestBulkIngestBase(IonIntegrationTestCase):
         stream_ids, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
         stream_id = stream_ids[0]
         route = self.pubsub_management.read_stream_route(stream_id)
+        #self.create_logger(self.name, stream_id)
         return stream_id, route
 
     def start_agent(self):
@@ -488,7 +489,7 @@ class TestBulkIngestBase(IonIntegrationTestCase):
             dataset_modified.set()
             self.stop_agent()
             self.get_retrieve_client(dataset_id=dataset_id)
-        es = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb, origin='BaseDataHandler._acquire_sample')
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
         es.start()
 
         self.addCleanup(es.stop)
@@ -511,12 +512,12 @@ class TestBulkIngestBase(IonIntegrationTestCase):
                 'stream_id':stream_id,
                 }
         }
-        pid = self.process_dispatch_client.schedule_process(process_definition_id= logger_procdef_id, configuration=configuration)
+        pid = self.process_dispatch_client.schedule_process(process_definition_id=logger_procdef_id, configuration=configuration)
 
         return pid
 
 @attr('INT', group='sa')
-class TestBulkIngest_Hypm_WPF_CTD(TestBulkIngestBase):
+class TestBulkIngest_Hypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'Bulk Data Ingest HYPM WPF CTD'
@@ -531,19 +532,19 @@ class TestBulkIngest_Hypm_WPF_CTD(TestBulkIngestBase):
         t_ctxt.uom = 'seconds since 01-01-1970'
         context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
 
-        cnd_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        cnd_ctxt = ParameterContext('conductivity', param_type=ArrayType())
         cnd_ctxt.uom = 'mmho/cm'
         context_ids.append(self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cnd_ctxt.dump()))
 
-        temp_ctxt = ParameterContext('temperature', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        temp_ctxt = ParameterContext('temperature', param_type=ArrayType())
         temp_ctxt.uom = 'degC'
         context_ids.append(self.dataset_management.create_parameter_context(name='temperature', parameter_context=temp_ctxt.dump()))
 
-        press_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        press_ctxt = ParameterContext('pressure', param_type=ArrayType())
         press_ctxt.uom = 'decibars'
         context_ids.append(self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump()))
 
-        oxy_ctxt = ParameterContext('oxygen', param_type=QuantityType(value_encoding=np.dtype('float32')))
+        oxy_ctxt = ParameterContext('oxygen', param_type=ArrayType())
         oxy_ctxt.uom = 'Hz'
         context_ids.append(self.dataset_management.create_parameter_context(name='oxygen', parameter_context=oxy_ctxt.dump()))
 
@@ -578,11 +579,11 @@ class TestBulkIngest_Hypm_WPF_CTD(TestBulkIngestBase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        print rdt
+        self.assertIsNotNone(rdt['temperature'])
         #need to compare rdt from retrieve with the one from ingest somehow
 
 @attr('INT', group='sa')
-class TestBulkIngest_Slocum(TestBulkIngestBase):
+class TestBulkIngest_Slocum(TestBulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'Bulk Data Ingest Slocum'
@@ -840,5 +841,4 @@ class TestBulkIngest_Slocum(TestBulkIngestBase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        print rdt
-        #need to compare rdt from retrieve with the one from ingest somehow
+        self.assertIsNotNone(rdt['c_wpt_y_lmc'])
