@@ -1288,6 +1288,7 @@ class InstrumentAgent(ResourceAgent):
             return -1
         
         if action in ('set', 'clear'):
+            [x.stop() for x in self.aparams_alerts]
             self.aparam_alerts = []
                 
         if action in ('set', 'add'):
@@ -1305,6 +1306,8 @@ class InstrumentAgent(ResourceAgent):
         elif action == 'remove':
             new_alerts = copy.deepcopy(self.aparam_alerts)
             new_alerts = [x for x in new_alerts if x.name not in params]
+            old_alerts = [x for x in new_alerts if x.name in params]
+            [x.stop() for x in old_alerts]
             self.aparam_alerts = new_alerts
 
         for a in self.aparam_alerts:

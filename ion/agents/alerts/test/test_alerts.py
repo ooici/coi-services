@@ -20,6 +20,7 @@ import copy
 
 # Gevent async.
 from gevent.event import AsyncResult
+import gevent
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
@@ -34,11 +35,15 @@ from interface.objects import StreamAlertType
 from pyon.public import IonObject
 from ion.agents.alerts.alerts import *
 
+# Resource agent.
+from pyon.agent.agent import ResourceAgentState
+
 """
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_greater_than_interval
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_less_than_interval
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_two_sided_interval
+bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_late_data
 """
 
 class TestAlerts(IonIntegrationTestCase):
@@ -229,5 +234,58 @@ class TestAlerts(IonIntegrationTestCase):
         {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 23.3, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': 'd1848f80e8494ce7b8c3db585a326ad3', 'ts_created': '1363389925815', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
         {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 17.5, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': '9d461495cc9642648284c7c261f396b3', 'ts_created': '1363389925821', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
         {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 8.8, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': 'fabe8864598b41e3ae538817ca5c9300', 'ts_created': '1363389925828', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        """ 
+        """
         
+    def test_late_data(self):
+        """
+        """
+
+        def get_state():
+            return ResourceAgentState.STREAMING
+
+        alert_def = {
+            'name' : 'late_data_warning',
+            'stream_name' : 'fakestreamname',
+            'message' : 'Expected data has not arrived.',
+            'alert_type' : StreamAlertType.WARNING,
+            'value_id' : None,
+            'resource_id' : self._resource_id,
+            'origin_type' : self._origin_type,            
+            'time_delta' : 2,
+            'get_state' : get_state,
+            'alert_class' : 'LateDataAlert'
+        }
+                
+        cls = alert_def.pop('alert_class')
+        alert = eval('%s(**alert_def)' % cls)
+
+        status = alert.get_status()
+
+        # This sequence will produce 6 alerts:        
+        """
+        ########## TIMER 2.000807:    1363907927.229689  1363907928.431442  0.701172:     DATA OK
+        ########## publishing: ALL_CLEAR
+        ########## TIMER 4.008615:    1363907928.431442  1363907930.532922  1.100384:     DATA OK
+        ########## TIMER 6.009832:    1363907930.532922  1363907933.034158  2.501236:     TIMESTEP TO LARGE
+        ########## publishing: WARNING
+        ########## TIMER 8.020597:    1363907933.034158  1363907933.034158  2.501236:     NO NEW DATA
+        ########## TIMER 10.021022:    1363907933.034158  1363907936.587945  0.501327:     DATA OK
+        ########## publishing: ALL_CLEAR
+        ########## TIMER 12.030837:    1363907936.587945  1363907938.839187  2.251242:     TIMESTEP TO LARGE
+        ########## publishing: WARNING
+        ########## TIMER 14.042304:    1363907938.839187  1363907939.841438  0.501182:     DATA OK
+        ########## publishing: ALL_CLEAR
+        ########## TIMER 16.052558:    1363907939.841438  1363907942.342575  2.501137:     TIMESTEP TO LARGE
+        ########## publishing: WARNING
+        """
+        self._event_count = 6
+        sleep_vals = [0.5, 0.7, 1.0, 1.1, 2.5, 2.3, 0.75, 0.5, 2.25, 0.5, 0.5, 2.5, 2.5]
+        for x in sleep_vals:
+            event_data = alert.eval_alert()
+            gevent.sleep(x)
+
+        self._async_event_result.get(timeout=30)
+        
+        alert.stop()
+
+

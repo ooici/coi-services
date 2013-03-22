@@ -13,11 +13,20 @@ __license__ = 'Apache 2.0'
 # Pyon imports
 from pyon.public import IonObject, log
 
+# Standard imports.
+import time
+
+# gevent.
+import gevent
+
 # Alarm types and events.
 from interface.objects import StreamAlertType
 
+# Events.
 from pyon.event.event import EventPublisher
 
+# Resource agent.
+from pyon.agent.agent import ResourceAgentState
 
 """
 AlarmDef:
@@ -56,7 +65,7 @@ class BaseAlert(object):
         else:
             assert isinstance(message, str)
         
-        assert isinstance(value_id, (str, None))
+        if value_id: assert isinstance(value_id, str)
         assert isinstance(resource_id, str)
         assert isinstance(origin_type, str)
         
@@ -116,9 +125,12 @@ class BaseAlert(object):
         """
         """
         event_data = self.make_event_data()
+        print '########## publishing: ' + event_data['sub_type'] 
         pub = EventPublisher()
         pub.publish_event(**event_data)
 
+    def stop(self):
+        pass
 
 class IntervalAlert(BaseAlert):
     """
@@ -210,10 +222,61 @@ class DeltaAlert(BaseAlert):
 class LateDataAlert(BaseAlert):
     """
     """
-    pass
+    def __init__(self, name=None, stream_name=None, message=None,
+                 alert_type=None, value_id=None, resource_id=None, origin_type=None,
+                 time_delta=None, get_state=None):
 
+        super(LateDataAlert, self).__init__(name, stream_name, message,
+                alert_type, value_id, resource_id, origin_type)
 
+        assert isinstance(time_delta, (int, float))
+        assert get_state
+        assert callable(get_state)
+        
+        self._time_delta = time_delta
+        self._get_state = get_state
+        self._cur_timestep = 0.0
+        self._gl = gevent.spawn(self._check_data)
 
+    def eval_alert(self):
+        if self._get_state() == ResourceAgentState.STREAMING:
+            prev_value = self._current_value
+            self._current_value = time.time()
+            if prev_value:
+                self._cur_timestep = self._current_value - prev_value
+        else:
+            self._current_value = None
+            self._cur_timestep = 0.0
+            
+    def _check_data(self):
+        start = time.time()
+        while True:
+            if self._get_state() == ResourceAgentState.STREAMING:
+                last_data_arrived = self._current_value
+                gevent.sleep(self._time_delta)
+                if self._get_state() == ResourceAgentState.STREAMING:
+                    self._prev_status = self._status
+                    if last_data_arrived == self._current_value:
+                        #print '########## TIMER %f:    %f  %f  %f:     NO NEW DATA' % ((time.time() - start), last_data_arrived, self._current_value, self._cur_timestep)
+                        self._status = False
+                    elif self._cur_timestep > self._time_delta:
+                        #print '########## TIMER %f:    %f  %f  %f:     TIMESTEP TO LARGE' % ((time.time() - start), last_data_arrived, self._current_value, self._cur_timestep)
+                        self._status = False
+                    else:
+                        #print '########## TIMER %f:    %f  %f  %f:     DATA OK' % ((time.time() - start), last_data_arrived, self._current_value, self._cur_timestep)
+                        self._status = True
+                    if self._prev_status != self._status:
+                        self.publish_alert()
+                        
+            else:
+                gevent.sleep(self._time_delta)
+
+    def stop(self):
+        if self._gl:
+            self._gl.kill()
+            self._gl.join()
+            self._gl = None
+            
 
 
     
