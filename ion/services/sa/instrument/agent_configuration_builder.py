@@ -207,9 +207,9 @@ class AgentConfigurationBuilder(object):
         # should override this
         return {}
 
-    def _generate_alarms_config(self):
+    def _generate_alerts_config(self):
         # should override this
-        return {}
+        return self.agent_instance_obj.alerts
 
     def _generate_startup_config(self):
         # should override this
@@ -224,14 +224,14 @@ class AgentConfigurationBuilder(object):
         agent_config = self.agent_instance_obj.agent_config
 
         # Create agent_ config.
-        agent_config['org_name']       = self._generate_org_name()
-        agent_config['device_type']    = self._generate_device_type()
-        agent_config['driver_config']  = self._generate_driver_config()
-        agent_config['stream_config']  = self._generate_stream_config()
-        agent_config['agent']          = self._generate_agent_config()
-        agent_config['alarm_defs']     = self._generate_alarms_config()
-        agent_config['startup_config'] = self._generate_startup_config()
-        agent_config['children']       = self._generate_children()
+        agent_config['org_name']            = self._generate_org_name()
+        agent_config['device_type']         = self._generate_device_type()
+        agent_config['driver_config']       = self._generate_driver_config()
+        agent_config['stream_config']       = self._generate_stream_config()
+        agent_config['agent']               = self._generate_agent_config()
+        agent_config['aparam_alert_config'] = self._generate_alerts_config()
+        agent_config['startup_config']      = self._generate_startup_config()
+        agent_config['children']            = self._generate_children()
 
         return agent_config
 
@@ -416,9 +416,6 @@ class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
         self._augment_dict("Instrument Agent driver_config", driver_config, add_driver_config)
 
         return driver_config
-
-
-
 
 
 class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
