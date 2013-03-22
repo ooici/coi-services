@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 import types
 from pyon.core.exception import BadRequest, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.public import log
+from pyon.public import log, OT
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
@@ -168,5 +168,5 @@ class ResourceRegistryService(BaseResourceRegistryService):
         #Ensure that it is not a NoneType
         optional_args = dict() if optional_args is None else optional_args
 
-        return self.resource_registry.get_resource_extension(resource_id=resource_id, resource_extension=resource_extension,
-            ext_associations=ext_associations, ext_exclude=ext_exclude, **optional_args)
+        return self.resource_registry.get_resource_extension(resource_extension=resource_extension, resource_id=resource_id,
+            computed_resource_type=OT.ComputedAttributes, ext_associations=ext_associations, ext_exclude=ext_exclude, **optional_args)
