@@ -1494,6 +1494,14 @@ Reason: %s
 
         name = row['name']
         definitions = row['parameter_ids'].replace(' ','').split(',')
+        try:
+            if row['temporal_parameter']:
+                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
+            else:
+                temporal_parameter_name = ''
+        except KeyError:
+            temporal_parameter_name = ''
+
 
         context_ids = {}
         for i in definitions:
@@ -1512,7 +1520,7 @@ Reason: %s
             return
         dataset_management = self._get_service_client('dataset_management')
         try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'], headers=self._get_system_actor_headers())
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=temporal_parameter_name, headers=self._get_system_actor_headers())
         except:
             log.exception( '%s has a problem', row['name'])
             return
@@ -1567,6 +1575,7 @@ Reason: %s
         pmap         = row['Parameter Function Map']
         sname        = row['Data Product Identifier']
         precision    = row['Precision']
+        param_id     = row['ID']
 
         try:
             param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
@@ -1655,7 +1664,7 @@ Reason: %s
             else:
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
-        self._register_id(row[COL_ID], context_id)
+        self._register_id(row[COL_ID], context_id, context)
         parameter_lookups[row[COL_ID]] = name
 
 
