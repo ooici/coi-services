@@ -409,8 +409,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.RR2.update(deployment, RT.Deployment)
 
     def read_deployment(self, deployment_id=''):
-        # Read Deployment object with _id matching id
-        log.debug("Reading Deployment object id: %s", deployment_id)
         deployment_obj = self.RR2.read(deployment_id, RT.Deployment)
 
         return deployment_obj
@@ -517,7 +515,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if not resource_id:
             raise BadRequest("Resource id not given")
 
-        log.debug("assign_resource_to_observatory_org: org_id=%s, resource_id=%s ", org_id, resource_id)
+        #log.trace("assign_resource_to_observatory_org: org_id=%s, resource_id=%s ", org_id, resource_id)
         self.clients.org_management.share_resource(org_id, resource_id)
 
     def unassign_resource_from_observatory_org(self, resource_id='', org_id=''):
@@ -556,148 +554,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def create_site_data_product(self, site_id="", data_product_id=""):
-        # verify that both exist
-        site_obj = self.RR2.read(site_id)
-        self.RR2.read(data_product_id)
+        raise BadRequest("This method will be removed.  Superceded by coverage.")
 
-        sitetype = type(site_obj).__name__
-
-        if not (RT.InstrumentSite == sitetype or RT.PlatformSite == sitetype):
-            raise BadRequest("Can't associate a data product to a %s" % sitetype)
-
-
-
-
-        #----------------------------------------------------------------------------------------------------
-        # Get the data process definition added during preload
-        #----------------------------------------------------------------------------------------------------
-
-        data_process_def_ids, _ = self.container.resource_registry.find_resources(RT.DataProcessDefinition,
-                                                                                  None,
-                                                                                  LOGICAL_TRANSFORM_DEFINITION_NAME,
-                                                                                  True)
-        if not 1 == len(data_process_def_ids):
-            raise Inconsistent("Expected 1 data process definition, got %s with name '%s'" %
-                               (len(data_process_def_ids), LOGICAL_TRANSFORM_DEFINITION_NAME))
-        data_process_def_id = data_process_def_ids[0]
-
-        #----------------------------------------------------------------------------------------------------
-        # Create a data process
-        #----------------------------------------------------------------------------------------------------
-        data_process_id = self.dataprocessclient.create_data_process(data_process_def_id,
-                                                                     None,
-                                                                     {"logical":data_product_id})
-
-        self.dataprocessclient.activate_data_process(data_process_id)
-
-        #make it all happen by assigning the output product to the site
-        if RT.InstrumentSite == type(site_obj).__name__:
-            self.RR2.assign_data_product_to_one_instrument_site_with_has_output_product(data_product_id, site_id)
-        elif RT.PlatformSite == type(site_obj).__name__:
-            self.RR2.assign_data_product_to_one_platform_site_with_has_output_product(data_product_id, site_id)
-        else:
-            raise BadRequest("Tried to assign a dataproduct to a %s instead of %s or %s" %
-                            (type(site_obj).__name__, RT.InstrumentSite, RT.PlatformSite))
-
-
-    def streamdef_of_site(self, site_id):
-        """
-        return the streamdef associated with the output product of a site
-        """
-
-        output_product_id = self.RR2.find_object(site_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
-        stream_id         = self.RR2.find_stream_id_of_data_product_using_has_stream(output_product_id)
-        streamdef_id      = self.RR2.find_stream_definition_id_of_stream_using_has_stream_definition(stream_id)
-
-        return streamdef_id
-
-
-    def streamdefs_of_device(self, device_id):
-        """
-        return a dict of streamdef_id => stream_id for a given device
-        """
-
-        assert(type("") == type(device_id))
-
-        #recursive function to get all data producers
-        def child_data_producers(dpdc_ids):
-            def cdp_helper(acc2, dpdc_id2):
-                children, _ = self.RR.find_subjects(RT.DataProducer, PRED.hasParent, dpdc_id2, True)
-                for child in children:
-                    acc2.append(child)
-                    acc2 = cdp_helper(acc2, child)
-                return acc
-
-            #call helper using input list of data products
-            acc = []
-            for d in dpdc_ids:
-                acc = cdp_helper(acc, d)
-            return acc
-
-        #initial list of data producers
-        pdcs, _ = self.RR.find_objects(device_id, PRED.hasDataProducer, RT.DataProducer, True)
-        if 0 == len(pdcs):
-            raise BadRequest("Expected data producer(s) on device '%s', got none" % device_id)
-
-        #now the full list of data producers, with children
-        pdcs = child_data_producers(pdcs)
-        log.debug("Got %s data producers", len(pdcs))
-
-        streamdefs = {}
-        for pdc in pdcs:
-            log.debug("Checking data producer %s", pdc)
-            prods, _ = self.RR.find_subjects(RT.DataProduct, PRED.hasDataProducer, pdc, True)
-            for p in prods:
-                log.debug("Checking product %s", p)
-                streams, _ = self.RR.find_objects(p, PRED.hasStream, RT.Stream, True)
-                for s in streams:
-                    log.debug("Checking stream %s", s)
-                    sdefs, _ = self.RR.find_objects(s, PRED.hasStreamDefinition, RT.StreamDefinition, True)
-                    for sd in sdefs:
-                        log.debug("Checking streamdef %s", sd)
-                        if sd in streamdefs:
-                            raise BadRequest("Got a duplicate stream definition stemming from device %s" % device_id)
-                        streamdefs[sd] = s
-
-        return streamdefs
-
-
-    def check_site_for_deployment(self, site_id, site_type, model_type, check_data_products=True):
-        assert(type("") == type(site_id))
-        assert(type(RT.Resource) == type(site_type) == type(model_type))
-
-        log.debug("checking %s for deployment, will return %s", site_type, model_type)
-        # validate and return supported models
-        models, _ = self.RR.find_objects(site_id, PRED.hasModel, model_type, True)
-        if 1 > len(models):
-            raise BadRequest("Expected at least 1 model for %s '%s', got %s" % (site_type, site_id, len(models)))
-
-        if check_data_products:
-            log.trace("checking site data products")
-            #todo: remove this when platform data products start working
-            if site_type != RT.PlatformSite:
-                prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-                if 1 != len(prods):
-                    raise BadRequest("Expected 1 output data product on %s '%s', got %s" % (site_type,
-                                                                                            site_id,
-                                                                                            len(prods)))
-        log.trace("check_site_for_deployment returning %s models", len(models))
-
-        return models
-
-
-
-    def check_device_for_deployment(self, device_id, device_type, model_type):
-        assert(type("") == type(device_id))
-        assert(type(RT.Resource) == type(device_type) == type(model_type))
-
-        log.trace("checking %s for deployment, will return %s", device_type, model_type)
-        # validate and return model
-        models, _ = self.RR.find_objects(device_id, PRED.hasModel, model_type, True)
-        if 1 != len(models):
-            raise BadRequest("Expected 1 model for %s '%s', got %d" % (device_type, device_id, len(models)))
-        log.trace("check_device_for_deployment returning 1 model")
-        return models[0]
 
     def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
         assert(type("") == type(site_id) == type(device_id))
@@ -724,12 +582,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return ret
 
-#    def has_matching_streamdef(self, site_id, device_id):
-#        if not self.streamdef_of_site(site_id) in self.streamdefs_of_device(device_id):
-#            raise BadRequest("No matching streamdefs between %s '%s' and %s '%s'" %
-#                             (site_type, site_id, device_type, device_id))
 
-    def collect_deployment_components(self, deployment_id):
+    def collect_deployment_components(self, deployment_id, sub_platforms=False):
         """
         get all devices and sites associated with this deployment and use their ID as a key to list of models
         """
@@ -742,16 +596,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #
         # collect all devices in this deployment
 
-        def add_sites(site_ids, site_type, model_type):
+        def add_sites(site_ids, model_type):
             for s in site_ids:
-                models = self.check_site_for_deployment(s, site_type, model_type, False)
+                models, _ = self.RR.find_objects(s, PRED.hasModel, model_type, id_only=True)
+                log.trace("Found %s %s objects of site", len(models), model_type)
                 if s in site_models:
                     log.warn("Site '%s' was already collected in deployment '%s'", s, deployment_id)
                 site_models[s] = models
 
-        def add_devices(device_ids, device_type, model_type):
+        def add_devices(device_ids, model_type):
             for d in device_ids:
-                model = self.check_device_for_deployment(d, device_type, model_type)
+                model = self.RR2.find_object(d, PRED.hasModel, model_type, id_only=True)
+                log.trace("Found 1 %s object of device", model_type)
                 if d in device_models:
                     log.warn("Device '%s' was already collected in deployment '%s'", d, deployment_id)
                 device_models[d] = model
@@ -765,14 +621,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                     PRED.hasDeployment,
                                                     deployment_id,
                                                     True)
+            log.trace("Found %s %s", len(new_site_ids), site_type)
 
             new_device_ids, _ = self.RR.find_subjects(device_type,
                                                       PRED.hasDeployment,
                                                       deployment_id,
                                                       True)
+            log.trace("Found %s %s", len(new_device_ids), device_type)
 
-            add_sites(new_site_ids, site_type, model_type)
-            add_devices(new_device_ids, device_type, model_type)
+            add_sites(new_site_ids, model_type)
+            add_devices(new_device_ids, model_type)
 
         # collect platforms, verify that only one platform device exists in the deployment
         collect_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)
@@ -795,8 +653,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
             #  gather a list of all instrument sites on platform site
             #  gather a list of all instrument devices on platform device
-            add_devices(child_device_ids, RT.InstrumentDevice, RT.InstrumentModel)
-            add_sites(child_site_ids, RT.InstrumentSite, RT.InstrumentModel)
+            add_devices(child_device_ids, RT.InstrumentModel)
+            add_sites(child_site_ids, RT.InstrumentModel)
         else:
             log.warn("0 platforms in deployment being activated")
 
@@ -810,7 +668,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Make the devices on this deployment the primary devices for the sites
         """
         #Verify that the deployment exists
-        self.RR2.read(deployment_id)
+        depl_obj = self.RR2.read(deployment_id)
+        log.debug("Activing deployment '%s' (%s)", depl_obj.name, deployment_id)
 
 #        if LCS.DEPLOYED == deployment_obj.lcstate:
 #            raise BadRequest("This deploment is already active")
@@ -819,24 +678,30 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         device_models, site_models = self.collect_deployment_components(deployment_id)
         log.trace("Collected %s device models, %s site models", len(device_models), len(site_models))
 
-        # create a CSP so we can solve it
+        log.debug("creating a CSP solver to match devices and sites")
         problem = constraint.Problem()
 
-        # add variables - the devices to be assigned, and their range (possible sites)
+        log.debug("adding variables to CSP - the devices to be assigned, and their range (possible sites)")
         for device_id in device_models.keys():
             device_model = device_models[device_id]
+            assert type(device_model) == type('')
+            assert all([type('') == type(s) for s in site_models])
             possible_sites = [s for s in site_models.keys()
                               if device_model in site_models[s]]
-                                    #and self.streamdef_of_site(s) in self.streamdefs_of_device(device_id)]
+
             if not possible_sites:
+                log.info("Device model: %s", device_model)
+                log.info("Site models: %s", site_models)
                 raise BadRequest("No sites were found in the deployment")
+
             problem.addVariable("device_%s" % device_id, possible_sites)
 
-        # add the constraint that all the variables have to pick their own site
+        log.debug("adding the constraint that all the variables have to pick their own site")
         problem.addConstraint(constraint.AllDifferentConstraint(),
             ["device_%s" % device_id for device_id in device_models.keys()])
 
-        # perform CSP solve; this will be a list of solutions, each a dict of var -> value
+        log.debug("performing CSP solve")
+        # this will be a list of solutions, each a dict of var -> value
         solutions = problem.getSolutions()
 
         def solution_to_string(soln):
@@ -883,10 +748,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         for site_id, device_id in pairs_add:
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
-            if activate_subscriptions:
-                log.info("Activating subscription as requested")
-                self.transfer_site_subscription(site_id)
-#
+
+
 #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
 
 
@@ -907,8 +770,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # get all associated components
         device_models, site_models = self.collect_deployment_components(deployment_id)
 
-        #must only remove from sites that are not deployed under a different active deployment
-        # must only remove devices that are not deployed under a different active deployment
+        # must only remove from sites that are not deployed under a different active deployment
+        # must only remove    devices that are not deployed under a different active deployment
         def filter_alternate_deployments(resource_list):
             # return the list of ids for devices or sites not connected to an alternate lcs.deployed deployment
             ret = []
@@ -943,81 +806,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Transfer the site subscription to the current hasDevice link
         """
 
-        # get site obj
-        log.info('Getting site object: %s', site_id)
-        site_obj = self.RR.read(site_id)
-
-        # error if no hasDevice
-        devices, _ = self.RR.find_objects(site_id, PRED.hasDevice, None, True)
-        if 1 != len(devices):
-            raise BadRequest("Expected 1 hasDevice association, got %d" % len(devices))
-        device_id = devices[0]
-
-        # get device obj
-        device_obj = self.RR.read(device_id)
-
-        # error if models don't match
-        site_type = type(site_obj).__name__
-        device_type = type(device_obj).__name__
-        if RT.InstrumentDevice == device_type:
-            model_type = RT.InstrumentModel
-        elif RT.PlatformDevice == device_type:
-            #model_type = RT.PlatformModel
-            #todo: actually transfer the subsription.  for now we abort because there are no platform data products
-            return
-        else:
-            raise BadRequest("Expected a device type, got '%s'" % device_type)
-
-        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
-        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
-        # commented out as per Maurice, 8/7/12
-        device_model, site_models #suppress pyflakes warnings
-#        if device_model not in site_models:
-#            raise BadRequest("The site and device model types are incompatible")
-
-        # check site/device pair.
-        # this function re-checks the association as a side effect, so this error should NEVER happen
-        if self.check_site_device_pair_for_deployment(site_id, device_id, site_type, device_type):
-            raise BadRequest("Magically and unfortunately, the site and device are no longer associated")
-
-        # get deployments
-        depl_site, _ = self.RR.find_objects(site_id, PRED.hasDeployment, RT.Deployment, True)
-        depl_dev, _  = self.RR.find_objects(device_id, PRED.hasDeployment, RT.Deployment, True)
-
-        # error if no matching deployments
-        found = False
-        for ds in depl_site:
-            if ds in depl_dev:
-                found = True
-                break
-        if not found:
-            raise BadRequest("Site and device do not share a deployment!")
-
-        # check product and process from site
-        pduct_ids, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        if 1 != len(pduct_ids):
-            raise BadRequest("Expected 1 DataProduct associated to site '%s' but found %d" % (site_id, len(pduct_ids)))
-        process_ids, _ = self.RR.find_subjects(RT.DataProcess, PRED.hasOutputProduct, pduct_ids[0], True)
-        if not process_ids:
-            log.info('No DataProcess associated to the data product of this site')
-#        if 1 != len(process_ids):
-#            raise BadRequest("Expected 1 DataProcess feeding DataProduct '%s', but found %d" %
-#                             (pduct_ids[0], len(process_ids)))
-
-        #look up stream defs
-        ss = self.streamdef_of_site(site_id)
-        ds = self.streamdefs_of_device(device_id)
-
-        if not ss in ds:
-            raise BadRequest("Data product(s) of site does not have any matching streamdef for data product of device")
-        if process_ids:
-            data_process_id = process_ids[0]
-            log.info("Changing subscription: %s", data_process_id)
-            log.info('ds of ss: %s', ds[ss])
-            self.PRMS.update_data_process_inputs(data_process_id, [ds[ss]])
-
-        log.info("Successfully changed subscriptions")
-
+        raise BadRequest("This method is obsolete and will be removed.")
 
 
 
@@ -1061,8 +850,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 retval_ids.add(a.s)
 
 
-        log.debug("converting retrieved ids to objects = %s" % retval_ids)
-
+        log.trace("converting retrieved ids to objects = %s" % retval_ids)
         #initialize the dict
         retval = dict((restype, []) for restype in output_resource_type_list)
 
