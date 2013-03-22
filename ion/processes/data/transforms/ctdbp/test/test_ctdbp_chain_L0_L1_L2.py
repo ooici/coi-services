@@ -453,7 +453,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
+            self.assertNotEquals(len(rdt[key]), 0)
 
     def _check_application_of_L1_algorithm(self, granule = None):
         """ Check the algorithm applied by the L1 transform """
@@ -463,7 +463,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
+            self.assertNotEquals(len(rdt[key]), 0)
 
     def _check_application_of_L2_density_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
@@ -473,7 +473,6 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
 
     def _check_application_of_L2_salinity_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
@@ -483,8 +482,6 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertIsNotNone(rdt[key])
-
 
     def _publish_for_L0_transform(self, input_stream_id = None, stream_route = None):
 
@@ -510,11 +507,11 @@ class TestCTDPChain(IonIntegrationTestCase):
         pdict.add_context(t_ctxt)
 
         cond_ctxt = ParameterContext('conductivity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        cond_ctxt.uom = ''
+        cond_ctxt.uom = 'Siemens_per_meter'
         pdict.add_context(cond_ctxt)
 
         pres_ctxt = ParameterContext('pressure', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        pres_ctxt.uom = ''
+        pres_ctxt.uom = 'Pascal'
         pdict.add_context(pres_ctxt)
 
         if parameter_dict_name == 'input_param_for_L0':
@@ -522,15 +519,15 @@ class TestCTDPChain(IonIntegrationTestCase):
         else:
             temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
 
-        temp_ctxt.uom = ''
+        temp_ctxt.uom = 'degree_kelvin'
         pdict.add_context(temp_ctxt)
 
         dens_ctxt = ParameterContext('density', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        dens_ctxt.uom = ''
+        dens_ctxt.uom = 'g/m'
         pdict.add_context(dens_ctxt)
 
         sal_ctxt = ParameterContext('salinity', param_type=QuantityType(value_encoding=numpy.dtype('float32')))
-        sal_ctxt.uom = ''
+        sal_ctxt.uom = 'PSU'
         pdict.add_context(sal_ctxt)
 
         #create temp streamdef so the data product can create the stream

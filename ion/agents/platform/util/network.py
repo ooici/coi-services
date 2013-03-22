@@ -290,10 +290,14 @@ class PlatformNode(BaseNode):
     self._ports = { port_id: PortNode, ... }
     self._subplatforms = { platform_id: PlatformNode, ...}
     self._parent = None | PlatformNode
+    self._CFG = dict
 
+    The _CFG element included for convenience to capture the provided
+    configuration dict in PlatformAgent. See
+    create_network_definition_from_ci_config()
     """
 
-    def __init__(self, platform_id, platform_types=None):
+    def __init__(self, platform_id, platform_types=None, CFG=None):
         BaseNode.__init__(self)
         self._platform_id = platform_id
         self._platform_types = platform_types or []
@@ -302,6 +306,7 @@ class PlatformNode(BaseNode):
         self._attrs = {}
         self._subplatforms = {}
         self._parent = None
+        self._CFG = CFG
 
     def set_name(self, name):
         self._name = name
@@ -339,6 +344,10 @@ class PlatformNode(BaseNode):
     def get_port(self, port_id):
         assert port_id in self._ports
         return self._ports[port_id]
+
+    @property
+    def CFG(self):
+        return self._CFG
 
     @property
     def parent(self):

@@ -369,11 +369,69 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)
 
-        launcher.await_launch(20)
+
+        launcher.await_launch(self._agent_launch_timeout("start_instrument_agent_instance"))
 
         return process_id
 
 
+    def _agent_launch_timeout(self, fn_name):
+        # some hopefully intelligent buffers on timeout.
+        #
+        # we expect to have at least 20 seconds to launch the agent.
+        # the agent needs around 6 seconds to launch, currently.  pad that out to 16 seconds.
+        #
+        # use a 1-second buffer to guarantee that we time out the launch and not the function call
+        # let the buffer be longer (up to 5 seconds) if we have time.
+        # if the buffer is calculated to be short, warn.
+        remaining_time_s = self._remaining_reply_time_s(fn_name)
+
+        minbuffer  = 1
+        maxbuffer  = 5
+        launchtime = 16
+
+        buffer = max(minbuffer, min(maxbuffer, remaining_time_s - launchtime))
+        log.debug("Agent launch buffer time is %s", buffer)
+
+        if buffer == minbuffer:
+            log_fn = log.warn
+        else:
+            log_fn = log.info
+
+        log_fn("Allowing (%s - %s) seconds for agent launch in %s", remaining_time_s, buffer, fn_name)
+
+        return remaining_time_s - buffer
+
+
+    def _remaining_reply_time_s(self, fn_name):
+        ret = int(self._remaining_reply_time_ms(fn_name) / 1000)
+        return ret
+
+    def _remaining_reply_time_ms(self, fn_name):
+        """
+        look into the request headers to find out how many milliseconds are left before the call will time out
+
+        @param fn_name the name of the RPC function that will be
+        """
+
+        ctx = self.get_context()
+        # make sure the op matches our function name
+        if "op" not in ctx or fn_name != ctx["op"]:
+            raise BadRequest("Could not find reply-by for %s in get_context: %s" % (fn_name, ctx))
+
+        # look for the reply-by field
+        if "reply-by" not in ctx:
+            raise BadRequest("Could not find reply-by field in context %s" % ctx)
+
+        # convert to int and only allow it if it's nonzero
+        reply_by_val = int(ctx["reply-by"])
+        if 0 == reply_by_val:
+            raise BadRequest("Got a zero value when parsing 'reply-by' field of '%s'" % ctx["reply_by"])
+
+        # get latest time
+        now = int(get_ion_ts())
+
+        return reply_by_val - now
 
 
     def _start_port_agent(self, instrument_agent_instance_obj=None):
@@ -775,7 +833,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if has_org_role(gov_values.actor_roles, org.name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
+                if has_org_role(gov_values.actor_roles, org.org_governance_name, [OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE]):
                     return True, ''
 
         else:
@@ -790,7 +848,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
-                if has_org_role(gov_values.actor_roles, org.name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
+                if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
                     return True, ''
 
         return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, gov_values.op, gov_values.actor_id, lifecycle_event)
@@ -926,7 +984,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         process_id = launcher.launch(config, configuration_builder._get_process_definition()._id)
         configuration_builder.record_launch_parameters(config, process_id)
-        launcher.await_launch(20)
+
+        launcher.await_launch(self._agent_launch_timeout("start_platform_agent_instance"))
 
         return process_id
 
@@ -1557,12 +1616,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
-        # clean up InstAgent list as it sometimes includes the device
-        ia = []
-        for agent in extended_instrument.instrument_agent:
-            if agent.type_ == 'InstrumentAgent':
-                ia.append(agent)
-        extended_instrument.instrument_agent = ia
 
         # Status computation
         status_rollups = self.outil.get_status_roll_ups(instrument_device_id, RT.InstrumentDevice)

@@ -75,7 +75,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         time_mock.sleep.side_effect = inc_counter
 
         glet.join(timeout=5)
-        self.assertTrue(execute_acquire_sample_mock.call_count >= 2)
+        self.assertTrue(execute_acquire_sample_mock.call_count >= 1)
 
     def test__publish_data_with_granules(self):
         publisher = Mock()

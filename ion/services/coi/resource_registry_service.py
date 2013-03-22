@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 import types
 from pyon.core.exception import BadRequest, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.public import log
+from pyon.public import log, OT
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
@@ -93,7 +93,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.resource_registry.create_association(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type)
+                                                         object=object, assoc_type=assoc_type)
 
     @mask_couch_error
     def delete_association(self, association=''):
@@ -153,15 +153,20 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.read_mult(object_ids)
 
     @mask_couch_error
-    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, user_id=''):
+    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, optional_args=None):
         """Returns any ExtendedResource object containing additional related information derived from associations
 
         @param resource_id    str
         @param resource_extension    str
         @param ext_associations    dict
         @param ext_exclude    list
+        @param optional_args    dict
         @retval actor_identity    ExtendedResource
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified resource_id does not exist
         """
-        return self.resource_registry.get_resource_extension(resource_id, resource_extension, ext_associations, ext_exclude)
+        #Ensure that it is not a NoneType
+        optional_args = dict() if optional_args is None else optional_args
+
+        return self.resource_registry.get_resource_extension(resource_extension=resource_extension, resource_id=resource_id,
+            computed_resource_type=OT.ComputedAttributes, ext_associations=ext_associations, ext_exclude=ext_exclude, **optional_args)

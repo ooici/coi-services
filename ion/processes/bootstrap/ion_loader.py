@@ -56,7 +56,6 @@ from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups, parameter_lookups
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.util.xlsparser import XLSParser
 
 from coverage_model.parameter import ParameterContext
@@ -94,7 +93,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdExHa196Q1dUSkoycnBhUDM5MzV4Z2c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGRneFo5dmhWNUVuR0tkMUVqUVA3LWc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1495,6 +1494,14 @@ Reason: %s
 
         name = row['name']
         definitions = row['parameter_ids'].replace(' ','').split(',')
+        try:
+            if row['temporal_parameter']:
+                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
+            else:
+                temporal_parameter_name = ''
+        except KeyError:
+            temporal_parameter_name = ''
+
 
         context_ids = {}
         for i in definitions:
@@ -1513,7 +1520,7 @@ Reason: %s
             return
         dataset_management = self._get_service_client('dataset_management')
         try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=row['temporal_parameter'], headers=self._get_system_actor_headers())
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=temporal_parameter_name, headers=self._get_system_actor_headers())
         except:
             log.exception( '%s has a problem', row['name'])
             return
@@ -1523,7 +1530,7 @@ Reason: %s
     def _load_ParameterFunctions(self, row):
         if row['SKIP']:
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
-            return 
+            return
 
         name      = row['Name']
         ftype     = row['Function Type']
@@ -1542,7 +1549,7 @@ Reason: %s
         else:
             self._conflict_report(row['ID'], row['Name'], 'Unsupported Function Type: %s' % ftype)
             return
-            
+
         func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(), description=descr, headers=self._get_system_actor_headers())
         self._register_id(row[COL_ID], func_id)
         function_lookups[row[COL_ID]] = func_id
@@ -1562,16 +1569,26 @@ Reason: %s
         display_name = row['Display Name']
         std_name     = row['Standard Name']
         long_name    = row['Long Name']
-        references   = row['Reference URLS']
+        references   = row['confluence']
         description  = row['Description']
         pfid         = row['Parameter Function ID']
         pmap         = row['Parameter Function Map']
+        sname        = row['Data Product Identifier']
+        precision    = row['Precision']
+        param_id     = row['ID']
 
         try:
             param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
             context.fill_value = get_fill_value(fill_value, encoding, param_type)
+            context.reference_urls = references
+            context.internal_name = name
+            context.display_name = display_name
+            context.standard_name = std_name
+            context.ooi_short_name = sname
+            context.description = description
+            context.precision = precision
         except TypeError as e:
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)
@@ -1579,7 +1596,7 @@ Reason: %s
         except:
             log.exception('Could not load the following parameter definition: %s', row)
             return
-        
+
 
         dataset_management = self._get_service_client('dataset_management')
         context_dump = context.dump()
@@ -1590,16 +1607,53 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         try:
+#--------------------------------------------------------------------------------
+#   confluence ->
+#   reference_urls
+#   Parameter Type
+#   -> parameter_type
+#   Name
+#   -> internal_name (new attribute)
+#   Value Encoding 
+#   -> value_encoding (new attribute)
+#   Code Set
+#   -> code_report
+#   Unit of Measure 
+#   -> units
+#   Fill Value
+#   -> fill_value
+#   Display Name 
+#   -> display_name (renamed from ion_name)
+#   Parameter Function ID
+#   -> parameter_function_id (new attribute)
+#   Parameter Function Map
+#   -> parameter_function_map (new attribute)
+#   Standard Name 
+#   -> standard_name
+#   Data Product Identifier
+#   -> ooi_short_name
+#   Description
+#   -> description
+#--------------------------------------------------------------------------------
             creation_args = dict(
                 name=name, parameter_context=context_dump,
                 description=description,
+                reference_urls=[references],
                 parameter_type=ptype,
+                internal_name=name,
                 value_encoding=encoding,
-                unit_of_measure=uom,
+                code_report=code_set,
+                units=uom,
+                fill_value=fill_value,
+                display_name=display_name,
+                parameter_function_map=pmap,
+                standard_name=std_name,
+                ooi_short_name=sname,
+                precision=precision,
                 headers=self._get_system_actor_headers())
             if pfid:
                 try:
-                    creation_args['parameter_function_ids'] = [self.resource_ids[pfid]]
+                    creation_args['parameter_function_id'] = self.resource_ids[pfid]
                 except KeyError:
                     pass
             context_id = dataset_management.create_parameter_context(**creation_args)
@@ -1610,7 +1664,7 @@ Reason: %s
             else:
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
-        self._register_id(row[COL_ID], context_id)
+        self._register_id(row[COL_ID], context_id, context)
         parameter_lookups[row[COL_ID]] = name
 
 
@@ -1864,14 +1918,15 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
 
         startup_config = self._parse_dict(row['startup_config'])
+        alerts_config  = self._parse_dict(row['alerts'])
 
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
                                                     'port':  int(row['comms_server_port']),
                                                     'cmd_port': int(row['comms_server_cmd_port']) } }
 
-        port_agent_config = { 'device_addr':   row['iai/comms_device_address'],
-                              'device_port':   int(row['iai/comms_device_port']),
+        port_agent_config = { 'device_addr':   row['comms_device_address'],
+                              'device_port':   int(row['comms_device_port']),
                               'process_type':  PortAgentProcessType.UNIX,
                               'port_agent_addr': 'localhost',
                               'type': PortAgentType.ETHERNET,
@@ -1884,7 +1939,8 @@ Reason: %s
             "instrument_management", "create_instrument_agent_instance",
             set_attributes=dict(driver_config=driver_config,
                                 port_agent_config=port_agent_config,
-                                startup_config=startup_config),
+                                startup_config=startup_config,
+                                alerts=alerts_config),
             support_bulk=True)
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
@@ -1947,40 +2003,23 @@ Reason: %s
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
-        platform_agent = self.resource_objs[row['platform_agent_id']]
 
         driver_config = self._parse_dict(row['driver_config'])
-        driver_config['dvr_cls'] = platform_agent.driver_class
-        driver_config['dvr_mod'] = platform_agent.driver_module
+        log.debug("driver_config = %s", driver_config)
 
-        # ***** previously: *****
-        # #TODO: allow child platforms
-        # platform_topology = { platform_id: [] }
-        #
-        # #
-        # device_dict = self._HACK_get_device_dict(platform_id)
-        #
-        # admap = { platform_id: device_dict }
-        # platform_config = { 'platform_id':             platform_id,
-        #                     'platform_topology':       platform_topology,
-        #                     'agent_device_map':        admap,
-        #                     'agent_streamconfig_map':  None,  # can we just omit?
-        #                     'driver_config':           driver_config }
-        #
+        alerts_config  = self._parse_dict(row['alerts'])
 
-        # ***** now using platform network definition
-        network_definition_ser = self._HACK_get_platform_network_definition()
-        platform_config = { 'platform_id':             platform_id,
-                            'driver_config':           driver_config,
-                            'network_definition' :     network_definition_ser
+        # Note: platform_id currently expected by PlatformAgent as follows:
+        agent_config = {
+            'platform_config': {'platform_id': platform_id}
         }
-
-        agent_config = { 'platform_config': platform_config }
-
+        # TODO determine how to finally indicate this platform_id.
 
         res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
             "instrument_management", "create_platform_agent_instance",
-            set_attributes=dict(agent_config=agent_config),
+            set_attributes=dict(agent_config=agent_config,
+                                driver_config=driver_config,
+                                alerts=alerts_config),
             support_bulk=True)
 
         client = self._get_service_client("instrument_management")
@@ -1988,53 +2027,6 @@ Reason: %s
         client.assign_platform_agent_instance_to_platform_device(res_id, platform_device_id)
 
         self.resource_ids[row['ID']] = res_id
-
-
-    #       TODO:
-    #           lots of other parameters are necessary, but not part of the object.  somehow they must be saved for later actions.
-    #        driver_config = self._parse_dict(row['driver_config'])
-    #        agent_config = self._parse_dict(row['agent_config'])
-    #        stream_definition = self.resource_objs[row['stream_definition']]
-
-    def _HACK_get_platform_network_definition(self):
-        """
-        This replaces _HACK_get_device_dict.
-        Here, we still use the simulator, but via a utility that provides the
-        network definition in yaml format suitable for the platform configuration.
-        """
-        from ion.agents.platform.rsn.oms_util import RsnOmsUtil
-        from ion.agents.platform.util.network_util import NetworkUtil
-        simulator = CIOMSClientFactory.create_instance()
-        network_definition = RsnOmsUtil.build_network_definition(simulator)
-        network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)
-        return network_definition_ser
-
-    def _HACK_get_device_dict(self, platform_id):
-        """ TODO: remove from preload and the initial object def.  instead query CIOMSClient from IMS when the platform agent is started
-            TODO: set a property in the agent instance to identify which CIOMSClient to use (need to support platforms from different Orgs)
-
-            query the simulated CIOMSClient for information about the platform
-        """
-
-        simulator = CIOMSClientFactory.create_instance()
-
-        # get network information (from: test_oms_launch2._prepare_platform_ports)
-        port_dicts = []
-        platform_port_info = simulator.get_platform_ports(platform_id)
-        for port_id, port in platform_port_info[platform_id].iteritems():
-            port_dicts.append(dict(port_id=port_id, ip_address=port['network']))
-
-        # get attribute information (from: test_oms_launch2._prepare_platform_attributes)
-        attribute_dicts = []
-        platform_attribute_info = simulator.get_platform_attributes(platform_id)
-        for name, attribute in platform_attribute_info[platform_id].iteritems():
-            attribute_dicts.append(dict(id=name, monitor_rate=attribute['monitorCycleSeconds'], units=attribute['units']))
-
-        # package as needed by agent instance
-        return { 'ports': port_dicts,
-                 'platform_monitor_attributes': attribute_dicts }
-
-
 
     def _load_TransformFunction(self,row):
         res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
@@ -2369,7 +2361,7 @@ Reason: %s
 
         # TODO: Also delete associations
 
-        self.resource_ds.create_doc_mult(docs, allow_ids=True)
+        self.resource_ds.update_doc_mult(docs)
         log.info("Deleted %s OOI resources and associations", len(docs))
 
 

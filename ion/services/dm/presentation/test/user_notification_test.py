@@ -26,6 +26,7 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.core.bootstrap import get_sys_name, CFG
 from pyon.util.context import LocalContextMixin
 from pyon.util.log import log
+from pyon.util.poller import poll
 from pyon.event.event import EventPublisher, EventSubscriber
 
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
@@ -1373,16 +1374,21 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n1.origin, notification_request_1.origin)
         self.assertEquals(n1.origin_type, notification_request_1.origin_type)
 
+        #--------------------------------------------------------------------------------------
+        # Get the notifications for the user
+        #--------------------------------------------------------------------------------------
+
+        def poller(expected_value, proc, user_id, **kwargs):
+
+            # Check the user info dictionary of the UNS process
+            user_info = proc.user_info
+            notifications = user_info[user_id]['notifications']
+            return len(notifications) == expected_value
+
         # Check the user notification service process
         proc = self.container.proc_manager.procs_by_name['user_notification']
-
+        poll(poller, expected_value = 2, proc = proc, user_id = user_id)
         self.assertEquals(len(proc.notifications.values()), 2)
-
-        # Check the user info dictionary of the UNS process
-        user_info = proc.user_info
-        notifications_held = user_info[user_id]['notifications']
-
-        self.assertEquals(len(notifications_held), 2)
 
         def _compare_notifications(notifications):
 
@@ -1401,6 +1407,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                     self.assertEquals(notif.origin_type, notification_request_2.origin_type)
                     self.assertEquals(notif._id, notification_id2)
 
+        notifications_held =proc.user_info[user_id]['notifications']
         _compare_notifications(notifications_held)
 
 
@@ -1444,24 +1451,16 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         self.assertEquals(n2.origin, notification_request_1.origin)
         self.assertEquals(n2.origin_type, notification_request_1.origin_type)
 
-        self.assertEquals(len(proc.notifications.values()), 2)
+        # User 1
+        poll(poller, expected_value = 2, proc = proc, user_id = user_id)
 
-        #--------------------------------------------------------------------------------------
-        # Check the user info dictionary of the UNS process
-        #--------------------------------------------------------------------------------------
-        user_info = proc.user_info
-
-        # For the first user, his subscriptions should be unchanged
-        notifications_held_1 = user_info[user_id]['notifications']
-
-        self.assertEquals(len(notifications_held_1), 2)
+        notifications_held_1 = proc.user_info[user_id]['notifications']
         _compare_notifications(notifications_held_1)
 
-        # For the second user, he should have got a new subscription
-        notifications_held_2 = user_info[user_id_2]['notifications']
+        # User 2 : Should have the new notification
+        poll(poller, expected_value = 1, proc = proc, user_id = user_id_2)
 
-        self.assertEquals(len(notifications_held_2), 1)
-
+        notifications_held_2 = proc.user_info[user_id_2]['notifications']
         notif = notifications_held_2[0]
         self.assertTrue(notif._id==notification_id1 or notif._id==notification_id2)
 
@@ -1505,20 +1504,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                                 predicate=PRED.hasNotification,
                                 id_only=True)
 
-        log.debug("not_ids::: %s", not_ids)
-
         self.assertEquals(set(not_ids), set([notification_id1,notification_id2]))
 
         not_ids_2, _ = self.rrc.find_objects(subject=user_id_2,
             predicate=PRED.hasNotification,
             id_only=True)
 
-        log.debug("not_ids_2::: %s", not_ids_2)
-
         self.assertEquals(set(not_ids_2), set([notification_id1]))
-
-
-
 
     @attr('LOCOINT')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
@@ -2046,8 +2038,13 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Get the notifications for the user
         #--------------------------------------------------------------------------------------
 
+        def poller(expected_value, method, **kwargs):
+            notifications = method(**kwargs)
+            return len(notifications) == expected_value
+
+        poll(poller, expected_value = 2, method = self.unsc.get_user_notifications, user_info_id = user_id)
+
         notifications= self.unsc.get_user_notifications(user_id)
-        self.assertEquals(len(notifications),2)
 
         names = []
         origins = []
@@ -2069,9 +2066,10 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------------
         self.unsc.delete_notification(notification_id=notification_id2)
 
+        poll(poller, expected_value = 1, method = self.unsc.get_user_notifications, user_info_id = user_id)
+
         # Get the notifications for the user
         notifications = self.unsc.get_user_notifications(user_id)
-        self.assertEquals(len(notifications),1)
         notification = notifications[0]
 
         self.assertEquals(notification.name, 'notification_1' )

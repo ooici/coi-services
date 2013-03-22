@@ -73,7 +73,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to service
         self.service_gateway_service = ServiceGatewayServiceClient(node=self.container.node)
@@ -196,7 +196,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         @return:
         """
 
-        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True')
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True&user_id=123abc456')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
@@ -280,6 +280,28 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
+
+
+        #Now testing the generic get_resource_extension with optional user_id parameter
+
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=ionsystem')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+
+        actor_id = response_data[0][0]['_id']
+
+        response = self.test_app.get('/ion-service/resource_registry/get_resource_extension?resource_id=' + actor_id + '&resource_extension=TestExtendedInformationResource')
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(convert_unicode(response_data['user_id']), '')
+
+        response = self.test_app.get('/ion-service/resource_registry/get_resource_extension?resource_id=' + actor_id + '&resource_extension=TestExtendedInformationResource&user_id=123abc456')
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(convert_unicode(response_data['user_id']), '123abc456')
+
+
 
     def test_non_anonymous_resource_registry_operations_through_gateway(self):
 
@@ -404,10 +426,10 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         #Check the contents of the user role cache for this user
-        service_gateway_user_cache = self.container.proc_manager.procs_by_name['service_gateway'].user_data_cache
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+        service_gateway_user_role_cache = self.container.proc_manager.procs_by_name['service_gateway'].user_role_cache
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), True)
 
-        role_header = service_gateway_user_cache.get(actor_id)
+        role_header = service_gateway_user_role_cache.get(actor_id)
         self.assertIn('ION', role_header)
         self.assertEqual(len(role_header['ION']), 1)
         self.assertIn('ORG_MEMBER', role_header['ION'])
@@ -417,13 +439,13 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         ion_org = org_client.find_org()
         manager_role = org_client.find_org_role_by_name(org_id=ion_org._id, role_name='ORG_MANAGER')
 
-        org_client.grant_role(org_id=ion_org._id, user_id=actor_id, role_name='ORG_MANAGER')
+        org_client.grant_role(org_id=ion_org._id, actor_id=actor_id, role_name='ORG_MANAGER')
 
         #Just allow some time for event processing on slower platforms
         gevent.sleep(2)
 
         #The user should be evicted from the cache due to a change in roles
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), False)
 
         #Do it again to check for new roles
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True&requester=' + actor_id)
@@ -431,9 +453,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         #Check the contents of the user role cache for this user
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), True)
 
-        role_header = service_gateway_user_cache.get(actor_id)
+        role_header = service_gateway_user_role_cache.get(actor_id)
         self.assertIn('ION', role_header)
         self.assertEqual(len(role_header['ION']), 2)
         self.assertIn('ORG_MEMBER', role_header['ION'])
@@ -446,17 +468,17 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         #Just allow some time for event processing on slower platforms
         gevent.sleep(2)
 
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
-        self.assertEqual(service_gateway_user_cache.size(), 0)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), False)
+        self.assertEqual(service_gateway_user_role_cache.size(), 0)
 
         #Change the role once again and see if it is there again
-        org_client.revoke_role(org_id=ion_org._id, user_id=actor_id, role_name='ORG_MANAGER')
+        org_client.revoke_role(org_id=ion_org._id, actor_id=actor_id, role_name='ORG_MANAGER')
 
         #Just allow some time for event processing on slower platforms
         gevent.sleep(2)
 
         #The user should still not be there
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), False)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), False)
 
         #Do it again to check for new roles
         response = self.test_app.get('/ion-service/resource_registry/find_resources?name=TestDataProduct&id_only=True&requester=' + actor_id)
@@ -464,9 +486,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
 
         #Check the contents of the user role cache for this user
-        self.assertEqual(service_gateway_user_cache.has_key(actor_id), True)
+        self.assertEqual(service_gateway_user_role_cache.has_key(actor_id), True)
 
-        role_header = service_gateway_user_cache.get(actor_id)
+        role_header = service_gateway_user_role_cache.get(actor_id)
         self.assertIn('ION', role_header)
         self.assertEqual(len(role_header['ION']), 1)
         self.assertIn('ORG_MEMBER', role_header['ION'])

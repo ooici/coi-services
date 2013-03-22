@@ -17,8 +17,9 @@ import logging
 from ion.agents.platform.platform_driver_event import DriverEvent
 from ion.agents.platform.exceptions import PlatformDriverException
 
-from ion.agents.instrument.common import BaseEnum
-from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMError
+from pyon.agent.common import BaseEnum
+from pyon.agent.instrument_fsm import ThreadSafeFSM
+from pyon.agent.instrument_fsm import FSMError
 from ion.agents.platform.exceptions import PlatformConnectionException
 from ion.agents.platform.util.network_util import NetworkUtil
 
@@ -587,7 +588,7 @@ class PlatformDriver(object):
         """
         log.debug("constructing fsm")
 
-        self._fsm = InstrumentFSM(PlatformDriverState,
+        self._fsm = ThreadSafeFSM(PlatformDriverState,
                                   PlatformDriverEvent,
                                   PlatformDriverEvent.ENTER,
                                   PlatformDriverEvent.EXIT)

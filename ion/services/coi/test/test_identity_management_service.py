@@ -148,7 +148,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.identity_management_service.register_user_credentials('111', self.user_credentials)
 
         self.mock_create.assert_called_once_with(self.user_credentials)
-        self.mock_create_association.assert_called_once_with('111', PRED.hasCredentials, '222', "H2H")
+        self.mock_create_association.assert_called_once_with('111', PRED.hasCredentials, '222', None)
 
     def test_unregister_user_credentials(self):
         self.mock_find_resources.return_value = ([self.user_credentials], [self.actor_identity_to_credentials_association])
@@ -196,7 +196,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         assert result == '444'
         self.mock_create.assert_called_once_with(self.user_info)
-        self.mock_create_association.assert_called_once_with('111', PRED.hasInfo, '444', "H2H")
+        self.mock_create_association.assert_called_once_with('111', PRED.hasInfo, '444', None)
 
     def test_create_user_info_fail_already_exists(self):
         self.mock_find_objects.return_value = ([self.user_info], [self.actor_identity_to_info_association])
@@ -432,7 +432,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
         self.org_client = OrgManagementServiceClient(node=self.container.node)

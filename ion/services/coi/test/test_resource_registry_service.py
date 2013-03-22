@@ -6,7 +6,7 @@ import unittest
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, NotFound, Inconsistent
-from pyon.public import IonObject, PRED, RT, LCS, LCE, AS, iex, log
+from pyon.public import IonObject, PRED, RT, LCS, LCE, AS, iex, log, OT
 from pyon.ion.resource import lcstate
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -19,7 +19,7 @@ class TestResourceRegistry(IonIntegrationTestCase):
     def setUp(self):
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to bank service
         self.resource_registry_service = ResourceRegistryServiceClient()
@@ -81,10 +81,9 @@ class TestResourceRegistry(IonIntegrationTestCase):
         obj_id, obj_rev = self.resource_registry_service.create(obj)
         read_obj = self.resource_registry_service.read(obj_id)
 
-        # Cannot create object with _id and _rev fields pre-set        
+        # Cannot create object with _id and _rev fields pre-set
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create(read_obj)
-        self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
 
         # Update object
         read_obj.name = "John Doe"
@@ -93,7 +92,6 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # Update should fail with revision mismatch
         with self.assertRaises(Conflict) as cm:
             self.resource_registry_service.update(read_obj)
-        self.assertTrue(cm.exception.message.startswith("Object not based on most current version"))
 
         # Re-read and update object
         read_obj = self.resource_registry_service.read(obj_id)
@@ -263,12 +261,12 @@ class TestResourceRegistry(IonIntegrationTestCase):
         # _id missing from subject
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(actor_identity_obj, PRED.hasInfo, user_info_obj_id)
-        self.assertTrue(cm.exception.message == "Subject id or rev not available")
+        self.assertTrue(cm.exception.message.startswith("Subject id"))
 
         # _id missing from object
         with self.assertRaises(BadRequest) as cm:
             self.resource_registry_service.create_association(actor_identity_obj_id, PRED.hasInfo, user_info_obj)
-        self.assertTrue(cm.exception.message == "Object id or rev not available")
+        self.assertTrue(cm.exception.message.startswith("Object id"))
 
         # Wrong subject type
         with self.assertRaises(BadRequest) as cm:
@@ -470,31 +468,38 @@ class TestResourceRegistry(IonIntegrationTestCase):
         #Testing multiple instrument owners
         subject1 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254"
 
-        actor_identity_obj1 = IonObject("ActorIdentity", {"name": subject1})
+        actor_identity_obj1 = IonObject(RT.ActorIdentity, {"name": subject1})
         actor_id1,_ = self.resource_registry_service.create(actor_identity_obj1)
 
-        user_info_obj1 = IonObject("UserInfo", {"name": "Foo"})
+        user_info_obj1 = IonObject(RT.UserInfo, {"name": "Foo"})
         user_info_id1,_ = self.resource_registry_service.create(user_info_obj1)
         self.resource_registry_service.create_association(actor_id1, PRED.hasInfo, user_info_id1)
 
         subject2 = "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256"
 
-        actor_identity_obj2 = IonObject("ActorIdentity", {"name": subject2})
+        actor_identity_obj2 = IonObject(RT.ActorIdentity, {"name": subject2})
         actor_id2,_ = self.resource_registry_service.create(actor_identity_obj2)
 
-        user_info_obj2 = IonObject("UserInfo", {"name": "Foo2"})
+        user_info_obj2 = IonObject(RT.UserInfo, {"name": "Foo2"})
         user_info_id2,_ = self.resource_registry_service.create(user_info_obj2)
         self.resource_registry_service.create_association(actor_id2, PRED.hasInfo, user_info_id2)
 
-        test_obj = IonObject('InformationResource',  {"name": "TestResource"})
+        test_obj = IonObject(RT.InformationResource,  {"name": "TestResource"})
         test_obj_id,_ = self.resource_registry_service.create(test_obj)
         self.resource_registry_service.create_association(test_obj_id, PRED.hasOwner, actor_id1)
         self.resource_registry_service.create_association(test_obj_id, PRED.hasOwner, actor_id2)
 
-        extended_resource = self.resource_registry_service.get_resource_extension(test_obj_id, 'ExtendedInformationResource')
+        extended_resource = self.resource_registry_service.get_resource_extension(test_obj_id, OT.ExtendedInformationResource )
 
         self.assertEqual(test_obj_id,extended_resource._id)
         self.assertEqual(len(extended_resource.owners),2)
 
-        extended_resource_list = self.resource_registry_service.get_resource_extension(str([user_info_id1,user_info_id2]), 'ExtendedInformationResource')
+        extended_resource_list = self.resource_registry_service.get_resource_extension(str([user_info_id1,user_info_id2]), OT.ExtendedInformationResource)
         self.assertEqual(len(extended_resource_list), 2)
+
+        optional_args = {'user_id': user_info_id1}
+        extended_resource = self.resource_registry_service.get_resource_extension(test_obj_id, OT.TestExtendedInformationResource, optional_args=optional_args )
+
+        self.assertEqual(test_obj_id,extended_resource._id)
+        self.assertEqual(len(extended_resource.owners),2)
+        self.assertEqual(extended_resource.user_id, user_info_id1)

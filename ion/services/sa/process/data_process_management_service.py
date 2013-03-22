@@ -221,7 +221,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                                                           " definition id: %s" % data_process_definition_id)
 
         self.clients.resource_registry.create_association(data_process_definition_id,  PRED.hasStreamDefinition,  stream_definition_id)
-        data_process_definition_obj.output_bindings[binding] = stream_definition_id
+        if binding:
+            data_process_definition_obj.output_bindings[binding] = stream_definition_id
         self.clients.resource_registry.update(data_process_definition_obj)
 
     def unassign_stream_definition_from_data_process_definition(self, stream_definition_id='', data_process_definition_id=''):
@@ -252,17 +253,22 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         @param configuration : The configuration dictionary for the process, and the routing table:
 
         The routing table is defined as such:
-            { (in_data_product_id, out_data_product_id) : actor }
+            { in_data_product_id: {out_data_product_id : actor }}
 
         Routes are specified in the configuration dictionary under the item "routes"
         actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
         '''
-        configuration = configuration or DotDict()
+        configuration = DotDict(configuration or {}) 
         routes = configuration.get_safe('process.routes', {})
+        if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
+            routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
+        # Routes are not supported for processes with discrete data process definitions
+        elif not routes and not data_process_definition_id:
+            raise BadRequest('No valid route defined for this data process.')
 
-        self.validate_compatibility(in_data_product_ids, out_data_product_ids)
-        configuration.process.routes = self._manage_routes(routes)
-
+        self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
+        routes = self._manage_routes(routes)
+        configuration.process.routes = routes
         dproc = DataProcess()
         dproc.name = 'data_process_%s' % self.get_unique_id()
         dproc.configuration = configuration
@@ -649,7 +655,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.clients.data_acquisition_management.unregister_process(data_process_id=data_process_id)
 
         #Delete the data process from the resource registry
-        self.clients.resource_registry.delete(object_id=data_process_id)
+        self.RR2.retire(data_process_id, RT.DataProcess)
 
     def force_delete_data_process(self, data_process_id=""):
 
@@ -658,8 +664,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if dp_obj.lcstate != LCS.RETIRED:
             self.delete_data_process(data_process_id)
 
-        self._remove_associations(data_process_id)
-        self.clients.resource_registry.delete(data_process_id)
+        self.RR2.pluck_delete(data_process_id, RT.DataProcess)
 
     def _stop_process(self, data_process):
         log.debug("stopping data process '%s'" % data_process.process_id)
@@ -763,16 +768,20 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
     def _manage_routes(self, routes):
         retval = {}
-        for path,actor in routes.iteritems():
-            in_data_product_id, out_data_product_id = path
-            in_stream_id = self._get_stream_from_dp(in_data_product_id)
-            out_stream_id = self._get_stream_from_dp(out_data_product_id)
-            if actor:
-                self.clients.resource_registry.read(actor)
-                if isinstance(actor,TransformFunction):
-                    actor = 'TODO: figure this out' 
-                    
-            retval[(in_stream_id, out_stream_id)] = actor
+        for in_data_product_id,route in routes.iteritems():
+            for out_data_product_id, actor in route.iteritems():
+                in_stream_id = self._get_stream_from_dp(in_data_product_id)
+                out_stream_id = self._get_stream_from_dp(out_data_product_id)
+                if actor:
+                    actor = self.clients.resource_registry.read(actor)
+                    if isinstance(actor,TransformFunction):
+                        actor = {'module': actor.module, 'class':actor.cls}
+                    else:
+                        raise BadRequest('This actor type is not currently supported')
+                        
+                if in_stream_id not in retval:
+                    retval[in_stream_id] =  {}
+                retval[in_stream_id][out_stream_id] = actor
         return retval
 
     def _manage_producers(self, data_process_id, data_product_ids):
@@ -824,9 +833,22 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         process_definition_id = self._get_process_definition(data_process_definition_id)
 
         out_streams = {}
+        if data_process_definition_id:
+            dpd = self.read_data_process_definition(data_process_definition_id)
+
         for dp_id in out_data_product_ids:
             stream_id = self._get_stream_from_dp(dp_id)
             out_streams[stream_id] = stream_id
+            if data_process_definition_id:
+                stream_definition = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
+                stream_definition_id = stream_definition._id
+
+                # Check the binding to see if it applies here
+
+                for binding,stream_def_id in dpd.output_bindings.iteritems():
+                    if stream_def_id == stream_definition_id:
+                        out_streams[binding] = stream_id
+                        break
 
         return self._launch_process(queue_name, out_streams, process_definition_id, configuration)
 
@@ -842,7 +864,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             raise BadRequest('No valid stream definition defined for data product stream')
         return self.clients.pubsub_management.compatible_stream_definitions(in_stream_definition_id=in_stream_defs[0], out_stream_definition_id=out_stream_defs[0])
     
-    def validate_compatibility(self, in_data_product_ids=None, out_data_product_ids=None, routes=None):
+    def validate_compatibility(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, routes=None):
         '''
         Validates compatibility between input and output data products
         routes are in this form:
@@ -850,19 +872,40 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             if actor is None then the data process is assumed to use parameter functions.
             if actor is a TransformFunction, the validation is done at runtime
         '''
-        if len(out_data_product_ids)>1 and not routes:
+        if data_process_definition_id:
+            input_stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasInputStreamDefinition, id_only=True)
+            output_stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            for in_data_product_id in in_data_product_ids:
+                input_stream_def = self.stream_def_from_data_product(in_data_product_id)
+                if input_stream_def not in input_stream_def_ids:
+                    log.warning('Creating a data process with an unmatched stream definition input')
+            for out_data_product_id in out_data_product_ids:
+                output_stream_def = self.stream_def_from_data_product(out_data_product_id)
+                if output_stream_def not in output_stream_def_ids:
+                    log.warning('Creating a data process with an unmatched stream definition output')
+        
+        if len(out_data_product_ids)>1 and not routes and not data_process_definition_id:
             raise BadRequest('Multiple output data products but no routes defined')
         if len(out_data_product_ids)==1:
             return all( [self._validator(i, out_data_product_ids[0]) for i in in_data_product_ids] )
         elif len(out_data_product_ids)>1:
-            for path,actor in routes.iteritems():
-                in_dp_id, out_dp_id = path
-                if not self._validator(in_dp_id, out_dp_id):
-                    return False
+            for in_dp_id,out in routes.iteritems():
+                for out_dp_id, actor in out.iteritems():
+                    if not self._validator(in_dp_id, out_dp_id):
+                        return False
             return True
         else:
             raise BadRequest('No input data products specified')
 
+
+    def stream_def_from_data_product(self, data_product_id=''):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
+        validate_true(stream_ids, 'No stream found for this data product: %s' % data_product_id)
+        stream_id = stream_ids.pop()
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=True)
+        validate_true(stream_def_ids, 'No stream definition found for this stream: %s' % stream_def_ids)
+        stream_def_id = stream_def_ids.pop()
+        return stream_def_id
 
 
     def _get_process_producer(self, data_process_id=""):
@@ -904,14 +947,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
-        # replace list of lists with single list
-        replacement_data_products = []
-        for inner_list in extended_data_process_definition.data_products:
-            if inner_list:
-                for actual_data_product in inner_list:
-                    if actual_data_product:
-                        replacement_data_products.append(actual_data_product)
-        extended_data_process_definition.data_products = replacement_data_products
 
         return extended_data_process_definition
 

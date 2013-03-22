@@ -60,8 +60,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.RR2 = EnhancedResourceRegistryClient(self.RR)
 
-        print 'started services'
-
 #    @unittest.skip('this test just for debugging setup')
 #    def test_just_the_setup(self):
 #        return
@@ -162,6 +160,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
+        # Lifecycle
+        self.assertEquals(len(extended_instrument.lcstate_transitions), 7)
+        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
+
         # Verify that computed attributes exist for the extended instrument
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
@@ -186,7 +188,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check agent
         inst_agent_obj = self.RR.read(instrument_agent_id)
         #compound assoc return list of lists so check the first element
-        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent[0].name)
+        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent.name)
 
         #check platform device
         plat_device_obj = self.RR.read(platform_device_id)
@@ -198,6 +200,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_device_id, extended_platform.instrument_devices[0]._id)
         self.assertEqual(1, len(extended_platform.instrument_models))
         self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
+        self.assertEquals(extended_platform.platform_agent._id, platform_agent_id)
+
+        self.assertEquals(len(extended_platform.lcstate_transitions), 7)
+        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
 
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
@@ -237,6 +243,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR2.pluck(instrument_model_id)
         self.RR2.pluck(instrument_device_id)
         self.RR2.pluck(platform_agent_id)
+        self.RR2.pluck(sensor_device_id)
         self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)
@@ -456,9 +463,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         sdom = sdom.dump()
         tdom = tdom.dump()
 
-        org_id = self.RR2.create(any_old(RT.Org))
+        org_obj = any_old(RT.Org)
+        org_id = self.RR2.create(org_obj)
 
         inst_startup_config = {'startup': 'config'}
+
+        generic_alerts_config = {'lvl1': {'lvl2': 'lvl3val'}}
 
         required_config_keys = [
             'org_name',
@@ -475,7 +485,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_instrument_config(config, device_id):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(org_obj.name, config['org_name'])
             self.assertEqual(RT.InstrumentDevice, config['device_type'])
             self.assertIn('driver_config', config)
             driver_config = config['driver_config']
@@ -488,6 +498,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
             self.assertEqual({'resource_id': device_id}, config['agent'])
             self.assertEqual(inst_startup_config, config['startup_config'])
+            self.assertIn('aparam_alert_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
             self.assertIn('stream_config', config)
             for key in ['alarm_defs', 'children']:
                 self.assertEqual({}, config[key])
@@ -496,9 +508,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_child_config(config, device_id, inst_device_id=None):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(org_obj.name, config['org_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertEqual({'resource_id': device_id}, config['agent'])
+            self.assertIn('aparam_alert_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
             self.assertIn('stream_config', config)
             self.assertIn('driver_config', config)
             self.assertIn('foo', config['driver_config'])
@@ -520,11 +534,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_parent_config(config, parent_device_id, child_device_id, inst_device_id=None):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual('Org_1', config['org_name'])
+            self.assertEqual(org_obj.name, config['org_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertIn('process_type', config['driver_config'])
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
             self.assertEqual({'resource_id': parent_device_id}, config['agent'])
+            self.assertIn('aparam_alert_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
             self.assertIn('stream_config', config)
             for key in ['alarm_defs', 'startup_config']:
                 self.assertEqual({}, config[key])
@@ -546,7 +562,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             if None is agent_config: agent_config = {}
 
             # instance creation
-            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, {'driver_config': {'foo': 'bar'}})
+            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, {'driver_config': {'foo': 'bar'},
+                                                                             'alerts': generic_alerts_config})
             platform_agent_instance_obj.agent_config = agent_config
             platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
 
@@ -576,12 +593,16 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             if None is agent_config: agent_config = {}
 
             # instance creation
-            instrument_agent_instance_obj = any_old(RT.InstrumentAgentInstance, {"startup_config": inst_startup_config})
+            instrument_agent_instance_obj = any_old(RT.InstrumentAgentInstance, {"startup_config": inst_startup_config,
+                                                                                 'alerts': generic_alerts_config})
             instrument_agent_instance_obj.agent_config = agent_config
             instrument_agent_instance_id = self.IMS.create_instrument_agent_instance(instrument_agent_instance_obj)
 
             # agent creation
-            raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+            raw_config = StreamConfiguration(stream_name='raw',
+                                             parameter_dictionary_name='ctd_raw_param_dict',
+                                             records_per_granule=2,
+                                             granule_publish_rate=5 )
             instrument_agent_obj = any_old(RT.InstrumentAgent, {"stream_configurations":[raw_config]})
             instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
 

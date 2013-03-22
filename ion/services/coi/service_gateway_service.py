@@ -3,9 +3,10 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, ast, simplejson, sys, traceback, string
+import inspect, ast, simplejson, sys, traceback, string, copy
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
+from werkzeug.datastructures import MultiDict
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
@@ -89,7 +90,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #Initialize an LRU Cache to keep user roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
         #maxAgeMs = oldest entry to keep
-        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
+        self.user_role_cache = LRUCache(self.user_cache_size,0,0)
 
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
@@ -154,15 +155,15 @@ class ServiceGatewayService(BaseServiceGatewayService):
         log.debug("User Role modified: %s %s %s" % (org_id, actor_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(actor_id):
-            log.debug('Evicting user from the user_data_cache: %s' % actor_id)
-            service_gateway_instance.user_data_cache.evict(actor_id)
+        if service_gateway_instance.user_role_cache and service_gateway_instance.user_role_cache.has_key(actor_id):
+            log.debug('Evicting user from the user_role_cache: %s' % actor_id)
+            service_gateway_instance.user_role_cache.evict(actor_id)
 
     def user_role_reset_callback(self, *args, **kwargs):
         '''
         This method is a callback function for when an event is received to clear the user data cache
         '''
-        self.user_data_cache.clear()
+        self.user_role_cache.clear()
 
 @service_gateway_app.errorhandler(403)
 def custom_403(error):
@@ -443,8 +444,8 @@ def build_message_headers( ion_actor_id, expiry):
 
     try:
         #Check to see if the user's roles are cached already - keyed by user id
-        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
-            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+        if service_gateway_instance.user_role_cache.has_key(ion_actor_id):
+            role_header = service_gateway_instance.user_role_cache.get(ion_actor_id)
             if role_header is not None:
                 headers['ion-actor-roles'] = role_header
                 return headers
@@ -457,7 +458,7 @@ def build_message_headers( ion_actor_id, expiry):
         role_header = get_role_message_headers(org_roles)
 
         #Cache the roles by user id
-        service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
+        service_gateway_instance.user_role_cache.put(ion_actor_id, role_header)
 
     except Exception, e:
         role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
@@ -470,15 +471,23 @@ def build_message_headers( ion_actor_id, expiry):
 
 #Build parameter list dynamically from
 def create_parameter_list(request_type, service_name, target_client,operation, json_params):
+
+    #This is a bit of a hack - should use decorators to indicate which parameter is the dict that acts like kwargs
+    optional_args = request.args.to_dict(flat=True)
+
     param_list = {}
     method_args = inspect.getargspec(getattr(target_client,operation))
-    for arg in method_args[0]:
-        if arg == 'self' or arg == 'headers': continue # skip self and headers from being set
+    for (arg_index, arg) in enumerate(method_args[0]):
+        if arg == 'self': continue # skip self
 
         if not json_params:
             if request.args.has_key(arg):
-                param_type = get_message_class_in_parm_type(service_name, operation, arg)
-                if param_type == 'str':
+
+                #Keep track of which query_string_parms are left after processing
+                del optional_args[arg]
+
+                #Handle strings differently because of unicode
+                if isinstance(method_args[3][arg_index-1], str):
                     if isinstance(request.args[arg], unicode):
                         param_list[arg] = str(request.args[arg].encode('utf8'))
                     else:
@@ -497,6 +506,13 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
                         param_list[arg] = str(json_params[request_type]['params'][arg].encode('utf8'))
                     else:
                         param_list[arg] = json_params[request_type]['params'][arg]
+
+    #Send any optional_args if there are any and allowed
+    if len(optional_args) > 0 and  'optional_args' in method_args[0]:
+        param_list['optional_args'] = dict()
+        for arg in optional_args:
+            #Only support basic strings for these optional params for now
+            param_list['optional_args'][arg] = str(request.args[arg])
 
     return param_list
 
@@ -576,6 +592,60 @@ def list_resource_types():
         return build_error_response(e)
 
 
+#@TODO - move this to pyon
+
+def get_object_schema(resource_type):
+
+
+    schema_info = dict()
+
+    #Prepare the dict entry for schema information including all of the internal object types
+    schema_info['schemas'] = dict()
+
+    #ION Objects are not registered as UNICODE names
+    ion_object_name = str(resource_type)
+    ret_obj = IonObject(ion_object_name, {})
+
+    # If it's an op input param or response message object.
+    # Walk param list instantiating any params that were marked None as default.
+    if hasattr(ret_obj, "_svc_name"):
+        schema = ret_obj._schema
+        for field in ret_obj._schema:
+            if schema[field]["default"] is None:
+                try:
+                    value = IonObject(schema[field]["type"], {})
+                except NotFound:
+                    # TODO
+                    # Some other non-IonObject type.  Just use None as default for now.
+                    value = None
+                setattr(ret_obj, field, value)
+
+    #Add schema information for sub object types
+    schema_info['schemas'][ion_object_name] = ret_obj._schema
+    for field in ret_obj._schema:
+        obj_type = ret_obj._schema[field]['type']
+
+        #First look for ION objects
+        if is_ion_object(obj_type):
+
+            try:
+                value = IonObject(obj_type, {})
+                schema_info['schemas'][obj_type] = value._schema
+
+            except NotFound:
+                pass
+
+        #Next look for ION Enums
+        elif ret_obj._schema[field].has_key('enum_type'):
+            if isenum(ret_obj._schema[field]['enum_type']):
+                value = IonObject(ret_obj._schema[field]['enum_type'], {})
+                schema_info['schemas'][ret_obj._schema[field]['enum_type']] = value._str_map
+
+
+    schema_info['object'] = ret_obj
+    return schema_info
+
+
 #Returns a json object for a specified resource type with all default values.
 @service_gateway_app.route('/ion-service/resource_type_schema/<resource_type>')
 def get_resource_schema(resource_type):
@@ -584,55 +654,7 @@ def get_resource_schema(resource_type):
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
-        schema_info = dict()
-
-        #Prepare the dict entry for schema information including all of the internal object types
-        schema_info['schemas'] = dict()
-
-
-        #ION Objects are not registered as UNICODE names
-        ion_object_name = str(resource_type)
-        ret_obj = IonObject(ion_object_name, {})
-
-        # If it's an op input param or response message object.
-        # Walk param list instantiating any params that were marked None as default.
-        if hasattr(ret_obj, "_svc_name"):
-            schema = ret_obj._schema
-            for field in ret_obj._schema:
-                if schema[field]["default"] is None:
-                    try:
-                        value = IonObject(schema[field]["type"], {})
-                    except NotFound:
-                        # TODO
-                        # Some other non-IonObject type.  Just use None as default for now.
-                        value = None
-                    setattr(ret_obj, field, value)
-
-        #Add schema information for sub object types
-        schema_info['schemas'][ion_object_name] = ret_obj._schema
-        for field in ret_obj._schema:
-            obj_type = ret_obj._schema[field]['type']
-
-            #First look for ION objects
-            if is_ion_object(obj_type):
-
-                try:
-                    value = IonObject(obj_type, {})
-                    schema_info['schemas'][obj_type] = value._schema
-
-                except NotFound:
-                    pass
-
-            #Next look for ION Enums
-            elif ret_obj._schema[field].has_key('enum_type'):
-                if isenum(ret_obj._schema[field]['enum_type']):
-                    value = IonObject(ret_obj._schema[field]['enum_type'], {})
-                    schema_info['schemas'][ret_obj._schema[field]['enum_type']] = value._str_map
-
-
-        #Add an instance of the resource type object
-        schema_info['object'] = ret_obj
-        return gateway_json_response(schema_info)
+        return gateway_json_response(get_object_schema(resource_type))
 
     except Exception, e:
         return build_error_response(e)

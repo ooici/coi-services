@@ -23,7 +23,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from pyon.ion.stream import StandaloneStreamPublisher
 
 from interface.objects import DataProduct
-from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType
+from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType, create_guid, CRS, AxisTypeEnum, GridDomain, GridShape, MutabilityEnum, SimplexCoverage
 
 import numpy as np
 import gevent
@@ -54,14 +54,40 @@ class TestTypes(PyonTestCase):
         granule = rdt.to_granule()
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
 
-        testval = comp_val or value_array
+        testval = comp_val if comp_val is not None else value_array
         actual = rdt2['test']
 
 
         if isinstance(testval, basestring):
             self.assertEquals(testval, actual)
         else:
-            self.assertTrue(np.array_equal(testval, actual))
+            np.testing.assert_array_equal(testval, actual)
+
+    def cov_io(self, context, value_array, comp_val=None):
+        pdict = ParameterDictionary()
+        time = ParameterContext(name='time', param_type=QuantityType(value_encoding=np.float64))
+        pdict.add_context(context)
+        pdict.add_context(time, True)
+        # Construct temporal and spatial Coordinate Reference System objects
+        tcrs = CRS([AxisTypeEnum.TIME])
+        scrs = CRS([AxisTypeEnum.LON, AxisTypeEnum.LAT])
+
+        # Construct temporal and spatial Domain objects
+        tdom = GridDomain(GridShape('temporal', [0]), tcrs, MutabilityEnum.EXTENSIBLE) # 1d (timeline)
+        sdom = GridDomain(GridShape('spatial', [0]), scrs, MutabilityEnum.IMMUTABLE) # 0d spatial topology (station/trajectory)
+
+        # Instantiate the SimplexCoverage providing the ParameterDictionary, spatial Domain and temporal Domain
+        cov = SimplexCoverage('test_data', create_guid(), 'sample coverage_model', parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+
+        cov.insert_timesteps(len(value_array))
+        cov.set_parameter_values('test', tdoa=slice(0,len(value_array)), value=value_array)
+        comp_val = comp_val if comp_val is not None else value_array
+        testval = cov.get_parameter_values('test')
+        try:
+            np.testing.assert_array_equal(testval, comp_val)
+        except:
+            print repr(value_array)
+            raise
 
     def test_quantity_type(self):
         ptype      = 'quantity'
@@ -74,7 +100,7 @@ class TestTypes(PyonTestCase):
             paramval[:] = np.arange(20)
             self.assertTrue((paramval[:] == np.arange(20)).all())
         self.rdt_to_granule(context, np.arange(20))
-
+        self.cov_io(context, np.arange(20))
 
     def test_string_type(self):
         ptype      = 'quantity'
@@ -99,11 +125,12 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
+        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
+        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
 
         self.rdt_to_granule(context, ['hi'] * 20)
+        self.cov_io(context, ['hi'] * 20)
 
     def test_string_arrays(self):
         ptype = 'array<quantity>'
@@ -114,12 +141,31 @@ class TestTypes(PyonTestCase):
         paramval = self.get_pval(context)
         
         paramval[:] = [context.fill_value] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d(context.fill_value)) for i in xrange(20)]
+        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
         paramval[:] = ['hi'] * 20
-        [self.assertEquals(paramval[i], np.atleast_1d('hi')) for i in xrange(20)]
+        [self.assertEquals(paramval[i], 'hi') for i in xrange(20)]
 
         self.rdt_to_granule(context,['hi'] * 20)
+        self.cov_io(context, ['hi'] * 20)
 
+    def test_array_type(self):
+        ptype      = 'array<quantity>'
+        encoding   = 'int32'
+        fill_value = 'empty'
+
+        context = self.get_context(ptype, encoding, fill_value)
+        paramval = self.get_pval(context)
+
+        paramval[:] = [context.fill_value] * 20
+        [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
+        paramval[:] = [[1,2,3]] * 20
+        [np.testing.assert_array_equal(paramval[i], [1,2,3]) for i in xrange(20)]
+        testval = np.array([None] * 20)
+        for i in xrange(20):
+            testval[i] = [1,2,3]
+
+        self.rdt_to_granule(context, [[1,2,3]] * 20, testval)
+        self.cov_io(context, testval)
 
     def test_category_type(self):
         ptype      = 'category<int8:str>'
@@ -133,6 +179,9 @@ class TestTypes(PyonTestCase):
         for key in context.param_type.categories:
             self.assertIsInstance(key,np.int8)
 
+        paramval[:] = [None] * 20
+        [self.assertEquals(paramval[i], 'off') for i in xrange(20)]
+
         paramval[:] = [context.fill_value] * 20
         [self.assertEquals(paramval[i], 'off') for i in xrange(20)]
 
@@ -140,6 +189,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], 'on') for i in xrange(20)]
 
         self.rdt_to_granule(context, [1] * 20, ['on'] * 20)
+        self.cov_io(context, [1]* 20, ['on'] * 20)
 
 
     def test_const_str(self):
@@ -162,6 +212,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], long_str[:12]) for i in xrange(20)]
 
         self.rdt_to_granule(context, 'hi')
+        self.cov_io(context, 'hi')
 
     def test_const(self):
         ptype      = 'constant<quantity>'
@@ -177,6 +228,7 @@ class TestTypes(PyonTestCase):
         [self.assertEquals(paramval[i], 2) for i in xrange(20)]
 
         self.rdt_to_granule(context, 2)
+        self.cov_io(context, [2])
 
     def test_boolean(self):
         ptype      = 'boolean'
@@ -195,6 +247,7 @@ class TestTypes(PyonTestCase):
         self.assertEquals(get_fill_value('true',encoding), 1, ptype)
 
         self.rdt_to_granule(context, [1] * 20, [True] * 20)
+        self.cov_io(context, [1] * 20, [True] * 20)
 
     
     def test_range_type(self):
@@ -205,16 +258,17 @@ class TestTypes(PyonTestCase):
         context = self.get_context(ptype, encoding, fill_value)
         paramval = self.get_pval(context)
 
-        print '>>>>>>'
-        print context.fill_value
-        print type(context.fill_value)
-        print type(get_fill_value(fill_value, encoding, context.param_type))
-
         [self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
         paramval[:] = (0,1000)
         [self.assertEquals(paramval[i], (0,1000)) for i in xrange(20)]
+        testval = np.array([None])
+        testval[0] = (0,1000)
+        self.rdt_to_granule(context, (0,1000), testval)
+        testval = np.array([None]*20)
+        for i in xrange(20):
+            testval[i] = (0,1000)
 
-        self.rdt_to_granule(context, (0,1000), (0,1000))
+        self.cov_io(context, paramval, testval)
 
 
     def test_bad_codeset(self):
@@ -287,7 +341,10 @@ class TestTypes(PyonTestCase):
         paramval[:] = [{0:'a'}] * 20
         [self.assertEquals(paramval[i], {0:'a'}) for i in xrange(20)]
 
+        testval = [{0:'a'}] * 20
+
         self.rdt_to_granule(context, [{0:'a'}] * 20)
+        self.cov_io(context, testval)
 
     def test_bad_ptype(self):
         self.assertRaises(TypeError, get_parameter_type, 'flimsy','','')

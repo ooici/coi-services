@@ -44,7 +44,8 @@ from interface.objects import Granule, DeviceStatusType, DeviceCommsType, Status
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue, ComputedDictValue, ComputedListValue, ComputedEventListValue
-from interface.objects import StreamAlarmType
+# Alarm types and events.
+from interface.objects import StreamAlertType
 
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
@@ -243,9 +244,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @unittest.skip('refactoring')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+    @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 90}}})
     def test_activateInstrumentSample(self):
 
         self.loggerpids = []
@@ -259,41 +261,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
 
-        #Create stream alarms
-        """
-        test_two_sided_interval
-        Test interval alarm and alarm event publishing for a closed
-        inteval.
-        """
-
-        #        kwargs = {
-        #            'name' : 'test_sim_warning',
-        #            'stream_name' : 'parsed',
-        #            'value_id' : 'temp',
-        #            'message' : 'Temperature is above test range of 5.0.',
-        #            'type' : StreamAlarmType.WARNING,
-        #            'upper_bound' : 5.0,
-        #            'upper_rel_op' : '<'
-        #        }
-
-
-        kwargs = {
-            'name' : 'temperature_warning_interval',
-            'stream_name' : 'parsed',
-            'value_id' : 'temp',
-            'message' : 'Temperature is below the normal range of 50.0 and above.',
-            'type' : StreamAlarmType.WARNING,
-            'lower_bound' : 50.0,
-            'lower_rel_op' : '<'
-        }
-
-        # Create alarm object.
-        alarm = {}
-        alarm['type'] = 'IntervalAlarmDef'
-        alarm['kwargs'] = kwargs
 
         raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
-        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5, alarms=[alarm] )
+        parsed_config = StreamConfiguration(stream_name='parsed', parameter_dictionary_name='ctd_parsed_param_dict', records_per_granule=2, granule_publish_rate=5)
 
 
         # Create InstrumentAgent
@@ -315,9 +285,29 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
                                    serial_number="12345" )
         instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
         self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
-
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s (SA Req: L4-CI-SA-RQ-241) " , instDevice_id)
 
+
+
+        #Create stream alarms
+        """
+        test_two_sided_interval
+        Test interval alarm and alarm event publishing for a closed
+        inteval.
+        """
+
+        alert_def = {
+            'name' : 'temperature_warning_interval',
+            'stream_name' : 'parsed',
+            'message' : 'Temperature is below the normal range of 50.0 and above.',
+            'alert_type' : StreamAlertType.WARNING,
+            'value_id' : 'temp',
+            'resource_id' : instDevice_id,
+            'origin_type' : 'device',
+            'lower_bound' : 50.0,
+            'lower_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
+        }
 
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
@@ -333,12 +323,17 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          port_agent_config = port_agent_config)
+                                          port_agent_config = port_agent_config,
+                                            alerts= [alert_def])
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
                                                                                instAgent_id,
                                                                                instDevice_id)
+
+
+
+
 
         tdom, sdom = time_series_domain()
         sdom = sdom.dump()
@@ -438,7 +433,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             self._async_sample_result.set()
 
         self._event_subscriber = EventSubscriber(
-            event_type= 'StreamWarningAlarmEvent',   #'StreamWarningAlarmEvent', #  StreamAlarmEvent
+            event_type= 'StreamAlertEvent',
             callback=consume_event,
             origin=instDevice_id)
         self._event_subscriber.start()
@@ -540,7 +535,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertEquals(len(temp_vals) , 10)
         log.debug("test_activateInstrumentSample: all temp_vals: %s", temp_vals )
 
-        #out_of_range_temp_vals = [i for i in temp_vals if i > 5]
         out_of_range_temp_vals = [i for i in temp_vals if i < 50.0]
         log.debug("test_activateInstrumentSample: Out_of_range_temp_vals: %s", out_of_range_temp_vals )
         self._samples_out_of_range = len(out_of_range_temp_vals)
@@ -548,7 +542,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # if no bad values were produced, then do not wait for an event
         if self._samples_out_of_range == 0:
             self._async_sample_result.set()
-
 
         log.debug("test_activateInstrumentSample: _events_received: %s", self._events_received )
         log.debug("test_activateInstrumentSample: _event_count: %s", self._event_count )

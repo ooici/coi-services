@@ -23,10 +23,8 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
-from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 
-
-from ion.agents.instrument.common import BaseEnum
 
 from ion.agents.platform.exceptions import PlatformException, PlatformConfigurationException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
@@ -38,9 +36,10 @@ from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDri
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 import numpy
-from ion.agents.platform.test.adhoc import adhoc_get_parameter_dictionary
 
-from ion.agents.instrument.instrument_fsm import InstrumentFSM, FSMStateError
+from pyon.agent.common import BaseEnum
+from pyon.agent.instrument_fsm import ThreadSafeFSM
+from pyon.agent.instrument_fsm import FSMStateError
 
 from ion.agents.platform.platform_agent_launcher import LauncherFactory
 
@@ -174,15 +173,13 @@ class PlatformAgent(ResourceAgent):
         # platform ID of my parent, if any. -mainly for diagnostic purposes
         self._parent_platform_id = None
 
-        self._network_definition_ser = None  # string
         self._network_definition = None  # NetworkDefinition object
         self._pnode = None  # PlatformNode object corresponding to this platform
-
-        self._agent_streamconfig_map = None
 
         # </platform configuration>
         #########################################
 
+        self._driver_config = None
         self._plat_driver = None
 
         # PlatformResourceMonitor
@@ -207,7 +204,7 @@ class PlatformAgent(ResourceAgent):
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
-        self._pp = pprint.PrettyPrinter(indent=4, depth=12)
+        self._pp = pprint.PrettyPrinter()
 
     def on_init(self):
         super(PlatformAgent, self).on_init()
@@ -216,8 +213,14 @@ class PlatformAgent(ResourceAgent):
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
 
-        if log.isEnabledFor(logging.DEBUG): # pragma: no cover
-            log.debug("on_init: CFG = %s", self._pp.pformat(self.CFG))
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            platform_id = self.CFG.get_safe('platform_config.platform_id', '')
+            outname = "logs/platform_CFG_%s.txt" % platform_id
+            try:
+                pprint.PrettyPrinter(stream=file(outname, "w")).pprint(self.CFG)
+                log.debug("%r: on_init: CFG printed to %s", platform_id, outname)
+            except Exception as e:
+                log.warn("%r: on_init: error printing CFG to %s: %s", platform_id, outname, e)
 
     def on_start(self):
         super(PlatformAgent, self).on_start()
@@ -320,12 +323,10 @@ class PlatformAgent(ResourceAgent):
 
     def _pre_initialize(self):
         """
-        Does verifications and preparations dependent on self._plat_config.
+        Does verifications and preparations dependent on self.CFG.
 
         @raises PlatformException if the verification fails for some reason.
         """
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("_pre_initialize: plat_config=%s", self._pp.pformat(self._plat_config))
 
         if not self._plat_config:
             msg = "'platform_config' entry not provided in agent configuration"
@@ -337,25 +338,33 @@ class PlatformAgent(ResourceAgent):
             return
 
         log.debug("verifying/processing _plat_config ...")
-        for k in ['platform_id', 'driver_config', 'network_definition']:
+
+        self._driver_config = self.CFG.get('driver_config', None)
+        if None is self._driver_config:
+            msg = "'driver_config' key not in configuration"
+            log.error(msg)
+            raise PlatformException(msg)
+
+        log.debug("driver_config: %s", self._driver_config)
+
+        for k in ['platform_id']:
             if not k in self._plat_config:
-                msg = "'%s' key not given in plat_config=%s" % (k, self._plat_config)
+                msg = "'%s' key not given in configuration" % k
                 log.error(msg)
                 raise PlatformException(msg)
 
         self._platform_id = self._plat_config['platform_id']
-        driver_config = self._plat_config['driver_config']
-        self._network_definition_ser = self._plat_config['network_definition']
 
         for k in ['dvr_mod', 'dvr_cls']:
-            if not k in driver_config:
-                msg = "%r: '%s' key not given in driver_config=%s" % (
-                    self._platform_id, k, driver_config)
+            if not k in self._driver_config:
+                msg = "%r: '%s' key not given in driver_config: %s" % (
+                    self._platform_id, k, self._driver_config)
                 log.error(msg)
                 raise PlatformException(msg)
 
-        self._network_definition = NetworkUtil.deserialize_network_definition(
-            self._network_definition_ser)
+        # Create network definition from the provided CFG:
+        self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
+        log.debug("%r: created network_definition from CFG", self._platform_id)
 
         # verify the given platform_id is contained in the NetworkDefinition:
         if not self._platform_id in self._network_definition.pnodes:
@@ -363,28 +372,55 @@ class PlatformAgent(ResourceAgent):
             log.error(msg)
             raise PlatformException(msg)
 
+        # get PlatformNode corresponding to this agent:
         self._pnode = self._network_definition.pnodes[self._platform_id]
         assert self._pnode.platform_id == self._platform_id
 
-        self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
-                                         in self._pnode.attrs.itervalues())
+        #
+        # set platform attributes:
+        #
+        if 'attributes' in self._driver_config:
+            attrs = self._driver_config['attributes']
+            self._platform_attributes = attrs
+            log.debug("%r: platform attributes taken from driver_config: %s",
+                      self._platform_id, self._platform_attributes)
+        else:
+            self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
+                                             in self._pnode.attrs.itervalues())
+            log.warn("%r: platform attributes taken from network definition: %s",
+                     self._platform_id, self._platform_attributes)
+
+        #
+        # set platform ports:
+        # TODO the ports may probably be applicable only in particular
+        # drivers (like in RSN), so move these there if that's the case.
+        #
+        if 'ports' in self._driver_config:
+            ports = self._driver_config['ports']
+            self._platform_ports = ports
+            log.debug("%r: platform ports taken from driver_config: %s",
+                      self._platform_id, self._platform_ports)
+        else:
+            self._platform_ports = {}
+            for port_id, port in self._pnode.ports.iteritems():
+                self._platform_ports[port_id] = dict(port_id=port_id,
+                                                     network=port.network)
+            log.warn("%r: platform ports taken from network definition: %s",
+                     self._platform_id, self._platform_ports)
 
         ppid = self._plat_config.get('parent_platform_id', None)
         if ppid:
             self._parent_platform_id = ppid
             log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
 
-        if 'agent_streamconfig_map' in self._plat_config:
-            self._agent_streamconfig_map = self._plat_config['agent_streamconfig_map']
-
         self._plat_config_processed = True
 
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("%r: _plat_config_processed complete" % self._platform_id)
+        log.debug("%r: _plat_config_processed complete",  self._platform_id)
 
     ##############################################################
     # Governance interfaces
     ##############################################################
+
 
     #TODO - When/If the Instrument and Platform agents are dervied from a common device agent class, then relocate to the parent class and share
     def check_resource_operation_policy(self, msg,  headers):
@@ -400,11 +436,14 @@ class PlatformAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_name(), ORG_MANAGER_ROLE):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
             return True, ''
 
-        if not has_org_role(gov_values.actor_roles ,self._get_process_org_name(), INSTRUMENT_OPERATOR_ROLE):
-            return False, ''
+        if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+            INSTRUMENT_OPERATOR_ROLE):
+            return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
+                          % (self.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                             self._get_process_org_governance_name())
 
         com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
         if com is None:
@@ -432,31 +471,13 @@ class PlatformAgent(ResourceAgent):
             self.resource_id = agent_info['resource_id']
             log.debug("%r: resource_id set to %r", self.resource_id, self.resource_id)
 
-        #
-        # TODO simplify method as only CFG.stream_config will be used.
-        #
+        stream_configs = self.CFG.get('stream_config', None)
+        if stream_configs is None:
+            raise PlatformConfigurationException(
+                "%r: No stream_config given in CFG", self._platform_id)
 
-        if self._agent_streamconfig_map:
-            # TODO this part to be removed.
-            log.debug("%r: _agent_streamconfig_map = %s", self._platform_id, self._agent_streamconfig_map)
-
-            stream_config = self._agent_streamconfig_map[self._platform_id]
-            self._construct_data_publisher_using_stream_config(stream_config)
-
-            # TODO remove the following
-            # self._construct_data_publishers_using_agent_streamconfig_map()
-
-        else:
-            stream_configs = self.CFG.get('stream_config', None)
-            if stream_configs is None:
-                raise PlatformConfigurationException(
-                    "%r: No stream_config given in CFG", self._platform_id)
-
-            for stream_name, stream_config in stream_configs.iteritems():
-                self._construct_data_publisher_using_stream_config(stream_name, stream_config)
-
-            # TODO remove the following
-            # self._construct_data_publishers_using_CFG_stream_config()
+        for stream_name, stream_config in stream_configs.iteritems():
+            self._construct_data_publisher_using_stream_config(stream_name, stream_config)
 
         log.debug("%r: _construct_data_publishers complete", self._platform_id)
 
@@ -465,8 +486,8 @@ class PlatformAgent(ResourceAgent):
         # granule_publish_rate
         # records_per_granule
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _construct_data_publisher_using_stream_config: "
+        if log.isEnabledFor(logging.TRACE):
+            log.trace("%r: _construct_data_publisher_using_stream_config: "
                       "stream_name:%r, stream_config=%s",
                       self._platform_id, stream_name, self._pp.pformat(stream_config))
 
@@ -485,82 +506,14 @@ class PlatformAgent(ResourceAgent):
 
         log.debug("%r: created publisher for stream_name=%r", self._platform_id, stream_name)
 
-    # TODO remove this obsolete method
-    def _construct_data_publishers_using_agent_streamconfig_map(self):
-        log.debug("%r: _agent_streamconfig_map = %s",
-            self._platform_id, self._agent_streamconfig_map)
-
-        stream_config = self._agent_streamconfig_map[self._platform_id]
-
-        routing_key = stream_config['routing_key']
-        stream_id = stream_config['stream_id']
-        exchange_point = stream_config['exchange_point']
-
-        #
-        # TODO Note: using a single stream for the platform
-        #
-
-        stream_name = self._get_platform_name(self._platform_id)
-
-        log.debug("%r: stream_name=%r, routing_key=%r",
-            self._platform_id, stream_name, routing_key)
-
-        self._data_streams[stream_name] = stream_id
-        self._param_dicts[stream_name] = ParameterDictionary.load(stream_config['parameter_dictionary'])
-        self._stream_defs[stream_name] = stream_config['stream_definition_ref']
-        stream_route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
-        publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
-        self._data_publishers[stream_name] = publisher
-        log.debug("%r: created publisher for stream_name=%r",
-              self._platform_id, stream_name)
-
-    # TODO remove this obsolete method
-    def _construct_data_publishers_using_CFG_stream_config(self):
-        """
-        Construct the stream publishers from the stream_config agent
-        config variable.
-        """
-
-        stream_info = self.CFG.get('stream_config', None)
-        if stream_info is None:
-            log.warn("%r: No stream_config given in CFG", self._platform_id)
-            return
-
-        log.debug("%r: stream_info = %s", self._platform_id, stream_info)
-
-        for (stream_name, stream_config) in stream_info.iteritems():
-
-            stream_route = stream_config['stream_route']
-
-            log.debug("%r: stream_name=%r, stream_route=%r",
-                self._platform_id, stream_name, stream_route)
-
-            stream_id = stream_config['stream_id']
-            self._data_streams[stream_name] = stream_id
-            self._param_dicts[stream_name] = adhoc_get_parameter_dictionary(stream_name)
-            publisher = self._create_publisher(stream_id=stream_id, stream_route=stream_route)
-            self._data_publishers[stream_name] = publisher
-            log.debug("%r: created publisher for stream_name=%r",
-                  self._platform_id, stream_name)
-
-    def _get_platform_name(self, platform_id):
-        """
-        Interim helper to get the platform name associated with a platform_id.
-        """
-
-        # simply returning the same platform_id, because those are the IDs
-        # currently passed from configuration -- see test_oms_launch
-        return platform_id
-
     def _create_driver(self):
         """
         Creates the platform driver object for this platform agent.
 
         NOTE: the driver object is created directly (not via a spawned process)
         """
-        driver_config = self._plat_config['driver_config']
-        driver_module = driver_config['dvr_mod']
-        driver_class = driver_config['dvr_cls']
+        driver_module = self._driver_config['dvr_mod']
+        driver_class  = self._driver_config['dvr_cls']
 
         assert self._platform_id is not None, "must know platform_id to create driver"
 
@@ -574,7 +527,7 @@ class PlatformAgent(ResourceAgent):
             driver = classobj(self._pnode, self.evt_recv)
 
         except Exception as e:
-            msg = '%r: could not import/construct driver: module=%s, class=%s' % (
+            msg = '%r: could not import/construct driver: module=%r, class=%r' % (
                 self._platform_id, driver_module, driver_class)
             log.error("%s; reason=%s", msg, str(e))  #, exc_Info=True)
             raise CannotInstantiateDriverException(msg=msg, reason=e)
@@ -595,11 +548,10 @@ class PlatformAgent(ResourceAgent):
         """
         Configures the platform driver object for this platform agent.
         """
-        driver_config = self._plat_config['driver_config']
         if log.isEnabledFor(logging.DEBUG):
-            log.debug('%r: configuring driver: %s' % (self._platform_id, driver_config))
+            log.debug('%r: configuring driver: %s' % (self._platform_id, self._driver_config))
 
-        self._trigger_driver_event(PlatformDriverEvent.CONFIGURE, driver_config=driver_config)
+        self._trigger_driver_event(PlatformDriverEvent.CONFIGURE, driver_config=self._driver_config)
 
         self._assert_driver_state(PlatformDriverState.DISCONNECTED)
 
@@ -737,18 +689,32 @@ class PlatformAgent(ResourceAgent):
 
         param_dict = self._param_dicts[stream_name]
         stream_def = self._stream_defs[stream_name]
-        rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(), stream_definition_id=stream_def)
 
+        self._publish_granule_with_multiple_params(publisher, driver_event,
+                                                   param_dict, stream_def)
+
+    def _publish_granule_with_multiple_params(self, publisher, driver_event,
+                                              param_dict, stream_def):
+
+        stream_name = driver_event.stream_name
+
+        rdt = RecordDictionaryTool(param_dictionary=param_dict.dump(),
+                                   stream_definition_id=stream_def)
+
+        pub_params = {}
         selected_timestamps = None
 
         for param_name, param_value in driver_event.vals_dict.iteritems():
+
+            param_name = param_name.lower()
 
             if param_name not in rdt:
                 if param_name not in self._unconfigured_params:
                     # an unrecognized attribute for this platform:
                     self._unconfigured_params.add(param_name)
-                    log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r',
-                             self._platform_id, param_name, stream_name)
+                    log.warn('%r: got attribute value event for unconfigured parameter %r in stream %r'
+                             ' rdt.keys=%s',
+                             self._platform_id, param_name, stream_name. rdt.keys())
                 continue
 
             # Note that notification from the driver has the form
@@ -756,30 +722,44 @@ class PlatformAgent(ResourceAgent):
             assert isinstance(param_value, list)
             assert isinstance(param_value[0], tuple)
 
-            log.info("%r: PUBLISHING VALUE ARRAY: %s (%d samples) = %s",
-                     self._platform_id, param_name, len(param_value), str(param_value))
-
             # separate values and timestamps:
             vals, timestamps = zip(*param_value)
+
+            # Use fill_value in context to replace any None values:
+            param_ctx = param_dict.get_context(param_name)
+            if param_ctx:
+                fill_value = param_ctx.fill_value
+                log.debug("%r: param_name=%r fill_value=%s",
+                          self._platform_id, param_name, fill_value)
+                # do the replacement:
+                vals = [fill_value if val is None else val for val in vals]
+            else:
+                log.warn("%r: unexpected: parameter context not found for %r",
+                         self._platform_id, param_name)
 
             # Set values in rdt:
             rdt[param_name] = numpy.array(vals)
 
-            # TODO: do proper handling of the timestamps for the assignment
-            # to the rdt. For the moment, just arbitrarily picking the
-            # array of timestamps from the last iteration here.
+            pub_params[param_name] = vals
+
             selected_timestamps = timestamps
 
         if selected_timestamps is None:
             # that is, all param_name's were unrecognized; just return:
             return
 
+        self._publish_granule(stream_name, publisher, param_dict, rdt,
+                              pub_params, selected_timestamps)
+
+    def _publish_granule(self, stream_name, publisher, param_dict, rdt,
+                         pub_params, timestamps):
+
         # Set timestamp info in rdt:
         if param_dict.temporal_parameter_name is not None:
             temp_param_name = param_dict.temporal_parameter_name
-            rdt[temp_param_name]       = numpy.array(selected_timestamps)
+            rdt[temp_param_name]       = numpy.array(timestamps)
             #@TODO: Ensure that the preferred_timestamp field is correct
-            rdt['preferred_timestamp'] = numpy.array(['internal_timestamp'] * len(selected_timestamps))
+            rdt['preferred_timestamp'] = numpy.array(['internal_timestamp'] * len(timestamps))
             log.warn('Preferred timestamp is unresolved, using "internal_timestamp"')
         else:
             log.warn("%r: Not including timestamp info in granule: "
@@ -789,8 +769,12 @@ class PlatformAgent(ResourceAgent):
         g = rdt.to_granule(data_producer_id=self.resource_id)
         try:
             publisher.publish(g)
-            log.debug("%r: Platform agent published data granule on stream %r.",
-                      self._platform_id, stream_name)
+
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("%r: Platform agent published data granule on stream %r: "
+                          "%s  timestamps: %s",
+                          self._platform_id, stream_name,
+                          self._pp.pformat(pub_params), self._pp.pformat(timestamps))
 
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",
@@ -841,54 +825,48 @@ class PlatformAgent(ResourceAgent):
         @param subplatform_id Platform ID
         """
 
-        # platform configuration:
-        # TODO general config under revision
-        platform_config = {
-            'platform_id': subplatform_id,
-            'network_definition' : self._network_definition_ser,
-            'parent_platform_id' : self._platform_id,
+        # get PlatformNode, corresponding CFG, and resource_id:
+        sub_pnode = self._pnode.subplatforms[subplatform_id]
+        sub_agent_config = sub_pnode.CFG
+        sub_resource_id = sub_agent_config.get("agent", {}).get("resource_id", None)
 
-            'agent_streamconfig_map': self._agent_streamconfig_map,
-            'driver_config': self._plat_config['driver_config'],
-        }
+        assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
 
-        agent_config = {
-            'agent':            {'resource_id': subplatform_id},
-            'stream_config':    self.CFG.get('stream_config', None),
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r: launching sub-platform agent %r: CFG=%s",
+                      self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
+        elif log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            log.debug("%r: launching sub-platform agent %r",
+                      self._platform_id, subplatform_id)
 
-            'platform_config':  platform_config,
-        }
+        pid = self._launcher.launch(subplatform_id, sub_agent_config)
 
-        log.debug("%r: launching sub-platform agent %r",
-            self._platform_id, subplatform_id)
-        pid = self._launcher.launch(subplatform_id, agent_config)
-
-        pa_client = self._create_resource_agent_client(subplatform_id)
+        pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
 
         self._pa_clients[subplatform_id] = (pa_client, pid)
 
         self._ping_subplatform(subplatform_id)
         self._initialize_subplatform(subplatform_id)
 
-    def _create_resource_agent_client(self, subplatform_id):
+    def _create_resource_agent_client(self, subplatform_id, sub_resource_id):
         """
         Creates and returns a ResourceAgentClient instance.
 
-        @param subplatform_id Platform ID
+        @param subplatform_id  Platform ID
+        @param sub_resource_id Id for ResourceAgentClient
         """
-        log.debug("%r: _create_resource_agent_client: subplatform_id=%s",
-            self._platform_id, subplatform_id)
+        log.debug("%r: _create_resource_agent_client: subplatform_id=%r, sub_resource_id=%r",
+                  self._platform_id, subplatform_id, sub_resource_id)
 
-        pa_client = ResourceAgentClient(subplatform_id, process=self)
+        pa_client = ResourceAgentClient(sub_resource_id, process=self)
 
-        log.debug("%r: got platform agent client %s",
-            self._platform_id, str(pa_client))
+        log.debug("%r: got platform agent client %s", self._platform_id, pa_client)
 
         state = pa_client.get_agent_state()
         assert PlatformAgentState.UNINITIALIZED == state
 
-        log.debug("%r: ResourceAgentClient CREATED: subplatform_id=%s",
-            self._platform_id, subplatform_id)
+        log.debug("%r: ResourceAgentClient CREATED: subplatform_id=%r, sub_resource_id=%r",
+                  self._platform_id, subplatform_id, sub_resource_id)
 
         return pa_client
 
@@ -1592,7 +1570,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("constructing fsm")
 
         # Instrument agent state machine.
-        self._fsm = InstrumentFSM(PlatformAgentState, PlatformAgentEvent,
+        self._fsm = ThreadSafeFSM(PlatformAgentState, PlatformAgentEvent,
                                   PlatformAgentEvent.ENTER, PlatformAgentEvent.EXIT)
 
         for state in PlatformAgentState.list():
