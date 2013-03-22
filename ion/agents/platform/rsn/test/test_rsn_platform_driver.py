@@ -48,6 +48,7 @@ class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
+        CIOMSClientFactory.destroy_instance(rsn_oms)
 
         if log.isEnabledFor(logging.DEBUG):
             network_definition_ser = NetworkUtil.serialize_network_definition(network_definition)

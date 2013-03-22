@@ -190,6 +190,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
+        CIOMSClientFactory.destroy_instance(rsn_oms)
+
         # get serialized version for the configuration:
         self._network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
         log.trace("NetworkDefinition serialization:\n%s", self._network_definition_ser)

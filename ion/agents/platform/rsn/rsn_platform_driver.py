@@ -112,9 +112,10 @@ class RSNPlatformDriver(PlatformDriver):
 
     def disconnect(self):
         """
-        Stops event dispatch and sestroys the CIOMSClient instance.
+        Stops event dispatch and destroys the CIOMSClient instance.
         """
         self._stop_event_dispatch()
+        CIOMSClientFactory.destroy_instance(self._rsn_oms)
         self._rsn_oms = None
         log.debug("%r: CIOMSClient instance destroyed", self._platform_id)
 
