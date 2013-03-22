@@ -196,7 +196,7 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         @return:
         """
 
-        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True')
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=' + convert_unicode(DATA_PRODUCT_NAME) + '&id_only=True&user_id=123abc456')
         self.check_response_headers(response)
         self.assertIn(GATEWAY_RESPONSE, response.json['data'])
         response_data = response.json['data'][GATEWAY_RESPONSE]
@@ -280,6 +280,28 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
+
+
+        #Now testing the generic get_resource_extension with optional user_id parameter
+
+        response = self.test_app.get('/ion-service/resource_registry/find_resources?name=ionsystem')
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+
+        actor_id = response_data[0][0]['_id']
+
+        response = self.test_app.get('/ion-service/resource_registry/get_resource_extension?resource_id=' + actor_id + '&resource_extension=TestExtendedInformationResource')
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(convert_unicode(response_data['user_id']), '')
+
+        response = self.test_app.get('/ion-service/resource_registry/get_resource_extension?resource_id=' + actor_id + '&resource_extension=TestExtendedInformationResource&user_id=123abc456')
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(convert_unicode(response_data['user_id']), '123abc456')
+
+
 
     def test_non_anonymous_resource_registry_operations_through_gateway(self):
 
