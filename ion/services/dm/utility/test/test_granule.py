@@ -92,10 +92,10 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.pubsub_management.deactivate_subscription(subscription_id)
         self.pubsub_management.delete_subscription(subscription_id)
         
-        filtered_stream_def_id = self.pubsub_management.create_stream_definition('filtered', parameter_dictionary_id=pdict_id, available_fields=['time', 'temp'])
+        filtered_stream_def_id = self.pubsub_management.create_stream_definition('filtered', parameter_dictionary_id=pdict_id, available_fields=['time_PD7', 'temp_PD6'])
         self.addCleanup(self.pubsub_management.delete_stream_definition, filtered_stream_def_id)
         rdt = RecordDictionaryTool(stream_definition_id=filtered_stream_def_id)
-        self.assertEquals(rdt._available_fields,['time','temp'])
+        self.assertEquals(rdt._available_fields,['time_PD7','temp_PD6'])
         rdt['time'] = np.arange(20)
         rdt['temp'] = np.arange(20)
         with self.assertRaises(KeyError):
