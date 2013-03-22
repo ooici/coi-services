@@ -141,26 +141,35 @@ class HYPM_01_WFP_CTDParser(object):
 
         self.data_map = {}
 
-        self.sensor_names = ['conductivity', 'temperature', 'pressure', 'oxygen']
-        for name in self.sensor_names:
-            self.data_map[name] = []
+        self.sensor_names = ['time', 'conductivity', 'temperature', 'pressure', 'oxygen']
 
         try:
+            time_step_array = {}
+            for name in self.sensor_names:
+                self.data_map[name] = []
+                time_step_array[name] = []
+
             with open(url, 'r') as f:
                 for line in f:
                     #get rid of trailing spaces in the file
                     line = line.strip()
                     #check to see if the termination string has been hit
                     if line != self.termination_string:
-                        self.data_map[self.sensor_names[0]].append((float(int(line[0:6], 16)) / 10000) * 0.5)
-                        self.data_map[self.sensor_names[1]].append((float(int(line[6:12], 16)) / 10000))
-                        self.data_map[self.sensor_names[2]].append((float(int(line[12:18], 16)) / 100) * 10)
+                        time_step_array[self.sensor_names[1]].append((float(int(line[0:6], 16)) / 10000) * 0.5)
+                        time_step_array[self.sensor_names[2]].append((float(int(line[6:12], 16)) / 10000))
+                        time_step_array[self.sensor_names[3]].append((float(int(line[12:18], 16)) / 100) * 10)
                         #check to see if oxygen is included in data
                         if len(line) > 18:
-                            self.data_map[self.sensor_names[3]].append(int(line[18:], 16))
+                            time_step_array[self.sensor_names[4]].append(int(line[18:], 16))
+                    #termination string
                     else:
-                        #exit from loop
-                        break
+                        #add array of data at this time step to the array type values in the param dict
+                        for name in self.sensor_names:
+                            if not name is 'time':
+                                self.data_map[name].append(time_step_array[name])
+                        #get next line which contains timestamp
+                        line = f.next().strip()
+                        self.data_map['time'].append(int(line[0:8], 16))
         except Exception as ex:
             log.error(ex)
             raise HYPMException('Error reading file: %s', url)

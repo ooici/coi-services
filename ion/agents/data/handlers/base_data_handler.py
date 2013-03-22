@@ -90,13 +90,12 @@ class BaseDataHandler(object):
         """
         self._polling = True
         self._terminate_polling = Event()
-        self._stall_polling = Event() #used for a delay only
         interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
         log.debug('Polling interval: {0}'.format(interval))
 
         while not self._terminate_polling.is_set():
             self.execute_acquire_sample()
-            self._stall_polling.wait(timeout=interval)
+            self._terminate_polling.wait(timeout=interval)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
@@ -330,7 +329,6 @@ class BaseDataHandler(object):
         log.debug('Entered execute_stop_autosample with args={0} & kwargs={1}'.format(args, kwargs))
         if self._polling and not self._polling_glet is None:
             log.debug("Terminating polling")
-            self._stall_polling.set()
             self._terminate_polling.set()
             self._polling_glet.join(timeout=30)
             log.debug("Polling terminated")
