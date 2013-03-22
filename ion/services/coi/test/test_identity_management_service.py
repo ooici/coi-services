@@ -432,7 +432,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
         self.org_client = OrgManagementServiceClient(node=self.container.node)
