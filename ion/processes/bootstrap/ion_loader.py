@@ -93,7 +93,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydElFSTFrbVhsZzQ3djRCOHdZVmVtZmc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdHRSa0hZN0pVV0R1ME4zSzgtOXEzNmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1909,6 +1909,7 @@ Reason: %s
     def _load_InstrumentAgentInstance(self, row):
 
         startup_config = self._parse_dict(row['startup_config'])
+        alerts_config  = self._parse_dict(row['alerts'])
 
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
@@ -1929,7 +1930,8 @@ Reason: %s
             "instrument_management", "create_instrument_agent_instance",
             set_attributes=dict(driver_config=driver_config,
                                 port_agent_config=port_agent_config,
-                                startup_config=startup_config),
+                                startup_config=startup_config,
+                                alerts=alerts_config),
             support_bulk=True)
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
@@ -1996,6 +1998,8 @@ Reason: %s
         driver_config = self._parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
 
+        alerts_config  = self._parse_dict(row['alerts'])
+
         # Note: platform_id currently expected by PlatformAgent as follows:
         agent_config = {
             'platform_config': {'platform_id': platform_id}
@@ -2005,7 +2009,8 @@ Reason: %s
         res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
             "instrument_management", "create_platform_agent_instance",
             set_attributes=dict(agent_config=agent_config,
-                                driver_config=driver_config),
+                                driver_config=driver_config,
+                                alerts=alerts_config),
             support_bulk=True)
 
         client = self._get_service_client("instrument_management")
