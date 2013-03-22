@@ -153,15 +153,20 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.read_mult(object_ids)
 
     @mask_couch_error
-    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None):
+    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, optional_args=None):
         """Returns any ExtendedResource object containing additional related information derived from associations
 
         @param resource_id    str
         @param resource_extension    str
         @param ext_associations    dict
         @param ext_exclude    list
+        @param optional_args    dict
         @retval actor_identity    ExtendedResource
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified resource_id does not exist
         """
-        return self.resource_registry.get_resource_extension(resource_id, resource_extension, ext_associations, ext_exclude)
+        #Ensure that it is not a NoneType
+        optional_args = dict() if optional_args is None else optional_args
+
+        return self.resource_registry.get_resource_extension(resource_id=resource_id, resource_extension=resource_extension,
+            ext_associations=ext_associations, ext_exclude=ext_exclude, **optional_args)
