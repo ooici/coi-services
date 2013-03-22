@@ -140,7 +140,7 @@ DVR_CONFIG = {
 }
 
 # Launch from egg or a local MI repo.
-LAUNCH_FROM_EGG=False
+LAUNCH_FROM_EGG=True
 
 if LAUNCH_FROM_EGG:
     # Dynamically load the egg into the test path
