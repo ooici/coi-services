@@ -561,7 +561,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #----------------------------------------------------------------------------------------------------
         # Create a data process
         #----------------------------------------------------------------------------------------------------
-        data_process_id = self.dataprocessclient.create_data_process(data_process_def_id,
+        data_process_id = self.dataprocessclient.create_data_process2(data_process_def_id,
                                                                      None,
                                                                      {"logical":data_product_id})
 

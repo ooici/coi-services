@@ -203,7 +203,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             else:
                 process_config = wf_step.configuration
 
-            data_process_id = self.clients.data_process_management.create_data_process(data_process_definition._id, [data_process_input_dp_id], output_data_products, configuration=process_config)
+            data_process_id = self.clients.data_process_management.create_data_process2(data_process_definition._id, [data_process_input_dp_id], output_data_products, configuration=process_config)
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow

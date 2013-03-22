@@ -314,8 +314,6 @@ class TestCTDPChain(IonIntegrationTestCase):
         elif name_of_transform == 'L2_density':
             binding = 'density'
 
-        output_products = {binding : output_dpod_id}
-
         config = None
         if name_of_transform == 'L1':
             config = self._create_calibration_coefficients_dict()
@@ -323,7 +321,7 @@ class TestCTDPChain(IonIntegrationTestCase):
             config = DotDict()
             config.process = {'lat' : 32.7153, 'lon' : 117.1564}
 
-        data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products, config)
+        data_proc_id = self.data_process_management.create_data_process2( [input_dpod_id], [output_dpod_id], config)
         self.addCleanup(self.data_process_management.delete_data_process, data_proc_id)
 
         self.data_process_management.activate_data_process(data_proc_id)

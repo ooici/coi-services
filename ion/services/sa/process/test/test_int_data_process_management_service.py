@@ -70,6 +70,12 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.dataset_management = self.datasetclient
         self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
 
+    def create_L0_transform_function(self):
+        tf = TransformFunction(name='ctdbp_L0_all', module='ion.processes.data.transforms.ctdbp.ctdbp_L0', cls='ctdbp_L0_algorithm')
+        tf_id = self.dataprocessclient.create_transform_function(tf)
+        self.addCleanup(self.dataprocessclient.delete_transform_function, tf_id)
+        return tf_id
+
     def test_createDataProcess(self):
 
         #---------------------------------------------------------------------------
@@ -157,16 +163,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_temperature_id, dprocdef_id, binding='temperature' )
 
 
-        self.output_products={}
-
         output_dp_obj = IonObject(RT.DataProduct,
             name='conductivity',
             description='transform output conductivity',
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        output_dp_id_1 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
-        self.output_products['conductivity'] = output_dp_id_1
+        conductivity_dp_id = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_conductivity_id)
 
         output_dp_obj = IonObject(RT.DataProduct,
             name='pressure',
@@ -174,8 +177,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        output_dp_id_2 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
-        self.output_products['pressure'] = output_dp_id_2
+        pressure_dp_id = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_pressure_id)
 
         output_dp_obj = IonObject(RT.DataProduct,
             name='temperature',
@@ -183,15 +185,32 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
             temporal_domain = tdom,
             spatial_domain = sdom)
 
-        output_dp_id_3 = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id)
-        self.output_products['temperature'] = output_dp_id_3
+        temp_dp_id = self.dataproductclient.create_data_product(output_dp_obj, outgoing_stream_temperature_id)
+
+
+        ctd_L0_actor = self.create_L0_transform_function()
+
+
+        routes = {
+            input_dp_id : {
+                conductivity_dp_id : ctd_L0_actor,
+                pressure_dp_id : ctd_L0_actor,
+                temp_dp_id : ctd_L0_actor
+                }
+        }
+
+        config = DotDict()
+        config.process.routes = routes
+        config.process.params.lat = 45.
+        config.process.params.lon = -71.
 
 
         #---------------------------------------------------------------------------
         # Create the data process
         #---------------------------------------------------------------------------
         def _create_data_process():
-            dproc_id = self.dataprocessclient.create_data_process(dprocdef_id, [input_dp_id], self.output_products)
+            dproc_id = self.dataprocessclient.create_data_process2([input_dp_id], [conductivity_dp_id, pressure_dp_id,temp_dp_id], config )
+            self.addCleanup(self.data_process_management.delete_data_process2, dproc_id)
             return dproc_id
 
         dproc_id = _create_data_process()
@@ -207,7 +226,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         output_data_product_ids = self.rrclient.find_objects(subject=dproc_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
 
-        self.assertEquals(Set(output_data_product_ids[0]), Set([output_dp_id_1,output_dp_id_2,output_dp_id_3]))
+        self.assertEquals(Set(output_data_product_ids[0]), Set([conductivity_dp_id,pressure_dp_id,temp_dp_id]))
 
 
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
@@ -331,8 +350,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
-        self.output_products={}
-
         ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
                                                         name='L0_Conductivity',
                                                         description='transform output conductivity',
@@ -342,7 +359,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
                                                                                 outgoing_stream_l0_conductivity_id)
-        self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
 
         ctd_l0_pressure_output_dp_obj = IonObject(RT.DataProduct,
             name='L0_Pressure',
@@ -352,7 +368,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_pressure_output_dp_obj,
                                                                                     outgoing_stream_l0_pressure_id)
-        self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
 
         ctd_l0_temperature_output_dp_obj = IonObject(RT.DataProduct,
             name='L0_Temperature',
@@ -363,8 +378,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(ctd_l0_temperature_output_dp_obj,
                                                                                     outgoing_stream_l0_temperature_id)
-        self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-
 
         #-------------------------------
         # Create listener for data process events and verify that events are received.
@@ -377,13 +390,17 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------
 
-        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2(
+                                                        ctd_L0_all_dprocdef_id,
+                                                        [ctd_parsed_data_product],
+                                                        [ctd_l0_conductivity_output_dp_id, ctd_l0_pressure_output_dp_id, ctd_l0_temperature_output_dp_id]
+                                                        )
         data_process = self.rrclient.read(ctd_l0_all_data_process_id)
         process_id = data_process.process_id
         self.addCleanup(self.process_dispatcher.cancel_process, process_id)
 
         #-------------------------------
-        # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
+        # Wait until the process launched in the create_data_process2() method is actually running, before proceeding further in this test
         #-------------------------------
 
         gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
@@ -721,6 +738,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         tf_id = self.data_process_management.create_transform_function(tf)
         self.addCleanup(self.data_process_management.delete_transform_function, tf_id)
         return tf_id
+
 
    
     @attr('LOCOINT')

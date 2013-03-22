@@ -65,7 +65,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.mock_ionobj.return_value = self.data_process_object
          
         # test call
-        dp_id = self.data_process_mgmt_service.create_data_process \
+        dp_id = self.data_process_mgmt_service.create_data_process2 \
                     (self.data_proc_def_id, \
                      [self.in_product_A], \
                      self.out_product_A)
