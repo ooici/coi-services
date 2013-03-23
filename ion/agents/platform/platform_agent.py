@@ -1061,11 +1061,7 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
 
     def _execute_instrument_agent(self, a_client, cmd, sub_id, timeout=TIMEOUT):
-        #
-        # TODO: instrument agent NOT YET properly configured to run
-        # So, for the moment, "faking" the execution of the command
-        return {"Ok:" : "fake response. TODO real execution of instr agent cmd"}
-        #return self._execute_agent("instrument", a_client, cmd, sub_id, timeout)
+        return self._execute_agent("instrument", a_client, cmd, sub_id, timeout)
 
     def _get_instrument_ids(self):
         """

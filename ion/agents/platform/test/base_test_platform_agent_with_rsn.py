@@ -103,6 +103,8 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 
 from ion.services.sa.test.helpers import any_old
 
+from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
+
 
 # By default, test against "embedded" simulator. The OMS environment variable
 # can be used to indicate a different RSN OMS server endpoint. Some aliases for
@@ -611,6 +613,83 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # instrument
     #################################################################
 
+    def _set_up_pre_environment_for_instrument(self):
+        """
+        From test_instrument_agent.py
+
+        Basically, this method launches the port agent and the completes the
+        instrument driver configuration used to properly set up the
+        instrument agent.
+
+        @return instrument_driver_config
+        """
+
+        import sys
+        from ion.agents.instrument.driver_process import DriverProcessType
+        from ion.agents.instrument.driver_process import ZMQEggDriverProcess
+
+        # A seabird driver.
+        DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.7-py2.7.egg'
+        DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
+        DRV_CLS = 'SBE37Driver'
+
+        WORK_DIR = '/tmp/'
+        DELIM = ['<<', '>>']
+
+        instrument_driver_config = {
+            'dvr_egg' : DRV_URI,
+            'dvr_mod' : DRV_MOD,
+            'dvr_cls' : DRV_CLS,
+            'workdir' : WORK_DIR,
+            'process_type' : None
+        }
+
+        # Launch from egg or a local MI repo.
+        LAUNCH_FROM_EGG=True
+
+        if LAUNCH_FROM_EGG:
+            # Dynamically load the egg into the test path
+            launcher = ZMQEggDriverProcess(instrument_driver_config)
+            egg = launcher._get_egg(DRV_URI)
+            if not egg in sys.path: sys.path.insert(0, egg)
+            instrument_driver_config['process_type'] = (DriverProcessType.EGG,)
+
+        else:
+            mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
+            if not mi_repo in sys.path: sys.path.insert(0, mi_repo)
+            instrument_driver_config['process_type'] = (DriverProcessType.PYTHON_MODULE,)
+            instrument_driver_config['mi_repo'] = mi_repo
+
+        DEV_ADDR = CFG.device.sbe37.host
+        DEV_PORT = CFG.device.sbe37.port
+        DATA_PORT = CFG.device.sbe37.port_agent_data_port
+        CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
+        PA_BINARY = CFG.device.sbe37.port_agent_binary
+
+        self._support = DriverIntegrationTestSupport(None,
+                                                     None,
+                                                     DEV_ADDR,
+                                                     DEV_PORT,
+                                                     DATA_PORT,
+                                                     CMD_PORT,
+                                                     PA_BINARY,
+                                                     DELIM,
+                                                     WORK_DIR)
+
+        # Start port agent, add stop to cleanup.
+        port = self._support.start_pagent()
+        log.info('Port agent started at port %i', port)
+        self.addCleanup(self._support.stop_pagent)
+
+        # Configure instrument driver to use port agent port number.
+        instrument_driver_config['comms_config'] = {
+            'addr':     'localhost',
+            'port':     port,
+            'cmd_port': CMD_PORT
+        }
+
+        return instrument_driver_config
+
     def _make_instrument_agent_structure(self, org_obj, agent_config=None):
         if None is agent_config: agent_config = {}
 
@@ -658,12 +737,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             'alert_class' : 'IntervalAlert'
         }
 
-        # TODO driver_config taken from a preload run; this is simply to reflect
-        # this piece in the configuration, but proper values should be used.
-        driver_config = {
-            'comms_config': {'addr':     'localhost',
-                             'cmd_port': 9000,
-                             'port':     8890}}
+        instrument_driver_config = self._set_up_pre_environment_for_instrument()
 
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
@@ -681,7 +755,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         instrument_agent_instance_obj = IonObject(RT.InstrumentAgentInstance,
                                                   name='SBE37IMAgentInstance',
                                                   description="SBE37IMAgentInstance",
-                                                  driver_config=driver_config,
+                                                  driver_config=instrument_driver_config,
                                                   port_agent_config=port_agent_config,
                                                   alerts=[alert_def])
 
