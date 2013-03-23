@@ -1248,8 +1248,8 @@ class InstrumentAgent(ResourceAgent):
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except:
-                    log.error('Instrument agent %s could not construct alert %s, class %s, for stream %s',
-                              self._proc_name, str(cls), str(alert_def))    
+                    log.error('Instrument agent %s could not construct alert %s, for stream %s',
+                              self._proc_name, str(alert_def), stream_name)    
                     
     def aparam_set_streams(self, params):
         """
