@@ -1941,7 +1941,7 @@ Reason: %s
                                 port_agent_config=port_agent_config,
                                 startup_config=startup_config,
                                 alerts=alerts_config),
-            support_bulk=True)
+            )
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
@@ -2020,7 +2020,7 @@ Reason: %s
             set_attributes=dict(agent_config=agent_config,
                                 driver_config=driver_config,
                                 alerts=alerts_config),
-            support_bulk=True)
+            )
 
         client = self._get_service_client("instrument_management")
         client.assign_platform_agent_to_platform_agent_instance(platform_agent_id, res_id)
