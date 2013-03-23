@@ -1115,11 +1115,6 @@ class PlatformAgent(ResourceAgent):
 
         assert i_resource_id, "agent.resource_id must be present for child %r" % instrument_id
 
-        ##############################################################
-        # TODO remove this when bug in instrument_agent is fixed
-        i_CFG['aparam_alert_config'] = []
-        ##############################################################
-
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             log.debug("%r: launching instrument agent %r: CFG=%s",
                       self._platform_id, instrument_id, self._pp.pformat(i_CFG))
