@@ -54,19 +54,8 @@ import time
 import pprint
 
 
-# NOTE: the bigger the platform network size starting from the platform
-# associated with a PlatformAgent instance, the more the time that should be
-# given for commands to sub-platforms to complete. The following TIMEOUT value
-# intends to be big enough for all typical cases.
-TIMEOUT = 90
-
-
 PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
-
-
-# TODO clean up log-and-throw anti-idiom in several places, which is used
-# because the exception alone does not show up in the logs!
 
 
 class PlatformAgentState(BaseEnum):
@@ -203,6 +192,9 @@ class PlatformAgent(ResourceAgent):
         # {subplatform_id: (ResourceAgentClient, PID), ...}
         self._ia_clients = {}  # Never None
 
+        # self.CFG.endpoint.receive.timeout -- see on_init
+        self._timeout = 30
+
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
@@ -211,6 +203,8 @@ class PlatformAgent(ResourceAgent):
     def on_init(self):
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
+
+        self._timeout = self.CFG.get("endpoint.receive.timeout", 30)
 
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
@@ -662,9 +656,9 @@ class PlatformAgent(ResourceAgent):
 
         self._platform_resource_monitor.start_resource_monitoring()
 
-    def _get_attribute_values(self, attr_names, from_time):
+    def _get_attribute_values(self, attrs):
         self._assert_driver()
-        kwargs = dict(attr_names=attr_names, from_time=from_time)
+        kwargs = dict(attrs=attrs)
         result = self._trigger_driver_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, **kwargs)
         return result
 
@@ -864,7 +858,7 @@ class PlatformAgent(ResourceAgent):
 
         return a_client
 
-    def _execute_agent(self, poi, a_client, cmd, sub_id, timeout=TIMEOUT):
+    def _execute_agent(self, poi, a_client, cmd, sub_id):
         """
         Calls execute_agent with the given cmd on the given client.
 
@@ -878,12 +872,12 @@ class PlatformAgent(ResourceAgent):
                       self._platform_id, cmd.command, poi, sub_id)
 
             time_start = time.time()
-            retval = a_client.execute_agent(cmd, timeout=timeout)
+            retval = a_client.execute_agent(cmd, timeout=self._timeout)
             elapsed_time = time.time() - time_start
             log.debug("%r: _execute_agent: cmd=%r %s=%r elapsed_time=%s",
                       self._platform_id, cmd.command, poi, sub_id, elapsed_time)
         else:
-            retval = a_client.execute_agent(cmd, timeout=timeout)
+            retval = a_client.execute_agent(cmd, timeout=self._timeout)
 
         return retval
 
@@ -926,8 +920,8 @@ class PlatformAgent(ResourceAgent):
         self._ping_subplatform(subplatform_id)
         self._initialize_subplatform(subplatform_id)
 
-    def _execute_platform_agent(self, a_client, cmd, sub_id, timeout=TIMEOUT):
-        return self._execute_agent("platform", a_client, cmd, sub_id, timeout)
+    def _execute_platform_agent(self, a_client, cmd, sub_id):
+        return self._execute_agent("platform", a_client, cmd, sub_id)
 
     def _ping_subplatform(self, subplatform_id):
         log.debug("%r: _ping_subplatform -> %r",
@@ -935,7 +929,7 @@ class PlatformAgent(ResourceAgent):
 
         pa_client, _ = self._pa_clients[subplatform_id]
 
-        retval = pa_client.ping_agent(timeout=TIMEOUT)
+        retval = pa_client.ping_agent(timeout=self._timeout)
         log.debug("%r: _ping_subplatform %r  retval = %s",
             self._platform_id, subplatform_id, str(retval))
 
@@ -1060,8 +1054,8 @@ class PlatformAgent(ResourceAgent):
     # supporting routines dealing with instruments
     ##############################################################
 
-    def _execute_instrument_agent(self, a_client, cmd, sub_id, timeout=TIMEOUT):
-        return self._execute_agent("instrument", a_client, cmd, sub_id, timeout)
+    def _execute_instrument_agent(self, a_client, cmd, sub_id):
+        return self._execute_agent("instrument", a_client, cmd, sub_id)
 
     def _get_instrument_ids(self):
         """
@@ -1075,7 +1069,7 @@ class PlatformAgent(ResourceAgent):
 
         ia_client, _ = self._ia_clients[instrument_id]
 
-        retval = ia_client.ping_agent(timeout=TIMEOUT)
+        retval = ia_client.ping_agent(timeout=self._timeout)
         log.debug("%r: _ping_instrument %r  retval = %s",
                   self._platform_id, instrument_id, str(retval))
 
@@ -1095,10 +1089,18 @@ class PlatformAgent(ResourceAgent):
         ia_client, _ = self._ia_clients[instrument_id]
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
-        retval = self._execute_instrument_agent(ia_client, cmd, instrument_id)
-        if log.isEnabledFor(logging.DEBUG):
+        try:
+            retval = self._execute_instrument_agent(ia_client, cmd, instrument_id)
             log.debug("%r: _initialize_instrument %r  retval = %s",
-                      self._platform_id, instrument_id, str(retval))
+                      self._platform_id, instrument_id, retval)
+
+        except Exception as e:
+            #
+            # TODO proper handling. For the moment, allowing to continue if
+            # the execution fails for some reason.
+            #
+            log.exception("%r: Error while initializing instrument: %r: %s",
+                          self._platform_id, instrument_id, cmd, e)
 
     def _launch_instrument_agent(self, instrument_id):
         """
@@ -1173,7 +1175,8 @@ class PlatformAgent(ResourceAgent):
                       self._platform_id, str(instrument_ids))
 
         #
-        # TODO what to do if an instrument fails in some way?
+        # TODO proper handling if an instrument fails to complete the command
+        # successfully
         #
         for instrument_id in self._ia_clients:
             ia_client, _ = self._ia_clients[instrument_id]
@@ -1194,7 +1197,8 @@ class PlatformAgent(ResourceAgent):
                 state = ia_client.get_agent_state()
                 if expected_state and expected_state != state:
                     log.error("%r: expected instrument state %r but got %r",
-                                self._platform_id, expected_state, state)
+                              self._platform_id, expected_state, state)
+
             except Exception as e:
                 exc = "%s: %s" % (e.__class__.__name__, str(e))
                 log.error("%r: exception while calling get_agent_state to instrument %r: %s",
@@ -1473,16 +1477,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        attr_names = kwargs.get('attr_names', None)
-        if attr_names is None:
-            raise BadRequest('get_resource missing attr_names argument.')
-
-        from_time = kwargs.get('from_time', None)
-        if from_time is None:
-            raise BadRequest('get_resource missing from_time argument.')
+        attrs = kwargs.get('attrs', None)
+        if attrs is None:
+            raise BadRequest('get_resource missing attrs argument.')
 
         try:
-            result = self._get_attribute_values(attr_names, from_time)
+            result = self._get_attribute_values(attrs)
 
             next_state = self.get_agent_state()
 

@@ -133,21 +133,20 @@ class RSNPlatformDriver(PlatformDriver):
         md = retval[self._platform_id]
         return md
 
-    def get_attribute_values(self, attr_names, from_time):
+    def get_attribute_values(self, attrs):
         """
         """
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("get_attribute_values: attr_names=%s from_time=%s" % (
-                str(attr_names), from_time))
+        log.debug("get_attribute_values: attrs=%s", attrs)
 
         self._assert_rsn_oms()
 
         # convert the ION system time from_time to NTP, as this is the time
         # format used by the RSN OMS interface:
-        ntp_from_time = ion_ts_2_ntp(from_time)
+        attrs_ntp = [(attr_id, ion_ts_2_ntp(from_time))
+                     for (attr_id, from_time) in attrs]
+
         retval = self._rsn_oms.get_platform_attribute_values(self._platform_id,
-                                                             attr_names,
-                                                             ntp_from_time)
+                                                             attrs_ntp)
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
