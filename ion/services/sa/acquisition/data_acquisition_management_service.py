@@ -299,6 +299,29 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         return
 
+
+
+    def assign_data_product_source(self, data_product_id='', source_id=''):
+        # Connect a Data Product to the data source, either a Site or a Device
+        if source_id:
+            #connect the producer to the product directly
+            self.clients.resource_registry.create_association(data_product_id,  PRED.hasSource,  source_id)
+
+        return
+
+
+    def unassign_data_product_source(self, data_product_id='', source_id=''):
+        # Disconnect the Data Product from the data source
+        # Find and break association with either a Site or a Decvice
+        assocs = self.clients.resource_registry.find_associations(data_product_id, PRED.hasSource, source_id)
+        if not assocs or len(assocs) == 0:
+            raise NotFound("DataProduct to source association for data product id %s to source %s does not exist" % (data_product_id, source_id))
+        association_id = assocs[0]._id
+        self.clients.resource_registry.delete_association(association_id)
+        return
+
+
+
 #
 #    def create_data_producer(name='', description=''):
 #        """Create a data producer resource, create a stream reource via DM then associate the two resources. Currently, data producers and streams are one-to-one. If the data producer is a process, connect the data producer to any parent data producers.
@@ -897,7 +920,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, id_only=True)
         if associations is None:
-            self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasSource,  data_source_id)
+            self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasDataSource,  data_source_id)
 
 
     def unassign_external_dataset_from_data_source(self, external_dataset_id='', data_source_id=''):
@@ -907,7 +930,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # delete the associations
         # List all association ids with given subject, predicate, object triples
-        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, id_only=True)
+        associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasDataSource,  data_source_id, id_only=True)
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
