@@ -1059,6 +1059,64 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return retval
 
 
+    def find_related_sites(self, parent_resource_id='', exclude_site_types=None, include_parents=False, id_only=False):
+        if not parent_resource_id:
+            raise BadRequest("Must provide a parent parent_resource_id")
+        exclude_site_types = exclude_site_types or []
+        if not isinstance(exclude_site_types, list):
+            raise BadRequest("exclude_site_types mut be a list, is: %s" % type(exclude_site_types))
+
+        parent_resource = self.RR.read(parent_resource_id)
+
+        org_id, site_id = None, None
+        if parent_resource.type_ == RT.Org:
+            org_id = parent_resource_id
+        elif RT.Site in parent_resource._get_extends():
+            site_id = parent_resource_id
+        else:
+            raise BadRequest("Illegal parent_resource_id type. Expected Org/Site, given:%s" % parent_resource.type_)
+
+        site_resources, site_children = self.outil.get_child_sites(site_id, org_id,
+                                   exclude_types=exclude_site_types, include_parents=include_parents, id_only=id_only)
+
+        return site_resources, site_children
+
+
+    def get_sites_devices_status(self, parent_resource_id='', include_devices=False, include_status=False):
+        if not parent_resource_id:
+            raise BadRequest("Must provide a parent parent_resource_id")
+
+        parent_resource = self.RR.read(parent_resource_id)
+
+        org_id, site_id = None, None
+        if parent_resource.type_ == RT.Org:
+            org_id = parent_resource_id
+        elif RT.Site in parent_resource._get_extends():
+            site_id = parent_resource_id
+
+        result_dict = {}
+        if include_status:
+            status_rollups = self.outil.get_status_roll_ups(parent_resource_id, parent_resource.type_, include_structure=True)
+            struct_dict = status_rollups.pop("_system") if "_system" in status_rollups else {}
+
+            result_dict["site_resources"] = struct_dict.get("sites", {})
+            result_dict["site_children"] = struct_dict.get("ancestors", {})
+            if include_devices:
+                site_devices = struct_dict.get("devices", {})
+                result_dict["site_devices"] = site_devices
+                device_ids = [stype_devid_dtype_tuple[1] for stype_devid_dtype_tuple in site_devices.values() if stype_devid_dtype_tuple]
+                device_objs = self.RR.read_mult(device_ids)
+                result_dict["device_resources"] = dict(zip(device_ids, device_objs))
+            result_dict["site_status"] = status_rollups
+
+        else:
+            site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
+            result_dict["site_resources"] = site_resources
+            result_dict["site_children"] = site_children
+
+        return result_dict
+
+
 
 
 

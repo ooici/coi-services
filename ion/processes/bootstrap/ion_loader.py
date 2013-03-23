@@ -1941,7 +1941,7 @@ Reason: %s
                                 port_agent_config=port_agent_config,
                                 startup_config=startup_config,
                                 alerts=alerts_config),
-            support_bulk=True)
+            )
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
@@ -2020,7 +2020,7 @@ Reason: %s
             set_attributes=dict(agent_config=agent_config,
                                 driver_config=driver_config,
                                 alerts=alerts_config),
-            support_bulk=True)
+            )
 
         client = self._get_service_client("instrument_management")
         client.assign_platform_agent_to_platform_agent_instance(platform_agent_id, res_id)
@@ -2313,10 +2313,12 @@ Reason: %s
 
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
-        deployment = self._create_object_from_row("Deployment", row, "d/", constraints=constraints)
         coordinate_name = row['coordinate_system']
-        if coordinate_name:
-            deployment.coordinate_reference_system = self.resource_ids[coordinate_name]
+
+        deployment_id = self._basic_resource_create(row, "Deployment", "d/",
+                                             "observatory_management", "create_deployment",
+                                             constraints=constraints, constraint_field='constraint_list',
+                                             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None)
 
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]
@@ -2326,7 +2328,6 @@ Reason: %s
 
         headers = self._get_op_headers(row)
 
-        deployment_id = oms.create_deployment(deployment, headers=headers)
         oms.deploy_instrument_site(site_id, deployment_id, headers=headers)
         ims.deploy_instrument_device(device_id, deployment_id, headers=headers)
 

@@ -28,28 +28,6 @@ from pyon.event.event import EventPublisher
 # Resource agent.
 from pyon.agent.agent import ResourceAgentState
 
-"""
-AlarmDef:
-  name: ''
-  stream_name: ''
-  value_id: ''
-  message: ''
-  type: ''
-  expr: ''
-  status: True
-  old_status: True
-  first_time: 0
-  
----
-
-IntervalAlarmDef: !Extends_AlarmDef
-  lower_bound: ''
-  lower_rel_op: ''
-  upper_bound: ''
-  upper_rel_op: ''
-  current_val: 0.0
-"""
-
 
 class BaseAlert(object):
     """
