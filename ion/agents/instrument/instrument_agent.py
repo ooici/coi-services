@@ -1248,8 +1248,8 @@ class InstrumentAgent(ResourceAgent):
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except:
-                    log.error('Instrument agent %s could not construct alert %s, class %s, for stream %s',
-                              self._proc_name, str(cls), str(alert_def))    
+                    log.error('Instrument agent %s could not construct alert %s, for stream %s',
+                              self._proc_name, str(alert_def), stream_name)    
                     
     def aparam_set_streams(self, params):
         """
@@ -1288,6 +1288,7 @@ class InstrumentAgent(ResourceAgent):
             return -1
         
         if action in ('set', 'clear'):
+            [x.stop() for x in self.aparam_alerts]
             self.aparam_alerts = []
                 
         if action in ('set', 'add'):
@@ -1305,6 +1306,8 @@ class InstrumentAgent(ResourceAgent):
         elif action == 'remove':
             new_alerts = copy.deepcopy(self.aparam_alerts)
             new_alerts = [x for x in new_alerts if x.name not in params]
+            old_alerts = [x for x in new_alerts if x.name in params]
+            [x.stop() for x in old_alerts]
             self.aparam_alerts = new_alerts
 
         for a in self.aparam_alerts:

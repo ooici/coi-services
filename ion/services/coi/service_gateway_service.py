@@ -3,9 +3,10 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, ast, simplejson, sys, traceback, string
+import inspect, ast, simplejson, sys, traceback, string, copy
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
+from werkzeug.datastructures import MultiDict
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
@@ -470,6 +471,10 @@ def build_message_headers( ion_actor_id, expiry):
 
 #Build parameter list dynamically from
 def create_parameter_list(request_type, service_name, target_client,operation, json_params):
+
+    #This is a bit of a hack - should use decorators to indicate which parameter is the dict that acts like kwargs
+    optional_args = request.args.to_dict(flat=True)
+
     param_list = {}
     method_args = inspect.getargspec(getattr(target_client,operation))
     for (arg_index, arg) in enumerate(method_args[0]):
@@ -477,6 +482,10 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
 
         if not json_params:
             if request.args.has_key(arg):
+
+                #Keep track of which query_string_parms are left after processing
+                del optional_args[arg]
+
                 #Handle strings differently because of unicode
                 if isinstance(method_args[3][arg_index-1], str):
                     if isinstance(request.args[arg], unicode):
@@ -498,6 +507,12 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
                     else:
                         param_list[arg] = json_params[request_type]['params'][arg]
 
+    #Send any optional_args if there are any and allowed
+    if len(optional_args) > 0 and  'optional_args' in method_args[0]:
+        param_list['optional_args'] = dict()
+        for arg in optional_args:
+            #Only support basic strings for these optional params for now
+            param_list['optional_args'][arg] = str(request.args[arg])
 
     return param_list
 

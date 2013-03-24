@@ -235,7 +235,9 @@ class IdentityManagementService(BaseIdentityManagementService):
         extended_user = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.UserInfoExtension,
             resource_id=user_info_id,
-            user_id=user_id)
+            computed_resource_type=OT.ComputedAttributes,
+            user_id=user_id,
+            negotiation_status=0)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if extended_user:
@@ -259,26 +261,28 @@ class IdentityManagementService(BaseIdentityManagementService):
 
         # retrieve the set of open negotaions for this user
         #filer out the accepted/rejected negotiations
-        extended_user.open_negotiations = []
-        extended_user.closed_negotiations = []
-        if hasattr(extended_user, 'actor_identity'):
-            negotiations, _ = self.clients.resource_registry.find_objects(extended_user.actor_identity, PRED.hasNegotiation, RT.Negotiation, id_only=False)
-            for negotiation in negotiations:
-                if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
-                    extended_user.open_negotiations.append(negotiation)
-                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
-                   negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
-                    extended_user.closed_negotiations.append(negotiation)
+        #TODO - discuss with Maurice - temporarily comment out
+        #extended_user.open_negotiations = []
+        #extended_user.closed_negotiations = []
+        #if hasattr(extended_user, 'actor_identity'):
+        #    negotiations, _ = self.clients.resource_registry.find_objects(extended_user.actor_identity, PRED.hasNegotiation, RT.Negotiation, id_only=False)
+        #    for negotiation in negotiations:
+        #        if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
+        #            extended_user.open_negotiations.append(negotiation)
+        #       elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
+        #           negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
+        #            extended_user.closed_negotiations.append(negotiation)
 
 
         # replace list of lists with single list
-        replacement_owned_resources = []
-        for inner_list in extended_user.owned_resources:
-            if inner_list:
-                for actual_data_product in inner_list:
-                    if actual_data_product:
-                        replacement_owned_resources.append(actual_data_product)
-        extended_user.owned_resources = replacement_owned_resources
+        #TODO - discuss with Maurice - temporarily comment out
+        #replacement_owned_resources = []
+        #for inner_list in extended_user.owned_resources:
+        #    if inner_list:
+        #        for actual_data_product in inner_list:
+        #            if actual_data_product:
+        #                replacement_owned_resources.append(actual_data_product)
+        #extended_user.owned_resources = replacement_owned_resources
 
 
 

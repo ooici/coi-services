@@ -354,6 +354,9 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    object with specified id, query does not exist
         """
 
+        # An empty dict is returned in case there is no data in coverage
+        empty_gdt = gviz_api.DataTable([('time', 'datetime', 'time')])
+
         # error check
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
@@ -370,6 +373,7 @@ class VisualizationService(BaseVisualizationService):
                 key, value = param.split(":")
                 if key == 'reqId':
                     reqId = value
+
 
         # Extract the parameters. Definitely init first
         query = None
@@ -417,8 +421,12 @@ class VisualizationService(BaseVisualizationService):
             #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
             retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
 
+        # If thereis no data, return an empty dict
         if retrieved_granule is None:
-            return None
+            if callback == '':
+                return empty_gdt.ToJSonResponse(req_id = reqId)
+            else:
+                return callback + "(\"" + empty_gdt.ToJSonResponse(req_id = reqId) + "\")"
 
         #temp_rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
 
@@ -428,7 +436,10 @@ class VisualizationService(BaseVisualizationService):
 
         gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def, config=visualization_parameters)
         if gdt_data_granule == None:
-            return None
+            if callback == '':
+                return empty_gdt.ToJSonResponse(req_id = reqId)
+            else:
+                return callback + "(\"" + empty_gdt.ToJSonResponse(req_id = reqId) + "\")"
 
         gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
         gdt_components = get_safe(gdt_rdt, 'google_dt_components')

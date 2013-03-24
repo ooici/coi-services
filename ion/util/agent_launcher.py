@@ -46,7 +46,7 @@ class AgentLauncher(object):
 
         log.debug("waiting %s seconds for agent launch", timeout)
         psg = ProcessStateGate(self.process_dispatcher_client.read_process, process_id, ProcessStateEnum.RUNNING)
-        if not psg.await(20):
+        if not psg.await(timeout):
             # todo: different error
             raise BadRequest("The agent process '%s' failed to launch in %s seconds" %
                              (process_id, timeout))
