@@ -4,7 +4,7 @@
 @package ion.agents.platform.util.network_util
 @file    ion/agents/platform/util/network_util.py
 @author  Carlos Rueda
-@brief   Utilities related with platform network serialization/deserialization.
+@brief   Utilities related with platform network definition
 """
 
 __author__ = 'Carlos Rueda'
@@ -501,11 +501,22 @@ class NetworkUtil(object):
                     build_platform_node(child_CFG, pn)
 
                 elif device_type == 'InstrumentDevice':
-                    # TODO InstrumentDevice
-                    pass
+                    build_instrument_node(child_CFG, pn)
 
             return pn
 
+        def build_instrument_node(CFG, parent_node):
+            # use CFG.agent.resource_id as the instrument_id:
+            agent = CFG.get('agent', {})
+            instrument_id = agent.get('resource_id', None)
+
+            if not instrument_id:
+                raise PlatformDefinitionException("missing CFG.agent.resource_id for instrument")
+
+            inn = InstrumentNode(instrument_id, CFG=CFG)
+            parent_node.add_instrument(inn)
+
+        # Now, build the whole network:
         build_platform_node(CFG, ndef._dummy_root)
 
         return ndef

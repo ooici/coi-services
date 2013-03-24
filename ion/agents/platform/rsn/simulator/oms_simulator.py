@@ -108,7 +108,7 @@ class CIOMSSimulator(CIOMSClient):
 
         return {platform_id: ret_infos}
 
-    def get_platform_attribute_values(self, platform_id, attrNames, from_time):
+    def get_platform_attribute_values(self, platform_id, req_attrs):
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
 
@@ -116,7 +116,7 @@ class CIOMSSimulator(CIOMSClient):
         to_time = ntplib.system_to_ntp_time(time.time())
         attrs = self._pnodes[platform_id].attrs
         vals = {}
-        for attrName in attrNames:
+        for attrName, from_time in req_attrs:
             if attrName in attrs:
                 attr = attrs[attrName]
                 values = generate_values(platform_id, attr.attr_id, from_time, to_time)

@@ -20,6 +20,7 @@ __license__ = 'Apache 2.0'
 # developer conveniences:
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_an_instrument
 
 from pyon.public import log
 import logging
@@ -59,6 +60,19 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         # Tests the launch and shutdown of a small platform topology.
         #
         p_root = self._create_small_hierarchy()
+
+        self._start_platform(p_root.platform_agent_instance_id)
+        self._run_commands()
+        self._stop_platform(p_root.platform_agent_instance_id)
+
+    def test_single_platform_with_an_instrument(self):
+        #
+        # basic test of launching a single platform with an instrument
+        #
+
+        p_root = self._create_single_platform()
+        i_obj = self._create_instrument()
+        self._assign_instrument_to_platform(i_obj, p_root)
 
         self._start_platform(p_root.platform_agent_instance_id)
         self._run_commands()

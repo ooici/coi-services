@@ -168,14 +168,14 @@ class PlatformDriver(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def get_attribute_values(self, attr_names, from_time):
+    def get_attribute_values(self, attrs):
         """
         To be implemented by subclass.
-        Returns the values for specific attributes since a given time.
+        Returns the values for specific attributes since a given time for
+        each attribute.
 
-        @param attr_names [attrName, ...] desired attributes
-        @param from_time time from which the values are requested.
-                         Assummed to be in the format basically described by
+        @param attrs     [(attrName, from_time), ...] desired attributes.
+                         from_time Assummed to be in the format basically described by
                          pyon's get_ion_ts function, "a str representing an
                          integer number, the millis in UNIX epoch."
 
@@ -439,15 +439,11 @@ class PlatformDriver(object):
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
 
-        attr_names = kwargs.get('attr_names', None)
-        if attr_names is None:
-            raise FSMError('get_attribute_values: missing attr_names argument')
+        attrs = kwargs.get('attrs', None)
+        if attrs is None:
+            raise FSMError('get_attribute_values: missing attrs argument')
 
-        from_time = kwargs.get('from_time', None)
-        if from_time is None:
-            raise FSMError('get_attribute_values: missing from_time argument')
-
-        result = self.get_attribute_values(attr_names, from_time)
+        result = self.get_attribute_values(attrs)
         next_state = None
 
         return next_state, result
