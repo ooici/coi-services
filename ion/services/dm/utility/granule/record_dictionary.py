@@ -15,9 +15,9 @@ from pyon.util.arg_check import validate_equal
 from pyon.util.log import log
 from pyon.util.memoize import memoize_lru
 
+
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
-
 
 from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
@@ -95,6 +95,13 @@ class RecordDictionaryTool(object):
             paramval[:] = values
         paramval.storage._storage.flags.writeable = False
         return paramval
+
+    def lookup_values(self):
+        lookup_values = []
+        for field in self.fields:
+            if hasattr(self.context(field), 'lookup_value'):
+                lookup_values.append(field)
+        return lookup_values
 
 
     @classmethod
@@ -230,6 +237,16 @@ class RecordDictionaryTool(object):
         dom = self.domain
         paramval = self.get_paramval(context.param_type, dom, vals)
         self._rd[name] = paramval
+
+    def param_type(self, name):
+        if name in self.fields:
+            return self._pdict.get_context(name).param_type
+        raise KeyError(name)
+
+    def context(self, name):
+        if name in self.fields:
+            return self._pdict.get_context(name)
+        raise KeyError(name)
 
     def _reshape_const(self):
         for k in self.fields:
