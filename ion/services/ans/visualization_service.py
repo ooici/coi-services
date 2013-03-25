@@ -44,8 +44,11 @@ from ion.services.dm.inventory.data_retriever_service import DataRetrieverServic
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
 
+USER_VISUALIZATION_QUEUE = 'UserVisQueue'
+PERSIST_REALTIME_DATA_PRODUCTS = False
 
 class VisualizationService(BaseVisualizationService):
+
 
     def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
@@ -85,7 +88,8 @@ class VisualizationService(BaseVisualizationService):
             workflow_def_id = self._create_google_dt_workflow_def()
 
         #Create and start the workflow. Take about 4 secs .. wtf
-        workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_def_id, data_product_id, timeout=20)
+        workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
+            input_data_product_id=data_product_id, persist_workflow_data_product=PERSIST_REALTIME_DATA_PRODUCTS, timeout=30)
 
         # detect the output data product of the workflow
         workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
@@ -97,7 +101,7 @@ class VisualizationService(BaseVisualizationService):
         data_product_stream_id = workflow_output_stream_ids
 
         # Create a queue to collect the stream granules - idempotency saves the day!
-        query_token = create_unique_identifier('user_queue')
+        query_token = create_unique_identifier(USER_VISUALIZATION_QUEUE)
 
         xq = self.container.ex_manager.create_xn_queue(query_token)
         subscription_id = self.clients.pubsub_management.create_subscription(
@@ -217,7 +221,6 @@ class VisualizationService(BaseVisualizationService):
         @retval datatable    str
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
-
         log.debug("Query token : " + query_token + " CB : " + callback + "TQX : " + tqx)
 
         reqId = 0
@@ -272,20 +275,41 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
-        subscription_ids = self.clients.resource_registry.find_resources(restype=RT.Subscription, name=query_token, id_only=True)
+        subscriptions, _ = self.clients.resource_registry.find_resources(restype=RT.Subscription, name=query_token, id_only=False)
 
-        if not subscription_ids:
+        if not subscriptions:
             raise BadRequest("A Subscription object for the query_token parameter %s is not found" % query_token)
 
+        if len(subscriptions) > 1:
+            log.warn("An inconsistent number of Subscription resources associated with the name: %s - will use the first one in the list",query_token )
 
-        if len(subscription_ids[0]) > 1:
-            log.warn("An inconsistent number of Subscription resources associated with the name: %s - using the first one in the list",query_token )
+        subscription_id = subscriptions[0]._id
 
-        subscription_id = subscription_ids[0][0]
 
+        #need to find the associated data product BEFORE deleting the subscription
+        stream_id, _  = self.clients.resource_registry.find_objects(object_type=RT.Stream, predicate=PRED.hasStream, subject=subscription_id, id_only=True)
+
+        data_product_id = []
+        if len(stream_id) == 0:
+            log.error("Cannot find Stream for Subscription id %s", subscription_id)
+        else:
+            #Can only clean up if we have all of the data
+            data_product_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.DataProduct, predicate=PRED.hasStream, object=stream_id[0], id_only=True)
+
+
+        #Now delete the subscription
         self.clients.pubsub_management.deactivate_subscription(subscription_id)
-
         self.clients.pubsub_management.delete_subscription(subscription_id)
+
+        #Need to clean up associated workflow from the data product as long as they are going to be created for each user
+        if len(data_product_id) == 0:
+            log.error("Cannot find Data Product for Stream id %s", ( stream_id[0] ))
+        else:
+            workflow_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasOutputProduct, object=data_product_id[0], id_only=True)
+            if len(workflow_id) == 0:
+                log.error("Cannot find Workflow for Data Product id %s", ( data_product_id[0] ))
+            else:
+                self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=PERSIST_REALTIME_DATA_PRODUCTS, timeout=30)
 
         #Taking advantage of idempotency
         xq = self.container.ex_manager.create_xn_queue(query_token)
