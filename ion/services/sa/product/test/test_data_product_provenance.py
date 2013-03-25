@@ -24,6 +24,7 @@ from interface.objects import StreamConfiguration
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
+import unittest
 
 
 class FakeProcess(LocalContextMixin):
@@ -71,7 +72,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.addCleanup(killAllDataProcesses)
 
 
-    #@unittest.skip('not ready')
+    @unittest.skip('This test is obsolete with new framework')
     def test_get_provenance(self):
 
         #create a deployment with metadata and an initial site and device
