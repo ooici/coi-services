@@ -2184,9 +2184,9 @@ Reason: %s
         type = row['resource_type']
 
         #create link to data product source
-#        source_id = row['source_resource_id']
-#        svc_client = self._get_service_client("data_acquisition_management")
-#        svc_client.assign_data_product_source(dp_id, source_id, headers=self._get_system_actor_headers())
+        source_id = self.resource_ids[row['source_resource_id']]
+        svc_client = self._get_service_client("data_acquisition_management")
+        svc_client.assign_data_product_source(dp_id, source_id, headers=self._get_system_actor_headers())
 
         if type=='InstrumentDevice' or type=='PlatformDevice':
             if self.bulk and do_bulk:
