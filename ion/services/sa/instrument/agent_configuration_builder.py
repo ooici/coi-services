@@ -57,7 +57,10 @@ class AgentConfigurationBuilder(object):
     def _augment_dict(self, title, basedict, newitems):
         for k, v in newitems.iteritems():
             if k in basedict:
-                log.warn("Overwriting %s[%s] of '%s' with '%s'", title, k, basedict[k], v)
+                prev_v = basedict[k]
+                # just warn if the new value is different
+                if v != prev_v:
+                    log.warn("Overwriting %s[%s] of '%s' with '%s'", title, k, prev_v, v)
             basedict[k] = v
 
     def _check_associations(self):
