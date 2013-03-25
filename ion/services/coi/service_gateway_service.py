@@ -531,10 +531,13 @@ def create_ion_object(object_params):
 
 #Use this function internally to recursively set sub object field values
 def set_object_field(obj, field, field_val):
-    if isinstance(field_val,dict) and field != 'kwargs':
-        sub_obj = getattr(obj,field)
-        for sub_field in field_val:
-            set_object_field(sub_obj, sub_field, field_val.get(sub_field))
+    if isinstance(field_val, dict) and field != 'kwargs':
+        sub_obj = getattr(obj, field)
+        if isinstance(sub_obj, dict):
+            setattr(obj, field, field_val)
+        else:
+            for sub_field in field_val:
+                set_object_field(sub_obj, sub_field, field_val.get(sub_field))
     else:
         # type_ already exists in the class.
         if field != "type_":
