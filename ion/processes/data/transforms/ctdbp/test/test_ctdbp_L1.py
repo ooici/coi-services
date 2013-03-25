@@ -165,7 +165,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
     def cleaning_operations(self):
         for dproc_id in self.data_process_cleanup:
-            self.data_process_management.delete_data_process(dproc_id)
+            self.data_process_management.delete_data_process2(dproc_id)
 
     def test_ctd_L1_all(self):
         """
@@ -240,12 +240,16 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         output_stream_id = out_stream_ids[0]
 
         config = self._create_calibration_coefficients_dict()
-        dproc_id = self.data_process_management.create_data_process2( [input_dp_id], [L1_stream_dp_id], config)
-        self.addCleanup(self.data_process_management.delete_data_process, dproc_id)
+        dproc_id = self.data_process_management.create_data_process2(
+            in_data_product_ids = [input_dp_id],
+            out_data_product_ids=  [L1_stream_dp_id],
+            configuration=config)
+        
+        self.addCleanup(self.data_process_management.delete_data_process2, dproc_id)
         log.debug("Created a data process for ctdbp_L1. id: %s", dproc_id)
 
         # Activate the data process
-        self.data_process_management.activate_data_process(dproc_id)
+        self.data_process_management.activate_data_process2(dproc_id)
         self.addCleanup(self.data_process_management.deactivate_data_process, dproc_id)
 
         #----------- Find the stream that is associated with the input data product when it was created by create_data_product() --------------------------------
