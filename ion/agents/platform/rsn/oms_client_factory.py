@@ -4,7 +4,7 @@
 @package ion.agents.platform.rsn.oms_client_factory
 @file    ion/agents/platform/rsn/oms_client_factory.py
 @author  Carlos Rueda
-@brief   OMS Client factory.
+@brief   CIOMS Client factory.
 """
 
 __author__ = 'Carlos Rueda'
@@ -24,8 +24,11 @@ _OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/rsn/oms_uri_aliases.yml'
 
 class CIOMSClientFactory(object):
     """
-    Provides an CIOMSClient implementation.
+    Provides a CIOMSClient implementation.
     """
+
+    # counter of created, not-yet-destroyed instances for debugging
+    _inst_count = 0
 
     _uri_aliases = None
 
@@ -43,6 +46,7 @@ class CIOMSClientFactory(object):
     def create_instance(cls, uri=None):
         """
         Creates an CIOMSClient instance.
+        Call destroy_instance with the return object when no longer needed.
 
         @param uri URI to connect to the RSN OMS server or simulator.
         If None (the default) the value of the OMS environment variable is used
@@ -73,4 +77,22 @@ class CIOMSClientFactory(object):
             if log.isEnabledFor(logging.DEBUG):
                 log.debug("Created xmlrpclib.ServerProxy: uri=%s", uri)
 
+        cls._inst_count += 1
+        log.debug("create_instance: _inst_count = %d", cls._inst_count)
         return instance
+
+    @classmethod
+    def destroy_instance(cls, instance):
+        """
+        Destroys an instance created with create_instance.
+        This is mainly a convenience method to deactivate the simulator when
+        run in embedded form.
+        """
+        cls._inst_count -= 1
+        if isinstance(instance, CIOMSSimulator):
+            instance._deactivate_simulator()
+            log.debug("Embedded CIOMSSimulator instance destroyed")
+
+        # else: nothing needed to do.
+            
+        log.debug("destroy_instance: _inst_count = %d", cls._inst_count)

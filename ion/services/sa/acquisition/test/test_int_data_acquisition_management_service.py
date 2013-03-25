@@ -149,18 +149,28 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         # test assigning a data product to an instrument, creating the stream for the product
         try:
             self.client.assign_data_product(instrument_id, dataproduct_id)
+            self.client.assign_data_product_source(dataproduct_id, instrument_id)
         except BadRequest as ex:
             self.fail("failed to assign data product to data producer: %s" %ex)
         except NotFound as ex:
             self.fail("failed to assign data product to data producer: %s" %ex)
 
+        assocs = self.rrclient.find_associations(dataproduct_id, PRED.hasSource, instrument_id)
+        if not assocs or len(assocs) == 0:
+            self.fail("failed to assign data product to data producer")
+
         # test UNassigning a data product from instrument, deleting the stream for the product
         try:
             self.client.unassign_data_product(instrument_id, dataproduct_id)
+            self.client.unassign_data_product_source(dataproduct_id, instrument_id)
         except BadRequest as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
         except NotFound as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+
+        assocs = self.rrclient.find_associations(dataproduct_id, PRED.hasSource, instrument_id)
+        if  assocs:
+            self.fail("failed to unassign data product to data producer")
 
         # test UNregistering a new data producer
         try:

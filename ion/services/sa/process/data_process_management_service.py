@@ -672,14 +672,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
-        # replace list of lists with single list
-        replacement_data_products = []
-        for inner_list in extended_data_process_definition.data_products:
-            if inner_list:
-                for actual_data_product in inner_list:
-                    if actual_data_product:
-                        replacement_data_products.append(actual_data_product)
-        extended_data_process_definition.data_products = replacement_data_products
 
         return extended_data_process_definition
 

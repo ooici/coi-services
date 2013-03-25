@@ -64,17 +64,18 @@ class ResourceMonitor(object):
         self._attr_defns = attr_defns
         self._notify_driver_event = notify_driver_event
 
-        # corresponding attribute IDs to be retrieved:
+        # corresponding attribute IDs to be retrieved and "ION System time"
+        # compliant timestamp of last retrieved value for each attribute:
         self._attr_ids = []
+        self._last_ts = {}
         for attr_defn in self._attr_defns:
             if 'attr_id' in attr_defn:
-                self._attr_ids.append(attr_defn['attr_id'])
+                attr_id = attr_defn['attr_id']
+                self._attr_ids.append(attr_id)
+                self._last_ts[attr_id] = None
             else:
                 log.warn("%r: 'attr_id' key expected in attribute definition: %s",
                          self._platform_id, attr_defn)
-
-        # "ION System time" compliant timestamp of last retrieved attribute value
-        self._last_ts = None
 
         self._active = False
 
@@ -121,39 +122,40 @@ class ResourceMonitor(object):
         _values_retrieved.
         """
 
-        # determine from_time for the request:
-        if self._last_ts is None:
-            #
-            # This is the very first retrieval request, so pick a from_time
-            # that makes sense. At the moment, setting from_time to current
-            # system time minus a small multiple of the monitoring rate, but
-            # from_time will be not more than a few minutes ago (note: this
-            # is rather arbitrary at the moment):
-            # TODO: determine actual criteria here.
-            win_size_secs = min(10 * 60, self._rate_secs * 3)
-            from_time = current_time_millis() / 1000.0 - win_size_secs
+        # TODO: note that the "from_time" parameters for the request below was
+        # influenced by the RSN case (see CI-OMS interface). Need to see
+        # whether it also applies to CGSN so eventually adjustments may be needed.
+        #
 
-            # TODO: Also note that the "from_time" parameter for the request was
-            # influenced by the RSN case (see CI-OMS interface). Need to see
-            # whether it also applies to CGSN so eventually adjustments may be needed.
-            #
-        else:
-            # note that int(x) returns a long object if needed.
-            from_time = int(self._last_ts) + _DELTA_TIME
+        current_time_secs = current_time_millis() / 1000.0
 
-        log.debug("%r: _retrieve_attribute_values: attr_ids=%r from_time=%s",
-                  self._platform_id, self._attr_ids, from_time)
+        # determine each from_time for the request:
+        attrs = []
+        for attr_id in self._attr_ids:
+            if self._last_ts[attr_id] is None:
+                # Arbitrarily setting from_time to current system time minus a few seconds:
+                # TODO: determine actual criteria here.
+                win_size_secs = 5
+                from_time = current_time_secs - win_size_secs
 
-        retrieved_vals = self._get_attribute_values(self._attr_ids, from_time)
+            else:
+                # note that int(x) returns a long object if needed.
+                from_time = int(self._last_ts[attr_id]) + _DELTA_TIME
+
+            attrs.append((attr_id, from_time))
+
+        log.debug("%r: _retrieve_attribute_values: attrs=%s",
+                  self._platform_id, attrs)
+
+        retrieved_vals = self._get_attribute_values(attrs)
 
         log.debug("%r: _retrieve_attribute_values: _get_attribute_values "
-                  "for attr_ids=%r and from_time=%s returned %s",
-                  self._platform_id,
-                  self._attr_ids, from_time, retrieved_vals)
+                  "for attrs=%s returned %s",
+                  self._platform_id, attrs, retrieved_vals)
 
         # vals_dict: attributes with non-empty reported values:
         vals_dict = {}
-        for attr_id in self._attr_ids:
+        for attr_id, from_time in attrs:
             if not attr_id in retrieved_vals:
                 log.warn("%r: _retrieve_attribute_values: unexpected: "
                          "response does not include requested attribute %r. "
@@ -182,22 +184,15 @@ class ResourceMonitor(object):
         corresponding event to platform agent.
         """
 
-        # maximum of the latest timestamps in the returned values;
-        # used to prepare for the next request:
-        max_ntp_ts = None
+        # update _last_ts for each retrieved attribute:
         for attr_id, attr_vals in vals_dict.iteritems():
             assert attr_vals, "Must be a non-empty array of values per _retrieve_attribute_values"
 
             _, ntp_ts = attr_vals[-1]
 
-            if max_ntp_ts is None:
-                max_ntp_ts = ntp_ts
-            else:
-                max_ntp_ts = max(max_ntp_ts, ntp_ts)
-
-        # update _last_ts based on max_ntp_ts: note that timestamps are reported
-        # in NTP so we need to convert it to ION system time for a subsequent request:
-        self._last_ts = ntp_2_ion_ts(max_ntp_ts)
+            # update _last_ts based on ntp_ts: note that timestamps are reported
+            # in NTP so we need to convert it to ION system time for a subsequent request:
+            self._last_ts[attr_id] = ntp_2_ion_ts(ntp_ts)
 
         # finally, notify the values event:
         driver_event = AttributeValueDriverEvent(self._platform_id,

@@ -111,29 +111,50 @@ class ObservatoryUtil(object):
             parents[assoc.o] = (assoc.ot, assoc.s, assoc.st)
         return parents
 
-    def get_site_devices(self, site_list):
+    def get_device_relations(self, site_list):
+        """
+        Returns a dict of site_id/device_id mapped to site/device type, device_id, device type,
+        based on hasDevice associations.
+        """
+        assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
+
+        res_dict = {}
+
+        site_devices = self.get_site_devices(site_list, assoc_list=assoc_list)
+        res_dict.update(site_devices)
+
+        # Add information for each device
+        device_ids = [stype_devid_dtype_tuple[1] for stype_devid_dtype_tuple in site_devices.values() if stype_devid_dtype_tuple]
+        for device_id in device_ids:
+            res_dict.update(self.get_child_devices(device_id, assoc_list=assoc_list))
+
+        return res_dict
+
+
+    def get_site_devices(self, site_list, assoc_list=None):
         """
         Returns a dict of site_id mapped to site type, device_id, device type, based on hasDevice association.
         """
-        site_devices = self._get_site_devices()
+        site_devices = self._get_site_devices(assoc_list=assoc_list)
         res_sites = {}
         for site_id in site_list:
             res_sites[site_id] = site_devices.get(site_id, None)
         return res_sites
 
-    def _get_site_devices(self):
+    def _get_site_devices(self, assoc_list=None):
         """
         Returns a dict mapping a site_id to site type, device_id, device type based on hasDevice association.
         """
         sites = {}
-        assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
+        if not assoc_list:
+            assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
         for assoc in assoc_list:
             if assoc.st in [RT.PlatformSite, RT.InstrumentSite]:
                 sites[assoc.s] = (assoc.st, assoc.o, assoc.ot)
         return sites
 
-    def get_child_devices(self, device_id):
-        child_devices = self._get_child_devices()
+    def get_child_devices(self, device_id, assoc_list=None):
+        child_devices = self._get_child_devices(assoc_list=assoc_list)
         all_children = set([device_id])
         def add_children(dev_id):
             ch_list = child_devices.get(dev_id, [])
@@ -148,12 +169,13 @@ class ObservatoryUtil(object):
             child_devices[device_id] = []
         return child_devices
 
-    def _get_child_devices(self):
+    def _get_child_devices(self, assoc_list=None):
         """
         Returns a dict mapping a device_id to parent type, child device_id, child type based on hasDevice association.
         """
         sites = {}
-        assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
+        if not assoc_list:
+            assoc_list = self.container.resource_registry.find_associations(predicate=PRED.hasDevice, id_only=False)
         for assoc in assoc_list:
             if assoc.st in [RT.PlatformDevice, RT.InstrumentDevice] and assoc.ot in [RT.PlatformDevice, RT.InstrumentDevice]:
                 if assoc.s not in sites:
@@ -258,10 +280,7 @@ class ObservatoryUtil(object):
             else:
                 child_sites, site_ancestors = self.get_child_sites(parent_site_id=res_id, id_only=not include_structure)
 
-            #print "******C", child_sites
-            #print "******A", site_ancestors
-
-            site_devices = self.get_site_devices(child_sites.keys())
+            site_devices = self.get_device_relations(child_sites.keys())
             device_events = self._get_status_events()
 
             status_rollup = {}

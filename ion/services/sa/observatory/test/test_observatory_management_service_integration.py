@@ -72,8 +72,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 #    def test_just_the_setup(self):
 #        return
 
-
-
     def destroy(self, resource_ids):
         self.OMS.force_delete_observatory(resource_ids.observatory_id)
         self.OMS.force_delete_subsite(resource_ids.subsite_id)
@@ -90,12 +88,105 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_instrument_site(resource_ids.instrument_site4_id)
 
     #@unittest.skip('targeting')
-    def test_resources_associations(self):
+    def test_observatory_management(self):
         resources = self._make_associations()
+
+        self._do_test_find_related_sites(resources)
+
+        self._do_test_get_sites_devices_status(resources)
+
+        self._do_test_find_related_frames_of_reference(resources)
+
+        self._do_test_create_geospatial_point_center(resources)
+
+        self._do_test_find_observatory_org(resources)
+
         self.destroy(resources)
 
+    def _do_test_find_related_sites(self, resources):
+
+        site_resources, site_children = self.OMS.find_related_sites(resources.org_id)
+
+        #import sys, pprint
+        #print >> sys.stderr, pprint.pformat(site_resources)
+        #print >> sys.stderr, pprint.pformat(site_children)
+
+        #self.assertIn(resources.org_id, site_resources)
+        self.assertIn(resources.observatory_id, site_resources)
+        self.assertIn(resources.subsite_id, site_resources)
+        self.assertIn(resources.subsite_id, site_resources)
+        self.assertIn(resources.subsite2_id, site_resources)
+        self.assertIn(resources.platform_site_id, site_resources)
+        self.assertIn(resources.instrument_site_id, site_resources)
+        self.assertEquals(len(site_resources), 13)
+
+        self.assertEquals(site_resources[resources.observatory_id].type_, RT.Observatory)
+
+        self.assertIn(resources.org_id, site_children)
+        self.assertIn(resources.observatory_id, site_children)
+        self.assertIn(resources.subsite_id, site_children)
+        self.assertIn(resources.subsite_id, site_children)
+        self.assertIn(resources.subsite2_id, site_children)
+        self.assertIn(resources.platform_site_id, site_children)
+        self.assertNotIn(resources.instrument_site_id, site_children)
+        self.assertEquals(len(site_children), 9)
+
+        self.assertIsInstance(site_children[resources.subsite_id], list)
+        self.assertEquals(len(site_children[resources.subsite_id]), 2)
+
+    def _do_test_get_sites_devices_status(self, resources):
+
+        result_dict = self.OMS.get_sites_devices_status(resources.org_id)
+
+        site_resources = result_dict.get("site_resources", None)
+        site_children = result_dict.get("site_children", None)
+
+        self.assertEquals(len(site_resources), 14)
+        self.assertEquals(len(site_children), 9)
+
+        result_dict = self.OMS.get_sites_devices_status(resources.org_id, include_devices=True, include_status=True)
+
+        site_resources = result_dict.get("site_resources", None)
+        site_children = result_dict.get("site_children", None)
+        site_devices = result_dict.get("site_devices", None)
+        device_resources = result_dict.get("device_resources", None)
+        site_status = result_dict.get("site_status", None)
+
+        self.assertEquals(len(site_resources), 14)
+        self.assertEquals(len(site_children), 9)
+        self.assertEquals(len(site_devices), 18)
+        self.assertIsNone(site_devices[resources.observatory_id])
+        self.assertEquals(site_devices[resources.platform_site_id][0], RT.PlatformSite)
+        self.assertEquals(site_devices[resources.platform_site_id][1], resources.platform_device_id)
+        self.assertEquals(site_devices[resources.platform_site_id][2], RT.PlatformDevice)
+
+        self.assertEquals(site_devices[resources.instrument_site_id][0], RT.InstrumentSite)
+        self.assertEquals(site_devices[resources.instrument_site_id][1], resources.instrument_device_id)
+        self.assertEquals(site_devices[resources.instrument_site_id][2], RT.InstrumentDevice)
+
+        self.assertEquals(len(device_resources), 4)
+        self.assertEquals(device_resources[resources.instrument_device_id].type_, RT.InstrumentDevice)
+
+        self.assertIsInstance(site_status[resources.org_id], dict)
+        self.assertIsInstance(site_status[resources.observatory_id], dict)
+        self.assertIsInstance(site_status[resources.platform_site_id], dict)
+        self.assertIsInstance(site_status[resources.instrument_device_id], dict)
+        self.assertEquals(set(site_status[resources.instrument_device_id].keys()), set(["agg","power","comms","data","loc"]))
+
+        result_dict = self.OMS.get_sites_devices_status(resources.observatory_id, include_devices=True, include_status=True)
+
+        site_resources = result_dict.get("site_resources")
+        site_children = result_dict.get("site_children")
+        site_devices = result_dict.get("site_devices")
+        device_resources = result_dict.get("device_resources")
+        site_status = result_dict.get("site_status")
+
+        self.assertEquals(len(site_resources), 13)
+        self.assertEquals(len(site_children), 8)
+        self.assertEquals(len(site_devices), 17)
+
     #@unittest.skip('targeting')
-    def test_find_related_frames_of_reference(self):
+    def _do_test_find_related_frames_of_reference(self, stuff):
         # finding subordinates gives a dict of obj lists, convert objs to ids
         def idify(adict):
             ids = {}
@@ -316,7 +407,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_observatory(observatory_id)
 
     #@unittest.skip("targeting")
-    def test_create_geospatial_point_center(self):
+    def _do_test_create_geospatial_point_center(self, resources):
         platformsite_obj = IonObject(RT.PlatformSite,
                                         name='TestPlatformSite',
                                         description='some new TestPlatformSite')
@@ -352,7 +443,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
 
     #@unittest.skip("targeting")
-    def test_find_observatory_org(self):
+    def _do_test_find_observatory_org(self, resources):
         log.debug("Make TestOrg")
         org_obj = IonObject(RT.Org,
                             name='TestOrg',
