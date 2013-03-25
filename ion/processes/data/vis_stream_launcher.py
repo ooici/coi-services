@@ -43,8 +43,8 @@ class VisStreamLauncher(ImmediateProcess):
     def on_start(self):
 
         log.debug("VizStreamProducer start")
-        self.data_source_name = self.CFG.get('name')
-        self.dataset = self.CFG.get('dataset')
+        self.data_source_name = self.CFG.get_safe('name', 'sine_wave_generator')
+        self.dataset = self.CFG.get_safe('dataset', 'sinusoidal')
 
         # create a pubsub client and a resource registry client
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
