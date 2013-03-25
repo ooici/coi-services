@@ -583,7 +583,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return ret
 
 
-    def collect_deployment_components(self, deployment_id, sub_platforms=False):
+    def collect_deployment_components(self, deployment_id, sub_platforms=False, sub_instruments=False):
         """
         get all devices and sites associated with this deployment and use their ID as a key to list of models
         """
@@ -663,20 +663,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return device_models, site_models
 
 
-    def activate_deployment(self, deployment_id='', activate_subscriptions=False):
-        """
-        Make the devices on this deployment the primary devices for the sites
-        """
-        #Verify that the deployment exists
-        depl_obj = self.RR2.read(deployment_id)
-        log.debug("Activing deployment '%s' (%s)", depl_obj.name, deployment_id)
-
-#        if LCS.DEPLOYED == deployment_obj.lcstate:
-#            raise BadRequest("This deploment is already active")
-
-        log.trace("activate_deployment about to collect components")
-        device_models, site_models = self.collect_deployment_components(deployment_id)
-        log.trace("Collected %s device models, %s site models", len(device_models), len(site_models))
+    def get_deployment_csp_solutions(self, device_models, site_models):
 
         log.debug("creating a CSP solver to match devices and sites")
         problem = constraint.Problem()
@@ -702,7 +689,39 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         log.debug("performing CSP solve")
         # this will be a list of solutions, each a dict of var -> value
-        solutions = problem.getSolutions()
+        return problem.getSolutions()
+
+
+    def activate_deployment2(self, deployment_id):
+        depl_obj = self.RR2.read(deployment_id)
+
+        # based on deployment type, set the following variables:
+        # - collect sub platforms?
+        # - collect sub instruments?
+        # - allow sub platforms?
+        # - allow sub instruments?
+
+        device_models, site_models = self.collect_deployment_components()
+
+        site_structure = build_site_structure()
+
+
+    def activate_deployment(self, deployment_id='', activate_subscriptions=False):
+        """
+        Make the devices on this deployment the primary devices for the sites
+        """
+        #Verify that the deployment exists
+        depl_obj = self.RR2.read(deployment_id)
+        log.debug("Activing deployment '%s' (%s)", depl_obj.name, deployment_id)
+
+#        if LCS.DEPLOYED == deployment_obj.lcstate:
+#            raise BadRequest("This deploment is already active")
+
+        log.trace("activate_deployment about to collect components")
+        device_models, site_models = self.collect_deployment_components(deployment_id)
+        log.trace("Collected %s device models, %s site models", len(device_models), len(site_models))
+
+        solutions = self.get_deployment_csp_solutions(device_models, site_models)
 
         def solution_to_string(soln):
             ret = "%s" % type(soln).__name__
