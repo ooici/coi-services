@@ -250,7 +250,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # Activate the data process
         self.data_process_management.activate_data_process2(dproc_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process, dproc_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, dproc_id)
 
         #----------- Find the stream that is associated with the input data product when it was created by create_data_product() --------------------------------
 

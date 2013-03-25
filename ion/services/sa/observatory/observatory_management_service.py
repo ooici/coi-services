@@ -565,7 +565,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                                      None,
                                                                      {"logical":data_product_id})
 
-        self.dataprocessclient.activate_data_process(data_process_id)
+        self.dataprocessclient.activate_data_process2(data_process_id)
 
         #make it all happen by assigning the output product to the site
         if RT.InstrumentSite == type(site_obj).__name__:

@@ -436,9 +436,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def force_delete_data_process(self, data_process_id=""):
 
         # if not yet deleted, the first execute delete logic
-        dp_obj = self.read_data_process(data_process_id)
+        dp_obj = self.read_data_process2(data_process_id)
         if dp_obj.lcstate != LCS.RETIRED:
-            self.delete_data_process(data_process_id)
+            self.delete_data_process2(data_process_id)
 
         self.RR2.pluck_delete(data_process_id, RT.DataProcess)
 

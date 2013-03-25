@@ -106,7 +106,7 @@ class Test_DataProcessManagementService_Unit(PyonTestCase):
         self.transform_management_service.read_transform.return_value = self.transform_object
          
         # test call
-        dpd_id, in_id, out_id = self.data_process_mgmt_service.read_data_process(self.data_process_id)
+        dpd_id, in_id, out_id = self.data_process_mgmt_service.read_data_process2(self.data_process_id)
 
         # verify results
         self.assertEqual(dpd_id, self.data_proc_def_id)

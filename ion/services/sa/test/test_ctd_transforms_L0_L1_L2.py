@@ -548,7 +548,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         output_data_products = self.out_prod_dict.values()
         ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2(self.ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], output_data_products)
-        self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
+        self.dataprocessclient.activate_data_process2(ctd_l0_all_data_process_id)
 
         data_process = self.rrclient.read(ctd_l0_all_data_process_id)
         self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
@@ -557,7 +557,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L1 Conductivity: Create the data process
         #-------------------------------------------------------------------------------------
         l1_conductivity_data_process_id = self.dataprocessclient.create_data_process2(self.ctd_L1_conductivity_dprocdef_id, [self.ctd_l0_conductivity_output_dp_id], [self.ctd_l1_conductivity_output_dp_id])
-        self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
+        self.dataprocessclient.activate_data_process2(l1_conductivity_data_process_id)
 
         data_process = self.rrclient.read(l1_conductivity_data_process_id)
         self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
@@ -566,7 +566,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L1 Pressure: Create the data process
         #-------------------------------------------------------------------------------------
         l1_pressure_data_process_id = self.dataprocessclient.create_data_process2(self.ctd_L1_pressure_dprocdef_id, [self.ctd_l0_pressure_output_dp_id], [self.ctd_l1_pressure_output_dp_id])
-        self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
+        self.dataprocessclient.activate_data_process2(l1_pressure_data_process_id)
 
         data_process = self.rrclient.read(l1_pressure_data_process_id)
         self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
@@ -575,7 +575,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L1 Temperature: Create the data process
         #-------------------------------------------------------------------------------------
         l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process2(self.ctd_L1_temperature_dprocdef_id, [self.ctd_l0_temperature_output_dp_id], [self.ctd_l1_temperature_output_dp_id])
-        self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
+        self.dataprocessclient.activate_data_process2(l1_temperature_all_data_process_id)
 
         data_process = self.rrclient.read(l1_temperature_all_data_process_id)
         self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
@@ -584,7 +584,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L2 Salinity: Create the data process
         #-------------------------------------------------------------------------------------
         l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process2(self.ctd_L2_salinity_dprocdef_id, [ctd_parsed_data_product], [self.ctd_l2_salinity_output_dp_id])
-        self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
+        self.dataprocessclient.activate_data_process2(l2_salinity_all_data_process_id)
 
         data_process = self.rrclient.read(l2_salinity_all_data_process_id)
         self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
@@ -593,7 +593,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # L2 Density: Create the data process
         #-------------------------------------------------------------------------------------
         l2_density_all_data_process_id = self.dataprocessclient.create_data_process2(self.ctd_L2_density_dprocdef_id, [ctd_parsed_data_product], [self.ctd_l2_density_output_dp_id])
-        self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
+        self.dataprocessclient.activate_data_process2(l2_density_all_data_process_id)
 
         data_process = self.rrclient.read(l2_density_all_data_process_id)
         self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
