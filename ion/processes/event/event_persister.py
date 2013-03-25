@@ -97,7 +97,7 @@ class EventPersister(StandaloneProcess):
                         log.warn("Succeeded to persist some of the events - rest must be bad")
                         self._log_events(bad_events)
                     elif bad_events:
-                        log.error("Discarding %s events after %s attempts!!" % (len(self.bad_events), self.failure_count))
+                        log.error("Discarding %s events after %s attempts!!" % (len(bad_events), self.failure_count))
                         self._log_events(bad_events)
 
                     self.events_to_persist = None
