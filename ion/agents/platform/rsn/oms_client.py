@@ -86,7 +86,7 @@ class CIOMSClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def get_platform_attribute_values(self, platform_id, attrNames, from_time):
+    def get_platform_attribute_values(self, platform_id, attrs):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
