@@ -154,7 +154,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Setup the input data product id as the initial input product stream
         data_process_input_dp_id = input_data_product_id
 
-        output_data_products = {}
+        output_data_products = []
         output_data_product_id = None # Overall product id to return
 
         #Iterate through the workflow steps to setup the data processes and connect them together.
@@ -195,7 +195,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
                 #Associate the intermediate data products with the workflow
                 self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, data_product_id )
-                output_data_products[binding] = data_product_id
+                output_data_products.append(data_product_id)
 
             #May have to merge configuration blocks where the workflow entries will override the configuration in a step
             if configuration:
@@ -215,10 +215,10 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProcess, data_process_id )
 
             #last one out of the for loop is the output product id
-            output_data_product_id = output_data_products.values()[0]
+            output_data_product_id = output_data_products[0]
 
             #Save the id of the output data stream for input to the next process in the workflow.
-            data_process_input_dp_id = output_data_products.values()[0]
+            data_process_input_dp_id = output_data_products[0]
 
 
         #Track the output data product with an association

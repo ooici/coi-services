@@ -288,8 +288,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
-        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
+        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
         #TODO - Need to add workflow creation for google data table
         vis_params ={}
