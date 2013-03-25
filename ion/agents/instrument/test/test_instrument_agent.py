@@ -43,9 +43,7 @@ from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
 
 # Pyon exceptions.
-from pyon.core.exception import BadRequest
-from pyon.core.exception import Conflict
-from pyon.core.exception import ResourceError
+from pyon.core.exception import BadRequest, Conflict, Timeout, ResourceError
 
 # Agent imports.
 from pyon.util.context import LocalContextMixin
@@ -70,6 +68,8 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 # Alarms.
 from pyon.public import IonObject
 from interface.objects import StreamAlertType
+
+from ooi.timer import Timer
 
 """
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
@@ -669,7 +669,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertGreaterEqual(len(self._events_received), 6)
-        
+
     def test_states(self):
         """
         test_states
@@ -680,7 +680,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Set up a subscriber to collect error events.
         self._start_event_subscriber('ResourceAgentStateEvent', 8)
-        self.addCleanup(self._stop_event_subscriber)    
+        self.addCleanup(self._stop_event_subscriber)
 
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
@@ -691,7 +691,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         with self.assertRaises(Conflict):
             retval = self._ia_client.ping_resource()
-    
+
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
@@ -735,10 +735,81 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-            
+
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEquals(len(self._events_received), 8)
-            
+
+    def _test_next_state(self, step_tuple, timeout=None, recover=30):
+        # execute command
+        log.info('agent FSM step: %r timeout=%s', step_tuple, timeout)
+
+        if step_tuple[0]:
+            if timeout:
+                with self.assertRaises(Timeout):
+                    try:
+                        self._ia_client.execute_agent(AgentCommand(command=step_tuple[0]), timeout=timeout)
+                    except:
+                        log.error('expecting agent command to timeout: %s', step_tuple[0], exc_info=True)
+                        raise
+                # give some time for the operation in the agent to complete, even RPC timed out
+                time.sleep(recover)
+            else:
+                self._ia_client.execute_agent(AgentCommand(command=step_tuple[0]))
+        # check state
+        if step_tuple[1]:
+            state = self._ia_client.get_agent_state()
+            self.assertEqual(state, step_tuple[1])
+        # ping agent
+        if len(step_tuple)>2:
+            if step_tuple[2]:
+                self._ia_client.ping_agent()
+            else:
+                with self.assertRaises(Conflict):
+                    self._ia_client.ping_agent()
+        # ping resource
+        if len(step_tuple)>3:
+            if step_tuple[3]:
+                self._ia_client.ping_resource()
+            else:
+                with self.assertRaises(Conflict):
+                    self._ia_client.ping_resource()
+
+    def test_states_timeout(self):
+        """
+        get_states test like above,
+        but cause RPC to timeout before instrument completes state transition.
+        """
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentStateEvent', 8)
+        self.addCleanup(self._stop_event_subscriber)
+
+        step_times_out = ResourceAgentEvent.GO_ACTIVE
+
+        steps = [
+            # (cmd, state_after, [ping_agent, ping_resource])
+            (None, ResourceAgentState.UNINITIALIZED, True, False),
+            (ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE, True, True),
+            (ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE),
+            (ResourceAgentEvent.RUN, ResourceAgentState.COMMAND),
+            (ResourceAgentEvent.PAUSE, ResourceAgentState.STOPPED),
+            (ResourceAgentEvent.RESUME, ResourceAgentState.COMMAND),
+            (ResourceAgentEvent.CLEAR, ResourceAgentState.IDLE),
+            (ResourceAgentEvent.RUN, ResourceAgentState.COMMAND),
+            (ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED),
+        ]
+
+        # not all steps will time out in 5sec
+        step_times_out  = ResourceAgentEvent.GO_ACTIVE
+
+        for step in steps:
+            if step[0]==step_times_out:
+                self._test_next_state(step, timeout=5)
+            else:
+                self._test_next_state(step)
+
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertEquals(len(self._events_received), 8)
+
     def test_get_set(self):
         """
         test_get_set
