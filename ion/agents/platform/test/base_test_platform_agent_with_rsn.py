@@ -200,9 +200,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
         CIOMSClientFactory.destroy_instance(rsn_oms)
 
-        # get serialized version for the configuration:
-        self._network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
-        log.trace("NetworkDefinition serialization:\n%s", self._network_definition_ser)
+        if log.isEnabledFor(logging.TRACE):
+            # show serialized version for the network definition:
+            network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
+            log.trace("NetworkDefinition serialization:\n%s", network_definition_ser)
 
         # set attributes for the platforms:
         self._platform_attributes = {}
@@ -442,7 +443,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             for key in DVR_CONFIG.iterkeys():
                 self.assertIn(key, config['driver_config'])
 
-            for key in ['children', 'startup_config']:
+            for key in ['startup_config']:
                 self.assertEqual({}, config[key])
         else:
             self.assertEqual(RT.InstrumentDevice, config['device_type'])
@@ -597,7 +598,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # platform child-parent linking
     #################################################################
 
-    def _assign_child_to_parent(self, p_child, p_parent):
+    def _assign_child_to_parent(self, p_child, p_parent, gen_verify=True):
 
         log.debug("assigning child platform %r to parent %r",
                   p_child.platform_id, p_parent.platform_id)
@@ -607,7 +608,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         child_device_ids = self.RR2.find_platform_device_ids_of_device(p_parent.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
 
-        self._generate_parent_with_child_config(p_parent, p_child)
+        if gen_verify:
+            self._generate_parent_with_child_config(p_parent, p_child)
 
     #################################################################
     # instrument
@@ -914,6 +916,39 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         return p_root
 
+    def _create_hierarchy(self, platform_id, p_objs, parent_obj=None):
+        """
+        Creates a hierarchy of platforms rooted at the given platform.
+
+        @param platform_id  ID of the root platform at this level
+        @param p_objs       dict top be updated with (platform_id: p_obj)
+                            mappings
+        @param parent_obj   platform object of the parent, if any
+
+        @return platform object for the created root.
+        """
+
+        # create the object to be returned:
+        p_obj = self._create_platform(platform_id)
+
+        # update (platform_id: p_obj) dict:
+        p_objs[platform_id] = p_obj
+
+        # recursively create child platforms:
+        pnode = self._network_definition.pnodes[platform_id]
+        for sub_platform_id in pnode.subplatforms:
+            self._create_hierarchy(sub_platform_id, p_objs, p_obj)
+
+        if parent_obj:
+            self._assign_child_to_parent(p_obj, parent_obj, False)
+
+        else:
+            # this is the first level call, so generate config:
+            self._generate_config(p_obj.platform_agent_instance_obj,
+                                  platform_id, "_final")
+
+        return p_obj
+
     #################################################################
     # start / stop platform
     #################################################################
@@ -956,7 +991,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(gate.await(90), "The instrument agent instance did not spawn in 90 seconds")
 
         # Start a resource agent client to talk with the agent.
-        self._ia_client = ResourceAgentClient('paclient',
+        self._ia_client = ResourceAgentClient('iaclient',
                                               name=agent_instance_obj.agent_process_id,
                                               process=FakeProcess())
         log.debug("got instrument agent client %s", str(self._ia_client))
