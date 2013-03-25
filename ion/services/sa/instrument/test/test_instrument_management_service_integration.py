@@ -31,7 +31,6 @@ from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
 
-import gevent
 
 from ion.services.sa.test.helpers import any_old
 
@@ -477,7 +476,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             'driver_config',
             'stream_config',
             'startup_config',
-            'alarm_defs',
+            'aparam_alert_config',
             'children']
 
 
@@ -501,7 +500,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertIn('aparam_alert_config', config)
             self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
             self.assertIn('stream_config', config)
-            for key in ['alarm_defs', 'children']:
+            for key in ['children']:
                 self.assertEqual({}, config[key])
 
 
@@ -521,10 +520,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
 
             if None is inst_device_id:
-                for key in ['alarm_defs', 'children', 'startup_config']:
+                for key in ['children', 'startup_config']:
                     self.assertEqual({}, config[key])
             else:
-                for key in ['alarm_defs', 'startup_config']:
+                for key in ['startup_config']:
                     self.assertEqual({}, config[key])
 
                 self.assertIn(inst_device_id, config['children'])
@@ -542,7 +541,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertIn('aparam_alert_config', config)
             self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
             self.assertIn('stream_config', config)
-            for key in ['alarm_defs', 'startup_config']:
+            for key in ['startup_config']:
                 self.assertEqual({}, config[key])
 
             self.assertIn(child_device_id, config['children'])
