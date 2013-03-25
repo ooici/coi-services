@@ -128,6 +128,15 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1001.76506258]))
 
+    def test_rdt_lookup(self):
+        rdt = self.create_lookup_rdt()
+
+        rdt['time'] = [0]
+        rdt['temp'] = [10.0]
+        rdt['offset_a'] = [2.0]
+        self.assertEquals(rdt.lookup_values(), ['offset_a'])
+        np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([12.0]))
+
 
     def create_rdt(self):
         contexts, pfuncs = self.create_pfuncs()
@@ -140,6 +149,44 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         return rdt
 
+    def create_lookup_rdt(self):
+        contexts = self.create_lookup_contexts()
+        context_ids = [c_id for c,c_id in contexts.itervalues()]
+        pdict_id = self.dataset_management.create_parameter_dictionary(name='lookup_pdict', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        return rdt
+
+    def create_lookup_contexts(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+        
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
+        offset_ctxt.lookup_value = True
+        offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
+        contexts['offset_a'] = offset_ctxt, offset_ctxt_id
+
+        func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
+        func.lookup_values = ['LV_offset']
+        calibrated = ParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
+        calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
+        contexts['calibrated'] = calibrated, calibrated_id
+
+        return contexts
 
 
     def create_pfuncs(self):
