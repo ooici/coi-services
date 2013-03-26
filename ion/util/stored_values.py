@@ -5,30 +5,9 @@
 @file ion/util/stored_values.py
 '''
 
-import csv
-from StringIO import StringIO
 from pyon.core.exception import NotFound
-from pyon.util.containers import get_ion_ts
 
 
-def simple_csv_lookup_parser(container, key, csv_doc):
-    '''
-    Parses a very simple CSV file which contains key/value pairs for coefficients, an example file would be:
-    name,value
-    coeffA,12.3
-    coeffB,13.2
-    psiDefault,3.068
-    '''
-    sio = StringIO()
-    sio.write(csv_doc)
-    sio.seek(0)
-    lookup_table = {'updated':get_ion_ts()}
-    dr = csv.reader(sio)
-    dr.next() # Skip header
-    for row in dr:
-        lookup_table[row[0]] = float(row[1])
-    svm = StoredValueManager(container)
-    return svm.stored_value_cas(key,lookup_table)
 
 class StoredValueManager(object):
     def __init__(self, container):
@@ -52,6 +31,7 @@ class StoredValueManager(object):
         doc = self.store.read_doc(doc_key)
         return doc
 
-
+    def delete_stored_value(self, doc_key):
+        self.store.delete_doc(doc_key)
 
 
