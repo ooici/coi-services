@@ -608,19 +608,18 @@ class PubsubManagementService(BasePubsubManagementService):
     def has_lookup_values(self, stream_definition_id=''):
         stream_definition = self.clients.resource_registry.read(stream_definition_id)
         pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary, id_only=True)
+        if not pdicts:
+            raise BadRequest('Stream Definition does not contain valid parameter dictionary')
 
         pdict = DatasetManagementService.get_parameter_dictionary(pdicts[0])
-
-        available_field = stream_definition.available_field
 
         ret = []
         for key in pdict.keys():
             p_context = pdict.get_context(key)
             if hasattr(p_context, 'lookup_value'):
-                if available_field:
-                    if p_context.lookup_value == available_field:
-                        ret.append(p_context.lookup_value)
-                    else:
-                        ret.append(p_context.lookup_value)
+                if stream_definition.available_fields and key in stream_definition.available_fields:
+                    ret.append(p_context.lookup_value)
+                elif not stream_definition.available_fields:
+                    ret.append(p_context.lookup_value)
 
         return ret
