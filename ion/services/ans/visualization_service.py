@@ -170,11 +170,7 @@ class VisualizationService(BaseVisualizationService):
                         varTuple.append(datetime.fromtimestamp(tempTuple[0]))
 
                         for idx in range(1,len(tempTuple)):
-                            # some silly numpy format won't go away so need to cast numbers to floats
-                            if(gdt_description[idx][1] == 'number'):
-                                varTuple.append(float(tempTuple[idx]))
-                            else:
-                                varTuple.append(tempTuple[idx])
+                            varTuple.append(tempTuple[idx])
 
                         gdt_content.append(varTuple)
 
@@ -409,7 +405,7 @@ class VisualizationService(BaseVisualizationService):
                 else:
                     use_direct_access = False
 
-        # get the dataset_id associated with the data_product. Need it to do the data retrieval
+        # get the dataset_id and objs associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
         if ds_ids is None or not ds_ids:
@@ -428,7 +424,8 @@ class VisualizationService(BaseVisualizationService):
             else:
                 return callback + "(\"" + empty_gdt.ToJSonResponse(req_id = reqId) + "\")"
 
-        #temp_rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
+        # Need the parameter dictionary for the precision entry
+        #rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
 
         # send the granule through the transform to get the google datatable
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
@@ -463,15 +460,7 @@ class VisualizationService(BaseVisualizationService):
             varTuple = []
             varTuple.append(datetime.fromtimestamp(tempTuple[0]))
             for idx in range(1,len(tempTuple)):
-                # some silly numpy format won't go away so need to cast numbers to floats
-                if(gdt_description[idx][1] == 'number'):
-                    if tempTuple[idx] == None:
-                        varTuple.append(0.0)
-                    else:
-                        # Precision hardcoded for now. Needs to be on a per parameter basis
-                        varTuple.append(round(float(tempTuple[idx]),5))
-                else:
-                    varTuple.append(tempTuple[idx])
+                varTuple.append(tempTuple[idx])
 
             gdt_content.append(varTuple)
 

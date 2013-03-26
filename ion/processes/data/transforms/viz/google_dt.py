@@ -89,9 +89,28 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         data_table_content = []
         gdt_allowed_numerical_types = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32',
                                        'uint64', 'float32', 'float64','str']
+        # TODO : Move this in to container parameter
+        default_precision = 5
 
         rdt = RecordDictionaryTool.load_from_granule(input)
         data_description = []
+        # Buid a local precisions and fill value dictionary to use for parsing data correctly
+
+        precisions = {}
+        fill_values = {}
+        for field in rdt._pdict:
+            _precision_str = rdt._pdict.get_context(field).precision
+            if _precision_str == None or _precision_str == '':
+                precisions[field] = default_precision
+            else:
+                precisions[field] = int(_precision_str)
+
+            _fv_str = rdt._pdict.get_context(field).fill_value
+            if _fv_str == None or _fv_str == '':
+                fill_values[field] = None
+            else:
+                fill_values[field] = int(_fv_str)
+
 
         if stream_definition_id == None:
             log.error("GoogleDT transform: Need a output stream definition to process graphs")
@@ -142,14 +161,25 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             for dd in data_description:
                 field = dd[0]
+                field_type = dd[1]
                 # ignore time since its been already added
                 if field == None or field == 'time':
                     continue
 
                 if rdt[field] == None or rdt[field][i] == None:
-                    varTuple.append(0.0)
+                    varTuple.append(None)
                 else:
-                    varTuple.append(rdt[field][i])
+                    if(field_type == 'number'):
+                        if rdt[field][i] == None or rdt[field][i] == fill_values[field]:
+                            varTuple.append(None)
+                        else:
+                            # Adjust float for precision
+                            if (precisions[field] == None):
+                                varTuple.append(float(rdt[field][i]))
+                            else:
+                                varTuple.append(round(float(rdt[field][i]), precisions[field]))
+                    else:
+                        varTuple.append(rdt[field][i])
 
             # Append the tuples to the data table
             if len(varTuple) > 0:
