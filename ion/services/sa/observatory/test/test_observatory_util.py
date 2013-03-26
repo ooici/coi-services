@@ -6,6 +6,7 @@ import unittest
 from nose.plugins.attrib import attr
 
 from pyon.public import RT, log
+from pyon.util.unit_test import IonUnitTestCase
 
 from ion.services.sa.observatory.mockutil import MockUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
@@ -14,7 +15,7 @@ from interface.objects import StatusType, DeviceStatusType, DeviceCommsType
 
 
 @attr('UNIT', group='saob')
-class TestObservatoryUtil(unittest.TestCase):
+class TestObservatoryUtil(IonUnitTestCase):
 
     def setUp(self):
         self.mu = MockUtil()

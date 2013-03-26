@@ -168,7 +168,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
         #
         cur_time = get_ion_ts()
         from_time = str(int(cur_time) - 50000)  # a 50-sec time window
-        kwargs = dict(attr_names=attrNames, from_time=from_time)
+        attrs = [(attr_id, from_time) for attr_id in attrNames]
+        kwargs = dict(attrs=attrs)
         cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         attr_values = retval.result

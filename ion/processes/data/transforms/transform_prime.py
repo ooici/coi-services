@@ -13,6 +13,8 @@ from coverage_model import get_value_class
 from coverage_model.parameter_types import ParameterFunctionType
 from pyon.util.memoize import memoize_lru
 from pyon.util.log import log
+from pyon.core.exception import NotFound
+from ion.util.stored_values import StoredValueManager
 
 class TransformPrime(TransformDataProcess):
     binding=['output']
@@ -30,6 +32,7 @@ class TransformPrime(TransformDataProcess):
     def on_start(self):
         TransformDataProcess.on_start(self)
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
+        self.stored_values = StoredValueManager(self.container)
 
     @memoize_lru(100)
     def read_stream_def(self,stream_id):
@@ -89,16 +92,9 @@ class TransformPrime(TransformDataProcess):
             raise
         return rdt_out
 
-    def _execute_transform(self, msg, streams):
-        stream_in_id,stream_out_id = streams
-        stream_def_in = self.read_stream_def(stream_in_id)
-        stream_def_out = self.read_stream_def(stream_out_id)
-        
-        incoming_pdict_dump = stream_def_in.parameter_dictionary
-        outgoing_pdict_dump = stream_def_out.parameter_dictionary
-        
-        incoming_pdict = ParameterDictionary.load(incoming_pdict_dump)
-        outgoing_pdict = ParameterDictionary.load(outgoing_pdict_dump)
+    def _merge_pdicts(self, pdict1, pdict2):
+        incoming_pdict = ParameterDictionary.load(pdict1)
+        outgoing_pdict = ParameterDictionary.load(pdict2)
         
         merged_pdict = ParameterDictionary()
         for k,v in incoming_pdict.iteritems():
@@ -109,7 +105,36 @@ class TransformPrime(TransformDataProcess):
             ordinal, v = v
             if k not in merged_pdict:
                 merged_pdict.add_context(v)
+        return merged_pdict
+
+    def _merge_rdt(self, stream_def_in, stream_def_out):
+        incoming_pdict_dump = stream_def_in.parameter_dictionary
+        outgoing_pdict_dump = stream_def_out.parameter_dictionary
+
+        merged_pdict = self._merge_pdicts(incoming_pdict_dump, outgoing_pdict_dump)
         rdt_temp = RecordDictionaryTool(param_dictionary=merged_pdict)
+        return rdt_temp
+
+
+    def _get_lookup_value(self, lookup_value):
+        lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
+        for key in lookup_value_document_keys:
+            try:
+                document = self.stored_values.read_value(key)
+                if lookup_value in document:
+                    return float(document[lookup_value]) # Force float just to make sure
+            except NotFound:
+                log.warning('Specified lookup document does not exist')
+
+        return None
+
+    def _execute_transform(self, msg, streams):
+        stream_in_id,stream_out_id = streams
+        stream_def_in = self.read_stream_def(stream_in_id)
+        stream_def_out = self.read_stream_def(stream_out_id)
+
+        rdt_temp = self._merge_rdt(stream_def_in, stream_def_out)
+        
         rdt_in = RecordDictionaryTool.load_from_granule(msg)
         for field in rdt_temp.fields:
             if not isinstance(rdt_temp._pdict.get_context(field).param_type, ParameterFunctionType):
@@ -117,6 +142,11 @@ class TransformPrime(TransformDataProcess):
                     rdt_temp[field] = rdt_in[field]
                 except KeyError:
                     pass
+        for lookup_field in rdt_temp.lookup_values():
+            s = lookup_field
+            stored_value = self._get_lookup_value(s)
+            if stored_value is not None:
+                rdt_temp[s] = [stored_value] * len(rdt_temp)
         
         for field in rdt_temp.fields:
             if isinstance(rdt_temp._pdict.get_context(field).param_type, ParameterFunctionType):

@@ -54,7 +54,7 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import get_parameter_type, get_fill_value, function_lookups, parameter_lookups
+from ion.services.dm.utility.types import TypesManager 
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.util.xlsparser import XLSParser
 
@@ -1488,6 +1488,8 @@ Reason: %s
 -------------------------------''', row_id, name, reason)
 
     def _load_ParameterDictionary(self, row):
+        dataset_management = self._get_service_client('dataset_management')
+        types_manager = TypesManager(dataset_management)
         if row['SKIP']:
             self._conflict_report(row['ID'], row['name'], row['SKIP'])
             return
@@ -1506,19 +1508,23 @@ Reason: %s
         context_ids = {}
         for i in definitions:
             try:
+
                 res_id = self.resource_ids[i]
                 if res_id not in context_ids:
                     context_ids[res_id] = 0
                 else:
                     log.warning('Duplicate: %s (%s)', name, i)
                 context_ids[self.resource_ids[i]] = 0
+                res_obj = self.resource_objs[i]
+                lookup_values = types_manager.get_lookup_value_ids(res_obj)
+                for val in lookup_values:
+                    context_ids[val] = 0
             except KeyError:
                 pass
 
         if not context_ids:
             log.warning('No valid parameters: %s', row['name'])
             return
-        dataset_management = self._get_service_client('dataset_management')
         try:
             pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(), temporal_context=temporal_parameter_name, headers=self._get_system_actor_headers())
         except:
@@ -1552,7 +1558,7 @@ Reason: %s
 
         func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(), description=descr, headers=self._get_system_actor_headers())
         self._register_id(row[COL_ID], func_id)
-        function_lookups[row[COL_ID]] = func_id
+        TypesManager.function_lookups[row[COL_ID]] = func_id
 
 
     def _load_ParameterDefs(self, row):
@@ -1577,11 +1583,13 @@ Reason: %s
         precision    = row['Precision']
         param_id     = row['ID']
 
+        dataset_management = self._get_service_client('dataset_management')
         try:
-            param_type = get_parameter_type(ptype, encoding,code_set,pfid, pmap)
+            tm = TypesManager(dataset_management)
+            param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
-            context.fill_value = get_fill_value(fill_value, encoding, param_type)
+            context.fill_value = tm.get_fill_value(fill_value, encoding, param_type)
             context.reference_urls = references
             context.internal_name = name
             context.display_name = display_name
@@ -1598,7 +1606,6 @@ Reason: %s
             return
 
 
-        dataset_management = self._get_service_client('dataset_management')
         context_dump = context.dump()
 
         try:
@@ -1665,7 +1672,7 @@ Reason: %s
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
         self._register_id(row[COL_ID], context_id, context)
-        parameter_lookups[row[COL_ID]] = name
+        TypesManager.parameter_lookups[row[COL_ID]] = name
 
 
     def _load_PlatformDevice(self, row):
@@ -1941,7 +1948,7 @@ Reason: %s
                                 port_agent_config=port_agent_config,
                                 startup_config=startup_config,
                                 alerts=alerts_config),
-            support_bulk=True)
+            )
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
         device_id = self.resource_ids[row["instrument_device_id"]]
@@ -2020,7 +2027,7 @@ Reason: %s
             set_attributes=dict(agent_config=agent_config,
                                 driver_config=driver_config,
                                 alerts=alerts_config),
-            support_bulk=True)
+            )
 
         client = self._get_service_client("instrument_management")
         client.assign_platform_agent_to_platform_agent_instance(platform_agent_id, res_id)
@@ -2183,6 +2190,11 @@ Reason: %s
         res_id = self.resource_ids[row["input_resource_id"]]
         type = row['resource_type']
 
+        #create link to data product source
+#        source_id = self.resource_ids[row['source_resource_id']]
+#        svc_client = self._get_service_client("data_acquisition_management")
+#        svc_client.assign_data_product_source(dp_id, source_id, headers=self._get_system_actor_headers())
+
         if type=='InstrumentDevice' or type=='PlatformDevice':
             if self.bulk and do_bulk:
                 id_obj = self._get_resource_obj(row["input_resource_id"])
@@ -2313,10 +2325,12 @@ Reason: %s
 
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
-        deployment = self._create_object_from_row("Deployment", row, "d/", constraints=constraints)
         coordinate_name = row['coordinate_system']
-        if coordinate_name:
-            deployment.coordinate_reference_system = self.resource_ids[coordinate_name]
+
+        deployment_id = self._basic_resource_create(row, "Deployment", "d/",
+                                             "observatory_management", "create_deployment",
+                                             constraints=constraints, constraint_field='constraint_list',
+                                             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None)
 
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]
@@ -2326,7 +2340,6 @@ Reason: %s
 
         headers = self._get_op_headers(row)
 
-        deployment_id = oms.create_deployment(deployment, headers=headers)
         oms.deploy_instrument_site(site_id, deployment_id, headers=headers)
         ims.deploy_instrument_device(device_id, deployment_id, headers=headers)
 

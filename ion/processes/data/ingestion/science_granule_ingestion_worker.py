@@ -14,6 +14,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from interface.objects import Granule
 from ion.core.process.transform import TransformStreamListener
 from ion.util.time_utils import TimeUtils
+from ion.util.stored_values import StoredValueManager
 
 from ooi.timer import Timer, Accumulator
 from ooi.logging import TRACE
@@ -50,6 +51,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
     def on_start(self): #pragma no cover
         super(ScienceGranuleIngestionWorker,self).on_start()
         self.event_publisher = EventPublisher(OT.DatasetModified)
+        self.stored_value_manager = StoredValueManager(self.container)
 
 
     def on_quit(self): #pragma no cover
