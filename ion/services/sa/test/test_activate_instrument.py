@@ -119,6 +119,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             IndexManagementService._es_call(es.river_couchdb_delete,index)
             IndexManagementService._es_call(es.index_delete,index)
 
+
     def create_logger(self, name, stream_id=''):
 
         # logger process
@@ -437,9 +438,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
             event = args[0]
             log.debug('TestActivateInstrument consume_event event: %s', event)
-            if event['sub_type'] is 'WARNING':
+            if event.sub_type == 'WARNING':
                 self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_WARNING)
-            elif event['sub_type'] is 'ALL_CLEAR':
+            elif event.sub_type == 'ALL_CLEAR':
                 self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_OK)
 
         self._event_subscriber = EventSubscriber(
