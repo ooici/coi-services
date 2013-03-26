@@ -218,9 +218,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug('new InstrumentModel id = %s ', self.instModel_id)
 
-        self.pconfig_builder = self._create_platform_config_builder()
-
-        self.iconfig_builder = self._create_instrument_config_builder()
+        self._create_config_builders()
 
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
@@ -363,19 +361,18 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # config supporting methods
     #################################################################
 
-    def _create_platform_config_builder(self):
+    def _create_config_builders(self):
         clients = DotDict()
         clients.resource_registry  = self.RR
         clients.pubsub_management  = self.PSC
         clients.dataset_management = self.DSC
-        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
 
-        # can't do anything without an agent instance obj
-        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
+        self.pconfig_builder = PlatformAgentConfigurationBuilder(clients)
 
-        return pconfig_builder
+        self.iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
 
     def _generate_parent_with_child_config(self, p_parent, p_child):
+        self.pconfig_builder._update_cached_predicates()
         self.pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
         parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
@@ -388,6 +385,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            p_parent.platform_id, p_child.platform_id))
 
     def _generate_platform_with_instrument_config(self, p_obj, i_obj):
+        self.pconfig_builder._update_cached_predicates()
         self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
         parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
@@ -400,6 +398,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            p_obj.platform_id, i_obj.instrument_device_id))
 
     def _generate_config(self, platform_agent_instance_obj, platform_id, suffix=''):
+        self.pconfig_builder._update_cached_predicates()
         self.pconfig_builder.set_agent_instance_object(platform_agent_instance_obj)
         config = self.pconfig_builder.prepare(will_launch=False)
 
@@ -436,17 +435,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                 records_per_granule=2, granule_publish_rate=5)
         ]
 
-    def _create_instrument_config_builder(self):
-        clients = DotDict()
-        clients.resource_registry  = self.RR
-        clients.pubsub_management  = self.PSC
-        clients.dataset_management = self.DSC
-        iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
-
-        return iconfig_builder
-
     def _generate_instrument_config(self, instrument_agent_instance_obj, instrument_id, suffix=''):
         self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
+        self.iconfig_builder._update_cached_predicates()
         config = self.iconfig_builder.prepare(will_launch=False)
 
         self._debug_config(config, "instrument_CFG_generated_%s%s.txt" % (instrument_id, suffix))
@@ -895,6 +886,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
 
         self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
+        self.iconfig_builder._update_cached_predicates()
         instrument_config = self.iconfig_builder.prepare(will_launch=False)
         self.verify_instrument_config(instrument_config, org_obj,
                                       i_obj.instrument_device_id)
