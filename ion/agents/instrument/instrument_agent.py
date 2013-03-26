@@ -59,7 +59,7 @@ from ion.agents.alerts.alerts import *
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
 from interface.objects import StreamRoute
-from interface.objects import AgentCommand
+from interface.objects import AgentCommand, StatusType, DeviceStatusEnum
 
 class InstrumentAgentState():
     UNINITIALIZED='xxx'
@@ -159,6 +159,9 @@ class InstrumentAgent(ResourceAgent):
 
         # List of current alarm objects.
         self.aparam_alerts = []
+
+        #list of the aggreate status states for this device
+        self._aggreate_status = {}
         
         # Dictionary of stream fields.
         self.aparam_streams = {}
@@ -805,7 +808,40 @@ class InstrumentAgent(ResourceAgent):
                             a.eval_alert(value)
                 else:
                     a.eval_alert()
-        
+
+        # update the aggreate status for this device
+        self._process_aggregate_alerts()
+
+    def _process_aggregate_alerts(self):
+        """
+        loop thru alerts list and retrieve status of any alert that contributes to the aggregate status and update the state
+        """
+        #init working status
+        for aggregate_type in AggregateStatusType:
+            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
+                self._aggreate_status[aggregate_type] = StatusType.STATUS_UNKNOWN
+
+        for a in self.aparam_alerts:
+            alert_state = a.get_status()
+            if alert_state['aggregate_type'] is not AggregateStatusType.AGGREGATE_OTHER:
+                #get the current value for this aggregate status
+                current_agg_state = self._aggreate_status[ alert_state['aggregate_type'] ]
+                if alert_state['status']:
+                    # this alert is not 'tripped' so the status is OK
+                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                    if current_agg_state is DeviceStatusEnum.STATUS_UNKNOWN:
+                        self._aggreate_status[ alert_state['aggregate_type'] ]  = DeviceStatusEnum.STATUS_OK
+
+                else:
+                    #the alert is active, either a warning or an alarm
+                    if alert_state['alert_type'] == StreamAlertType.ALARM:
+                        self._aggreate_status[ alert_state['aggregate_type'] ] = DeviceStatusEnum.STATUS_CRITICAL
+                    elif  alert_state['alert_type'] == StreamAlertType.WARNING and current_agg_state is not DeviceStatusEnum.STATUS_CRITICAL:
+                        self._aggreate_status[ alert_state['aggregate_type'] ] = DeviceStatusEnum.STATUS_WARNING
+
+        return
+
+
     def _publish_stream_buffer(self, stream_name):
         """
         """
@@ -1249,7 +1285,12 @@ class InstrumentAgent(ResourceAgent):
                     self.aparam_alerts.append(alert)
                 except:
                     log.error('Instrument agent %s could not construct alert %s, for stream %s',
-                              self._proc_name, str(alert_def), stream_name)    
+                              self._proc_name, str(alert_def), stream_name)
+
+        #initialize state of aggregate status to unknow until the first time alerts are processed
+        for aggregate_type in AggregateStatusType:
+            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
+                self._aggreate_status[aggregate_type] = StatusType.STATUS_UNKNOWN
                     
     def aparam_set_streams(self, params):
         """

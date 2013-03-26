@@ -244,7 +244,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
-    @unittest.skip('refactoring')
+    #@unittest.skip('refactoring')
     @unittest.skipIf(not use_es, 'No ElasticSearch')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 90}}})
@@ -296,7 +296,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         inteval.
         """
 
-        alert_def = {
+        alert_def1 = {
             'name' : 'temperature_warning_interval',
             'stream_name' : 'parsed',
             'message' : 'Temperature is below the normal range of 50.0 and above.',
@@ -308,6 +308,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             'lower_rel_op' : '<',
             'alert_class' : 'IntervalAlert'
         }
+
 
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
@@ -324,7 +325,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           port_agent_config = port_agent_config,
-                                            alerts= [alert_def])
+                                            alerts= [alert_def1])
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
