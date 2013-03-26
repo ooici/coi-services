@@ -133,6 +133,27 @@ required_config_keys = [
     'children']
 
 
+# Instruments that can be used (see _create_instrument). Reflects the currently
+# available simulators on sbe37-simulator.oceanobservatories.org
+instruments_dict = {
+    "SBE37_SIM_01": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4001,
+        'DATA_PORT' : 4000,
+        'CMD_PORT'  : 4003,
+        'PA_BINARY' : "port_agent"
+    },
+
+    "SBE37_SIM_02": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4002,
+        'DATA_PORT' : 5002,
+        'CMD_PORT'  : 5003,
+        'PA_BINARY' : "port_agent"
+    }
+}
+
+
 class FakeProcess(LocalContextMixin):
     """
     A fake process used because the test case is not an ion process.
@@ -188,6 +209,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.org_id = self.RR2.create(any_old(RT.Org))
         log.debug("Org created: %s", self.org_id)
 
+        # Create InstrumentModel
+        # TODO create multiple models as needed; for the moment assuming all
+        # used instruments are the same model here.
+        instModel_obj = IonObject(RT.InstrumentModel,
+                                  name='SBE37IMModel',
+                                  description="SBE37IMModel")
+        self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
+        log.debug('new InstrumentModel id = %s ', self.instModel_id)
+
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
@@ -233,6 +263,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         # test. This flag allows to disable this to control which configurations
         # to generate.
         self._debug_config_enabled = True
+
+        # the keys of instruments that have been set up
+        self._setup_instruments = set()
 
     #################################################################
     # data subscribers handling
@@ -611,14 +644,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # instrument
     #################################################################
 
-    def _set_up_pre_environment_for_instrument(self):
+    def _set_up_pre_environment_for_instrument(self, instr_info):
         """
-        From test_instrument_agent.py
+        Based on test_instrument_agent.py
 
-        Basically, this method launches the port agent and the completes the
-        instrument driver configuration used to properly set up the
+        Basically, this method launches a port agent and then completes the
+        instrument driver configuration used to properly set up a particular
         instrument agent.
 
+        @param instr_info  A value in instruments_dict
         @return instrument_driver_config
         """
 
@@ -658,26 +692,26 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             instrument_driver_config['process_type'] = (DriverProcessType.PYTHON_MODULE,)
             instrument_driver_config['mi_repo'] = mi_repo
 
-        DEV_ADDR = CFG.device.sbe37.host
-        DEV_PORT = CFG.device.sbe37.port
-        DATA_PORT = CFG.device.sbe37.port_agent_data_port
-        CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
-        PA_BINARY = CFG.device.sbe37.port_agent_binary
+        DEV_ADDR  = instr_info['DEV_ADDR']
+        DEV_PORT  = instr_info['DEV_PORT']
+        DATA_PORT = instr_info['DATA_PORT']
+        CMD_PORT  = instr_info['CMD_PORT']
+        PA_BINARY = instr_info['PA_BINARY']
 
-        self._support = DriverIntegrationTestSupport(None,
-                                                     None,
-                                                     DEV_ADDR,
-                                                     DEV_PORT,
-                                                     DATA_PORT,
-                                                     CMD_PORT,
-                                                     PA_BINARY,
-                                                     DELIM,
-                                                     WORK_DIR)
+        support = DriverIntegrationTestSupport(None,
+                                               None,
+                                               DEV_ADDR,
+                                               DEV_PORT,
+                                               DATA_PORT,
+                                               CMD_PORT,
+                                               PA_BINARY,
+                                               DELIM,
+                                               WORK_DIR)
 
         # Start port agent, add stop to cleanup.
-        port = self._support.start_pagent()
+        port = support.start_pagent()
         log.info('Port agent started at port %i', port)
-        self.addCleanup(self._support.stop_pagent)
+        self.addCleanup(support.stop_pagent)
 
         # Configure instrument driver to use port agent port number.
         instrument_driver_config['comms_config'] = {
@@ -688,37 +722,32 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         return instrument_driver_config
 
-    def _make_instrument_agent_structure(self, org_obj, agent_config=None):
+    def _make_instrument_agent_structure(self, instr_key, org_obj, agent_config=None):
         if None is agent_config: agent_config = {}
 
-        # from test_activate_instrument:test_activateInstrumentSample
+        instr_info = instruments_dict[instr_key]
 
-        # Create InstrumentModel
-        instModel_obj = IonObject(RT.InstrumentModel,
-                                  name='SBE37IMModel',
-                                  description="SBE37IMModel")
-        instModel_id = self.IMS.create_instrument_model(instModel_obj)
-        log.debug('new InstrumentModel id = %s ', instModel_id)
+        # initially adapted from test_activate_instrument:test_activateInstrumentSample
 
         # agent creation
         instrument_agent_obj = IonObject(RT.InstrumentAgent,
-                                         name='agent007',
-                                         description="SBE37IMAgent",
+                                         name='agent007_%s' % instr_key,
+                                         description="SBE37IMAgent_%s" % instr_key,
                                          driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg",
                                          stream_configurations=self._get_instrument_stream_configs())
 
         instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
         log.debug('new InstrumentAgent id = %s', instrument_agent_id)
 
-        self.IMS.assign_instrument_model_to_instrument_agent(instModel_id, instrument_agent_id)
+        self.IMS.assign_instrument_model_to_instrument_agent(self.instModel_id, instrument_agent_id)
 
         # device creation
         instDevice_obj = IonObject(RT.InstrumentDevice,
-                                   name='SBE37IMDevice',
-                                   description="SBE37IMDevice",
+                                   name='SBE37IMDevice_%s' % instr_key,
+                                   description="SBE37IMDevice_%s" % instr_key,
                                    serial_number="12345")
         instrument_device_id = self.IMS.create_instrument_device(instrument_device=instDevice_obj)
-        self.IMS.assign_instrument_model_to_instrument_device(instModel_id, instrument_device_id)
+        self.IMS.assign_instrument_model_to_instrument_device(self.instModel_id, instrument_device_id)
         log.debug("new InstrumentDevice id = %s ", instrument_device_id)
 
         #Create stream alarms
@@ -735,24 +764,24 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             'alert_class' : 'IntervalAlert'
         }
 
-        instrument_driver_config = self._set_up_pre_environment_for_instrument()
+        instrument_driver_config = self._set_up_pre_environment_for_instrument(instr_info)
 
         port_agent_config = {
-            'device_addr':  CFG.device.sbe37.host,
-            'device_port':  CFG.device.sbe37.port,
-            'process_type': PortAgentProcessType.UNIX,
-            'binary_path': "port_agent",
+            'device_addr':     instr_info['DEV_ADDR'],
+            'device_port':     instr_info['DEV_PORT'],
+            'data_port':       instr_info['DATA_PORT'],
+            'command_port':    instr_info['CMD_PORT'],
+            'binary_path':     instr_info['PA_BINARY'],
+            'process_type':    PortAgentProcessType.UNIX,
             'port_agent_addr': 'localhost',
-            'command_port': CFG.device.sbe37.port_agent_cmd_port,
-            'data_port': CFG.device.sbe37.port_agent_data_port,
-            'log_level': 5,
-            'type': PortAgentType.ETHERNET
+            'log_level':       5,
+            'type':            PortAgentType.ETHERNET
         }
 
         # instance creation
         instrument_agent_instance_obj = IonObject(RT.InstrumentAgentInstance,
-                                                  name='SBE37IMAgentInstance',
-                                                  description="SBE37IMAgentInstance",
+                                                  name='SBE37IMAgentInstance_%s' % instr_key,
+                                                  description="SBE37IMAgentInstance_%s" % instr_key,
                                                   driver_config=instrument_driver_config,
                                                   port_agent_config=port_agent_config,
                                                   alerts=[alert_def])
@@ -777,7 +806,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             parameter_dictionary_id=parsed_pdict_id)
 
         dp_obj = IonObject(RT.DataProduct,
-                           name='the parsed data',
+                           name='the parsed data for %s' % instr_key,
                            description='ctd stream test',
                            temporal_domain=tdom,
                            spatial_domain=sdom)
@@ -797,7 +826,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             parameter_dictionary_id=raw_pdict_id)
 
         dp_obj = IonObject(RT.DataProduct,
-                           name='the raw data',
+                           name='the raw data for %s' % instr_key,
                            description='raw stream test',
                            temporal_domain=tdom,
                            spatial_domain=sdom)
@@ -840,16 +869,30 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         for key in ['children']:
             self.assertEqual({}, config[key])
 
-    def _create_instrument(self):
+    def _create_instrument(self, instr_key):
         """
         The main method to create an instrument configuration.
+
+        @param instr_key  A key in instruments_dict
+        @return instrument_driver_config
         """
+
+        self.assertIn(instr_key, instruments_dict)
+        self.assertNotIn(instr_key, self._setup_instruments)
+
+        instr_info = instruments_dict[instr_key]
+
+        log.debug("_create_instrument: creating instrument %r: %s",
+                  instr_key, instr_info)
+
         iconfig_builder = self._create_instrument_config_builder()
 
         org_obj = any_old(RT.Org)
 
         log.debug("making the structure for an instrument agent")
-        i_obj = self._make_instrument_agent_structure(org_obj)
+        i_obj = self._make_instrument_agent_structure(instr_key, org_obj)
+
+        self._setup_instruments.add(instr_key)
 
         instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
 
@@ -860,6 +903,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self._generate_instrument_config(instrument_agent_instance_obj,
                                          i_obj.instrument_agent_instance_id)
+
+        log.debug("_create_instrument: created instrument %r", instr_key)
 
         return i_obj
 

@@ -24,7 +24,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_platform_hierarchy_with_some_instruments
 
 from pyon.public import log
-import logging
+import time
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
@@ -72,7 +72,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
 
         p_root = self._create_single_platform()
-        i_obj = self._create_instrument()
+        i_obj = self._create_instrument('SBE37_SIM_01')
         self._assign_instrument_to_platform(i_obj, p_root)
 
         self._start_platform(p_root.platform_agent_instance_id)
@@ -124,36 +124,84 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         # complete one below)
         self._debug_config_enabled = False
 
+        #####################################
+        # create platform hierarchy
+        #####################################
+        start_time = time.time()
+
         root_platform_id = 'Node1B'
         p_objs = {}
         p_root = self._create_hierarchy(root_platform_id, p_objs)
 
-        log.debug("platform hierarchy built. Root platform=%r, number of platforms=%d: %s",
+        log.debug("platform hierarchy built. Took %.3f secs. "
+                  "Root platform=%r, number of platforms=%d: %s",
+                  time.time() - start_time,
                   root_platform_id, len(p_objs), p_objs.keys())
 
         self.assertIn(root_platform_id, p_objs)
         self.assertEquals(13, len(p_objs))
 
-        # create and assign some instruments
+        #####################################
+        # create some instruments
+        #####################################
+        start_time = time.time()
 
-        # TODO just creating/assigning a single instrument at the moment.
+        i1_obj = self._create_instrument('SBE37_SIM_01')
+        log.debug("instrument created = %r", i1_obj.instrument_agent_instance_id)
 
-        i_obj = self._create_instrument()
+        i2_obj = self._create_instrument('SBE37_SIM_02')
+        log.debug("instrument created = %r", i2_obj.instrument_agent_instance_id)
 
-        log.debug("instrument created = %r", i_obj.instrument_agent_instance_id)
+
+        log.debug("instruments created. Took %.3f secs.", time.time() - start_time)
+
+        #####################################
+        # assign the instruments
+        #####################################
+        start_time = time.time()
 
         pid_LV01C = 'LV01C'
         self.assertIn(pid_LV01C, p_objs)
-        self._assign_instrument_to_platform(i_obj, p_objs[pid_LV01C])
-
+        self._assign_instrument_to_platform(i1_obj, p_objs[pid_LV01C])
         log.debug("instrument assigned to = %r", pid_LV01C)
 
+        pid_LJ01B = 'LJ01B'
+        self.assertIn(pid_LJ01B, p_objs)
+        self._assign_instrument_to_platform(i2_obj, p_objs[pid_LJ01B])
+        log.debug("instrument assigned to = %r", pid_LJ01B)
+
+
+        log.debug("instruments assigned. Took %.3f secs.",
+                  time.time() - start_time)
+
+        #####################################
         # generate the config for the whole hierarchy including instruments:
+        #####################################
+        start_time = time.time()
         self._debug_config_enabled = True
         self._generate_config(p_root.platform_agent_instance_obj,
                               root_platform_id, "_complete")
 
-        # start the root platform and run the commands:
+        log.debug("configuration generated. Took %.3f secs.", time.time() - start_time)
+
+        #####################################
+        # start the root platform:
+        #####################################
+        start_time = time.time()
+
         self._start_platform(p_root.platform_agent_instance_id)
+
+        log.debug("root platform started. Took %.3f secs.", time.time() - start_time)
+
+        #####################################
+        # run the commands:
+        #####################################
+        start_time = time.time()
         self._run_commands()
+
+        log.debug("commands run. Took %.3f secs.", time.time() - start_time)
+
+        #####################################
+        # stop the root platform
+        #####################################
         self._stop_platform(p_root.platform_agent_instance_id)
