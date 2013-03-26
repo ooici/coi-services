@@ -784,24 +784,25 @@ class InstrumentAgent(ResourceAgent):
     def _process_alerts(self, val):
         """
         """
-        
+
         try:
             stream_name = val['stream_name']
             values = val['values']
-        
+
         except KeyError:
             log.error('Instrument agent %s: tomato missing stream_name or values keys. Could not process alerts.',
-                      self._proc_name)
+                self._proc_name)
             return
 
-        
+
         for a in self.aparam_alerts:
-            if stream_name == a.stream_name:
-                if a.value_id:
+            a_state = a.get_status()
+            if stream_name == a_state['stream_name']:
+                if a_state['value_id']:
                     for v in values:
                         value = v['value']
                         value_id = v['value_id']
-                        if value_id == a.value_id:
+                        if value_id == a_state['value_id']:
                             a.eval_alert(value)
                 else:
                     a.eval_alert()
@@ -1240,7 +1241,7 @@ class InstrumentAgent(ResourceAgent):
             for alert_def in aparam_alert_config:
                 alert_def = copy.deepcopy(alert_def)
                 try:
-                    if not alert_def[stream_name] in self.aparam_streams.keys():
+                    if not alert_def['stream_name'] in self.aparam_streams.keys():
                         raise Exception()
                     cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
