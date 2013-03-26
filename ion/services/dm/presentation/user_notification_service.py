@@ -224,7 +224,7 @@ class UserNotificationService(BaseUserNotificationService):
         To trigger the batch notification, have the scheduler create a timer with event_origin = process_batch_key
         """
         self.batch_processing_subscriber = EventSubscriber(
-            event_type="ResourceEvent",
+            event_type="TimerEvent",
             origin=process_batch_key,
             queue_name='user_notification',
             callback=process
