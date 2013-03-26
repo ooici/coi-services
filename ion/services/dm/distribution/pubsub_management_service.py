@@ -605,3 +605,21 @@ class PubsubManagementService(BasePubsubManagementService):
             pdict2 = ParameterDictionary.load(pdict2) or {}
         return bool(pdict1 == pdict2)
 
+    def has_lookup_values(self, stream_definition_id=''):
+        stream_definition = self.clients.resource_registry.read(stream_definition_id)
+        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary, id_only=True)
+
+        p_contexts, _ = self.clients.resource_registry.find_objects(subject=pdicts[0]._id, predicate=PRED.hasParameterContext, object_type=RT.ParameterContext, id_only=False)
+
+        available_field = stream_definition.available_field
+
+        ret = []
+        for p_context in p_contexts:
+            if hasattr(p_context, 'lookup_value'):
+                if available_field:
+                    if p_context.lookup_value == available_field:
+                        ret.append(p_context.lookup_value)
+                    else:
+                        ret.append(p_context.lookup_value)
+
+        return ret
