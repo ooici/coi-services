@@ -37,11 +37,34 @@ class AgentConfigurationBuilder(object):
 
     def __init__(self, clients):
         self.clients = clients
-        self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+
+        if not hasattr(self.clients, "RR2") or {} == self.clients.RR2:
+            self.clients.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+            self._update_cached_predicates()
+
+        self.RR2 = self.clients.RR2
+
+        if not isinstance(self.RR2, EnhancedResourceRegistryClient):
+            raise AssertionError("Type of self.RR2 is %s not %s" %
+                                 (type(self.RR2), type(EnhancedResourceRegistryClient)))
+
         self.agent_instance_obj = None
         self.associated_objects = None
         self.last_id            = None
         self.will_launch        = False
+
+
+    def _update_cached_predicates(self):
+        # cache some predicates for in-memory lookups
+        for pred in [PRED.hasOutputProduct,
+                     PRED.hasStream,
+                     PRED.hasStreamDefinition,
+                     PRED.hasAgentInstance,
+                     PRED.hasAgentDefinition,
+                     PRED.hasDataset,
+                     PRED.hasDevice]:
+            self.clients.RR2.cache_predicate(pred)
+
 
     def _lookup_means(self):
         """
@@ -355,7 +378,7 @@ class AgentConfigurationBuilder(object):
         ret[RT.ProcessDefinition] = process_def_obj
 
         #retrieve the output products
-        data_product_ids, _ = self.RR2.find_objects(device_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
+        data_product_ids = self.RR2.find_objects(device_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
 
         if not data_product_ids:
             raise NotFound("No output Data Products attached to this Device " + str(device_id))
@@ -438,10 +461,10 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         log.debug("found platform device ids: %s", child_pdevice_ids)
 
         log.debug("Getting child instrument device ids")
-        child_cdevice_ids = self.RR2.find_instrument_device_ids_of_device(self._get_device()._id)
-        log.debug("found instrument device ids: %s", child_cdevice_ids)
+        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device(self._get_device()._id)
+        log.debug("found instrument device ids: %s", child_idevice_ids)
 
-        child_device_ids = child_cdevice_ids + child_pdevice_ids
+        child_device_ids = child_idevice_ids + child_pdevice_ids
 
         log.debug("combined device ids: %s", child_device_ids)
 

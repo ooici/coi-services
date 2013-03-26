@@ -14,6 +14,7 @@ from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Inconsistent, NotFound
 from pyon.ion.resource import RT, PRED, LCE
+from pyon.util.containers import DotDict
 from pyon.util.unit_test import PyonTestCase
 
 
@@ -599,3 +600,37 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
 
 
 
+    def test_cached_predicate_search(self):
+        d = "d_id"
+        m = "m_id"
+        x = "x_id"
+
+        good_assn = DotDict(s=d, st=RT.InstrumentDevice, p=PRED.hasModel, o=m, ot=RT.InstrumentModel)
+        bad_assn  = DotDict(s=d, st=RT.PlatformDevice, p=PRED.hasModel, o=m, ot=RT.PlatformModel)
+
+        self.rr.find_associations.return_value = [good_assn, bad_assn]
+
+        self.RR2.cache_predicate(PRED.hasModel)
+
+        self.assertTrue(self.RR2.has_cached_prediate(PRED.hasModel))
+        self.rr.find_associations.assert_called_once_with(predicate=PRED.hasModel, id_only=False)
+
+        # object searches that should return 0, 0, 1 results
+        results = self.RR2.find_objects(x, PRED.hasModel, RT.InstrumentModel, True)
+        self.assertEqual([], results)
+        results = self.RR2.find_instrument_model_ids_of_instrument_device(x)
+        self.assertEqual([], results)
+        results = self.RR2.find_instrument_model_ids_of_instrument_device(d)
+        self.assertEqual([m], results)
+
+        self.assertEqual(0, self.rr.find_objects.call_count)
+
+        # subject searches that should return 0, 0, 1 results
+        results = self.RR2.find_subjects(RT.InstrumentDevice, PRED.hasModel, x, True)
+        self.assertEqual([], results)
+        results = self.RR2.find_instrument_device_ids_by_instrument_model(x)
+        self.assertEqual([], results)
+        results = self.RR2.find_instrument_device_ids_by_instrument_model(m)
+        self.assertEqual([d], results)
+
+        self.assertEqual(0, self.rr.find_subjects.call_count)
