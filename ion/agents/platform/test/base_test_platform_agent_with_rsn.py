@@ -21,23 +21,16 @@ __license__ = 'Apache 2.0'
 # - ion/agents/platform/test/test_platform_agent_with_rsn.py
 # - ion/services/sa/observatory/test/test_platform_launch.py
 #
-# NOTE: the platform IDs used here are organized as follows:
-#   Node1D -> MJ01C -> LJ01D
+# Platform IDs used here for the various platform hierarchies should be
+# defined in the simulated platform network (network.yml), which in turn
+# is used by the RSN OMS simulator.
 #
-# where -> goes from parent platform to child platform.
-# This is a subset of the whole topology defined in the simulated platform
-# network (network.yml), which in turn is used by the RSN OMS simulator.
-#
-# - 'LJ01D'  is the root platform used in test_single_platform
-# - 'Node1D' is the root platform used in test_hierarchy
-#
-# In DEBUG logging level, the tests generate files like the following:
-#   platform_agent_config_LJ01D.txt
-#   platform_agent_config_Node1D_->_MJ01C.txt
-#   platform_agent_config_Node1D_final.txt
-# containing the corresponding platform agent configurations as they are
-# constructed. In particular, the latter will be the whole configuration used
-# for the hierarchy launch test.
+# In DEBUG logging level, the tests may generate files under logs/ like the
+# following:
+#   platform_CFG_generated_LJ01D.txt
+#   platform_CFG_generated_Node1D_->_MJ01C.txt
+#   platform_CFG_generated_Node1D_complete.txt
+# containing the corresponding agent configurations as they are constructed.
 #
 
 from pyon.public import log
@@ -235,6 +228,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.addCleanup(self._stop_event_subscribers)
         self._start_event_subscriber()
 
+        # by default, in DEBUG mode, all intermediate agent configurations
+        # (platforms and instruments) are saved in files (under logs/) by this
+        # test. This flag allows to disable this to control which configurations
+        # to generate.
+        self._debug_config_enabled = True
+
     #################################################################
     # data subscribers handling
     #################################################################
@@ -349,7 +348,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                    is_platform=True)
 
         self._debug_config(parent_config,
-                           "platform_agent_config_%s_->_%s.txt" % (
+                           "platform_CFG_generated_%s_->_%s.txt" % (
                            p_parent.platform_id, p_child.platform_id))
 
     def _generate_platform_with_instrument_config(self, p_obj, i_obj):
@@ -362,7 +361,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                    is_platform=False)
 
         self._debug_config(parent_config,
-                           "platform_agent_config_%s_->_%s.txt" % (
+                           "platform_CFG_generated_%s_->_%s.txt" % (
                            p_obj.platform_id, i_obj.instrument_device_id))
 
     def _generate_config(self, platform_agent_instance_obj, platform_id, suffix=''):
@@ -370,7 +369,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         pconfig_builder.set_agent_instance_object(platform_agent_instance_obj)
         config = pconfig_builder.prepare(will_launch=False)
 
-        self._debug_config(config, "platform_agent_config_%s%s.txt" % (platform_id, suffix))
+        self._debug_config(config, "platform_CFG_generated_%s%s.txt" % (platform_id, suffix))
 
         return config
 
@@ -417,12 +416,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         pconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
         config = pconfig_builder.prepare(will_launch=False)
 
-        self._debug_config(config, "instrument_agent_config_%s%s.txt" % (instrument_id, suffix))
+        self._debug_config(config, "instrument_CFG_generated_%s%s.txt" % (instrument_id, suffix))
 
         return config
 
     def _debug_config(self, config, outname):
-        if log.isEnabledFor(logging.DEBUG):
+        if self._debug_config_enabled and log.isEnabledFor(logging.DEBUG):
             import pprint
             outname = "logs/%s" % outname
             try:
@@ -908,7 +907,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._assign_child_to_parent(p_child, p_root)
         self._assign_child_to_parent(p_grandchild, p_child)
 
-        self._generate_config(p_root.platform_agent_instance_obj, p_root.platform_id, "_final")
+        self._generate_config(p_root.platform_agent_instance_obj, p_root.platform_id, "_complete")
 
         return p_root
 
@@ -917,7 +916,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         Creates a hierarchy of platforms rooted at the given platform.
 
         @param platform_id  ID of the root platform at this level
-        @param p_objs       dict top be updated with (platform_id: p_obj)
+        @param p_objs       dict to be updated with (platform_id: p_obj)
                             mappings
         @param parent_obj   platform object of the parent, if any
 
@@ -937,11 +936,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         if parent_obj:
             self._assign_child_to_parent(p_obj, parent_obj, False)
-
-        else:
-            # this is the first level call, so generate config:
-            self._generate_config(p_obj.platform_agent_instance_obj,
-                                  platform_id, "_final")
 
         return p_obj
 

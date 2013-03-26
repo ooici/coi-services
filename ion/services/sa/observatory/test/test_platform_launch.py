@@ -99,17 +99,22 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #                     SF01B
         #             LJ01C
         #     LV01B
-        #         LV01B
-        #             LJ01B
+        #         LJ01B
         #         MJ01B
 
-        # the test completes ok if we use root_platform_id = 'LV01C'
+        # disable the generation of config files (to only generate the
+        # complete one below)
+        self._debug_config_enabled = False
+
         root_platform_id = 'Node1B'
         p_objs = {}
         p_root = self._create_hierarchy(root_platform_id, p_objs)
 
-        log.debug("hierarchy built. Root platform=%r, #p_objs=%d",
-                  root_platform_id, len(p_objs))
+        log.debug("platform hierarchy built. Root platform=%r, number of platforms=%d: %s",
+                  root_platform_id, len(p_objs), p_objs.keys())
+
+        self.assertIn(root_platform_id, p_objs)
+        self.assertEquals(13, len(p_objs))
 
         # create and assign some instruments
 
@@ -125,10 +130,12 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         log.debug("instrument assigned to = %r", pid_LV01C)
 
-        # start the root platform and run the commands:
-        log.debug("starting platforn agent %r", p_root.platform_agent_instance_id)
-        self._start_platform(p_root.platform_agent_instance_id)
-        log.debug("started platforn agent %r", p_root.platform_agent_instance_id)
+        # generate the config for the whole hierarchy including instruments:
+        self._debug_config_enabled = True
+        self._generate_config(p_root.platform_agent_instance_obj,
+                              root_platform_id, "_complete")
 
+        # start the root platform and run the commands:
+        self._start_platform(p_root.platform_agent_instance_id)
         self._run_commands()
         self._stop_platform(p_root.platform_agent_instance_id)

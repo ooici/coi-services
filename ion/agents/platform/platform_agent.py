@@ -211,7 +211,7 @@ class PlatformAgent(ResourceAgent):
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             platform_id = self.CFG.get_safe('platform_config.platform_id', '')
-            outname = "logs/platform_CFG_%s.txt" % platform_id
+            outname = "logs/platform_CFG_received_%s.txt" % platform_id
             try:
                 pprint.PrettyPrinter(stream=file(outname, "w")).pprint(self.CFG)
                 log.debug("%r: on_init: CFG printed to %s", platform_id, outname)
