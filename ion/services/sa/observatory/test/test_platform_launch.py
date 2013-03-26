@@ -76,6 +76,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         i_obj = self._create_instrument('SBE37_SIM_01')
         self._assign_instrument_to_platform(i_obj, p_root)
 
+        self._generate_platform_config(p_root, "_complete")
+
         self._start_platform(p_root.platform_agent_instance_id)
         self._run_commands()
         self._stop_platform(p_root.platform_agent_instance_id)
@@ -129,13 +131,14 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #####################################
         # create platform hierarchy
         #####################################
+        log.info("will create platform hierarchy ...")
         start_time = time.time()
 
         root_platform_id = 'Node1B'
         p_objs = {}
         p_root = self._create_hierarchy(root_platform_id, p_objs)
 
-        log.debug("platform hierarchy built. Took %.3f secs. "
+        log.info("platform hierarchy built. Took %.3f secs. "
                   "Root platform=%r, number of platforms=%d: %s",
                   time.time() - start_time,
                   root_platform_id, len(p_objs), p_objs.keys())
@@ -146,6 +149,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #####################################
         # create some instruments
         #####################################
+        log.info("will create instruments ...")
         start_time = time.time()
 
         i1_obj = self._create_instrument('SBE37_SIM_01')
@@ -154,12 +158,12 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         i2_obj = self._create_instrument('SBE37_SIM_02')
         log.debug("instrument created = %r", i2_obj.instrument_agent_instance_id)
 
-
-        log.debug("instruments created. Took %.3f secs.", time.time() - start_time)
+        log.info("instruments created. Took %.3f secs.", time.time() - start_time)
 
         #####################################
         # assign the instruments
         #####################################
+        log.info("will assign instruments ...")
         start_time = time.time()
 
         pid_LV01C = 'LV01C'
@@ -172,38 +176,43 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self._assign_instrument_to_platform(i2_obj, p_objs[pid_LJ01B])
         log.debug("instrument assigned to = %r", pid_LJ01B)
 
-
-        log.debug("instruments assigned. Took %.3f secs.",
+        log.info("instruments assigned. Took %.3f secs.",
                   time.time() - start_time)
 
         #####################################
         # generate the config for the whole hierarchy including instruments:
         #####################################
+        log.info("will generate configuration ...")
         start_time = time.time()
         self._debug_config_enabled = True
-        self._generate_config(p_root.platform_agent_instance_obj,
-                              root_platform_id, "_complete")
+        self._generate_platform_config(p_root, "_complete")
 
-        log.debug("configuration generated. Took %.3f secs.", time.time() - start_time)
+        log.info("configuration generated. Took %.3f secs.", time.time() - start_time)
 
         #####################################
         # start the root platform:
         #####################################
+        log.info("will start the root platform ...")
         start_time = time.time()
 
         self._start_platform(p_root.platform_agent_instance_id)
 
-        log.debug("root platform started. Took %.3f secs.", time.time() - start_time)
+        log.info("root platform started. Took %.3f secs.", time.time() - start_time)
 
         #####################################
         # run the commands:
         #####################################
+        log.info("will run commands ...")
         start_time = time.time()
         self._run_commands()
 
-        log.debug("commands run. Took %.3f secs.", time.time() - start_time)
+        log.info("commands run. Took %.3f secs.", time.time() - start_time)
 
         #####################################
         # stop the root platform
         #####################################
+        log.info("will stop the root platform ...")
+        start_time = time.time()
         self._stop_platform(p_root.platform_agent_instance_id)
+
+        log.info("root platform stopped. Took %.3f secs.", time.time() - start_time)

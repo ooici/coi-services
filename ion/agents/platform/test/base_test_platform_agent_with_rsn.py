@@ -372,8 +372,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
 
     def _generate_parent_with_child_config(self, p_parent, p_child):
-        self.pconfig_builder._update_cached_predicates()
         self.pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
+        self.pconfig_builder._update_cached_predicates()
         parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
                                    p_parent.platform_device_id,
@@ -385,8 +385,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            p_parent.platform_id, p_child.platform_id))
 
     def _generate_platform_with_instrument_config(self, p_obj, i_obj):
-        self.pconfig_builder._update_cached_predicates()
+        log.debug("Using pconfig_builder")
         self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
+        self.pconfig_builder._update_cached_predicates()
         parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
                                    p_obj.platform_device_id,
@@ -397,12 +398,13 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            "platform_CFG_generated_%s_->_%s.txt" % (
                            p_obj.platform_id, i_obj.instrument_device_id))
 
-    def _generate_config(self, platform_agent_instance_obj, platform_id, suffix=''):
+    def _generate_platform_config(self, p_obj, suffix=''):
+        log.debug("Using pconfig_builder")
+        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
         self.pconfig_builder._update_cached_predicates()
-        self.pconfig_builder.set_agent_instance_object(platform_agent_instance_obj)
         config = self.pconfig_builder.prepare(will_launch=False)
 
-        self._debug_config(config, "platform_CFG_generated_%s%s.txt" % (platform_id, suffix))
+        self._debug_config(config, "platform_CFG_generated_%s%s.txt" % (p_obj.platform_id, suffix))
 
         return config
 
@@ -435,10 +437,17 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                 records_per_granule=2, granule_publish_rate=5)
         ]
 
-    def _generate_instrument_config(self, instrument_agent_instance_obj, instrument_id, suffix=''):
+    def _generate_instrument_config(self, i_obj, suffix=''):
+        instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
+        instrument_id = i_obj.instrument_device_id
+
+        log.debug("Using iconfig_builder")
         self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
         self.iconfig_builder._update_cached_predicates()
         config = self.iconfig_builder.prepare(will_launch=False)
+
+        self.verify_instrument_config(config, i_obj.org_obj,
+                                      i_obj.instrument_device_id)
 
         self._debug_config(config, "instrument_CFG_generated_%s%s.txt" % (instrument_id, suffix))
 
@@ -585,16 +594,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
-        child_config = self._generate_config(platform_agent_instance_child_obj, platform_id)
-        self._verify_child_config(child_config, platform_device_child_id,
-                                  is_platform=True)
-
         self.platform_device_parent_id = platform_device_child_id
 
         p_obj = DotDict()
         p_obj.platform_id = platform_id
         p_obj.parent_platform_id = parent_platform_id
-        p_obj.agent_config = child_config
         p_obj.platform_agent_instance_obj = platform_agent_instance_child_obj
         p_obj.platform_device_id = platform_device_child_id
         p_obj.platform_agent_instance_id = platform_agent_instance_child_id
@@ -618,7 +622,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # platform child-parent linking
     #################################################################
 
-    def _assign_child_to_parent(self, p_child, p_parent, gen_verify=True):
+    def _assign_child_to_parent(self, p_child, p_parent, gen_verify=False):
 
         log.debug("assigning child platform %r to parent %r",
                   p_child.platform_id, p_parent.platform_id)
@@ -839,6 +843,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         i_obj.instrument_agent_id = instrument_agent_id
         i_obj.instrument_device_id = instrument_device_id
         i_obj.instrument_agent_instance_id = instrument_agent_instance_id
+        i_obj.org_obj = org_obj
 
         return i_obj
 
@@ -883,17 +888,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self._setup_instruments.add(instr_key)
 
-        instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
-
-        self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
-        self.iconfig_builder._update_cached_predicates()
-        instrument_config = self.iconfig_builder.prepare(will_launch=False)
-        self.verify_instrument_config(instrument_config, org_obj,
-                                      i_obj.instrument_device_id)
-
-        self._generate_instrument_config(instrument_agent_instance_obj,
-                                         i_obj.instrument_agent_instance_id)
-
         log.debug("_create_instrument: created instrument %r", instr_key)
 
         return i_obj
@@ -902,7 +896,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # instrument-platform linking
     #################################################################
 
-    def _assign_instrument_to_platform(self, i_obj, p_obj):
+    def _assign_instrument_to_platform(self, i_obj, p_obj, gen_verify=False):
 
         log.debug("assigning instrument %r to platform %r",
                   i_obj.instrument_agent_instance_id, p_obj.platform_id)
@@ -914,7 +908,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         child_device_ids = self.RR2.find_instrument_device_ids_of_device(p_obj.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
 
-        self._generate_platform_with_instrument_config(p_obj, i_obj)
+        if gen_verify:
+            self._generate_platform_with_instrument_config(p_obj, i_obj)
 
     #################################################################
     # some platform topologies
@@ -942,7 +937,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._assign_child_to_parent(p_child, p_root)
         self._assign_child_to_parent(p_grandchild, p_child)
 
-        self._generate_config(p_root.platform_agent_instance_obj, p_root.platform_id, "_complete")
+        self._generate_platform_config(p_root, "_complete")
 
         return p_root
 
@@ -970,7 +965,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             self._create_hierarchy(sub_platform_id, p_objs, p_obj)
 
         if parent_obj:
-            self._assign_child_to_parent(p_obj, parent_obj, False)
+            self._assign_child_to_parent(p_obj, parent_obj)
 
         return p_obj
 
