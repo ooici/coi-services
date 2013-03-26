@@ -609,12 +609,13 @@ class PubsubManagementService(BasePubsubManagementService):
         stream_definition = self.clients.resource_registry.read(stream_definition_id)
         pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary, id_only=True)
 
-        p_contexts, _ = self.clients.resource_registry.find_objects(subject=pdicts[0]._id, predicate=PRED.hasParameterContext, object_type=RT.ParameterContext, id_only=False)
+        pdict = DatasetManagementService.get_parameter_dictionary(pdicts[0])
 
         available_field = stream_definition.available_field
 
         ret = []
-        for p_context in p_contexts:
+        for key in pdict.keys():
+            p_context = pdict.get_context(key)
             if hasattr(p_context, 'lookup_value'):
                 if available_field:
                     if p_context.lookup_value == available_field:
