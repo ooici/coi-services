@@ -6,6 +6,8 @@
 """
 
 # THIS SHOULD BE FALSE IN COMMITTED CODE
+from ooi import logging
+
 TEST_LOCALLY=False
 #TEST_LOCALLY=True
 
@@ -397,16 +399,20 @@ class EnhancedResourceRegistryClient(object):
         """
         figure out whether a subject/object is an IonObject or just an ID
         """
-        if type("") == type(id_or_obj):
-            the_id = id_or_obj
-            the_type = "(Unspecified IonObject)"
-        elif hasattr(id_or_obj, "_id"):
+        if hasattr(id_or_obj, "_id"):
             log.debug("find_object for IonObject")
             the_id = id_or_obj._id
             the_type = type(id_or_obj).__name__
         else:
             the_id = id_or_obj
             the_type = "(Unspecified IonObject)"
+            if log.isEnabledFor(logging.DEBUG):
+                try:
+                    the_obj = self.RR.read(the_id)
+                    the_type = type(the_obj).__name__
+                except:
+                    pass
+
 
         return the_id, the_type
 
