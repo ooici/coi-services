@@ -7,7 +7,7 @@
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.core.exception import CorruptionError
+from pyon.core.exception import CorruptionError, NotFound
 from pyon.event.event import handle_stream_exception, EventPublisher
 from pyon.public import log, RT, PRED, CFG, OT
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -158,6 +158,53 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 else:
                     timeout *= 2
 
+
+    def expand_coverage(self, coverage, elements, stream_id):
+        try:
+            coverage.insert_timesteps(elements, oob=False)
+        except IOError as e:
+            log.error("Couldn't insert time steps for coverage: %s",
+                      coverage.persistence_dir, exc_info=True)
+            try:
+                coverage.close()
+            finally:
+                self._bad_coverages[stream_id] = 1
+                raise CorruptionError(e.message)
+    
+    def get_stored_values(self, lookup_value):
+        lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
+        for key in lookup_value_document_keys:
+            try:
+                document = self.stored_values.read_value(key)
+                if lookup_value in document:
+                    return float(document[lookup_value]) # Force float just to make sure
+            except NotFound:
+                log.warning('Specified lookup document does not exist')
+        return None
+
+    def insert_values(self, coverage, rdt, stream_id):
+        elements = len(rdt)
+
+        start_index = coverage.num_timesteps - elements
+
+        for k,v in rdt.iteritems():
+            slice_ = slice(start_index, None)
+            try:
+                coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+            except IOError as e:
+                log.error("Couldn't insert values for coverage: %s",
+                          coverage.persistence_dir, exc_info=True)
+                try:
+                    coverage.close()
+                finally:
+                    self._bad_coverages[stream_id] = 1
+                    raise CorruptionError(e.message)
+    
+        if 'ingestion_timestamp' in coverage.list_parameters():
+            t_now = time.time()
+            ntp_time = TimeUtils.ts_to_units(coverage.get_parameter_context('ingestion_timestamp').uom, t_now)
+            coverage.set_parameter_values(param_name='ingestion_timestamp', tdoa=slice_, value=ntp_time)
+    
     def add_granule(self,stream_id, rdt):
         ''' Appends the granule's data to the coverage and persists it. '''
         debugging = log.isEnabledFor(DEBUG)
@@ -192,46 +239,30 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         # Actual persistence
         #--------------------------------------------------------------------------------
+
         elements = len(rdt)
+        
         if debugging:
             timer.complete_step('checks') # lightweight ops, should be zero
-        try:
-            coverage.insert_timesteps(elements, oob=False)
-        except IOError as e:
-            log.error("Couldn't insert time steps for coverage: %s",
-                      DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)), exc_info=True)
-            try:
-                coverage.close()
-            finally:
-                self._bad_coverages[stream_id] = 1
-                raise CorruptionError(e.message)
+        
+        self.expand_coverage(coverage, elements, stream_id)
+        
         if debugging:
             timer.complete_step('insert')
 
-        start_index = coverage.num_timesteps - elements
-
-        for k,v in rdt.iteritems():
-            slice_ = slice(start_index, None)
-            try:
-                coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
-            except IOError as e:
-                log.error("Couldn't insert values for coverage: %s",
-                          DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)), exc_info=True)
-                try:
-                    coverage.close()
-                finally:
-                    self._bad_coverages[stream_id] = 1
-                    raise CorruptionError(e.message)
-        if 'ingestion_timestamp' in coverage.list_parameters():
-            t_now = time.time()
-            ntp_time = TimeUtils.ts_to_units(coverage.get_parameter_context('ingestion_timestamp').uom, t_now)
-            coverage.set_parameter_values(param_name='ingestion_timestamp', tdoa=slice_, value=ntp_time)
+        self.insert_values(coverage, rdt, stream_id)
+        
         if debugging:
             timer.complete_step('keys')
+        
         DatasetManagementService._save_coverage(coverage)
+        
         if debugging:
             timer.complete_step('save')
+        
+        start_index = coverage.num_timesteps - elements
         self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
+        
         if debugging:
             timer.complete_step('notify')
             self._add_timing_stats(timer)
