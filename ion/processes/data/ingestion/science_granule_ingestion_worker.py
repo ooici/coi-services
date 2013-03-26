@@ -7,7 +7,7 @@
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from pyon.core.exception import CorruptionError
+from pyon.core.exception import CorruptionError, NotFound
 from pyon.event.event import handle_stream_exception, EventPublisher
 from pyon.public import log, RT, PRED, CFG, OT
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
@@ -171,6 +171,17 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 self._bad_coverages[stream_id] = 1
                 raise CorruptionError(e.message)
     
+    def get_stored_values(self, lookup_value):
+        lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
+        for key in lookup_value_document_keys:
+            try:
+                document = self.stored_values.read_value(key)
+                if lookup_value in document:
+                    return float(document[lookup_value]) # Force float just to make sure
+            except NotFound:
+                log.warning('Specified lookup document does not exist')
+        return None
+
     def insert_values(self, coverage, rdt, stream_id):
         elements = len(rdt)
 
