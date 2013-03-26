@@ -1,29 +1,30 @@
 #!/usr/bin/env python
-from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-from pyon.core.object import IonObjectBase
-
 __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
 from pyon.public import  log, IonObject
-from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from interface.objects import DataProduct, DataProductVersion
-from interface.objects import ComputedValueAvailability
-
+from pyon.util.containers import DotDict
+from pyon.core.object import IonObjectBase
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, OT, PRED, LCS, CFG
 from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
-import string
-from lxml import etree
-from datetime import datetime
+
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.time_utils import TimeUtils
 from ion.util.geo_utils import GeoUtils
 
+from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
+from interface.objects import DataProduct, DataProductVersion
+from interface.objects import ComputedValueAvailability
+
+from lxml import etree
+from datetime import datetime
+
 import numpy as np
+import string
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -218,6 +219,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             ingestion_configuration_id = self.clients.ingestion_management.list_ingestion_configurations(id_only=True)[0]
 
+
+        #--------------------------------------------------------------------------------
+        # Identify lookup tables
+        #--------------------------------------------------------------------------------
+        config = DotDict()
+        if self._has_lookup_values(data_product_id):
+            config.process.lookup_docs = self._get_lookup_documents(data_product_id)
+
         #--------------------------------------------------------------------------------
         # persist the data stream using the ingestion config id and stream id
         #--------------------------------------------------------------------------------
@@ -225,7 +234,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         # find datasets for the data product
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
                                                 ingestion_configuration_id=ingestion_configuration_id,
-                                                dataset_id=dataset_id)
+                                                dataset_id=dataset_id, 
+                                                config=config)
 
         # register the dataset for externalization
         self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
@@ -830,8 +840,11 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
+    def _has_lookup_values(self,data_product_id):
+        pass
 
-
+    def _get_lookup_documents(self, data_product_id):
+        pass
 
     def _find_producers(self, data_product_id='', provenance_results=''):
         source_ids = []
