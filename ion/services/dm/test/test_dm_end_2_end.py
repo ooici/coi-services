@@ -10,6 +10,7 @@ from pyon.event.event import EventSubscriber
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.public import RT, log, OT
+from pyon.util.containers import DotDict
 from pyon.util.poller import poll
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -18,9 +19,11 @@ from ion.services.dm.ingestion.test.ingestion_management_test import IngestionMa
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
+from ion.util.stored_values import StoredValueManager
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -310,6 +313,83 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(b.all() if not isinstance(b,bool) else b)
         self.streams.append(stream_id)
         self.stop_ingestion(stream_id)
+
+
+    def test_lookup_values_ingest_replay(self):
+        contexts = self.create_lookup_contexts()
+        context_ids = [_id for ctxt,_id in contexts.itervalues()]
+        pdict_id = self.dataset_management.create_parameter_dictionary('lookups', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary,pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('lookups', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('example', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        ingestion_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+        config = DotDict()
+        config.process.lookup_docs = ['test1', 'test2']
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_config_id, dataset_id=dataset_id, config=config)
+        self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
+
+        stored_value_manager = StoredValueManager(self.container)
+        stored_value_manager.stored_value_cas('test1',{'offset_a':12.2, 'offset_b':13.1})
+        
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = [20.0] * 20
+
+        granule = rdt.to_granule()
+
+        dataset_modified = Event()
+        def cb(*args, **kwargs):
+            dataset_modified.set()
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
+        es.start()
+
+        self.addCleanup(es.stop)
+
+        publisher.publish(granule)
+        self.assertTrue(dataset_modified.wait(30))
+        
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(20))
+        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([32.2]*20))
+
+
+    def create_lookup_contexts(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+        
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
+        offset_ctxt.lookup_value = True
+        offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
+        contexts['offset_a'] = offset_ctxt, offset_ctxt_id
+
+        func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
+        func.lookup_values = ['LV_offset']
+        calibrated = ParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
+        calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
+        contexts['calibrated'] = calibrated, calibrated_id
+
+        return contexts
 
     @unittest.skip('Doesnt work')
     @attr('LOCOINT')
