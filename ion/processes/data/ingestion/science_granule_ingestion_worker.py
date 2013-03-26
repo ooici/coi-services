@@ -175,7 +175,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
         for key in lookup_value_document_keys:
             try:
-                document = self.stored_values.read_value(key)
+                document = self.stored_value_manager.read_value(key)
                 if lookup_value in document:
                     return float(document[lookup_value]) # Force float just to make sure
             except NotFound:
@@ -186,6 +186,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         elements = len(rdt)
 
         start_index = coverage.num_timesteps - elements
+
+        for field in rdt.lookup_values():
+            rdt[field] = [self.get_stored_values(field)] * len(rdt)
 
         for k,v in rdt.iteritems():
             slice_ = slice(start_index, None)

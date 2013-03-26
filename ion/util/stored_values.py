@@ -52,6 +52,7 @@ class StoredValueManager(object):
         doc = self.store.read_doc(doc_key)
         return doc
 
-
+    def delete_stored_value(self, doc_key):
+        self.store.delete_doc(doc_key)
 
 
