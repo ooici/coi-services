@@ -335,13 +335,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         pconfig_builder = PlatformAgentConfigurationBuilder(clients)
 
         # can't do anything without an agent instance obj
-        log.debug("Testing that preparing a launcher without agent instance raises an error")
         self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
 
         return pconfig_builder
 
     def _generate_parent_with_child_config(self, p_parent, p_child):
-        log.debug("Testing parent platform + child platform as parent config")
         pconfig_builder = self._create_platform_config_builder()
         pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
         parent_config = pconfig_builder.prepare(will_launch=False)
@@ -355,7 +353,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            p_parent.platform_id, p_child.platform_id))
 
     def _generate_platform_with_instrument_config(self, p_obj, i_obj):
-        log.debug("Testing parent platform + child instrument as parent config")
         pconfig_builder = self._create_platform_config_builder()
         pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
         parent_config = pconfig_builder.prepare(will_launch=False)
@@ -857,7 +854,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
 
-        log.debug("Testing instrument config")
         iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
         instrument_config = iconfig_builder.prepare(will_launch=False)
         self.verify_instrument_config(instrument_config, org_obj,

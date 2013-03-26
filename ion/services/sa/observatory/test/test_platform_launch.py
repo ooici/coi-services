@@ -103,6 +103,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #             LJ01B
         #         MJ01B
 
+        # the test completes ok if we use root_platform_id = 'LV01C'
         root_platform_id = 'Node1B'
         p_objs = {}
         p_root = self._create_hierarchy(root_platform_id, p_objs)
@@ -124,7 +125,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         log.debug("instrument assigned to = %r", pid_LV01C)
 
-        # start the rot platform and run the commands:
+        # start the root platform and run the commands:
         log.debug("starting platforn agent %r", p_root.platform_agent_instance_id)
         self._start_platform(p_root.platform_agent_instance_id)
         log.debug("started platforn agent %r", p_root.platform_agent_instance_id)
