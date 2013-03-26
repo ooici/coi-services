@@ -157,7 +157,7 @@ def check_user_notification_interest(event, reverse_user_info):
 
     @retval user_ids list
     '''
-    log.debug("Checking for interested users. Event type: %s, reverse_user_info: %s", event.type_, reverse_user_info)
+#    log.debug("Checking for interested users. Event type: %s, reverse_user_info: %s", event.type_, reverse_user_info)
 
     if not isinstance(event, Event):
         raise BadRequest("The input parameter should have been an Event.")
@@ -188,9 +188,9 @@ def check_user_notification_interest(event, reverse_user_info):
             if reverse_user_info['event_type'].has_key(''): # for users who subscribe to any event types
                 user_list_1.extend(reverse_user_info['event_type'][''])
             users = set(user_list_1)
-            log.debug("For event_type = %s, UNS got interested users here  %s", event.type_, users)
+#            log.debug("For event_type = %s, UNS got interested users here  %s", event.type_, users)
         else:
-            log.debug("After checking event_type = %s, UNS got no interested users here", event.type_)
+#            log.debug("After checking event_type = %s, UNS got no interested users here", event.type_)
             return []
 
     if event.origin: # for an incoming event that has origin specified (this should be true for almost all events)
@@ -199,9 +199,9 @@ def check_user_notification_interest(event, reverse_user_info):
             if reverse_user_info['event_origin'].has_key(''): # for users who subscribe to any event origins
                 user_list_2.extend(reverse_user_info['event_origin'][''])
             users = set.intersection(users, user_list_2)
-            log.debug("For event origin = %s too, UNS got interested users here  %s", event.origin, users)
+#            log.debug("For event origin = %s too, UNS got interested users here  %s", event.origin, users)
         else:
-            log.debug("After checking  event origin = %s, UNS got no interested users here", event.origin)
+#            log.debug("After checking  event origin = %s, UNS got no interested users here", event.origin)
             return []
 
     if event.sub_type: # for an incoming event with the sub type specified
@@ -210,9 +210,9 @@ def check_user_notification_interest(event, reverse_user_info):
             if reverse_user_info['event_subtype'].has_key(''): # for users who subscribe to any event subtypes
                 user_list_3.extend(reverse_user_info['event_subtype'][''])
             users = set.intersection(users, user_list_3)
-            log.debug("For event_subtype = %s too, UNS got interested users here  %s", event.sub_type, users)
+#            log.debug("For event_subtype = %s too, UNS got interested users here  %s", event.sub_type, users)
         else:
-            log.debug("After checking event_subtype = %s, UNS got no interested users here", event.sub_type)
+#            log.debug("After checking event_subtype = %s, UNS got no interested users here", event.sub_type)
             return []
 
     if event.origin_type: # for an incoming event with origin type specified
@@ -221,12 +221,12 @@ def check_user_notification_interest(event, reverse_user_info):
             if reverse_user_info['event_origin_type'].has_key(''): # for users who subscribe to any event origin types
                 user_list_4.extend(reverse_user_info['event_origin_type'][''])
             users = set.intersection(users, user_list_4)
-            log.debug("For event_origin_type = %s too, UNS got interested users here  %s", event.origin_type, users)
+#            log.debug("For event_origin_type = %s too, UNS got interested users here  %s", event.origin_type, users)
         else:
-            log.debug("After checking event_origin_type = %s, UNS got no interested users here", event.origin_type)
+#            log.debug("After checking event_origin_type = %s, UNS got no interested users here", event.origin_type)
             return []
 
-    log.debug("The interested users found here are: %s, for event: %s", users, event)
+#    log.debug("The interested users found here are: %s, for event: %s", users, event)
     return list( users)
 
 def calculate_reverse_user_info(user_info=None):

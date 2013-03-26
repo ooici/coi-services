@@ -6,6 +6,8 @@
 """
 
 # THIS SHOULD BE FALSE IN COMMITTED CODE
+from ooi import logging
+
 TEST_LOCALLY=False
 #TEST_LOCALLY=True
 
@@ -85,6 +87,8 @@ class EnhancedResourceRegistryClient(object):
         #            mults.append(" --- %s to %s has %s" % (d, r, preds))
         #raise BadRequest(str(mults))
         #
+
+        self._cached_predicates = {}
 
         log.debug("done init")
 
@@ -245,14 +249,59 @@ class EnhancedResourceRegistryClient(object):
                                         object=object_id)
         self.RR.delete_association(assoc)
 
+    def find_subjects(self, subject_type, predicate, object, id_only=False):
+        object_id, object_type = self._extract_id_and_type(object)
+
+        if not self.has_cached_prediate(predicate):
+            ret, _ = self.RR.find_subjects(subject_type=subject_type,
+                                           predicate=predicate,
+                                           object=object_id,
+                                           id_only=id_only)
+            return ret
+
+        log.info("Using %s cached results for 'find (%s) subjects'", len(self._cached_predicates[predicate]), predicate)
+
+        log.debug("Checking object_id=%s, subject_type=%s", object_id, subject_type)
+        subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
+        if [] == subject_ids:
+            return [] # HACK because read_mult([]) raises error instead of returning []
+        elif id_only:
+            return subject_ids
+        else:
+            log.debug("getting full subject IonObjects with read_mult")
+            return self.RR.read_mult(subject_ids)
+
+
+    def find_objects(self, subject, predicate, object_type, id_only=False):
+        subject_id, subject_type = self._extract_id_and_type(subject)
+
+        if not self.has_cached_prediate(predicate):
+            ret, _ = self.RR.find_objects(subject=subject_id,
+                                         predicate=predicate,
+                                         object_type=object_type,
+                                         id_only=id_only)
+            return ret
+
+        log.info("Using %s cached results for 'find (%s) objects'", len(self._cached_predicates[predicate]), predicate)
+
+        log.debug("Checking subject_id=%s, object_type=%s", subject_id, object_type)
+        object_ids = [a.o for a in self._cached_predicates[predicate] if subject_id == a.s and a.ot == object_type]
+        if [] == object_ids:
+            return [] # HACK because read_mult([]) raises error instead of returning []
+        elif id_only:
+            return object_ids
+        else:
+            log.debug("getting full object IonObjects with read_mult")
+            return self.RR.read_mult(object_ids)
+
 
     def find_subject(self, subject_type, predicate, object, id_only=False):
         object_id, object_type = self._extract_id_and_type(object)
 
-        objs, _  = self.RR.find_subjects(subject_type=subject_type,
-                                         predicate=predicate,
-                                         object=object_id,
-                                         id_only=id_only)
+        objs  = self.find_subjects(subject_type=subject_type,
+                                   predicate=predicate,
+                                   object=object_id,
+                                   id_only=id_only)
 
         if 1 == len(objs):
             return objs[0]
@@ -267,10 +316,10 @@ class EnhancedResourceRegistryClient(object):
     def find_object(self, subject, predicate, object_type, id_only=False):
         subject_id, subject_type = self._extract_id_and_type(subject)
 
-        objs, _  = self.RR.find_objects(subject=subject_id,
-                                        predicate=predicate,
-                                        object_type=object_type,
-                                        id_only=id_only)
+        objs = self.find_objects(subject=subject_id,
+                                 predicate=predicate,
+                                 object_type=object_type,
+                                 id_only=id_only)
 
         if 1 == len(objs):
             return objs[0]
@@ -332,6 +381,11 @@ class EnhancedResourceRegistryClient(object):
 
         return ret
 
+    def cache_predicate(self, predicate):
+        self._cached_predicates[predicate] = self.RR.find_associations(predicate=predicate, id_only=False)
+
+    def has_cached_prediate(self, predicate):
+        return predicate in self._cached_predicates
 
     def _uncamel(self, name):
         """
@@ -345,16 +399,20 @@ class EnhancedResourceRegistryClient(object):
         """
         figure out whether a subject/object is an IonObject or just an ID
         """
-        if type("") == type(id_or_obj):
-            the_id = id_or_obj
-            the_type = "(Unspecified IonObject)"
-        elif hasattr(id_or_obj, "_id"):
+        if hasattr(id_or_obj, "_id"):
             log.debug("find_object for IonObject")
             the_id = id_or_obj._id
             the_type = type(id_or_obj).__name__
         else:
             the_id = id_or_obj
             the_type = "(Unspecified IonObject)"
+            if log.isEnabledFor(logging.DEBUG):
+                try:
+                    the_obj = self.RR.read(the_id)
+                    the_type = type(the_obj).__name__
+                except:
+                    pass
+
 
         return the_id, the_type
 
@@ -554,7 +612,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association (1)%s -> %s -> %s", isubj, ipred, iobj)
                 # see if there are any other objects of this type and pred on this subject
-                existing_subjs, _ = self.RR.find_subjects(isubj, ipred, obj_id, id_only=True)
+                existing_subjs = self.find_subjects(isubj, ipred, obj_id, id_only=True)
 
                 if len(existing_subjs) > 1:
                     raise Inconsistent("Multiple %s-%s subjects found associated to the same %s object with id='%s'" %
@@ -603,7 +661,7 @@ class EnhancedResourceRegistryClient(object):
                 log.info("Dynamically creating association %s -> %s -> (1)%s", isubj, ipred, iobj)
 
                 # see if there are any other objects of this type and pred on this subject
-                existing_objs, _ = self.RR.find_objects(subj_id, ipred, iobj, id_only=True)
+                existing_objs = self.find_objects(subj_id, ipred, iobj, id_only=True)
 
                 if len(existing_objs) > 1:
                     raise Inconsistent("Multiple %s-%s objects found with the same %s subject with id='%s'" %
@@ -684,7 +742,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(subj):
                 log.info("Dynamically finding objects %s -> %s -> %s", isubj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
-                ret, _ = self.RR.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
+                ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
 
             return ret_fn
@@ -716,7 +774,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(obj):
                 log.info("Dynamically finding subjects %s <- %s <- %s", iobj, ipred, isubj)
                 obj_id, _ = self._extract_id_and_type(obj)
-                ret, _ = self.RR.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
+                ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
 
             return ret_fn
@@ -816,7 +874,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(subj):
                 log.info("Dynamically finding object_ids %s -> %s -> %s", isubj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
-                ret, _ = self.RR.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
+                ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
 
             return ret_fn
@@ -848,7 +906,7 @@ class EnhancedResourceRegistryClient(object):
             def ret_fn(obj):
                 log.info("Dynamically finding subject_ids %s <- %s <- %s", iobj, ipred, isubj)
                 obj_id, _ = self._extract_id_and_type(obj)
-                ret, _ = self.RR.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
+                ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
 
             return ret_fn
