@@ -50,6 +50,12 @@ PERSIST_REALTIME_DATA_PRODUCTS = False
 class VisualizationService(BaseVisualizationService):
 
 
+    def on_init(self):
+
+        self.create_workflow_timeout = get_safe(self.CFG, 'create_workflow_timeout', 60)
+        self.terminate_workflow_timeout = get_safe(self.CFG, 'terminate_workflow_timeout', 30)
+
+
     def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
         with the request that will be required for subsequent requests when polling data.
@@ -89,7 +95,7 @@ class VisualizationService(BaseVisualizationService):
 
         #Create and start the workflow. Take about 4 secs .. wtf
         workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
-            input_data_product_id=data_product_id, persist_workflow_data_product=PERSIST_REALTIME_DATA_PRODUCTS, timeout=30)
+            input_data_product_id=data_product_id, persist_workflow_data_product=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.create_workflow_timeout)
 
         # detect the output data product of the workflow
         workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
@@ -305,7 +311,7 @@ class VisualizationService(BaseVisualizationService):
             if len(workflow_id) == 0:
                 log.error("Cannot find Workflow for Data Product id %s", ( data_product_id[0] ))
             else:
-                self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=PERSIST_REALTIME_DATA_PRODUCTS, timeout=30)
+                self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.terminate_workflow_timeout)
 
         #Taking advantage of idempotency
         xq = self.container.ex_manager.create_xn_queue(query_token)

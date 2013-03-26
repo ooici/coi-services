@@ -629,6 +629,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         # can't do anything without an agent instance obj
         log.debug("Testing that preparing a launcher without agent instance raises an error")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
 
         log.debug("Making the structure for a platform agent, which will be the child")
@@ -636,6 +637,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
         log.debug("Preparing a valid agent instance launch, for config only")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_child_obj)
         child_config = pconfig_builder.prepare(will_launch=False)
         verify_child_config(child_config, platform_device_child_id)
@@ -646,6 +648,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
 
         log.debug("Testing child-less parent as a child config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
         parent_config = pconfig_builder.prepare(will_launch=False)
         verify_child_config(parent_config, platform_device_parent_id)
@@ -656,6 +659,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing parent + child as parent config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
         parent_config = pconfig_builder.prepare(will_launch=False)
         verify_parent_config(parent_config, platform_device_parent_id, platform_device_child_id)
@@ -666,6 +670,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
 
         log.debug("Testing instrument config")
+        iconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
         instrument_config = iconfig_builder.prepare(will_launch=False)
         verify_instrument_config(instrument_config, instrument_device_id)
@@ -676,6 +681,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing entire config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
         full_config = pconfig_builder.prepare(will_launch=False)
         verify_parent_config(full_config, platform_device_parent_id, platform_device_child_id, instrument_device_id)
