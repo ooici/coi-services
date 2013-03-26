@@ -144,9 +144,9 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         else:
             workflow_name = create_unique_identifier('workflow_%s' % (workflow_definition.name))
 
-         #Create Workflow object and associations to track the instantiation of a work flow definition.
+            #Create Workflow object and associations to track the instantiation of a work flow definition.
         workflow = IonObject(RT.Workflow, name=workflow_name, persist_process_output_data=persist_workflow_data_product,
-                                output_data_product_name=output_data_product_name, configuration=configuration)
+            output_data_product_name=output_data_product_name, configuration=configuration)
         workflow_id, _ = self.clients.resource_registry.create(workflow)
         self.clients.resource_registry.create_association(workflow_id, PRED.hasDefinition,workflow_definition_id )
         self.clients.resource_registry.create_association(workflow_id, PRED.hasInputProduct,input_data_product_id )
@@ -154,7 +154,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Setup the input data product id as the initial input product stream
         data_process_input_dp_id = input_data_product_id
 
-        output_data_products = []
+        output_data_products = {}
         output_data_product_id = None # Overall product id to return
 
         #Iterate through the workflow steps to setup the data processes and connect them together.
@@ -177,11 +177,11 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
                 tdom, sdom = time_series_domain()
 
-                data_product_obj = IonObject(RT.DataProduct, 
-                                             name            = data_product_name,
-                                             description     = data_process_definition.description,
-                                             temporal_domain = tdom.dump(),
-                                             spatial_domain  = sdom.dump())
+                data_product_obj = IonObject(RT.DataProduct,
+                    name            = data_product_name,
+                    description     = data_process_definition.description,
+                    temporal_domain = tdom.dump(),
+                    spatial_domain  = sdom.dump())
                 data_product_id = self.clients.data_product_management.create_data_product(data_product_obj, stream_definition_id=stream_definition_id)
 
 
@@ -195,7 +195,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
                 #Associate the intermediate data products with the workflow
                 self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProduct, data_product_id )
-                output_data_products.append(data_product_id)
+                output_data_products[binding] = data_product_id
 
             #May have to merge configuration blocks where the workflow entries will override the configuration in a step
             if configuration:
@@ -204,21 +204,19 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 process_config = wf_step.configuration
 
             data_process_id = self.clients.data_process_management.create_data_process(
-                data_process_definition_id = data_process_definition._id,
                 in_data_product_ids = [data_process_input_dp_id],
-                out_data_product_ids = output_data_products,
+                out_data_product_ids = output_data_products.values(),
                 configuration=process_config)
-
             self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
             self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProcess, data_process_id )
 
             #last one out of the for loop is the output product id
-            output_data_product_id = output_data_products[0]
+            output_data_product_id = output_data_products.values()[0]
 
             #Save the id of the output data stream for input to the next process in the workflow.
-            data_process_input_dp_id = output_data_products[0]
+            data_process_input_dp_id = output_data_products.values()[0]
 
 
         #Track the output data product with an association
