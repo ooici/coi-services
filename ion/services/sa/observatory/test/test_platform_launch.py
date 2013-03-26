@@ -101,6 +101,24 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #     LV01B
         #         LJ01B
         #         MJ01B
+        #
+        # In DEBUG logging level for the relevant modules (in particular, the
+        # parent class of this test, and PlatformAgent), the following files are
+        # generated under logs/:
+        #    platform_CFG_generated_Node1B_complete.txt
+        #    platform_CFG_received_Node1B.txt
+        #    platform_CFG_received_Node1C.txt
+        #    platform_CFG_received_Node1D.txt
+        #    platform_CFG_received_MJ01C.txt
+        #    platform_CFG_received_LJ01D.txt
+        #    platform_CFG_received_LV01C.txt
+        #    platform_CFG_received_PC01B.txt
+        #    platform_CFG_received_SC01B.txt
+        #    platform_CFG_received_SF01B.txt
+        #    platform_CFG_received_LJ01C.txt
+        #    platform_CFG_received_LV01B.txt
+        #    platform_CFG_received_LJ01B.txt
+        #    platform_CFG_received_MJ01B.txt
 
         # disable the generation of config files (to only generate the
         # complete one below)
