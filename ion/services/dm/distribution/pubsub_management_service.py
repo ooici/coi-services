@@ -618,8 +618,8 @@ class PubsubManagementService(BasePubsubManagementService):
             p_context = pdict.get_context(key)
             if hasattr(p_context, 'lookup_value'):
                 if stream_definition.available_fields and key in stream_definition.available_fields:
-                    ret.append(p_context.lookup_value)
+                    ret.append(p_context.name)
                 elif not stream_definition.available_fields:
-                    ret.append(p_context.lookup_value)
+                    ret.append(p_context.name)
 
         return ret
