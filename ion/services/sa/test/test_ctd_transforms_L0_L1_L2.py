@@ -527,8 +527,7 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         outgoing_stream_l0_pressure_id, \
         outgoing_stream_l0_temperature_id = self._create_stream_definitions()
 
-        self.out_prod_dict={}
-        self.out_prod_dict = self._create_l0_output_data_products(outgoing_stream_l0_conductivity_id,outgoing_stream_l0_pressure_id,outgoing_stream_l0_temperature_id)
+        self.out_prod_ids = self._create_l0_output_data_products(outgoing_stream_l0_conductivity_id,outgoing_stream_l0_pressure_id,outgoing_stream_l0_temperature_id)
 
         self.outgoing_stream_l1_conductivity_id = self.pubsubclient.create_stream_definition(name='L1_conductivity', parameter_dictionary_id=self.pdict_id)
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(self.outgoing_stream_l1_conductivity_id, self.ctd_L1_conductivity_dprocdef_id, binding='conductivity' )
@@ -546,12 +545,16 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
         # L0 Conductivity - Temperature - Pressure: Create the data process
         #-------------------------------------------------------------------------------------
-        output_data_products = self.out_prod_dict.values()
-        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2(self.ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], output_data_products)
+        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2(
+            data_process_definition_id = self.ctd_L0_all_dprocdef_id,
+            in_data_product_ids = [ctd_parsed_data_product],
+            out_data_product_ids = self.out_prod_ids)
         self.dataprocessclient.activate_data_process2(ctd_l0_all_data_process_id)
 
         data_process = self.rrclient.read(ctd_l0_all_data_process_id)
-        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+
+        process_ids, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, predicate=PRED.hasProcess, id_only=True)
+        self.addCleanup(self.processdispatchclient.cancel_process,process_ids[0])
 
         #-------------------------------------------------------------------------------------
         # L1 Conductivity: Create the data process
@@ -560,7 +563,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.dataprocessclient.activate_data_process2(l1_conductivity_data_process_id)
 
         data_process = self.rrclient.read(l1_conductivity_data_process_id)
-        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+        process_ids, _ = self.rrclient.find_objects(subject=l1_conductivity_data_process_id, predicate=PRED.hasProcess, id_only=True)
+        self.addCleanup(self.processdispatchclient.cancel_process,process_ids[0])
 
         #-------------------------------------------------------------------------------------
         # L1 Pressure: Create the data process
@@ -569,7 +573,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.dataprocessclient.activate_data_process2(l1_pressure_data_process_id)
 
         data_process = self.rrclient.read(l1_pressure_data_process_id)
-        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+        process_ids, _ = self.rrclient.find_objects(subject=l1_pressure_data_process_id, predicate=PRED.hasProcess, id_only=True)
+        self.addCleanup(self.processdispatchclient.cancel_process, process_ids[0])
 
         #-------------------------------------------------------------------------------------
         # L1 Temperature: Create the data process
@@ -578,7 +583,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.dataprocessclient.activate_data_process2(l1_temperature_all_data_process_id)
 
         data_process = self.rrclient.read(l1_temperature_all_data_process_id)
-        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+        process_ids, _ = self.rrclient.find_objects(subject=l1_temperature_all_data_process_id, predicate=PRED.hasProcess, id_only=True)
+        self.addCleanup(self.processdispatchclient.cancel_process, process_ids[0])
 
         #-------------------------------------------------------------------------------------
         # L2 Salinity: Create the data process
@@ -587,7 +593,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.dataprocessclient.activate_data_process2(l2_salinity_all_data_process_id)
 
         data_process = self.rrclient.read(l2_salinity_all_data_process_id)
-        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+        process_ids, _ = self.rrclient.find_objects(subject=l2_salinity_all_data_process_id, predicate=PRED.hasProcess, id_only=True)
+        self.addCleanup(self.processdispatchclient.cancel_process, process_ids[0])
 
         #-------------------------------------------------------------------------------------
         # L2 Density: Create the data process
@@ -596,7 +603,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.dataprocessclient.activate_data_process2(l2_density_all_data_process_id)
 
         data_process = self.rrclient.read(l2_density_all_data_process_id)
-        self.addCleanup(self.processdispatchclient.cancel_process,data_process.process_id)
+        process_ids, _ = self.rrclient.find_objects(subject=l2_density_all_data_process_id, predicate=PRED.hasProcess, id_only=True)
+        self.addCleanup(self.processdispatchclient.cancel_process, process_ids[0])
 
         #-------------------------------------------------------------------------------------
         # Launch InstrumentAgentInstance, connect to the resource agent client
