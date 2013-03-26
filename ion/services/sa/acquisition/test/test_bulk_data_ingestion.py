@@ -37,6 +37,7 @@ from gevent.event import AsyncResult, Event
 from nose.plugins.attrib import attr
 import unittest
 import numpy as np
+import os
 
 class FakeProcess(LocalContextMixin):
     """
@@ -485,17 +486,26 @@ class TestBulkIngestBase(object):
 
     def start_listener(self, dataset_id=''):
         dataset_modified = Event()
+        #callback to use retrieve to get data from the coverage
         def cb(*args, **kwargs):
-            dataset_modified.set()
-            self.stop_agent()
             self.get_retrieve_client(dataset_id=dataset_id)
+
+        #callback to keep execution going once dataset has been fully ingested
+        def cb2(*args, **kwargs):
+            dataset_modified.set()
+
         es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
         es.start()
 
+        es2 = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb2, origin='BaseDataHandler._acquire_sample')
+        es2.start()
+
         self.addCleanup(es.stop)
+        self.addCleanup(es2.stop)
 
         #let it go for up to 120 seconds, then stop the agent and reset it
         dataset_modified.wait(120)
+        self.stop_agent()
 
     def create_logger(self, name, stream_id=''):
 

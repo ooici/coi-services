@@ -63,7 +63,7 @@ class TestHypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
             'dvr_cls': 'HYPMDataHandler',
             'dh_cfg': {
                 'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
-                'parser_cls': 'HYPM_01_WFP_CTDParser2',
+                'parser_cls': 'HYPM_01_WFP_CTDParser',
                 'stream_id': self.stream_id,
                 'stream_route': self.route,
                 'stream_def': self.stream_def_id,
@@ -95,39 +95,39 @@ class TestHypm_WPF_ACM(TestBulkIngestBase, IonIntegrationTestCase):
         t_ctxt.uom = 'seconds since 01-01-1970'
         context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
 
-        vela_ctxt = ParameterContext('VelA', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        vela_ctxt = ParameterContext('VelA', param_type=ArrayType())
         vela_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='VelA', parameter_context=vela_ctxt.dump()))
 
-        velb_ctxt = ParameterContext('VelB', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        velb_ctxt = ParameterContext('VelB', param_type=ArrayType())
         velb_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='VelB', parameter_context=velb_ctxt.dump()))
 
-        velc_ctxt = ParameterContext('VelC', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        velc_ctxt = ParameterContext('VelC', param_type=ArrayType())
         velc_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='VelC', parameter_context=velc_ctxt.dump()))
 
-        veld_ctxt = ParameterContext('VelD', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        veld_ctxt = ParameterContext('VelD', param_type=ArrayType())
         veld_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='VelD', parameter_context=veld_ctxt.dump()))
 
-        mx_ctxt = ParameterContext('Mx', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        mx_ctxt = ParameterContext('Mx', param_type=ArrayType())
         mx_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='Mx', parameter_context=mx_ctxt.dump()))
 
-        my_ctxt = ParameterContext('My', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        my_ctxt = ParameterContext('My', param_type=ArrayType())
         my_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='My', parameter_context=my_ctxt.dump()))
 
-        mz_ctxt = ParameterContext('Mz', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        mz_ctxt = ParameterContext('Mz', param_type=ArrayType())
         mz_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='Mz', parameter_context=mz_ctxt.dump()))
 
-        pitch_ctxt = ParameterContext('Pitch', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        pitch_ctxt = ParameterContext('Pitch', param_type=ArrayType())
         pitch_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='Pitch', parameter_context=pitch_ctxt.dump()))
 
-        roll_ctxt = ParameterContext('Roll', param_type=QuantityType(value_encoding=np.dtype('int16')))
+        roll_ctxt = ParameterContext('Roll', param_type=ArrayType())
         roll_ctxt.uom = 'unknown'
         context_ids.append(self.dataset_management.create_parameter_context(name='Roll', parameter_context=roll_ctxt.dump()))
 
@@ -162,7 +162,7 @@ class TestHypm_WPF_ACM(TestBulkIngestBase, IonIntegrationTestCase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        print rdt
+        self.assertIsNotNone(rdt['time'])
 
 @attr('INT', group='eoi')
 class TestHypm_WPF_ENG(TestBulkIngestBase, IonIntegrationTestCase):
@@ -295,4 +295,5 @@ class TestHypm_WPF_ENG(TestBulkIngestBase, IonIntegrationTestCase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        print rdt
+        #print rdt['Time_Time']
+        #print rdt['Core_Current']
