@@ -218,6 +218,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug('new InstrumentModel id = %s ', self.instModel_id)
 
+        self.pconfig_builder = self._create_platform_config_builder()
+
+        self.iconfig_builder = self._create_instrument_config_builder()
+
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
@@ -372,9 +376,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         return pconfig_builder
 
     def _generate_parent_with_child_config(self, p_parent, p_child):
-        pconfig_builder = self._create_platform_config_builder()
-        pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
-        parent_config = pconfig_builder.prepare(will_launch=False)
+        self.pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
+        parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
                                    p_parent.platform_device_id,
                                    p_child.platform_device_id,
@@ -385,9 +388,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            p_parent.platform_id, p_child.platform_id))
 
     def _generate_platform_with_instrument_config(self, p_obj, i_obj):
-        pconfig_builder = self._create_platform_config_builder()
-        pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
-        parent_config = pconfig_builder.prepare(will_launch=False)
+        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
+        parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
                                    p_obj.platform_device_id,
                                    i_obj.instrument_device_id,
@@ -398,9 +400,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            p_obj.platform_id, i_obj.instrument_device_id))
 
     def _generate_config(self, platform_agent_instance_obj, platform_id, suffix=''):
-        pconfig_builder = self._create_platform_config_builder()
-        pconfig_builder.set_agent_instance_object(platform_agent_instance_obj)
-        config = pconfig_builder.prepare(will_launch=False)
+        self.pconfig_builder.set_agent_instance_object(platform_agent_instance_obj)
+        config = self.pconfig_builder.prepare(will_launch=False)
 
         self._debug_config(config, "platform_CFG_generated_%s%s.txt" % (platform_id, suffix))
 
@@ -445,9 +446,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         return iconfig_builder
 
     def _generate_instrument_config(self, instrument_agent_instance_obj, instrument_id, suffix=''):
-        pconfig_builder = self._create_instrument_config_builder()
-        pconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
-        config = pconfig_builder.prepare(will_launch=False)
+        self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
+        config = self.iconfig_builder.prepare(will_launch=False)
 
         self._debug_config(config, "instrument_CFG_generated_%s%s.txt" % (instrument_id, suffix))
 
@@ -885,8 +885,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("_create_instrument: creating instrument %r: %s",
                   instr_key, instr_info)
 
-        iconfig_builder = self._create_instrument_config_builder()
-
         org_obj = any_old(RT.Org)
 
         log.debug("making the structure for an instrument agent")
@@ -896,8 +894,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
 
-        iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
-        instrument_config = iconfig_builder.prepare(will_launch=False)
+        self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
+        instrument_config = self.iconfig_builder.prepare(will_launch=False)
         self.verify_instrument_config(instrument_config, org_obj,
                                       i_obj.instrument_device_id)
 
