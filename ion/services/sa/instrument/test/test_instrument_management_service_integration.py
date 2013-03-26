@@ -160,8 +160,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
         # Lifecycle
-        self.assertEquals(len(extended_instrument.lcstate_transitions), 7)
-        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
+        self.assertEquals(len(extended_instrument.lcstate_transitions), 5)
+        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_instrument.availability_transitions), 2)
+        self.assertEquals(set(extended_instrument.availability_transitions.keys()), set(['enable', 'announce']))
 
         # Verify that computed attributes exist for the extended instrument
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
@@ -201,8 +203,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
         self.assertEquals(extended_platform.platform_agent._id, platform_agent_id)
 
-        self.assertEquals(len(extended_platform.lcstate_transitions), 7)
-        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
+        self.assertEquals(len(extended_platform.lcstate_transitions), 5)
+        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_platform.availability_transitions), 2)
+        self.assertEquals(set(extended_platform.availability_transitions.keys()), set(['enable', 'announce']))
 
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
