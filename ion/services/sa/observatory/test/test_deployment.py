@@ -67,8 +67,8 @@ class TestDeployment(IonIntegrationTestCase):
         # deactivate all data processes when tests are complete
         def killAllDataProcesses():
             for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
-                self.dsmsclient.deactivate_data_process2(proc_id)
-                self.dsmsclient.delete_data_process2(proc_id)
+                self.dsmsclient.deactivate_data_process(proc_id)
+                self.dsmsclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
 

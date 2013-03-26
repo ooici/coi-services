@@ -2071,12 +2071,12 @@ Reason: %s
         svc_client = self._get_service_client("data_process_management")
 
         headers = self._get_op_headers(row)
-        res_id = svc_client.create_data_process2(dpd_id, [in_data_product_id], out_data_product_ids, configuration, headers=headers)
+        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_product_ids, configuration, headers=headers)
         self._register_id(row[COL_ID], res_id)
 
         self._resource_assign_org(row, res_id)
 
-        res_id = svc_client.activate_data_process2(res_id, headers=self._get_system_actor_headers())
+        res_id = svc_client.activate_data_process(res_id, headers=self._get_system_actor_headers())
 
     def _load_DataProduct(self, row, do_bulk=False):
         self._fix_boolean(row, 'persist_metadata', 'persist_data')

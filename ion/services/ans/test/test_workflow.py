@@ -108,8 +108,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
 
         #Stop the transform processes
-        self.dataprocessclient.deactivate_data_process2(salinity_double_data_process_id)
-        self.dataprocessclient.deactivate_data_process2(l2_salinity_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(salinity_double_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l2_salinity_all_data_process_id)
 
         #Validate the data from each of the messages along the way
         self.validate_messages(results)

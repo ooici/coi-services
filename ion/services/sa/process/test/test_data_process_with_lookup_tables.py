@@ -242,7 +242,7 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
             in_prods = []
             in_prods.append(ctd_parsed_data_product)
             out_prods = [ctd_l0_conductivity_output_dp_id, ctd_l0_pressure_output_dp_id,ctd_l0_temperature_output_dp_id]
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2(
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
                 data_process_definition_id = ctd_L0_all_dprocdef_id,
                 in_data_product_ids = in_prods,
                 out_data_product_ids = out_prods)

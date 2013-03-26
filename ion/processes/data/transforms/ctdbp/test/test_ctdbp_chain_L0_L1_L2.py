@@ -75,7 +75,7 @@ class TestCTDPChain(IonIntegrationTestCase):
 
     def cleaning_operations(self):
         for dproc_id in self.data_process_cleanup:
-            self.data_process_management.delete_data_process2(dproc_id)
+            self.data_process_management.delete_data_process(dproc_id)
 
     def test_ctdp_chain(self):
         """
@@ -324,15 +324,15 @@ class TestCTDPChain(IonIntegrationTestCase):
         log.debug("launching transform for name: %s",name_of_transform )
         log.debug("launching transform for data_proc_def_id: %s\ninput_dpod_id: %s\noutput_dpod_id: %s", data_proc_def_id, input_dpod_id, output_dpod_id )
 
-        data_proc_id = self.data_process_management.create_data_process2(
+        data_proc_id = self.data_process_management.create_data_process(
                                                         in_data_product_ids= [input_dpod_id],
                                                         out_data_product_ids = [output_dpod_id],
                                                         configuration = config)
 
-        self.addCleanup(self.data_process_management.delete_data_process2, data_proc_id)
+        self.addCleanup(self.data_process_management.delete_data_process, data_proc_id)
 
-        self.data_process_management.activate_data_process2(data_proc_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_proc_id)
+        self.data_process_management.activate_data_process(data_proc_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_proc_id)
 
         log.debug("Created a data process for ctdbp %s transform: id = %s", name_of_transform, data_proc_id)
 

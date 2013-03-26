@@ -66,8 +66,8 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # deactivate all data processes when tests are complete
         def killAllDataProcesses():
             for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
-                self.dataprocessclient.deactivate_data_process2(proc_id)
-                self.dataprocessclient.delete_data_process2(proc_id)
+                self.dataprocessclient.deactivate_data_process(proc_id)
+                self.dataprocessclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
 
@@ -452,13 +452,13 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             input_data_products = [ctd_parsed_data_product]
             output_data_products = [ctd_l0_conductivity_output_dp_id, ctd_l0_pressure_output_dp_id, ctd_l0_temperature_output_dp_id]
 
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2(
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
                 data_process_definition_id = ctd_L0_all_dprocdef_id,
                 in_data_product_ids = input_data_products,
                 out_data_product_ids = output_data_products
             )
             #activate only this data process just for coverage
-            self.dataprocessclient.activate_data_process2(ctd_l0_all_data_process_id)
+            self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -475,12 +475,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1 Conductivity data_process start")
         try:
-            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process2(
+            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(
                 data_process_definition_id = ctd_L1_conductivity_dprocdef_id,
                 in_data_product_ids = [ctd_l0_conductivity_output_dp_id],
                 out_data_product_ids = [ctd_l1_conductivity_output_dp_id])
             
-            self.dataprocessclient.activate_data_process2(l1_conductivity_data_process_id)
+            self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -492,12 +492,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
-            l1_pressure_data_process_id = self.dataprocessclient.create_data_process2(
+            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(
                 data_process_definition_id = ctd_L1_pressure_dprocdef_id,
                 in_data_product_ids = [ctd_l0_pressure_output_dp_id],
                 out_data_product_ids = [ctd_l1_pressure_output_dp_id])
 
-            self.dataprocessclient.activate_data_process2(l1_pressure_data_process_id)
+            self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -507,12 +507,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
-            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process2(
+            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(
                 data_process_definition_id = ctd_L1_temperature_dprocdef_id,
                 in_data_product_ids = [ctd_l0_temperature_output_dp_id],
                 out_data_product_ids = [ctd_l1_temperature_output_dp_id])
 
-            self.dataprocessclient.activate_data_process2(l1_temperature_all_data_process_id)
+            self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -521,12 +521,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L2_salinity data_process start")
         try:
-            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process2(
+            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(
                 data_process_definition_id = ctd_L2_salinity_dprocdef_id,
                 in_data_product_ids = [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id],
                 out_data_product_ids = [ctd_l2_salinity_output_dp_id])
 
-            self.dataprocessclient.activate_data_process2(l2_salinity_all_data_process_id)
+            self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -539,12 +539,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             in_dp_ids = [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id]
             out_dp_ids = [ctd_l2_density_output_dp_id]
 
-            l2_density_all_data_process_id = self.dataprocessclient.create_data_process2(
+            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(
                 data_process_definition_id = ctd_L2_density_dprocdef_id,
                 in_data_product_ids = in_dp_ids,
                 out_data_product_ids = out_dp_ids)
 
-            self.dataprocessclient.activate_data_process2(l2_density_all_data_process_id)
+            self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
 
@@ -569,12 +569,12 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         self.imsclient.stop_instrument_agent_instance(instrument_agent_instance_id=instAgentInstance_id)
 
-        self.dataprocessclient.deactivate_data_process2(l2_density_all_data_process_id)
-        self.dataprocessclient.deactivate_data_process2(l2_salinity_all_data_process_id)
-        self.dataprocessclient.deactivate_data_process2(l1_temperature_all_data_process_id)
-        self.dataprocessclient.deactivate_data_process2(l1_pressure_data_process_id)
-        self.dataprocessclient.deactivate_data_process2(l1_conductivity_data_process_id)
-        self.dataprocessclient.deactivate_data_process2(ctd_l0_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l2_density_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l2_salinity_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l1_temperature_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l1_pressure_data_process_id)
+        self.dataprocessclient.deactivate_data_process(l1_conductivity_data_process_id)
+        self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
 
         #-------------------------------
         # Retrieve the provenance info for the ctd density data product

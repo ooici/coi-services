@@ -209,13 +209,13 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Create the data process
         #---------------------------------------------------------------------------
 
-        dproc_id = self.dataprocessclient.create_data_process2( in_data_product_ids = [input_dp_id],
+        dproc_id = self.dataprocessclient.create_data_process( in_data_product_ids = [input_dp_id],
                                                                 out_data_product_ids = [conductivity_dp_id, pressure_dp_id,temp_dp_id],
                                                                 configuration= config )
-        self.addCleanup(self.dataprocessclient.delete_data_process2, dproc_id)
+        self.addCleanup(self.dataprocessclient.delete_data_process, dproc_id)
 
         # Make assertions on the data process created
-        data_process = self.dataprocessclient.read_data_process2(dproc_id)
+        data_process = self.dataprocessclient.read_data_process(dproc_id)
 
         # Assert that the data process has a process id attached
         self.assertIsNotNone(data_process.process_id)
@@ -403,7 +403,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         config.process.params.lat = 45.
         config.process.params.lon = -71.
 
-        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process2( in_data_product_ids = in_data_product_ids,
+        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process( in_data_product_ids = in_data_product_ids,
                                                                                     out_data_product_ids = out_data_product_ids,
                                                                                     configuration= config
                                                                                 )
@@ -417,7 +417,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         process_id = results[0]
 
         #-------------------------------
-        # Wait until the process launched in the create_data_process2() method is actually running, before proceeding further in this test
+        # Wait until the process launched in the create_data_process() method is actually running, before proceeding further in this test
         #-------------------------------
 
         gate = ProcessStateGate(self.process_dispatcher.read_process, process_id, ProcessStateEnum.RUNNING)
@@ -429,7 +429,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 
         # todo: Req: L4-CI-SA-RQ-366  Data processing shall manage data topic definitions
         # todo: data topics are being handled by pub sub at the level of streams
-        self.dataprocessclient.activate_data_process2(ctd_l0_all_data_process_id)
+        self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         
 
         #todo: check that activate event is received L4-CI-SA-RQ-367
@@ -447,7 +447,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.assertTrue(subs.activated)
 
         # todo: This has not yet been completed by CEI, will prbly surface thru a DPMS call
-        self.dataprocessclient.deactivate_data_process2(ctd_l0_all_data_process_id)
+        self.dataprocessclient.deactivate_data_process(ctd_l0_all_data_process_id)
 
 
         #-------------------------------
@@ -482,7 +482,7 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
 #            out_streams.extend(streams)
 
         # Deleting the data process
-        self.dataprocessclient.delete_data_process2(ctd_l0_all_data_process_id)
+        self.dataprocessclient.delete_data_process(ctd_l0_all_data_process_id)
 
         # Check that the data process got removed. Check the lcs state. It should be retired
         dp_obj = self.rrclient.read(ctd_l0_all_data_process_id)
@@ -768,11 +768,11 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         instrument_data_product_id = self.ctd_instrument_data_product()
         derived_data_product_id = self.ctd_derived_data_product()
 
-        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[derived_data_product_id])
-        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+        data_process_id = self.data_process_management.create_data_process(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[derived_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
-        self.data_process_management.activate_data_process2(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
     
 
         validated = Event()
@@ -815,11 +815,11 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.data_process_management.assign_stream_definition_to_data_process_definition(temperature_stream_def_id, data_process_definition_id, binding='temperature')
         self.data_process_management.assign_stream_definition_to_data_process_definition(pressure_stream_def_id, data_process_definition_id, binding='pressure')
 
-        data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[conductivity_data_product_id, temperature_data_product_id, pressure_data_product_id])
-        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+        data_process_id = self.data_process_management.create_data_process(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[conductivity_data_product_id, temperature_data_product_id, pressure_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
-        self.data_process_management.activate_data_process2(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
         conductivity_validated = Event()
         def validate_conductivity(msg, route, stream_id):
@@ -861,11 +861,11 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         config.process.params.lat = 45.
         config.process.params.lon = -71.
 
-        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id], configuration=config)
-        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+        data_process_id = self.data_process_management.create_data_process(in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id], configuration=config)
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
-        self.data_process_management.activate_data_process2(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
         validated = Event()
         def validation(msg, route, stream_id):
@@ -905,11 +905,11 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         config.process.params.lon = -71.
 
 
-        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[input1, input2], out_data_product_ids=[density_dp_id, salinity_dp_id], configuration=config)
-        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+        data_process_id = self.data_process_management.create_data_process(in_data_product_ids=[input1, input2], out_data_product_ids=[density_dp_id, salinity_dp_id], configuration=config)
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
-        self.data_process_management.activate_data_process2(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
         density_validated = Event()
         salinity_validated = Event()
@@ -958,12 +958,12 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         data_process_definition_id = self.data_process_management.create_data_process_definition(dpd)
         self.addCleanup(self.data_process_management.delete_data_process_definition, data_process_definition_id)
     
-        data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id])
-        self.addCleanup(self.data_process_management.delete_data_process2,data_process_id)
+        data_process_id = self.data_process_management.create_data_process(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[output_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process,data_process_id)
 
 
-        self.data_process_management.activate_data_process2(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
         validated = Event()
         def validation(msg, route, stream_id):

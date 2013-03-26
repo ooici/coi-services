@@ -203,13 +203,13 @@ class WorkflowManagementService(BaseWorkflowManagementService):
             else:
                 process_config = wf_step.configuration
 
-            data_process_id = self.clients.data_process_management.create_data_process2(
+            data_process_id = self.clients.data_process_management.create_data_process(
                 data_process_definition_id = data_process_definition._id,
                 in_data_product_ids = [data_process_input_dp_id],
                 out_data_product_ids = output_data_products,
                 configuration=process_config)
 
-            self.clients.data_process_management.activate_data_process2(data_process_id)
+            self.clients.data_process_management.activate_data_process(data_process_id)
 
             #Track the the data process with an association to the workflow
             self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProcess, data_process_id )
@@ -245,8 +245,8 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Iterate through all of the data process associates and deactivate and delete them
         process_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProcess, RT.DataProcess, True)
         for pid in process_ids:
-            self.clients.data_process_management.deactivate_data_process2(pid)
-            self.clients.data_process_management.delete_data_process2(pid)
+            self.clients.data_process_management.deactivate_data_process(pid)
+            self.clients.data_process_management.delete_data_process(pid)
             aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDataProcess, pid)
             if aid:
                 self.clients.resource_registry.delete_association(aid[0])

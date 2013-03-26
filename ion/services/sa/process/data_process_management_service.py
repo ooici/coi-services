@@ -242,7 +242,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(association)
 
 
-    def create_data_process2(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
+    def create_data_process(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
         '''
         Creates a DataProcess resource and launches the process.
         A DataProcess is a process that receives one (or more) data products and produces one (or more) data products.
@@ -401,16 +401,16 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         raise BadRequest('Cannot update an existing data process.')
 
 
-    def read_data_process2(self, data_process_id=''):
+    def read_data_process(self, data_process_id=''):
         data_proc_obj = self.clients.resource_registry.read(data_process_id)
         return data_proc_obj
 
 
-    def delete_data_process2(self, data_process_id=''):
+    def delete_data_process(self, data_process_id=''):
 
         #Stops processes and deletes the data process associations
         #TODO: Delete the processes also?
-        self.deactivate_data_process2(data_process_id)
+        self.deactivate_data_process(data_process_id)
         processes, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcess, id_only=False)
         for process, assoc in zip(processes,assocs):
             self._stop_process(data_process=process)
@@ -436,9 +436,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
     def force_delete_data_process(self, data_process_id=""):
 
         # if not yet deleted, the first execute delete logic
-        dp_obj = self.read_data_process2(data_process_id)
+        dp_obj = self.read_data_process(data_process_id)
         if dp_obj.lcstate != LCS.RETIRED:
-            self.delete_data_process2(data_process_id)
+            self.delete_data_process(data_process_id)
 
         self.RR2.pluck_delete(data_process_id, RT.DataProcess)
 
@@ -458,7 +458,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_list , _ = self.clients.resource_registry.find_resources(RT.DataProcess, None, None, True)
         return data_process_list
 
-    def activate_data_process2(self, data_process_id=''):
+    def activate_data_process(self, data_process_id=''):
         #@Todo: Data Process Producer context stuff
         subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
         for subscription_id in subscription_ids:
@@ -466,7 +466,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 self.clients.pubsub_management.activate_subscription(subscription_id)
         return True
 
-    def deactivate_data_process2(self, data_process_id=''):
+    def deactivate_data_process(self, data_process_id=''):
         #@todo: data process producer context stuff
         subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
         for subscription_id in subscription_ids:

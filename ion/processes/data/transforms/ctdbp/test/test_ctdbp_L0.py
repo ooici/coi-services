@@ -169,18 +169,18 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         self.assertTrue(len(out_stream_ids))
         output_stream_id = out_stream_ids[0]
 
-        dproc_id = self.data_process_management.create_data_process2(
+        dproc_id = self.data_process_management.create_data_process(
                                                 in_data_product_ids = [input_dp_id],
                                                 out_data_product_ids = [L0_stream_dp_id],
                                                 configuration=None)
 
-        self.addCleanup(self.data_process_management.delete_data_process2, dproc_id)
+        self.addCleanup(self.data_process_management.delete_data_process, dproc_id)
 
         log.debug("Created a data process for ctdbp_L0. id: %s", dproc_id)
 
         # Activate the data process
-        self.data_process_management.activate_data_process2(dproc_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, dproc_id)
+        self.data_process_management.activate_data_process(dproc_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, dproc_id)
 
         #----------- Find the stream that is associated with the input data product when it was created by create_data_product() --------------------------------
 

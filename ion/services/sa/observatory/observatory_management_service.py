@@ -561,12 +561,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #----------------------------------------------------------------------------------------------------
         # Create a data process
         #----------------------------------------------------------------------------------------------------
-        data_process_id = self.dataprocessclient.create_data_process2(
+        data_process_id = self.dataprocessclient.create_data_process(
             data_process_definition_id = data_process_def_id,
             out_data_product_ids = [data_product_id],
         )
 
-        self.dataprocessclient.activate_data_process2(data_process_id)
+        self.dataprocessclient.activate_data_process(data_process_id)
 
         #make it all happen by assigning the output product to the site
         if RT.InstrumentSite == type(site_obj).__name__:
