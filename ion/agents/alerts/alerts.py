@@ -20,7 +20,7 @@ import time
 import gevent
 
 # Alarm types and events.
-from interface.objects import StreamAlertType
+from interface.objects import StreamAlertType, AggregateStatusType
 
 # Events.
 from pyon.event.event import EventPublisher
@@ -33,7 +33,7 @@ class BaseAlert(object):
     """
     """
     def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
-                 value_id=None, resource_id=None, origin_type=None):
+                 value_id=None, resource_id=None, origin_type=None, aggregate_type=None):
         assert isinstance(name, str)
         assert isinstance(stream_name, str)
         assert alert_type in StreamAlertType._str_map.keys()
@@ -42,7 +42,12 @@ class BaseAlert(object):
             message == 'Alert is cleared.'
         else:
             assert isinstance(message, str)
-        
+
+        if aggregate_type:
+            assert aggregate_type in AggregateStatusType._str_map.keys()
+        else:
+            aggregate_type = AggregateStatusType.AGGREGATE_OTHER
+
         if value_id: assert isinstance(value_id, str)
         assert isinstance(resource_id, str)
         assert isinstance(origin_type, str)
@@ -51,6 +56,7 @@ class BaseAlert(object):
         self._stream_name = stream_name
         self._message = message
         self._alert_type = alert_type
+        self._aggregate_type = aggregate_type
         self._value_id = value_id        
         self._resource_id = resource_id
         self._origin_type = origin_type
@@ -67,6 +73,7 @@ class BaseAlert(object):
             'stream_name' : self._stream_name,
             'message' : self._message,
             'alert_type' : self._alert_type,
+            'aggregate_type' : self._aggregate_type,
             'value_id' : self._value_id,
             'alert_class' : self.__class__.__name__,
             'value' : self._current_value,
@@ -116,13 +123,13 @@ class IntervalAlert(BaseAlert):
     
     rel_ops = ['<', '<=']
     
-    def __init__(self, name=None, stream_name=None, message=None,
-                 alert_type=None, value_id=None, resource_id=None, origin_type=None,
+    def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
+                 value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
                  lower_bound=None, lower_rel_op=None, upper_bound=None,
                  upper_rel_op=None):
 
         super(IntervalAlert, self).__init__(name, stream_name, message,
-                alert_type, value_id, resource_id, origin_type)
+                alert_type, value_id, resource_id, origin_type, aggregate_type)
         
         assert isinstance(value_id, str)
         self._value_id = value_id
@@ -200,12 +207,12 @@ class DeltaAlert(BaseAlert):
 class LateDataAlert(BaseAlert):
     """
     """
-    def __init__(self, name=None, stream_name=None, message=None,
-                 alert_type=None, value_id=None, resource_id=None, origin_type=None,
+    def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
+                 value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
                  time_delta=None, get_state=None):
 
         super(LateDataAlert, self).__init__(name, stream_name, message,
-                alert_type, value_id, resource_id, origin_type)
+                alert_type, value_id, resource_id, origin_type, aggregate_type)
 
         assert isinstance(time_delta, (int, float))
         assert get_state
@@ -254,7 +261,3 @@ class LateDataAlert(BaseAlert):
             self._gl.kill()
             self._gl.join()
             self._gl = None
-            
-
-
-    
