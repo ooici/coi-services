@@ -64,8 +64,8 @@ class GeoUtils(object):
         #        6         0.000001     0.111 m
         #        7         0.0000001    1.11  cm
         #        8         0.00000001   1.11  mm
-        rlon = "%.6f" % rlon
-        rlat = "%.6f" % rlat
+        rlon = round(rlon, 6)
+        rlat = round(rlat, 6)
         return rlat, rlon
 
     @staticmethod
@@ -74,6 +74,6 @@ class GeoUtils(object):
         af, ab, dist = g.inv(west_lon, north_lat, east_lon, south_lat)
         rlon, rlat, az = g.fwd(west_lon, north_lat, af, dist/2)
         rlon += 180 if rlon < 0 else -180
-        rlon = "%.6f" % rlon
-        rlat = "%.6f" % rlat
+        rlon = round(rlon, 6)
+        rlat = round(rlat, 6)
         return rlat, rlon

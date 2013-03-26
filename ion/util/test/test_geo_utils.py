@@ -28,28 +28,16 @@ class TestGeoUtils(PyonTestCase):
         # Basic test
         #TODO. do we really want calc_geospatial_point_center() to return string?
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, 0.0)
-
-        mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, 0.0)
+        self.assertAlmostEqual(mid_point.lat, 0.0)
+        self.assertAlmostEqual(mid_point.lon, 0.0)
 
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds, distance=GeoUtils.DISTANCE_SHORTEST)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, 0.0)
+        self.assertAlmostEqual(mid_point.lat, 0.0)
+        self.assertAlmostEqual(mid_point.lon, 0.0)
 
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds, distance=GeoUtils.DISTANCE_LONGEST)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, -180)
+        self.assertAlmostEqual(mid_point.lat, 0.0)
+        self.assertAlmostEqual(mid_point.lon, -180)
 
 
         geospatial_bounds.geospatial_latitude_limit_north = 10
@@ -58,25 +46,18 @@ class TestGeoUtils(PyonTestCase):
         geospatial_bounds.geospatial_longitude_limit_west = -179
 
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, 0.0)
+        self.assertAlmostEqual(mid_point.lat, 0.0)
+        self.assertAlmostEqual(mid_point.lon, 0.0)
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds, distance=GeoUtils.DISTANCE_SHORTEST)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, -180.0)
+        self.assertAlmostEqual(mid_point.lat, 0.0)
+        self.assertAlmostEqual(mid_point.lon, -180.0)
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds, distance=GeoUtils.DISTANCE_LONGEST)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, 0.0)
+        self.assertAlmostEqual(mid_point.lat, 0.0)
+        self.assertAlmostEqual(mid_point.lon, 0.0)
         geospatial_bounds.geospatial_longitude_limit_east = -179
         geospatial_bounds.geospatial_longitude_limit_west = 179
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lon, -180.0)
+        self.assertAlmostEqual(mid_point.lon, -180.0)
 
 
         geospatial_bounds.geospatial_latitude_limit_north = 90
@@ -84,101 +65,79 @@ class TestGeoUtils(PyonTestCase):
         geospatial_bounds.geospatial_longitude_limit_east = 0
         geospatial_bounds.geospatial_longitude_limit_west = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0)
-        self.assertAlmostEqual(lon, -180.0)
+        self.assertAlmostEqual(mid_point.lat, 0.0)
+        self.assertAlmostEqual(mid_point.lon, -180.0)
 
         geospatial_bounds.geospatial_latitude_limit_north = 40
         geospatial_bounds.geospatial_latitude_limit_south = 50
         geospatial_bounds.geospatial_longitude_limit_east = -75
         geospatial_bounds.geospatial_longitude_limit_west = -125
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 47.801523, 6)
-        self.assertAlmostEqual(lon, -102.328644, 6)
+        self.assertAlmostEqual(mid_point.lat, 47.801523, 6)
+        self.assertAlmostEqual(mid_point.lon, -102.328644, 6)
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds, distance=GeoUtils.DISTANCE_SHORTEST)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 47.801523, 6)
-        self.assertAlmostEqual(lon, -102.328644, 6)
+        self.assertAlmostEqual(mid_point.lat, 47.801523, 6)
+        self.assertAlmostEqual(mid_point.lon, -102.328644, 6)
 
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds, distance=GeoUtils.DISTANCE_LONGEST)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 47.801523, 6)
-        self.assertAlmostEqual(lon, 77.671356, 6)
+        self.assertAlmostEqual(mid_point.lat, 47.801523, 6)
+        self.assertAlmostEqual(mid_point.lon, 77.671356, 6)
 
         geospatial_bounds.geospatial_longitude_limit_west = 165
         geospatial_bounds.geospatial_latitude_limit_north = 5
         geospatial_bounds.geospatial_longitude_limit_east = -170
         geospatial_bounds.geospatial_latitude_limit_south = 5
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 5.1215926, 6)
-        self.assertAlmostEqual(lon, 177.5, 6)
+        self.assertAlmostEqual(mid_point.lat, 5.1215926, 6)
+        self.assertAlmostEqual(mid_point.lon, 177.5, 6)
 
         geospatial_bounds.geospatial_longitude_limit_west = 65
         geospatial_bounds.geospatial_latitude_limit_north = 0
         geospatial_bounds.geospatial_longitude_limit_east = 165
         geospatial_bounds.geospatial_latitude_limit_south = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0, 6)
-        self.assertAlmostEqual(lon, 115.0, 6)
+        self.assertAlmostEqual(mid_point.lat, 0.0, 6)
+        self.assertAlmostEqual(mid_point.lon, 115.0, 6)
 
         geospatial_bounds.geospatial_longitude_limit_west = 10.0
         geospatial_bounds.geospatial_latitude_limit_north = 0
         geospatial_bounds.geospatial_longitude_limit_east = -150
         geospatial_bounds.geospatial_latitude_limit_south = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0, 6)
-        self.assertAlmostEqual(lon, 110.0, 6)
+        self.assertAlmostEqual(mid_point.lat, 0.0, 6)
+        self.assertAlmostEqual(mid_point.lon, 110.0, 6)
 
         geospatial_bounds.geospatial_longitude_limit_west = -150
         geospatial_bounds.geospatial_latitude_limit_north = 0
         geospatial_bounds.geospatial_longitude_limit_east = 170
         geospatial_bounds.geospatial_latitude_limit_south = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0, 6)
-        self.assertAlmostEqual(lon, 10.0, 6)
+        self.assertAlmostEqual(mid_point.lat, 0.0, 6)
+        self.assertAlmostEqual(mid_point.lon, 10.0, 6)
 
         geospatial_bounds.geospatial_longitude_limit_west = 30
         geospatial_bounds.geospatial_latitude_limit_north = 0
         geospatial_bounds.geospatial_longitude_limit_east = 10
         geospatial_bounds.geospatial_latitude_limit_south = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0, 6)
-        self.assertAlmostEqual(lon, -160.0, 6)
+        self.assertAlmostEqual(mid_point.lat, 0.0, 6)
+        self.assertAlmostEqual(mid_point.lon, -160.0, 6)
 
         geospatial_bounds.geospatial_longitude_limit_west = 10
         geospatial_bounds.geospatial_latitude_limit_north = 0
         geospatial_bounds.geospatial_longitude_limit_east = 50
         geospatial_bounds.geospatial_latitude_limit_south = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0, 6)
-        self.assertAlmostEqual(lon, 30.0, 6)
+        self.assertAlmostEqual(mid_point.lat, 0.0, 6)
+        self.assertAlmostEqual(mid_point.lon, 30.0, 6)
 
         geospatial_bounds.geospatial_longitude_limit_west = -170
         geospatial_bounds.geospatial_latitude_limit_north = 0
         geospatial_bounds.geospatial_longitude_limit_east = -10
         geospatial_bounds.geospatial_latitude_limit_south = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
-        lat = float(mid_point.lat)
-        lon = float(mid_point.lon)
-        self.assertAlmostEqual(lat, 0.0, 6)
-        self.assertAlmostEqual(lon, -90.0, 6)
+        self.assertAlmostEqual(mid_point.lat, 0.0, 6)
+        self.assertAlmostEqual(mid_point.lon, -90.0, 6)
 
         # Bad requests
         with self.assertRaises(BadRequest):
