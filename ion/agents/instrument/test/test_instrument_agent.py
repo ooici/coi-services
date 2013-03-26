@@ -67,7 +67,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 
 # Alarms.
 from pyon.public import IonObject
-from interface.objects import StreamAlertType
+from interface.objects import StreamAlertType, AggregateStatusType
 
 from ooi.timer import Timer
 
@@ -1043,6 +1043,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'stream_name' : 'parsed',
             'message' : 'Temperature is above normal range.',
             'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
             'lower_bound' : None,
             'lower_rel_op' : None,
@@ -1056,6 +1057,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             'stream_name' : 'parsed',
             'message' : 'Temperature is way above normal range.',
             'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
             'lower_bound' : None,
             'lower_rel_op' : None,
@@ -1070,9 +1072,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_agent(['alerts'])['alerts']
         self.assertTrue(len(retval)==2)
 
+        log.debug('test_get_set_agent updated alerts: %s', retval)
+
+        retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
+        self.assertTrue(len(retval)==4)
+        log.debug('test_get_set_agent updated aggstatus: %s', retval)
+
         """
-        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_warning_interval', 'upper_bound': 10.5, 'lower_bound': None, 'upper_rel_op': None, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is above normal range.'}
-        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_alarm_interval', 'upper_bound': 15.5, 'lower_bound': None, 'upper_rel_op': None, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is way above normal range.'}
+        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_warning_interval', 'upper_bound': 10.5, 'lower_bound': None, 'aggregate_type': 2, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is above normal range.', 'upper_rel_op': None}
+        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_alarm_interval', 'upper_bound': 15.5, 'lower_bound': None, 'aggregate_type': 2, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is way above normal range.', 'upper_rel_op': None}
         """
 
         self._ia_client.set_agent({'alerts' : ['clear']})        
@@ -1234,7 +1242,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         agt_pars_all = ['example',
                         'alerts',
                         'streams',
-                        'pubrate'
+                        'pubrate',
+                        'aggstatus'
                         ]
         
         res_cmds_all =[

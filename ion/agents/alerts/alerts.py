@@ -129,7 +129,7 @@ class IntervalAlert(BaseAlert):
                  upper_rel_op=None):
 
         super(IntervalAlert, self).__init__(name, stream_name, message,
-                alert_type, value_id, resource_id, origin_type, aggregate_type=None)
+                alert_type, value_id, resource_id, origin_type, aggregate_type)
         
         assert isinstance(value_id, str)
         self._value_id = value_id
@@ -212,7 +212,7 @@ class LateDataAlert(BaseAlert):
                  time_delta=None, get_state=None):
 
         super(LateDataAlert, self).__init__(name, stream_name, message,
-                alert_type, value_id, resource_id, origin_type, aggregate_type=None)
+                alert_type, value_id, resource_id, origin_type, aggregate_type)
 
         assert isinstance(time_delta, (int, float))
         assert get_state

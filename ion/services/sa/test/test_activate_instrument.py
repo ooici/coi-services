@@ -45,7 +45,7 @@ from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue, ComputedDictValue, ComputedListValue, ComputedEventListValue
 # Alarm types and events.
-from interface.objects import StreamAlertType
+from interface.objects import StreamAlertType,AggregateStatusType, DeviceStatusEnum
 
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
@@ -301,6 +301,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             'stream_name' : 'parsed',
             'message' : 'Temperature is below the normal range of 50.0 and above.',
             'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
             'resource_id' : instDevice_id,
             'origin_type' : 'device',
@@ -432,6 +433,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             self._events_received.append(args[0])
             self._event_count = len(self._events_received)
             self._async_sample_result.set()
+            retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
+            log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
+            event = args[0]
+            log.debug('TestActivateInstrument consume_event event: %s', event)
+            if event['sub_type'] is 'WARNING':
+                self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_WARNING)
+            elif event['sub_type'] is 'ALL_CLEAR':
+                self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_OK)
 
         self._event_subscriber = EventSubscriber(
             event_type= 'StreamAlertEvent',
