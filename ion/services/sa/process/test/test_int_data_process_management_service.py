@@ -723,6 +723,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_transform_function, tf_id)
         return tf_id
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_data_process_lookup_values(self):
         self.lc_preload()
         instrument_data_product_id = self.ctd_instrument_data_product()

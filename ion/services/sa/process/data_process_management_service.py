@@ -817,6 +817,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             process_definitions, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, id_only=True)
             if process_definitions:
                 process_definition_id = process_definitions[0]
+            else:
+                process_definition = ProcessDefinition()
+                process_definition.name = 'transform_data_process'
+                process_definition.executable['module'] = 'ion.processes.data.transforms.transform_prime'
+                process_definition.executable['class'] = 'TransformPrime'
+                process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition)
+
         else:
             process_definitions, _ = self.clients.resource_registry.find_resources(name='transform_data_process', restype=RT.ProcessDefinition,id_only=True)
             if process_definitions:
