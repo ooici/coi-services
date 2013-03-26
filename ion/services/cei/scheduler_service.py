@@ -27,7 +27,7 @@ class SchedulerService(BaseSchedulerService):
     def on_start(self):
         if CFG.get_safe("process.start_mode") == "RESTART":
             self.on_system_restart()
-        self.pub = EventPublisher(event_type="ResourceEvent")
+        self.pub = EventPublisher(event_type="TimerEvent")
 
     def on_quit(self):
         self.pub.close()
