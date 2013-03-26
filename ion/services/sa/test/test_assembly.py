@@ -33,7 +33,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 
 from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 
-import string
+import string, unittest
 
 # some stuff for logging info to the console
 log = DotDict()
@@ -49,6 +49,7 @@ log.info  = mk_logger("INFO")
 log.warn  = mk_logger("WARNING")
 
 
+@unittest.skip('Skipped because oms create_site_data_product() is OBE under new data process framework')
 @attr('INT', group='sa')
 class TestAssembly(GenericIntHelperTestCase):
     """
@@ -90,7 +91,6 @@ class TestAssembly(GenericIntHelperTestCase):
         self.addCleanup(killAllDataProcesses)
 
 
-    #@unittest.skip('refactoring')
     def test_observatory_structure(self):
         """
 
@@ -768,7 +768,6 @@ class TestAssembly(GenericIntHelperTestCase):
 
 
 
-    # test all 4 deployment contexts.  can fill in these context when their fields get defined
     def test_deployment_buoy(self):
         context = IonObject(OT.RemotePlatformDeploymentContext)
         self.template_tst_deployment_context(context)
