@@ -354,6 +354,12 @@ class TestDMEnd2End(IonIntegrationTestCase):
         publisher.publish(granule)
         self.assertTrue(dataset_modified.wait(30))
         
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(20))
+        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([32.2]*20))
 
 
     def create_lookup_contexts(self):
