@@ -11,7 +11,7 @@ def trend_parser(document):
     '''
     This parser YIELDS a document per call or until it's done
     The format for the document is CSV in this table format
-    Array,Instrument Class,Reference Designator,Data Product In,Time interval length in days,Polynomial order, Standard deviation reduction factor (nstd)
+    Array,Instrument Class,Reference Designator,Data Product,Time interval length in days,Polynomial order, Standard deviation reduction factor (nstd)
 
     Document Schema:
         array:
@@ -24,7 +24,7 @@ def trend_parser(document):
             origin: Reference Designator
             type: String
         data_product_in:
-            origin: Data Product In
+            origin: Data Product
             type: String
         time_interval:
             origin: Time interval length in days
@@ -44,14 +44,14 @@ def trend_parser(document):
 
     dr = DictReader(sio)
     for row in dr:
-        key = '_'.join([row['Reference Designator'], row['Data Product In']])
+        key = '_'.join(['trend', row['Reference Designator'], row['Data Product']])
         document = {}
         document['array']                = row['Array']
         document['instrument_class']     = row['Instrument Class']
         document['reference_designator'] = row['Reference Designator']
-        document['data_product_in']      = row['Data Product In']
-        document['time_interval']        = row['Time interval length in days']
-        document['polynomial_order']     = row['Polynomial Order']
+        document['data_product_in']      = row['Data Product']
+        document['time_interval']        = float(row['Time interval length in days'])
+        document['polynomial_order']     = row['Polynomial order']
         document['standard_deviation']   = float(row['Standard deviation reduction factor (nstd)'])
         yield key,document
     return
