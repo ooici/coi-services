@@ -6,11 +6,10 @@ __license__ = 'Apache 2.0'
 import inspect, ast, simplejson, sys, traceback, string, copy
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
-from werkzeug.datastructures import MultiDict
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
-from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict, is_ion_object, isenum
+from pyon.core.registry import getextends, is_ion_object_dict, is_ion_object, isenum
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.event.event import EventSubscriber
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -518,6 +517,7 @@ def create_parameter_list(request_type, service_name, target_client,operation, j
 
 #Helper function for creating and initializing an ION object from a dictionary of parameters.
 def create_ion_object(object_params):
+    #new_obj = _io_deserializer.deserialize(object_params)
     new_obj = IonObject(object_params["type_"])
 
     #Iterate over the parameters to add to object; have to do this instead

@@ -12,7 +12,7 @@ from webtest import TestApp
 
 from pyon.core.registry import getextends
 from ion.services.coi.service_gateway_service import service_gateway_app, GATEWAY_RESPONSE, \
-    GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, GATEWAY_ERROR_TRACE
+            GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION, GATEWAY_ERROR_TRACE
 
 from interface.services.coi.iservice_gateway_service import ServiceGatewayServiceClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient
@@ -51,9 +51,8 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 #These are supposed to be unicode fields that contain unicode characters.
 DATA_PRODUCT_NAME = u"♣ TestDataProduct ♥"
 DATA_PRODUCT_DESCRIPTION = u"A test data product Ĕ ∆"
-TEMPORAL_DOMAIN = {'1':u"♣ Temporal Domain ♥", '2':'u"A test data product Ĕ ∆"'}
-
-
+TEMPORAL_DOMAIN = {'1':u"♣ Temporal Domain ♥", '2Ĕ':u"A test data product Ĕ ∆",
+                   3:{'1':u"♣ Temporal Domain ♥", '2Ĕ':u"A test data product Ĕ ∆", 4:[u"♣ Temporal Domain ♥", {1:u'one','2Ĕ':u"A test data product Ĕ ∆"}]}}
 def convert_unicode(data):
     if isinstance(data, unicode):
         return str(data.encode('utf8'))
