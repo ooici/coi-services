@@ -1122,6 +1122,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Refresh headers with new role
         actor_header = get_actor_header(actor_id)
 
+        #now try to request the same role for the same user - should be denied
+        with self.assertRaises(BadRequest) as cm:
+            sap = IonObject(OT.RequestRoleProposal,consumer=actor_id, provider=org2_id, role_name=INSTRUMENT_OPERATOR_ROLE )
+            sap_response = self.org_client.negotiate(sap, headers=actor_header )
+        self.assertIn('A precondition for this request has not been satisfied: not has_role',cm.exception.message)
+
         #Now the user with the proper role should be able to create an instrument.
         self.ims_client.create_instrument_agent(ia_obj, headers=actor_header)
 

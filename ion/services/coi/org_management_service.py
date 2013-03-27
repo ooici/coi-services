@@ -15,6 +15,7 @@ from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, Negoti
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from interface.objects import NegotiationStatusEnum
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
 #references to local functions to make this more dynamic
@@ -27,7 +28,8 @@ negotiation_rules = {
     },
 
     OT.RequestRoleProposal: {
-        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)'],
+        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)',
+                           'not has_role(sap.provider,sap.consumer,sap.role_name)'],
         'accept_action': 'grant_role(sap.provider,sap.consumer,sap.role_name)',
         'auto_accept': True
     },
@@ -1193,7 +1195,7 @@ class OrgManagementService(BaseOrgManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
             user_id=user_id,
-            negotiation_status=0)
+            negotiation_status=NegotiationStatusEnum.OPEN)
 
 
         #Fill out service request information for requesting data products
@@ -1265,18 +1267,6 @@ class OrgManagementService(BaseOrgManagementService):
 #                                      if x not in extended_org.platforms_deployed]
 
 
-        #TODO - discuss with Maurice - temporarily comment out
-#        open_negotiations = []
-#        #filer out the accepted/rejected negotiations and place in closed_negotiations
-#        if hasattr(extended_org, 'open_negotiations'):
-#            for negotiation in extended_org.open_negotiations:
-#                if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
-#                    open_negotiations.append(negotiation)
-#                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
-#                     negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
-#                    extended_org.closed_negotiations.append(negotiation)
-#            extended_org.open_negotiations = open_negotiations
-
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
@@ -1344,13 +1334,6 @@ class OrgManagementService(BaseOrgManagementService):
         extended_org.computed.location_status_roll_up       = short_status_rollup("loc")
         extended_org.computed.aggregated_status             = short_status_rollup("agg")
 
-        #TODO -  discuss with Maurice - temporarily comment out
-        #set counter attributes
-        #extended_org.number_of_platforms            = len(extended_org.platforms)
-        #extended_org.number_of_platforms_deployed   = len(extended_org.platforms_deployed)
-        #extended_org.number_of_instruments          = len(extended_org.instruments)
-        #extended_org.number_of_instruments_deployed = len(extended_org.instruments_deployed)
-        #extended_org.number_of_data_products        = len(extended_org.data_products)
 
         return extended_org
 
