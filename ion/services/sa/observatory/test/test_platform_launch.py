@@ -28,7 +28,11 @@ import time
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
+from mock import patch
+from pyon.public import CFG
 
+
+@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 class TestPlatformLaunch(BaseIntTestPlatform):
 
     def _run_commands(self):

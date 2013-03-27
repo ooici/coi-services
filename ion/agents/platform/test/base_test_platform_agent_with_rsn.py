@@ -35,7 +35,6 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 import logging
-from pyon.public import CFG
 from pyon.public import IonObject
 from pyon.core.exception import ServerError
 
@@ -164,7 +163,6 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 180}}})
 class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     """
     A base class with several conveniences supporting specific platform agent
