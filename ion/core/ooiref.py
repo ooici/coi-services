@@ -39,7 +39,8 @@ class OOIReferenceDesignator(object):
             self.rd_subtype = "class"
             self.dataproduct = rdstr
         else:
-            m = re.match('^([A-Z]{2})(?:(\d{2})(?:(\w{4})(?:-([A-Z]{2})(?:([A-Z0-9]{3})(?:-(\d{2})(?:-([A-Z0-9]{5})([A-Z0-9])(\d{3})?)?)?)?)?)?)?$', rdstr)
+            #              <array   >   <site >   <subs >   -<nodetype>   <nodeseq    >   -<port#      >   -<instclass  ><series  ><seq>
+            m = re.match('^([A-Z]{2})(?:(\d{2})(?:(\w{4})(?:-([A-Z]{2})(?:([A-Z0-9]{3})(?:-([A-Z0-9]{2})(?:-([A-Z0-9]{5})([A-Z0-9])(\d{3})?)?)?)?)?)?)?$', rdstr)
             if m:
                 self.rd_type = "asset"
                 self.array, self.site, self.subsite, self.node_type, self.node_seq, self.port, self.inst_class, self.inst_series, self.inst_seq = m.groups()

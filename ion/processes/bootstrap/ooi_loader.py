@@ -47,6 +47,7 @@ class OOILoader(object):
                        'AttributeReportSubseries',
                        'AttributeReportSubsites',
                        # Additional attributes and links taken from aggregate reports
+                       'NodeTypes',
                        'InstrumentCatalogFull',
                        'DataQCLookupTables',
                        'DataProductSpreadsheet',
@@ -190,7 +191,7 @@ class OOILoader(object):
             Class_Name=row['Class_Name'])
 
     def _parse_AttributeReportDataProducts(self, row):
-        key = row['Data_Product_Identifier'] + "_L" + row['Data_Product_Level']
+        key = row['Data_Product_Identifier'].strip() + "_L" + row['Data_Product_Level'].strip()
         ooi_rd = OOIReferenceDesignator(key)
         if ooi_rd.error or not ooi_rd.rd_type == "dataproduct" or not ooi_rd.rd_subtype == "level":
             msg = "invalid_rd: %s is not a data product reference designator" % (ooi_rd.rd)
@@ -225,6 +226,12 @@ class OOILoader(object):
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             mapping={},
             Node_Type=row['Node_Type'], Node_Site_Sequence=row['Node_Site_Sequence'])
+
+    def _parse_NodeTypes(self, row):
+        self._add_object_attribute('nodetype1',
+                                   row['LNodeType'], None, None,
+                                   mapping={'Name':'name'},
+                                   Name=row['Name'])
 
     def _parse_AttributeReportPorts(self, row):
         ooi_rd = OOIReferenceDesignator(row['Port'])
@@ -292,7 +299,7 @@ class OOILoader(object):
             instrument_subseries=row['SSubseries_PublicID'],
             instrument_model=subseries_id,
             makemodel=row['MMInstrument_PublicID'],
-            ready_for_2013=row['Textbox16']
+            ready_for_2013=row['Ready_For_2013_']
         )
         self._add_object_attribute('instrument',
             refid, None, None, **entry)
@@ -322,7 +329,7 @@ class OOILoader(object):
             refid, None, None, Class=row['SClass_PublicID'])
 
         dpl = row['Data_Product_With_Level']
-        m = re.match('^([A-Z0-9_]{7}) \((L\d)\)$', dpl)
+        m = re.match('^([A-Z0-9_]{7})\s+\((L\d)\)$', dpl)
         if not m:
             msg = "invalid_rd: %s is not a data product designator" % (dpl)
             self.warnings.append((refid, msg))
@@ -335,26 +342,26 @@ class OOILoader(object):
 
     def _parse_DataProductSpreadsheet(self, row):
         dp_types = self.ooi_objects['data_product_type']
-        dp_type = row['Data_Product_Identifier']
+        dp_type = row['Data_Product_Identifier'].strip()
         dpt_obj = dp_types.get(dp_type, {})
-        key = dp_type + "_" + row['Data_Product_Level1']
+        key = dp_type + "_" + row['Data_Product_Level1'].strip()
         entry = dpt_obj.copy()
         entry.update(dict(
-            name=row['Data_Product_Name'],
-            level=row['Data_Product_Level1'],
-            units=row['Units'],
-            dps=row['DPS_DCN_s_'],
-            diagrams=row['Processing_Flow_Diagram_DCN_s_'],
+            name=row['Data_Product_Name'].strip(),
+            level=row['Data_Product_Level1'].strip(),
+            units=row['Units'].strip(),
+            dps=row['DPS_DCN_s_'].strip(),
+            diagrams=row['Processing_Flow_Diagram_DCN_s_'].strip(),
         ))
         self._add_object_attribute('data_product',
             key, None, None, **entry)
         self._add_object_attribute('data_product',
-            key, 'instrument_class_list', row['Instrument_Class'], value_is_list=True)
+            key, 'instrument_class_list', row['Instrument_Class'].strip(), value_is_list=True)
 
     def _parse_AllSensorTypeCounts(self, row):
         # Adds family to instrument class
         self._add_object_attribute('class',
-            row['Class'], 'family', row['Family'])
+            row['Class'].strip(), 'family', row['Family'].strip())
 
     def _parse_Arrays(self, row):
         ooi_rd = row['Reference ID']

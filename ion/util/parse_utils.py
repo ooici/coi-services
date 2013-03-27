@@ -11,7 +11,7 @@ from pyon.public import iex, IonObject, log
 from interface import objects
 
 
-def get_typed_value(self, value, schema_entry=None, targettype=None):
+def get_typed_value(value, schema_entry=None, targettype=None):
     """
     Performs a value type conversion according to a schema specified target type.
     """
