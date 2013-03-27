@@ -28,7 +28,8 @@ negotiation_rules = {
     },
 
     OT.RequestRoleProposal: {
-        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)'],
+        'pre_conditions': ['is_enrolled(sap.provider,sap.consumer)',
+                           'not has_role(sap.provider,sap.consumer,sap.role_name)'],
         'accept_action': 'grant_role(sap.provider,sap.consumer,sap.role_name)',
         'auto_accept': True
     },
