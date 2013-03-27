@@ -958,3 +958,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def update_parser(self, parser=None):
         if parser:
             self.clients.resource_registry.update(parser)
+
+
+    def register_producer_qc_table(self, producer_id='', document_keys=None):
+        document_keys = document_keys or []
+
+        producer_obj = self.clients.resource_registry.read(producer_id)
+        producer_obj.producer_context.configuration['qc_keys'] = document_keys
+
+        self.clients.resource_registry.update(producer_obj)
+        return True
+
+
