@@ -10,6 +10,7 @@ import re
 
 from pyon.public import log, iex
 from ion.core.ooiref import OOIReferenceDesignator
+from pyon.datastore.datastore import DatastoreManager, DataStore
 from ion.util.xlsparser import XLSParser
 
 class OOILoader(object):
@@ -484,3 +485,36 @@ class OOILoader(object):
             return None
         else:
             return ooi_rd.marine_io
+
+    def delete_ooi_assets(self):
+        res_ids = []
+
+        ooi_asset_types = ['InstrumentModel',
+                           'PlatformModel',
+                           'Observatory',
+                           'Subsite',
+                           'PlatformSite',
+                           'InstrumentSite',
+                           'InstrumentAgent',
+                           'InstrumentDevice',
+                           'PlatformAgent',
+                           'PlatformDevice',
+                           'DataProduct'
+        ]
+
+        for restype in ooi_asset_types:
+            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
+            res_ids.extend(res_is_list)
+            #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
+
+        self.resource_ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
+
+        docs = self.resource_ds.read_doc_mult(res_ids)
+
+        for doc in docs:
+            doc['_deleted'] = True
+
+        # TODO: Also delete associations
+
+        self.resource_ds.update_doc_mult(docs)
+        log.info("Deleted %s OOI resources and associations", len(docs))

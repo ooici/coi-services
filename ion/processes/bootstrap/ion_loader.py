@@ -43,30 +43,6 @@
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
 
 
-from pyon.core.bootstrap import get_service_registry
-from pyon.core.exception import NotFound
-from pyon.datastore.datastore import DatastoreManager
-from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
-from pyon.ion.resource import get_restype_lcsm
-from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS
-from pyon.util.containers import get_ion_ts, named_any
-from ion.core.ooiref import OOIReferenceDesignator
-from ion.processes.bootstrap.ooi_loader import OOILoader
-from ion.processes.bootstrap.ui_loader import UILoader
-from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import TypesManager 
-from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.util.xlsparser import XLSParser
-
-from coverage_model.parameter import ParameterContext
-from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
-from coverage_model.basic_types import AxisTypeEnum
-from coverage_model import NumexprFunction, PythonFunction
-
-
-from interface import objects
-from interface.objects import StreamAlarmType
-
 import logging
 import simplejson as json
 import ast
@@ -76,6 +52,32 @@ import numpy as np
 import re
 import requests
 import time
+
+from pyon.core.bootstrap import get_service_registry
+from pyon.core.exception import NotFound
+from pyon.datastore.datastore import DatastoreManager, DataStore
+from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
+from pyon.ion.resource import get_restype_lcsm
+from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS
+from pyon.util.containers import get_ion_ts, named_any
+
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.core.ooiref import OOIReferenceDesignator
+from ion.processes.bootstrap.ooi_loader import OOILoader
+from ion.processes.bootstrap.ui_loader import UILoader
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.utility.types import TypesManager 
+from ion.util.parse_utils import parse_dict, parse_phones, get_typed_value
+from ion.util.xlsparser import XLSParser
+
+from coverage_model.parameter import ParameterContext
+from coverage_model.parameter_types import QuantityType, ArrayType, RecordType
+from coverage_model.basic_types import AxisTypeEnum
+from coverage_model import NumexprFunction, PythonFunction
+
+from interface import objects
+from interface.objects import StreamAlarmType
+
 
 # format for time values within the preload data
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
@@ -208,7 +210,7 @@ class IONLoader(ImmediateProcess):
         # External loader tools
         self.ui_loader = UILoader(self)
         self.ooi_loader = OOILoader(self, asset_path=self.asset_path)
-        self.resource_ds = DatastoreManager.get_datastore_instance("resources")
+        self.resource_ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
 
         # Loads internal bootstrapped resource ids that will be referenced during preload
         self._load_system_ids()
@@ -240,7 +242,7 @@ class IONLoader(ImmediateProcess):
             specs_path = 'interface/ui_specs.json' if self.exportui else None
             self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
         elif op == "deleteooi":
-            self.delete_ooi_assets()
+            self.ooi_loader.delete_ooi_assets()
         elif op == "deleteui":
             self.ui_loader.delete_ui()
         else:
@@ -467,7 +469,7 @@ class IONLoader(ImmediateProcess):
                 elif fieldname in schema:
                     try:
                         if value:
-                            fieldvalue = self._get_typed_value(value, schema[fieldname])
+                            fieldvalue = get_typed_value(value, schema[fieldname])
                             obj_fields[fieldname] = fieldvalue
                     except Exception:
                         log.warn("Object type=%s, prefix=%s, field=%s cannot be converted to type=%s. Value=%s",
@@ -520,45 +522,6 @@ class IONLoader(ImmediateProcess):
         except:
             log.error('failed to find class for type %s' % objtype)
 
-    def _get_typed_value(self, value, schema_entry=None, targettype=None):
-        """
-        Performs a value type conversion according to a schema specified target type.
-        """
-        targettype = targettype or schema_entry["type"]
-        if schema_entry and 'enum_type' in schema_entry:
-            enum_clzz = getattr(objects, schema_entry['enum_type'])
-            return enum_clzz._value_map[value]
-        elif targettype is 'str':
-            return str(value)
-        elif targettype is 'bool':
-            lvalue = value.lower()
-            if lvalue == 'true' or lvalue == '1':
-               return True
-            elif lvalue == 'false' or lvalue == '' or lvalue == '0':
-                return False
-            else:
-                raise iex.BadRequest("Value %s is no bool" % value)
-        elif targettype is 'int':
-            try:
-                return int(value)
-            except Exception:
-                log.warn("Value %s is type %s not type %s" % (value, type(value), targettype))
-                return ast.literal_eval(value)
-        elif targettype is 'float':
-            try:
-                return float(value)
-            except Exception:
-                log.warn("Value %s is type %s not type %s" % (value, type(value), targettype))
-                return ast.literal_eval(value)
-        elif targettype is 'simplelist':
-            if value.startswith('[') and value.endswith(']'):
-                value = value[1:len(value)-1].strip()
-            elif not value.strip():
-                return []
-            return list(value.split(','))
-        else:
-            log.trace('parsing value as %s: %s', targettype, value)
-            return ast.literal_eval(value)
 
     """
     there is a data representation problem affecting our boolean fields in preload data
@@ -648,6 +611,16 @@ class IONLoader(ImmediateProcess):
         elif force_user:
             return self._get_system_actor_headers()
         return headers
+
+    def _get_system_actor_headers(self):
+        return {'ion-actor-id': self.resource_ids[ID_SYSTEM_ACTOR],
+                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
+                'expiry':'0'}
+
+    def _get_webauth_actor_headers(self):
+        return {'ion-actor-id': self.resource_ids[ID_WEB_AUTH_ACTOR],
+                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
+                'expiry':'0'}
 
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
                                constraints=None, constraint_field='constraint_list',
@@ -750,7 +723,7 @@ class IONLoader(ImmediateProcess):
         """
         org_ids = row.get(COL_ORGS, None)
         if org_ids:
-            org_ids = self._get_typed_value(org_ids, targettype="simplelist")
+            org_ids = get_typed_value(org_ids, targettype="simplelist")
             for org_id in org_ids:
                 org_res_id = self.resource_ids[org_id]
                 if self.bulk and res_id in self.bulk_objects:
@@ -781,7 +754,7 @@ class IONLoader(ImmediateProcess):
         values = []
         value = row[field]
         if value:
-            names = self._get_typed_value(value, targettype="simplelist")
+            names = get_typed_value(value, targettype="simplelist")
             if names:
                 for name in names:
                     if name not in value_map:
@@ -825,6 +798,7 @@ class IONLoader(ImmediateProcess):
         else:
             return self.container.resource_registry.create_association(subject, predicate, obj)
 
+
     # --------------------------------------------------------------------------------------------------
     # Add specific types of resources below
 
@@ -836,10 +810,10 @@ class IONLoader(ImmediateProcess):
         if id in self.contact_defs:
             raise iex.BadRequest('contact with ID already exists: ' + id)
 
-        roles = self._get_typed_value(row['c/roles'], targettype='simplelist')
+        roles = get_typed_value(row['c/roles'], targettype='simplelist')
         del row['c/roles']
-        #        phones = self._get_typed_value(row['c/phones'], targettype='simplelist')
-        phones = self._parse_phones(row['c/phones'])
+        #        phones = get_typed_value(row['c/phones'], targettype='simplelist')
+        phones = parse_phones(row['c/phones'])
         del row['c/phones']
 
         contact = self._create_object_from_row("ContactInformation", row, "c/")
@@ -847,103 +821,6 @@ class IONLoader(ImmediateProcess):
         contact.phones = phones
 
         self.contact_defs[id] = contact
-
-    def _parse_dict(self, text):
-        """
-        parse a "simple" dictionary of unquoted string keys and values. -- no nested values, no complex characters
-
-        But is it really simple?  Not quite.  The following substitutions are made:
-
-        keys with dots ('.') will be split into dictionaries.
-        booleans "True", "False" will be parsed
-        numbers will be parsed as floats unless they begin with "0" or include one "." and end with "0"
-        "{}" will be converted to {}
-        "[]" will be converted to [] (that's "[ ]" with no space)
-
-        For example, an entry in preload would be this:
-
-        PARAMETERS.TXWAVESTATS: False,
-        PARAMETERS.TXREALTIME: True,
-        PARAMETERS.TXWAVEBURST: false,
-        SCHEDULER.ACQUIRE_STATUS: {},
-        SCHEDULER.CLOCK_SYNC: 48.2
-        SCHEDULER.VERSION.number: 3.0
-
-        which would translate back to
-        { "PARAMETERS": { "TXWAVESTATS": False, "TXREALTIME": True, "TXWAVEBURST": "false" },
-          "SCHEDULER": { "ACQUIRE_STATUS": { }, "CLOCK_SYNC", 48.2, "VERSION": {"number": "3.0"}}
-        }
-
-        """
-
-        substitutions = {"{}": {}, "[]": [], "True": True, "False": False}
-
-        def parse_value(some_val):
-            if some_val in substitutions:
-                return substitutions[some_val]
-
-            try:
-                int_val = int(some_val)
-                if str(int_val) == some_val:
-                    return int_val
-            except ValueError:
-                pass
-
-            try:
-                float_val = float(some_val)
-                if str(float_val) == some_val:
-                    return float_val
-            except ValueError:
-                pass
-
-            return some_val
-
-
-        def chomp_key_list(out_dict, keys, value):
-            """
-            turn keys like ['a', 'b', 'c', 'd'] and a value into
-            out_dict['a']['b']['c']['d'] = value
-            """
-            dict_ptr = out_dict
-            last_ptr = out_dict
-            for i, key in enumerate(keys):
-                last_ptr = dict_ptr
-                if not key in dict_ptr:
-                    dict_ptr[key] = {}
-                else:
-                    if type(dict_ptr[key]) != type({}):
-                        raise iex.BadRequest("Building a dict in %s field, but it exists as %s already" %
-                                             (key, type(dict_ptr[key])))
-                dict_ptr = dict_ptr[key]
-            last_ptr[keys[-1]] = value
-
-
-        out = { }
-        pairs = text.split(',') # pairs separated by commas
-        for pair in pairs:
-            if 0 == pair.count(':'):
-                continue
-            fields = pair.split(':') # pair separated by colon
-            key = fields[0].strip()
-            value = fields[1].strip()
-
-            keyparts = key.split(".")
-            chomp_key_list(out, keyparts, parse_value(value))
-
-
-        return out
-
-
-    def _parse_phones(self, text):
-        if ':' in text:
-            out = []
-            for type,number in self._parse_dict(text).iteritems():
-                out.append(IonObject("Phone", phone_number=number, phone_type=type))
-            return out
-        elif text:
-            return [ IonObject("Phone", phone_number=text.strip(), phone_type='office') ]
-        else:
-            return []
 
     def _load_Constraint(self, row):
         """ create constraint IonObject but do not insert into DB,
@@ -1000,16 +877,6 @@ class IONLoader(ImmediateProcess):
         start = calendar.timegm(time.strptime(row['start'], format))
         end = calendar.timegm(time.strptime(row['end'], format))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
-
-    def _get_system_actor_headers(self):
-        return {'ion-actor-id': self.resource_ids[ID_SYSTEM_ACTOR],
-               'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
-               'expiry':'0'}
-
-    def _get_webauth_actor_headers(self):
-        return {'ion-actor-id': self.resource_ids[ID_WEB_AUTH_ACTOR],
-                'ion-actor-roles': {'ION': ['ION_MANAGER', 'ORG_MANAGER']},
-                'expiry':'0'}
 
     def _load_User(self, row):
         # TODO: Make the calls below with an actor_id for the web server
@@ -1096,6 +963,9 @@ class IONLoader(ImmediateProcess):
             res_obj._id = res_id
             self._register_id(row[COL_ID], res_id, res_obj)
 
+    def _load_Org_OOI(self):
+        pass
+
     def _load_UserRole(self, row):
         org_id = row["org_id"]
         if org_id:
@@ -1112,7 +982,7 @@ class IONLoader(ImmediateProcess):
             svc_client.grant_role(org_id, user_id, role_name, headers=self._get_system_actor_headers())
 
     def _load_SensorModel(self, row):
-        row['sm/reference_urls'] = repr(self._get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
+        row['sm/reference_urls'] = repr(get_typed_value(row['sm/reference_urls'], targettype="simplelist"))
         self._basic_resource_create(row, "SensorModel", "sm/",
             "instrument_management", "create_sensor_model",
             support_bulk=True)
@@ -1166,7 +1036,7 @@ class IONLoader(ImmediateProcess):
             self._load_PlatformModel(fakerow)
 
     def _load_InstrumentModel(self, row):
-        row['im/reference_urls'] = repr(self._get_typed_value(row['im/reference_urls'], targettype="simplelist"))
+        row['im/reference_urls'] = repr(get_typed_value(row['im/reference_urls'], targettype="simplelist"))
         self._basic_resource_create(row, "InstrumentModel", "im/",
             "instrument_management", "create_instrument_model",
             support_bulk=True)
@@ -1337,7 +1207,7 @@ class IONLoader(ImmediateProcess):
 
         pm_ids = row["platform_model_ids"]
         if pm_ids:
-            pm_ids = self._get_typed_value(pm_ids, targettype="simplelist")
+            pm_ids = get_typed_value(pm_ids, targettype="simplelist")
             for pm_id in pm_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(pm_id)
@@ -1420,7 +1290,7 @@ class IONLoader(ImmediateProcess):
 
         im_ids = row["instrument_model_ids"]
         if im_ids:
-            im_ids = self._get_typed_value(im_ids, targettype="simplelist")
+            im_ids = get_typed_value(im_ids, targettype="simplelist")
             for im_id in im_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(im_id)
@@ -1723,7 +1593,7 @@ Reason: %s
             self._load_PlatformDevice(fakerow)
 
     def _load_InstrumentDevice(self, row):
-        row['id/reference_urls'] = repr(self._get_typed_value(row['id/reference_urls'], targettype="simplelist"))
+        row['id/reference_urls'] = repr(get_typed_value(row['id/reference_urls'], targettype="simplelist"))
         contacts = self._get_contacts(row, field='contact_ids', type='InstrumentDevice')
         res_id = self._basic_resource_create(row, "InstrumentDevice", "id/",
             "instrument_management", "create_instrument_device", contacts=contacts,
@@ -1873,7 +1743,7 @@ Reason: %s
         self.stream_config[row['ID']] = obj
 
     def _load_InstrumentAgent(self, row):
-        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
         res_id = self._basic_resource_create(row, "InstrumentAgent", "ia/",
@@ -1893,7 +1763,7 @@ Reason: %s
         headers = self._get_op_headers(row)
         im_ids = row["instrument_model_ids"]
         if im_ids:
-            im_ids = self._get_typed_value(im_ids, targettype="simplelist")
+            im_ids = get_typed_value(im_ids, targettype="simplelist")
             for im_id in im_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(im_id)
@@ -1924,8 +1794,8 @@ Reason: %s
 
     def _load_InstrumentAgentInstance(self, row):
 
-        startup_config = self._parse_dict(row['startup_config'])
-        alerts_config  = self._parse_dict(row['alerts'])
+        startup_config = parse_dict(row['startup_config'])
+        alerts_config  = parse_dict(row['alerts'])
 
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
@@ -1959,7 +1829,7 @@ Reason: %s
 
 
     def _load_PlatformAgent(self, row):
-        stream_config_names = self._get_typed_value(row['stream_configurations'], targettype="simplelist")
+        stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
         stream_configurations = [ self.stream_config[name] for name in stream_config_names ]
 
         res_id = self._basic_resource_create(row, "PlatformAgent", "pa/",
@@ -1978,7 +1848,7 @@ Reason: %s
         headers = self._get_op_headers(row)
         model_ids = row["platform_model_ids"]
         if model_ids:
-            model_ids = self._get_typed_value(model_ids, targettype="simplelist")
+            model_ids = get_typed_value(model_ids, targettype="simplelist")
             for model_id in model_ids:
                 if self.bulk:
                     model_obj = self._get_resource_obj(model_id)
@@ -2011,10 +1881,10 @@ Reason: %s
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
 
-        driver_config = self._parse_dict(row['driver_config'])
+        driver_config = parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
 
-        alerts_config  = self._parse_dict(row['alerts'])
+        alerts_config  = parse_dict(row['alerts'])
 
         # Note: platform_id currently expected by PlatformAgent as follows:
         agent_config = {
@@ -2046,7 +1916,7 @@ Reason: %s
 
         input_strdef = row["input_stream_defs"]
         if input_strdef:
-            input_strdef = self._get_typed_value(input_strdef, targettype="simplelist")
+            input_strdef = get_typed_value(input_strdef, targettype="simplelist")
         log.trace("Assigning input StreamDefinition to DataProcessDefinition for %s" % input_strdef)
         headers = self._get_op_headers(row)
 
@@ -2056,7 +1926,7 @@ Reason: %s
 
         output_strdef = row["output_stream_defs"]
         if output_strdef:
-            output_strdef = self._get_typed_value(output_strdef, targettype="dict")
+            output_strdef = get_typed_value(output_strdef, targettype="dict")
         for binding, strdef in output_strdef.iteritems():
             svc_client.assign_stream_definition_to_data_process_definition(self.resource_ids[strdef], res_id, binding,
                 headers=headers)
@@ -2067,11 +1937,11 @@ Reason: %s
         in_data_product_id = self.resource_ids[row["in_data_product_id"]]
         configuration = row["configuration"]
         if configuration:
-            configuration = self._get_typed_value(configuration, targettype="dict")
+            configuration = get_typed_value(configuration, targettype="dict")
 
         out_data_products = row["out_data_products"]
         if out_data_products:
-            out_data_products = self._get_typed_value(out_data_products, targettype="dict")
+            out_data_products = get_typed_value(out_data_products, targettype="dict")
             for name, dp_id in out_data_products.iteritems():
                 out_data_products[name] = self.resource_ids[dp_id]
 
@@ -2102,7 +1972,7 @@ Reason: %s
         res_obj.temporal_domain = tdom.dump()
         # HACK: cannot parse CSV value directly when field defined as "list"
         # need to evaluate as simplelist instead and add to object explicitly
-        res_obj.available_formats = self._get_typed_value(row['available_formats'], targettype="simplelist")
+        res_obj.available_formats = get_typed_value(row['available_formats'], targettype="simplelist")
 
         headers = self._get_op_headers(row)
 
@@ -2284,7 +2154,7 @@ Reason: %s
         steps_string = row["steps"]
         workflow_step_ids = []
         if steps_string:
-            workflow_step_ids = self._get_typed_value(steps_string, targettype="simplelist")
+            workflow_step_ids = get_typed_value(steps_string, targettype="simplelist")
         else:
             log.info("No steps found for workflow definition. Ignoring this entry")
             return
@@ -2311,7 +2181,7 @@ Reason: %s
         # prepare the config dict
         configuration = row['configuration']
         if configuration:
-            configuration = self._get_typed_value(configuration, targettype="dict")
+            configuration = get_typed_value(configuration, targettype="dict")
             configuration["in_dp_id"] = in_dp_id
 
         headers = self._get_op_headers(row)
@@ -2346,35 +2216,5 @@ Reason: %s
         if self._as_boolean(row['activate']):
             oms.activate_deployment(deployment_id, headers=headers)
 
-    def delete_ooi_assets(self):
-        res_ids = []
-
-        ooi_asset_types = ['InstrumentModel',
-                           'PlatformModel',
-                           'Observatory',
-                           'Subsite',
-                           'PlatformSite',
-                           'InstrumentSite',
-                           'InstrumentAgent',
-                           'InstrumentDevice',
-                           'PlatformAgent',
-                           'PlatformDevice',
-                           'DataProduct'
-                           ]
-
-        for restype in ooi_asset_types:
-            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
-            res_ids.extend(res_is_list)
-            #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
-
-        docs = self.resource_ds.read_doc_mult(res_ids)
-
-        for doc in docs:
-            doc['_deleted'] = True
-
-        # TODO: Also delete associations
-
-        self.resource_ds.update_doc_mult(docs)
-        log.info("Deleted %s OOI resources and associations", len(docs))
 
 
