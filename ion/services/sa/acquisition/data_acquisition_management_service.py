@@ -960,7 +960,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.update(parser)
 
 
-    def register_producer_qc_table(self, producer_id='', document_keys=None):
+    def register_producer_qc_table(self, producer_id='', parser_id='', attachment_id=''):
+
+        document = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
+        document_keys = [] #  self.parse_document(parser_id, document)
+
         document_keys = document_keys or []
 
         producer_obj = self.clients.resource_registry.read(producer_id)
