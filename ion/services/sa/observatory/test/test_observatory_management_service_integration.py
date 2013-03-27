@@ -19,7 +19,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-
+from pyon.core.governance import get_actor_header
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old
@@ -583,6 +583,17 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                             data_product_id=data_product_id1)
 
 
+        #Create a  user to be used as regular member
+        member_actor_obj = IonObject(RT.ActorIdentity, name='org member actor')
+        member_actor_id,_ = self.RR.create(member_actor_obj)
+        assert(member_actor_id)
+        member_actor_header = get_actor_header(member_actor_id)
+
+        #Build the Service Agreement Proposal to enroll a user actor
+        sap = IonObject(OT.EnrollmentProposal,consumer=member_actor_id, provider=stuff.org_id )
+
+        sap_response = self.org_management_service.negotiate(sap, headers=member_actor_header )
+
         #--------------------------------------------------------------------------------
         # Get the extended Site (platformSite)
         #--------------------------------------------------------------------------------
@@ -607,6 +618,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(2, extended_org.number_of_instruments)
         self.assertEqual(2, len(extended_org.instrument_models) )
+
+        self.assertEqual(1, len(extended_org.open_negotiations))
 
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
