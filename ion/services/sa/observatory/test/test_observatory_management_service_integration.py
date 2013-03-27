@@ -412,32 +412,32 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                         name='TestPlatformSite',
                                         description='some new TestPlatformSite')
         geo_index_obj = IonObject(OT.GeospatialBounds)
-        geo_index_obj.geospatial_latitude_limit_north = 200.0
-        geo_index_obj.geospatial_latitude_limit_south = 100.0
-        geo_index_obj.geospatial_longitude_limit_east = 150.0
-        geo_index_obj.geospatial_longitude_limit_west = 200.0
+        geo_index_obj.geospatial_latitude_limit_north = 20.0
+        geo_index_obj.geospatial_latitude_limit_south = 10.0
+        geo_index_obj.geospatial_longitude_limit_east = 15.0
+        geo_index_obj.geospatial_longitude_limit_west = 20.0
         platformsite_obj.constraint_list = [geo_index_obj]
 
         platformsite_id = self.OMS.create_platform_site(platformsite_obj)
 
         # now get the dp back to see if it was updated
         platformsite_obj = self.OMS.read_platform_site(platformsite_id)
-        self.assertEquals(platformsite_obj.description,'some new TestPlatformSite')
-        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 150.0)
+        self.assertEquals('some new TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(15.0, platformsite_obj.geospatial_point_center.lat, places=1)
 
 
         #now adjust a few params
-        platformsite_obj.description ='some old TestPlatformSite'
+        platformsite_obj.description = 'some old TestPlatformSite'
         geo_index_obj = IonObject(OT.GeospatialBounds)
-        geo_index_obj.geospatial_latitude_limit_north = 300.0
-        geo_index_obj.geospatial_latitude_limit_south = 200.0
+        geo_index_obj.geospatial_latitude_limit_north = 30.0
+        geo_index_obj.geospatial_latitude_limit_south = 20.0
         platformsite_obj.constraint_list = [geo_index_obj]
         update_result = self.OMS.update_platform_site(platformsite_obj)
 
         # now get the dp back to see if it was updated
         platformsite_obj = self.OMS.read_platform_site(platformsite_id)
-        self.assertEquals(platformsite_obj.description,'some old TestPlatformSite')
-        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 250.0)
+        self.assertEquals('some old TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(25.0, platformsite_obj.geospatial_point_center.lat, places=1)
 
         self.OMS.force_delete_platform_site(platformsite_id)
 
