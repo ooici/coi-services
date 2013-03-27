@@ -21,23 +21,16 @@ __license__ = 'Apache 2.0'
 # - ion/agents/platform/test/test_platform_agent_with_rsn.py
 # - ion/services/sa/observatory/test/test_platform_launch.py
 #
-# NOTE: the platform IDs used here are organized as follows:
-#   Node1D -> MJ01C -> LJ01D
+# Platform IDs used here for the various platform hierarchies should be
+# defined in the simulated platform network (network.yml), which in turn
+# is used by the RSN OMS simulator.
 #
-# where -> goes from parent platform to child platform.
-# This is a subset of the whole topology defined in the simulated platform
-# network (network.yml), which in turn is used by the RSN OMS simulator.
-#
-# - 'LJ01D'  is the root platform used in test_single_platform
-# - 'Node1D' is the root platform used in test_hierarchy
-#
-# In DEBUG logging level, the tests generate files like the following:
-#   platform_agent_config_LJ01D.txt
-#   platform_agent_config_Node1D_->_MJ01C.txt
-#   platform_agent_config_Node1D_final.txt
-# containing the corresponding platform agent configurations as they are
-# constructed. In particular, the latter will be the whole configuration used
-# for the hierarchy launch test.
+# In DEBUG logging level, the tests may generate files under logs/ like the
+# following:
+#   platform_CFG_generated_LJ01D.txt
+#   platform_CFG_generated_Node1D_->_MJ01C.txt
+#   platform_CFG_generated_Node1D_complete.txt
+# containing the corresponding agent configurations as they are constructed.
 #
 
 from pyon.public import log
@@ -140,6 +133,27 @@ required_config_keys = [
     'children']
 
 
+# Instruments that can be used (see _create_instrument). Reflects the currently
+# available simulators on sbe37-simulator.oceanobservatories.org
+instruments_dict = {
+    "SBE37_SIM_01": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4001,
+        'DATA_PORT' : 4000,
+        'CMD_PORT'  : 4003,
+        'PA_BINARY' : "port_agent"
+    },
+
+    "SBE37_SIM_02": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4002,
+        'DATA_PORT' : 5002,
+        'CMD_PORT'  : 5003,
+        'PA_BINARY' : "port_agent"
+    }
+}
+
+
 class FakeProcess(LocalContextMixin):
     """
     A fake process used because the test case is not an ion process.
@@ -195,14 +209,26 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.org_id = self.RR2.create(any_old(RT.Org))
         log.debug("Org created: %s", self.org_id)
 
+        # Create InstrumentModel
+        # TODO create multiple models as needed; for the moment assuming all
+        # used instruments are the same model here.
+        instModel_obj = IonObject(RT.InstrumentModel,
+                                  name='SBE37IMModel',
+                                  description="SBE37IMModel")
+        self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
+        log.debug('new InstrumentModel id = %s ', self.instModel_id)
+
+        self._create_config_builders()
+
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
         CIOMSClientFactory.destroy_instance(rsn_oms)
 
-        # get serialized version for the configuration:
-        self._network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
-        log.trace("NetworkDefinition serialization:\n%s", self._network_definition_ser)
+        if log.isEnabledFor(logging.TRACE):
+            # show serialized version for the network definition:
+            network_definition_ser = NetworkUtil.serialize_network_definition(self._network_definition)
+            log.trace("NetworkDefinition serialization:\n%s", network_definition_ser)
 
         # set attributes for the platforms:
         self._platform_attributes = {}
@@ -233,6 +259,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._events_received = []
         self.addCleanup(self._stop_event_subscribers)
         self._start_event_subscriber()
+
+        # by default, in DEBUG mode, all intermediate agent configurations
+        # (platforms and instruments) are saved in files (under logs/) by this
+        # test. This flag allows to disable this to control which configurations
+        # to generate.
+        self._debug_config_enabled = True
+
+        # the keys of instruments that have been set up
+        self._setup_instruments = set()
 
     #################################################################
     # data subscribers handling
@@ -326,53 +361,50 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # config supporting methods
     #################################################################
 
-    def _create_platform_config_builder(self):
+    def _create_config_builders(self):
         clients = DotDict()
         clients.resource_registry  = self.RR
         clients.pubsub_management  = self.PSC
         clients.dataset_management = self.DSC
-        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
 
-        # can't do anything without an agent instance obj
-        log.debug("Testing that preparing a launcher without agent instance raises an error")
-        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
+        self.pconfig_builder = PlatformAgentConfigurationBuilder(clients)
 
-        return pconfig_builder
+        self.iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
 
     def _generate_parent_with_child_config(self, p_parent, p_child):
-        log.debug("Testing parent platform + child platform as parent config")
-        pconfig_builder = self._create_platform_config_builder()
-        pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
-        parent_config = pconfig_builder.prepare(will_launch=False)
+        self.pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
+        self.pconfig_builder._update_cached_predicates()
+        parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
                                    p_parent.platform_device_id,
                                    p_child.platform_device_id,
                                    is_platform=True)
 
         self._debug_config(parent_config,
-                           "platform_agent_config_%s_->_%s.txt" % (
+                           "platform_CFG_generated_%s_->_%s.txt" % (
                            p_parent.platform_id, p_child.platform_id))
 
     def _generate_platform_with_instrument_config(self, p_obj, i_obj):
-        log.debug("Testing parent platform + child instrument as parent config")
-        pconfig_builder = self._create_platform_config_builder()
-        pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
-        parent_config = pconfig_builder.prepare(will_launch=False)
+        log.debug("Using pconfig_builder")
+        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
+        self.pconfig_builder._update_cached_predicates()
+        parent_config = self.pconfig_builder.prepare(will_launch=False)
         self._verify_parent_config(parent_config,
                                    p_obj.platform_device_id,
                                    i_obj.instrument_device_id,
                                    is_platform=False)
 
         self._debug_config(parent_config,
-                           "platform_agent_config_%s_->_%s.txt" % (
+                           "platform_CFG_generated_%s_->_%s.txt" % (
                            p_obj.platform_id, i_obj.instrument_device_id))
 
-    def _generate_config(self, platform_agent_instance_obj, platform_id, suffix=''):
-        pconfig_builder = self._create_platform_config_builder()
-        pconfig_builder.set_agent_instance_object(platform_agent_instance_obj)
-        config = pconfig_builder.prepare(will_launch=False)
+    def _generate_platform_config(self, p_obj, suffix=''):
+        log.debug("Using pconfig_builder")
+        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
+        self.pconfig_builder._update_cached_predicates()
+        config = self.pconfig_builder.prepare(will_launch=False)
 
-        self._debug_config(config, "platform_agent_config_%s%s.txt" % (platform_id, suffix))
+        self._debug_config(config, "platform_CFG_generated_%s%s.txt" % (p_obj.platform_id, suffix))
 
         return config
 
@@ -405,26 +437,24 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                 records_per_granule=2, granule_publish_rate=5)
         ]
 
-    def _create_instrument_config_builder(self):
-        clients = DotDict()
-        clients.resource_registry  = self.RR
-        clients.pubsub_management  = self.PSC
-        clients.dataset_management = self.DSC
-        iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
+    def _generate_instrument_config(self, i_obj, suffix=''):
+        instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
+        instrument_id = i_obj.instrument_device_id
 
-        return iconfig_builder
+        log.debug("Using iconfig_builder")
+        self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
+        self.iconfig_builder._update_cached_predicates()
+        config = self.iconfig_builder.prepare(will_launch=False)
 
-    def _generate_instrument_config(self, instrument_agent_instance_obj, instrument_id, suffix=''):
-        pconfig_builder = self._create_instrument_config_builder()
-        pconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
-        config = pconfig_builder.prepare(will_launch=False)
+        self.verify_instrument_config(config, i_obj.org_obj,
+                                      i_obj.instrument_device_id)
 
-        self._debug_config(config, "instrument_agent_config_%s%s.txt" % (instrument_id, suffix))
+        self._debug_config(config, "instrument_CFG_generated_%s%s.txt" % (instrument_id, suffix))
 
         return config
 
     def _debug_config(self, config, outname):
-        if log.isEnabledFor(logging.DEBUG):
+        if self._debug_config_enabled and log.isEnabledFor(logging.DEBUG):
             import pprint
             outname = "logs/%s" % outname
             try:
@@ -442,7 +472,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             for key in DVR_CONFIG.iterkeys():
                 self.assertIn(key, config['driver_config'])
 
-            for key in ['children', 'startup_config']:
+            for key in ['startup_config']:
                 self.assertEqual({}, config[key])
         else:
             self.assertEqual(RT.InstrumentDevice, config['device_type'])
@@ -564,16 +594,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
-        child_config = self._generate_config(platform_agent_instance_child_obj, platform_id)
-        self._verify_child_config(child_config, platform_device_child_id,
-                                  is_platform=True)
-
         self.platform_device_parent_id = platform_device_child_id
 
         p_obj = DotDict()
         p_obj.platform_id = platform_id
         p_obj.parent_platform_id = parent_platform_id
-        p_obj.agent_config = child_config
         p_obj.platform_agent_instance_obj = platform_agent_instance_child_obj
         p_obj.platform_device_id = platform_device_child_id
         p_obj.platform_agent_instance_id = platform_agent_instance_child_id
@@ -597,7 +622,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # platform child-parent linking
     #################################################################
 
-    def _assign_child_to_parent(self, p_child, p_parent):
+    def _assign_child_to_parent(self, p_child, p_parent, gen_verify=False):
 
         log.debug("assigning child platform %r to parent %r",
                   p_child.platform_id, p_parent.platform_id)
@@ -607,20 +632,22 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         child_device_ids = self.RR2.find_platform_device_ids_of_device(p_parent.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
 
-        self._generate_parent_with_child_config(p_parent, p_child)
+        if gen_verify:
+            self._generate_parent_with_child_config(p_parent, p_child)
 
     #################################################################
     # instrument
     #################################################################
 
-    def _set_up_pre_environment_for_instrument(self):
+    def _set_up_pre_environment_for_instrument(self, instr_info):
         """
-        From test_instrument_agent.py
+        Based on test_instrument_agent.py
 
-        Basically, this method launches the port agent and the completes the
-        instrument driver configuration used to properly set up the
+        Basically, this method launches a port agent and then completes the
+        instrument driver configuration used to properly set up a particular
         instrument agent.
 
+        @param instr_info  A value in instruments_dict
         @return instrument_driver_config
         """
 
@@ -660,26 +687,26 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             instrument_driver_config['process_type'] = (DriverProcessType.PYTHON_MODULE,)
             instrument_driver_config['mi_repo'] = mi_repo
 
-        DEV_ADDR = CFG.device.sbe37.host
-        DEV_PORT = CFG.device.sbe37.port
-        DATA_PORT = CFG.device.sbe37.port_agent_data_port
-        CMD_PORT = CFG.device.sbe37.port_agent_cmd_port
-        PA_BINARY = CFG.device.sbe37.port_agent_binary
+        DEV_ADDR  = instr_info['DEV_ADDR']
+        DEV_PORT  = instr_info['DEV_PORT']
+        DATA_PORT = instr_info['DATA_PORT']
+        CMD_PORT  = instr_info['CMD_PORT']
+        PA_BINARY = instr_info['PA_BINARY']
 
-        self._support = DriverIntegrationTestSupport(None,
-                                                     None,
-                                                     DEV_ADDR,
-                                                     DEV_PORT,
-                                                     DATA_PORT,
-                                                     CMD_PORT,
-                                                     PA_BINARY,
-                                                     DELIM,
-                                                     WORK_DIR)
+        support = DriverIntegrationTestSupport(None,
+                                               None,
+                                               DEV_ADDR,
+                                               DEV_PORT,
+                                               DATA_PORT,
+                                               CMD_PORT,
+                                               PA_BINARY,
+                                               DELIM,
+                                               WORK_DIR)
 
         # Start port agent, add stop to cleanup.
-        port = self._support.start_pagent()
+        port = support.start_pagent()
         log.info('Port agent started at port %i', port)
-        self.addCleanup(self._support.stop_pagent)
+        self.addCleanup(support.stop_pagent)
 
         # Configure instrument driver to use port agent port number.
         instrument_driver_config['comms_config'] = {
@@ -690,37 +717,32 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         return instrument_driver_config
 
-    def _make_instrument_agent_structure(self, org_obj, agent_config=None):
+    def _make_instrument_agent_structure(self, instr_key, org_obj, agent_config=None):
         if None is agent_config: agent_config = {}
 
-        # from test_activate_instrument:test_activateInstrumentSample
+        instr_info = instruments_dict[instr_key]
 
-        # Create InstrumentModel
-        instModel_obj = IonObject(RT.InstrumentModel,
-                                  name='SBE37IMModel',
-                                  description="SBE37IMModel")
-        instModel_id = self.IMS.create_instrument_model(instModel_obj)
-        log.debug('new InstrumentModel id = %s ', instModel_id)
+        # initially adapted from test_activate_instrument:test_activateInstrumentSample
 
         # agent creation
         instrument_agent_obj = IonObject(RT.InstrumentAgent,
-                                         name='agent007',
-                                         description="SBE37IMAgent",
+                                         name='agent007_%s' % instr_key,
+                                         description="SBE37IMAgent_%s" % instr_key,
                                          driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg",
                                          stream_configurations=self._get_instrument_stream_configs())
 
         instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
         log.debug('new InstrumentAgent id = %s', instrument_agent_id)
 
-        self.IMS.assign_instrument_model_to_instrument_agent(instModel_id, instrument_agent_id)
+        self.IMS.assign_instrument_model_to_instrument_agent(self.instModel_id, instrument_agent_id)
 
         # device creation
         instDevice_obj = IonObject(RT.InstrumentDevice,
-                                   name='SBE37IMDevice',
-                                   description="SBE37IMDevice",
+                                   name='SBE37IMDevice_%s' % instr_key,
+                                   description="SBE37IMDevice_%s" % instr_key,
                                    serial_number="12345")
         instrument_device_id = self.IMS.create_instrument_device(instrument_device=instDevice_obj)
-        self.IMS.assign_instrument_model_to_instrument_device(instModel_id, instrument_device_id)
+        self.IMS.assign_instrument_model_to_instrument_device(self.instModel_id, instrument_device_id)
         log.debug("new InstrumentDevice id = %s ", instrument_device_id)
 
         #Create stream alarms
@@ -737,24 +759,24 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             'alert_class' : 'IntervalAlert'
         }
 
-        instrument_driver_config = self._set_up_pre_environment_for_instrument()
+        instrument_driver_config = self._set_up_pre_environment_for_instrument(instr_info)
 
         port_agent_config = {
-            'device_addr':  CFG.device.sbe37.host,
-            'device_port':  CFG.device.sbe37.port,
-            'process_type': PortAgentProcessType.UNIX,
-            'binary_path': "port_agent",
+            'device_addr':     instr_info['DEV_ADDR'],
+            'device_port':     instr_info['DEV_PORT'],
+            'data_port':       instr_info['DATA_PORT'],
+            'command_port':    instr_info['CMD_PORT'],
+            'binary_path':     instr_info['PA_BINARY'],
+            'process_type':    PortAgentProcessType.UNIX,
             'port_agent_addr': 'localhost',
-            'command_port': CFG.device.sbe37.port_agent_cmd_port,
-            'data_port': CFG.device.sbe37.port_agent_data_port,
-            'log_level': 5,
-            'type': PortAgentType.ETHERNET
+            'log_level':       5,
+            'type':            PortAgentType.ETHERNET
         }
 
         # instance creation
         instrument_agent_instance_obj = IonObject(RT.InstrumentAgentInstance,
-                                                  name='SBE37IMAgentInstance',
-                                                  description="SBE37IMAgentInstance",
+                                                  name='SBE37IMAgentInstance_%s' % instr_key,
+                                                  description="SBE37IMAgentInstance_%s" % instr_key,
                                                   driver_config=instrument_driver_config,
                                                   port_agent_config=port_agent_config,
                                                   alerts=[alert_def])
@@ -779,7 +801,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             parameter_dictionary_id=parsed_pdict_id)
 
         dp_obj = IonObject(RT.DataProduct,
-                           name='the parsed data',
+                           name='the parsed data for %s' % instr_key,
                            description='ctd stream test',
                            temporal_domain=tdom,
                            spatial_domain=sdom)
@@ -799,7 +821,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             parameter_dictionary_id=raw_pdict_id)
 
         dp_obj = IonObject(RT.DataProduct,
-                           name='the raw data',
+                           name='the raw data for %s' % instr_key,
                            description='raw stream test',
                            temporal_domain=tdom,
                            spatial_domain=sdom)
@@ -821,6 +843,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         i_obj.instrument_agent_id = instrument_agent_id
         i_obj.instrument_device_id = instrument_device_id
         i_obj.instrument_agent_instance_id = instrument_agent_instance_id
+        i_obj.org_obj = org_obj
 
         return i_obj
 
@@ -842,27 +865,30 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         for key in ['children']:
             self.assertEqual({}, config[key])
 
-    def _create_instrument(self):
+    def _create_instrument(self, instr_key):
         """
         The main method to create an instrument configuration.
+
+        @param instr_key  A key in instruments_dict
+        @return instrument_driver_config
         """
-        iconfig_builder = self._create_instrument_config_builder()
+
+        self.assertIn(instr_key, instruments_dict)
+        self.assertNotIn(instr_key, self._setup_instruments)
+
+        instr_info = instruments_dict[instr_key]
+
+        log.debug("_create_instrument: creating instrument %r: %s",
+                  instr_key, instr_info)
 
         org_obj = any_old(RT.Org)
 
         log.debug("making the structure for an instrument agent")
-        i_obj = self._make_instrument_agent_structure(org_obj)
+        i_obj = self._make_instrument_agent_structure(instr_key, org_obj)
 
-        instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
+        self._setup_instruments.add(instr_key)
 
-        log.debug("Testing instrument config")
-        iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
-        instrument_config = iconfig_builder.prepare(will_launch=False)
-        self.verify_instrument_config(instrument_config, org_obj,
-                                      i_obj.instrument_device_id)
-
-        self._generate_instrument_config(instrument_agent_instance_obj,
-                                         i_obj.instrument_agent_instance_id)
+        log.debug("_create_instrument: created instrument %r", instr_key)
 
         return i_obj
 
@@ -870,7 +896,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # instrument-platform linking
     #################################################################
 
-    def _assign_instrument_to_platform(self, i_obj, p_obj):
+    def _assign_instrument_to_platform(self, i_obj, p_obj, gen_verify=False):
 
         log.debug("assigning instrument %r to platform %r",
                   i_obj.instrument_agent_instance_id, p_obj.platform_id)
@@ -882,7 +908,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         child_device_ids = self.RR2.find_instrument_device_ids_of_device(p_obj.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
 
-        self._generate_platform_with_instrument_config(p_obj, i_obj)
+        if gen_verify:
+            self._generate_platform_with_instrument_config(p_obj, i_obj)
 
     #################################################################
     # some platform topologies
@@ -910,9 +937,37 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._assign_child_to_parent(p_child, p_root)
         self._assign_child_to_parent(p_grandchild, p_child)
 
-        self._generate_config(p_root.platform_agent_instance_obj, p_root.platform_id, "_final")
+        self._generate_platform_config(p_root, "_complete")
 
         return p_root
+
+    def _create_hierarchy(self, platform_id, p_objs, parent_obj=None):
+        """
+        Creates a hierarchy of platforms rooted at the given platform.
+
+        @param platform_id  ID of the root platform at this level
+        @param p_objs       dict to be updated with (platform_id: p_obj)
+                            mappings
+        @param parent_obj   platform object of the parent, if any
+
+        @return platform object for the created root.
+        """
+
+        # create the object to be returned:
+        p_obj = self._create_platform(platform_id)
+
+        # update (platform_id: p_obj) dict:
+        p_objs[platform_id] = p_obj
+
+        # recursively create child platforms:
+        pnode = self._network_definition.pnodes[platform_id]
+        for sub_platform_id in pnode.subplatforms:
+            self._create_hierarchy(sub_platform_id, p_objs, p_obj)
+
+        if parent_obj:
+            self._assign_child_to_parent(p_obj, parent_obj)
+
+        return p_obj
 
     #################################################################
     # start / stop platform
@@ -956,7 +1011,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(gate.await(90), "The instrument agent instance did not spawn in 90 seconds")
 
         # Start a resource agent client to talk with the agent.
-        self._ia_client = ResourceAgentClient('paclient',
+        self._ia_client = ResourceAgentClient('iaclient',
                                               name=agent_instance_obj.agent_process_id,
                                               process=FakeProcess())
         log.debug("got instrument agent client %s", str(self._ia_client))

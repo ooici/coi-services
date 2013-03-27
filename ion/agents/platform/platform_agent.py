@@ -211,7 +211,7 @@ class PlatformAgent(ResourceAgent):
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             platform_id = self.CFG.get_safe('platform_config.platform_id', '')
-            outname = "logs/platform_CFG_%s.txt" % platform_id
+            outname = "logs/platform_CFG_received_%s.txt" % platform_id
             try:
                 pprint.PrettyPrinter(stream=file(outname, "w")).pprint(self.CFG)
                 log.debug("%r: on_init: CFG printed to %s", platform_id, outname)
@@ -1117,8 +1117,8 @@ class PlatformAgent(ResourceAgent):
 
         assert i_resource_id, "agent.resource_id must be present for child %r" % instrument_id
 
-        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("%r: launching instrument agent %r: CFG=%s",
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r: launching instrument agent %r: CFG=%s",
                       self._platform_id, instrument_id, self._pp.pformat(i_CFG))
         elif log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             log.debug("%r: launching instrument agent %r",
