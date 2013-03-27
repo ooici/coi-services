@@ -16,6 +16,7 @@ from pyon.util.arg_check import validate_is_instance
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
 from interface.objects import Parser
+from ion.util.stored_values import StoredValueManager
 
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
@@ -973,4 +974,23 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.clients.resource_registry.update(producer_obj)
         return True
 
+    def parse_document(self, parser_id='', document=None):
+        parser = self.read_parser(parser_id=parser_id)
+        try:
+            module = __import__(parser.module, fromlist=[parser.method])
+            method = getattr(module, parser.method)
+
+        except ImportError:
+            raise BadRequest('No import named {0} found.'.format(parser.module))
+        except AttributeError:
+            raise BadRequest('No method named {0} in {1}.'.format(parser.method, parser.module))
+        except:
+            log.error('Failed to parse document')
+
+        svm = StoredValueManager(self.container)
+        for key, doc in method(document):
+            try:
+                svm.stored_value_cas(key, doc)
+            except:
+                log.error('Error parsing a row in document.')
 
