@@ -84,6 +84,9 @@ class AgentConfigurationBuilder(object):
                 # just warn if the new value is different
                 if v != prev_v:
                     log.warn("Overwriting %s[%s] of '%s' with '%s'", title, k, prev_v, v)
+                else:
+                    log.debug("Overwriting %s[%s] with same value already assigned '%s'",
+                              title, k, v)
             basedict[k] = v
 
     def _check_associations(self):
