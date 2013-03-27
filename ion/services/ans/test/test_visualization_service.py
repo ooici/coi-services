@@ -1,4 +1,12 @@
+#!/usr/bin/env python
 
+__author__ = 'Stephen P. Henrie, Raj Singh'
+__license__ = 'Apache 2.0'
+
+import unittest, os
+import gevent
+from mock import patch
+import logging
 from pyon.net.endpoint import Subscriber
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceProcessClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
@@ -16,21 +24,19 @@ from interface.services.ans.ivisualization_service import VisualizationServicePr
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 
-from pyon.public import log, IonObject, RT, PRED
+from pyon.public import log, IonObject, RT, PRED, CFG
 
 
 from ion.services.ans.test.test_helper import VisualizationIntegrationTestHelper
 
 from nose.plugins.attrib import attr
-import unittest, os
-import imghdr
-import gevent, numpy
-from mock import Mock, sentinel, patch, call
+
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 
 from pyon.util.context import LocalContextMixin
-import logging
+
+from ion.services.ans.visualization_service import USER_VISUALIZATION_QUEUE
 
 
 class VisualizationServiceTestProcess(LocalContextMixin):
@@ -282,45 +288,146 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         return
 
-
-    #@unittest.skip('Skipped because of broken record dictionary work-around')
+    @patch.dict(CFG, {'user_queue_monitor_timeout': 5})
     def test_realtime_visualization(self):
+
+        #Start up multiple vis service workers
+        vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
+        self.addCleanup(self.container.terminate_process, vpid1)
+        vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
+        self.addCleanup(self.container.terminate_process, vpid2)
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
         ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
 
-        #TODO - Need to add workflow creation for google data table
         vis_params ={}
         vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id, visualization_parameters=vis_params)
 
+        result = gevent.event.AsyncResult()
+
+        def get_vis_messages(get_data_count=7):  #SHould be an odd number for round robbin processing by service workers
+
+
+            get_cnt = 0
+            while get_cnt < get_data_count:
+
+                vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+                if (vis_data):
+                    self.validate_google_dt_transform_results(vis_data)
+
+                get_cnt += 1
+                gevent.sleep(5) # simulates the polling from UI
+
+            result.set(get_cnt)
+
+        gevent.spawn(get_vis_messages)
+
+        result.get(timeout=90)
+
         #Trying to continue to receive messages in the queue
-        gevent.sleep(10.0)  # Send some messages - don't care how many
+        gevent.sleep(2.0)  # Send some messages - don't care how many
 
-        #TODO - find out what the actual return data type should be
-        vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
-        if (vis_data):
-            self.validate_google_dt_transform_results(vis_data)
-
-        #Trying to continue to receive messages in the queue
-        gevent.sleep(5.0)  # Send some messages - don't care how many
-
-
-        #Turning off after everything - since it is more representative of an always on stream of data!
-        #todo remove the try except
-        try:
-            self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
-        except:
-            log.warning("cancelling process did not work")
-
-        vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
-
-        if vis_data:
-            self.validate_google_dt_transform_results(vis_data)
 
         # Cleanup
         self.vis_client.terminate_realtime_visualization_data(vis_token)
+
+
+        #Turning off after everything - since it is more representative of an always on stream of data!
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
+    @patch.dict(CFG, {'user_queue_monitor_timeout': 5})
+    @patch.dict(CFG, {'user_queue_monitor_size': 25})
+    def test_realtime_visualization_cleanup(self):
+
+        #Start up multiple vis service workers
+        vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
+        self.addCleanup(self.container.terminate_process, vpid1)
+        vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
+        self.addCleanup(self.container.terminate_process, vpid2)
+
+        #get the list of queues and message counts on the broker for the user vis queues
+        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+        original_queue_count = len(q_names)
+
+        #Create the input data product
+        ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
+        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
+
+
+        #Start up a number of requests - and queues - to start accumulating messages. THe test will not clean them up
+        #but instead check to see if the monitoring thread will.
+        bad_vis_token1 = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+
+        bad_vis_token2 = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+
+        bad_vis_token3 = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+
+        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+
+        #Get the default exchange space
+        exchange = self.container.ex_manager.default_xs.exchange
+
+
+        #get the list of queues and message counts on the broker for the user vis queues
+        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+
+        self.assertIn(exchange + "." + bad_vis_token1, q_names)
+        self.assertIn(exchange + "." + bad_vis_token2, q_names)
+        self.assertIn(exchange + "." + bad_vis_token3, q_names)
+        self.assertIn(exchange + "." + vis_token, q_names)
+
+
+        result = gevent.event.AsyncResult()
+
+        def get_vis_messages(get_data_count=7):  #SHould be an odd number for round robbin processing by service workers
+
+
+            get_cnt = 0
+            while get_cnt < get_data_count:
+
+                vis_data = self.vis_client.get_realtime_visualization_data(vis_token)
+                if (vis_data):
+                    self.validate_google_dt_transform_results(vis_data)
+
+                get_cnt += 1
+                gevent.sleep(5) # simulates the polling from UI
+
+            result.set(get_cnt)
+
+        gevent.spawn(get_vis_messages)
+
+        result.get(timeout=90)
+
+        #Trying to continue to receive messages in the queue
+        gevent.sleep(2.0)  # Send some messages - don't care how many
+
+
+        #get the list of queues and message counts on the broker for the user vis queues
+        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+
+        self.assertNotIn(exchange + "." + bad_vis_token1, q_names)
+        self.assertNotIn(exchange + "." + bad_vis_token2, q_names)
+        self.assertNotIn(exchange + "." + bad_vis_token3, q_names)
+        self.assertIn(exchange + "." + vis_token, q_names)
+
+        # Cleanup
+        self.vis_client.terminate_realtime_visualization_data(vis_token)
+
+        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+
+        self.assertNotIn(exchange + "." + vis_token, q_names)
+
+        self.assertEqual(original_queue_count,len(q_names))
+
+        #Turning off after everything - since it is more representative of an always on stream of data!
+        self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
+
 
 
     #@unittest.skip('Skipped because of broken record dictionary work-around')
