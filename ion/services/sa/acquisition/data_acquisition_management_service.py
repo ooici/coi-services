@@ -12,8 +12,10 @@ from interface.services.sa.idata_acquisition_management_service import BaseDataA
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, LCS, PRED, OT
+from pyon.util.arg_check import validate_is_instance
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
+from interface.objects import Parser
 
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
@@ -934,4 +936,25 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
+    def create_parser(self, name='', description='', module='', method='', config=None):
+        parser = Parser(name=name, description=description)
 
+        parser.module = module
+        parser.method = method
+        parser.config = config
+
+        parser_id, rev = self.clients.resource_registry.create(parser)
+        return parser_id
+
+    def read_parser(self, parser_id=''):
+        parser = self.clients.resource_registry.read(parser_id)
+        validate_is_instance(parser,Parser,'The specified identifier does not correspond to a Parser resource')
+        return parser
+
+    def delete_parser(self, parser_id=''):
+        self.clients.resource_registry.delete(parser_id)
+        return True
+
+    def update_parser(self, parser=None):
+        if parser:
+            self.clients.resource_registry.update(parser)
