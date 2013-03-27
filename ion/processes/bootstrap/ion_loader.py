@@ -98,7 +98,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGRneFo5dmhWNUVuR0tkMUVqUVA3LWc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydG5mYUNYYmZhZVhrLVV2ZzlGSmtaZVE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -140,6 +140,7 @@ DEFAULT_CATEGORIES = [
     'WorkflowDefinition',
     'Workflow',
     'Deployment',
+    'Parser',
     ]
 
 COL_SCENARIO = "Scenario"
@@ -1433,6 +1434,18 @@ Reason: %s
 
         self._register_id(row[COL_ID], pdict_id)
 
+    def _load_Parser(self, row):
+        name        = row['name']
+        module      = row['parser/module']
+        method      = row['parser/method']
+        config      = row['parser/config']
+        description = row['description']
+
+        data_acquisition = self._get_service_client('data_acquisition_management')
+        parser_id = data_acquisition.create_parser(name=name, module=module, method=method, config=config, description=description)
+        self._register_id(row[COL_ID], parser_id)
+
+    
     def _load_ParameterFunctions(self, row):
         if row['SKIP']:
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
