@@ -54,6 +54,53 @@ class VisualizationService(BaseVisualizationService):
 
         self.create_workflow_timeout = get_safe(self.CFG, 'create_workflow_timeout', 60)
         self.terminate_workflow_timeout = get_safe(self.CFG, 'terminate_workflow_timeout', 30)
+        self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 60)
+        self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
+
+        #Setup and event object for use by the queue monitoring greenlet
+        self.monitor_event = gevent.event.Event()
+        self.monitor_event.clear()
+
+
+        #Start up queue monitor
+        self._process.thread_manager.spawn(self.user_vis_queue_monitor)
+
+
+    def on_quit(self):
+        self.monitor_event.set()
+
+
+    def user_vis_queue_monitor(self, **kwargs):
+
+        log.debug("Starting Monitor Loop worker: " + self.id + " timeout=" + str(self.monitor_timeout))
+
+        while not self.monitor_event.wait(timeout=self.monitor_timeout):
+
+            if self.container.is_terminating():
+                break
+
+            #get the list of queues and message counts on the broker for the user vis queues
+            queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+
+            log.debug( "In Monitor Loop worker: " + self.id)
+            for queue in queues:
+
+                log.debug(queue['name'], queue['messages'])
+
+                #Check for queues which are getting too large and clean them up if need be.
+                if queue['messages'] > self.monitor_queue_size:
+                    vis_token = queue['name'][queue['name'].index('UserVisQueue'):]
+
+                    try:
+                        log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources." % (queue['name'], queue['messages'] ))
+                        self.terminate_realtime_visualization_data(query_token=vis_token)
+                    except NotFound, e:
+                        log.warn("The token %s could not not be found by the terminate_realtime_visualization_data operation; another worked may have cleaned it up already", vis_token)
+                    except Exception, e1:
+                        #Log errors and keep going!
+                        log.exception(e1)
+
+        log.debug('Exiting user_vis_queue_monitor')
 
 
     def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
@@ -68,6 +115,7 @@ class VisualizationService(BaseVisualizationService):
         @param callback     str
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
+        log.debug( "initiate_realtime_visualization Vis worker: " + self.id)
 
         query = None
         if visualization_parameters:
@@ -85,6 +133,7 @@ class VisualizationService(BaseVisualizationService):
         data_product_stream_id = None
         workflow_def_id = None
 
+        #TODO - Add this workflow definition to preload data
         # Check to see if the workflow defnition already exist
         workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
 
@@ -223,6 +272,8 @@ class VisualizationService(BaseVisualizationService):
         @retval datatable    str
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
+        log.debug( "get_realtime_visualization_data Vis worker: " + self.id)
+
         log.debug("Query token : " + query_token + " CB : " + callback + "TQX : " + tqx)
 
         reqId = 0
@@ -268,11 +319,12 @@ class VisualizationService(BaseVisualizationService):
 
     def terminate_realtime_visualization_data(self, query_token=''):
         """This operation terminates and cleans up resources associated with realtime visualization data. This operation requires a
-        user specific token which was provided from a previsou request to the init_realtime_visualization operation.
+        user specific token which was provided from a previous request to the init_realtime_visualization operation.
 
         @param query_token    str
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
+        log.debug( "terminate_realtime_visualization_data Vis worker: " + self.id)
 
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
@@ -280,7 +332,7 @@ class VisualizationService(BaseVisualizationService):
         subscriptions, _ = self.clients.resource_registry.find_resources(restype=RT.Subscription, name=query_token, id_only=False)
 
         if not subscriptions:
-            raise BadRequest("A Subscription object for the query_token parameter %s is not found" % query_token)
+            raise NotFound("A Subscription object for the query_token parameter %s is not found" % query_token)
 
         if len(subscriptions) > 1:
             log.warn("An inconsistent number of Subscription resources associated with the name: %s - will use the first one in the list",query_token )
@@ -299,27 +351,52 @@ class VisualizationService(BaseVisualizationService):
             data_product_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.DataProduct, predicate=PRED.hasStream, object=stream_id[0], id_only=True)
 
 
-        #Now delete the subscription
-        self.clients.pubsub_management.deactivate_subscription(subscription_id)
-        self.clients.pubsub_management.delete_subscription(subscription_id)
+        #Now delete the subscription if activated
+        try:
+            if subscriptions[0].activated:
+                self.clients.pubsub_management.deactivate_subscription(subscription_id)
+                self.clients.pubsub_management.delete_subscription(subscription_id)
 
-        #Need to clean up associated workflow from the data product as long as they are going to be created for each user
-        if len(data_product_id) == 0:
-            log.error("Cannot find Data Product for Stream id %s", ( stream_id[0] ))
-        else:
-            workflow_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasOutputProduct, object=data_product_id[0], id_only=True)
-            if len(workflow_id) == 0:
-                log.error("Cannot find Workflow for Data Product id %s", ( data_product_id[0] ))
+        #Need to continue on even if this fails
+        except BadRequest, e:
+            #It is okay if the workflow is no longer available as it may have been cleaned up by another worker
+            if 'Subscription is not active' not in e.message:
+                log.exception(e)
+
+        except Exception, e:
+            log.exception(e)
+
+        try:
+            #Need to clean up associated workflow from the data product as long as they are going to be created for each user
+            if len(data_product_id) == 0:
+                log.error("Cannot find Data Product for Stream id %s", ( stream_id[0] ))
             else:
-                self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.terminate_workflow_timeout)
+                workflow_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasOutputProduct, object=data_product_id[0], id_only=True)
+                if len(workflow_id) == 0:
+                    log.error("Cannot find Workflow for Data Product id %s", ( data_product_id[0] ))
+                else:
+                    self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.terminate_workflow_timeout)
+
+        except NotFound, e:
+            #It is okay if the workflow is no longer available as it may have been cleaned up by another worker
+            pass
+
+        except Exception, e:
+            log.exception(e)
+
 
         #Taking advantage of idempotency
-        xq = self.container.ex_manager.create_xn_queue(query_token)
-
-        self.container.ex_manager.delete_xn(xq)
+        try:
+            xq = self.container.ex_manager.create_xn_queue(query_token)
+            self.container.ex_manager.delete_xn(xq)
+        except Exception, e:
+            pass
 
         log.debug("Real-time queues cleaned up")
 
+
+    #THese definition creation functions should really only be used for tests and should be moved to the test helper and created
+    # as part of test setup. The definitions should be in the preload data
 
     def _create_google_dt_data_process_definition(self):
 
