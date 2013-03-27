@@ -368,8 +368,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
         pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
 
-        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
-        pdict._identifier = parameter_dictionary_id
+        return cls.build_parameter_dictionary(pd, pcs)
+
+    @classmethod
+    def build_parameter_dictionary(cls, parameter_dictionary_obj, parameter_contexts):
+        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in parameter_contexts],
+                                    parameter_dictionary_obj.temporal_context)
+        pdict._identifier = parameter_dictionary_obj._id
 
         return pdict
 
