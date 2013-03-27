@@ -33,3 +33,4 @@ stuck_value_test_sample_doc='''Array,Instrument Class,Reference Designator,Data 
 array 1,SSXBT,ssxbt-ssn719,PRESSURE,dbar,1.2,10
 array 1,SSXBT,ssxbt-ssn719,SOUND_VELO,ft/s2,100.0,10
 array 1,SSXBT,ssxbt-ssn719,COND,S m-1,0.2,10'''
+
