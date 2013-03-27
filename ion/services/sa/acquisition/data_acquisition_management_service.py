@@ -965,10 +965,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         try:
             module = __import__(parser.module, fromlist=[parser.method])
             method = getattr(module, parser.method)
-        except:
+
+            svm = StoredValueManager(self.container)
+            for key, doc in method(document):
+                svm.stored_value_cas(key, doc)
+                
+        except ImportError:
+            raise BadRequest('No import named {0} found.'.format(parser.module))
+        except AttributeError:
             raise BadRequest('No method named {0} in {1}'.format(parser.method, parser.module))
-
-        svm = StoredValueManager(self.container)
-        for key, doc in method(document):
-            svm.stored_value_cas(key, doc)
-
+        except:
+            log.error('Failed to parse document')
+            pass
