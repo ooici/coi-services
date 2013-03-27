@@ -36,10 +36,10 @@ class TestStoredValueManager(IonIntegrationTestCase):
             svm.stored_value_cas(key,doc)
             self.addCleanup(svm.delete_stored_value,key)
 
-        doc = svm.read_value('sbe37-abc123_TEMPWAT_UHHH')
+        doc = svm.read_value('grt_sbe37-abc123_TEMPWAT_UHHH')
         self.assertEquals(doc['grt_min_value'], 0.)
         self.assertEquals(doc['array'],'array 1')
-        doc = svm.read_value('sbe37-abc123_PRESWAT_flagged')
+        doc = svm.read_value('grt_sbe37-abc123_PRESWAT_flagged')
         self.assertEquals(doc['grt_max_value'], 689.47)
 
 grt_sample_doc ='''Array,Instrument Class,Reference Designator,Data Product In,Units,Data Product Flagged,Min Value (lim(1)),Max Value (lim(2))
