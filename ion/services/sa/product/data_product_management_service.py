@@ -840,8 +840,15 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
-    def _has_lookup_values(self,data_product_id):
-        pass
+    def _has_lookup_values(self, data_product_id):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('No streams found for this data product')
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+        if not stream_def_ids:
+            raise BadRequest('No stream definitions found for this stream')
+        
+        return self.clients.pubsub_management.has_lookup_values(stream_definition_id=stream_def_ids[0])
 
     def _get_lookup_documents(self, data_product_id):
         pass
