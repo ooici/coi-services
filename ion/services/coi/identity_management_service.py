@@ -17,7 +17,7 @@ import copy
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
-
+from interface.objects import NegotiationStatusEnum
 
 class IdentityManagementService(BaseIdentityManagementService):
     """
@@ -237,7 +237,7 @@ class IdentityManagementService(BaseIdentityManagementService):
             resource_id=user_info_id,
             computed_resource_type=OT.ComputedAttributes,
             user_id=user_id,
-            negotiation_status=0)
+            negotiation_status=NegotiationStatusEnum.OPEN)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if extended_user:
