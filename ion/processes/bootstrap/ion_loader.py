@@ -25,7 +25,9 @@
     attachments= override location to get file attachments (default is path)
     ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
     ooiexclude= one or more categories to NOT import in the OOI import
+    ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
     bulk= if True, uses RR bulk insert operations to load, not service calls
+    debug= if True, allows a few shortcuts to perform faster loads
     exportui= if True, writes interface/ui_specs.json with UI object
 
     TODO: constraints defined in multiple tables as list of IDs, but not used
@@ -45,6 +47,7 @@ __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
 
 import logging
 import simplejson as json
+import datetime
 import ast
 import calendar
 import csv
@@ -206,6 +209,9 @@ class IONLoader(ImmediateProcess):
         self.ooiexclude = self.CFG.get("ooiexclude", '') # Don't import the listed categories
         if self.ooiexclude:
             self.ooiexclude = self.ooiexclude.split(',')
+        self.ooiuntil = self.CFG.get("ooiuntil", None) # Don't import stuff later than given date
+        if self.ooiuntil:
+            self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -238,6 +244,7 @@ class IONLoader(ImmediateProcess):
 
         elif op == "parseooi":
             self.ooi_loader.extract_ooi_assets()
+            self.ooi_loader._analyze_ooi_assets(self.ooiuntil)
         elif op == "loadui":
             specs_path = 'interface/ui_specs.json' if self.exportui else None
             self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
@@ -1083,21 +1090,21 @@ class IONLoader(ImmediateProcess):
             support_bulk=True)
 
     def _load_InstrumentModel_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("subseries")
+        ooi_objs = self.ooi_loader.get_type_assets("class")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
-            series_obj = self.ooi_loader.get_type_assets("series")[ooi_id[:6]]
-            class_obj = self.ooi_loader.get_type_assets("class")[ooi_id[:5]]
-            family_obj = self.ooi_loader.get_type_assets("family")[class_obj['family']]
+            if "DEPRECATED" in ooi_obj['name']:
+                continue
+            family_obj = self.ooi_loader.get_type_assets("family")[ooi_obj['family']]
             fakerow = {}
             fakerow[COL_ID] = ooi_id
             fakerow['im/name'] = ooi_obj['name']
             fakerow['im/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['im/description'] = ooi_obj['description']
-            fakerow['im/instrument_family'] = class_obj['family']
+            fakerow['im/instrument_family'] = ooi_obj['family']
             fakerow['raw_stream_def'] = ''
             fakerow['parsed_stream_def'] = ''
-            fakerow['org_ids'] = self._get_org_ids(class_obj.get('array_list', None))
+            fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
             reference_urls = []
             addl = {}
             if ooi_obj.get('makemodel', None) and ooi_obj['makemodel'][0]:
@@ -1120,7 +1127,7 @@ class IONLoader(ImmediateProcess):
             addl['comments'] = ooi_obj['Comments']
             fakerow['im/addl'] = repr(addl)
 
-            if not self._match_filter(class_obj.get('array_list', None)):
+            if not self._match_filter(ooi_obj.get('array_list', None)):
                 continue
 
             self._load_InstrumentModel(fakerow)
@@ -1347,7 +1354,7 @@ class IONLoader(ImmediateProcess):
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow = {}
             fakerow[COL_ID] = ooi_id
-            fakerow['is/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['Class_Name'], nodes[ooi_id[:14]]['name'])
+            fakerow['is/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['name'], nodes[ooi_id[:14]]['name'])
             fakerow['is/description'] = "Instrument: %s" % ooi_id
             fakerow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = const_id1
@@ -1672,11 +1679,11 @@ Reason: %s
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow = {}
             fakerow[COL_ID] = ooi_id + "_ID"
-            fakerow['id/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['Class_Name'], nodes[ooi_id[:14]]['name'])
+            fakerow['id/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['name'], nodes[ooi_id[:14]]['name'])
             fakerow['id/description'] = "Instrument %s device #01" % ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             ooi_rd = OOIReferenceDesignator(ooi_id)
-            fakerow['instrument_model_id'] = ooi_rd.subseries_rd
+            fakerow['instrument_model_id'] = ooi_rd.inst_class
             fakerow['platform_device_id'] = node_id + "_PD"
             fakerow['id/reference_urls'] = ''
             fakerow['contact_ids'] = ''
@@ -1807,7 +1814,7 @@ Reason: %s
             fakerow['ia/name'] = "Instrument Agent for " + ooi_id
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
             ooi_rd = OOIReferenceDesignator(ooi_id)
-            fakerow['instrument_model_ids'] = ooi_rd.subseries_rd
+            fakerow['instrument_model_ids'] = ooi_rd.inst_class
             fakerow['stream_configurations'] = ""
 
             if not self._match_filter(ooi_id[:2]):
@@ -1883,20 +1890,23 @@ Reason: %s
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
     def _load_PlatformAgent_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("nodetype")
+        ooi_objs = self.ooi_loader.get_type_assets("platformagent")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
-            fakerow = {}
-            fakerow[COL_ID] = ooi_id + "_PA"
-            fakerow['pa/name'] = "Platform Agent for " + ooi_id
-            fakerow['platform_model_ids'] = ooi_id + "_PM"
-            fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
-            fakerow['stream_configurations'] = ""
+            if ooi_obj['agent_type'] == "PlatformAgent":
+                fakerow = {}
+                fakerow[COL_ID] = ooi_id + "_PA"
+                fakerow['pa/name'] = ooi_obj['name']
+                fakerow['pa/description'] = "Platform Agent for " + ooi_id
+                node_types = ["%s_PM" % nt for nt in ooi_obj['node_types'].split(',')]
+                fakerow['platform_model_ids'] = ','.join(node_types)
+                fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
+                fakerow['stream_configurations'] = ""
 
-            if not self._match_filter(ooi_obj.get('array_list', None)):
-                continue
+                if not self._match_filter(ooi_obj.get('array_list', None)):
+                    continue
 
-            self._load_PlatformAgent(fakerow)
+                self._load_PlatformAgent(fakerow)
 
     def _load_PlatformAgentInstance(self, row):
         # construct values for more complex fields

@@ -5,6 +5,7 @@
 __author__ = 'Michael Meisinger'
 
 import csv
+import datetime
 import os.path
 import re
 
@@ -59,7 +60,7 @@ class OOILoader(object):
                        'Nodes',
                        #'Platforms',
                        'NodeTypes',
-                       'PlatformAgentTypes'
+                       'PlatformAgents'
                      ]
 
         # Holds the object representations of parsed OOI assets by type
@@ -187,8 +188,8 @@ class OOILoader(object):
             return
         self._add_object_attribute('class',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
-            mapping={},
-            Class_Name=row['Class_Name'])
+            mapping={'Description':'description'},
+            name=row['Class_Name'])
 
     def _parse_AttributeReportDataProducts(self, row):
         key = row['Data_Product_Identifier'].strip() + "_L" + row['Data_Product_Level'].strip()
@@ -258,8 +259,8 @@ class OOILoader(object):
         key = row['Class'] + row['Series']
         self._add_object_attribute('series',
             key, row['Attribute'], row['AttributeValue'],
-            mapping={},
-            Series=row['Series'], Series_Name=row['Series_Name'], Class=row['Class'])
+            mapping={'Description':'description'},
+            Series=row['Series'], name=row['Series_Name'], Class=row['Class'])
 
     def _parse_AttributeReportSites(self, row):
         ooi_rd = OOIReferenceDesignator(row['Site'])
@@ -292,12 +293,14 @@ class OOILoader(object):
         # This adds the subseries to current sensors and make/model.
         # Also used to infer node types and names
         refid = row['ReferenceDesignator']
-        subseries_id = row['SClass_PublicID']+row['SSeries_PublicID']+row['SSubseries_PublicID']
+        series_id = row['SClass_PublicID']+row['SSeries_PublicID']
+        subseries_id = series_id+row['SSubseries_PublicID']
         entry = dict(
             instrument_class=row['SClass_PublicID'],
             instrument_series=row['SSeries_PublicID'],
             instrument_subseries=row['SSubseries_PublicID'],
-            instrument_model=subseries_id,
+            instrument_model=row['SClass_PublicID'],
+            instrument_model1=series_id,
             makemodel=row['MMInstrument_PublicID'],
             ready_for_2013=row['Ready_For_2013_']
         )
@@ -390,6 +393,7 @@ class OOILoader(object):
             platform_config_type=row['Platform Configuration Type'],
             platform_agent_type=row['Platform Agent Type'],
             is_platform=row['Platform Reference ID'] == ooi_rd,
+            deployment_start=row['Start Deployment Cruise'],
         )
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
@@ -406,11 +410,13 @@ class OOILoader(object):
         self._add_object_attribute('nodetype',
             code, None, None, name=name)
 
-    def _parse_PlatformAgentTypes(self, row):
+    def _parse_PlatformAgents(self, row):
         #
         code = row['Code']
         entry = dict(
             name=row['Name'],
+            agent_type=row['Agent Type'],
+            node_types=row['Node Types'],
             rt_control_path=row['RT Control Path'],
             rt_data_path=row['RT Data Path'],
             rt_data_acquisition=row['RT Data Acquisition'],
@@ -503,9 +509,12 @@ class OOILoader(object):
                            'PlatformSite',
                            'InstrumentSite',
                            'InstrumentAgent',
+                           'InstrumentAgentInstance',
                            'InstrumentDevice',
                            'PlatformAgent',
+                           'PlatformAgentInstance',
                            'PlatformDevice',
+                           'Deployment',
                            'DataProduct'
         ]
 
@@ -525,3 +534,50 @@ class OOILoader(object):
 
         self.resource_ds.update_doc_mult(docs)
         log.info("Deleted %s OOI resources and associations", len(docs))
+
+    def _analyze_ooi_assets(self, end_date):
+        deploy_platforms = {}
+        node_objs = self.get_type_assets("node")
+        for ooi_id, ooi_obj in node_objs.iteritems():
+            ooi_obj['id'] = ooi_id
+            if not ooi_obj.get('is_platform', False):
+                continue
+            deploy_date_col = ooi_obj['deployment_start']
+            if not deploy_date_col:
+                continue
+            try:
+                deploy_date = datetime.datetime.strptime(deploy_date_col, "%Y-%m-%d")
+                ooi_obj['deploy_date'] = deploy_date
+                if not end_date or deploy_date < end_date:
+                    deploy_platforms[ooi_id] = ooi_obj
+            except Exception as ex:
+                print "Date parse error", ex
+
+        deploy_platform_list = deploy_platforms.values()
+        deploy_platform_list.sort(key=lambda obj: obj['deploy_date'])
+
+        inst_objs = self.get_type_assets("instrument")
+
+        print "OOI ASSET REPORT - DEPLOYMENT UNTIL", end_date if end_date else "PROGRAM END"
+        print "Platforms:"
+        for ooi_obj in deploy_platform_list:
+            print " ", ooi_obj['deployment_start'], ooi_obj['name']
+
+            inst_class = set()
+            for inst_id, inst_obj in inst_objs.iteritems():
+                ooi_rd = OOIReferenceDesignator(inst_id)
+                node_id = ooi_rd.node_rd
+                node_obj = node_objs[node_id]
+                if not node_obj.get('is_platform', False):
+                    node_id = node_obj['platform_id']
+                    node_obj = node_objs[node_id]
+                if node_id == ooi_obj['id']:
+                    inst_class.add(ooi_rd.inst_class)
+            print "    Instrument Models:", ", ".join(sorted(list(inst_class)))
+            print "    Assembly:"
+            for pl_id, pl_obj in node_objs.iteritems():
+                if not pl_obj.get('is_platform', False):
+                    parent_id = pl_obj['platform_id']
+                    if parent_id == ooi_obj['id']:
+                        print "      ", pl_obj['name']
+
