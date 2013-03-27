@@ -56,6 +56,9 @@ Start the services container and preload with UI (no OOI):
 Preload system with UI (without OOI assets)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA,R2_DEMO ui_path='https://userexperience.oceanobservatories.org/database-exports' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True
 
+OR: Preload system OOI assets only, create User/Org on the fly; bulk+debug mode not ready for production). Exclude data product etc
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=X loadooi=True assets=res/preload/r2_ioc/ooi_assets bulk=True debug=True ooiexclude=DataProduct,DataProductLink,Deployment,Workflow,WorkflowDefinition
+
 OR: Preload system with UI and OOI assets, bulk mode not ready for production)
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=BASE,BETA,R2_DEMO ui_path='https://userexperience.oceanobservatories.org/database-exports' attachments=res/preload/r2_ioc/attachments assets=res/preload/r2_ioc/ooi_assets loadui=True loadooi=True bulk=True
 

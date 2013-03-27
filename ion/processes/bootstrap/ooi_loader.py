@@ -5,11 +5,13 @@
 __author__ = 'Michael Meisinger'
 
 import csv
+import datetime
 import os.path
 import re
 
 from pyon.public import log, iex
 from ion.core.ooiref import OOIReferenceDesignator
+from pyon.datastore.datastore import DatastoreManager, DataStore
 from ion.util.xlsparser import XLSParser
 
 class OOILoader(object):
@@ -46,6 +48,7 @@ class OOILoader(object):
                        'AttributeReportSubseries',
                        'AttributeReportSubsites',
                        # Additional attributes and links taken from aggregate reports
+                       'NodeTypes',
                        'InstrumentCatalogFull',
                        'DataQCLookupTables',
                        'DataProductSpreadsheet',
@@ -57,7 +60,7 @@ class OOILoader(object):
                        'Nodes',
                        #'Platforms',
                        'NodeTypes',
-                       'PlatformAgentTypes'
+                       'PlatformAgents'
                      ]
 
         # Holds the object representations of parsed OOI assets by type
@@ -185,11 +188,11 @@ class OOILoader(object):
             return
         self._add_object_attribute('class',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
-            mapping={},
-            Class_Name=row['Class_Name'])
+            mapping={'Description':'description'},
+            name=row['Class_Name'])
 
     def _parse_AttributeReportDataProducts(self, row):
-        key = row['Data_Product_Identifier'] + "_L" + row['Data_Product_Level']
+        key = row['Data_Product_Identifier'].strip() + "_L" + row['Data_Product_Level'].strip()
         ooi_rd = OOIReferenceDesignator(key)
         if ooi_rd.error or not ooi_rd.rd_type == "dataproduct" or not ooi_rd.rd_subtype == "level":
             msg = "invalid_rd: %s is not a data product reference designator" % (ooi_rd.rd)
@@ -225,6 +228,12 @@ class OOILoader(object):
             mapping={},
             Node_Type=row['Node_Type'], Node_Site_Sequence=row['Node_Site_Sequence'])
 
+    def _parse_NodeTypes(self, row):
+        self._add_object_attribute('nodetype1',
+                                   row['LNodeType'], None, None,
+                                   mapping={'Name':'name'},
+                                   Name=row['Name'])
+
     def _parse_AttributeReportPorts(self, row):
         ooi_rd = OOIReferenceDesignator(row['Port'])
         if ooi_rd.error or not ooi_rd.rd_type == "asset" or not ooi_rd.rd_subtype == "port":
@@ -250,8 +259,8 @@ class OOILoader(object):
         key = row['Class'] + row['Series']
         self._add_object_attribute('series',
             key, row['Attribute'], row['AttributeValue'],
-            mapping={},
-            Series=row['Series'], Series_Name=row['Series_Name'], Class=row['Class'])
+            mapping={'Description':'description'},
+            Series=row['Series'], name=row['Series_Name'], Class=row['Class'])
 
     def _parse_AttributeReportSites(self, row):
         ooi_rd = OOIReferenceDesignator(row['Site'])
@@ -284,14 +293,16 @@ class OOILoader(object):
         # This adds the subseries to current sensors and make/model.
         # Also used to infer node types and names
         refid = row['ReferenceDesignator']
-        subseries_id = row['SClass_PublicID']+row['SSeries_PublicID']+row['SSubseries_PublicID']
+        series_id = row['SClass_PublicID']+row['SSeries_PublicID']
+        subseries_id = series_id+row['SSubseries_PublicID']
         entry = dict(
             instrument_class=row['SClass_PublicID'],
             instrument_series=row['SSeries_PublicID'],
             instrument_subseries=row['SSubseries_PublicID'],
-            instrument_model=subseries_id,
+            instrument_model=row['SClass_PublicID'],
+            instrument_model1=series_id,
             makemodel=row['MMInstrument_PublicID'],
-            ready_for_2013=row['Textbox16']
+            ready_for_2013=row['Ready_For_2013_']
         )
         self._add_object_attribute('instrument',
             refid, None, None, **entry)
@@ -321,7 +332,7 @@ class OOILoader(object):
             refid, None, None, Class=row['SClass_PublicID'])
 
         dpl = row['Data_Product_With_Level']
-        m = re.match('^([A-Z0-9_]{7}) \((L\d)\)$', dpl)
+        m = re.match('^([A-Z0-9_]{7})\s+\((L\d)\)$', dpl)
         if not m:
             msg = "invalid_rd: %s is not a data product designator" % (dpl)
             self.warnings.append((refid, msg))
@@ -334,26 +345,26 @@ class OOILoader(object):
 
     def _parse_DataProductSpreadsheet(self, row):
         dp_types = self.ooi_objects['data_product_type']
-        dp_type = row['Data_Product_Identifier']
+        dp_type = row['Data_Product_Identifier'].strip()
         dpt_obj = dp_types.get(dp_type, {})
-        key = dp_type + "_" + row['Data_Product_Level1']
+        key = dp_type + "_" + row['Data_Product_Level1'].strip()
         entry = dpt_obj.copy()
         entry.update(dict(
-            name=row['Data_Product_Name'],
-            level=row['Data_Product_Level1'],
-            units=row['Units'],
-            dps=row['DPS_DCN_s_'],
-            diagrams=row['Processing_Flow_Diagram_DCN_s_'],
+            name=row['Data_Product_Name'].strip(),
+            level=row['Data_Product_Level1'].strip(),
+            units=row['Units'].strip(),
+            dps=row['DPS_DCN_s_'].strip(),
+            diagrams=row['Processing_Flow_Diagram_DCN_s_'].strip(),
         ))
         self._add_object_attribute('data_product',
             key, None, None, **entry)
         self._add_object_attribute('data_product',
-            key, 'instrument_class_list', row['Instrument_Class'], value_is_list=True)
+            key, 'instrument_class_list', row['Instrument_Class'].strip(), value_is_list=True)
 
     def _parse_AllSensorTypeCounts(self, row):
         # Adds family to instrument class
         self._add_object_attribute('class',
-            row['Class'], 'family', row['Family'])
+            row['Class'].strip(), 'family', row['Family'].strip())
 
     def _parse_Arrays(self, row):
         ooi_rd = row['Reference ID']
@@ -382,6 +393,7 @@ class OOILoader(object):
             platform_config_type=row['Platform Configuration Type'],
             platform_agent_type=row['Platform Agent Type'],
             is_platform=row['Platform Reference ID'] == ooi_rd,
+            deployment_start=row['Start Deployment Cruise'],
         )
         self._add_object_attribute('node',
             ooi_rd, None, None, **node_entry)
@@ -398,11 +410,13 @@ class OOILoader(object):
         self._add_object_attribute('nodetype',
             code, None, None, name=name)
 
-    def _parse_PlatformAgentTypes(self, row):
+    def _parse_PlatformAgents(self, row):
         #
         code = row['Code']
         entry = dict(
             name=row['Name'],
+            agent_type=row['Agent Type'],
+            node_types=row['Node Types'],
             rt_control_path=row['RT Control Path'],
             rt_data_path=row['RT Data Path'],
             rt_data_acquisition=row['RT Data Acquisition'],
@@ -484,3 +498,86 @@ class OOILoader(object):
             return None
         else:
             return ooi_rd.marine_io
+
+    def delete_ooi_assets(self):
+        res_ids = []
+
+        ooi_asset_types = ['InstrumentModel',
+                           'PlatformModel',
+                           'Observatory',
+                           'Subsite',
+                           'PlatformSite',
+                           'InstrumentSite',
+                           'InstrumentAgent',
+                           'InstrumentAgentInstance',
+                           'InstrumentDevice',
+                           'PlatformAgent',
+                           'PlatformAgentInstance',
+                           'PlatformDevice',
+                           'Deployment',
+                           'DataProduct'
+        ]
+
+        for restype in ooi_asset_types:
+            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
+            res_ids.extend(res_is_list)
+            #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
+
+        self.resource_ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
+
+        docs = self.resource_ds.read_doc_mult(res_ids)
+
+        for doc in docs:
+            doc['_deleted'] = True
+
+        # TODO: Also delete associations
+
+        self.resource_ds.update_doc_mult(docs)
+        log.info("Deleted %s OOI resources and associations", len(docs))
+
+    def _analyze_ooi_assets(self, end_date):
+        deploy_platforms = {}
+        node_objs = self.get_type_assets("node")
+        for ooi_id, ooi_obj in node_objs.iteritems():
+            ooi_obj['id'] = ooi_id
+            if not ooi_obj.get('is_platform', False):
+                continue
+            deploy_date_col = ooi_obj['deployment_start']
+            if not deploy_date_col:
+                continue
+            try:
+                deploy_date = datetime.datetime.strptime(deploy_date_col, "%Y-%m-%d")
+                ooi_obj['deploy_date'] = deploy_date
+                if not end_date or deploy_date < end_date:
+                    deploy_platforms[ooi_id] = ooi_obj
+            except Exception as ex:
+                print "Date parse error", ex
+
+        deploy_platform_list = deploy_platforms.values()
+        deploy_platform_list.sort(key=lambda obj: obj['deploy_date'])
+
+        inst_objs = self.get_type_assets("instrument")
+
+        print "OOI ASSET REPORT - DEPLOYMENT UNTIL", end_date if end_date else "PROGRAM END"
+        print "Platforms:"
+        for ooi_obj in deploy_platform_list:
+            print " ", ooi_obj['deployment_start'], ooi_obj['name']
+
+            inst_class = set()
+            for inst_id, inst_obj in inst_objs.iteritems():
+                ooi_rd = OOIReferenceDesignator(inst_id)
+                node_id = ooi_rd.node_rd
+                node_obj = node_objs[node_id]
+                if not node_obj.get('is_platform', False):
+                    node_id = node_obj['platform_id']
+                    node_obj = node_objs[node_id]
+                if node_id == ooi_obj['id']:
+                    inst_class.add(ooi_rd.inst_class)
+            print "    Instrument Models:", ", ".join(sorted(list(inst_class)))
+            print "    Assembly:"
+            for pl_id, pl_obj in node_objs.iteritems():
+                if not pl_obj.get('is_platform', False):
+                    parent_id = pl_obj['platform_id']
+                    if parent_id == ooi_obj['id']:
+                        print "      ", pl_obj['name']
+
