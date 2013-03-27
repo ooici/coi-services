@@ -15,7 +15,7 @@ from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, Negoti
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
-from interface.objects import NegotiationStatusEnum
+
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
 #references to local functions to make this more dynamic
