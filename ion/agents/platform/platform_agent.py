@@ -193,7 +193,7 @@ class PlatformAgent(ResourceAgent):
         self._ia_clients = {}  # Never None
 
         # self.CFG.endpoint.receive.timeout -- see on_init
-        self._timeout = 30
+        self._timeout = 160
 
         log.info("PlatformAgent constructor complete.")
 
@@ -204,7 +204,8 @@ class PlatformAgent(ResourceAgent):
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
-        self._timeout = self.CFG.get("endpoint.receive.timeout", 30)
+        self._timeout = self.CFG.get_safe("endpoint.receive.timeout", self._timeout)
+        log.debug("self._timeout = %s", self._timeout)
 
         self._plat_config = self.CFG.get("platform_config", None)
         self._plat_config_processed = False
