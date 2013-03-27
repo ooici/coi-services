@@ -13,6 +13,7 @@ from pyon.core.exception import NotFound, BadRequest
 from pyon.ion.resource import PRED, RT
 
 from ooi.logging import log
+from pyon.util.containers import get_ion_ts
 
 
 class AgentConfigurationBuilderFactory(object):
@@ -40,7 +41,6 @@ class AgentConfigurationBuilder(object):
 
         if not hasattr(self.clients, "RR2") or {} == self.clients.RR2:
             self.clients.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
-            self._update_cached_predicates()
 
         self.RR2 = self.clients.RR2
 
@@ -53,17 +53,28 @@ class AgentConfigurationBuilder(object):
         self.last_id            = None
         self.will_launch        = False
 
+    def _predicates_to_cache(self):
+        return [PRED.hasOutputProduct,
+                PRED.hasStream,
+                PRED.hasStreamDefinition,
+                PRED.hasAgentInstance,
+                PRED.hasAgentDefinition,
+                PRED.hasDataset,
+                PRED.hasDevice]
 
     def _update_cached_predicates(self):
         # cache some predicates for in-memory lookups
-        for pred in [PRED.hasOutputProduct,
-                     PRED.hasStream,
-                     PRED.hasStreamDefinition,
-                     PRED.hasAgentInstance,
-                     PRED.hasAgentDefinition,
-                     PRED.hasDataset,
-                     PRED.hasDevice]:
+        preds = self._predicates_to_cache()
+        log.debug("updating cached predicates: %s" % preds)
+        time_caching_start = get_ion_ts()
+        for pred in preds:
+            log.debug(" - %s", pred)
             self.clients.RR2.cache_predicate(pred)
+        time_caching_stop = get_ion_ts()
+
+        total_time = int(time_caching_stop) - int(time_caching_start)
+
+        log.info("Cached %s predicates in %s seconds", len(preds), total_time / 1000.0)
 
 
     def _lookup_means(self):
@@ -129,6 +140,10 @@ class AgentConfigurationBuilder(object):
             if self.agent_instance_obj.agent_process_id:
                 raise BadRequest("Agent Instance already running for this device pid: %s" %
                                  str(self.agent_instance_obj.agent_process_id))
+
+        # fetch caches just in time
+        if any([not self.RR2.has_cached_prediate(x) for x in self._predicates_to_cache()]):
+            self._update_cached_predicates()
 
         # validate the associations, then pick things up
         self._collect_agent_instance_associations()

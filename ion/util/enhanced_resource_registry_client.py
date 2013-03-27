@@ -7,6 +7,7 @@
 
 # THIS SHOULD BE FALSE IN COMMITTED CODE
 from ooi import logging
+from pyon.util.containers import get_ion_ts
 
 TEST_LOCALLY=False
 #TEST_LOCALLY=True
@@ -262,6 +263,13 @@ class EnhancedResourceRegistryClient(object):
         log.info("Using %s cached results for 'find (%s) subjects'", len(self._cached_predicates[predicate]), predicate)
 
         log.debug("Checking object_id=%s, subject_type=%s", object_id, subject_type)
+        preds = self._cached_predicates[predicate]
+        time_search_start = get_ion_ts()
+        [a.s for a in preds if object_id == a.o and a.st == subject_type] # filter cached list
+        time_search_stop = get_ion_ts()
+        total_time = int(time_search_stop) - int(time_search_start)
+        log.debug("Processed %s %s predicates for subjects in %s seconds", len(preds), predicate, total_time / 1000.0)
+
         subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
         if [] == subject_ids:
             return [] # HACK because read_mult([]) raises error instead of returning []
@@ -285,7 +293,15 @@ class EnhancedResourceRegistryClient(object):
         log.info("Using %s cached results for 'find (%s) objects'", len(self._cached_predicates[predicate]), predicate)
 
         log.debug("Checking subject_id=%s, object_type=%s", subject_id, object_type)
-        object_ids = [a.o for a in self._cached_predicates[predicate] if subject_id == a.s and a.ot == object_type]
+        preds = self._cached_predicates[predicate]
+        time_search_start = get_ion_ts()
+        object_ids = [a.o for a in preds if subject_id == a.s and a.ot == object_type] # filter cached list
+        time_search_stop = get_ion_ts()
+        total_time = int(time_search_stop) - int(time_search_start)
+        log.debug("Processed %s %s predicates for objects in %s seconds", len(preds), predicate, total_time / 1000.0)
+
+
+
         if [] == object_ids:
             return [] # HACK because read_mult([]) raises error instead of returning []
         elif id_only:
@@ -382,7 +398,18 @@ class EnhancedResourceRegistryClient(object):
         return ret
 
     def cache_predicate(self, predicate):
-        self._cached_predicates[predicate] = self.RR.find_associations(predicate=predicate, id_only=False)
+        """
+        Save all associations of a given predicate type to memory, for in-memory find_subjects/objects ops
+        """
+        time_caching_start = get_ion_ts()
+        preds = self.RR.find_associations(predicate=predicate, id_only=False)
+        time_caching_stop = get_ion_ts()
+
+        total_time = int(time_caching_stop) - int(time_caching_start)
+
+        log.info("Cached %s %s predicates in %s seconds", len(preds), predicate, total_time / 1000.0)
+        self._cached_predicates[predicate] = preds
+
 
     def has_cached_prediate(self, predicate):
         return predicate in self._cached_predicates
