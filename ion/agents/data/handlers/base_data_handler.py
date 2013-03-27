@@ -10,7 +10,7 @@
 """
 import msgpack
 
-from pyon.public import log
+from pyon.public import log, OT
 from pyon.util.async import spawn
 from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
@@ -93,8 +93,9 @@ class BaseDataHandler(object):
         interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
         log.debug('Polling interval: {0}'.format(interval))
 
-        while not self._terminate_polling.wait(timeout=interval):
+        while not self._terminate_polling.is_set():
             self.execute_acquire_sample()
+            self._terminate_polling.wait(timeout=interval)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
@@ -554,7 +555,7 @@ class BaseDataHandler(object):
         # Publish a 'TestFinished' event
         if get_safe(config, 'TESTING'):
             #log.debug('Publish TestingFinished event')
-            pub = EventPublisher('DeviceCommonLifecycleEvent')
+            pub = EventPublisher(OT.DeviceCommonLifecycleEvent)
             pub.publish_event(origin='BaseDataHandler._acquire_sample', description='TestingFinished')
 
     @classmethod
