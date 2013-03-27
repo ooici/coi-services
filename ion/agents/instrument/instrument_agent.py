@@ -194,9 +194,6 @@ class InstrumentAgent(ResourceAgent):
         # Set the test mode.
         self._test_mode = self.CFG.get('test_mode', False)        
 
-        # Set up any preconfigured agent parameters.
-        self._configure_aparams()
-
     ##############################################################
     # Capabilities interface and event handlers.
     ##############################################################    
@@ -730,6 +727,7 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         # Publsih resource config change event.
+        self._set_state('rparams', val)
         try:
             event_data = {
                 'config' : val
@@ -1034,9 +1032,10 @@ class InstrumentAgent(ResourceAgent):
     def _construct_fsm(self):
         """
         """
+        # Here we could define subsets of states and events to specialize fsm.
         
         # Construct default state machine states and handlers.
-        ResourceAgent._construct_fsm(self)
+        super(InstrumentAgent, self)._construct_fsm(ResourceAgentState, ResourceAgentEvent)
         
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
@@ -1126,6 +1125,8 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # LOST_CONNECTION state event handlers.
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_lost_connection_enter)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_lost_connection_exit)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_lost_connection__reset)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_lost_connection__autoreconnect)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_lost_connection__go_inactive)
@@ -1282,18 +1283,21 @@ class InstrumentAgent(ResourceAgent):
     # Agent parameter functions.
     ##############################################################    
     
-    def _configure_aparams(self):
-        
+    def _configure_aparams(self, aparams=[]):
+
+        # Always build the stream from the driver config.        
         stream_config = self.CFG.get('stream_config', None)
         if stream_config:
             for (stream_name, config) in stream_config.iteritems():
                 stream_def = config['stream_definition_ref']
                 rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-                self.aparam_streams[stream_name] = rdt.fields                
-                self.aparam_pubrate[stream_name] = 0
-                        
+                self.aparam_streams[stream_name] = rdt.fields
+                if 'aparam_pubrate' not in aparams:
+                    self.aparam_pubrate[stream_name] = 0                
+
+        # If specified and configed, build the pubrate aparam.
         aparam_pubrate_config = self.CFG.get('aparam_pubrate_config', None)
-        if aparam_pubrate_config:
+        if aparam_pubrate_config and 'aparam_pubrate' in aparams:
             for (stream_name, pubrate) in aparam_pubrate_config:
                 if self.aparam_pubrate.has_key(stream_name) and \
                     isinstance(pubrate, (float, int)) and pubrate >= 0:
@@ -1301,9 +1305,10 @@ class InstrumentAgent(ResourceAgent):
                 else:
                     log.error('Instrument agent %s could not configure stream %s, pubrate %s',
                               self._proc_name, str(stream_name), str(pubrate))
-                
+
+        # If specified and configed, build the alerts aparam.                
         aparam_alert_config = self.CFG.get('aparam_alert_config', None)
-        if aparam_alert_config:
+        if aparam_alert_config and 'aparam_alerts' in aparams:
             for alert_def in aparam_alert_config:
                 alert_def = copy.deepcopy(alert_def)
                 try:
@@ -1318,11 +1323,83 @@ class InstrumentAgent(ResourceAgent):
                     log.error('Instrument agent %s could not construct alert %s, for stream %s',
                               self._proc_name, str(alert_def), stream_name)
 
-        #initialize state of aggregate status to unknow until the first time alerts are processed
+        # Always default the aggstatus to unknown.
         for aggregate_type in AggregateStatusType._str_map.keys():
             if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
                 self.aparam_aggstatus[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
+
+    def _restore_resource(self):
+        """
+        """
+        # Get resource parameters and agent state from persistence.
+        rparams = self._get_state('rparams')
+        state = self._get_state('agent_state')
+        
+        # If the last state was lost connection, use the prior connected
+        # state.
+        if state == 'ResourceAgentState.LOST_CONNECTION':        
+            state = self._get_state('prev_agent_state')
+            
+        # If uninitialized, do nothing.
+        if state == 'ResourceAgentState.UNINITIALIZED':
+            return
+        
+        # Otherwise, initialize.
+        else:
+            self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+            
+        # If inactive, return here.
+        if state == 'ResourceAgentState.INACTIVE':
+            return
+
+        # Else, activate. Return if connect fails.
+        else:
+            try:
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                if rparams:
+                    try:
+                        self.fsm.on_event(SET_RESOURCE, rparams)
                     
+                    except Exception as ex:
+                        log.error('Instrument agent %s error restoring resource parameters %s, exception %s',
+                                  self.id, rparams, str(ex))
+                    
+            except Exception as ex:
+                log.error('Could not restore instrument agent %s state, go active exception: %s.',
+                          self.id, str(ex))
+                return
+
+        # If idle, return here.
+        if state == 'ResourceAgentState.RESOURCE_AGENT_STATE_IDLE':
+            return
+        
+        # Otherwise go into command mode.
+        else:
+            self._fsm.on_event(ResourceAgentEvent.RUN)
+
+        # If command mode, including busy states entered through command mode,
+        # return here. Return if active unknown.
+        if state == 'ResourceAgentState.COMMAND' or \
+            state == 'ResourceAgentState.TEST' or \
+            state == 'ResourceAgentState.CALIBRATE' or \
+            state == 'ResourceAgentState.DIRECT_ACCESS' or \
+            state == 'ResourceAgentState.BUSY' or \
+            state == 'ResourceAgentState.ACTIVE_UNKNOWN':
+            return
+
+        # Else if stopped, pause.       
+        elif state == 'ResourceAgentState.STOPPED':
+            self._fsm.on_event(ResourceAgentEvent.PAUSE)
+            return
+        
+        # Else if streaming, issue last reseource streamoing command.
+        elif state == 'ResourceAgentState.STREAMING':
+            resource_autosample_command = self._get_state('resource_autosample_command')
+            return
+
+        log.error('Instrument agent %s restore to state %s failed.',
+                  self.id, str(state))
+
     def aparam_set_streams(self, params):
         """
         """
