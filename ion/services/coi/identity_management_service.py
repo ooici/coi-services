@@ -220,10 +220,12 @@ class IdentityManagementService(BaseIdentityManagementService):
             log.debug("Signon returning actor_id, valid_until, registered: %s, %s, False" % (actor_id, valid_until))
             return actor_id, valid_until, False
 
-    def get_user_info_extension(self, user_info_id='', user_id=''):
+    def get_user_info_extension(self, user_info_id='', user_id='', actor_id=''):
         """Returns an UserInfoExtension object containing additional related information
 
         @param user_info_id    str
+        @param user_id    str   # An optional user id associated with the requesting user
+        @param actor_id    str # An optional actor id associated with the requesting user actor
         @retval user_info    UserInfoExtension
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified actor_id does not exist
@@ -237,7 +239,8 @@ class IdentityManagementService(BaseIdentityManagementService):
             resource_id=user_info_id,
             computed_resource_type=OT.ComputedAttributes,
             user_id=user_id,
-            negotiation_status=NegotiationStatusEnum.OPEN)
+            negotiation_status=NegotiationStatusEnum.OPEN,
+            actor_id=actor_id)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if extended_user:
