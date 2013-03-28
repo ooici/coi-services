@@ -51,7 +51,7 @@ class GeoUtils(object):
 
     @staticmethod
     def midpoint_shortest(north_lat, west_lon, south_lat, east_lon):
-        g = Geod(ellps='clrk66')
+        g = Geod(ellps='WGS84')
         af, ab, dist = g.inv(west_lon, north_lat, east_lon, south_lat)
         rlon, rlat, az = g.fwd(west_lon, north_lat, af, dist/2)
         # decimal places   degrees      distance
@@ -70,7 +70,7 @@ class GeoUtils(object):
 
     @staticmethod
     def midpoint_longest(north_lat, west_lon, south_lat, east_lon):
-        g = Geod(ellps='clrk66')
+        g = Geod(ellps='WGS84')
         af, ab, dist = g.inv(west_lon, north_lat, east_lon, south_lat)
         rlon, rlat, az = g.fwd(west_lon, north_lat, af, dist/2)
         rlon += 180 if rlon < 0 else -180
