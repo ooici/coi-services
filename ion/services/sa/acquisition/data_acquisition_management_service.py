@@ -961,10 +961,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.update(parser)
 
 
-    def register_producer_qc_table(self, producer_id='', parser_id='', attachment_id=''):
+    def register_producer_qc_reference(self, producer_id='', parser_id='', attachment_id=''):
 
         document = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
-        document_keys = [] #  self.parse_document(parser_id, document)
+        document_keys = self.parse_qc_reference(parser_id, document)
 
         document_keys = document_keys or []
 
@@ -974,7 +974,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         self.clients.resource_registry.update(producer_obj)
         return True
 
-    def parse_document(self, parser_id='', document=None):
+    def parse_qc_reference(self, parser_id='', document=None):
         document_keys = []
         if document is None:
             raise BadRequest('Empty Document')
