@@ -484,7 +484,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        self.RR2.assign_device_to_device_with_has_network_parent(child_device_id, parent_device_id)
+        #self.RR2.assign_device_to_device_with_has_network_parent(child_device_id, parent_device_id)
+        self.RR.create_association(child_device_id, PRED.hasNetworkParent, parent_device_id)
 
     def unassign_device_from_network_parent(self, child_device_id='', parent_device_id=''):
         """Disconnects a child device (any type) from parent in the RSN network
@@ -494,7 +495,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        self.RR2.unassign_device_from_device_with_has_network_parent(child_device_id, parent_device_id)
+        #self.RR2.unassign_device_from_device_with_has_network_parent(child_device_id, parent_device_id)
+        #remove the link to the parent data producer
+        associations = self.clients.resource_registry.find_associations(subject=child_device_id, predicate=PRED.hasNetworkParent, object=parent_device_id, id_only=True)
+        for association in associations:
+            self.clients.resource_registry.delete_association(association)
 
 
     def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
