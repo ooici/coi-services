@@ -464,8 +464,8 @@ class TestAssembly(GenericIntHelperTestCase):
 
         log.info("Associate sensor device with instrument device")
         self.perform_association_script(c.IMS.assign_sensor_device_to_instrument_device,
-                                        self.RR2.find_instrument_devices_by_sensor_device,
-                                        self.RR2.find_sensor_devices_of_instrument_device,
+                                        self.RR2.find_instrument_devices_by_sensor_device_using_has_device,
+                                        self.RR2.find_sensor_devices_of_instrument_device_using_has_device,
                                         instrument_device_id,
                                         sensor_device_id)
 

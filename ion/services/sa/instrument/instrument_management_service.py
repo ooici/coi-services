@@ -1322,16 +1322,19 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.RR2.unassign_platform_model_from_platform_device(platform_model_id, platform_device_id)
 
     def assign_instrument_device_to_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.RR2.assign_instrument_device_to_one_platform_device(instrument_device_id, platform_device_id)
+        self.RR2.assign_instrument_device_to_one_platform_device_with_has_device(instrument_device_id,
+                                                                                 platform_device_id)
 
     def unassign_instrument_device_from_platform_device(self, instrument_device_id='', platform_device_id=''):
-        self.RR2.unassign_instrument_device_from_platform_device(instrument_device_id, platform_device_id)
+        self.RR2.unassign_instrument_device_from_platform_device_with_has_device(instrument_device_id,
+                                                                                 platform_device_id)
 
     def assign_platform_device_to_platform_device(self, child_platform_device_id='', platform_device_id=''):
-        self.RR2.assign_platform_device_to_one_platform_device(child_platform_device_id, platform_device_id)
+        self.RR2.assign_platform_device_to_one_platform_device_with_has_Device(child_platform_device_id, platform_device_id)
 
     def unassign_platform_device_from_platform_device(self, child_platform_device_id='', platform_device_id=''):
-        self.RR2.unassign_platform_device_from_platform_device(child_platform_device_id, platform_device_id)
+        self.RR2.unassign_platform_device_from_platform_device_with_has_device(child_platform_device_id,
+                                                                               platform_device_id)
 
     def assign_platform_agent_to_platform_agent_instance(self, platform_agent_id='', platform_agent_instance_id=''):
         self.RR2.assign_one_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
@@ -1358,10 +1361,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.RR2.unassign_platform_agent_instance_from_platform_device(platform_agent_instance_id, platform_device_id)
 
     def assign_sensor_device_to_instrument_device(self, sensor_device_id='', instrument_device_id=''):
-        self.RR2.assign_sensor_device_to_one_instrument_device(sensor_device_id, instrument_device_id)
+        self.RR2.assign_sensor_device_to_one_instrument_device_with_has_device(sensor_device_id, instrument_device_id)
 
     def unassign_sensor_device_from_instrument_device(self, sensor_device_id='', instrument_device_id=''):
-        self.RR2.unassign_sensor_device_from_instrument_device(sensor_device_id, instrument_device_id)
+        self.RR2.unassign_sensor_device_from_instrument_device_with_has_device(sensor_device_id, instrument_device_id)
 
 
     ##########################################################################
@@ -1463,10 +1466,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return instrument_agent_instance_objs
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
-        return self.RR2.find_instrument_devices_of_platform_device(platform_device_id)
+        return self.RR2.find_instrument_devices_of_platform_device_using_has_device(platform_device_id)
 
     def find_platform_device_by_instrument_device(self, instrument_device_id=''):
-        return self.RR2.find_platform_devices_by_instrument_device(instrument_device_id)
+        return self.RR2.find_platform_devices_by_instrument_device_using_has_device(instrument_device_id)
 
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
