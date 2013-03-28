@@ -35,7 +35,6 @@ __license__ = 'Apache 2.0'
 
 from pyon.public import log
 import logging
-from pyon.public import CFG
 from pyon.public import IonObject
 from pyon.core.exception import ServerError
 
@@ -153,6 +152,10 @@ instruments_dict = {
     }
 }
 
+# The value should probably be defined in pyon.yml or some common place so
+# clients don't have to do updates upon new versions of the egg.
+SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg"
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -164,7 +167,6 @@ class FakeProcess(LocalContextMixin):
 
 
 @attr('INT', group='sa')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 180}}})
 class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     """
     A base class with several conveniences supporting specific platform agent
@@ -656,7 +658,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         from ion.agents.instrument.driver_process import ZMQEggDriverProcess
 
         # A seabird driver.
-        DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.7-py2.7.egg'
+        DRV_URI = SBE37_EGG
         DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
         DRV_CLS = 'SBE37Driver'
 
@@ -728,7 +730,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         instrument_agent_obj = IonObject(RT.InstrumentAgent,
                                          name='agent007_%s' % instr_key,
                                          description="SBE37IMAgent_%s" % instr_key,
-                                         driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.1a-py2.7.egg",
+                                         driver_uri=SBE37_EGG,
                                          stream_configurations=self._get_instrument_stream_configs())
 
         instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)

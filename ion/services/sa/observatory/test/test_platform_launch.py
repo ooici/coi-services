@@ -28,11 +28,11 @@ import time
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
-from nose.plugins.attrib import attr
-from unittest import skip
+from mock import patch
+from pyon.public import CFG
 
 
-@attr('INT', group='sa')
+@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 class TestPlatformLaunch(BaseIntTestPlatform):
 
     def _run_commands(self):
@@ -82,7 +82,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self._run_commands()
         self._stop_platform(p_root.platform_agent_instance_id)
 
-    @skip("running fine locally but skipped for buildbot for the moment")
     def test_platform_hierarchy_with_some_instruments(self):
         #
         # test of launching a multiple-level platform hierarchy with

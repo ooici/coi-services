@@ -297,7 +297,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         inteval.
         """
 
-        alert_def1 = {
+        temp_alert_def = {
             'name' : 'temperature_warning_interval',
             'stream_name' : 'parsed',
             'message' : 'Temperature is below the normal range of 50.0 and above.',
@@ -310,6 +310,36 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             'lower_rel_op' : '<',
             'alert_class' : 'IntervalAlert'
         }
+
+        pressure_alert_def = {
+            'name' : 'pressure_warning_interval',
+            'stream_name' : 'parsed',
+            'message' : 'Pressure is below the normal range of 50.0 and above.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+            'value_id' : 'pressure',
+            'resource_id' : instDevice_id,
+            'origin_type' : 'device',
+            'lower_bound' : 50.0,
+            'lower_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
+        }
+
+        late_data_alert_def = {
+            'name' : 'late_data_warning',
+            'stream_name' : 'parsed',
+            'message' : 'Expected data has not arrived.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
+            'value_id' : None,
+            'resource_id' : instDevice_id,
+            'origin_type' : 'device',
+            'time_delta' : 2,
+            'get_state' : ResourceAgentState.STREAMING,
+            'alert_class' : 'LateDataAlert'
+        }
+
+
 
 
         port_agent_config = {
@@ -327,7 +357,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           port_agent_config = port_agent_config,
-                                            alerts= [alert_def1])
+                                            alerts= [temp_alert_def, late_data_alert_def])
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
@@ -423,28 +453,44 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         #setup a subscriber to alarm events from the device
         self._events_received= []
-        self._event_count = 0
-        self._samples_out_of_range = 0
-        self._samples_complete = False
         self._async_sample_result = AsyncResult()
+        self._agg_event_recieved = False
+        self._alert_event_recieved = False
 
         def consume_event(*args, **kwargs):
             log.debug('TestActivateInstrument recieved ION event: args=%s, kwargs=%s, event=%s.',
                 str(args), str(kwargs), str(args[0]))
             self._events_received.append(args[0])
-            self._event_count = len(self._events_received)
-            self._async_sample_result.set()
-            retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
-            log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
+
             event = args[0]
             log.debug('TestActivateInstrument consume_event event: %s', event)
+
+            if event.type_ is 'StreamAlertEvent':
+                self._alert_event_recieved = True
+            elif event.type_ is 'DeviceAggregateStatusEvent':
+                self._agg_event_recieved = True
+
+            #check that the current agg status matches the event sub_type
+            retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
+            log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
             if event.sub_type == 'WARNING':
                 self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_WARNING)
             elif event.sub_type == 'ALL_CLEAR':
                 self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_OK)
 
+            #once the alert is recived and the aggregate status is also received then finish
+            if self._agg_event_recieved and self._alert_event_recieved:
+                self._async_sample_result.set()
+
+
         self._event_subscriber = EventSubscriber(
             event_type= 'StreamAlertEvent',
+            callback=consume_event,
+            origin=instDevice_id)
+        self._event_subscriber.start()
+
+        self._event_subscriber = EventSubscriber(
+            event_type= 'DeviceAggregateStatusEvent',
             callback=consume_event,
             origin=instDevice_id)
         self._event_subscriber.start()
@@ -532,7 +578,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: return from reset %s" , str(reply))
 
-        self._samples_complete = True
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
@@ -543,19 +588,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("test_activateInstrumentSample: RDT parsed: %s", str(rdt.pretty_print()) )
         temp_vals = rdt['temp']
+        pressure_vals  = rdt['pressure']
         self.assertEquals(len(temp_vals) , 10)
         log.debug("test_activateInstrumentSample: all temp_vals: %s", temp_vals )
+        log.debug("test_activateInstrumentSample: all pressure_vals: %s", pressure_vals )
 
         out_of_range_temp_vals = [i for i in temp_vals if i < 50.0]
         log.debug("test_activateInstrumentSample: Out_of_range_temp_vals: %s", out_of_range_temp_vals )
-        self._samples_out_of_range = len(out_of_range_temp_vals)
 
         # if no bad values were produced, then do not wait for an event
-        if self._samples_out_of_range == 0:
+        if len(out_of_range_temp_vals) == 0:
             self._async_sample_result.set()
 
         log.debug("test_activateInstrumentSample: _events_received: %s", self._events_received )
-        log.debug("test_activateInstrumentSample: _event_count: %s", self._event_count )
 
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
 

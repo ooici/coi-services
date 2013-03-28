@@ -353,6 +353,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_siteb_id, PRED.hasSite, instrument_site_id)
 
         self.RR.create_association(platform_siteb_id, PRED.hasDevice, platform_deviceb_id)
+        #test network parent link
+        self.OMS.assign_device_to_network_parent(platform_device_id, platform_deviceb_id)
 
         self.RR.create_association(platform_site_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
@@ -412,32 +414,32 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                         name='TestPlatformSite',
                                         description='some new TestPlatformSite')
         geo_index_obj = IonObject(OT.GeospatialBounds)
-        geo_index_obj.geospatial_latitude_limit_north = 200.0
-        geo_index_obj.geospatial_latitude_limit_south = 100.0
-        geo_index_obj.geospatial_longitude_limit_east = 150.0
-        geo_index_obj.geospatial_longitude_limit_west = 200.0
+        geo_index_obj.geospatial_latitude_limit_north = 20.0
+        geo_index_obj.geospatial_latitude_limit_south = 10.0
+        geo_index_obj.geospatial_longitude_limit_east = 15.0
+        geo_index_obj.geospatial_longitude_limit_west = 20.0
         platformsite_obj.constraint_list = [geo_index_obj]
 
         platformsite_id = self.OMS.create_platform_site(platformsite_obj)
 
         # now get the dp back to see if it was updated
         platformsite_obj = self.OMS.read_platform_site(platformsite_id)
-        self.assertEquals(platformsite_obj.description,'some new TestPlatformSite')
-        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 150.0)
+        self.assertEquals('some new TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(15.0, platformsite_obj.geospatial_point_center.lat, places=1)
 
 
         #now adjust a few params
-        platformsite_obj.description ='some old TestPlatformSite'
+        platformsite_obj.description = 'some old TestPlatformSite'
         geo_index_obj = IonObject(OT.GeospatialBounds)
-        geo_index_obj.geospatial_latitude_limit_north = 300.0
-        geo_index_obj.geospatial_latitude_limit_south = 200.0
+        geo_index_obj.geospatial_latitude_limit_north = 30.0
+        geo_index_obj.geospatial_latitude_limit_south = 20.0
         platformsite_obj.constraint_list = [geo_index_obj]
         update_result = self.OMS.update_platform_site(platformsite_obj)
 
         # now get the dp back to see if it was updated
         platformsite_obj = self.OMS.read_platform_site(platformsite_id)
-        self.assertEquals(platformsite_obj.description,'some old TestPlatformSite')
-        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 250.0)
+        self.assertEquals('some old TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(25.0, platformsite_obj.geospatial_point_center.lat, places=1)
 
         self.OMS.force_delete_platform_site(platformsite_id)
 
@@ -604,6 +606,11 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_site.platform_models))
         self.assertEqual(stuff.platform_device_id, extended_site.platform_devices[0]._id)
         self.assertEqual(stuff.platform_model_id, extended_site.platform_models[0]._id)
+
+        log.debug("verify that PlatformDeviceb is linked to PlatformDevice with hasNetworkParent link")
+        associations = self.RR.find_associations(subject=stuff.platform_deviceb_id, predicate=PRED.hasNetworkParent, object=stuff.platform_device_id, id_only=True)
+        self.assertIsNotNone(associations, "PlatformDevice child not connected to PlatformDevice parent.")
+
 
         #--------------------------------------------------------------------------------
         # Get the extended Org

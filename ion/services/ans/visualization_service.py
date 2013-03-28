@@ -80,8 +80,14 @@ class VisualizationService(BaseVisualizationService):
                 break
 
             #get the list of queues and message counts on the broker for the user vis queues
-            queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+            queues = []
+            try:
+                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+            except Exception, e:
+                log.warn('Unable to get queue information from broker management plugin: ' + e.message)
+                pass
 
+            print "In Monitor Loop worker: " + self.id
             log.debug( "In Monitor Loop worker: " + self.id)
             for queue in queues:
 
