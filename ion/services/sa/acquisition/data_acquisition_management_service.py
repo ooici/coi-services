@@ -975,6 +975,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         return True
 
     def parse_document(self, parser_id='', document=None):
+        document_keys = []
+        if document is None:
+            raise BadRequest('Empty Document')
         parser = self.read_parser(parser_id=parser_id)
         try:
             module = __import__(parser.module, fromlist=[parser.method])
@@ -991,6 +994,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for key, doc in method(document):
             try:
                 svm.stored_value_cas(key, doc)
+                document_keys.append(key)
             except:
                 log.error('Error parsing a row in document.')
+        return document_keys
 
