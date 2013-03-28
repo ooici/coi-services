@@ -316,7 +316,7 @@ class TestAssembly(GenericIntHelperTestCase):
         #----------------------------------------------
         
         log.info("Associate platform model with platform site")
-        self.perform_association_script(c.OMS.assign_platform_model_to_platform_desite,
+        self.perform_association_script(c.OMS.assign_platform_model_to_platform_site,
                                         self.RR2.find_platform_sites_by_platform_model,
                                         self.RR2.find_platform_models_of_platform_site,
                                         platform_site_id,
