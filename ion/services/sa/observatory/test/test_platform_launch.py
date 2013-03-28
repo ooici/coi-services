@@ -78,7 +78,14 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._generate_platform_config(p_root, "_complete")
 
+        #####################################
+        # start the root platform:
+        #####################################
+        log.info("will start the root platform ...")
+        start_time = time.time()
         self._start_platform(p_root.platform_agent_instance_id)
+        log.info("root platform started. Took %.3f secs.", time.time() - start_time)
+
         self._run_commands()
         self._stop_platform(p_root.platform_agent_instance_id)
 

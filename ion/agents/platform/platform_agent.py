@@ -50,6 +50,8 @@ from interface.objects import StreamRoute
 
 import logging
 import time
+from gevent import Greenlet
+from gevent.event import AsyncResult
 
 import pprint
 
@@ -195,6 +197,8 @@ class PlatformAgent(ResourceAgent):
         # self.CFG.endpoint.receive.timeout -- see on_init
         self._timeout = 160
 
+        self._async_children_launched = AsyncResult()
+
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
@@ -219,8 +223,129 @@ class PlatformAgent(ResourceAgent):
                 log.warn("%r: on_init: error printing CFG to %s: %s", platform_id, outname, e)
 
     def on_start(self):
+        """
+        Validates the given configuration and does related preparations.
+        """
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running: on_start called.')
+
+        self._validate_configuration()
+
+        log.info("%r: starting _children_launch", self._platform_id)
+        Greenlet(self._children_launch).start()
+        log.info("%r: started _children_launch", self._platform_id)
+
+    def _validate_configuration(self):
+        """
+        Does verifications and preparations dependent on self.CFG.
+
+        @raises PlatformException if the verification fails for some reason.
+        """
+
+        if not self._plat_config:
+            msg = "'platform_config' entry not provided in agent configuration"
+            log.error(msg)
+            raise PlatformException(msg)
+
+        if self._plat_config_processed:
+            # nothing else to do here
+            return
+
+        log.debug("verifying/processing _plat_config ...")
+
+        self._driver_config = self.CFG.get('driver_config', None)
+        if None is self._driver_config:
+            msg = "'driver_config' key not in configuration"
+            log.error(msg)
+            raise PlatformException(msg)
+
+        log.debug("driver_config: %s", self._driver_config)
+
+        for k in ['platform_id']:
+            if not k in self._plat_config:
+                msg = "'%s' key not given in configuration" % k
+                log.error(msg)
+                raise PlatformException(msg)
+
+        self._platform_id = self._plat_config['platform_id']
+
+        for k in ['dvr_mod', 'dvr_cls']:
+            if not k in self._driver_config:
+                msg = "%r: '%s' key not given in driver_config: %s" % (
+                    self._platform_id, k, self._driver_config)
+                log.error(msg)
+                raise PlatformException(msg)
+
+        # Create network definition from the provided CFG:
+        self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
+        log.debug("%r: created network_definition from CFG", self._platform_id)
+
+        # verify the given platform_id is contained in the NetworkDefinition:
+        if not self._platform_id in self._network_definition.pnodes:
+            msg = "%r: this platform_id not found in network definition." % self._platform_id
+            log.error(msg)
+            raise PlatformException(msg)
+
+        # get PlatformNode corresponding to this agent:
+        self._pnode = self._network_definition.pnodes[self._platform_id]
+        assert self._pnode.platform_id == self._platform_id
+
+        #
+        # set platform attributes:
+        #
+        if 'attributes' in self._driver_config:
+            attrs = self._driver_config['attributes']
+            self._platform_attributes = attrs
+            log.debug("%r: platform attributes taken from driver_config: %s",
+                      self._platform_id, self._platform_attributes)
+        else:
+            self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
+                                             in self._pnode.attrs.itervalues())
+            log.warn("%r: platform attributes taken from network definition: %s",
+                     self._platform_id, self._platform_attributes)
+
+        #
+        # set platform ports:
+        # TODO the ports may probably be applicable only in particular
+        # drivers (like in RSN), so move these there if that's the case.
+        #
+        if 'ports' in self._driver_config:
+            ports = self._driver_config['ports']
+            self._platform_ports = ports
+            log.debug("%r: platform ports taken from driver_config: %s",
+                      self._platform_id, self._platform_ports)
+        else:
+            self._platform_ports = {}
+            for port_id, port in self._pnode.ports.iteritems():
+                self._platform_ports[port_id] = dict(port_id=port_id,
+                                                     network=port.network)
+            log.warn("%r: platform ports taken from network definition: %s",
+                     self._platform_id, self._platform_ports)
+
+        ppid = self._plat_config.get('parent_platform_id', None)
+        if ppid:
+            self._parent_platform_id = ppid
+            log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
+
+        self._plat_config_processed = True
+
+        log.debug("%r: _validate_configuration complete",  self._platform_id)
+
+    def _children_launch(self):
+        """
+        Launches the sub-platform agents.
+        Launches the associated instrument agents;
+        """
+        log.info('_children_launch ...')
+
+        # launch the sub-platform agents:
+        self._subplatforms_launch()
+
+        # launch instruments:
+        self._instruments_launch()
+
+        self._async_children_launched.set()
+        log.info("%r: _children_launch completed", self._platform_id)
 
     def on_quit(self):
         try:
@@ -341,102 +466,6 @@ class PlatformAgent(ResourceAgent):
             self._plat_driver = None
 
         self._unconfigured_params.clear()
-
-    def _pre_initialize(self):
-        """
-        Does verifications and preparations dependent on self.CFG.
-
-        @raises PlatformException if the verification fails for some reason.
-        """
-
-        if not self._plat_config:
-            msg = "'platform_config' entry not provided in agent configuration"
-            log.error(msg)
-            raise PlatformException(msg)
-
-        if self._plat_config_processed:
-            # nothing else to do here
-            return
-
-        log.debug("verifying/processing _plat_config ...")
-
-        self._driver_config = self.CFG.get('driver_config', None)
-        if None is self._driver_config:
-            msg = "'driver_config' key not in configuration"
-            log.error(msg)
-            raise PlatformException(msg)
-
-        log.debug("driver_config: %s", self._driver_config)
-
-        for k in ['platform_id']:
-            if not k in self._plat_config:
-                msg = "'%s' key not given in configuration" % k
-                log.error(msg)
-                raise PlatformException(msg)
-
-        self._platform_id = self._plat_config['platform_id']
-
-        for k in ['dvr_mod', 'dvr_cls']:
-            if not k in self._driver_config:
-                msg = "%r: '%s' key not given in driver_config: %s" % (
-                    self._platform_id, k, self._driver_config)
-                log.error(msg)
-                raise PlatformException(msg)
-
-        # Create network definition from the provided CFG:
-        self._network_definition = NetworkUtil.create_network_definition_from_ci_config(self.CFG)
-        log.debug("%r: created network_definition from CFG", self._platform_id)
-
-        # verify the given platform_id is contained in the NetworkDefinition:
-        if not self._platform_id in self._network_definition.pnodes:
-            msg = "%r: this platform_id not found in network definition." % self._platform_id
-            log.error(msg)
-            raise PlatformException(msg)
-
-        # get PlatformNode corresponding to this agent:
-        self._pnode = self._network_definition.pnodes[self._platform_id]
-        assert self._pnode.platform_id == self._platform_id
-
-        #
-        # set platform attributes:
-        #
-        if 'attributes' in self._driver_config:
-            attrs = self._driver_config['attributes']
-            self._platform_attributes = attrs
-            log.debug("%r: platform attributes taken from driver_config: %s",
-                      self._platform_id, self._platform_attributes)
-        else:
-            self._platform_attributes = dict((attr.attr_id, attr.defn) for attr
-                                             in self._pnode.attrs.itervalues())
-            log.warn("%r: platform attributes taken from network definition: %s",
-                     self._platform_id, self._platform_attributes)
-
-        #
-        # set platform ports:
-        # TODO the ports may probably be applicable only in particular
-        # drivers (like in RSN), so move these there if that's the case.
-        #
-        if 'ports' in self._driver_config:
-            ports = self._driver_config['ports']
-            self._platform_ports = ports
-            log.debug("%r: platform ports taken from driver_config: %s",
-                      self._platform_id, self._platform_ports)
-        else:
-            self._platform_ports = {}
-            for port_id, port in self._pnode.ports.iteritems():
-                self._platform_ports[port_id] = dict(port_id=port_id,
-                                                     network=port.network)
-            log.warn("%r: platform ports taken from network definition: %s",
-                     self._platform_id, self._platform_ports)
-
-        ppid = self._plat_config.get('parent_platform_id', None)
-        if ppid:
-            self._parent_platform_id = ppid
-            log.debug("_parent_platform_id set to: %s", self._parent_platform_id)
-
-        self._plat_config_processed = True
-
-        log.debug("%r: _plat_config_processed complete",  self._platform_id)
 
     ##############################################################
     # Governance interfaces
@@ -595,7 +624,6 @@ class PlatformAgent(ResourceAgent):
         and creation/configuration of the driver, but excludes the launch
         of the sub-platforms.
         """
-        self._pre_initialize()
         self._construct_data_publishers()
         self._create_driver()
         self._configure_driver()
@@ -887,8 +915,7 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_platform_agent(self, subplatform_id):
         """
-        Launches a sub-platform agent, creates ResourceAgentClient, and pings
-        and initializes the sub-platform agent.
+        Launches a sub-platform agent, creates ResourceAgentClient.
 
         @param subplatform_id Platform ID
         """
@@ -917,9 +944,6 @@ class PlatformAgent(ResourceAgent):
 
         self._pa_clients[subplatform_id] = (pa_client, pid)
 
-        self._ping_subplatform(subplatform_id)
-        self._initialize_subplatform(subplatform_id)
-
     def _execute_platform_agent(self, a_client, cmd, sub_id):
         return self._execute_agent("platform", a_client, cmd, sub_id)
 
@@ -942,10 +966,13 @@ class PlatformAgent(ResourceAgent):
     def _initialize_subplatform(self, subplatform_id):
         """
         Issues INITIALIZE command to the given (sub-)platform agent so the
-        agent network gets built and initialized recursively.
+        agent network gets initialized recursively.
         """
         log.debug("%r: _initialize_subplatform -> %r",
-            self._platform_id, subplatform_id)
+                  self._platform_id, subplatform_id)
+
+        # first, ping sub-platform
+        self._ping_subplatform(subplatform_id)
 
         pa_client, _ = self._pa_clients[subplatform_id]
 
@@ -953,7 +980,7 @@ class PlatformAgent(ResourceAgent):
         retval = self._execute_platform_agent(pa_client, cmd, subplatform_id)
         if log.isEnabledFor(logging.DEBUG):
             log.debug("%r: _initialize_subplatform %r  retval = %s",
-                self._platform_id, subplatform_id, str(retval))
+                      self._platform_id, subplatform_id, str(retval))
 
     def _get_subplatform_ids(self):
         """
@@ -983,6 +1010,19 @@ class PlatformAgent(ResourceAgent):
                 self._launch_platform_agent(subplatform_id)
 
             log.debug("%r: _subplatforms_launch completed.", self._platform_id)
+
+    def _subplatforms_initialize(self):
+        """
+        Initializes all my sub-platforms.
+        """
+        subplatform_ids = self._get_subplatform_ids()
+        if len(subplatform_ids):
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("%r: initializing subplatforms %s", self._platform_id, subplatform_ids)
+            for subplatform_id in subplatform_ids:
+                self._initialize_subplatform(subplatform_id)
+
+            log.debug("%r: _subplatforms_initialize completed.", self._platform_id)
 
     def _subplatforms_execute_agent(self, command=None, create_command=None,
                                     expected_state=None):
@@ -1086,6 +1126,9 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _initialize_instrument -> %r",
                   self._platform_id, instrument_id)
 
+        # first, ping:
+        self._ping_instrument(instrument_id)
+
         ia_client, _ = self._ia_clients[instrument_id]
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
@@ -1104,8 +1147,7 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_instrument_agent(self, instrument_id):
         """
-        Launches an instrument agent, creates ResourceAgentClient, pings and
-        and initializes the instrument agent.
+        Launches an instrument agent, and creates ResourceAgentClient.
 
         @param instrument_id
         """
@@ -1134,9 +1176,6 @@ class PlatformAgent(ResourceAgent):
 
         self._ia_clients[instrument_id] = (ia_client, pid)
 
-        self._ping_instrument(instrument_id)
-        self._initialize_instrument(instrument_id)
-
     def _instruments_launch(self):
         """
         Launches all my instruments storing the corresponding
@@ -1150,6 +1189,18 @@ class PlatformAgent(ResourceAgent):
                 self._launch_instrument_agent(instrument_id)
 
             log.debug("%r: _instruments_launch completed.", self._platform_id)
+
+    def _instruments_initialize(self):
+        """
+        Initializes all my instruments.
+        """
+        instrument_ids = self._get_instrument_ids()
+        if len(instrument_ids):
+            log.debug("%r: initializing instruments %s", self._platform_id, instrument_ids)
+            for instrument_id in instrument_ids:
+                self._initialize_instrument(instrument_id)
+
+            log.debug("%r: _instruments_initialize completed.", self._platform_id)
 
     def _instruments_execute_agent(self, command=None, create_command=None,
                                    expected_state=None):
@@ -1230,24 +1281,29 @@ class PlatformAgent(ResourceAgent):
     def _initialize(self):
         """
         Processes the overall INITIALIZE command: does proper initialization
-        and launches and initializes instruments and sub-platforms, so,
-        the whole network rooted here gets launched and initialized recursively.
+        and initializes instruments and sub-platforms, so,
+        the whole network rooted here gets initialized recursively.
         """
         assert self._plat_config, "platform_config must have been provided"
 
         log.info("%r: _initializing with provided platform_config...",
                  self._plat_config['platform_id'])
 
+        # make sure children have been launched:
+        self._async_children_launched.get(timeout=self._timeout)
+        log.debug("%r: _children_launch: already launched. Continuing with initialization",
+                  self._platform_id)
+
         self._do_initialize()
         log.debug("%r: _do_initialize completed.", self._platform_id)
 
         # done with the initialization for this particular agent.
 
-        # launch instruments:
-        self._instruments_launch()
+        # initialize instruments
+        self._instruments_initialize()
 
-        # launch the sub-platform agents:
-        self._subplatforms_launch()
+        # initialize sub-platforms
+        self._subplatforms_initialize()
 
         result = None
         return result
