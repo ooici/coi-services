@@ -484,7 +484,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        #self.RR2.assign_device_to_device_with_has_network_parent(child_device_id, parent_device_id)
+        #self.RR2.assign_device_to_one_device_with_has_network_parent(child_device_id, parent_device_id)
         self.RR.create_association(child_device_id, PRED.hasNetworkParent, parent_device_id)
 
     def unassign_device_from_network_parent(self, child_device_id='', parent_device_id=''):
@@ -783,7 +783,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             raise BadRequest("Multiple platforms in the same deployment are not allowed")
         elif 0 < len(device_models):
             log.trace("adding devices and sites that are children of platform device / site")
-            child_device_objs = self.RR2.find_platform_devices_of_platform_device(device_models.keys()[0])
+            dmks = device_models.keys()[0]
+            child_device_objs = self.RR2.find_platform_devices_of_platform_device_using_has_device(dmks)
             child_site_objs = self.find_related_frames_of_reference(site_models.keys()[0],
                 [RT.PlatformSite, RT.InstrumentSite])
 
