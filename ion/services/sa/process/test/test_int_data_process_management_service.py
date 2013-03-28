@@ -731,6 +731,16 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.lc_preload()
         instrument_data_product_id = self.ctd_instrument_data_product()
         offset_data_product_id = self.make_data_product('lookup_value_test', 'lookup_values')
+
+
+        data_producer = DataProducer(name='producer')
+        data_producer.producer_context = DataProcessProducerContext()
+        data_producer.producer_context.configuration['qc_keys'] = ['calibrated_ctd']
+        data_producer_id, _ = self.resource_registry.create(data_producer)
+        self.addCleanup(self.resource_registry.delete, data_producer_id)
+        assoc,_ = self.resource_registry.create_association(subject=instrument_data_product_id, object=data_producer_id, predicate=PRED.hasDataProducer)
+        self.addCleanup(self.resource_registry.delete_association, assoc)
+
         
         data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[offset_data_product_id], configuration={'process':{'lookup_docs':['calibrated_ctd']}})
         self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
