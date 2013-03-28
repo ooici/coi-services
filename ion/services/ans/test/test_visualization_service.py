@@ -20,7 +20,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceProcessClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
-
+from ion.services.ans.visualization_service import USER_VISUALIZATION_QUEUE
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 
@@ -101,7 +101,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
         data_product_stream_ids.append(ctd_stream_id)
 
-        user_queue_name = 'user_queue'
+        user_queue_name = USER_VISUALIZATION_QUEUE
 
         xq = self.container.ex_manager.create_xn_queue(user_queue_name)
 
@@ -228,8 +228,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         # Now for each of the data_product_stream_ids create a queue and pipe their data to the queue
 
 
-        user_queue_name1 = 'user_queue_1'
-        user_queue_name2 = 'user_queue_2'
+        user_queue_name1 = USER_VISUALIZATION_QUEUE + '1'
+        user_queue_name2 = USER_VISUALIZATION_QUEUE + '2'
 
         # use idempotency to create queues
         xq1 = self.container.ex_manager.create_xn_queue(user_queue_name1)
@@ -289,6 +289,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         return
 
     @patch.dict(CFG, {'user_queue_monitor_timeout': 5})
+    @attr('SMOKE')
     def test_realtime_visualization(self):
 
         #Start up multiple vis service workers if not a CEI launch
