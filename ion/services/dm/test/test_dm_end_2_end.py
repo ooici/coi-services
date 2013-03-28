@@ -23,7 +23,7 @@ from ion.util.stored_values import StoredValueManager
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
-from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -376,7 +376,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
+        offset_ctxt = ParameterContext(name='offset_a', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         offset_ctxt.lookup_value = True
         offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
