@@ -478,11 +478,11 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         Generate the configuration for child devices
         """
         log.debug("Getting child platform device ids")
-        child_pdevice_ids = self.RR2.find_platform_device_ids_of_device(self._get_device()._id)
+        child_pdevice_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(self._get_device()._id)
         log.debug("found platform device ids: %s", child_pdevice_ids)
 
         log.debug("Getting child instrument device ids")
-        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device(self._get_device()._id)
+        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(self._get_device()._id)
         log.debug("found instrument device ids: %s", child_idevice_ids)
 
         child_device_ids = child_idevice_ids + child_pdevice_ids

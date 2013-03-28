@@ -654,8 +654,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         verify_child_config(parent_config, platform_device_parent_id)
 
         log.debug("assigning child platform to parent")
-        self.RR2.assign_platform_device_to_platform_device(platform_device_child_id, platform_device_parent_id)
-        child_device_ids = self.RR2.find_platform_device_ids_of_device(platform_device_parent_id)
+        self.RR2.assign_platform_device_to_platform_device_with_has_device(platform_device_child_id,
+                                                                           platform_device_parent_id)
+        child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(platform_device_parent_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing parent + child as parent config")
@@ -676,8 +677,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         verify_instrument_config(instrument_config, instrument_device_id)
 
         log.debug("assigning instrument to platform")
-        self.RR2.assign_instrument_device_to_platform_device(instrument_device_id, platform_device_child_id)
-        child_device_ids = self.RR2.find_instrument_device_ids_of_device(platform_device_child_id)
+        self.RR2.assign_instrument_device_to_platform_device_with_has_device(instrument_device_id,
+                                                                             platform_device_child_id)
+        child_device_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(platform_device_child_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing entire config")
