@@ -1333,6 +1333,10 @@ class InstrumentAgent(ResourceAgent):
         """
         # Get resource parameters and agent state from persistence.
         rparams = self._get_state('rparams')
+        if rparams and self._dvr_config:
+            #self._dvr_config['startup_configuration'] = rparams
+            print '### restoring startup config: %s' % str(rparams)
+            
         state = self._get_state('agent_state')
         
         # If the last state was lost connection, use the prior connected
