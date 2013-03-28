@@ -1466,10 +1466,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return instrument_agent_instance_objs
 
     def find_instrument_device_by_platform_device(self, platform_device_id=''):
-        return self.RR2.find_instrument_devices_of_platform_device(platform_device_id)
+        return self.RR2.find_instrument_devices_of_platform_device_using_has_device(platform_device_id)
 
     def find_platform_device_by_instrument_device(self, instrument_device_id=''):
-        return self.RR2.find_platform_devices_by_instrument_device(instrument_device_id)
+        return self.RR2.find_platform_devices_by_instrument_device_using_has_device(instrument_device_id)
 
 
     def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):

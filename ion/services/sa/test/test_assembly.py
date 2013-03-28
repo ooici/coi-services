@@ -316,7 +316,7 @@ class TestAssembly(GenericIntHelperTestCase):
         #----------------------------------------------
         
         log.info("Associate platform model with platform site")
-        self.perform_association_script(c.OMS.assign_platform_model_to_platform_site,
+        self.perform_association_script(c.OMS.assign_platform_model_to_platform_desite,
                                         self.RR2.find_platform_sites_by_platform_model,
                                         self.RR2.find_platform_models_of_platform_site,
                                         platform_site_id,
@@ -464,8 +464,8 @@ class TestAssembly(GenericIntHelperTestCase):
 
         log.info("Associate sensor device with instrument device")
         self.perform_association_script(c.IMS.assign_sensor_device_to_instrument_device,
-                                        self.RR2.find_instrument_devices_by_sensor_device,
-                                        self.RR2.find_sensor_devices_of_instrument_device,
+                                        self.RR2.find_instrument_devices_by_sensor_device_using_has_device,
+                                        self.RR2.find_sensor_devices_of_instrument_device_using_has_device,
                                         instrument_device_id,
                                         sensor_device_id)
 
