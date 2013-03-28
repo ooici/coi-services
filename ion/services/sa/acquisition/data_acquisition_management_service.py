@@ -41,7 +41,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         ext_dataset_obj = self.clients.resource_registry.read(external_dataset_id)
 
         if ext_dataset_obj is None:
-            raise NotFound('External dataset object %s does not exist' % external_dataset_id)
+            raise NotFound('External Data Set %s does not exist' % external_dataset_id)
 
         #create a InstrumentProducerContext to hold the state of the this producer
         producer_context_obj = ExtDatasetProducerContext()
@@ -58,11 +58,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         input_data_product_ids = self.clients.resource_registry.find_objects(subject=external_dataset_id, predicate=PRED.hasInputProduct, object_type=RT.DataProduct, id_only=True)
         for input_data_product_id in input_data_product_ids:
-            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
+            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
             for input_data_product_producer_id in input_data_product_producer_ids:
                 self.clients.resource_registry.create_association(data_producer_id, PRED.hasParent, input_data_product_producer_id)
 
-        output_data_product_ids = self.clients.resource_registry.find_objects(subject=external_dataset_id, PRED.hasOutputProduct, object_type=RT.DataProduct)
+        output_data_product_ids = self.clients.resource_registry.find_objects(subject=external_dataset_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
         for output_data_product_id in output_data_product_ids:
             output_data_product = self.clients.resource_registry.read(output_data_product_id)
             data_product_producer_obj = DataProducer(name=output_data_product.name + '_data_producer',
@@ -70,9 +70,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                                                      is_primary=True,
                                                      producer_context=producer_context_obj)
             data_product_producer_id, rev = self.clients.resource_registry.create(data_product_producer_obj)
-            self.clients.resource_registry.create_association(subject=output_data_product_id, PRED.hasDataProducer, object=data_product_producer_id)
+            self.clients.resource_registry.create_association(subject=output_data_product_id, predicate=PRED.hasDataProducer, object=data_product_producer_id)
 
-            self.clients.resource_registry.create_association(subject=data_product_producer_id, PRED.hasParent, object=data_producer_id)
+            self.clients.resource_registry.create_association(subject=data_product_producer_id, predicate=PRED.hasParent, object=data_producer_id)
 
         return data_producer_id
 
@@ -95,7 +95,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                         self.clients.resource_registry.delete_association(assoc)
 
 
-        output_data_product_ids = self.clients.resource_registry.find_objects(subject=external_dataset_id, PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+        output_data_product_ids = self.clients.resource_registry.find_objects(subject=external_dataset_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
         for output_data_product_id in output_data_product_ids:
             output_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=output_data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
             for output_data_product_producer_id in output_data_product_producer_ids:
@@ -135,20 +135,20 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         input_data_product_ids = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasInputProduct, object_type=RT.DataProduct, id_only=True)
         for input_data_product_id in input_data_product_ids:
-            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
+            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
             for input_data_product_producer_id in input_data_product_producer_ids:
                 self.clients.resource_registry.create_association(data_producer_id, PRED.hasParent, input_data_product_producer_id)
 
-        output_data_product_ids = self.clients.resource_registry.find_objects(subject=data_process_id, PRED.hasOutputProduct, object_type=RT.DataProduct)
+        output_data_product_ids = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
         for output_data_product_id in output_data_product_ids:
             output_data_product = self.clients.resource_registry.read(output_data_product_id)
             data_product_producer_obj = DataProducer(name=output_data_product.name + '_data_producer',
                                              description='DataProducer for DataProduct %s' % output_data_product.name,
                                              is_primary=True)
             data_product_producer_id, rev = self.clients.resource_registry.create(data_product_producer_obj)
-            self.clients.resource_registry.create_association(subject=output_data_product_id, PRED.hasDataProducer, object=data_product_producer_id)
+            self.clients.resource_registry.create_association(subject=output_data_product_id, predicate=PRED.hasDataProducer, object=data_product_producer_id)
 
-            self.clients.resource_registry.create_association(subject=data_product_producer_id, PRED.hasParent, object=data_producer_id)
+            self.clients.resource_registry.create_association(subject=data_product_producer_id, predicate=PRED.hasParent, object=data_producer_id)
 
         return data_producer_id
 
@@ -174,20 +174,20 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         input_data_product_ids = self.clients.resource_registry.find_objects(subject=process_id, predicate=PRED.hasInputProduct, object_type=RT.DataProduct, id_only=True)
         for input_data_product_id in input_data_product_ids:
-            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
+            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
             for input_data_product_producer_id in input_data_product_producer_ids:
                 self.clients.resource_registry.create_association(data_producer_id, PRED.hasParent, input_data_product_producer_id)
 
-        output_data_product_ids = self.clients.resource_registry.find_objects(subject=process_id, PRED.hasOutputProduct, object_type=RT.DataProduct)
+        output_data_product_ids = self.clients.resource_registry.find_objects(subject=process_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
         for output_data_product_id in output_data_product_ids:
             output_data_product = self.clients.resource_registry.read(output_data_product_id)
             data_product_producer_obj = DataProducer(name=output_data_product.name + '_data_producer',
                                                      description='EventDataProducer for DataProduct %s' % output_data_product.name,
                                                      is_primary=True)
             data_product_producer_id, rev = self.clients.resource_registry.create(data_product_producer_obj)
-            self.clients.resource_registry.create_association(subject=output_data_product_id, PRED.hasDataProducer, object=data_product_producer_id)
+            self.clients.resource_registry.create_association(subject=output_data_product_id, predicate=PRED.hasDataProducer, object=data_product_producer_id)
 
-            self.clients.resource_registry.create_association(subject=data_product_producer_id, PRED.hasParent, object=data_producer_id)
+            self.clients.resource_registry.create_association(subject=data_product_producer_id, predicate=PRED.hasParent, object=data_producer_id)
 
         return data_producer_id
 
@@ -210,7 +210,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                         self.clients.resource_registry.delete_association(assoc)
 
 
-        output_data_product_ids = self.clients.resource_registry.find_objects(subject=data_process_id, PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+        output_data_product_ids = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
         for output_data_product_id in output_data_product_ids:
             output_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=output_data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
             for output_data_product_producer_id in output_data_product_producer_ids:
@@ -272,11 +272,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         input_data_product_ids = self.clients.resource_registry.find_objects(subject=instrument_id, predicate=PRED.hasInputProduct, object_type=RT.DataProduct, id_only=True)
         for input_data_product_id in input_data_product_ids:
-            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
+            input_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=input_data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProduct, id_only=True)
             for input_data_product_producer_id in input_data_product_producer_ids:
                 self.clients.resource_registry.create_association(data_producer_id, PRED.hasParent, input_data_product_producer_id)
 
-        output_data_product_ids = self.clients.resource_registry.find_objects(subject=instrument_id, PRED.hasOutputProduct, object_type=RT.DataProduct)
+        output_data_product_ids = self.clients.resource_registry.find_objects(subject=instrument_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct)
         for output_data_product_id in output_data_product_ids:
             output_data_product = self.clients.resource_registry.read(output_data_product_id)
             data_product_producer_obj = DataProducer(name=output_data_product.name + '_data_producer',
@@ -284,9 +284,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                                                      is_primary=True,
                                                      producer_context=producer_context_obj)
             data_product_producer_id, rev = self.clients.resource_registry.create(data_product_producer_obj)
-            self.clients.resource_registry.create_association(subject=output_data_product_id, PRED.hasDataProducer, object=data_product_producer_id)
+            self.clients.resource_registry.create_association(subject=output_data_product_id, predicate=PRED.hasDataProducer, object=data_product_producer_id)
 
-            self.clients.resource_registry.create_association(subject=data_product_producer_id, PRED.hasParent, object=data_producer_id)
+            self.clients.resource_registry.create_association(subject=data_product_producer_id, predicate=PRED.hasParent, object=data_producer_id)
 
         return data_producer_id
 
@@ -307,7 +307,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                         self.clients.resource_registry.delete_association(assoc)
 
 
-        output_data_product_ids = self.clients.resource_registry.find_objects(subject=instrument_id, PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+        output_data_product_ids = self.clients.resource_registry.find_objects(subject=instrument_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
         for output_data_product_id in output_data_product_ids:
             output_data_product_producer_ids = self.clients.resource_registry.find_objects(subject=output_data_product_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
             for output_data_product_producer_id in output_data_product_producer_ids:
