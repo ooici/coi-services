@@ -476,6 +476,27 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.RR2.unassign_device_from_site_with_has_device(device_id, site_id)
 
 
+    def assign_device_to_network_parent(self, child_device_id='', parent_device_id=''):
+        """Connects a device (any type) to parent in the RSN network
+
+        @param child_device_id    str
+        @param parent_device_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        self.RR2.assign_device_to_device_with_has_network_parent(child_device_id, parent_device_id)
+
+    def unassign_device_from_network_parent(self, child_device_id='', parent_device_id=''):
+        """Disconnects a child device (any type) from parent in the RSN network
+
+        @param child_device_id    str
+        @param parent_device_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        self.RR2.unassign_device_from_device_with_has_network_parent(child_device_id, parent_device_id)
+
+
     def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
         self.RR2.assign_instrument_model_to_instrument_site(instrument_model_id, instrument_site_id)
 

@@ -353,6 +353,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_siteb_id, PRED.hasSite, instrument_site_id)
 
         self.RR.create_association(platform_siteb_id, PRED.hasDevice, platform_deviceb_id)
+        #test network parent link
+        self.OMS.assign_device_to_network_parent(platform_device_id, platform_deviceb_id)
 
         self.RR.create_association(platform_site_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
@@ -604,6 +606,11 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_site.platform_models))
         self.assertEqual(stuff.platform_device_id, extended_site.platform_devices[0]._id)
         self.assertEqual(stuff.platform_model_id, extended_site.platform_models[0]._id)
+
+        log.debug("verify that PlatformDeviceb is linked to PlatformDevice with hasNetworkParent link")
+        pdc_pdp_assoc = self.RR.get_association(stuff.platform_deviceb_id, PRED.hasNetworkParent, stuff.platform_device_id)
+        self.assertIsNotNone(pdc_pdp_assoc, "PlatformDevice child not connected to PlatformDevice parent.")
+
 
         #--------------------------------------------------------------------------------
         # Get the extended Org

@@ -8,14 +8,19 @@ from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-
+from pyon.core.governance.negotiation import Negotiation
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT, IonObject
+from pyon.public import PRED, RT, IonObject, OT
 from ion.services.coi.identity_management_service import IdentityManagementService
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
 from unittest.case import skip
 from pyon.util.context import LocalContextMixin
+from pyon.core.governance import ORG_MANAGER_ROLE
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
+
+
+
 
 @attr('UNIT', group='coi')
 class TestIdentityManagementService(PyonTestCase):
@@ -592,20 +597,40 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         user_info_id = self.identity_management_service.create_user_info(actor_id, user_info_obj)
 
         ion_org = self.org_client.find_org()
-        self.org_client.grant_role(ion_org._id, actor_id, 'ORG_MANAGER')
+
+        #Build the Service Agreement Proposal to to request a role but never close it
+        sap = IonObject(OT.RequestRoleProposal,consumer=actor_id, provider=ion_org._id, role_name=ORG_MANAGER_ROLE )
+        sap_response = self.org_client.negotiate(sap)
+
+        #Just grant the role anyway
+        #self.org_client.grant_role(ion_org._id, actor_id, ORG_MANAGER_ROLE)
 
         with self.assertRaises(NotFound):
             self.identity_management_service.get_user_info_extension('That rug really tied the room together.')
         with self.assertRaises(BadRequest):
             self.identity_management_service.get_user_info_extension()
 
+        #Check the user without the negotiation role request
+        extended_user = self.identity_management_service.get_user_info_extension(user_info_id)
+        self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
+        self.assertEqual(len(extended_user.roles),1)
+        self.assertEqual(len(extended_user.open_negotiations),1)
+        self.assertEqual(len(extended_user.closed_negotiations),0)
+
+        sap_response = Negotiation.create_counter_proposal(extended_user.open_negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
+        sap_response2 = self.org_client.negotiate(sap_response)
+
+        #Now check the user after the negotiation has been accepted and the role granted
         extended_user = self.identity_management_service.get_user_info_extension(user_info_id)
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),2)
+        self.assertEqual(len(extended_user.open_negotiations),0)
+        self.assertEqual(len(extended_user.closed_negotiations),1)
+
 
         self.identity_management_service.delete_user_info(user_info_id)
 
-        self.org_client.revoke_role(ion_org._id, actor_id, 'ORG_MANAGER')
+        self.org_client.revoke_role(org_id=ion_org._id, actor_id=actor_id, role_name=ORG_MANAGER_ROLE)
 
         self.identity_management_service.unregister_user_credentials(actor_id, self.subject)
 

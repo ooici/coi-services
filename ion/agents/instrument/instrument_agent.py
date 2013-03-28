@@ -58,7 +58,7 @@ from ion.agents.alerts.alerts import *
 
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
-from interface.objects import StreamRoute
+from interface.objects import StreamRoute, StreamAlertType
 from interface.objects import AgentCommand, StatusType, DeviceStatusEnum, AggregateStatusType
 
 class InstrumentAgentState():
@@ -817,27 +817,57 @@ class InstrumentAgent(ResourceAgent):
         loop thru alerts list and retrieve status of any alert that contributes to the aggregate status and update the state
         """
         #init working status
+        updated_status = {}
         for aggregate_type in AggregateStatusType._str_map.keys():
             if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                self.aparam_aggstatus[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
+                updated_status[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
 
         for a in self.aparam_alerts:
+            log.debug('_process_aggregate_alerts a: %s', a)
             curr_state = a.get_status()
             if a._aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
                 #get the current value for this aggregate status
-                current_agg_state = self.aparam_aggstatus[ a._aggregate_type ]
+                current_agg_state = updated_status[ a._aggregate_type ]
                 if a._status:
                     # this alert is not 'tripped' so the status is OK
                     #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                    log.debug('_process_aggregate_alerts Clear')
                     if current_agg_state is DeviceStatusEnum.STATUS_UNKNOWN:
-                        self.aparam_aggstatus[ a._aggregate_type ]  = DeviceStatusEnum.STATUS_OK
+                        updated_status[ a._aggregate_type ]  = DeviceStatusEnum.STATUS_OK
 
                 else:
                     #the alert is active, either a warning or an alarm
                     if a._alert_type is StreamAlertType.ALARM:
-                        self.aparam_aggstatus[ a._aggregate_type ] = DeviceStatusEnum.STATUS_CRITICAL
+                        log.debug('_process_aggregate_alerts Critical')
+                        updated_status[ a._aggregate_type ] = DeviceStatusEnum.STATUS_CRITICAL
                     elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusEnum.STATUS_CRITICAL:
-                        self.aparam_aggstatus[ a._aggregate_type ] = DeviceStatusEnum.STATUS_WARNING
+                        log.debug('_process_aggregate_alerts Warn')
+                        updated_status[ a._aggregate_type ] = DeviceStatusEnum.STATUS_WARNING
+
+        #compare old state with new state and publish alerts for any agg status that has changed.
+        for aggregate_type in AggregateStatusType._str_map.keys():
+            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
+                if updated_status[aggregate_type] != self.aparam_aggstatus[aggregate_type]:
+                    log.debug('_process_aggregate_alerts pubevent')
+                    self._publish_agg_status_event(aggregate_type, updated_status[aggregate_type],self.aparam_aggstatus[aggregate_type])
+                    self.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
+
+        return
+
+    def _publish_agg_status_event(self, status_type, new_status, old_status):
+        # Publish resource config change event.
+        try:
+            self._event_publisher.publish_event(
+                event_type='DeviceAggregateStatusEvent',
+                origin_type=self.ORIGIN_TYPE,
+                origin=self.resource_id,
+                status_name=status_type,
+                status=new_status,
+                prev_status=old_status)
+        except:
+            log.error('Instrument agent %s could not publish aggregate status change event.',
+                self._proc_name)
+
         return
 
 
