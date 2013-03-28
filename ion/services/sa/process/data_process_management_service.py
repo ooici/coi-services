@@ -269,6 +269,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
         routes = self._manage_routes(routes)
         configuration.process.routes = routes
+        configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
         dproc = DataProcess()
         dproc.name = 'data_process_%s' % self.get_unique_id()
         dproc.configuration = configuration
@@ -765,6 +766,29 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not stream_ids: raise BadRequest('No streams associated with this data product')
         return stream_ids[0]
 
+    def _has_lookup_values(self, data_product_id):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('No streams found for this data product')
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+        if not stream_def_ids:
+            raise BadRequest('No stream definitions found for this stream')
+        stream_def_id = stream_def_ids[0]
+        retval = self.clients.pubsub_management.has_lookup_values(stream_def_id)
+        
+        return retval
+    
+    def _get_lookup_docs(self, input_data_product_ids=[], output_data_product_ids=[]):
+        retval = []
+        need_lookup_docs = False
+        for data_product_id in output_data_product_ids:
+            if self._has_lookup_values(data_product_id):
+                need_lookup_docs = True
+                break
+        if need_lookup_docs:
+            for data_product_id in input_data_product_ids:
+                retval.extend(self.clients.data_acquisition_management.list_qc_references(data_product_id))
+        return retval
 
     def _manage_routes(self, routes):
         retval = {}

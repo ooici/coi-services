@@ -1014,7 +1014,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                 if not isinstance(resource_ids, list):
                     resource_ids = list(resource_ids)
                 for resource_id in resource_ids:
-                    print repr(resource_id)
                     retval.extend(self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasParent,id_only=True)[0])
                 return retval
 
@@ -1033,7 +1032,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             return list(visited_resources)
 
         for prod_id in traversal(producer_id):
-            print 'looking at ', prod_id
             producer = self.clients.resource_registry.read(prod_id)
             if 'qc_keys' in producer.producer_context.configuration:
                 document_keys.extend(producer.producer_context.configuration['qc_keys'])
