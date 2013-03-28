@@ -185,10 +185,12 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 data_product_id = self.clients.data_product_management.create_data_product(data_product_obj, stream_definition_id=stream_definition_id)
 
 
-                # Persist if necessary
-                if wf_step == workflow_definition.workflow_steps[-1] and persist_workflow_data_product:
-                    self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
+                # Persist if necessary - handle the last step of the workflow differently
+                if wf_step == workflow_definition.workflow_steps[-1]:
+                    if persist_workflow_data_product:
+                        self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
                 else:
+                    # Persist intermediate steps independently
                     if wf_step.persist_process_output_data:
                         self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
 
