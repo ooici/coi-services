@@ -253,8 +253,15 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
         for dp_id in workflow_dp_ids:
 
-            if delete_data_products: #TODO - may have to revisit this once the SA level stabilizes
+
+            try:
+                #This may fail if the dat data product was not persisted - which is ok.
                 self.clients.data_product_management.suspend_data_product_persistence(dp_id)
+            except Exception, e:
+                log.warn(e.message)
+                pass
+
+            if delete_data_products:
                 self.clients.data_product_management.delete_data_product(dp_id)
 
             aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDataProduct, dp_id)
