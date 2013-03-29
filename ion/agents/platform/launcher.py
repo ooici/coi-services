@@ -15,6 +15,8 @@ from pyon.public import log
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.objects import ProcessDefinition
+from interface.objects import ProcessStateEnum
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.util.agent_launcher import AgentLauncher
 
 
@@ -23,7 +25,11 @@ class Launcher(object):
     Helper for launching platform and instrument agent processes.
     """
 
-    def __init__(self):
+    def __init__(self, timeout_spawn):
+        """
+        @param timeout_spawn    Default timeout in secs for the RUNNING event.
+        """
+        self._timeout_spawn = timeout_spawn
         self._pd_client = ProcessDispatcherServiceClient()
         self._agent_launcher = AgentLauncher(self._pd_client)
 
@@ -33,18 +39,20 @@ class Launcher(object):
             self._pd_client = None
             self._agent_launcher = None
 
-    def launch_platform(self, agt_id, agent_config, timeout_spawn=30):
+    def launch_platform(self, agt_id, agent_config, timeout_spawn=None):
         """
         Launches a platform agent.
 
         @param agt_id           Some ID mainly used for logging
         @param agent_config     Agent configuration
-        @param timeout_spawn    Timeout in secs for the SPAWN event (by
-                                default 30). If None or zero, no wait is performed.
+        @param timeout_spawn    Timeout in secs for the RUNNING event (by
+                                default, the value given in constructor).
+                                If None or zero, no wait is performed.
 
         @return process ID
         """
-        log.debug("launch platform: agt_id=%r, timeout_spawn=%s", agt_id, timeout_spawn)
+        timeout_spawn = timeout_spawn or self._timeout_spawn
+        log.debug("launch_platform: agt_id=%r, timeout_spawn=%s", agt_id, timeout_spawn)
 
         name = 'PlatformAgent_%s' % agt_id
         pdef = ProcessDefinition(name=name)
@@ -58,22 +66,26 @@ class Launcher(object):
         pid = self._agent_launcher.launch(agent_config, pdef_id)
 
         if timeout_spawn:
+            log.debug("launch_platform: agt_id=%r: waiting for RUNNING", agt_id)
             self._agent_launcher.await_launch(timeout_spawn)
+            log.debug("launch_platform: agt_id=%r: RUNNING", agt_id)
 
         return pid
 
-    def launch_instrument(self, agt_id, agent_config, timeout_spawn=30):
+    def launch_instrument(self, agt_id, agent_config, timeout_spawn=None):
         """
         Launches an instrument agent.
 
         @param agt_id           Some ID mainly used for logging
         @param agent_config     Agent configuration
-        @param timeout_spawn    Timeout in secs for the SPAWN event (by
-                                default 30). If None or zero, no wait is performed.
+        @param timeout_spawn    Timeout in secs for the RUNNING event (by
+                                default, the value given in constructor).
+                                If None or zero, no wait is performed.
 
         @return process ID
         """
-        log.debug("launch instrument: agt_id=%r, timeout_spawn=%s", agt_id, timeout_spawn)
+        timeout_spawn = timeout_spawn or self._timeout_spawn
+        log.debug("launch_instrument: agt_id=%r, timeout_spawn=%s", agt_id, timeout_spawn)
 
         name = 'InstrumentAgent_%s' % agt_id
         pdef = ProcessDefinition(name=name)
@@ -87,12 +99,28 @@ class Launcher(object):
         pid = self._agent_launcher.launch(agent_config, pdef_id)
 
         if timeout_spawn:
+            log.debug("launch_instrument: agt_id=%r: waiting for RUNNING", agt_id)
             self._agent_launcher.await_launch(timeout_spawn)
+            log.debug("launch_instrument: agt_id=%r: RUNNING", agt_id)
 
         return pid
 
-    def cancel_process(self, pid):
+    def cancel_process(self, pid, timeout_cancel=None):
         """
         Helper to terminate a process
         """
+        pinfo = self._pd_client.read_process(pid)
+        if pinfo.process_state != ProcessStateEnum.RUNNING:
+            log.debug("cancel_process: pid=%r is not RUNNING", pid)
+            return
+
+        log.debug("cancel_process: canceling pid=%r", pid)
         self._pd_client.cancel_process(pid)
+
+        if timeout_cancel:
+            log.debug("waiting %s seconds for preocess to cancel", timeout_cancel)
+            psg = ProcessStateGate(self._pd_client.read_process, pid,
+                                   ProcessStateEnum.TERMINATED)
+            if not psg.await(timeout_cancel):
+                log.debug("Process %r failed to get to TERMINATED in %s seconds",
+                          pid, timeout_cancel)

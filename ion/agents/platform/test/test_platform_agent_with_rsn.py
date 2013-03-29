@@ -54,6 +54,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         @note this used to be done in setUp, but the patch.dict mechanism does
         *not* take effect in setUp!
         """
+        self.p_root = None
 
         # NOTE The tests expect to use values set up by HelperTestMixin for
         # for the following networks (see ion/agents/platform/test/helper.py)
@@ -66,10 +67,13 @@ class TestPlatformAgent(BaseIntTestPlatform):
         else:
             self.fail("self.PLATFORM_ID expected to be one of: 'Node1D', 'LJ01D'")
 
-        self._start_platform(self.p_root.platform_agent_instance_id)
+        self._start_platform(self.p_root)
 
     def tearDown(self):
-        self._stop_platform(self.p_root.platform_agent_instance_id)
+        if self.p_root:
+            # check p_root to avoid generating one more exception if the
+            # creation/launch of the network fails for some reason
+            self._stop_platform(self.p_root)
         super(TestPlatformAgent, self).tearDown()
 
     def _connect_instrument(self):
