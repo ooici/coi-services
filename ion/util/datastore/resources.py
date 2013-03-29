@@ -29,6 +29,7 @@ class ResourceRegistryHelper(object):
         self.sysname = get_sys_name()
         self._resources = {}
         self._associations = {}
+        self._assoc_by_sub = {}
         self._directory = {}
         self._res_by_type = {}
         self._attr_by_type = {}
@@ -44,6 +45,8 @@ class ResourceRegistryHelper(object):
 
         self._wb = xlwt.Workbook()
         self._worksheets = {}
+
+        self._dump_observatories()
 
         for restype in sorted(self._res_by_type.keys()):
             self._dump_resource_type(restype)
@@ -75,6 +78,12 @@ class ResourceRegistryHelper(object):
             else:
                 raise Inconsistent("Object with no type_ found: %s" % obj)
 
+        for assoc in self._associations.values():
+            key = (assoc['s'], assoc['p'])
+            if key not in self._assoc_by_sub:
+                self._assoc_by_sub[key] = []
+            self._assoc_by_sub[key].append(assoc['o'])
+
     def _dump_resource_type(self, restype):
         ws = self._wb.add_sheet(restype)
         self._worksheets[restype] = ws
@@ -98,3 +107,34 @@ class ResourceRegistryHelper(object):
                 else:
                     ws.write(i+1, j, "Type:%s" % type(value))
 
+    def _dump_observatories(self):
+        ws = self._wb.add_sheet("OBS")
+        [ws.write(0, col, hdr) for (col, hdr) in enumerate(["Type", "RD", "Org", "Site", "Station"])]
+        self._row = 1
+
+        def follow_site(parent_id, level):
+            site_list = [self._resources[site_id] for site_id in self._assoc_by_sub.get((parent_id, "hasSite"), [])]
+            site_list.sort(key=lambda obj: obj['name'])
+            for site in site_list:
+                ws.write(self._row, 0, site['type_'])
+                ws.write(self._row, 1, ",".join([i[4:] for i in site['alt_ids'] if i.startswith("OOI:")]))
+                ws.write(self._row, level, site['name'])
+                self._row += 1
+                follow_site(site['_id'], level+1)
+
+        org_list = [self._resources[org_id] for org_id in self._res_by_type.get("Org", [])]
+        org_list.sort(key=lambda obj: obj['name'])
+        for org in org_list:
+            ws.write(self._row, 0, org['type_'])
+            ws.write(self._row, 2, org['name'])
+            self._row += 1
+
+            obs_list = [self._resources[obs_id] for obs_id in self._assoc_by_sub.get((org["_id"], "hasResource"), [])]
+            obs_list.sort(key=lambda obj: obj['name'])
+            for obs in obs_list:
+                if obs["type_"] == "Observatory":
+                    ws.write(self._row, 0, obs['type_'])
+                    ws.write(self._row, 1, ",".join([i[4:] for i in obs['alt_ids'] if i.startswith("OOI:")]))
+                    ws.write(self._row, 3, obs['name'])
+                    self._row += 1
+                    follow_site(obs['_id'], 4)

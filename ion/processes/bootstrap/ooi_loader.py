@@ -382,10 +382,13 @@ class OOILoader(object):
     def _parse_Subsites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
-        #self._add_object_attribute('subsite',
-        #    ooi_rd, 'name', name, change_ok=True)
 
-        self._add_object_attribute('subsite2',
+        self._add_object_attribute('subsite',
+            ooi_rd, 'subsite_mod', name)
+
+        self._add_object_attribute('subsite_mod',
+                                   name, None, None, name=name)
+        self._add_object_attribute('subsite_mod',
                                    name, 'subsite_rd_list', ooi_rd, value_is_list=True)
 
     def _parse_Nodes(self, row):
