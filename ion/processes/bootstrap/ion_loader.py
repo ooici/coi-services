@@ -1147,7 +1147,7 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("array")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(ooi_id)
-            if ooi_rd.marine_io != "RSN":
+            if ooi_rd.marine_io in ("CG", "EA"):
                 fakerow = {}
                 fakerow[COL_ID] = ooi_id
                 fakerow['obs/name'] = ooi_obj['name']
