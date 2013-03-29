@@ -7,14 +7,13 @@ from pyon.agent.simple_agent import SimpleResourceAgent
 from pyon.event.event import EventSubscriber
 from pyon.public import log, get_sys_name
 from pyon.core.exception import BadRequest, Timeout, NotFound
-from pyon.core import bootstrap
 
 from interface.objects import AgentCommand, ProcessSchedule, \
-        ProcessStateEnum, ProcessQueueingMode, ProcessTarget, \
-        ProcessRestartMode, Service, ServiceStateEnum
+    ProcessStateEnum, ProcessQueueingMode, ProcessTarget, \
+    ProcessRestartMode, Service, ServiceStateEnum
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from ion.services.cei.process_dispatcher_service import ProcessDispatcherService, \
-        process_state_to_pd_core
+    process_state_to_pd_core
 
 try:
     from epu.highavailability.core import HighAvailabilityCore
@@ -176,7 +175,7 @@ class HighAvailabilityAgent(SimpleResourceAgent):
 
         definition = self.process_definition
         existing_services, _ = self.container.resource_registry.find_resources(
-                restype="Service", name=definition.name)
+            restype="Service", name=definition.name)
 
         if len(existing_services) > 0:
             if len(existing_services) > 1:
@@ -187,12 +186,12 @@ class HighAvailabilityAgent(SimpleResourceAgent):
             service_id, _ = self.container.resource_registry.create(svc_obj)
 
         svcdefs, _ = self.container.resource_registry.find_resources(
-                restype="ServiceDefinition", name=definition.name)
+            restype="ServiceDefinition", name=definition.name)
 
         if svcdefs:
             try:
                 self.container.resource_registry.create_association(
-                        service_id, "hasServiceDefinition", svcdefs[0]._id)
+                    service_id, "hasServiceDefinition", svcdefs[0]._id)
             except BadRequest:
                 log.warn("Failed to associate %s Service and ServiceDefinition. It probably exists.",
                     definition.name)
@@ -228,13 +227,13 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                     self.logprefix)
                 try:
                     self.control.reload_processes()
-                except (Exception, gevent.Timeout) as e:
+                except (Exception, gevent.Timeout):
                     log.warn("%sFailed to reload processes from PD. Will retry later.",
                         self.logprefix, exc_info=True)
 
             try:
                 self._apply_policy()
-            except (Exception, gevent.Timeout) as e:
+            except (Exception, gevent.Timeout):
                 log.warn("%sFailed to apply policy. Will retry later.",
                     self.logprefix, exc_info=True)
 
