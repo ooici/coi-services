@@ -4,6 +4,7 @@
 @package  ion.services.sa.instrument.agent_ConfigurationBuilder
 @author   Ian Katz
 """
+import cProfile
 
 import tempfile
 from ion.agents.instrument.driver_process import DriverProcessType
@@ -16,6 +17,8 @@ from pyon.ion.resource import PRED, RT
 from ooi.logging import log
 from pyon.util.containers import get_ion_ts
 
+AGGRESSIVE_CACHE = True
+DO_PROFILE = False
 
 class AgentConfigurationBuilderFactory(object):
 
@@ -53,8 +56,12 @@ class AgentConfigurationBuilder(object):
         self.associated_objects = None
         self.last_id            = None
         self.will_launch        = False
+        self.is_toplevel        = False
 
     def _predicates_to_cache(self):
+        if not AGGRESSIVE_CACHE:
+            return []
+
         return [PRED.hasOutputProduct,
                 PRED.hasStream,
                 PRED.hasStreamDefinition,
@@ -65,6 +72,9 @@ class AgentConfigurationBuilder(object):
                 PRED.hasParameterContext]
 
     def _resources_to_cache(self):
+        if not AGGRESSIVE_CACHE:
+            return []
+
         return [RT.StreamDefinition,
                 RT.ParameterDictionary,
                 RT.ParameterContext]
@@ -170,6 +180,8 @@ class AgentConfigurationBuilder(object):
 
         # fetch caches just in time
         if any([not self.RR2.has_cached_prediate(x) for x in self._predicates_to_cache()]):
+            if AGGRESSIVE_CACHE:
+                self.is_toplevel = True
             self._update_cached_predicates()
 
         if any([not self.RR2.has_cached_resource(x) for x in self._resources_to_cache()]):
@@ -265,12 +277,13 @@ class AgentConfigurationBuilder(object):
                 out_stream_def_obj = self.RR2.read(stream_def_id, RT.StreamDefinition)
                 agent_stream_def_obj = self.RR2.read(stream_info_dict.get('stream_def_id'), RT.StreamDefinition)
                 if PubsubManagementService.compare_stream_definition_objects(out_stream_def_obj, agent_stream_def_obj):
-                    #model_param_dict = self.RR2.find_by_name(RT.ParameterDictionary,
-                    #                                         stream_info_dict.get('param_dict_name'))
+
+                    #model_param_dict = dsm.read_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
                     model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
                     stream_route = self.RR2.read(product_stream_id).stream_route
-                    #model_param_dict = dsm.read_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
-                    #stream_route = psm.read_stream_route(stream_id=product_stream_id)
+
+                    #model_param_dict2 = dsm.read_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
+                    #assert model_param_dict == model_param_dict2
 
                     stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                         'stream_id'             : product_stream_id,
@@ -333,7 +346,16 @@ class AgentConfigurationBuilder(object):
         """
         self._check_associations()
 
-        agent_config = self._generate_skeleton_config_block()
+        # profile the call if top level
+        if self.is_toplevel and DO_PROFILE:
+            log.info("Profiling the toplevel call")
+            def doIt():
+                self._generated_config = self._generate_skeleton_config_block()
+
+            cProfile.runctx('doIt()', globals(), locals())
+            agent_config = self._generated_config
+        else:
+            agent_config = self._generate_skeleton_config_block()
 
         device_obj = self._get_device()
         agent_obj  = self._get_agent()
