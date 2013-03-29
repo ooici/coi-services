@@ -94,43 +94,7 @@ class EnhancedResourceRegistryClient(object):
 
         log.debug("done init")
 
-    #################################################
-    # <WORKAROUNDS> by carlos
-    # TODO of course remove
-    def assign_platform_device_to_platform_device(self,
-                                                  platform_device_child_id,
-                                                  platform_device_parent_id):
-        self.RR.create_association(subject=platform_device_parent_id,
-                                   predicate=PRED.hasDevice,
-                                   object=platform_device_child_id)
-        log.warn("!!!!USED WORKAROUND FOR assign_platform_device_to_platform_device!!!!")
 
-    def assign_instrument_device_to_platform_device(self,
-                                                    instrument_device_id,
-                                                    platform_device_id):
-        self.RR.create_association(subject=platform_device_id,
-                                   predicate=PRED.hasDevice,
-                                   object=instrument_device_id)
-        log.warn("!!!!USED WORKAROUND FOR assign_instrument_device_to_platform_device!!!!")
-
-    def find_platform_device_ids_of_device(self, device_id):
-        ids = self.find_objects(subject=device_id,
-                                predicate=PRED.hasDevice,
-                                object_type=RT.PlatformDevice,
-                                id_only=True)
-        log.warn("!!!!USED WORKAROUND FOR find_platform_device_ids_of_device!!!!")
-        return ids
-
-    def find_instrument_device_ids_of_device(self, device_id):
-        ids = self.find_objects(subject=device_id,
-                                predicate=PRED.hasDevice,
-                                object_type=RT.InstrumentDevice,
-                                id_only=True)
-        log.warn("!!!!USED WORKAROUND FOR find_instrument_device_ids_of_device!!!!")
-        return ids
-
-    # </WORKAROUNDS>
-    #################################################
 
     def __getattr__(self, item):
         """
