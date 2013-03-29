@@ -381,6 +381,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         log.debug('Begin testing with policies')
 
+        #First check existing policies to see if they are in place to keep an anonymous user from creating things
+        with self.assertRaises(Unauthorized) as cm:
+            test_org_id = self.org_client.create_org(org=IonObject(RT.Org, name='test_org', description='A test Org'))
+        self.assertIn( 'org_management(create_org) has been denied',cm.exception.message)
+
+        with self.assertRaises(NotFound) as cm:
+            test_org = self.org_client.find_org(name='test_org')
+
         #Add a new policy to deny all operations to the exchange_management by default .
         test_policy_id = self.pol_client.create_service_access_policy('exchange_management', 'Exchange_Management_Deny_Policy',
             'Deny all operations in  Exchange Management Service by default',
@@ -630,6 +638,21 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         before_policy_set = self.container.governance_controller.get_active_policies()
 
+
+        #First clear all of the policies to test that failures will be caught due to missing policies
+        self.container.governance_controller._reset_container_policy_caches()
+
+        empty_policy_set = self.container.governance_controller.get_active_policies()
+        self.assertEqual(len(empty_policy_set['service_access'].keys()), 0)
+        self.assertEqual(len(empty_policy_set['resource_access'].keys()), 0)
+
+        #With policies gone, an anonymous user should be able to create an object
+        test_org_id = self.org_client.create_org(org=IonObject(RT.Org, name='test_org1', description='A test Org'))
+        test_org = self.org_client.find_org(name='test_org1')
+        self.assertEqual(test_org._id, test_org_id)
+
+
+        #Now publish an event to reload all of the policies
         event_publisher = EventPublisher()
 
         event_data = dict()
@@ -640,11 +663,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         gevent.sleep(20)  # Wait for events to be published and policy reloaded for all running processes
 
-
         after_policy_set = self.container.governance_controller.get_active_policies()
 
-        #Reuse the basic test to make sure polices have been reloaded
-        self.test_basic_policy_operations()
+        #With policies refreshed, an anonymous user should NOT be able to create an object
+        with self.assertRaises(Unauthorized) as cm:
+            test_org_id = self.org_client.create_org(org=IonObject(RT.Org, name='test_org2', description='A test Org'))
+        self.assertIn( 'org_management(create_org) has been denied',cm.exception.message)
+
+        with self.assertRaises(NotFound) as cm:
+            test_org = self.org_client.find_org(name='test_org2')
 
         self.assertEqual(len(before_policy_set.keys()), len(after_policy_set.keys()))
         self.assertEqual(len(before_policy_set['service_access'].keys()), len(after_policy_set['service_access'].keys()))
