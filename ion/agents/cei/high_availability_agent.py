@@ -19,10 +19,14 @@ try:
     from epu.highavailability.core import HighAvailabilityCore
     import epu.highavailability.policy as policy
     from epu.states import ProcessState as CoreProcessState
+    from epu.exceptions import PolicyError
+    from dashi.exceptions import BadRequestError
 except ImportError:
     HighAvailabilityCore = None
     policy = None
     CoreProcessState = None
+    PolicyError = None
+    BadRequestError = None
 
 
 """
@@ -58,7 +62,8 @@ class HighAvailabilityAgent(SimpleResourceAgent):
             msg = "HA service requires a policy name at CFG.highavailability.policy.name"
             raise Exception(msg)
         try:
-            self.policy = policy.policy_map[policy_name.lower()]
+            policy.policy_map[policy_name.lower()]
+            self.policy = policy_name.lower()
         except KeyError:
             raise Exception("HA Service doesn't support '%s' policy" % policy_name)
 
@@ -250,13 +255,14 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         except Exception:
             log.warn("%sProblem when updating Service state", self.logprefix, exc_info=True)
 
-    def rcmd_reconfigure_policy(self, new_policy):
+    def rcmd_reconfigure_policy(self, new_policy_params, new_policy_name=None):
         """Service operation: Change the parameters of the policy used for service
 
-        @param new_policy: parameters of policy
+        @param new_policy_params: parameters of policy
+        @param new_policy_name: name of policy
         @return:
         """
-        self.core.reconfigure_policy(new_policy)
+        self.core.reconfigure_policy(new_policy_params, new_policy_name)
         #trigger policy thread to wake up
         self.policy_event.set()
 
@@ -282,6 +288,7 @@ class HADashiHandler(object):
         self.agent = agent
         self.CFG = agent.CFG
         self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange, sysname=self.CFG.get_safe('dashi.sysname'))
+        self.dashi.link_exceptions(custom_exception=PolicyError, dashi_exception=BadRequestError)
         self.dashi.handle(self.status)
         self.dashi.handle(self.dump)
         self.dashi.handle(self.reconfigure_policy)
@@ -303,8 +310,8 @@ class HADashiHandler(object):
     def dump(self):
         return self.agent.rcmd_dump()
 
-    def reconfigure_policy(self, new_policy):
-        return self.agent.rcmd_reconfigure_policy(new_policy)
+    def reconfigure_policy(self, new_policy_params, new_policy_name=None):
+        return self.agent.rcmd_reconfigure_policy(new_policy_params, new_policy_name)
 
     def _get_dashi(self, *args, **kwargs):
 
