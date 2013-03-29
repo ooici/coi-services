@@ -216,7 +216,8 @@ class AgentConfigurationBuilder(object):
 
     def _get_param_dict_by_name(self, name):
         dict_obj = self.RR2.find_by_name(RT.ParameterDictionary, name)
-        parameter_contexts = self.RR2.find_parameter_contexts_of_parameter_dictionary(dict_obj._id)
+        parameter_contexts = \
+            self.RR2.find_parameter_contexts_of_parameter_dictionary_using_has_parameter_context(dict_obj._id)
         return DatasetManagementService.build_parameter_dictionary(dict_obj, parameter_contexts)
 
 
@@ -246,7 +247,7 @@ class AgentConfigurationBuilder(object):
 
         out_streams = []
         for product_id in data_product_ids:
-            stream_id = self.RR2.find_stream_id_of_data_product(product_id)
+            stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)
             out_streams.append(stream_id)
 
 
@@ -256,7 +257,7 @@ class AgentConfigurationBuilder(object):
         for product_stream_id in out_streams:
 
             #get the streamroute object from pubsub by passing the stream_id
-            stream_def_id = self.RR2.find_stream_definition_id_of_stream(product_stream_id)
+            stream_def_id = self.RR2.find_stream_definition_id_of_stream_using_has_stream_definition(product_stream_id)
 
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
@@ -452,8 +453,8 @@ class AgentConfigurationBuilder(object):
 
         #retrieve the streams assoc with each defined output product
         for product_id in data_product_ids:
-            self.RR2.find_stream_id_of_data_product(product_id)  # check one stream per product
-            self.RR2.find_dataset_id_of_data_product(product_id) # check one dataset per product
+            self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)  # check one stream per product
+            self.RR2.find_dataset_id_of_data_product_using_has_dataset(product_id) # check one dataset per product
 
         self.associated_objects = ret
 
@@ -541,8 +542,8 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         ConfigurationBuilder_factory = AgentConfigurationBuilderFactory(self.clients)
 
         agent_lookup_method = {
-            RT.PlatformAgentInstance: self.RR2.find_platform_agent_instance_of_platform_device,
-            RT.InstrumentAgentInstance: self.RR2.find_instrument_agent_instance_of_instrument_device,
+            RT.PlatformAgentInstance: self.RR2.find_platform_agent_instance_of_platform_device_using_has_agent_instance,
+            RT.InstrumentAgentInstance: self.RR2.find_instrument_agent_instance_of_instrument_device_using_has_agent_instance,
             }
 
         # get all agent instances first. if there's no agent instance, just skip

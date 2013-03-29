@@ -585,8 +585,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
 
             # assignments
-            self.RR2.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
-            self.RR2.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+            self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(platform_agent_instance_id, platform_device_id)
+            self.RR2.assign_platform_agent_to_platform_agent_instance_with_has_agent_definition(platform_agent_id, platform_agent_instance_id)
             self.RR2.assign_platform_device_to_org_with_has_resource(platform_agent_instance_id, org_id)
 
             return platform_agent_instance_id, platform_agent_id, platform_device_id
@@ -619,8 +619,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
 
             # assignments
-            self.RR2.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
-            self.RR2.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
+            self.RR2.assign_instrument_agent_instance_to_instrument_device_with_has_agent_instance(instrument_agent_instance_id, instrument_device_id)
+            self.RR2.assign_instrument_agent_to_instrument_agent_instance_with_has_agent_definition(instrument_agent_id, instrument_agent_instance_id)
             self.RR2.assign_instrument_device_to_org_with_has_resource(instrument_agent_instance_id, org_id)
 
             return instrument_agent_instance_id, instrument_agent_id, instrument_device_id
