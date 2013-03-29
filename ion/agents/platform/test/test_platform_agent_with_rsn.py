@@ -69,7 +69,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._start_platform(self.p_root)
 
     def tearDown(self):
-        self._stop_platform(self.p_root)
+        if self.p_root:
+            # check p_root to avoid generating one more exception if the
+            # creation/launch of the network fails for some reason
+            self._stop_platform(self.p_root)
         super(TestPlatformAgent, self).tearDown()
 
     def _connect_instrument(self):

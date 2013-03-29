@@ -453,7 +453,7 @@ class PlatformAgent(ResourceAgent):
                     "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
                     self._platform_id, subplatform_id, pid)
 
-                self._launcher.cancel_process(pid, 100)
+                self._launcher.cancel_process(pid)
 
                 log.debug(
                     "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
