@@ -30,3 +30,10 @@ class SystemManagementService(BaseSystemManagementService):
         @throws BadRequest    None
         """
         self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.ResetPolicyCache))
+
+    def trigger_garbage_collection(self):
+        """Triggers a garbage collection in all containers
+
+        @throws BadRequest    None
+        """
+        self.perform_action(ALL_CONTAINERS_INSTANCE, IonObject(OT.TriggerGarbageCollection))
