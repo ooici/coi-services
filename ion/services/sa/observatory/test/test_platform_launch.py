@@ -53,9 +53,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
         p_root = self._create_single_platform()
 
-        self._start_platform(p_root.platform_agent_instance_id)
+        self._start_platform(p_root)
         self._run_commands()
-        self._stop_platform(p_root.platform_agent_instance_id)
+        self._stop_platform(p_root)
 
     def test_hierarchy(self):
         #
@@ -63,9 +63,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
         p_root = self._create_small_hierarchy()
 
-        self._start_platform(p_root.platform_agent_instance_id)
+        self._start_platform(p_root)
         self._run_commands()
-        self._stop_platform(p_root.platform_agent_instance_id)
+        self._stop_platform(p_root)
 
     def test_single_platform_with_an_instrument(self):
         #
@@ -83,11 +83,11 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #####################################
         log.info("will start the root platform ...")
         start_time = time.time()
-        self._start_platform(p_root.platform_agent_instance_id)
+        self._start_platform(p_root)
         log.info("root platform started. Took %.3f secs.", time.time() - start_time)
 
         self._run_commands()
-        self._stop_platform(p_root.platform_agent_instance_id)
+        self._stop_platform(p_root)
 
     def test_platform_hierarchy_with_some_instruments(self):
         #
@@ -201,7 +201,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         log.info("will start the root platform ...")
         start_time = time.time()
 
-        self._start_platform(p_root.platform_agent_instance_id)
+        self._start_platform(p_root)
 
         log.info("root platform started. Took %.3f secs.", time.time() - start_time)
 
@@ -219,6 +219,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #####################################
         log.info("will stop the root platform ...")
         start_time = time.time()
-        self._stop_platform(p_root.platform_agent_instance_id)
+        self._stop_platform(p_root)
 
         log.info("root platform stopped. Took %.3f secs.", time.time() - start_time)

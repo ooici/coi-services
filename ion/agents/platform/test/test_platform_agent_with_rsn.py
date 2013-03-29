@@ -66,10 +66,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
         else:
             self.fail("self.PLATFORM_ID expected to be one of: 'Node1D', 'LJ01D'")
 
-        self._start_platform(self.p_root.platform_agent_instance_id)
+        self._start_platform(self.p_root)
 
     def tearDown(self):
-        self._stop_platform(self.p_root.platform_agent_instance_id)
+        self._stop_platform(self.p_root)
         super(TestPlatformAgent, self).tearDown()
 
     def _connect_instrument(self):

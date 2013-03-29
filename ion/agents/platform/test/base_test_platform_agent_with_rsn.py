@@ -79,7 +79,6 @@ from ion.agents.platform.util.network_util import NetworkUtil
 from ion.agents.platform.platform_agent import PlatformAgentState
 
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from mock import patch
 
 import os
 import time
@@ -109,9 +108,6 @@ DVR_CONFIG = {
 DVR_MOD = 'ion.agents.platform.rsn.rsn_platform_driver'
 DVR_CLS = 'RSNPlatformDriver'
 
-
-# TIMEOUT: timeout for each execute_agent call.
-TIMEOUT = 90
 
 # DATA_TIMEOUT: timeout for reception of data sample
 DATA_TIMEOUT = 25
@@ -605,6 +601,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         p_obj.platform_device_id = platform_device_child_id
         p_obj.platform_agent_instance_id = platform_agent_instance_child_id
         p_obj.stream_id = stream_id
+        p_obj.pid = None  # known when process launched
         return p_obj
 
     def _create_platform(self, platform_id, parent_platform_id=None):
@@ -975,10 +972,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # start / stop platform
     #################################################################
 
-    def _start_platform(self, agent_instance_id):
+    def _start_platform(self, p_obj):
+        agent_instance_id = p_obj.platform_agent_instance_id
         log.debug("about to call start_platform_agent_instance with id=%s", agent_instance_id)
-        pid = self.IMS.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
-        log.debug("start_platform_agent_instance returned pid=%s", pid)
+        p_obj.pid = self.IMS.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
+        log.debug("start_platform_agent_instance returned pid=%s", p_obj.pid)
 
         #wait for start
         agent_instance_obj = self.IMS.read_platform_agent_instance(agent_instance_id)
@@ -993,33 +991,20 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                               process=FakeProcess())
         log.debug("got platform agent client %s", str(self._pa_client))
 
-    def _stop_platform(self, agent_instance_id):
-        self.IMS.stop_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
-
-    #################################################################
-    # start / stop instrument
-    #################################################################
-
-    def _start_instrument(self, agent_instance_id):
-        log.debug("about to call start_instrument_agent_instance with id=%s", agent_instance_id)
-        pid = self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
-        log.debug("start_instrument_agent_instance returned pid=%s", pid)
-
-        #wait for start
-        agent_instance_obj = self.IMS.read_instrument_agent_instance(agent_instance_id)
-        gate = ProcessStateGate(self.PDC.read_process,
-                                agent_instance_obj.agent_process_id,
-                                ProcessStateEnum.RUNNING)
-        self.assertTrue(gate.await(90), "The instrument agent instance did not spawn in 90 seconds")
-
-        # Start a resource agent client to talk with the agent.
-        self._ia_client = ResourceAgentClient('iaclient',
-                                              name=agent_instance_obj.agent_process_id,
-                                              process=FakeProcess())
-        log.debug("got instrument agent client %s", str(self._ia_client))
-
-    def _stop_instrument(self, agent_instance_id):
-        self.IMS.stop_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
+    def _stop_platform(self, p_obj):
+        try:
+            self.IMS.stop_platform_agent_instance(p_obj.platform_agent_instance_id)
+        except:
+            if log.isEnabledFor(logging.TRACE):
+                log.exception(
+                    "platform_id=%r: Exception in IMS.stop_platform_agent_instance with "
+                    "platform_agent_instance_id = %r",
+                    p_obj.platform_id, p_obj.platform_agent_instance_id)
+            else:
+                log.warn(
+                    "platform_id=%r: Exception in IMS.stop_platform_agent_instance with "
+                    "platform_agent_instance_id = %r. Perhaps already dead.",
+                    p_obj.platform_id, p_obj.platform_agent_instance_id)
 
     #################################################################
     # misc convenience methods
@@ -1055,7 +1040,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         if self._get_state() == PlatformAgentState.UNINITIALIZED:
             # should get ServerError: "Command not handled in current state"
             with self.assertRaises(ServerError):
-                #self._pa_client.execute_agent(cmd, timeout=TIMEOUT)
                 self._pa_client.execute_agent(cmd)
         else:
             # In all other states the command should be accepted:
