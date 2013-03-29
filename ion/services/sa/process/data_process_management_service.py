@@ -141,7 +141,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         process_definition.executable = {'module':data_process_definition.module, 'class':data_process_definition.class_name}
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
-        self.RR2.assign_process_definition_to_data_process_definition(process_definition_id, data_process_definition_id)
+        self.RR2.assign_process_definition_to_data_process_definition_with_has_process_definition(process_definition_id,
+                                                                                                  data_process_definition_id)
 
         return data_process_definition_id
 

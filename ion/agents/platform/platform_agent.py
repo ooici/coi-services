@@ -22,7 +22,7 @@ from pyon.agent.agent import ResourceAgentClient
 # Pyon exceptions.
 from pyon.core.exception import BadRequest, Inconsistent
 
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 
 
@@ -552,6 +552,9 @@ class PlatformAgent(ResourceAgent):
             return False, ex.message
 
         if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+            return True, ''
+
+        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
 
         if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
