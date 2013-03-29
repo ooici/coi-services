@@ -24,7 +24,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
-
+from interface.services.coi.isystem_management_service import SystemManagementServiceProcessClient
 
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
@@ -333,6 +333,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ems_client = ExchangeManagementServiceProcessClient(node=self.container.node, process=process)
 
         self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
+
+        self.sys_management = SystemManagementServiceProcessClient(node=self.container.node, process=process)
+
 
 
         #Get info on the ION System Actor
@@ -651,15 +654,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         test_org = self.org_client.find_org(name='test_org1')
         self.assertEqual(test_org._id, test_org_id)
 
-
-        #Now publish an event to reload all of the policies
-        event_publisher = EventPublisher()
-
-        event_data = dict()
-        event_data['origin_type'] = 'System_Request'
-        event_data['description'] = 'Policy Cache Reset Event'
-
-        event_publisher.publish_event(event_type='PolicyCacheResetEvent', origin='', **event_data)
+        #Trigger the event to reset the policy caches
+        self.sys_management.reset_policy_cache()
 
         gevent.sleep(20)  # Wait for events to be published and policy reloaded for all running processes
 
