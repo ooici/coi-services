@@ -54,6 +54,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         @note this used to be done in setUp, but the patch.dict mechanism does
         *not* take effect in setUp!
         """
+        self.p_root = None
 
         # NOTE The tests expect to use values set up by HelperTestMixin for
         # for the following networks (see ion/agents/platform/test/helper.py)
