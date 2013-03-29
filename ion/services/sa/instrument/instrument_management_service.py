@@ -42,8 +42,8 @@ from ion.agents.port.port_agent_process import PortAgentProcess
 from interface.objects import AttachmentType, ComputedValueAvailability, ComputedIntValue, StatusType, ProcessDefinition
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, is_system_actor, has_exclusive_resource_commitment
-from pyon.core.governance import has_shared_resource_commitment, is_resource_owner
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, has_exclusive_resource_commitment
+from pyon.core.governance import has_shared_resource_commitment, is_resource_owner, ION_MANAGER
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -799,7 +799,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return False, ex.message
 
         #The system actor can to anything
-        if is_system_actor(gov_values.actor_id):
+        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
 
         #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
@@ -816,7 +816,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return False, ex.message
 
         #The system actor can to anything
-        if is_system_actor(gov_values.actor_id):
+        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
 
         if msg.has_key('lifecycle_event'):
