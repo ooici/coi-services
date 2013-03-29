@@ -16,6 +16,7 @@ from pyon.util.arg_check import validate_is_instance
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
 from interface.objects import Parser
+from ion.util.stored_values import StoredValueManager
 
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
@@ -958,3 +959,43 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def update_parser(self, parser=None):
         if parser:
             self.clients.resource_registry.update(parser)
+
+
+    def register_producer_qc_reference(self, producer_id='', parser_id='', attachment_id=''):
+
+        document = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
+        document_keys = self.parse_qc_reference(parser_id, document)
+
+        document_keys = document_keys or []
+
+        producer_obj = self.clients.resource_registry.read(producer_id)
+        producer_obj.producer_context.configuration['qc_keys'] = document_keys
+
+        self.clients.resource_registry.update(producer_obj)
+        return True
+
+    def parse_qc_reference(self, parser_id='', document=None):
+        document_keys = []
+        if document is None:
+            raise BadRequest('Empty Document')
+        parser = self.read_parser(parser_id=parser_id)
+        try:
+            module = __import__(parser.module, fromlist=[parser.method])
+            method = getattr(module, parser.method)
+
+        except ImportError:
+            raise BadRequest('No import named {0} found.'.format(parser.module))
+        except AttributeError:
+            raise BadRequest('No method named {0} in {1}.'.format(parser.method, parser.module))
+        except:
+            log.error('Failed to parse document')
+
+        svm = StoredValueManager(self.container)
+        for key, doc in method(document):
+            try:
+                svm.stored_value_cas(key, doc)
+                document_keys.append(key)
+            except:
+                log.error('Error parsing a row in document.')
+        return document_keys
+

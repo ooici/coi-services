@@ -608,8 +608,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(stuff.platform_model_id, extended_site.platform_models[0]._id)
 
         log.debug("verify that PlatformDeviceb is linked to PlatformDevice with hasNetworkParent link")
-        pdc_pdp_assoc = self.RR.get_association(stuff.platform_deviceb_id, PRED.hasNetworkParent, stuff.platform_device_id)
-        self.assertIsNotNone(pdc_pdp_assoc, "PlatformDevice child not connected to PlatformDevice parent.")
+        associations = self.RR.find_associations(subject=stuff.platform_deviceb_id, predicate=PRED.hasNetworkParent, object=stuff.platform_device_id, id_only=True)
+        self.assertIsNotNone(associations, "PlatformDevice child not connected to PlatformDevice parent.")
 
 
         #--------------------------------------------------------------------------------

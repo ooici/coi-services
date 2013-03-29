@@ -626,9 +626,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("assigning child platform %r to parent %r",
                   p_child.platform_id, p_parent.platform_id)
 
-        self.RR2.assign_platform_device_to_platform_device(p_child.platform_device_id,
-                                                           p_parent.platform_device_id)
-        child_device_ids = self.RR2.find_platform_device_ids_of_device(p_parent.platform_device_id)
+        self.RR2.assign_platform_device_to_platform_device_with_has_device(p_child.platform_device_id,
+                                                                           p_parent.platform_device_id)
+        child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(p_parent.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         if gen_verify:
@@ -900,11 +900,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("assigning instrument %r to platform %r",
                   i_obj.instrument_agent_instance_id, p_obj.platform_id)
 
-        self.RR2.assign_instrument_device_to_platform_device(
+        self.RR2.assign_instrument_device_to_platform_device_with_has_device(
             i_obj.instrument_device_id,
             p_obj.platform_device_id)
 
-        child_device_ids = self.RR2.find_instrument_device_ids_of_device(p_obj.platform_device_id)
+        child_device_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(p_obj.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         if gen_verify:

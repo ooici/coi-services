@@ -614,7 +614,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         try:
             self.deactivate_data_process(data_process_id=data_process_id)
-            log.warn('Deleteing activated data process...')
+            log.debug('Deleteing activated data process...')
         except BadRequest:
             pass
 

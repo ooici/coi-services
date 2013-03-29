@@ -185,10 +185,12 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 data_product_id = self.clients.data_product_management.create_data_product(data_product_obj, stream_definition_id=stream_definition_id)
 
 
-                # Persist if necessary
-                if wf_step == workflow_definition.workflow_steps[-1] and persist_workflow_data_product:
-                    self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
+                # Persist if necessary - handle the last step of the workflow differently
+                if wf_step == workflow_definition.workflow_steps[-1]:
+                    if persist_workflow_data_product:
+                        self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
                 else:
+                    # Persist intermediate steps independently
                     if wf_step.persist_process_output_data:
                         self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
 
@@ -251,8 +253,15 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
         for dp_id in workflow_dp_ids:
 
-            if delete_data_products: #TODO - may have to revisit this once the SA level stabilizes
+
+            try:
+                #This may fail if the dat data product was not persisted - which is ok.
                 self.clients.data_product_management.suspend_data_product_persistence(dp_id)
+            except Exception, e:
+                log.warn(e.message)
+                pass
+
+            if delete_data_products:
                 self.clients.data_product_management.delete_data_product(dp_id)
 
             aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDataProduct, dp_id)
