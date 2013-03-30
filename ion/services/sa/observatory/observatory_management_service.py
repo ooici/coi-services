@@ -394,13 +394,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if site_id:
             site_obj = self.RR2.read(site_id)
             if site_obj:
-                self.RR2.assign_deployment_to_site(deployment_id, site_id)
+                self.RR2.assign_deployment_to_site_with_has_deployment(deployment_id, site_id)
 
         if device_id:
 
             device_obj = self.RR2.read(device_id)
             if device_obj:
-                self.RR2.assign_deployment_to_device(deployment_id, device_id)
+                self.RR2.assign_deployment_to_device_with_has_deployment(deployment_id, device_id)
 
         return deployment_id
 
@@ -484,8 +484,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        #self.RR2.assign_device_to_one_device_with_has_network_parent(child_device_id, parent_device_id)
-        self.RR.create_association(child_device_id, PRED.hasNetworkParent, parent_device_id)
+        self.RR2.assign_device_to_one_device_with_has_network_parent(parent_device_id, child_device_id)
+
 
     def unassign_device_from_network_parent(self, child_device_id='', parent_device_id=''):
         """Disconnects a child device (any type) from parent in the RSN network
@@ -495,24 +495,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        #self.RR2.unassign_device_from_device_with_has_network_parent(child_device_id, parent_device_id)
-        #remove the link to the parent data producer
-        associations = self.clients.resource_registry.find_associations(subject=child_device_id, predicate=PRED.hasNetworkParent, object=parent_device_id, id_only=True)
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
+        self.RR2.unassign_device_from_device_with_has_network_parent(parent_device_id, child_device_id)
+
 
 
     def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        self.RR2.assign_instrument_model_to_instrument_site(instrument_model_id, instrument_site_id)
+        self.RR2.assign_instrument_model_to_instrument_site_with_has_model(instrument_model_id, instrument_site_id)
 
     def unassign_instrument_model_from_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        self.RR2.unassign_instrument_model_from_instrument_site(self, instrument_model_id, instrument_site_id)
+        self.RR2.unassign_instrument_model_from_instrument_site_with_has_model(self, instrument_model_id, instrument_site_id)
 
     def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
-        self.RR2.assign_platform_model_to_platform_site(platform_model_id, platform_site_id)
+        self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id, platform_site_id)
 
     def unassign_platform_model_from_platform_site(self, platform_model_id='', platform_site_id=''):
-        self.RR2.unassign_platform_model_from_platform_site(platform_model_id, platform_site_id)
+        self.RR2.unassign_platform_model_from_platform_site_with_has_model(platform_model_id, platform_site_id)
 
     def assign_resource_to_observatory_org(self, resource_id='', org_id=''):
         if not org_id:
@@ -609,8 +606,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         output_product_id = self.RR2.find_object(site_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
-        stream_id         = self.RR2.find_stream_id_of_data_product(output_product_id)
-        streamdef_id      = self.RR2.find_stream_definition_id_of_stream(stream_id)
+        stream_id         = self.RR2.find_stream_id_of_data_product_using_has_stream(output_product_id)
+        streamdef_id      = self.RR2.find_stream_definition_id_of_stream_using_has_stream_definition(stream_id)
 
         return streamdef_id
 

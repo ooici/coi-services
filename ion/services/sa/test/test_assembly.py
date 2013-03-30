@@ -317,15 +317,15 @@ class TestAssembly(GenericIntHelperTestCase):
         
         log.info("Associate platform model with platform site")
         self.perform_association_script(c.OMS.assign_platform_model_to_platform_site,
-                                        self.RR2.find_platform_sites_by_platform_model,
-                                        self.RR2.find_platform_models_of_platform_site,
+                                        self.RR2.find_platform_sites_by_platform_model_using_has_model,
+                                        self.RR2.find_platform_models_of_platform_site_using_has_model,
                                         platform_site_id,
                                         platform_model_id)
 
         log.info("Associate instrument model with instrument site")
         self.perform_association_script(c.OMS.assign_instrument_model_to_instrument_site,
-                                        self.RR2.find_instrument_sites_by_instrument_model,
-                                        self.RR2.find_instrument_models_of_instrument_site,
+                                        self.RR2.find_instrument_sites_by_instrument_model_using_has_model,
+                                        self.RR2.find_instrument_models_of_instrument_site_using_has_model,
                                         instrument_site_id,
                                         instrument_model_id)
 
@@ -343,8 +343,8 @@ class TestAssembly(GenericIntHelperTestCase):
         self.assert_lcs_fail(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEVELOP)
         log.info("Associate platform model with platform agent")
         self.perform_association_script(c.IMS.assign_platform_model_to_platform_agent,
-                                        self.RR2.find_platform_agents_by_platform_model,
-                                        self.RR2.find_platform_models_of_platform_agent,
+                                        self.RR2.find_platform_agents_by_platform_model_using_has_model,
+                                        self.RR2.find_platform_models_of_platform_agent_using_has_model,
                                         platform_agent_id,
                                         platform_model_id)
         self.assert_lcs_pass(self.client.IMS, "platform_agent", platform_agent_id, LCE.DEVELOP, LCS.DEVELOPED)
@@ -455,8 +455,8 @@ class TestAssembly(GenericIntHelperTestCase):
 
         log.info("Associate sensor model with sensor device")
         self.perform_association_script(c.IMS.assign_sensor_model_to_sensor_device,
-                                        self.RR2.find_sensor_devices_by_sensor_model,
-                                        self.RR2.find_sensor_models_of_sensor_device,
+                                        self.RR2.find_sensor_devices_by_sensor_model_using_has_model,
+                                        self.RR2.find_sensor_models_of_sensor_device_using_has_model,
                                         sensor_device_id,
                                         sensor_model_id)
 
@@ -526,10 +526,10 @@ class TestAssembly(GenericIntHelperTestCase):
         c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
 
         c.OMS.activate_deployment(deployment_id, True)
-        self.assertLess(0, len(self.RR2.find_instrument_sites_by_instrument_device(instrument_device_id)))
-        self.assertLess(0, len(self.RR2.find_instrument_devices_of_instrument_site(instrument_site_id)))
-        self.assertLess(0, len(self.RR2.find_platform_sites_by_platform_device(platform_device_id)))
-        self.assertLess(0, len(self.RR2.find_platform_devices_of_platform_site(platform_site_id)))
+        self.assertLess(0, len(self.RR2.find_instrument_sites_by_instrument_device_using_has_device(instrument_device_id)))
+        self.assertLess(0, len(self.RR2.find_instrument_devices_of_instrument_site_using_has_device(instrument_site_id)))
+        self.assertLess(0, len(self.RR2.find_platform_sites_by_platform_device_using_has_device(platform_device_id)))
+        self.assertLess(0, len(self.RR2.find_platform_devices_of_platform_site_using_has_device(platform_site_id)))
 
         self.assert_lcs_pass(self.client.IMS, "platform_device", platform_device_id, LCE.DEPLOY, LCS.DEPLOYED)
         self.assert_lcs_pass(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEPLOY, LCS.DEPLOYED)
@@ -716,8 +716,8 @@ class TestAssembly(GenericIntHelperTestCase):
 
         log.info("Associate instrument model with instrument site")
         self.perform_association_script(c.OMS.assign_instrument_model_to_instrument_site,
-                                        self.RR2.find_instrument_sites_by_instrument_model,
-                                        self.RR2.find_instrument_models_of_instrument_site,
+                                        self.RR2.find_instrument_sites_by_instrument_model_using_has_model,
+                                        self.RR2.find_instrument_models_of_instrument_site_using_has_model,
                                         instrument_site_id,
                                         instrument_model_id)
 
