@@ -2,8 +2,6 @@
 # coding: utf-8
 
 
-
-
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
@@ -53,8 +51,10 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 #These are supposed to be unicode fields that contain unicode characters.
 DATA_PRODUCT_NAME = u"♣ TestDataProduct ♥"
 DATA_PRODUCT_DESCRIPTION = u"A test data product Ĕ ∆"
-
-
+TEMPORAL_DOMAIN = {'1':u"♣ Temporal Domain ♥",
+                   '2Ĕ':u"A test data product Ĕ ∆",
+                   3:{'1':u"♣ Temporal Domain ♥", '2Ĕ':u"A test data product Ĕ ∆",
+                   4:[u"♣ Temporal Domain ♥", {1:u'one','2Ĕ':u"A test data product Ĕ ∆"}]}}
 def convert_unicode(data):
     if isinstance(data, unicode):
         return str(data.encode('utf8'))
@@ -150,6 +150,14 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
 
     def create_data_product_resource(self):
 
+        geospatial_bounds = {
+            "geospatial_latitude_limit_north": 1.0,
+            "geospatial_latitude_limit_south": 1.0,
+            "geospatial_longitude_limit_east": 1.0,
+            "geospatial_longitude_limit_west": 1.0,
+            "geospatial_vertical_min": 1.0,
+            "geospatial_vertical_max": 1.0
+        }
         data_product_create_request = {  "serviceRequest": {
             "serviceName": "resource_registry",
             "serviceOp": "create",
@@ -158,7 +166,9 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
                     "type_": "DataProduct",
                     "lcstate": "DRAFT",
                     "description": DATA_PRODUCT_DESCRIPTION,
-                    "name": DATA_PRODUCT_NAME
+                    "name": DATA_PRODUCT_NAME,
+                    'geospatial_bounds': geospatial_bounds,
+                    'temporal_domain': TEMPORAL_DOMAIN
                 }
             }
         }
