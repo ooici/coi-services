@@ -50,6 +50,7 @@ class VisualizationService(BaseVisualizationService):
         self.terminate_workflow_timeout = get_safe(self.CFG, 'terminate_workflow_timeout', 30)
         self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 60)
         self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
+        self.list_queue_timeout = get_safe(self.CFG, 'list_queue_timeout', 30)
 
         #Setup and event object for use by the queue monitoring greenlet
         self.monitor_event = gevent.event.Event()
@@ -76,7 +77,7 @@ class VisualizationService(BaseVisualizationService):
             #get the list of queues and message counts on the broker for the user vis queues
             queues = []
             try:
-                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'], timeout=self.list_queue_timeout)
             except Exception, e:
                 log.warn('Unable to get queue information from broker management plugin: ' + e.message)
                 pass
