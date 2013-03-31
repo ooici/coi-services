@@ -259,6 +259,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
         '''
         configuration = DotDict(configuration or {}) 
+        in_data_product_ids = in_data_product_ids or []
+        out_data_product_ids = out_data_product_ids or []
         routes = configuration.get_safe('process.routes', {})
         if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
             routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
@@ -915,6 +917,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 if output_stream_def not in output_stream_def_ids:
                     log.warning('Creating a data process with an unmatched stream definition output')
         
+        if not out_data_product_ids and data_process_definition_id:
+            return True
         if len(out_data_product_ids)>1 and not routes and not data_process_definition_id:
             raise BadRequest('Multiple output data products but no routes defined')
         if len(out_data_product_ids)==1:

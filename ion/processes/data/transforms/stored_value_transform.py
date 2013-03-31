@@ -5,7 +5,7 @@
 '''
 
 from ion.core.process.transform import TransformStreamListener
-from ion.util.stored_value_manager import StoredValueManager
+from ion.util.stored_values import StoredValueManager
 from ion.services.dm.utility.granule import RecordDictionaryTool
 
 import numpy as np

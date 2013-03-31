@@ -1070,3 +1070,22 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
         return contexts
 
+    def test_stored_value_transform(self):
+        input_data_product_id = self.ctd_plain_input_data_product()
+        dpd = DataProcessDefinition(name='stored value transform')
+        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM
+        dpd.module = 'ion.processes.data.transforms.stored_value_transform'
+        dpd.class_name = 'StoredValueTransform'
+
+        data_process_definition_id = self.data_process_management.create_data_process_definition(dpd)
+        self.addCleanup(self.data_process_management.delete_data_process_definition, data_process_definition_id)
+
+        config = DotDict()
+        config.process.document_key = 'example_document'
+    
+        data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[],configuration=config)
+        self.addCleanup(self.data_process_management.delete_data_process2,data_process_id)
+
+
+
+
