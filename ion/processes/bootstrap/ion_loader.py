@@ -1495,6 +1495,7 @@ Reason: %s
         sname        = row['Data Product Identifier']
         precision    = row['Precision']
         param_id     = row['ID']
+        lookup_value = row['Lookup Value']
 
         dataset_management = self._get_service_client('dataset_management')
         try:
@@ -1510,6 +1511,9 @@ Reason: %s
             context.ooi_short_name = sname
             context.description = description
             context.precision = precision
+            if lookup_value:
+                context.lookup_value = True
+
         except TypeError as e:
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)
