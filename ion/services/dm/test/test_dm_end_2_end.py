@@ -361,6 +361,26 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20))
         np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([32.2]*20))
 
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20,40)
+        rdt['temp'] = [10.0] * 20
+        granule = rdt.to_granule()
+
+        dataset_modified.clear()
+
+        stored_value_manager.stored_value_cas('test1',{'offset_a':14.0})
+        gevent.sleep(2)
+
+        publisher.publish(granule)
+        self.assertTrue(dataset_modified.wait(30))
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(40))
+        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20 + [10.] * 20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([32.2]*20 + [24.]*20))
+
 
     def create_lookup_contexts(self):
         contexts = {}

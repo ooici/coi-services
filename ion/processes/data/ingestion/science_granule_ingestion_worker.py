@@ -188,6 +188,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         start_index = coverage.num_timesteps - elements
 
         for field in rdt.lookup_values():
+            print 'Getting stored values: ', self.get_stored_values(field)
             rdt[field] = [self.get_stored_values(field)] * len(rdt)
 
         for k,v in rdt.iteritems():
