@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@package ion.services.sa.observatory.test.test_platform_launch.py
+@package ion.services.sa.observatory.test.test_platform_launch
 @file    ion/services/sa/observatory/test/test_platform_launch.py
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   Test cases for launching and shutting down a platform agent network
@@ -27,6 +27,7 @@ from pyon.public import log
 import time
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.test.base_test_platform_agent_with_rsn import instruments_dict
 
 from mock import patch
 from pyon.public import CFG
@@ -41,8 +42,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self._initialize()
         self._go_active()
         self._run()
-
-        self._wait_for_external_event()
 
         self._go_inactive()
         self._reset()
@@ -112,10 +111,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #         LJ01B
         #         MJ01B
         #
-        # In DEBUG logging level for the relevant modules (in particular, the
-        # parent class of this test, and PlatformAgent), the following files are
-        # generated under logs/:
-        #    platform_CFG_generated_Node1B_complete.txt
+        # In DEBUG logging level for the relevant modules, the following
+        # files are generated under logs/:
         #    platform_CFG_received_Node1B.txt
         #    platform_CFG_received_Node1C.txt
         #    platform_CFG_received_Node1D.txt
@@ -130,8 +127,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #    platform_CFG_received_LJ01B.txt
         #    platform_CFG_received_MJ01B.txt
 
-        # disable the generation of config files (to only generate the
-        # complete one below)
+        # disable the generation of config files
         self._debug_config_enabled = False
 
         #####################################
@@ -155,16 +151,18 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #####################################
         # create some instruments
         #####################################
-        log.info("will create instruments ...")
+        instr_keys = sorted(instruments_dict.keys())
+        log.info("will create %d instruments: %s", len(instr_keys), instr_keys)
         start_time = time.time()
 
-        i1_obj = self._create_instrument('SBE37_SIM_01')
-        log.debug("instrument created = %r", i1_obj.instrument_agent_instance_id)
+        i_objs = []
+        for instr_key in instr_keys:
+            i_obj = self._create_instrument(instr_key)
+            i_objs.append(i_obj)
+            log.debug("instrument created = %r (%s)",
+                      i_obj.instrument_agent_instance_id, instr_key)
 
-        i2_obj = self._create_instrument('SBE37_SIM_02')
-        log.debug("instrument created = %r", i2_obj.instrument_agent_instance_id)
-
-        log.info("instruments created. Took %.3f secs.", time.time() - start_time)
+        log.info("%d instruments created. Took %.3f secs.", len(instr_keys), time.time() - start_time)
 
         #####################################
         # assign the instruments
@@ -172,28 +170,55 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         log.info("will assign instruments ...")
         start_time = time.time()
 
-        pid_LV01C = 'LV01C'
-        self.assertIn(pid_LV01C, p_objs)
-        self._assign_instrument_to_platform(i1_obj, p_objs[pid_LV01C])
-        log.debug("instrument assigned to = %r", pid_LV01C)
+        plats_to_assign_instrs = [
+            'LJ01D', 'SF01B', 'LJ01B', 'MJ01B',  # leaves
+            'MJ01C', 'Node1D', 'LV01B',          # intermediate
+        ]
 
-        pid_LJ01B = 'LJ01B'
-        self.assertIn(pid_LJ01B, p_objs)
-        self._assign_instrument_to_platform(i2_obj, p_objs[pid_LJ01B])
-        log.debug("instrument assigned to = %r", pid_LJ01B)
+        # assign one available instrument to a platform
+        num_assigns = min(len(instr_keys), len(plats_to_assign_instrs))
 
-        log.info("instruments assigned. Took %.3f secs.",
-                  time.time() - start_time)
+        # TODO for some reason assigning more than 2 or 3 instruments triggers
+        # exceptions in the port_agent toward the finalization of the test:
+        #
+        # 2013-03-31 20:47:21,509 ERROR    build/bdist.macosx-10.8-intel/egg/mi/core/instrument/port_agent_client.py _init_comms(): Exception initializing comms for localhost: 5001: error(61, 'Connection refused')
+        # Traceback (most recent call last):
+        #   File "build/bdist.macosx-10.8-intel/egg/mi/core/instrument/port_agent_client.py", line 281, in _init_comms
+        #     self._create_connection()
+        #   File "build/bdist.macosx-10.8-intel/egg/mi/core/instrument/port_agent_client.py", line 327, in _create_connection
+        #     self.sock.connect((self.host, self.port))
+        #   File "/usr/local/Cellar/python/2.7.3/Frameworks/Python.framework/Versions/2.7/lib/python2.7/socket.py", line 224, in meth
+        #     return getattr(self._sock,name)(*args)
+        # error: [Errno 61] Connection refused
+        #
+        # And there are lots of:
+        #
+        # ## attempting reconnect...
+        #
+        # generated from instrument_agent ... perhaps the finalization of the
+        # instr agent is conflicting somehow with attempts to re-connect (?)
+        #
+        # Ah! it seems there're similar exceptions in coi_pycc with other tests
+        # eg.,
+        # test_connect_failed (ion.agents.instrument.test.test_instrument_agent.TestInstrumentAgent)
+        #
+        # So, while this is investigated setting number of assignments to 2
+        # as it seems to be consistently stable:
+        num_assigns = 2
 
-        #####################################
-        # generate the config for the whole hierarchy including instruments:
-        #####################################
-        log.info("will generate configuration ...")
-        start_time = time.time()
-        self._debug_config_enabled = True
-        self._generate_platform_config(p_root, "_complete")
+        for ii in range(num_assigns):
+            platform_id = plats_to_assign_instrs[ii]
+            self.assertIn(platform_id, p_objs)
+            p_obj = p_objs[platform_id]
+            i_obj = i_objs[ii]
+            self._assign_instrument_to_platform(i_obj, p_obj)
+            log.debug("instrument %r (%s) assigned to platform %r",
+                      i_obj.instrument_agent_instance_id,
+                      instr_keys[ii],
+                      platform_id)
 
-        log.info("configuration generated. Took %.3f secs.", time.time() - start_time)
+        log.info("%d instruments assigned. Took %.3f secs.",
+                 num_assigns, time.time() - start_time)
 
         #####################################
         # start the root platform:
