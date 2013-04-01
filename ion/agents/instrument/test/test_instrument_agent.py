@@ -223,7 +223,9 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
         'driver_config' : DVR_CONFIG,
         'stream_config' : stream_config,
         'agent'         : {'resource_id': resource_id},
-        'test_mode' : True
+        'test_mode' : True,
+        'forget_past' : True,
+        'enable_persistence' : False
     }
 
     if org_governance_name is not None:

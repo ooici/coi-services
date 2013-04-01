@@ -181,6 +181,9 @@ class InstrumentAgent(ResourceAgent):
         # Connection index.
         self._connection_index = None
 
+        # Default initial state.
+        self._initial_state = ResourceAgentState.UNINITIALIZED
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
@@ -727,7 +730,8 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         # Publsih resource config change event.
-        self._set_state('rparams', val)
+        if self.CFG.get('enable_persistence', None):
+            self._set_state('rparams', val)
         try:
             event_data = {
                 'config' : val
@@ -1035,7 +1039,7 @@ class InstrumentAgent(ResourceAgent):
         # Here we could define subsets of states and events to specialize fsm.
         
         # Construct default state machine states and handlers.
-        super(InstrumentAgent, self)._construct_fsm(ResourceAgentState, ResourceAgentEvent)
+        super(InstrumentAgent, self)._construct_fsm()
         
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
@@ -1331,13 +1335,22 @@ class InstrumentAgent(ResourceAgent):
     def _restore_resource(self):
         """
         """
-        # Get resource parameters and agent state from persistence.
-        rparams = self._get_state('rparams')
-        if rparams and self._dvr_config:
-            #self._dvr_config['startup_configuration'] = rparams
-            print '### restoring startup config: %s' % str(rparams)
-            
+        if not self._dvr_config:
+            log.error('Instrument agent %s error no driver config on launch, cannot restore state.',
+                      self.id)
+            return
+        
         state = self._get_state('agent_state')
+        
+        # Get resource parameters and agent state from persistence.
+        rparams = self._get_state('rparams')        
+        if rparams:
+            startup_config = self._dvr_config.get('startup_config', None)
+            if not startup_config:
+                startup_config = {'parameters':rparams, 'scheduler':None}
+            else:
+                startup_config['parameters'] = rparams
+            self._dvr_config['startup_config'] = startup_config
         
         # If the last state was lost connection, use the prior connected
         # state.
@@ -1350,7 +1363,12 @@ class InstrumentAgent(ResourceAgent):
         
         # Otherwise, initialize.
         else:
-            self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+            try:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+            except Exception as ex:
+                log.error('Instrument agent %s error restoring state INITIALIZE, exception %s',
+                    self.id, str(ex))
+                
             
         # If inactive, return here.
         if state == 'ResourceAgentState.INACTIVE':
@@ -1360,16 +1378,9 @@ class InstrumentAgent(ResourceAgent):
         else:
             try:
                 self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
-                if rparams:
-                    try:
-                        self.fsm.on_event(SET_RESOURCE, rparams)
-                    
-                    except Exception as ex:
-                        log.error('Instrument agent %s error restoring resource parameters %s, exception %s',
-                                  self.id, rparams, str(ex))
-                    
+
             except Exception as ex:
-                log.error('Could not restore instrument agent %s state, go active exception: %s.',
+                log.error('Instrument agent %s error restoring state GO_ACTIVE, exception: %s.',
                           self.id, str(ex))
                 return
 
