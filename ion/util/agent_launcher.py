@@ -32,7 +32,6 @@ class AgentLauncher(object):
                                                                       configuration=agent_config)
 
         log.info("AgentLauncher got process id='%s' from process_dispatcher.schedule_process()", process_id)
-        assert process_id
         self.process_id = process_id
         return process_id
 
