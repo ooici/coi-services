@@ -70,7 +70,8 @@ class PubsubManagementService(BasePubsubManagementService):
         return stream_definition
 
     def delete_stream_definition(self, stream_definition_id=''):
-        self.read_stream_definition(stream_definition_id) # Ensures the object is a stream definition
+        obj = self.clients.resource_registry.read(stream_definition_id)
+        validate_is_instance(obj,StreamDefinition)
         self._deassociate_definition(stream_definition_id)
         self.clients.resource_registry.delete(stream_definition_id)
         return True
@@ -612,12 +613,8 @@ class PubsubManagementService(BasePubsubManagementService):
         return bool(pdict1 == pdict2)
 
     def has_lookup_values(self, stream_definition_id=''):
-        stream_definition = self.clients.resource_registry.read(stream_definition_id)
-        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary, id_only=True)
-        if not pdicts:
-            raise BadRequest('Stream Definition does not contain valid parameter dictionary')
-
-        pdict = DatasetManagementService.get_parameter_dictionary(pdicts[0])
+        stream_definition = self.read_stream_definition(stream_definition_id)
+        pdict = ParameterDictionary.load(stream_definition.parameter_dictionary)
 
         ret = []
         for key in pdict.keys():

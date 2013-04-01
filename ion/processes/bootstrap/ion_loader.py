@@ -98,7 +98,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0ApBh5vJcqp1xdG1XbnVZVTdzRS1zVUpMYzcweTdORVE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGIzUEdZQUZGeHJaRWVFbTBHMkpuUGc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1495,6 +1495,7 @@ Reason: %s
         sname        = row['Data Product Identifier']
         precision    = row['Precision']
         param_id     = row['ID']
+        lookup_value = row['Lookup Value']
 
         dataset_management = self._get_service_client('dataset_management')
         try:
@@ -1510,6 +1511,9 @@ Reason: %s
             context.ooi_short_name = sname
             context.description = description
             context.precision = precision
+            if lookup_value:
+                context.lookup_value = True
+
         except TypeError as e:
             log.exception(e.message)
             self._conflict_report(row['ID'], row['Name'], e.message)

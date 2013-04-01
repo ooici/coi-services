@@ -122,7 +122,8 @@ class TransformPrime(TransformDataProcess):
             try:
                 document = self.stored_values.read_value(key)
                 if lookup_value in document:
-                    return float(document[lookup_value]) # Force float just to make sure
+                    value = document[lookup_value]
+                    return document[lookup_value]
             except NotFound:
                 log.warning('Specified lookup document does not exist')
 
