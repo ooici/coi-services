@@ -432,7 +432,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
         replay_stream, replay_route = self.pubsub_management.create_stream('replay', 'xp1', stream_definition_id=stream_def_id)
         dataset_id = self.create_dataset(pdict_id)
-        scov = DatasetManagementService._get_coverage(dataset_id)
+        scov = DatasetManagementService._get_simplex_coverage(dataset_id)
 
         bb = CoverageCraft(scov)
         bb.rdt['time'] = np.arange(100)
@@ -666,7 +666,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         ntp_ago  = unix_ago + 2208988800
 
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        coverage = DatasetManagementService._get_coverage(dataset_id)
+        coverage = DatasetManagementService._get_simplex_coverage(dataset_id)
         coverage.insert_timesteps(20)
         coverage.set_parameter_values('time', np.arange(ntp_ago,ntp_now))
         
@@ -708,7 +708,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         DataRetrieverService._refresh_interval = 1
         datasets = [self.make_simple_dataset() for i in xrange(10)]
         for stream_id, route, stream_def_id, dataset_id in datasets:
-            coverage = DatasetManagementService._get_coverage(dataset_id)
+            coverage = DatasetManagementService._get_simplex_coverage(dataset_id)
             coverage.insert_timesteps(10)
             coverage.set_parameter_values('time', np.arange(10))
             coverage.set_parameter_values('temp', np.arange(10))
