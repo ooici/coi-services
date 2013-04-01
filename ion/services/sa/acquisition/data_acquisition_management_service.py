@@ -12,8 +12,11 @@ from interface.services.sa.idata_acquisition_management_service import BaseDataA
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, LCS, PRED, OT
+from pyon.util.arg_check import validate_is_instance
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
+from interface.objects import Parser
+from ion.util.stored_values import StoredValueManager
 
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
@@ -469,7 +472,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_source_agent_id = self.RR2.create(data_source_agent, RT.DataSourceAgent)
 
         if data_source_model_id:
-            self.RR2.assign_data_source_model_to_data_source_agent(data_source_model_id, data_source_agent_id)
+            self.RR2.assign_data_source_model_to_data_source_agent_with_has_model(data_source_model_id, data_source_agent_id)
         return data_source_agent_id
 
     def update_data_source_agent(self, data_source_agent=None):
@@ -494,10 +497,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_source_agent_instance_id = self.RR2.create(data_source_agent_instance, RT.DataSourceAgentInstance)
 
         if data_source_id:
-            self.RR2.assign_data_source_agent_instance_to_data_source(data_source_agent_instance_id, data_source_id)
+            self.RR2.assign_data_source_agent_instance_to_data_source_with_has_agent_instance(data_source_agent_instance_id, data_source_id)
 
         if data_source_agent_id:
-            self.RR2.assign_data_source_agent_to_data_source_agent_instance(data_source_agent_id, data_source_agent_instance_id)
+            self.RR2.assign_data_source_agent_to_data_source_agent_instance_with_has_agent_definition(data_source_agent_id, data_source_agent_instance_id)
 
         return data_source_agent_instance_id
 
@@ -545,7 +548,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Persist ExternalDataSet object and return object _id as OOI id
         external_dataset_id = self.RR2.create(external_dataset, RT.ExternalDataset)
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset(external_dataset_model_id, external_dataset_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_with_has_model(external_dataset_model_id, external_dataset_id)
         return external_dataset_id
 
     def update_external_dataset(self, external_dataset=None):
@@ -591,7 +594,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
         external_dataset_agent_id = self.RR2.create(external_dataset_agent, RT.ExternalDatasetAgent)
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset_agent(external_dataset_model_id, external_dataset_agent_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_agent_with_has_model(external_dataset_model_id,
+                                                                                            external_dataset_agent_id)
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
@@ -603,7 +607,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         log.debug("create_external_dataset_agent: create_process_definition id %s"  +  str(process_definition_id))
 
         #associate the agent and the process def
-        self.RR2.assign_process_definition_to_external_dataset_agent(process_definition_id, external_dataset_agent_id)
+        self.RR2.assign_process_definition_to_external_dataset_agent_with_has_process_definition(process_definition_id,
+                                                                                                 external_dataset_agent_id)
 
         return external_dataset_agent_id
 
@@ -632,7 +637,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset_agent_instance_id = self.RR2.create(external_dataset_agent_instance, RT.ExternalDatasetAgentInstance)
 
         if external_dataset_id:
-            self.RR2.assign_external_dataset_agent_instance_to_external_dataset(external_dataset_agent_instance_id, external_dataset_id)
+            self.RR2.assign_external_dataset_agent_instance_to_external_dataset_with_has_agent_instance(external_dataset_agent_instance_id,
+                                                                                                        external_dataset_id)
 
         self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
         return external_dataset_agent_instance_id
@@ -934,4 +940,65 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
+    def create_parser(self, name='', description='', module='', method='', config=None):
+        parser = Parser(name=name, description=description)
+
+        parser.module = module
+        parser.method = method
+        parser.config = config
+
+        parser_id, rev = self.clients.resource_registry.create(parser)
+        return parser_id
+
+    def read_parser(self, parser_id=''):
+        parser = self.clients.resource_registry.read(parser_id)
+        validate_is_instance(parser,Parser,'The specified identifier does not correspond to a Parser resource')
+        return parser
+
+    def delete_parser(self, parser_id=''):
+        self.clients.resource_registry.delete(parser_id)
+        return True
+
+    def update_parser(self, parser=None):
+        if parser:
+            self.clients.resource_registry.update(parser)
+
+
+    def register_producer_qc_reference(self, producer_id='', parser_id='', attachment_id=''):
+
+        document = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
+        document_keys = self.parse_qc_reference(parser_id, document)
+
+        document_keys = document_keys or []
+
+        producer_obj = self.clients.resource_registry.read(producer_id)
+        producer_obj.producer_context.configuration['qc_keys'] = document_keys
+
+        self.clients.resource_registry.update(producer_obj)
+        return True
+
+    def parse_qc_reference(self, parser_id='', document=None):
+        document_keys = []
+        if document is None:
+            raise BadRequest('Empty Document')
+        parser = self.read_parser(parser_id=parser_id)
+        try:
+            module = __import__(parser.module, fromlist=[parser.method])
+            method = getattr(module, parser.method)
+
+        except ImportError:
+            raise BadRequest('No import named {0} found.'.format(parser.module))
+        except AttributeError:
+            raise BadRequest('No method named {0} in {1}.'.format(parser.method, parser.module))
+        except:
+            log.error('Failed to parse document')
+
+        svm = StoredValueManager(self.container)
+        for key, doc in method(document):
+            try:
+                svm.stored_value_cas(key, doc)
+                document_keys.append(key)
+            except:
+                log.error('Error parsing a row in document.')
+        return document_keys
 

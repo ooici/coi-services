@@ -27,6 +27,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.util.stored_values import StoredValueManager
 from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum
 from mock import patch
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
@@ -759,8 +760,40 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_transform_function, tf_id)
         return tf_id
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_data_process_lookup_values(self):
+        self.lc_preload()
+        instrument_data_product_id = self.ctd_instrument_data_product()
+        offset_data_product_id = self.make_data_product('lookup_value_test', 'lookup_values')
+        
+        data_process_id = self.data_process_management.create_data_process(in_data_product_ids=[instrument_data_product_id],
+            out_data_product_ids=[offset_data_product_id],
+            configuration={'process':{'lookup_docs':['calibrated_ctd']}})
 
-   
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
+
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
+
+        stored_value_manager = StoredValueManager(self.container)
+        lookup_table = {
+                'coeffA': 2.781
+                }
+        stored_value_manager.stored_value_cas('calibrated_ctd', lookup_table)
+
+        validated=Event()
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['calibrated_temperature'], np.array([22.781]))
+            validated.set()
+
+        self.setup_subscriber(offset_data_product_id, callback=validation)
+        self.publish_to_plain_data_product(instrument_data_product_id)
+
+        self.assertTrue(validated.wait(10))
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_data_process_prime(self):

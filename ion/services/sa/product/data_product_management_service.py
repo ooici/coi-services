@@ -1,29 +1,31 @@
 #!/usr/bin/env python
-from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
-from pyon.core.object import IonObjectBase
-
 __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
 from pyon.public import  log, IonObject
-from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from interface.objects import DataProduct, DataProductVersion
-from interface.objects import ComputedValueAvailability
-
+from pyon.util.containers import DotDict
+from pyon.core.object import IonObjectBase
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, OT, PRED, LCS, CFG
 from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
-import string
-from lxml import etree
-from datetime import datetime
+
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.time_utils import TimeUtils
 from ion.util.geo_utils import GeoUtils
 
+from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
+from interface.objects import DataProduct, DataProductVersion
+from interface.objects import ComputedValueAvailability
+
+from lxml import etree
+from datetime import datetime
+
 import numpy as np
+import string
+from collections import deque
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -76,7 +78,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                                 stream_definition_id=stream_definition_id)
 
         # Associate the Stream with the main Data Product and with the default data product version
-        self.RR2.assign_stream_to_data_product(stream_id, data_product_id)
+        self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
 
 
 
@@ -131,7 +133,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         #get the assoc producers before deleteing the links
-        producer_ids = self.RR2.find_data_producer_ids_of_data_product(data_product_id)
+        producer_ids = self.RR2.find_data_producer_ids_of_data_product_using_has_data_producer(data_product_id)
 
         self.RR2.pluck(data_product_id)
         for producer_id in producer_ids:
@@ -204,7 +206,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                                         spatial_domain=data_product_obj.spatial_domain)
 
         # link dataset with data product. This creates the association in the resource registry
-        self.RR2.assign_dataset_to_data_product(dataset_id, data_product_id)
+        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
         
         log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
 
@@ -218,6 +220,14 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             ingestion_configuration_id = self.clients.ingestion_management.list_ingestion_configurations(id_only=True)[0]
 
+
+        #--------------------------------------------------------------------------------
+        # Identify lookup tables
+        #--------------------------------------------------------------------------------
+        config = DotDict()
+        if self._has_lookup_values(data_product_id):
+            config.process.lookup_docs = self._get_lookup_documents(data_product_id)
+
         #--------------------------------------------------------------------------------
         # persist the data stream using the ingestion config id and stream id
         #--------------------------------------------------------------------------------
@@ -225,7 +235,8 @@ class DataProductManagementService(BaseDataProductManagementService):
         # find datasets for the data product
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
                                                 ingestion_configuration_id=ingestion_configuration_id,
-                                                dataset_id=dataset_id)
+                                                dataset_id=dataset_id, 
+                                                config=config)
 
         # register the dataset for externalization
         self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
@@ -830,7 +841,45 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
+    def _has_lookup_values(self,data_product_id):
+        pass
 
+    def _get_lookup_documents(self, data_product_id):
+        ''' Performs a breadth-first traversal of the provenance for a data product in an attempt to collect all the document keys'''
+        document_keys = []
+        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
+        if not len(producer_ids):
+            raise BadRequest('Data product has no known data producers')
+        producer_id = producer_ids.pop(0)
+        def traversal(owner_id):
+            def edges(resource_ids=[]):
+                retval = []
+                if not isinstance(resource_ids, list):
+                    resource_ids = list(resource_ids)
+                for resource_id in resource_ids:
+                    print repr(resource_id)
+                    retval.extend(self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasParent,id_only=True)[0])
+                return retval
+
+            visited_resources = deque(edges([owner_id]))
+            traversal_queue = deque()
+            done = False
+            t = None
+            while not done:
+                t = traversal_queue or deque(visited_resources)
+                traversal_queue = deque()
+                for e in edges(t):
+                    if not e in visited_resources:
+                        visited_resources.append(e)
+                        traversal_queue.append(e)
+                if not len(traversal_queue): done = True
+            return list(visited_resources)
+
+        for prod_id in traversal(producer_id):
+            producer = self.clients.resource_registry.read(prod_id)
+            if 'qc_keys' in producer.producer_context.configuration:
+                document_keys.extend(producer.producer_context.configuration['qc_keys'])
+        return document_keys
 
 
     def _find_producers(self, data_product_id='', provenance_results=''):

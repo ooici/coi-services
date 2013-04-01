@@ -27,6 +27,7 @@ from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
+@unittest.skip("The event alert transform is on its way to be retired.")
 class TransformPrototypeIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(TransformPrototypeIntTest, self).setUp()

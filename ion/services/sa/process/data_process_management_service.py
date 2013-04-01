@@ -141,7 +141,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         process_definition.executable = {'module':data_process_definition.module, 'class':data_process_definition.class_name}
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
 
-        self.RR2.assign_process_definition_to_data_process_definition(process_definition_id, data_process_definition_id)
+        self.RR2.assign_process_definition_to_data_process_definition_with_has_process_definition(process_definition_id,
+                                                                                                  data_process_definition_id)
 
         return data_process_definition_id
 
@@ -397,7 +398,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             
 
-    def update_data_process2(self):
+    def update_data_process(self):
         raise BadRequest('Cannot update an existing data process.')
 
 
@@ -406,7 +407,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         return data_proc_obj
 
 
-    def delete_data_process(self, data_process_id=''):
+    def delete_data_process(self, data_process_id=""):
 
         #Stops processes and deletes the data process associations
         #TODO: Delete the processes also?
@@ -542,6 +543,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             process_definitions, _ = self.clients.resource_registry.find_objects(subject=data_process_definition_id, predicate=PRED.hasProcessDefinition, id_only=True)
             if process_definitions:
                 process_definition_id = process_definitions[0]
+            else:
+                process_definition = ProcessDefinition()
+                process_definition.name = 'transform_data_process'
+                process_definition.executable['module'] = 'ion.processes.data.transforms.transform_prime'
+                process_definition.executable['class'] = 'TransformPrime'
+                process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition)
+
         else:
             process_definitions, _ = self.clients.resource_registry.find_resources(name='transform_data_process', restype=RT.ProcessDefinition,id_only=True)
             if process_definitions:

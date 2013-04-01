@@ -31,7 +31,6 @@ from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest
 
-import gevent
 
 from ion.services.sa.test.helpers import any_old
 
@@ -161,8 +160,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
         # Lifecycle
-        self.assertEquals(len(extended_instrument.lcstate_transitions), 7)
-        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
+        self.assertEquals(len(extended_instrument.lcstate_transitions), 5)
+        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_instrument.availability_transitions), 2)
+        self.assertEquals(set(extended_instrument.availability_transitions.keys()), set(['enable', 'announce']))
 
         # Verify that computed attributes exist for the extended instrument
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
@@ -202,8 +203,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
         self.assertEquals(extended_platform.platform_agent._id, platform_agent_id)
 
-        self.assertEquals(len(extended_platform.lcstate_transitions), 7)
-        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['enable', 'develop', 'deploy', 'retire', 'plan', 'integrate', 'announce']))
+        self.assertEquals(len(extended_platform.lcstate_transitions), 5)
+        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_platform.availability_transitions), 2)
+        self.assertEquals(set(extended_platform.availability_transitions.keys()), set(['enable', 'announce']))
 
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
@@ -477,7 +480,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             'driver_config',
             'stream_config',
             'startup_config',
-            'alarm_defs',
+            'aparam_alert_config',
             'children']
 
 
@@ -501,7 +504,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertIn('aparam_alert_config', config)
             self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
             self.assertIn('stream_config', config)
-            for key in ['alarm_defs', 'children']:
+            for key in ['children']:
                 self.assertEqual({}, config[key])
 
 
@@ -521,10 +524,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
 
             if None is inst_device_id:
-                for key in ['alarm_defs', 'children', 'startup_config']:
+                for key in ['children', 'startup_config']:
                     self.assertEqual({}, config[key])
             else:
-                for key in ['alarm_defs', 'startup_config']:
+                for key in ['startup_config']:
                     self.assertEqual({}, config[key])
 
                 self.assertIn(inst_device_id, config['children'])
@@ -542,7 +545,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertIn('aparam_alert_config', config)
             self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
             self.assertIn('stream_config', config)
-            for key in ['alarm_defs', 'startup_config']:
+            for key in ['startup_config']:
                 self.assertEqual({}, config[key])
 
             self.assertIn(child_device_id, config['children'])
@@ -582,8 +585,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
 
             # assignments
-            self.RR2.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
-            self.RR2.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+            self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(platform_agent_instance_id, platform_device_id)
+            self.RR2.assign_platform_agent_to_platform_agent_instance_with_has_agent_definition(platform_agent_id, platform_agent_instance_id)
             self.RR2.assign_platform_device_to_org_with_has_resource(platform_agent_instance_id, org_id)
 
             return platform_agent_instance_id, platform_agent_id, platform_device_id
@@ -616,8 +619,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
 
             # assignments
-            self.RR2.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
-            self.RR2.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
+            self.RR2.assign_instrument_agent_instance_to_instrument_device_with_has_agent_instance(instrument_agent_instance_id, instrument_device_id)
+            self.RR2.assign_instrument_agent_to_instrument_agent_instance_with_has_agent_definition(instrument_agent_id, instrument_agent_instance_id)
             self.RR2.assign_instrument_device_to_org_with_has_resource(instrument_agent_instance_id, org_id)
 
             return instrument_agent_instance_id, instrument_agent_id, instrument_device_id
@@ -626,6 +629,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         # can't do anything without an agent instance obj
         log.debug("Testing that preparing a launcher without agent instance raises an error")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
 
         log.debug("Making the structure for a platform agent, which will be the child")
@@ -633,6 +637,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
 
         log.debug("Preparing a valid agent instance launch, for config only")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_child_obj)
         child_config = pconfig_builder.prepare(will_launch=False)
         verify_child_config(child_config, platform_device_child_id)
@@ -643,16 +648,19 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
 
         log.debug("Testing child-less parent as a child config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
         parent_config = pconfig_builder.prepare(will_launch=False)
         verify_child_config(parent_config, platform_device_parent_id)
 
         log.debug("assigning child platform to parent")
-        self.RR2.assign_platform_device_to_platform_device(platform_device_child_id, platform_device_parent_id)
-        child_device_ids = self.RR2.find_platform_device_ids_of_device(platform_device_parent_id)
+        self.RR2.assign_platform_device_to_platform_device_with_has_device(platform_device_child_id,
+                                                                           platform_device_parent_id)
+        child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(platform_device_parent_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing parent + child as parent config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
         parent_config = pconfig_builder.prepare(will_launch=False)
         verify_parent_config(parent_config, platform_device_parent_id, platform_device_child_id)
@@ -663,16 +671,19 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
 
         log.debug("Testing instrument config")
+        iconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
         instrument_config = iconfig_builder.prepare(will_launch=False)
         verify_instrument_config(instrument_config, instrument_device_id)
 
         log.debug("assigning instrument to platform")
-        self.RR2.assign_instrument_device_to_platform_device(instrument_device_id, platform_device_child_id)
-        child_device_ids = self.RR2.find_instrument_device_ids_of_device(platform_device_child_id)
+        self.RR2.assign_instrument_device_to_platform_device_with_has_device(instrument_device_id,
+                                                                             platform_device_child_id)
+        child_device_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(platform_device_child_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing entire config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
         pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
         full_config = pconfig_builder.prepare(will_launch=False)
         verify_parent_config(full_config, platform_device_parent_id, platform_device_child_id, instrument_device_id)

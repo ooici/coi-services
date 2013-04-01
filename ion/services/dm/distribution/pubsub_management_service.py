@@ -75,14 +75,20 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.delete(stream_definition_id)
         return True
 
+    @classmethod
+    def compare_stream_definition_objects(cls, def1, def2):
+        if def1._id == def2._id:
+            return True
+        pdict_compare = cls._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
+        return pdict_compare and sorted(def1.available_fields) == sorted(def2.available_fields)
+
     def compare_stream_definition(self, stream_definition1_id='', stream_definition2_id=''):
         # returns True if the 2 stream definitions are equivalent
         if stream_definition1_id == stream_definition2_id and self.read_stream_definition(stream_definition1_id):
             return True
         def1 = self.read_stream_definition(stream_definition1_id)
         def2 = self.read_stream_definition(stream_definition2_id)
-        pdict_compare = self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary) 
-        return pdict_compare and sorted(def1.available_fields) == sorted(def2.available_fields)
+        return self.compare_stream_definition_objects(def1, def2)
 
     def compatible_stream_definitions(self, in_stream_definition_id, out_stream_definition_id):
         if in_stream_definition_id == out_stream_definition_id and self.read_stream_definition(in_stream_definition_id):
@@ -605,3 +611,21 @@ class PubsubManagementService(BasePubsubManagementService):
             pdict2 = ParameterDictionary.load(pdict2) or {}
         return bool(pdict1 == pdict2)
 
+    def has_lookup_values(self, stream_definition_id=''):
+        stream_definition = self.clients.resource_registry.read(stream_definition_id)
+        pdicts, _ = self.clients.resource_registry.find_objects(subject=stream_definition._id, predicate=PRED.hasParameterDictionary, object_type=RT.ParameterDictionary, id_only=True)
+        if not pdicts:
+            raise BadRequest('Stream Definition does not contain valid parameter dictionary')
+
+        pdict = DatasetManagementService.get_parameter_dictionary(pdicts[0])
+
+        ret = []
+        for key in pdict.keys():
+            p_context = pdict.get_context(key)
+            if hasattr(p_context, 'lookup_value'):
+                if stream_definition.available_fields and key in stream_definition.available_fields:
+                    ret.append(p_context.name)
+                elif not stream_definition.available_fields:
+                    ret.append(p_context.name)
+
+        return ret

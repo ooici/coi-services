@@ -37,21 +37,27 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.responses import NormalResponse
 
-from nose.plugins.attrib import attr
-
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
+from mock import patch
+from pyon.public import CFG
 
-@attr('INT', group='sa')
+
+@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 class TestPlatformAgent(BaseIntTestPlatform):
 
-    def setUp(self):
-        super(TestPlatformAgent, self).setUp()
+    def _create_network_and_start_root_platform(self):
+        """
+        Call this at the beginning of each test. We need to make sure that
+        the patched timeout is in effect for the actions performed here.
 
-        #
+        @note this used to be done in setUp, but the patch.dict mechanism does
+        *not* take effect in setUp!
+        """
+        self.p_root = None
+
         # NOTE The tests expect to use values set up by HelperTestMixin for
         # for the following networks (see ion/agents/platform/test/helper.py)
-        #
         if self.PLATFORM_ID == 'Node1D':
             self.p_root = self._create_small_hierarchy()
 
@@ -61,10 +67,13 @@ class TestPlatformAgent(BaseIntTestPlatform):
         else:
             self.fail("self.PLATFORM_ID expected to be one of: 'Node1D', 'LJ01D'")
 
-        self._start_platform(self.p_root.platform_agent_instance_id)
+        self._start_platform(self.p_root)
 
     def tearDown(self):
-        self._stop_platform(self.p_root.platform_agent_instance_id)
+        if self.p_root:
+            # check p_root to avoid generating one more exception if the
+            # creation/launch of the network fails for some reason
+            self._stop_platform(self.p_root)
         super(TestPlatformAgent, self).tearDown()
 
     def _connect_instrument(self):
@@ -218,6 +227,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         return retval.result
 
     def test_capabilities(self):
+        self._create_network_and_start_root_platform()
 
         agt_cmds_all = [
             PlatformAgentEvent.INITIALIZE,
@@ -522,6 +532,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_some_state_transitions(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._initialize()   # -> INACTIVE
@@ -538,6 +549,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()        # -> UNINITIALIZED
 
     def test_get_set_resources(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -553,6 +565,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_some_commands(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -572,6 +585,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_resource_monitoring(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -588,6 +602,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_external_event_dispatch(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -602,6 +617,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_connect_disconnect_instrument(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -622,6 +638,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_check_sync(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()

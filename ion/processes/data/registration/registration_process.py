@@ -150,25 +150,8 @@ class RegistrationProcess(StandaloneProcess):
                 atts['license'] = '[standard]'
                 atts['summary'] = cov.name
                 atts['cdm_data_type'] = 'Grid'
-                atts['subsetVariables'] = ','.join([erd_name_map[v] for v in vars])
                 atts['standard_name_vocabulary'] = 'CF-12'
                 
-                try:
-                    lat_min,lat_max = cov.get_data_bounds("lat")
-                    atts['geospatial_lat_max'] = str(lat_max)
-                    atts['geospatial_lat_min'] = str(lat_min)
-                    pc = cov.get_parameter_context("lat")
-                    atts['geospatial_lat_units'] = str(pc.uom)
-                    
-                    lon_min,lon_max = cov.get_data_bounds("lon")
-                    atts['geospatial_lon_max'] = str(lon_max)
-                    atts['geospatial_lon_min'] = str(lon_min)
-                    pc = cov.get_parameter_context("lon")
-                    atts['geospatial_lon_units'] = str(pc.uom)
-                except:
-                    #silently fail and just don't fill attributes
-                    pass
-
                 for key, val in atts.iteritems():
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', key)

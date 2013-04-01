@@ -52,10 +52,11 @@ class IngestionManagementService(BaseIngestionManagementService):
 
     # --- 
 
-    def persist_data_stream(self, stream_id='', ingestion_configuration_id='', dataset_id=''):
+    def persist_data_stream(self, stream_id='', ingestion_configuration_id='', dataset_id='', config=None):
         #--------------------------------------------------------------------------------
         # Validate that the method call was indeed valid
         #--------------------------------------------------------------------------------
+        config = config or {}
         validate_is_instance(stream_id,basestring, 'stream_id %s is not a valid string' % stream_id)
         validate_true(dataset_id,'Clients must specify the dataset to persist')
         log.info('Persisting stream %s to dataset %s.', stream_id, dataset_id)
@@ -66,13 +67,13 @@ class IngestionManagementService(BaseIngestionManagementService):
         #--------------------------------------------------------------------------------
         # Set up the stream subscriptions and associations for this stream and its ingestion_type
         #--------------------------------------------------------------------------------
-        if self.setup_queues(ingestion_config, stream_id, dataset_id):
+        if self.setup_queues(ingestion_config, stream_id, dataset_id, config):
             self.clients.pubsub_management.persist_stream(stream_id)
 
 
         return dataset_id
 
-    def setup_queues(self, ingestion_config, stream_id, dataset_id):
+    def setup_queues(self, ingestion_config, stream_id, dataset_id, config):
         #--------------------------------------------------------------------------------
         # Iterate through each queue, check to make sure it's a supported type
         # and it's the queue we're trying to set up
@@ -90,15 +91,15 @@ class IngestionManagementService(BaseIngestionManagementService):
                 object=subscription_id
             )
             self._existing_dataset(stream_id, dataset_id)
-            self.launch_worker(queue_name)
+            self.launch_worker(queue_name, config)
 
             return True
 
         return False
 
 
-    def launch_worker(self, queue_name):
-        config = DotDict()
+    def launch_worker(self, queue_name, config):
+        config = DotDict(config or {})
         config.process.queue_name = queue_name
         config.process.buffer_limit = self.CFG.get_safe('service.ingestion_management.buffer_limit', 10)
         config.process.time_limit = self.CFG.get_safe('service.ingestion_management.time_limit', 10)

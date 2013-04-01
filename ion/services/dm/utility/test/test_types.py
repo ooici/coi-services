@@ -9,7 +9,7 @@ from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
-from ion.services.dm.utility.types import get_fill_value, get_parameter_type
+from ion.services.dm.utility.types import TypesManager
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from coverage_model.parameter import ParameterContext, ParameterDictionary
 from coverage_model.parameter_values import get_value_class
@@ -23,7 +23,7 @@ from ion.services.dm.utility.granule_utils import time_series_domain
 from pyon.ion.stream import StandaloneStreamPublisher
 
 from interface.objects import DataProduct
-from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType, create_guid, CRS, AxisTypeEnum, GridDomain, GridShape, MutabilityEnum, SimplexCoverage
+from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType, create_guid, CRS, AxisTypeEnum, GridDomain, GridShape, MutabilityEnum, SimplexCoverage, ParameterFunctionType, NumexprFunction
 
 import numpy as np
 import gevent
@@ -33,11 +33,12 @@ import gevent
 class TestTypes(PyonTestCase):
     def setUp(self):
         PyonTestCase.setUp(self)
+        self.types_manager = TypesManager(None)
     
     def get_context(self, ptype, encoding, fill_value, codeset=None):
-        ptype = get_parameter_type(ptype, encoding, codeset)
+        ptype = self.types_manager.get_parameter_type(ptype, encoding, codeset)
         context = ParameterContext(name='test', param_type=ptype)
-        context.fill_value = get_fill_value(fill_value, encoding, ptype)
+        context.fill_value = self.types_manager.get_fill_value(fill_value, encoding, ptype)
         return context
 
     def get_pval(self, context):
@@ -244,7 +245,7 @@ class TestTypes(PyonTestCase):
         paramval[:] = [1] * 20
         [self.assertTrue(paramval[i]) for i in xrange(20)]
 
-        self.assertEquals(get_fill_value('true',encoding), 1, ptype)
+        self.assertEquals(self.types_manager.get_fill_value('true',encoding), 1, ptype)
 
         self.rdt_to_granule(context, [1] * 20, [True] * 20)
         self.cov_io(context, [1] * 20, [True] * 20)
@@ -276,29 +277,29 @@ class TestTypes(PyonTestCase):
         encoding   = 'int8'
         codeset    = '{{0:"hi"}'
 
-        self.assertRaises(TypeError, get_parameter_type, ptype, encoding, codeset)
+        self.assertRaises(TypeError, self.types_manager.get_parameter_type, ptype, encoding, codeset)
 
     def test_invalid_str_len(self):
         ptype = 'constant<str>'
         encoding = 'Sfour'
         
-        self.assertRaises(TypeError, get_parameter_type, ptype, encoding)
+        self.assertRaises(TypeError, self.types_manager.get_parameter_type, ptype, encoding)
         
         ptype = 'constant<str>'
         encoding = 'int8'
         
-        self.assertRaises(TypeError, get_parameter_type, ptype, encoding)
+        self.assertRaises(TypeError, self.types_manager.get_parameter_type, ptype, encoding)
         
         ptype = 'quantity'
         encoding = 'Sfour'
         
-        self.assertRaises(TypeError, get_parameter_type, ptype, encoding)
+        self.assertRaises(TypeError, self.types_manager.get_parameter_type, ptype, encoding)
 
     def test_invalid_range(self):
         ptype    = 'range<str>'
         encoding = ''
 
-        self.assertRaises(TypeError, get_parameter_type, ptype, encoding)
+        self.assertRaises(TypeError, self.types_manager.get_parameter_type, ptype, encoding)
 
 
     def test_str_fill(self):
@@ -315,16 +316,16 @@ class TestTypes(PyonTestCase):
         encoding = 'opaque'
         fill_value = 'a'
 
-        self.assertRaises(TypeError, get_fill_value,fill_value, encoding)
+        self.assertRaises(TypeError, self.types_manager.get_fill_value,fill_value, encoding)
 
     def test_invalid_range_fill(self):
         ptype = 'range<quantity>'
         encoding = 'int32'
         fill_value = '-9999'
 
-        ptype = get_parameter_type(ptype,encoding)
+        ptype = self.types_manager.get_parameter_type(ptype,encoding)
 
-        self.assertRaises(TypeError, get_fill_value,fill_value, encoding, ptype)
+        self.assertRaises(TypeError, self.types_manager.get_fill_value,fill_value, encoding, ptype)
 
 
 
@@ -347,7 +348,18 @@ class TestTypes(PyonTestCase):
         self.cov_io(context, testval)
 
     def test_bad_ptype(self):
-        self.assertRaises(TypeError, get_parameter_type, 'flimsy','','')
+        self.assertRaises(TypeError, self.types_manager.get_parameter_type, 'flimsy','','')
+    
+    def test_lookup_value_check(self):
+        func = NumexprFunction('f', 'coeff_a * x', ['coeff_a','x'], param_map={'x':'x', 'coeff_a':'coeff_a'})
+        func.lookup_values = ['LV_coeff_a']
+        test_context = ParameterContext('test', param_type=ParameterFunctionType(func))
+
+        tm = TypesManager(None)
+        self.assertTrue(tm.has_lookup_value(test_context))
+        tm.parameter_lookups['LV_coeff_a'] = 'abc123'
+        self.assertEquals(tm.get_lookup_value_ids(test_context), ['abc123'])
+
 
 
 @attr('EXHAUSTIVE')
@@ -486,5 +498,4 @@ class ExhaustiveParameterTest(IonIntegrationTestCase):
 
         if bad_data_products:
             raise AssertionError('There are bad parameter dictionaries.')
-
 

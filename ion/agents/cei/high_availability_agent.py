@@ -284,6 +284,7 @@ class HADashiHandler(object):
         self.CFG = agent.CFG
         self.dashi = self._get_dashi(dashi_name, dashi_uri, dashi_exchange, sysname=self.CFG.get_safe('dashi.sysname'))
         self.dashi.handle(self.status)
+        self.dashi.handle(self.dump)
         self.dashi.handle(self.reconfigure_policy)
 
         self.consumer_thread = None
@@ -299,6 +300,9 @@ class HADashiHandler(object):
 
     def status(self):
         return self.agent.rcmd_status()
+
+    def dump(self):
+        return self.agent.rcmd_dump()
 
     def reconfigure_policy(self, new_policy):
         return self.agent.rcmd_reconfigure_policy(new_policy)

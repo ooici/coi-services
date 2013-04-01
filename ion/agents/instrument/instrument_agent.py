@@ -19,7 +19,7 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.public import IonObject
 
@@ -58,8 +58,8 @@ from ion.agents.alerts.alerts import *
 
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
-from interface.objects import StreamRoute
-from interface.objects import AgentCommand
+from interface.objects import StreamRoute, StreamAlertType
+from interface.objects import AgentCommand, StatusType, DeviceStatusEnum, AggregateStatusType
 
 class InstrumentAgentState():
     UNINITIALIZED='xxx'
@@ -159,6 +159,9 @@ class InstrumentAgent(ResourceAgent):
 
         # List of current alarm objects.
         self.aparam_alerts = []
+
+        #list of the aggreate status states for this device
+        self.aparam_aggstatus = {}
         
         # Dictionary of stream fields.
         self.aparam_streams = {}
@@ -258,8 +261,10 @@ class InstrumentAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
-                        [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+            return True, ''
+
+        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
 
         if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
@@ -796,16 +801,78 @@ class InstrumentAgent(ResourceAgent):
 
         
         for a in self.aparam_alerts:
-            if stream_name == a.stream_name:
-                if a.value_id:
+            if stream_name == a._stream_name:
+                if a._value_id:
                     for v in values:
                         value = v['value']
                         value_id = v['value_id']
-                        if value_id == a.value_id:
+                        if value_id == a._value_id:
                             a.eval_alert(value)
                 else:
                     a.eval_alert()
-        
+
+        # update the aggreate status for this device
+        self._process_aggregate_alerts()
+
+    def _process_aggregate_alerts(self):
+        """
+        loop thru alerts list and retrieve status of any alert that contributes to the aggregate status and update the state
+        """
+        #init working status
+        updated_status = {}
+        for aggregate_type in AggregateStatusType._str_map.keys():
+            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
+                updated_status[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
+
+        for a in self.aparam_alerts:
+            log.debug('_process_aggregate_alerts a: %s', a)
+            curr_state = a.get_status()
+            if a._aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
+                #get the current value for this aggregate status
+                current_agg_state = updated_status[ a._aggregate_type ]
+                if a._status:
+                    # this alert is not 'tripped' so the status is OK
+                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                    log.debug('_process_aggregate_alerts Clear')
+                    if current_agg_state is DeviceStatusEnum.STATUS_UNKNOWN:
+                        updated_status[ a._aggregate_type ]  = DeviceStatusEnum.STATUS_OK
+
+                else:
+                    #the alert is active, either a warning or an alarm
+                    if a._alert_type is StreamAlertType.ALARM:
+                        log.debug('_process_aggregate_alerts Critical')
+                        updated_status[ a._aggregate_type ] = DeviceStatusEnum.STATUS_CRITICAL
+                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusEnum.STATUS_CRITICAL:
+                        log.debug('_process_aggregate_alerts Warn')
+                        updated_status[ a._aggregate_type ] = DeviceStatusEnum.STATUS_WARNING
+
+        #compare old state with new state and publish alerts for any agg status that has changed.
+        for aggregate_type in AggregateStatusType._str_map.keys():
+            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
+                if updated_status[aggregate_type] != self.aparam_aggstatus[aggregate_type]:
+                    log.debug('_process_aggregate_alerts pubevent')
+                    self._publish_agg_status_event(aggregate_type, updated_status[aggregate_type],self.aparam_aggstatus[aggregate_type])
+                    self.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
+
+        return
+
+    def _publish_agg_status_event(self, status_type, new_status, old_status):
+        # Publish resource config change event.
+        try:
+            self._event_publisher.publish_event(
+                event_type='DeviceAggregateStatusEvent',
+                origin_type=self.ORIGIN_TYPE,
+                origin=self.resource_id,
+                status_name=status_type,
+                status=new_status,
+                prev_status=old_status)
+        except:
+            log.error('Instrument agent %s could not publish aggregate status change event.',
+                self._proc_name)
+
+        return
+
+
     def _publish_stream_buffer(self, stream_name):
         """
         """
@@ -1240,7 +1307,7 @@ class InstrumentAgent(ResourceAgent):
             for alert_def in aparam_alert_config:
                 alert_def = copy.deepcopy(alert_def)
                 try:
-                    if not alert_def[stream_name] in self.aparam_streams.keys():
+                    if not alert_def['stream_name'] in self.aparam_streams.keys():
                         raise Exception()
                     cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
@@ -1249,7 +1316,12 @@ class InstrumentAgent(ResourceAgent):
                     self.aparam_alerts.append(alert)
                 except:
                     log.error('Instrument agent %s could not construct alert %s, for stream %s',
-                              self._proc_name, str(alert_def), stream_name)    
+                              self._proc_name, str(alert_def), stream_name)
+
+        #initialize state of aggregate status to unknow until the first time alerts are processed
+        for aggregate_type in AggregateStatusType._str_map.keys():
+            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
+                self.aparam_aggstatus[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
                     
     def aparam_set_streams(self, params):
         """
@@ -1346,4 +1418,3 @@ class InstrumentAgent(ResourceAgent):
         # send the data to the driver
         self._dvr_client.cmd_dvr('execute_direct', data)
 
-        
