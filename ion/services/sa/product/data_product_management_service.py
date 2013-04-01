@@ -72,6 +72,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         #if stream_definition_id:
         #@todo: What about topics?
 
+        # Associate the StreamDefinition with the data product
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id, data_product_id)
+
         stream_id,route = self.clients.pubsub_management.create_stream(name=data_product.name,
                                                                 exchange_point=exchange_point,
                                                                 description=data_product.description,
