@@ -47,6 +47,12 @@ from gevent.event import Event
 import unittest, gevent
 import numpy as np
 
+from ion.services.dm.utility.granule import RecordDictionaryTool
+from pyon.ion.event import EventSubscriber
+from gevent.event import Event
+from pyon.public import OT
+from pyon.ion.stream import StandaloneStreamPublisher
+
 class FakeProcess(LocalContextMixin):
     name = ''
 
@@ -331,13 +337,35 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasDataset, id_only=True)
         if not dataset_ids:
             raise NotFound("Data Product %s dataset  does not exist" % str(dp_id))
-        self.get_datastore(dataset_ids[0])
+        dataset_id = dataset_ids[0]
 
 
         # Check that the streams associated with the data product are persisted with
         stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)
         for stream_id in stream_ids:
             self.assertTrue(self.ingestclient.is_persisted(stream_id))
+
+        stream_id = stream_ids[0]
+        route = self.pubsubcli.read_stream_route(stream_id=stream_id)
+        stream_def_ids, _ = self.rrclient.find_objects(stream_id, PRED.hasStreamDefinition, id_only=True)
+        stream_def_id = stream_def_ids[0]
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        
+        dataset_modified = Event()
+        def cb(*args, **kwargs):
+            dataset_modified.set()
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
+        es.start()
+        self.addCleanup(es.stop)
+
+        publisher.publish(rdt.to_granule())
+
+        self.assertTrue(dataset_modified.wait(30))
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
@@ -364,6 +392,29 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # test suspend data product persistence
         #------------------------------------------------------------------------------------------------
         self.dpsc_cli.suspend_data_product_persistence(dp_id)
+
+
+        dataset_modified.clear()
+
+        rdt['time'] = np.arange(20,40)
+
+        publisher.publish(rdt.to_granule())
+        self.assertFalse(dataset_modified.wait(2))
+
+        self.dpsc_cli.activate_data_product_persistence(dp_id)
+
+        dataset_modified.clear()
+
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_modified.wait(30))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_almost_equal(rdt['time'], np.arange(40))
+
+
+        dataset_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasDataset, id_only=True)
+        self.assertEquals(len(dataset_ids), 1)
 
         self.dpsc_cli.force_delete_data_product(dp_id)
         # now try to get the deleted dp object

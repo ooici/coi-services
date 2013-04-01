@@ -37,7 +37,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -62,7 +62,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
         #--------------------------------------------------------------------------------
-        data_product_id = self.RR2.create(data_product, RT.DataProduct)
+        data_product_id,rev = self.clients.resource_registry.create(data_product)
 
 
         #-----------------------------------------------------------------------------------------------
@@ -80,6 +80,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Associate the Stream with the main Data Product and with the default data product version
         self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
 
+
+        if dataset_id:
+            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
 
 
         # Return the id of the new data product
@@ -194,21 +197,28 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest("Data Product stream is without a stream definition")
         stream_def_id = stream_defs[0]
 
+
         stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id) # additional read necessary to fill in the pdict
 
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
         
-        
+        if not dataset_ids:
+            # No datasets are currently linked which means we need to create a new one
+            dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
+                                                                            stream_id=stream_id,
+                                                                            parameter_dict=stream_def.parameter_dictionary,
+                                                                            temporal_domain=data_product_obj.temporal_domain,
+                                                                            spatial_domain=data_product_obj.spatial_domain)
 
-        dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
-                                                                        stream_id=stream_id,
-                                                                        parameter_dict=stream_def.parameter_dictionary,
-                                                                        temporal_domain=data_product_obj.temporal_domain,
-                                                                        spatial_domain=data_product_obj.spatial_domain)
-
-        # link dataset with data product. This creates the association in the resource registry
-        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
-        
-        log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
+            # link dataset with data product. This creates the association in the resource registry
+            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+            
+            # register the dataset for externalization
+            self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
+            
+            log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
+        else:
+            dataset_id = dataset_ids[0]
 
 
 
@@ -238,8 +248,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                 dataset_id=dataset_id, 
                                                 config=config)
 
-        # register the dataset for externalization
-        self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
 
 
         #--------------------------------------------------------------------------------
