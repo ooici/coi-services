@@ -23,7 +23,7 @@ from ion.util.stored_values import StoredValueManager
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
-from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -334,7 +334,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
 
         stored_value_manager = StoredValueManager(self.container)
-        stored_value_manager.stored_value_cas('test1',{'offset_a':12.2, 'offset_b':13.1})
+        stored_value_manager.stored_value_cas('test1',{'offset_a':10.0, 'offset_b':13.1})
         
         publisher = StandaloneStreamPublisher(stream_id, route)
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
@@ -359,7 +359,27 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(20))
         np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20))
-        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([32.2]*20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20))
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20,40)
+        rdt['temp'] = [20.0] * 20
+        granule = rdt.to_granule()
+
+        dataset_modified.clear()
+
+        stored_value_manager.stored_value_cas('test1',{'offset_a':20.0})
+        gevent.sleep(2)
+
+        publisher.publish(granule)
+        self.assertTrue(dataset_modified.wait(30))
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(40))
+        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20 + [20.] * 20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20 + [40.]*20))
 
 
     def create_lookup_contexts(self):
@@ -376,7 +396,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
+        offset_ctxt = ParameterContext(name='offset_a', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         offset_ctxt.lookup_value = True
         offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)

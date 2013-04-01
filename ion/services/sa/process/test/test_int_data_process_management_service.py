@@ -25,7 +25,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct
+from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.stored_values import StoredValueManager
 from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum
@@ -36,6 +36,7 @@ import gevent
 from sets import Set
 import unittest
 import os
+from coverage_model import ParameterContext, QuantityType, NumexprFunction, ParameterFunctionType
 from pyon.ion.stream import StandaloneStreamPublisher, StandaloneStreamSubscriber
 from ion.services.dm.utility.granule import RecordDictionaryTool
 import time
@@ -543,11 +544,12 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        self.dataset_management      = DatasetManagementServiceClient()
-        self.resource_registry       = self.container.resource_registry
-        self.pubsub_management       = PubsubManagementServiceClient()
-        self.data_process_management = DataProcessManagementServiceClient()
-        self.data_product_management = DataProductManagementServiceClient()
+        self.dataset_management          = DatasetManagementServiceClient()
+        self.resource_registry           = self.container.resource_registry
+        self.pubsub_management           = PubsubManagementServiceClient()
+        self.data_process_management     = DataProcessManagementServiceClient()
+        self.data_product_management     = DataProductManagementServiceClient()
+        self.data_acquisition_management = DataAcquisitionManagementServiceClient()
 
         self.validators = 0
 
@@ -729,6 +731,16 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.lc_preload()
         instrument_data_product_id = self.ctd_instrument_data_product()
         offset_data_product_id = self.make_data_product('lookup_value_test', 'lookup_values')
+
+
+        data_producer = DataProducer(name='producer')
+        data_producer.producer_context = DataProcessProducerContext()
+        data_producer.producer_context.configuration['qc_keys'] = ['calibrated_ctd']
+        data_producer_id, _ = self.resource_registry.create(data_producer)
+        self.addCleanup(self.resource_registry.delete, data_producer_id)
+        assoc,_ = self.resource_registry.create_association(subject=instrument_data_product_id, object=data_producer_id, predicate=PRED.hasDataProducer)
+        self.addCleanup(self.resource_registry.delete_association, assoc)
+
         
         data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[offset_data_product_id], configuration={'process':{'lookup_docs':['calibrated_ctd']}})
         self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
@@ -968,4 +980,112 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
         self.publish_to_plain_data_product(input_data_product_id)
         self.assertTrue(validated.wait(10))
+
+    def test_lookup_data_process(self):
+        
+        #--------------------------------------------------------------------------------
+        # Input Data Product with lookup document
+        #--------------------------------------------------------------------------------
+
+        input_data_product_id = self.ctd_plain_input_data_product()
+        data_producer = DataProducer(name='producer')
+        data_producer.producer_context = DataProcessProducerContext()
+        data_producer.producer_context.configuration['qc_keys'] = ['offset_document']
+        data_producer_id, _ = self.resource_registry.create(data_producer)
+        self.addCleanup(self.resource_registry.delete, data_producer_id)
+        assoc,_ = self.resource_registry.create_association(subject=input_data_product_id, object=data_producer_id, predicate=PRED.hasDataProducer)
+        self.addCleanup(self.resource_registry.delete_association, assoc)
+
+        document_keys = self.data_acquisition_management.list_qc_references(input_data_product_id)
+            
+        self.assertEquals(document_keys, ['offset_document'])
+        svm = StoredValueManager(self.container)
+        svm.stored_value_cas('offset_document', {'offset_a':2.0})
+
+        #-------------------------------------------------------------------------------- 
+        # Output DataProduct with lookup values
+        #-------------------------------------------------------------------------------- 
+        
+        contexts = self.create_lookup_contexts()
+        context_ids = [c_id for c,c_id in contexts.itervalues()]
+        pdict_id = self.dataset_management.create_parameter_dictionary(name='lookup_pdict', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        data_product = DataProduct(name='lookup data product')
+        tdom, sdom = time_series_domain()
+        data_product.temporal_domain = tdom.dump()
+        data_product.spatial_domain = sdom.dump()
+
+        data_product_id = self.data_product_management.create_data_product(data_product, stream_definition_id=stream_def_id)
+        self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
+
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[input_data_product_id], out_data_product_ids=[data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+
+
+        #--------------------------------------------------------------------------------
+        # Make some data
+        #--------------------------------------------------------------------------------
+        validated = Event()
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([22.0]))
+            validated.set()
+        self.setup_subscriber(data_product_id, callback=validation)
+        self.publish_to_plain_data_product(input_data_product_id)
+        self.assertTrue(validated.wait(10))
+
+ 
+    def create_lookup_contexts(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+        
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
+        offset_ctxt.lookup_value = True
+        offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
+        contexts['offset_a'] = offset_ctxt, offset_ctxt_id
+
+        func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
+        func.lookup_values = ['LV_offset']
+        calibrated = ParameterContext('calibrated', uom='', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
+        calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
+        contexts['calibrated'] = calibrated, calibrated_id
+
+        return contexts
+
+    def test_stored_value_transform(self):
+        input_data_product_id = self.ctd_plain_input_data_product()
+        dpd = DataProcessDefinition(name='stored value transform')
+        dpd.data_process_type = DataProcessTypeEnum.TRANSFORM
+        dpd.module = 'ion.processes.data.transforms.stored_value_transform'
+        dpd.class_name = 'StoredValueTransform'
+
+        data_process_definition_id = self.data_process_management.create_data_process_definition(dpd)
+        self.addCleanup(self.data_process_management.delete_data_process_definition, data_process_definition_id)
+
+        config = DotDict()
+        config.process.document_key = 'example_document'
+    
+        data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[],configuration=config)
+        self.addCleanup(self.data_process_management.delete_data_process2,data_process_id)
+
+
+
 

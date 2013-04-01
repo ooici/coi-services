@@ -11,7 +11,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from coverage_model.parameter_types import QuantityType, ArrayType 
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType
-from coverage_model import ParameterFunctionType, ParameterContext
+from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
 from copy import deepcopy
 
@@ -145,7 +145,7 @@ class TypesManager(object):
 
     def get_lookup_value(self,value):
         placeholder = value.replace('LV_','')
-        pc = ParameterContext(name=placeholder, param_type=QuantityType(value_encoding='float64'), fill_value=-9999.)
+        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         pc.lookup_value = True
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         self.parameter_lookups[value] = ctxt_id
