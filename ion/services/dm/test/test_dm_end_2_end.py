@@ -334,7 +334,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
 
         stored_value_manager = StoredValueManager(self.container)
-        stored_value_manager.stored_value_cas('test1',{'offset_a':12.2, 'offset_b':13.1})
+        stored_value_manager.stored_value_cas('test1',{'offset_a':10.0, 'offset_b':13.1})
         
         publisher = StandaloneStreamPublisher(stream_id, route)
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
@@ -359,16 +359,16 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(20))
         np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20))
-        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([32.2]*20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20))
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(20,40)
-        rdt['temp'] = [10.0] * 20
+        rdt['temp'] = [20.0] * 20
         granule = rdt.to_granule()
 
         dataset_modified.clear()
 
-        stored_value_manager.stored_value_cas('test1',{'offset_a':14.0})
+        stored_value_manager.stored_value_cas('test1',{'offset_a':20.0})
         gevent.sleep(2)
 
         publisher.publish(granule)
@@ -378,8 +378,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
 
         np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(40))
-        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20 + [10.] * 20))
-        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([32.2]*20 + [24.]*20))
+        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20 + [20.] * 20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20 + [40.]*20))
 
 
     def create_lookup_contexts(self):

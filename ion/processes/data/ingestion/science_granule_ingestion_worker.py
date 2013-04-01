@@ -16,6 +16,8 @@ from ion.core.process.transform import TransformStreamListener
 from ion.util.time_utils import TimeUtils
 from ion.util.stored_values import StoredValueManager
 
+from coverage_model.parameter_values import SparseConstantValue
+
 from ooi.timer import Timer, Accumulator
 from ooi.logging import TRACE
 from logging import DEBUG
@@ -24,7 +26,7 @@ import collections
 import gevent
 import time
 import uuid
-
+import numpy as np
 
 REPORT_FREQUENCY=100
 MAX_RETRY_TIME=3600
@@ -182,19 +184,36 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 log.warning('Specified lookup document does not exist')
         return None
 
+
+    def insert_sparse_values(self, coverage, rdt, stream_id):
+
+        for field in rdt.lookup_values():
+            value = self.get_stored_values(field)
+            print 'Getting stored values: ', value
+            rdt[field] = [value] * len(rdt)
+            try:
+                coverage.set_parameter_values(param_name=field, value=np.atleast_1d(value))
+            except IOError as e:
+                log.error("Couldn't insert values for coverage: %s",
+                          coverage.persistence_dir, exc_info=True)
+                try:
+                    coverage.close()
+                finally:
+                    self._bad_coverages[stream_id] = 1
+                    raise CorruptionError(e.message)
+
     def insert_values(self, coverage, rdt, stream_id):
         elements = len(rdt)
 
         start_index = coverage.num_timesteps - elements
 
-        for field in rdt.lookup_values():
-            print 'Getting stored values: ', self.get_stored_values(field)
-            rdt[field] = [self.get_stored_values(field)] * len(rdt)
-
         for k,v in rdt.iteritems():
+            if isinstance(v, SparseConstantValue):
+                continue
             slice_ = slice(start_index, None)
             try:
                 coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
+                print 'Setting %s: %s' %(k,v[:])
             except IOError as e:
                 log.error("Couldn't insert values for coverage: %s",
                           coverage.persistence_dir, exc_info=True)
@@ -245,6 +264,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
 
         elements = len(rdt)
+
+        self.insert_sparse_values(coverage,rdt,stream_id)
         
         if debugging:
             timer.complete_step('checks') # lightweight ops, should be zero
