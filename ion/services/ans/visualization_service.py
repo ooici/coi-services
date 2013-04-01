@@ -535,12 +535,16 @@ class VisualizationService(BaseVisualizationService):
 
         if ds_ids is None or not ds_ids:
             raise NotFound("Could not find dataset associated with data product")
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)
+        if not stream_def_ids:
+            raise NotFound('Could not find stream definition associated with data product')
+        stream_def_id = stream_def_ids[0]
 
         if use_direct_access:
-            retrieved_granule = DataRetrieverService.retrieve_oob(ds_ids[0], query=query)
+            retrieved_granule = DataRetrieverService.retrieve_oob(ds_ids[0], query=query, delivery_format=stream_def_id)
         else:
             #replay_granule = self.clients.data_retriever.retrieve(ds_ids[0],{'start_time':0,'end_time':2})
-            retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
+            retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query, delivery_format=stream_def_id)
 
         # If thereis no data, return an empty dict
         if retrieved_granule is None:

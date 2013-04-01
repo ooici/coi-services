@@ -670,23 +670,24 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedListValue)
         ret.value = []
         try:
-            stream_id = self._get_stream_id(data_product_id)
-            if not stream_id:
+            stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            if not stream_def_ids:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
-                ret.reason = "There is no Stream associated with this DataProduct"
+                ret.reason = "There is no StreamDefinition associated with this DataProduct"
+                return ret
+            stream_def = self.clients.pubsub_management.read_stream_definition(stream_definition_id=stream_def_ids[0])
+
+            param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, id_only=True)
+            if not param_dict_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "There is no ParameterDictionary associated with this DataProduct"
             else:
-                stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=True)
-                if not stream_def_ids:
-                    ret.status = ComputedValueAvailability.NOTAVAILABLE
-                    ret.reason = "There is no StreamDefinition associated with this DataProduct"
+                ret.status = ComputedValueAvailability.PROVIDED
+                if stream_def.available_fields:
+                    retval = [i for i in self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0]) if i.name in stream_def.available_fields]
                 else:
-                    param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, id_only=True)
-                    if not param_dict_ids:
-                        ret.status = ComputedValueAvailability.NOTAVAILABLE
-                        ret.reason = "There is no ParameterDictionary associated with this DataProduct"
-                    else:
-                        ret.status = ComputedValueAvailability.PROVIDED
-                        ret.value = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                    retval = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                ret.value = retval
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -787,30 +788,39 @@ class DataProductManagementService(BaseDataProductManagementService):
             if not dataset_ids:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
                 ret.reason = "No dataset associated with this data product"
-            else:
-                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
-                #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
-                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                retval = {}
-                for k,v in rdt.iteritems():
-                    element = np.atleast_1d(rdt[k]).flatten()[0]
-                    if element == rdt._pdict.get_context(k).fill_value:
-                        retval[k] = '%s: Empty' % k
-                    elif 'seconds' in rdt._pdict.get_context(k).uom:
-                        units = rdt._pdict.get_context(k).uom
-                        element = np.atleast_1d(rdt[k]).flatten()[0]
-                        unix_ts = TimeUtils.units_to_ts(units, element)
-                        dtg = datetime.utcfromtimestamp(unix_ts)
-                        try:
-                            retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
-                        except:
-                            retval[k] = '%s: %s' %(k, element)
+                return ret
 
-                    else:
+            stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            if not stream_def_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No stream definition associated with this data product"
+                return ret
+
+            stream_def_id = stream_def_ids[0]
+
+            replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1, delivery_format=stream_def_id)
+            #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+            rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+            retval = {}
+            for k,v in rdt.iteritems():
+                element = np.atleast_1d(rdt[k]).flatten()[0]
+                if element == rdt._pdict.get_context(k).fill_value:
+                    retval[k] = '%s: Empty' % k
+                elif 'seconds' in rdt._pdict.get_context(k).uom:
+                    units = rdt._pdict.get_context(k).uom
+                    element = np.atleast_1d(rdt[k]).flatten()[0]
+                    unix_ts = TimeUtils.units_to_ts(units, element)
+                    dtg = datetime.utcfromtimestamp(unix_ts)
+                    try:
+                        retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                    except:
                         retval[k] = '%s: %s' %(k, element)
-                ret.value = retval
+
+                else:
+                    retval[k] = '%s: %s' %(k, element)
+            ret.value = retval
 #                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
-                ret.status = ComputedValueAvailability.PROVIDED
+            ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
