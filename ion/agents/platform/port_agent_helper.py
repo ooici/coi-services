@@ -33,6 +33,9 @@ class PortAgentHelper(object):
     No commanding of the port agent included.
     """
 
+    # TODO enable this module once it's more complete
+    _disabled = True
+
     def __init__(self, platform_id, instrument_id, comms_config):
         """
         @param platform_id:
@@ -40,6 +43,8 @@ class PortAgentHelper(object):
         @param comms_config:
         @return:
         """
+        if self._disabled:
+            return
 
         log.debug("%r/%r: PortAgentHelper called. comms_config=%s",
                   platform_id, instrument_id, comms_config)
@@ -100,6 +105,8 @@ class PortAgentHelper(object):
         # TODO do something concrete with received packet (notify platform agent, ...)
 
     def init_comms(self):
+        if self._disabled:
+            return
 
         log.debug("%r/%r: init_comms", self._platform_id, self._instrument_id)
 
@@ -116,6 +123,8 @@ class PortAgentHelper(object):
         log.info("init_comms(): started receiver")
 
     def stop_comms(self):
+        if self._disabled:
+            return
 
         log.debug("%r/%r: stop_comms", self._platform_id, self._instrument_id)
 
