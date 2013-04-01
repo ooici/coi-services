@@ -841,45 +841,18 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
-    def _has_lookup_values(self,data_product_id):
-        pass
+    def _has_lookup_values(self, data_product_id):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('No streams found for this data product')
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+        if not stream_def_ids:
+            raise BadRequest('No stream definitions found for this stream')
+        
+        return self.clients.pubsub_management.has_lookup_values(stream_definition_id=stream_def_ids[0])
 
     def _get_lookup_documents(self, data_product_id):
-        ''' Performs a breadth-first traversal of the provenance for a data product in an attempt to collect all the document keys'''
-        document_keys = []
-        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
-        if not len(producer_ids):
-            raise BadRequest('Data product has no known data producers')
-        producer_id = producer_ids.pop(0)
-        def traversal(owner_id):
-            def edges(resource_ids=[]):
-                retval = []
-                if not isinstance(resource_ids, list):
-                    resource_ids = list(resource_ids)
-                for resource_id in resource_ids:
-                    print repr(resource_id)
-                    retval.extend(self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasParent,id_only=True)[0])
-                return retval
-
-            visited_resources = deque(edges([owner_id]))
-            traversal_queue = deque()
-            done = False
-            t = None
-            while not done:
-                t = traversal_queue or deque(visited_resources)
-                traversal_queue = deque()
-                for e in edges(t):
-                    if not e in visited_resources:
-                        visited_resources.append(e)
-                        traversal_queue.append(e)
-                if not len(traversal_queue): done = True
-            return list(visited_resources)
-
-        for prod_id in traversal(producer_id):
-            producer = self.clients.resource_registry.read(prod_id)
-            if 'qc_keys' in producer.producer_context.configuration:
-                document_keys.extend(producer.producer_context.configuration['qc_keys'])
-        return document_keys
+        return self.clients.data_acquisition_management.list_qc_references(data_product_id)
 
 
     def _find_producers(self, data_product_id='', provenance_results=''):
