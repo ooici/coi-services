@@ -473,7 +473,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_source_agent_id = self.RR2.create(data_source_agent, RT.DataSourceAgent)
 
         if data_source_model_id:
-            self.RR2.assign_data_source_model_to_data_source_agent(data_source_model_id, data_source_agent_id)
+            self.RR2.assign_data_source_model_to_data_source_agent_with_has_model(data_source_model_id, data_source_agent_id)
         return data_source_agent_id
 
     def update_data_source_agent(self, data_source_agent=None):
@@ -498,10 +498,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_source_agent_instance_id = self.RR2.create(data_source_agent_instance, RT.DataSourceAgentInstance)
 
         if data_source_id:
-            self.RR2.assign_data_source_agent_instance_to_data_source(data_source_agent_instance_id, data_source_id)
+            self.RR2.assign_data_source_agent_instance_to_data_source_with_has_agent_instance(data_source_agent_instance_id, data_source_id)
 
         if data_source_agent_id:
-            self.RR2.assign_data_source_agent_to_data_source_agent_instance(data_source_agent_id, data_source_agent_instance_id)
+            self.RR2.assign_data_source_agent_to_data_source_agent_instance_with_has_agent_definition(data_source_agent_id, data_source_agent_instance_id)
 
         return data_source_agent_instance_id
 
@@ -549,7 +549,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Persist ExternalDataSet object and return object _id as OOI id
         external_dataset_id = self.RR2.create(external_dataset, RT.ExternalDataset)
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset(external_dataset_model_id, external_dataset_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_with_has_model(external_dataset_model_id, external_dataset_id)
         return external_dataset_id
 
     def update_external_dataset(self, external_dataset=None):
@@ -595,7 +595,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
         external_dataset_agent_id = self.RR2.create(external_dataset_agent, RT.ExternalDatasetAgent)
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset_agent(external_dataset_model_id, external_dataset_agent_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_agent_with_has_model(external_dataset_model_id,
+                                                                                            external_dataset_agent_id)
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
@@ -607,7 +608,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         log.debug("create_external_dataset_agent: create_process_definition id %s"  +  str(process_definition_id))
 
         #associate the agent and the process def
-        self.RR2.assign_process_definition_to_external_dataset_agent(process_definition_id, external_dataset_agent_id)
+        self.RR2.assign_process_definition_to_external_dataset_agent_with_has_process_definition(process_definition_id,
+                                                                                                 external_dataset_agent_id)
 
         return external_dataset_agent_id
 
@@ -636,7 +638,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset_agent_instance_id = self.RR2.create(external_dataset_agent_instance, RT.ExternalDatasetAgentInstance)
 
         if external_dataset_id:
-            self.RR2.assign_external_dataset_agent_instance_to_external_dataset(external_dataset_agent_instance_id, external_dataset_id)
+            self.RR2.assign_external_dataset_agent_instance_to_external_dataset_with_has_agent_instance(external_dataset_agent_instance_id,
+                                                                                                        external_dataset_id)
 
         self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
         return external_dataset_agent_instance_id

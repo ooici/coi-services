@@ -76,14 +76,20 @@ class PubsubManagementService(BasePubsubManagementService):
         self.clients.resource_registry.delete(stream_definition_id)
         return True
 
+    @classmethod
+    def compare_stream_definition_objects(cls, def1, def2):
+        if def1._id == def2._id:
+            return True
+        pdict_compare = cls._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
+        return pdict_compare and sorted(def1.available_fields) == sorted(def2.available_fields)
+
     def compare_stream_definition(self, stream_definition1_id='', stream_definition2_id=''):
         # returns True if the 2 stream definitions are equivalent
         if stream_definition1_id == stream_definition2_id and self.read_stream_definition(stream_definition1_id):
             return True
         def1 = self.read_stream_definition(stream_definition1_id)
         def2 = self.read_stream_definition(stream_definition2_id)
-        pdict_compare = self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary) 
-        return pdict_compare and sorted(def1.available_fields) == sorted(def2.available_fields)
+        return self.compare_stream_definition_objects(def1, def2)
 
     def compatible_stream_definitions(self, in_stream_definition_id, out_stream_definition_id):
         if in_stream_definition_id == out_stream_definition_id and self.read_stream_definition(in_stream_definition_id):

@@ -194,7 +194,7 @@ class BaseHighAvailabilityAgentTest(IonIntegrationTestCase):
         normal = [cserv for cserv in services_registered if cserv.name not in base_names]
         return normal
 
-    def await_ha_state(self, want_state, timeout=20):
+    def await_ha_state(self, want_state, timeout=40):
 
         for i in range(0, timeout):
             try:

@@ -7,6 +7,7 @@
 
 import tempfile
 from ion.agents.instrument.driver_process import DriverProcessType
+from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import NotFound, BadRequest
@@ -60,7 +61,13 @@ class AgentConfigurationBuilder(object):
                 PRED.hasAgentInstance,
                 PRED.hasAgentDefinition,
                 PRED.hasDataset,
-                PRED.hasDevice]
+                PRED.hasDevice,
+                PRED.hasParameterContext]
+
+    def _resources_to_cache(self):
+        return [RT.StreamDefinition,
+                RT.ParameterDictionary,
+                RT.ParameterContext]
 
     def _update_cached_predicates(self):
         # cache some predicates for in-memory lookups
@@ -75,6 +82,20 @@ class AgentConfigurationBuilder(object):
         total_time = int(time_caching_stop) - int(time_caching_start)
 
         log.info("Cached %s predicates in %s seconds", len(preds), total_time / 1000.0)
+
+    def _update_cached_resources(self):
+        # cache some resources for in-memory lookups
+        rsrcs = self._resources_to_cache()
+        log.debug("updating cached resources: %s" % rsrcs)
+        time_caching_start = get_ion_ts()
+        for r in rsrcs:
+            log.debug(" - %s", r)
+            self.clients.RR2.cache_resources(r)
+        time_caching_stop = get_ion_ts()
+
+        total_time = int(time_caching_stop) - int(time_caching_start)
+
+        log.info("Cached %s resource types in %s seconds", len(rsrcs), total_time / 1000.0)
 
 
     def _lookup_means(self):
@@ -151,6 +172,9 @@ class AgentConfigurationBuilder(object):
         if any([not self.RR2.has_cached_prediate(x) for x in self._predicates_to_cache()]):
             self._update_cached_predicates()
 
+        if any([not self.RR2.has_cached_resource(x) for x in self._resources_to_cache()]):
+            self._update_cached_resources()
+
         # validate the associations, then pick things up
         self._collect_agent_instance_associations()
         self.will_launch = will_launch
@@ -158,6 +182,7 @@ class AgentConfigurationBuilder(object):
 
 
     def _generate_org_name(self):
+        log.debug("_generate_org_name for %s", self.agent_instance_obj.name)
         log.debug("retrieve the Org name to which this agent instance belongs")
         try:
             org_obj = self.RR2.find_subject(RT.Org, PRED.hasResource, self.agent_instance_obj._id, id_only=False)
@@ -168,9 +193,11 @@ class AgentConfigurationBuilder(object):
             raise
 
     def _generate_device_type(self):
+        log.debug("_generate_device_type for %s", self.agent_instance_obj.name)
         return type(self._get_device()).__name__
 
     def _generate_driver_config(self):
+        log.debug("_generate_driver_config for %s", self.agent_instance_obj.name)
         # get default config
         driver_config = self.agent_instance_obj.driver_config
 
@@ -187,8 +214,15 @@ class AgentConfigurationBuilder(object):
 
         return driver_config
 
+    def _get_param_dict_by_name(self, name):
+        dict_obj = self.RR2.find_by_name(RT.ParameterDictionary, name)
+        parameter_contexts = \
+            self.RR2.find_parameter_contexts_of_parameter_dictionary_using_has_parameter_context(dict_obj._id)
+        return DatasetManagementService.build_parameter_dictionary(dict_obj, parameter_contexts)
+
 
     def _generate_stream_config(self):
+        log.debug("_generate_stream_config for %s", self.agent_instance_obj.name)
         dsm = self.clients.dataset_management
         psm = self.clients.pubsub_management
 
@@ -213,34 +247,39 @@ class AgentConfigurationBuilder(object):
 
         out_streams = []
         for product_id in data_product_ids:
-            stream_id = self.RR2.find_stream_id_of_data_product(product_id)
+            stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)
             out_streams.append(stream_id)
 
 
         stream_config = {}
 
-        log.debug("Creating a stream config got each stream (dataproduct) assoc with this agent/device")
+        log.debug("Creating a stream config for each stream (dataproduct) assoc with this agent/device")
         for product_stream_id in out_streams:
 
             #get the streamroute object from pubsub by passing the stream_id
-            stream_def_id = self.RR2.find_stream_definition_id_of_stream(product_stream_id)
+            stream_def_id = self.RR2.find_stream_definition_id_of_stream_using_has_stream_definition(product_stream_id)
 
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
-
-                if self.clients.pubsub_management.compare_stream_definition(stream_info_dict.get('stream_def_id'),
-                                                                            stream_def_id):
-                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
-                    stream_route = self.clients.pubsub_management.read_stream_route(stream_id=product_stream_id)
+                # read objects from cache to be compared
+                out_stream_def_obj = self.RR2.read(stream_def_id, RT.StreamDefinition)
+                agent_stream_def_obj = self.RR2.read(stream_info_dict.get('stream_def_id'), RT.StreamDefinition)
+                if PubsubManagementService.compare_stream_definition_objects(out_stream_def_obj, agent_stream_def_obj):
+                    #model_param_dict = self.RR2.find_by_name(RT.ParameterDictionary,
+                    #                                         stream_info_dict.get('param_dict_name'))
+                    model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
+                    stream_route = self.RR2.read(product_stream_id).stream_route
+                    #model_param_dict = dsm.read_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
+                    #stream_route = psm.read_stream_route(stream_id=product_stream_id)
 
                     stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
-                                                            'stream_id'             : product_stream_id,
-                                                            'stream_definition_ref' : stream_def_id,
-                                                            'exchange_point'        : stream_route.exchange_point,
-                                                            'parameter_dictionary'  : model_param_dict.dump(),
-                                                            'records_per_granule'  : stream_info_dict.get('records_per_granule'),
-                                                            'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
-                                                            'alarms'                : stream_info_dict.get('alarms')
+                                                        'stream_id'             : product_stream_id,
+                                                        'stream_definition_ref' : stream_def_id,
+                                                        'exchange_point'        : stream_route.exchange_point,
+                                                        'parameter_dictionary'  : model_param_dict.dump(),
+                                                        'records_per_granule'   : stream_info_dict.get('records_per_granule'),
+                                                        'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
+                                                        'alarms'                : stream_info_dict.get('alarms')
                     }
 
         log.debug("Stream config generated")
@@ -248,22 +287,28 @@ class AgentConfigurationBuilder(object):
         return stream_config
 
     def _generate_agent_config(self):
+        log.debug("_generate_agent_config for %s", self.agent_instance_obj.name)
         # should override this
         return {}
 
     def _generate_alerts_config(self):
+        log.debug("_generate_alerts_config for %s", self.agent_instance_obj.name)
         # should override this
         return self.agent_instance_obj.alerts
 
     def _generate_startup_config(self):
+        log.debug("_generate_startup_config for %s", self.agent_instance_obj.name)
         # should override this
         return {}
 
     def _generate_children(self):
+        log.debug("_generate_children for %s", self.agent_instance_obj.name)
         # should override this
         return {}
 
     def _generate_skeleton_config_block(self):
+        log.info("Generating skeleton config block for %s", self.agent_instance_obj.name)
+
         # should override this
         agent_config = self.agent_instance_obj.agent_config
 
@@ -276,6 +321,8 @@ class AgentConfigurationBuilder(object):
         agent_config['aparam_alert_config'] = self._generate_alerts_config()
         agent_config['startup_config']      = self._generate_startup_config()
         agent_config['children']            = self._generate_children()
+
+        log.info("DONE generating skeleton config block for %s", self.agent_instance_obj.name)
 
         return agent_config
 
@@ -406,8 +453,8 @@ class AgentConfigurationBuilder(object):
 
         #retrieve the streams assoc with each defined output product
         for product_id in data_product_ids:
-            self.RR2.find_stream_id_of_data_product(product_id)  # check one stream per product
-            self.RR2.find_dataset_id_of_data_product(product_id) # check one dataset per product
+            self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)  # check one stream per product
+            self.RR2.find_dataset_id_of_data_product_using_has_dataset(product_id) # check one dataset per product
 
         self.associated_objects = ret
 
@@ -443,9 +490,11 @@ class InstrumentAgentConfigurationBuilder(AgentConfigurationBuilder):
 
 
     def _generate_startup_config(self):
+        log.debug("_generate_startup_config for %s", self.agent_instance_obj.name)
         return self.agent_instance_obj.startup_config
 
     def _generate_driver_config(self):
+        log.debug("_generate_driver_config for %s", self.agent_instance_obj.name)
         # get default config
         driver_config = super(InstrumentAgentConfigurationBuilder, self)._generate_driver_config()
 
@@ -477,12 +526,13 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         """
         Generate the configuration for child devices
         """
+        log.debug("_generate_children for %s", self.agent_instance_obj.name)
         log.debug("Getting child platform device ids")
-        child_pdevice_ids = self.RR2.find_platform_device_ids_of_device(self._get_device()._id)
+        child_pdevice_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(self._get_device()._id)
         log.debug("found platform device ids: %s", child_pdevice_ids)
 
         log.debug("Getting child instrument device ids")
-        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device(self._get_device()._id)
+        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(self._get_device()._id)
         log.debug("found instrument device ids: %s", child_idevice_ids)
 
         child_device_ids = child_idevice_ids + child_pdevice_ids
@@ -492,8 +542,8 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         ConfigurationBuilder_factory = AgentConfigurationBuilderFactory(self.clients)
 
         agent_lookup_method = {
-            RT.PlatformAgentInstance: self.RR2.find_platform_agent_instance_of_platform_device,
-            RT.InstrumentAgentInstance: self.RR2.find_instrument_agent_instance_of_instrument_device,
+            RT.PlatformAgentInstance: self.RR2.find_platform_agent_instance_of_platform_device_using_has_agent_instance,
+            RT.InstrumentAgentInstance: self.RR2.find_instrument_agent_instance_of_instrument_device_using_has_agent_instance,
             }
 
         # get all agent instances first. if there's no agent instance, just skip

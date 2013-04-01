@@ -7,7 +7,7 @@
 
 # THIS SHOULD BE FALSE IN COMMITTED CODE
 from ooi import logging
-from pyon.util.containers import get_ion_ts
+from pyon.util.containers import get_ion_ts, DotDict
 
 TEST_LOCALLY=False
 #TEST_LOCALLY=True
@@ -90,6 +90,7 @@ class EnhancedResourceRegistryClient(object):
         #
 
         self._cached_predicates = {}
+        self._cached_resources  = {}
 
         log.debug("done init")
 
@@ -159,12 +160,51 @@ class EnhancedResourceRegistryClient(object):
         @param resource_id the id to be deleted
         @param specific_type the name of an Ion type (e.g. RT.Resource)
         """
+        if specific_type in self._cached_resources and resource_id in self._cached_resources[specific_type].by_id:
+            log.info("Returning cached %s object", specific_type)
+            return self._cached_resources[specific_type].by_id[resource_id]
 
         resource_obj = self.RR.read(resource_id)
 
         self._check_type(resource_obj, specific_type, "to be read")
 
+        if specific_type in self._cached_resources:
+            log.info("Adding cached %s object", specific_type)
+            self._cached_resources[specific_type].by_id[resource_id] = resource_obj
+            self._cached_resources[specific_type].by_name[resource_obj.name] = resource_obj
+
         return resource_obj
+
+    def read_mult(self, resource_ids=None, specific_type=None):
+        if None is resource_ids:
+            resource_ids = []
+
+        if [] == resource_ids:
+            return [] # HACK because RR.read_mult([]) raises error instead of returning []
+
+        # normal case, check return types
+        if not specific_type in self._cached_resources:
+            ret = self.RR.read_mult(resource_ids)
+            if None is not specific_type:
+                if not all([type(r).__name__ == specific_type for r in ret]):
+                    raise BadRequest("Expected %s resources from read_mult, but received different type" %
+                                     specific_type)
+            return ret
+
+        log.info("Returning cached %s resources", specific_type)
+        cache = self._cached_resources[specific_type]
+
+        # fill in any holes that we can
+        misses = [x for x in resource_ids if x not in cache.by_id]
+        if misses:
+            log.info("Attempting to fill in %s cache misses", len(misses))
+            misses_objs = self.RR.read_mult(misses)
+            for mo in misses_objs:
+                if None is not mo:
+                    cache.by_id[mo._id] = mo
+                    cache.by_name[mo.name] = mo
+
+        return [cache.by_id.get(r, None) for r in resource_ids]
 
 
     def update(self, resource_obj=None, specific_type=None):
@@ -250,6 +290,22 @@ class EnhancedResourceRegistryClient(object):
                                         object=object_id)
         self.RR.delete_association(assoc)
 
+
+    def find_by_name(self, resource_type, name, id_only=False):
+        assert name
+        if resource_type not in self._cached_resources:
+            log.warn("Using find_by_name on resource type %s, which was not cached", resource_type)
+            ret, _ = self.RR.find_resources(restype=resource_type, name=name, id_only=id_only)
+            return ret[0]
+
+        log.info("Returning object from cache")
+        obj = self._cached_resources[resource_type].by_name[name]
+        if id_only:
+            return obj._id
+        else:
+            return obj
+
+
     def find_subjects(self, subject_type, predicate, object, id_only=False):
         object_id, object_type = self._extract_id_and_type(object)
 
@@ -271,13 +327,11 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Processed %s %s predicates for subjects in %s seconds", len(preds), predicate, total_time / 1000.0)
 
         subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
-        if [] == subject_ids:
-            return [] # HACK because read_mult([]) raises error instead of returning []
-        elif id_only:
+        if id_only:
             return subject_ids
         else:
             log.debug("getting full subject IonObjects with read_mult")
-            return self.RR.read_mult(subject_ids)
+            return self.read_mult(subject_ids, subject_type)
 
 
     def find_objects(self, subject, predicate, object_type, id_only=False):
@@ -300,15 +354,11 @@ class EnhancedResourceRegistryClient(object):
         total_time = int(time_search_stop) - int(time_search_start)
         log.debug("Processed %s %s predicates for objects in %s seconds", len(preds), predicate, total_time / 1000.0)
 
-
-
-        if [] == object_ids:
-            return [] # HACK because read_mult([]) raises error instead of returning []
-        elif id_only:
+        if id_only:
             return object_ids
         else:
             log.debug("getting full object IonObjects with read_mult")
-            return self.RR.read_mult(object_ids)
+            return self.read_mult(object_ids)
 
 
     def find_subject(self, subject_type, predicate, object, id_only=False):
@@ -397,6 +447,7 @@ class EnhancedResourceRegistryClient(object):
 
         return ret
 
+
     def cache_predicate(self, predicate):
         """
         Save all associations of a given predicate type to memory, for in-memory find_subjects/objects ops
@@ -411,8 +462,52 @@ class EnhancedResourceRegistryClient(object):
         self._cached_predicates[predicate] = preds
 
 
+    def cache_resources(self, resource_type, specific_ids=None):
+        """
+        Save all resources of a given type to memory, for in-memory lookup ops
+        """
+        time_caching_start = get_ion_ts()
+
+        resource_objs = []
+        if None is specific_ids:
+            resource_objs, _ = self.RR.find_resources(restype=resource_type, id_only=False)
+        else:
+            assert type([]) == type(specific_ids)
+            if specific_ids:
+                resource_objs = self.RR.read_mult(specific_ids)
+
+        lookups = DotDict()
+        lookups.by_id =   dict([(r._id, r) for r in resource_objs])
+        lookups.by_name = dict([(r.name, r) for r in resource_objs])
+
+        time_caching_stop = get_ion_ts()
+
+        total_time = int(time_caching_stop) - int(time_caching_start)
+
+        log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
+        self._cached_resources[resource_type] = lookups
+
+
     def has_cached_prediate(self, predicate):
         return predicate in self._cached_predicates
+
+
+    def has_cached_resource(self, resource_type):
+        return resource_type in self._cached_resources
+
+
+    def clear_cached_predicate(self, predicate=None):
+        if None is predicate:
+            self._cached_predicates = {}
+        else:
+            del self._cached_predicates[predicate]
+
+    def clear_cached_resource(self, resource_type=None):
+        if None is resource_type:
+            self._cached_resources = {}
+        else:
+            del self._cached_resources[resource_type]
+
 
     def _uncamel(self, name):
         """
@@ -590,12 +685,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(assign_)(\w+)(_to_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("assign function",
-                                                                 item,
-                                                                 r"(assign_)(\w+)(_to_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("assign function",
+#                                                                 item,
+#                                                                 r"(assign_)(\w+)(_to_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -621,12 +716,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(assign_)(\w+)(_to_one_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("assign single subject function",
-                                                                 item,
-                                                                 r"(assign_)(\w+)(_to_one_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("assign single subject function",
+#                                                                 item,
+#                                                                 r"(assign_)(\w+)(_to_one_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -669,12 +764,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(assign_one_)(\w+)(_to_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("assign single object function",
-                                                                 item,
-                                                                 r"(assign_one_)(\w+)(_to_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("assign single object function",
+#                                                                 item,
+#                                                                 r"(assign_one_)(\w+)(_to_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -719,12 +814,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(unassign_)(\w+)(_from_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("unassign function",
-                                                                 item,
-                                                                 r"(unassign_)(\w+)(_from_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("unassign function",
+#                                                                 item,
+#                                                                 r"(unassign_)(\w+)(_from_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -751,12 +846,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(s_of_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find objects function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(s_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find objects function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(s_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -783,12 +878,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(s_by_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subjects function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(s_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subjects function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(s_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 
@@ -815,12 +910,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_of_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find object function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find object function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -847,12 +942,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_by_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subject function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subject function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 
@@ -882,12 +977,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_ids_of_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find object_ids function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_ids_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find object_ids function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_ids_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -915,12 +1010,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_ids_by_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subject_ids function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_ids_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subject_ids function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_ids_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 
@@ -947,12 +1042,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_id_of_)(\w+)(_using_)(\w+)?",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find object_id function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_id_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find object_id function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_id_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -979,12 +1074,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_id_by_)(\w+)(_using_)(\w+)?",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subject_id function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_id_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subject_id function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_id_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 

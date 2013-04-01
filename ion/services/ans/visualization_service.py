@@ -18,13 +18,8 @@ from pyon.core.exception import Inconsistent, BadRequest, NotFound
 from datetime import datetime
 
 import simplejson
-import math
-import ntplib
-import time
 import gevent
 import base64
-import numpy
-from gevent.greenlet import Greenlet
 
 from interface.services.ans.ivisualization_service import BaseVisualizationService
 from ion.processes.data.transforms.viz.google_dt import VizTransformGoogleDTAlgorithm
@@ -33,13 +28,13 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from pyon.net.endpoint import Subscriber
 from interface.objects import Granule
 from pyon.util.containers import get_safe
+# for direct hdf access
+from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 
 # PIL
 #import Image
 #import StringIO
 
-# for direct hdf access
-from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 
 # Google viz library for google charts
 import ion.services.ans.gviz_api as gviz_api
@@ -48,7 +43,6 @@ USER_VISUALIZATION_QUEUE = 'UserVisQueue'
 PERSIST_REALTIME_DATA_PRODUCTS = False
 
 class VisualizationService(BaseVisualizationService):
-
 
     def on_init(self):
 
@@ -82,12 +76,11 @@ class VisualizationService(BaseVisualizationService):
             #get the list of queues and message counts on the broker for the user vis queues
             queues = []
             try:
-                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+                queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'], use_ems=False)
             except Exception, e:
                 log.warn('Unable to get queue information from broker management plugin: ' + e.message)
                 pass
 
-            print "In Monitor Loop worker: " + self.id
             log.debug( "In Monitor Loop worker: " + self.id)
             for queue in queues:
 
@@ -99,6 +92,11 @@ class VisualizationService(BaseVisualizationService):
 
                     try:
                         log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources." % (queue['name'], queue['messages'] ))
+
+                        #Clear out the queue
+                        msgs = self.get_realtime_visualization_data(query_token=vis_token)
+
+                        #Now terminate it
                         self.terminate_realtime_visualization_data(query_token=vis_token)
                     except NotFound, e:
                         log.warn("The token %s could not not be found by the terminate_realtime_visualization_data operation; another worked may have cleaned it up already", vis_token)
@@ -136,37 +134,43 @@ class VisualizationService(BaseVisualizationService):
         if not data_product:
             raise NotFound("Data product %s does not exist" % data_product_id)
 
-        data_product_stream_id = None
-        workflow_def_id = None
 
-        #TODO - Add this workflow definition to preload data
-        # Check to see if the workflow defnition already exist
-        workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+        #Look for a workflow which is already executing for this data product
+        workflow_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasInputProduct, object=data_product_id)
 
-        if len(workflow_def_ids) > 0:
-            workflow_def_id = workflow_def_ids[0]
+        #If an existing workflow is not found then create one
+        if len(workflow_ids) == 0:
+            #TODO - Add this workflow definition to preload data
+            # Check to see if the workflow defnition already exist
+            workflow_def_ids,_ = self.clients.resource_registry.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+
+            if len(workflow_def_ids) > 0:
+                workflow_def_id = workflow_def_ids[0]
+            else:
+                workflow_def_id = self._create_google_dt_workflow_def()
+
+            #Create and start the workflow. Take about 4 secs .. wtf
+            workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
+                input_data_product_id=data_product_id, persist_workflow_data_product=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.create_workflow_timeout)
         else:
-            workflow_def_id = self._create_google_dt_workflow_def()
+            workflow_id = workflow_ids[0]._id
 
-        #Create and start the workflow. Take about 4 secs .. wtf
-        workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
-            input_data_product_id=data_product_id, persist_workflow_data_product=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.create_workflow_timeout)
+            # detect the output data product of the workflow
+            workflow_dp_ids,_ = self.clients.resource_registry.find_objects(subject=workflow_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
+            if len(workflow_dp_ids) != 1:
+                log.warn("Workflow Data Product %s has multiple output data products (%d) - using first one found " % (workflow_id, len(workflow_dp_ids)))
 
-        # detect the output data product of the workflow
-        workflow_dp_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
-        if len(workflow_dp_ids) != 1:
-            raise ValueError("Workflow Data Product ids representing output DP must contain exactly one entry")
+            workflow_product_id = workflow_dp_ids[0]
 
         # find associated stream id with the output
-        workflow_output_stream_ids, _ = self.clients.resource_registry.find_objects(workflow_dp_ids[len(workflow_dp_ids) - 1], PRED.hasStream, None, True)
-        data_product_stream_id = workflow_output_stream_ids
+        workflow_output_stream_ids, _ = self.clients.resource_registry.find_objects(subject=workflow_product_id, predicate=PRED.hasStream, object_type=None, id_only=True)
 
         # Create a queue to collect the stream granules - idempotency saves the day!
         query_token = create_unique_identifier(USER_VISUALIZATION_QUEUE)
 
         xq = self.container.ex_manager.create_xn_queue(query_token)
         subscription_id = self.clients.pubsub_management.create_subscription(
-            stream_ids=data_product_stream_id,
+            stream_ids=workflow_output_stream_ids,
             exchange_name = query_token,
             name = query_token
         )
@@ -295,7 +299,6 @@ class VisualizationService(BaseVisualizationService):
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
 
-        #try:
 
         #Taking advantage of idempotency
         xq = self.container.ex_manager.create_xn_queue(query_token)
@@ -311,11 +314,6 @@ class VisualizationService(BaseVisualizationService):
         # Different messages should get processed differently. Ret val will be decided by the viz product type
         ret_val = self._process_visualization_message(msgs, callback, reqId)
 
-        #except Exception, e:
-        #    raise e
-
-        #finally:
-        #    subscriber.close()
 
         #TODO - replace as need be to return valid GDT data
         #return {'viz_data': ret_val}
@@ -343,62 +341,76 @@ class VisualizationService(BaseVisualizationService):
         if len(subscriptions) > 1:
             log.warn("An inconsistent number of Subscription resources associated with the name: %s - will use the first one in the list",query_token )
 
+        if not subscriptions[0].activated:
+            log.warn("Subscription and Visualization queue %s is deactivated, so another worker may be cleaning this up already - skipping", query_token)
+            return
+
+        #Get the Subscription id
         subscription_id = subscriptions[0]._id
 
-
         #need to find the associated data product BEFORE deleting the subscription
-        stream_id, _  = self.clients.resource_registry.find_objects(object_type=RT.Stream, predicate=PRED.hasStream, subject=subscription_id, id_only=True)
+        stream_ids, _  = self.clients.resource_registry.find_objects(object_type=RT.Stream, predicate=PRED.hasStream, subject=subscription_id, id_only=True)
 
-        data_product_id = []
-        if len(stream_id) == 0:
+        sub_stream_id = ''
+        if len(stream_ids) == 0:
             log.error("Cannot find Stream for Subscription id %s", subscription_id)
         else:
-            #Can only clean up if we have all of the data
-            data_product_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.DataProduct, predicate=PRED.hasStream, object=stream_id[0], id_only=True)
-
+            sub_stream_id = stream_ids[0]
 
         #Now delete the subscription if activated
         try:
-            if subscriptions[0].activated:
-                self.clients.pubsub_management.deactivate_subscription(subscription_id)
-                self.clients.pubsub_management.delete_subscription(subscription_id)
+            self.clients.pubsub_management.deactivate_subscription(subscription_id)
+
+            #This pubsub operation deletes the underlying echange queues as well, so no need to manually delete.
+            self.clients.pubsub_management.delete_subscription(subscription_id)
 
         #Need to continue on even if this fails
         except BadRequest, e:
             #It is okay if the workflow is no longer available as it may have been cleaned up by another worker
             if 'Subscription is not active' not in e.message:
                 log.exception(e)
+                sub_stream_id = ''
 
         except Exception, e:
             log.exception(e)
+            sub_stream_id = ''
 
-        try:
-            #Need to clean up associated workflow from the data product as long as they are going to be created for each user
-            if len(data_product_id) == 0:
-                log.error("Cannot find Data Product for Stream id %s", ( stream_id[0] ))
-            else:
-                workflow_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasOutputProduct, object=data_product_id[0], id_only=True)
-                if len(workflow_id) == 0:
-                    log.error("Cannot find Workflow for Data Product id %s", ( data_product_id[0] ))
+
+        log.debug("Real-time queue %s cleaned up", query_token)
+
+        if sub_stream_id != '':
+            try:
+
+                #Can only clean up if we have all of the data
+                workflow_data_product_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.DataProduct, predicate=PRED.hasStream, object=sub_stream_id, id_only=True)
+
+                #Need to clean up associated workflow from the data product as long as they are going to be created for each user
+                if len(workflow_data_product_id) == 0:
+                    log.error("Cannot find Data Product for Stream id %s", ( sub_stream_id ))
                 else:
-                    self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=PERSIST_REALTIME_DATA_PRODUCTS, timeout=self.terminate_workflow_timeout)
 
-        except NotFound, e:
-            #It is okay if the workflow is no longer available as it may have been cleaned up by another worker
-            pass
+                    #Get the total number of subscriptions
+                    total_subscriptions, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Subscription, predicate=PRED.hasStream, object=sub_stream_id, id_only=False)
 
-        except Exception, e:
-            log.exception(e)
+                    #Filter the list down to just those that are subscriptions for user real-time queues
+                    total_subscriptions = [subs for subs in total_subscriptions if subs.name.startswith(USER_VISUALIZATION_QUEUE)]
 
+                    #Only cleanup data product and workflow when the last subscription has been deleted
+                    if len(total_subscriptions) == 0:
 
-        #Taking advantage of idempotency
-        try:
-            xq = self.container.ex_manager.create_xn_queue(query_token)
-            self.container.ex_manager.delete_xn(xq)
-        except Exception, e:
-            pass
+                        workflow_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasOutputProduct, object=workflow_data_product_id[0], id_only=True)
+                        if len(workflow_id) == 0:
+                            log.error("Cannot find Workflow for Data Product id %s", ( workflow_data_product_id[0] ))
+                        else:
+                            self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=True, timeout=self.terminate_workflow_timeout)
 
-        log.debug("Real-time queues cleaned up")
+            except NotFound, e:
+                #It is okay if the workflow is no longer available as it may have been cleaned up by another worker
+                pass
+
+            except Exception, e:
+                log.exception(e)
+
 
 
     #THese definition creation functions should really only be used for tests and should be moved to the test helper and created

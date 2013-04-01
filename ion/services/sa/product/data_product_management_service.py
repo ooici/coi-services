@@ -78,7 +78,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                                 stream_definition_id=stream_definition_id)
 
         # Associate the Stream with the main Data Product and with the default data product version
-        self.RR2.assign_stream_to_data_product(stream_id, data_product_id)
+        self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
 
 
 
@@ -133,7 +133,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
 
         #get the assoc producers before deleteing the links
-        producer_ids = self.RR2.find_data_producer_ids_of_data_product(data_product_id)
+        producer_ids = self.RR2.find_data_producer_ids_of_data_product_using_has_data_producer(data_product_id)
 
         self.RR2.pluck(data_product_id)
         for producer_id in producer_ids:
@@ -206,7 +206,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                                         spatial_domain=data_product_obj.spatial_domain)
 
         # link dataset with data product. This creates the association in the resource registry
-        self.RR2.assign_dataset_to_data_product(dataset_id, data_product_id)
+        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
         
         log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
 
