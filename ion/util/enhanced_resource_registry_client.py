@@ -170,8 +170,7 @@ class EnhancedResourceRegistryClient(object):
 
         if specific_type in self._cached_resources:
             log.info("Adding cached %s object", specific_type)
-            self._cached_resources[specific_type].by_id[resource_id] = resource_obj
-            self._cached_resources[specific_type].by_name[resource_obj.name] = resource_obj
+            self._add_resource_to_cache(specific_type, resource_obj)
 
         return resource_obj
 
@@ -201,8 +200,8 @@ class EnhancedResourceRegistryClient(object):
             misses_objs = self.RR.read_mult(misses)
             for mo in misses_objs:
                 if None is not mo:
-                    cache.by_id[mo._id] = mo
-                    cache.by_name[mo.name] = mo
+                    self._add_resource_to_cache(specific_type, mo)
+
 
         return [cache.by_id.get(r, None) for r in resource_ids]
 
@@ -290,20 +289,36 @@ class EnhancedResourceRegistryClient(object):
                                         object=object_id)
         self.RR.delete_association(assoc)
 
+    def find_resource_by_name(self, resource_type, name, id_only=False):
+        rsrcs = self.find_resources_by_name(resource_type, name, id_only)
 
-    def find_by_name(self, resource_type, name, id_only=False):
+        if 1 == len(rsrcs):
+            return rsrcs[0]
+        elif 1 < len(rsrcs):
+            raise Inconsistent("Expected 1 %s with name '%s', got %d" %
+                               (resource_type, name, len(rsrcs)))
+        else:
+            raise NotFound("Expected 1 %s with name '%s', got %d" %
+                           (resource_type, name, len(rsrcs)))
+
+    def find_resources_by_name(self, resource_type, name, id_only=False):
         assert name
         if resource_type not in self._cached_resources:
-            log.warn("Using find_by_name on resource type %s, which was not cached", resource_type)
+            log.warn("Using find_resources_by_name on resource type %s, which was not cached", resource_type)
             ret, _ = self.RR.find_resources(restype=resource_type, name=name, id_only=id_only)
             return ret[0]
 
-        log.info("Returning object from cache")
-        obj = self._cached_resources[resource_type].by_name[name]
+
+        if not name in self._cached_resources[resource_type].by_name[name]:
+            log.info("The %s resource with name '%s' was not in the cache", resource_type, name)
+            return []
+
+        log.info("Returning object(s) from cache")
+        objs = self._cached_resources[resource_type].by_name[name]
         if id_only:
-            return obj._id
+            return [obj._id for obj in objs]
         else:
-            return obj
+            return objs
 
 
     def find_subjects(self, subject_type, predicate, object, id_only=False):
@@ -462,6 +477,14 @@ class EnhancedResourceRegistryClient(object):
         self._cached_predicates[predicate] = preds
 
 
+    def _add_resource_to_cache(self, resource_type, resource_obj):
+        self._cached_resources[resource_type].by_id[resource_obj._id] = resource_obj
+
+        if not resource_obj.name in self._cached_resources[resource_type].by_name:
+            self._cached_resources[resource_type].by_name[resource_obj.name] = []
+        self._cached_resources[resource_type].by_name[resource_obj.name].append(resource_obj)
+
+
     def cache_resources(self, resource_type, specific_ids=None):
         """
         Save all resources of a given type to memory, for in-memory lookup ops
@@ -477,15 +500,18 @@ class EnhancedResourceRegistryClient(object):
                 resource_objs = self.RR.read_mult(specific_ids)
 
         lookups = DotDict()
-        lookups.by_id =   dict([(r._id, r) for r in resource_objs])
-        lookups.by_name = dict([(r.name, r) for r in resource_objs])
+        lookups.by_id =   {}
+        lookups.by_name = {}
+        self._cached_resources[resource_type] = lookups
+
+        for r in resource_objs:
+            self._add_resource_to_cache(resource_type, r)
 
         time_caching_stop = get_ion_ts()
 
         total_time = int(time_caching_stop) - int(time_caching_start)
 
         log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
-        self._cached_resources[resource_type] = lookups
 
 
     def has_cached_prediate(self, predicate):
@@ -1125,38 +1151,39 @@ class EnhancedResourceRegistryClient(object):
         @param verb what will happen to this  object (like "to be created")
         @raises BadRequest if name exists already or wasn't set
         """
+
         resource_type = type(resource_obj).__name__
 
         if not (hasattr(resource_obj, "name") and "" != resource_obj.name):
             raise BadRequest("The name field was not set in the resource %s"
             % verb)
 
-        name = resource_obj.name
-        try:
-            found_res, _ = self.RR.find_resources(resource_type,
-                                                  None,
-                                                  name,
-                                                  True)
-        except NotFound:
-            # New after all.  PROCEED.
-            pass
-        else:
-            # should never be more than one with a given name
-            if 1 < len(found_res):
-                raise Inconsistent("Multiple %s resources with name '%s' exist" % (resource_type, name))
-
-            # if creating
-            if not hasattr(resource_obj, "_id"):
-                # must not be any matching names
-                if 0 < len(found_res):
-                    raise BadRequest("Duplicate: %s resource named '%s' already exists with ID '%s'"
-                    % (resource_type, name, found_res[0]))
-            else: #updating
-            # any existing name must match the id
-                if 1 == len(found_res) and resource_obj._id != found_res[0]:
-                    raise BadRequest("Duplicate: %s resource named '%s' already exists with a different ID"
-                    % (resource_type, name))
-
+#        name = resource_obj.name
+#        try:
+#            found_res, _ = self.RR.find_resources(resource_type,
+#                                                  None,
+#                                                  name,
+#                                                  True)
+#        except NotFound:
+#            # New after all.  PROCEED.
+#            pass
+#        else:
+#            # should never be more than one with a given name
+#            if 1 < len(found_res):
+#                raise Inconsistent("Multiple %s resources with name '%s' exist" % (resource_type, name))
+#
+#            # if creating
+#            if not hasattr(resource_obj, "_id"):
+#                # must not be any matching names
+#                if 0 < len(found_res):
+#                    raise BadRequest("Duplicate: %s resource named '%s' already exists with ID '%s'"
+#                    % (resource_type, name, found_res[0]))
+#            else: #updating
+#            # any existing name must match the id
+#                if 1 == len(found_res) and resource_obj._id != found_res[0]:
+#                    raise BadRequest("Duplicate: %s resource named '%s' already exists with a different ID"
+#                    % (resource_type, name))
+        pass # we are not checking uniqueness based on name any  more.
 
 
 
