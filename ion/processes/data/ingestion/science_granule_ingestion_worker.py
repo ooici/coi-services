@@ -189,7 +189,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
         for field in rdt.lookup_values():
             value = self.get_stored_values(field)
-            print 'Getting stored values: ', value
             rdt[field] = [value] * len(rdt)
             try:
                 coverage.set_parameter_values(param_name=field, value=np.atleast_1d(value))
@@ -213,7 +212,6 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             slice_ = slice(start_index, None)
             try:
                 coverage.set_parameter_values(param_name=k, tdoa=slice_, value=v)
-                print 'Setting %s: %s' %(k,v[:])
             except IOError as e:
                 log.error("Couldn't insert values for coverage: %s",
                           coverage.persistence_dir, exc_info=True)
