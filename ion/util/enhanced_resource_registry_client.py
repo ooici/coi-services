@@ -306,10 +306,9 @@ class EnhancedResourceRegistryClient(object):
         if resource_type not in self._cached_resources:
             log.warn("Using find_resources_by_name on resource type %s, which was not cached", resource_type)
             ret, _ = self.RR.find_resources(restype=resource_type, name=name, id_only=id_only)
-            return ret[0]
+            return ret
 
-
-        if not name in self._cached_resources[resource_type].by_name[name]:
+        if not name in self._cached_resources[resource_type].by_name:
             log.info("The %s resource with name '%s' was not in the cache", resource_type, name)
             return []
 
