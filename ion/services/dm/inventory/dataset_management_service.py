@@ -21,7 +21,7 @@ from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
-from coverage_model import SimplexCoverage as ViewCoverage
+from coverage_model import AbstractCoverage
 from coverage_model.parameter_functions import AbstractFunction
 
 import os
@@ -414,13 +414,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
-        return coverage
-
-    @classmethod
-    def _get_view_coverage(cls, dataset_id, mode='r'):
-        file_root = cls._get_coverage_path(dataset_id)
-        coverage = ViewCoverage(file_root, dataset_id, mode=mode)
+        coverage = AbstractCoverage.load(file_root, dataset_id, mode=mode)
         return coverage
 
     @classmethod

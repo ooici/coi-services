@@ -141,7 +141,7 @@ class DataRetrieverService(BaseDataRetrieverService):
                 #@TODO: Add in LRU logic (maybe some mem checking too!)
                 if len(cls._retrieve_cache) > cls._cache_limit:
                     cls._retrieve_cache.popitem(0)
-                retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
+                retval = DatasetManagementService._get_coverage(dataset_id, mode='r') 
             age = time.time()
             cls._retrieve_cache[dataset_id] = (retval, age)
         return retval
