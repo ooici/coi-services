@@ -99,7 +99,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             dataset_id = self.get_dataset(stream_id)
             if dataset_id is None:
                 return None
-            result = DatasetManagementService._get_coverage(dataset_id, mode='a')
+            result = DatasetManagementService._get_simplex_coverage(dataset_id, mode='a')
             if result is None:
                 return None
             if len(self._coverages) >= self.CACHE_LIMIT:
