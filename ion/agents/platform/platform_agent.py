@@ -19,7 +19,6 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 
-# Pyon exceptions.
 from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
@@ -44,7 +43,6 @@ from pyon.agent.instrument_fsm import FSMStateError
 from ion.agents.platform.launcher import Launcher
 
 from ion.agents.platform.platform_resource_monitor import PlatformResourceMonitor
-from ion.agents.platform.port_agent_helper import PortAgentHelper
 
 from coverage_model.parameter import ParameterDictionary
 from interface.objects import StreamRoute
@@ -216,9 +214,6 @@ class PlatformAgent(ResourceAgent):
 
         # {instrument_id: (ResourceAgentClient, PID), ...}
         self._ia_clients = {}  # Never None
-
-        # {instrument_id: PortAgentHelper, ...}
-        self._port_agent_clients = {}  # Never None
 
         # self.CFG.endpoint.receive.timeout -- see on_init
         self._timeout = 160
@@ -404,7 +399,6 @@ class PlatformAgent(ResourceAgent):
         if LAUNCH_CHILDREN_ON_START:
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
-            self._terminate_port_agent_clients()
 
         log.info("%r: PlatformAgent: quit secuence complete.", self._platform_id)
 
@@ -501,19 +495,6 @@ class PlatformAgent(ResourceAgent):
 
             self._ia_clients.clear()
 
-    def _terminate_port_agent_clients(self):
-        """
-        Terminates port agent clients and clears self._port_agent_clients.
-        """
-        if len(self._port_agent_clients):
-            log.debug("%r: terminating port agent clients (%d): %s",
-                      self._platform_id, len(self._port_agent_clients),
-                      self._port_agent_clients.keys())
-            for instrument_id in self._port_agent_clients:
-                self._terminate_port_agent_client(instrument_id)
-
-            self._port_agent_clients.clear()
-
     def _reset(self):
         """
         Resets this platform agent (stops resource monitoring,
@@ -549,7 +530,6 @@ class PlatformAgent(ResourceAgent):
         if not LAUNCH_CHILDREN_ON_START:
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
-            self._terminate_port_agent_clients()
 
     ##############################################################
     # Governance interfaces
@@ -1269,45 +1249,6 @@ class PlatformAgent(ResourceAgent):
 
         self._ia_clients[instrument_id] = (ia_client, pid)
 
-    def _launch_port_agent_client(self, instrument_id):
-        """
-        Launches port agent client for the given instrument.
-
-        @param instrument_id
-        """
-
-        # get InstrumentsNode, corresponding CFG, and comms_config:
-        inode = self._pnode.instruments[instrument_id]
-        comms_config = inode.CFG.get("driver_config", {}).get("comms_config", {})
-
-        host     = comms_config.get('addr', None)
-        port     = comms_config.get('port', None)
-        cmd_port = comms_config.get('cmd_port', None)
-
-        if not (host and port and cmd_port):
-            log.error("%r/%r: Insufficient comms_config info to create PortAgentHelper: %s",
-                      self._platform_id, instrument_id, comms_config)
-            # TODO handle this error in a more appropriate way
-            return
-
-        pah = PortAgentHelper(self._platform_id, instrument_id, comms_config)
-
-        pah.init_comms()
-
-        self._port_agent_clients[instrument_id] = pah
-
-    def _terminate_port_agent_client(self, instrument_id):
-        """
-        Stops port agent client for the given instrument.
-
-        @param instrument_id
-        """
-
-        assert instrument_id in self._port_agent_clients
-
-        port_agent_client = self._port_agent_clients[instrument_id]
-        port_agent_client.stop_comms()
-
     def _instruments_launch(self):
         """
         Launches all my instruments storing the corresponding
@@ -1331,9 +1272,6 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: initializing instruments %s", self._platform_id, instrument_ids)
             for instrument_id in instrument_ids:
                 self._initialize_instrument(instrument_id)
-
-                # TODO need port agent's publisher ports?
-                self._launch_port_agent_client(instrument_id)
 
             log.debug("%r: _instruments_initialize completed.", self._platform_id)
 
