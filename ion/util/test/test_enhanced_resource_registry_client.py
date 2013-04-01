@@ -82,21 +82,21 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
         self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
 
 
-    def test_create_bad_dupname(self):
-        """
-        test resource creation failure for duplicate name
-        """
-        # get objects
-
-        bad_sample_resource = self.sample_resource()
-        #really, the resource doesn't matter; it's the retval from find that matters
-
-        #configure Mock
-        self.rr.create.return_value = ('111', 'bla')
-        self.rr.find_resources.return_value = ([0], [0])
-
-        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
-
+#    def test_create_bad_dupname(self):
+#        """
+#        test resource creation failure for duplicate name
+#        """
+#        # get objects
+#
+#        bad_sample_resource = self.sample_resource()
+#        #really, the resource doesn't matter; it's the retval from find that matters
+#
+#        #configure Mock
+#        self.rr.create.return_value = ('111', 'bla')
+#        self.rr.find_resources.return_value = ([0], [0])
+#
+#        self.assertRaises(BadRequest, self.RR2.create, bad_sample_resource, RT.InstrumentDevice)
+#
 
 
     def test_read(self):
@@ -158,18 +158,18 @@ class TestEnhancedResourceRegistryClient(PyonTestCase):
 
         self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.PlatformDevice)
 
-
-    def test_update_bad_dupname(self):
-        """
-        test update failure due to duplicate name
-        """
-        # get objects
-
-        bad_sample_resource = self.sample_resource()
-        setattr(bad_sample_resource, "_id", "111")
-
-        self.rr.find_resources.return_value = ([0], [0])
-        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.InstrumentDevice)
+#
+#    def test_update_bad_dupname(self):
+#        """
+#        test update failure due to duplicate name
+#        """
+#        # get objects
+#
+#        bad_sample_resource = self.sample_resource()
+#        setattr(bad_sample_resource, "_id", "111")
+#
+#        self.rr.find_resources.return_value = ([0], [0])
+#        self.assertRaises(BadRequest, self.RR2.update, bad_sample_resource, RT.InstrumentDevice)
 
 
     def test_update_bad_noid(self):

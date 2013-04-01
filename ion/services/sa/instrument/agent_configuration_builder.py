@@ -215,7 +215,7 @@ class AgentConfigurationBuilder(object):
         return driver_config
 
     def _get_param_dict_by_name(self, name):
-        dict_obj = self.RR2.find_by_name(RT.ParameterDictionary, name)
+        dict_obj = self.RR2.find_resources_by_name(RT.ParameterDictionary, name)[0]
         parameter_contexts = \
             self.RR2.find_parameter_contexts_of_parameter_dictionary_using_has_parameter_context(dict_obj._id)
         return DatasetManagementService.build_parameter_dictionary(dict_obj, parameter_contexts)
@@ -265,8 +265,8 @@ class AgentConfigurationBuilder(object):
                 out_stream_def_obj = self.RR2.read(stream_def_id, RT.StreamDefinition)
                 agent_stream_def_obj = self.RR2.read(stream_info_dict.get('stream_def_id'), RT.StreamDefinition)
                 if PubsubManagementService.compare_stream_definition_objects(out_stream_def_obj, agent_stream_def_obj):
-                    #model_param_dict = self.RR2.find_by_name(RT.ParameterDictionary,
-                    #                                         stream_info_dict.get('param_dict_name'))
+                    #model_param_dict = self.RR2.find_resources_by_name(RT.ParameterDictionary,
+                    #                                         stream_info_dict.get('param_dict_name'))[0]
                     model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
                     stream_route = self.RR2.read(product_stream_id).stream_route
                     #model_param_dict = dsm.read_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
