@@ -6,17 +6,19 @@
 from mock import patch
 from pyon.core.exception import NotFound
 from pyon.public import  IonObject
-from pyon.public import RT, PRED, CFG
+from pyon.public import RT, PRED, CFG, OT
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
 from pyon.datastore.datastore import DataStore
-from pyon.ion.stream import StandaloneStreamSubscriber
+from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.ion.exchange import ExchangeNameQueue
+from pyon.ion.event import EventSubscriber
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.util.parameter_yaml_IO import get_param_dict
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
@@ -28,7 +30,9 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 
-from interface.objects import LastUpdate, ComputedValueAvailability, Granule
+from ion.util.stored_values import StoredValueManager
+
+from interface.objects import LastUpdate, ComputedValueAvailability, Granule, DataProduct, DataProducer, DataProcessProducerContext
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 
 from nose.plugins.attrib import attr
@@ -36,8 +40,12 @@ from interface.objects import ProcessDefinition
 
 from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
+from coverage_model import ParameterContext, ParameterFunctionType, NumexprFunction, QuantityType
+
+from gevent.event import Event
 
 import unittest, gevent
+import numpy as np
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -55,15 +63,15 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        self.dpsc_cli = DataProductManagementServiceClient(node=self.container.node)
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
-        self.process_dispatcher   = ProcessDispatcherServiceClient()
+        self.dpsc_cli           = DataProductManagementServiceClient()
+        self.rrclient           = ResourceRegistryServiceClient()
+        self.damsclient         = DataAcquisitionManagementServiceClient()
+        self.pubsubcli          = PubsubManagementServiceClient()
+        self.ingestclient       = IngestionManagementServiceClient()
+        self.process_dispatcher = ProcessDispatcherServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
-        self.unsc = UserNotificationServiceClient()
-        self.data_retriever = DataRetrieverServiceClient()
+        self.unsc               = UserNotificationServiceClient()
+        self.data_retriever     = DataRetrieverServiceClient()
 
         #------------------------------------------
         # Create the environment
@@ -362,4 +370,92 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         with self.assertRaises(NotFound):
             dp_obj = self.rrclient.read(dp_id)
+
+    def test_lookup_values(self):
+        contexts = self.create_lookup_contexts()
+        context_ids = [c_id for c,c_id in contexts.itervalues()]
+        pdict_id = self.dataset_management.create_parameter_dictionary(name='lookup_pdict', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        stream_def_id = self.pubsubcli.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsubcli.delete_stream_definition, stream_def_id)
+
+        data_product = DataProduct(name='lookup data product')
+        tdom, sdom = time_series_domain()
+        data_product.temporal_domain = tdom.dump()
+        data_product.spatial_domain = sdom.dump()
+
+        data_product_id = self.dpsc_cli.create_data_product(data_product, stream_definition_id=stream_def_id)
+        self.addCleanup(self.dpsc_cli.delete_data_product, data_product_id)
+        data_producer = DataProducer(name='producer')
+        data_producer.producer_context = DataProcessProducerContext()
+        data_producer.producer_context.configuration['qc_keys'] = ['offset_document']
+        data_producer_id, _ = self.rrclient.create(data_producer)
+        self.addCleanup(self.rrclient.delete, data_producer_id)
+        assoc,_ = self.rrclient.create_association(subject=data_product_id, object=data_producer_id, predicate=PRED.hasDataProducer)
+        self.addCleanup(self.rrclient.delete_association, assoc)
+
+        document_keys = self.damsclient.list_qc_references(data_product_id)
+            
+        self.assertEquals(document_keys, ['offset_document'])
+        svm = StoredValueManager(self.container)
+        svm.stored_value_cas('offset_document', {'offset_a':2.0})
+        self.dpsc_cli.activate_data_product_persistence(data_product_id)
+        dataset_ids, _ = self.rrclient.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+        dataset_id = dataset_ids[0]
+
+        dataset_modified = Event()
+        def cb(*args, **kwargs):
+            dataset_modified.set()
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
+        es.start()
+        self.addCleanup(es.stop)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['temp'] = [20.]
+        granule = rdt.to_granule()
+
+        stream_ids, _ = self.rrclient.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        stream_id = stream_ids[0]
+        route = self.pubsubcli.read_stream_route(stream_id=stream_id)
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        publisher.publish(granule)
+
+        self.assertTrue(dataset_modified.wait(10))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['temp'], rdt2['temp'])
+        np.testing.assert_array_almost_equal(rdt2['calibrated'], np.array([22.0]))
+
+
+    def create_lookup_contexts(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+        
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
+        offset_ctxt.lookup_value = True
+        offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
+        contexts['offset_a'] = offset_ctxt, offset_ctxt_id
+
+        func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
+        func.lookup_values = ['LV_offset']
+        calibrated = ParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
+        calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
+        contexts['calibrated'] = calibrated, calibrated_id
+
+        return contexts
 
