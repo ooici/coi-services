@@ -1346,8 +1346,7 @@ class InstrumentAgent(ResourceAgent):
             startup_config = self._dvr_config.get('startup_config', None)
             if not startup_config:
                 startup_config = {'parameters':rparams, 'scheduler':None}
-            else:
-                startup_config['parameters'] = rparams
+            startup_config['parameters'] = rparams
             self._dvr_config['startup_config'] = startup_config
         
         # If the last state was lost connection, use the prior connected
