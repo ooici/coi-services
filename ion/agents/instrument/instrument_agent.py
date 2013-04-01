@@ -19,7 +19,7 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.public import IonObject
 
@@ -261,10 +261,8 @@ class InstrumentAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
-            return True, ''
-
-        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+                        [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
             return True, ''
 
         if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
