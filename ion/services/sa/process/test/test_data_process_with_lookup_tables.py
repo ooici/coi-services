@@ -253,7 +253,9 @@ class TestDataProcessWithLookupTable(IonIntegrationTestCase):
         log.debug("TestDataProcessWithLookupTable: create L0 all data_process return")
 
         data_process= self.rrclient.read(ctd_l0_all_data_process_id)
-        self.addCleanup(self.processdispatchclient.cancel_process, data_process.process_id)
+
+        process_ids, _ = self.rrclient.find_objects(subject= ctd_l0_all_data_process_id, predicate= PRED.hasProcess, object_type= RT.Process,id_only=True)
+        self.addCleanup(self.processdispatchclient.cancel_process, process_ids[0])
 
         contents = "this is the lookup table  contents for L0 Conductivity - Temperature - Pressure: Data Process , replace with a file..."
         att = IonObject(RT.Attachment, name='processLookupTable',content=base64.encodestring(contents), keywords=['DataProcessInput'], attachment_type=AttachmentType.ASCII)
