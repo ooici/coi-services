@@ -160,10 +160,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             temporal_domain = tdom.dump(), 
             spatial_domain = sdom.dump())
 
-        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 200.0
-        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = 100.0
-        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 50.0
-        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = 100.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 10.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -10.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 10.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = -10.0
 
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
@@ -175,7 +175,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertIsNotNone(dp_obj)
-        self.assertEquals(dp_obj.geospatial_point_center.lat, 150.0)
+        self.assertEquals(dp_obj.geospatial_point_center.lat, 0.0)
         log.debug('Created data product %s', dp_obj)
         #------------------------------------------------------------------------------------------------
         # test creating a new data product with  a stream definition
@@ -218,10 +218,10 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         # now tweak the object
         dp_obj.description = 'the very first dp'
-        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 300.0
-        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = 200.0
-        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 150.0
-        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = 200.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 20.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -20.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 20.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = -20.0
         # now write the dp back to the registry
         update_result = self.dpsc_cli.update_data_product(dp_obj)
 
@@ -229,7 +229,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # now get the dp back to see if it was updated
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertEquals(dp_obj.description,'the very first dp')
-        self.assertEquals(dp_obj.geospatial_point_center.lat, 250.0)
+        self.assertEquals(dp_obj.geospatial_point_center.lat, 0.0)
         log.debug('Updated data product %s', dp_obj)
 
         #test extension
