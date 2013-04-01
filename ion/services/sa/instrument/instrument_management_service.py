@@ -19,7 +19,7 @@ from ooi.logging import log
 
 from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import Inconsistent,BadRequest, NotFound
+from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
@@ -367,6 +367,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             raise
 
         process_id = launcher.launch(config, config_builder._get_process_definition()._id)
+        if not process_id:
+            raise ServerError("Launched instrument agent instance return process_id='%s'" % process_id)
         config_builder.record_launch_parameters(config, process_id)
 
         self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)

@@ -318,6 +318,8 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        print "Agent process id is '%s'" % str(instance_obj.agent_process_id)
+        self.assertTrue(instance_obj.agent_process_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
                                 instance_obj.agent_process_id,
                                 ProcessStateEnum.RUNNING)

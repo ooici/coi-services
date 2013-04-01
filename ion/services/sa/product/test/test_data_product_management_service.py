@@ -135,7 +135,6 @@ utg.add_resource_unittests(RT.DataProductCollection, "data_product_collection", 
 #remove some tests that don't work
 delattr(TestDataProductManagementServiceUnit, "test_data_product_create_d14a028")
 delattr(TestDataProductManagementServiceUnit, "test_data_product_collection_create_d14a028")
-delattr(TestDataProductManagementServiceUnit, "test_data_product_collection_create_bad_dupname_d14a028")
 delattr(TestDataProductManagementServiceUnit, "test_data_product_collection_create_bad_noname_d14a028")
 delattr(TestDataProductManagementServiceUnit, "test_data_product_collection_create_bad_wrongtype_d14a028")
 
