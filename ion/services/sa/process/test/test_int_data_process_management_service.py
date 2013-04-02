@@ -1108,10 +1108,10 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         # Output DataProduct with lookup values
         #-------------------------------------------------------------------------------- 
         
-        contexts = self.create_lookup_contexts()
-        context_ids = [c_id for c,c_id in contexts.itervalues()]
-        pdict_id = self.dataset_management.create_parameter_dictionary(name='lookup_pdict', parameter_context_ids=context_ids, temporal_context='time')
-        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+
+        pdict_id = ph.create_lookups()
+
         stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
