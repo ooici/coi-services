@@ -250,7 +250,7 @@ class EnhancedResourceRegistryClient(object):
 
         self.RR.create_association(subject=data_product_id, predicate=PRED.hasStream, obj=stream_definition_id)
 
-    def assign_stream_to_data_product_with_has_stream(stream_id ='', data_product_id=''):
+    def assign_stream_to_data_product_with_has_stream(self, stream_id ='', data_product_id=''):
 
         self.RR.create_association(subject=data_product_id, predicate=PRED.hasStream, obj=stream_id)
 
