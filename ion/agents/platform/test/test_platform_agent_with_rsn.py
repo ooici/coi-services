@@ -22,6 +22,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_connect_disconnect_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_check_sync
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_execute_resource
 #
 
 
@@ -653,6 +654,27 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._disconnect_instrument()
         self._check_sync()
+
+        self._go_inactive()
+        self._reset()
+
+    def _execute_resource(self):
+        # TODO actual commands
+        cmd = AgentCommand(command="TODO: FOO RESOURCE COMMAND")
+        retval = self._pa_client.execute_resource(cmd)
+        log.debug("_execute_resource: retval=%s", retval)
+        self.assertTrue(retval.result)
+
+    def test_execute_resource(self):
+        self._create_network_and_start_root_platform()
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._execute_resource()
 
         self._go_inactive()
         self._reset()

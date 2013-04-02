@@ -50,6 +50,11 @@ class PlatformDriverEvent(BaseEnum):
     GET_METADATA              = 'PLATFORM_DRIVER_GET_METADATA'
     GET                       = 'PLATFORM_DRIVER_GET'
     SET                       = 'PLATFORM_DRIVER_SET'
+
+    EXECUTE                   = 'PLATFORM_DRIVER_EXECUTE'
+
+    # TODO: the following to be handled via EXECUTE
+
     CONNECT_INSTRUMENT        = 'PLATFORM_DRIVER_CONNECT_INSTRUMENT'
     DISCONNECT_INSTRUMENT     = 'PLATFORM_DRIVER_DISCONNECT_INSTRUMENT'
     GET_CONNECTED_INSTRUMENTS = 'PLATFORM_DRIVER_GET_CONNECTED_INSTRUMENTS'
@@ -129,6 +134,13 @@ class PlatformDriver(object):
         """
         """
         return self._fsm.on_event(PlatformDriverEvent.SET, *args, **kwargs)
+
+    def execute_resource(self, resource_cmd, *args, **kwargs):
+        """
+        Platform agent calls this directly to trigger the execution of a
+        resource command. The actual action occurs in _execute.
+        """
+        return self._fsm.on_event(PlatformDriverEvent.EXECUTE, resource_cmd, *args, **kwargs)
 
     def _get_platform_attributes(self):
         """
@@ -235,6 +247,22 @@ class PlatformDriver(object):
         # TODO Any needed alignment with the instrument case?
         #
         raise NotImplementedError()  #pragma: no cover
+
+    def _execute(self, cmd, *args, **kwargs):
+        """
+        Executes the given command.
+        Subclasses can override to execute particular commands or delegate to
+        this base implementation to handle common commands.
+
+        @param cmd   command
+
+        @return
+        """
+        # TODO do actual execution
+        result = "!! TODO !!: result of _execute: cmd=%s args=%s kwargs=%s" % (
+                 cmd, str(args), str(kwargs))
+
+        return result
 
     def connect_instrument(self, port_id, instrument_id, attributes):
         """
@@ -499,6 +527,22 @@ class PlatformDriver(object):
 
         return next_state, result
 
+    def _handler_connected_execute(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        if len(args) == 0:
+            raise FSMError('execute_resource: missing resource_cmd argument')
+
+        result = self._execute(*args, **kwargs)
+        next_state = None
+
+        return next_state, result
+
     def _handler_connected_connect_instrument(self, *args, **kwargs):
         """
         """
@@ -641,6 +685,7 @@ class PlatformDriver(object):
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_METADATA, self._handler_connected_get_metadata)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET, self._handler_connected_get)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.SET, self._handler_connected_set)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.EXECUTE, self._handler_connected_execute)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_disconnected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, self._handler_connected_get_connected_instruments)

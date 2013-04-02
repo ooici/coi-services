@@ -108,6 +108,7 @@ class PlatformAgentEvent(BaseEnum):
     PING_RESOURCE             = ResourceAgentEvent.PING_RESOURCE
     GET_RESOURCE              = ResourceAgentEvent.GET_RESOURCE
     SET_RESOURCE              = ResourceAgentEvent.SET_RESOURCE
+    EXECUTE_RESOURCE          = ResourceAgentEvent.EXECUTE_RESOURCE
 
     GET_METADATA              = 'PLATFORM_AGENT_GET_METADATA'
     GET_PORTS                 = 'PLATFORM_AGENT_GET_PORTS'
@@ -1637,6 +1638,16 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+    def _handler_execute_resource(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        result = self._plat_driver.execute_resource(*args, **kwargs)
+        return None, result
+
     def _handler_ping_resource(self, *args, **kwargs):
         """
         Pings the driver.
@@ -1954,6 +1965,7 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
+            self._fsm.add_handler(state, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.CHECK_SYNC, self._handler_check_sync)
 
         # COMMAND state event handlers.
