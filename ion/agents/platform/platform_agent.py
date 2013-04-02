@@ -241,6 +241,8 @@ class PlatformAgent(ResourceAgent):
 
         self._launcher = Launcher(self._timeout)
 
+        self._fsm.start(PlatformAgentState.UNINITIALIZED)
+
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             platform_id = self.CFG.get_safe('platform_config.platform_id', '')
             log.debug("%r: self._timeout = %s", platform_id, self._timeout)
@@ -1924,13 +1926,8 @@ class PlatformAgent(ResourceAgent):
         """
         log.debug("constructing fsm")
 
-        # Instrument agent state machine.
-        self._fsm = ThreadSafeFSM(PlatformAgentState, PlatformAgentEvent,
-                                  PlatformAgentEvent.ENTER, PlatformAgentEvent.EXIT)
-
-        for state in PlatformAgentState.list():
-            self._fsm.add_handler(state, PlatformAgentEvent.ENTER, self._common_state_enter)
-            self._fsm.add_handler(state, PlatformAgentEvent.EXIT, self._common_state_exit)
+        super(PlatformAgent, self)._construct_fsm(states=PlatformAgentState,
+                                                  events=PlatformAgentEvent)
 
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
