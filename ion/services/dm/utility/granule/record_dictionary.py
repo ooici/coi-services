@@ -288,7 +288,6 @@ class RecordDictionaryTool(object):
                 retval = pfv[:]
                 return retval
             except Exception as e:
-                log.exception('Issue here')
                 log.warning(e.message)
                 return None
         else:

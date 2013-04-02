@@ -792,12 +792,16 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 'offset_a': 2.781
                 }
         stored_value_manager.stored_value_cas('calibrated_ctd', lookup_table)
+        self.addCleanup(stored_value_manager.delete_stored_value, 'calibrated_ctd')
+
+        stored_value_manager.stored_value_cas('coefficient_document', {'offset_b': 10.})
 
         validated=Event()
         def validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
             np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([22.781]))
+            np.testing.assert_array_equal(rdt['calibrated_b'], np.array([32.781]))
             validated.set()
 
         self.setup_subscriber(offset_data_product_id, callback=validation)
@@ -846,6 +850,23 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_plain_data_product(instrument_data_product_id)
 
         self.assertTrue(validated.wait(10))
+
+        stored_value_manager.stored_value_cas('lctest', {'lookup_val':10.})
+
+        validated2 = Event()
+        def validation2(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['calibrated_temperature'], np.array([22.781]))
+            np.testing.assert_array_almost_equal(rdt['extended_calibrated_temperature'], np.array([12.781]))
+            validated2.set()
+        self.setup_subscriber(offset_data_product_id, callback=validation2)
+        self.publish_to_plain_data_product(instrument_data_product_id)
+
+        self.assertTrue(validated2.wait(10))
+
+
+
    
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
