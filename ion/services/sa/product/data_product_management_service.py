@@ -62,7 +62,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
         #--------------------------------------------------------------------------------
-        data_product_id,rev = self.clients.resource_registry.create(data_product)
+        data_product_id = self.RR2.create(data_product, RT.DataProduct)
 
 
         #-----------------------------------------------------------------------------------------------
