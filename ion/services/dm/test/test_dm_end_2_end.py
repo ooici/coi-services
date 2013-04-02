@@ -315,6 +315,28 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.stop_ingestion(stream_id)
 
 
+    def test_coverage_transform(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_parsed()
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('example', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        ingestion_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_config_id, dataset_id=dataset_id)
+        self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        
+        # Copy / Paste programming, I KNOW IT'S A SIN!
+        rdt = ph.get_rdt()
+        ph.fill_parsed_rdt(rdt)
+
+
+
     def test_lookup_values_ingest_replay(self):
         contexts = self.create_lookup_contexts()
         context_ids = [_id for ctxt,_id in contexts.itervalues()]
@@ -785,9 +807,19 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         sub.stop()
 
+class DatasetMonitor(object):
+    def __init__(self, dataset_id):
+        self.dataset_id = dataset_id
+        self.event = Event()
 
+        self.es = EventSubscriber(event_type=OT.DatasetModiied, callback=self.cb, origin=self.dataset_id, auto_delete=True)
+        self.es.start()
+    
+    def cb(self, *args, **kwargs):
+        self.event.set()
 
-
+    def stop(self):
+        self.es.stop()
 
 
 
