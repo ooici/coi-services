@@ -36,9 +36,10 @@ import gevent
 from sets import Set
 import unittest
 import os
-from coverage_model import ParameterContext, QuantityType, NumexprFunction, ParameterFunctionType
+from coverage_model import ParameterContext, QuantityType, CategoryType, ArrayType, NumexprFunction, ParameterFunctionType, ConstantType, AxisTypeEnum, VariabilityEnum, PythonFunction
 from pyon.ion.stream import StandaloneStreamPublisher, StandaloneStreamSubscriber
 from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 import time
 import numpy as np
 from gevent.event import Event
@@ -619,6 +620,21 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 'lon', 
                 'pressure']
         return self.make_data_product('ctd_LC_TEST', 'ctd instrument', available_fields)
+    
+    def sbe37_data_product(self):
+        available_fields = [
+                'internal_timestamp', 
+                'temp', 
+                'preferred_timestamp', 
+                'time', 
+                'port_timestamp', 
+                'quality_flag', 
+                'lat', 
+                'conductivity', 
+                'driver_timestamp', 
+                'lon', 
+                'pressure']
+        return self.make_data_product('parsed', 'ctd instrument', available_fields)
 
     def make_data_product(self, pdict_name, dp_name, available_fields=[]):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name(pdict_name, id_only=True)
@@ -724,6 +740,83 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         tf_id = self.data_process_management.create_transform_function(tf)
         self.addCleanup(self.data_process_management.delete_transform_function, tf_id)
         return tf_id
+    
+    
+    def bootstrap_params(self):
+        parameter_helper = ParameterHelper(self.dataset_management, self.addCleanup)
+        parameter_helper.create_parsed()
+
+    def test_data_process_computation(self):
+        self.bootstrap_params()
+        instrument_data_product_id = self.sbe37_data_product()
+        derived_data_product_id = self.make_data_product('parsed', 'ctd derived products')
+
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[derived_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+    
+
+        validated = Event()
+
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+
+            np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
+            np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881]))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283]))
+
+            validated.set()
+
+        self.setup_subscriber(derived_data_product_id, callback=validation)
+        self.publish_to_data_product(instrument_data_product_id)
+        
+        self.assertTrue(validated.wait(10))
+        
+
+    def test_static_lookup_values(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        ph.create_lookups()
+        instrument_data_product_id = self.ctd_plain_input_data_product()
+        offset_data_product_id = self.make_data_product('lookups', 'lookup_values')
+
+
+        data_producer = DataProducer(name='producer')
+        data_producer.producer_context = DataProcessProducerContext()
+        data_producer.producer_context.configuration['qc_keys'] = ['calibrated_ctd']
+        data_producer_id, _ = self.resource_registry.create(data_producer)
+        self.addCleanup(self.resource_registry.delete, data_producer_id)
+        assoc,_ = self.resource_registry.create_association(subject=instrument_data_product_id, object=data_producer_id, predicate=PRED.hasDataProducer)
+        self.addCleanup(self.resource_registry.delete_association, assoc)
+
+        
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[offset_data_product_id], configuration={'process':{'lookup_docs':['calibrated_ctd']}})
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+
+        stored_value_manager = StoredValueManager(self.container)
+        lookup_table = {
+                'offset_a': 2.781
+                }
+        stored_value_manager.stored_value_cas('calibrated_ctd', lookup_table)
+
+        validated=Event()
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([22.781]))
+            validated.set()
+
+        self.setup_subscriber(offset_data_product_id, callback=validation)
+        self.publish_to_plain_data_product(instrument_data_product_id)
+
+        self.assertTrue(validated.wait(10))
+        
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
