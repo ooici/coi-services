@@ -18,6 +18,7 @@ from copy import deepcopy
 import ast
 import numpy as np
 import re
+from uuid import uuid4
 
 
 class TypesManager(object):
@@ -148,8 +149,10 @@ class TypesManager(object):
         document_key = ''
         if '||' in placeholder:
             document_key, placeholder = placeholder.split('||')
+        document_val = placeholder
+        placeholder = '%s_%s' % (placeholder, uuid4().hex)
         pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
-        pc.lookup_value = True
+        pc.lookup_value = document_val
         pc.document_key = document_key
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         self.parameter_lookups[value] = ctxt_id
