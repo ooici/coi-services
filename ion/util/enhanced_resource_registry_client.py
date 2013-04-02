@@ -5,19 +5,20 @@
 @author   Ian Katz
 """
 
-# THIS SHOULD BE FALSE IN COMMITTED CODE
-from ooi import logging
-from pyon.util.containers import get_ion_ts, DotDict
-
-TEST_LOCALLY=False
-#TEST_LOCALLY=True
-
 import re
+from ooi import logging
 from ooi.logging import log
+from pyon.util.containers import get_ion_ts, DotDict
 from pyon.core.exception import BadRequest, Inconsistent, NotFound
 from pyon.core.registry import getextends
 from pyon.ion.resource import LCE, RT, PRED
 from pyon.util.config import Config
+
+# THIS SHOULD BE FALSE IN COMMITTED CODE
+TEST_LOCALLY=False
+#TEST_LOCALLY=True
+
+
 
 class EnhancedResourceRegistryClient(object):
     """
@@ -319,7 +320,6 @@ class EnhancedResourceRegistryClient(object):
         else:
             return objs
 
-
     def find_subjects(self, subject_type, predicate, object, id_only=False):
         object_id, object_type = self._extract_id_and_type(object)
 
@@ -335,12 +335,16 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Checking object_id=%s, subject_type=%s", object_id, subject_type)
         preds = self._cached_predicates[predicate]
         time_search_start = get_ion_ts()
-        [a.s for a in preds if object_id == a.o and a.st == subject_type] # filter cached list
+        subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
-        log.debug("Processed %s %s predicates for subjects in %s seconds", len(preds), predicate, total_time / 1000.0)
+        log.debug("Processed %s %s predicates for %s subjects in %s seconds",
+                 len(preds),
+                 predicate,
+                 len(subject_ids),
+                 total_time / 1000.0)
 
-        subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
+
         if id_only:
             return subject_ids
         else:
@@ -366,7 +370,11 @@ class EnhancedResourceRegistryClient(object):
         object_ids = [a.o for a in preds if subject_id == a.s and a.ot == object_type] # filter cached list
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
-        log.debug("Processed %s %s predicates for objects in %s seconds", len(preds), predicate, total_time / 1000.0)
+        log.debug("Processed %s %s predicates for %s objects in %s seconds",
+                  len(preds),
+                  predicate,
+                  len(object_ids),
+                  total_time / 1000.0)
 
         if id_only:
             return object_ids
@@ -466,6 +474,8 @@ class EnhancedResourceRegistryClient(object):
         """
         Save all associations of a given predicate type to memory, for in-memory find_subjects/objects ops
         """
+        log.info("Caching predicates: %s", predicate)
+        log.debug("This cache is %s", self)
         time_caching_start = get_ion_ts()
         preds = self.RR.find_associations(predicate=predicate, id_only=False)
         time_caching_stop = get_ion_ts()
@@ -474,6 +484,7 @@ class EnhancedResourceRegistryClient(object):
 
         log.info("Cached %s %s predicates in %s seconds", len(preds), predicate, total_time / 1000.0)
         self._cached_predicates[predicate] = preds
+
 
 
     def _add_resource_to_cache(self, resource_type, resource_obj):
@@ -488,6 +499,8 @@ class EnhancedResourceRegistryClient(object):
         """
         Save all resources of a given type to memory, for in-memory lookup ops
         """
+        log.info("Caching resources: %s", resource_type)
+        log.debug("This cache is %s", self)
         time_caching_start = get_ion_ts()
 
         resource_objs = []
@@ -524,13 +537,13 @@ class EnhancedResourceRegistryClient(object):
     def clear_cached_predicate(self, predicate=None):
         if None is predicate:
             self._cached_predicates = {}
-        else:
+        elif predicate in self._cached_predicates:
             del self._cached_predicates[predicate]
 
     def clear_cached_resource(self, resource_type=None):
         if None is resource_type:
             self._cached_resources = {}
-        else:
+        elif resource_type in self._cached_resources:
             del self._cached_resources[resource_type]
 
 
@@ -727,6 +740,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 self.RR.create_association(subj_id, ipred, obj_id)
 
             return ret_fn
@@ -758,6 +772,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association (1)%s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 # see if there are any other objects of this type and pred on this subject
                 existing_subjs = self.find_subjects(isubj, ipred, obj_id, id_only=True)
 
@@ -806,6 +821,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association %s -> %s -> (1)%s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
 
                 # see if there are any other objects of this type and pred on this subject
                 existing_objs = self.find_objects(subj_id, ipred, iobj, id_only=True)
@@ -857,6 +873,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically deleting association %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 self.delete_association(subj_id, ipred, obj_id)
 
             return ret_fn
@@ -888,6 +905,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj):
                 log.info("Dynamically finding objects %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
@@ -920,6 +938,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj):
                 log.info("Dynamically finding subjects %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", obj, ipred, isubj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
@@ -953,6 +972,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj_id):
                 log.info("Dynamically finding object %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
 
@@ -984,6 +1004,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
 
@@ -1020,6 +1041,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj):
                 log.info("Dynamically finding object_ids %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
@@ -1052,6 +1074,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj):
                 log.info("Dynamically finding subject_ids %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
@@ -1085,6 +1108,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj_id):
                 log.info("Dynamically finding object_id %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
 
@@ -1116,6 +1140,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject_id %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
 
