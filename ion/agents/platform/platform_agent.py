@@ -226,6 +226,9 @@ class PlatformAgent(ResourceAgent):
         # to sync in _initialize
         self._async_children_launched = None
 
+        # Default initial state.
+        self._initial_state = PlatformAgentState.UNINITIALIZED
+
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
@@ -240,8 +243,6 @@ class PlatformAgent(ResourceAgent):
         self._plat_config_processed = False
 
         self._launcher = Launcher(self._timeout)
-
-        self._fsm.start(PlatformAgentState.UNINITIALIZED)
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             platform_id = self.CFG.get_safe('platform_config.platform_id', '')
