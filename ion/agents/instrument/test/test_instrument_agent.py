@@ -34,6 +34,7 @@ from mock import patch
 # Pyon pubsub and event support.
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.stream import StandaloneStreamSubscriber
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
@@ -1164,9 +1165,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
-        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)        
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)        
         
         """
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_INITIALIZE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373063952', 'sub_type': '', 'origin_type': ''}
@@ -1178,10 +1177,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_RESET', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373076321', 'sub_type': '', 'origin_type': ''}        
         """
         
-        # Enable this below to see the sequence of events published.
-        #log.warning('******************* Checking events in test_poll:')
-        #for x in self._events_received:
-        #    log.warning(str(x))
+        # Check that the events were received.
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)        
         self.assertGreaterEqual(len(self._events_received), 7)
         
         """
@@ -1190,14 +1187,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         {'domain': [1], 'data_producer_id': '123xyz', 'connection_index': 2, 'record_dictionary': {1: None, 2: [3573842034.287919], 3: [3573842034.287919], 4: None, 5: ['ok'], 6: ['port_timestamp'], 7: None, 8: [3573842034.3573842], 9: None, 10: [132.754], 11: [59.86327], 12: None, 13: [83.803398], 14: None}, 'connection_id': 'ac8085c1572b4ac78e080d397cfa5d88', 'locator': None, 'type_': 'Granule', 'param_dictionary': '5907708894714910a80410f475709d69', 'creation_timestamp': 1364853234.387937, 'provider_metadata_update': {}}
         """
         
+        # Await the published samples and veirfy parsed and raw streams.        
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEqual(len(self._samples_received), 3)
         self.assertGreater(len(self._raw_samples_received), 10)
-        print '############# I got %i samples!' % len(self._samples_received)
-        for x in self._samples_received:
-            print str(x)
-            #print str(dir(x))
         
     def test_autosample(self):
         """
@@ -2014,7 +2008,20 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
 
-        # Add check here to assure granule received mostly multidimensional.
+        # Add check here to assure parsed granules are buffered.
+        for x in self._samples_received:
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            self.assertGreater(rdt['temp'].size, 1)
+            self.assertGreater(rdt['conductivity'].size, 1)
+            self.assertGreater(rdt['pressure'].size, 1)
+        
+        # Check that some of the raw granules are buffered.
+        raw_sizes = []
+        for x in self._raw_samples_received:
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            raw_sizes.append(rdt['raw'].size)
+        raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
+        self.assertTrue(any(raw_sizes_greater_than_one))
                 
     def test_lost_connection(self):
         """

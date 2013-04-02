@@ -728,7 +728,7 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         # Publsih resource config change event.
-        if self.CFG.get('enable_persistence', None):
+        if self._enable_persistence:
             self._set_state('rparams', val)
         try:
             event_data = {
