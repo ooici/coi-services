@@ -145,8 +145,12 @@ class TypesManager(object):
 
     def get_lookup_value(self,value):
         placeholder = value.replace('LV_','')
+        document_key = ''
+        if '||' in placeholder:
+            document_key, placeholder = placeholder.split('||')
         pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         pc.lookup_value = True
+        pc.document_key = document_key
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         self.parameter_lookups[value] = ctxt_id
         return value, placeholder

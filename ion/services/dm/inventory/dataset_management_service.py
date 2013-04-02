@@ -446,6 +446,10 @@ class DatasetManagementService(BaseDatasetManagementService):
             pc1 = ParameterContext.load(pc1) or {}
         if pc2:
             pc2 = ParameterContext.load(pc2) or {}
+        if hasattr(pc1,'lookup_value') or hasattr(pc2,'lookup_value'):
+            if hasattr(pc1,'lookup_value') and hasattr(pc2,'lookup_value'):
+                return bool(pc1 == pc2) and pc1.document_key == pc2.document_key
+            return False
         return bool(pc1 == pc2)
             
     @classmethod
