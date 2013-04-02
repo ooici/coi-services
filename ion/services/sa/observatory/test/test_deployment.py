@@ -354,54 +354,54 @@ class TestDeployment(IonIntegrationTestCase):
         # set up the structure
         for p in range(3):
             m = platform_model_at(p)
-            self.RR2.assign_platform_model_to_platform_site(platform_model_id[m], platform_site_id[p])
-            self.RR2.assign_platform_model_to_platform_device(platform_model_id[m], platform_device_id[p])
-            self.RR2.assign_platform_device_to_platform_device(platform_device_id[p], platform_device_id[3])
+            self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id[m], platform_site_id[p])
+            self.RR2.assign_platform_model_to_platform_device_with_has_model(platform_model_id[m], platform_device_id[p])
+            self.RR2.assign_platform_device_to_platform_device_with_has_device(platform_device_id[p], platform_device_id[3])
             self.RR2.assign_platform_site_to_platform_site_with_has_site(platform_site_id[p], platform_site_id[3])
-            self.RR2.assign_deployment_to_platform_device(deployment_id, platform_device_id[p])
-            self.RR2.assign_deployment_to_platform_site(deployment_id, platform_site_id[p])
+            self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[p])
+            self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[p])
 
             for i in range(3):
                 m = instrument_model_at(p, i)
                 idx = instrument_at(p, i)
-                self.RR2.assign_instrument_model_to_instrument_site(instrument_model_id[m], instrument_site_id[idx])
-                self.RR2.assign_instrument_model_to_instrument_device(instrument_model_id[m], instrument_device_id[idx])
-                self.RR2.assign_instrument_device_to_platform_device(instrument_device_id[idx], platform_device_id[p])
+                self.RR2.assign_instrument_model_to_instrument_site_with_has_model(instrument_model_id[m], instrument_site_id[idx])
+                self.RR2.assign_instrument_model_to_instrument_device_with_has_model(instrument_model_id[m], instrument_device_id[idx])
+                self.RR2.assign_instrument_device_to_platform_device_with_has_device(instrument_device_id[idx], platform_device_id[p])
                 self.RR2.assign_instrument_site_to_platform_site_with_has_site(instrument_site_id[idx], platform_site_id[p])
-                self.RR2.assign_deployment_to_instrument_device(deployment_id, instrument_device_id[idx])
-                self.RR2.assign_deployment_to_instrument_site(deployment_id, instrument_site_id[idx])
+                self.RR2.assign_deployment_to_instrument_device_with_has_deployment(deployment_id, instrument_device_id[idx])
+                self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id[idx])
 
         # top level models
-        self.RR2.assign_platform_model_to_platform_device(platform_model_id[2], platform_device_id[3])
-        self.RR2.assign_platform_model_to_platform_site(platform_model_id[2], platform_site_id[3])
-        self.RR2.assign_deployment_to_platform_device(deployment_id, platform_device_id[3])
-        self.RR2.assign_deployment_to_platform_site(deployment_id, platform_site_id[3])
+        self.RR2.assign_platform_model_to_platform_device_with_has_model(platform_model_id[2], platform_device_id[3])
+        self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id[2], platform_site_id[3])
+        self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[3])
+        self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[3])
 
         # verify structure
         for p in range(3):
-            parent_id = self.RR2.find_platform_device_id_by_platform_device(platform_device_id[p])
+            parent_id = self.RR2.find_platform_device_id_by_platform_device_using_has_device(platform_device_id[p])
             self.assertEqual(platform_device_id[3], parent_id)
 
             parent_id = self.RR2.find_platform_site_id_by_platform_site_using_has_site(platform_site_id[p])
             self.assertEqual(platform_site_id[3], parent_id)
         for p in platform_device_id:
-            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_device(p))
+            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_device_using_has_deployment(p))
         for p in platform_site_id:
-            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_site(p))
+            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_site_using_has_deployment(p))
         for i in instrument_device_id:
-            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_device(i))
+            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_device_using_has_deployment(i))
         for i in instrument_site_id:
-            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_site(i))
+            self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_site_using_has_deployment(i))
 
 
         self.omsclient.activate_deployment(deployment_id)
 
         # verify proper associations
         for i, d in enumerate(platform_device_id):
-            self.assertEqual(d, self.RR2.find_platform_device_id_of_platform_site(platform_site_id[i]))
+            self.assertEqual(d, self.RR2.find_platform_device_id_of_platform_site_using_has_device(platform_site_id[i]))
 
         for i, d in enumerate(instrument_device_id):
-            self.assertEqual(d, self.RR2.find_instrument_device_id_of_instrument_site(instrument_site_id[i]))
+            self.assertEqual(d, self.RR2.find_instrument_device_id_of_instrument_site_using_has_device(instrument_site_id[i]))
 
         pass
 
