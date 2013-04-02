@@ -346,7 +346,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_modified = Event()
         def cb(*args, **kwargs):
             dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
         es.start()
 
         self.addCleanup(es.stop)
@@ -593,7 +593,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_modified = Event()
         def cb(*args, **kwargs):
             dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
         es.start()
 
         self.addCleanup(es.stop)
