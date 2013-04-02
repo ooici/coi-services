@@ -246,7 +246,6 @@ class EnhancedResourceRegistryClient(object):
 
         return
 
-
     def delete(self, resource_id):
 
         raise NotImplementedError("TODO: remove me")
