@@ -234,7 +234,17 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         contexts['DENSITY'] = dens_ctxt, dens_ctxt_id
         return contexts, funcs
 
-
-        
+    def test_verify_contexts(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
+        pcontexts = self.dataset_management.read_parameter_contexts(parameter_dictionary_id=pdict_id)
+        for pcontext in pcontexts:
+            self.assertTrue('fill_value' in pcontext)
+            self.assertTrue('reference_urls' in pcontext)
+            self.assertTrue('internal_name' in pcontext)
+            self.assertTrue('display_name' in pcontext)
+            self.assertTrue('standard_name' in pcontext)
+            self.assertTrue('ooi_short_name' in pcontext)
+            self.assertTrue('description' in pcontext)
+            self.assertTrue('precision' in pcontext)
 
 
