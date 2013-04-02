@@ -236,6 +236,8 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
 
     def test_verify_contexts(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        
         pcontexts = self.dataset_management.read_parameter_contexts(parameter_dictionary_id=pdict_id)
         for pcontext in pcontexts:
             self.assertTrue('fill_value' in pcontext)
@@ -246,5 +248,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
             self.assertTrue('ooi_short_name' in pcontext)
             self.assertTrue('description' in pcontext)
             self.assertTrue('precision' in pcontext)
+
+
 
 
