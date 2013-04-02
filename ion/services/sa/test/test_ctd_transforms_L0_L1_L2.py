@@ -30,7 +30,7 @@ import gevent
 
 from pyon.util.context import LocalContextMixin
 
-from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition
+from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition, ComputedStringValue
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
@@ -653,12 +653,21 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        gevent.sleep(15)
+        # This gevent sleep is there to test the autosample time, which will show something different from default
+        # only if the instrument runs for over a minute
+        gevent.sleep(90)
+
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id)
+
+        self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
+
+        autosample_string = extended_instrument.computed.uptime.value
+        autosampling_time = int(autosample_string.split()[4])
+
+        self.assertTrue(autosampling_time > 0)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
-
-
 
         #todo There is no ResourceAgentEvent attribute for go_observatory... so what should be the command for it?
 #        log.debug("test_activateInstrumentStream: calling go_observatory")
