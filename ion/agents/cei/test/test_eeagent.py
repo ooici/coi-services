@@ -9,6 +9,7 @@ import shutil
 import tempfile
 import socket
 import functools
+import unittest
 
 from random import randint
 from BaseHTTPServer import HTTPServer
@@ -26,6 +27,7 @@ from pyon.core.exception import Timeout
 from interface.services.icontainer_agent import ContainerAgentClient
 
 from ion.agents.cei.execution_engine_agent import ExecutionEngineAgentClient, HeartBeater
+from ion.services.cei.process_dispatcher_service import HeartbeatSubscriber
 
 
 class FakeProcess(LocalContextMixin):
@@ -713,6 +715,99 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.eea_client.terminate_process(u_pid, round)
         state = self.eea_client.dump_state().result
         get_proc_for_upid(state, u_pid)
+
+
+@attr('INT', group='cei')
+class HeartbeaterIntTest(IonIntegrationTestCase):
+
+    @needs_eeagent
+    def setUp(self):
+        self._start_container()
+
+        self.resource_id = "eeagent_123456789"
+        self._eea_name = "eeagent"
+
+        self.persistence_directory = tempfile.mkdtemp()
+
+        self.agent_config = {
+            'eeagent': {
+                'heartbeat': 0.01,
+                'slots': 100,
+                'name': 'pyon_eeagent',
+                'launch_type': {
+                    'name': 'pyon',
+                    'persistence_directory': self.persistence_directory,
+                }
+            },
+            'agent': {'resource_id': self.resource_id},
+            'logging': {
+                'loggers': {
+                    'eeagent': {
+                        'level': 'DEBUG',
+                        'handlers': ['console']
+                    }
+                },
+                'root': {
+                    'handlers': ['console']
+                },
+            }
+        }
+
+    def _start_eeagent(self):
+        self.container_client = ContainerAgentClient(
+            node=self.container.node, name=self.container.name)
+        self.container = self.container_client._get_container_instance()
+
+        self._eea_pid = self.container_client.spawn_process(
+            name=self._eea_name,
+            module="ion.agents.cei.execution_engine_agent",
+            cls="ExecutionEngineAgent", config=self.agent_config)
+        log.info('Agent pid=%s.', str(self._eea_pid))
+
+        # Start a resource agent client to talk with the instrument agent.
+        self._eea_pyon_client = SimpleResourceAgentClient(self.resource_id, process=FakeProcess())
+        log.info('Got eea client %s.', str(self._eea_pyon_client))
+
+        self.eea_client = ExecutionEngineAgentClient(self._eea_pyon_client)
+
+    def tearDown(self):
+        self.container.terminate_process(self._eea_pid)
+        shutil.rmtree(self.persistence_directory)
+
+    @needs_eeagent
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_heartbeater(self):
+        """test_heartbeater
+
+        Test whether the eeagent waits until the eeagent listener is ready before sending
+        a heartbeat to the PD
+        """
+
+        # beat_died is a list because of a hack to get around a limitation in python 2.7
+        # See: http://stackoverflow.com/questions/8934772/local-var-referenced-before-assignment
+        beat_died = [False]
+
+        def heartbeat_callback(heartbeat, headers):
+
+            eeagent_id = heartbeat['eeagent_id']
+            agent_client = SimpleResourceAgentClient(eeagent_id, name=eeagent_id, process=FakeProcess())
+            ee_client = ExecutionEngineAgentClient(agent_client, timeout=2)
+
+            try:
+                ee_client.dump_state()
+            except:
+                log.exception("Heartbeat Failed!")
+                beat_died[0] = True
+
+        self.beat_subscriber = HeartbeatSubscriber("heartbeat_queue",
+            callback=heartbeat_callback, node=self.container.node)
+        self.beat_subscriber.start()
+
+        self._start_eeagent()
+        for i in range(0, 5):
+            if beat_died[0] is True:
+                assert False, "A Hearbeat callback wasn't able to contact the eeagent"
+            gevent.sleep(0.5)
 
 
 @attr('UNIT', group='cei')
