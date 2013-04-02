@@ -758,6 +758,12 @@ class PlatformAgent(ResourceAgent):
         result = self._plat_driver.get_resource(**kwargs)
         return result
 
+    def _set_attribute_values(self, attrs):
+        self._assert_driver()
+        kwargs = dict(attrs=attrs)
+        result = self._plat_driver.set_resource(**kwargs)
+        return result
+
     def _stop_resource_monitoring(self):
         """
         Stops resource monitoring.
@@ -1626,8 +1632,7 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('set_resource missing attrs argument.')
 
         try:
-            result = self._trigger_driver_event(PlatformDriverEvent.SET_ATTRIBUTE_VALUES,
-                                        **kwargs)
+            result = self._set_attribute_values(attrs)
             next_state = self.get_agent_state()
 
         except:

@@ -48,8 +48,8 @@ class PlatformDriverEvent(BaseEnum):
     # Events for the CONNECTED state:
     PING                      = 'PLATFORM_DRIVER_PING'
     GET_METADATA              = 'PLATFORM_DRIVER_GET_METADATA'
-    GET_ATTRIBUTE_VALUES      = 'PLATFORM_DRIVER_GET_ATTRIBUTE_VALUES'
-    SET_ATTRIBUTE_VALUES      = 'PLATFORM_DRIVER_SET_ATTRIBUTE_VALUES'
+    GET                       = 'PLATFORM_DRIVER_GET'
+    SET                       = 'PLATFORM_DRIVER_SET'
     CONNECT_INSTRUMENT        = 'PLATFORM_DRIVER_CONNECT_INSTRUMENT'
     DISCONNECT_INSTRUMENT     = 'PLATFORM_DRIVER_DISCONNECT_INSTRUMENT'
     GET_CONNECTED_INSTRUMENTS = 'PLATFORM_DRIVER_GET_CONNECTED_INSTRUMENTS'
@@ -123,7 +123,12 @@ class PlatformDriver(object):
     def get_resource(self, *args, **kwargs):
         """
         """
-        return self._fsm.on_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, *args, **kwargs)
+        return self._fsm.on_event(PlatformDriverEvent.GET, *args, **kwargs)
+
+    def set_resource(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(PlatformDriverEvent.SET, *args, **kwargs)
 
     def _get_platform_attributes(self):
         """
@@ -218,14 +223,17 @@ class PlatformDriver(object):
 
         @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
 
-        @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}}
-                dict with a single entry for the requested platform ID and value
-                as a list of (value,timestamp) pairs for each attribute indicated
-                in the input. Returned timestamps indicate the time when the
+        @retval {attrName : [(attrValue, timestamp), ...], ...}
+                dict with a list of (value,timestamp) pairs for each attribute
+                indicated in the input. Returned timestamps indicate the time when the
                 value was set. Each timestamp is "a str representing an
-                integer number, the millis in UNIX epoch;" this is to be
-                aligned with description of pyon's get_ion_ts function.
+                integer number, the millis in UNIX epoch" to
+                align with description of pyon's get_ion_ts function.
+
         """
+        #
+        # TODO Any needed alignment with the instrument case?
+        #
         raise NotImplementedError()  #pragma: no cover
 
     def connect_instrument(self, port_id, instrument_id, attributes):
@@ -457,7 +465,7 @@ class PlatformDriver(object):
 
         return next_state, result
 
-    def _handler_connected_get_attribute_values(self, *args, **kwargs):
+    def _handler_connected_get(self, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
@@ -474,7 +482,7 @@ class PlatformDriver(object):
 
         return next_state, result
 
-    def _handler_connected_set_attribute_values(self, *args, **kwargs):
+    def _handler_connected_set(self, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
@@ -631,8 +639,8 @@ class PlatformDriver(object):
 
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.PING, self._handler_connected_ping)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_METADATA, self._handler_connected_get_metadata)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_ATTRIBUTE_VALUES, self._handler_connected_get_attribute_values)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.SET_ATTRIBUTE_VALUES, self._handler_connected_set_attribute_values)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET, self._handler_connected_get)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.SET, self._handler_connected_set)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_disconnected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, self._handler_connected_get_connected_instruments)
