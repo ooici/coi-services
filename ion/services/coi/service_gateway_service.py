@@ -6,11 +6,10 @@ __license__ = 'Apache 2.0'
 import inspect, ast, simplejson, sys, traceback, string, copy
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
-from werkzeug.datastructures import MultiDict
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
-from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict, is_ion_object, isenum
+from pyon.core.registry import getextends, is_ion_object_dict, is_ion_object, isenum
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.event.event import EventSubscriber
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -531,10 +530,13 @@ def create_ion_object(object_params):
 
 #Use this function internally to recursively set sub object field values
 def set_object_field(obj, field, field_val):
-    if isinstance(field_val,dict) and field != 'kwargs':
-        sub_obj = getattr(obj,field)
-        for sub_field in field_val:
-            set_object_field(sub_obj, sub_field, field_val.get(sub_field))
+    if isinstance(field_val, dict) and field != 'kwargs':
+        sub_obj = getattr(obj, field)
+        if isinstance(sub_obj, dict):
+            setattr(obj, field, field_val)
+        else:
+            for sub_field in field_val:
+                set_object_field(sub_obj, sub_field, field_val.get(sub_field))
     else:
         # type_ already exists in the class.
         if field != "type_":

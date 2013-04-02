@@ -35,7 +35,7 @@ from interface.objects import LastUpdate, ComputedValueAvailability, Granule, Da
 from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 
 from nose.plugins.attrib import attr
-from interface.objects import ProcessDefinition
+from interface.objects import ProcessDefinition, DataProducer, DataProcessProducerContext
 
 from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
 from coverage_model.coverage import CRS, GridDomain, GridShape
@@ -176,6 +176,14 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         dp_id = self.dpsc_cli.create_data_product( data_product= dp_obj,
                                             stream_definition_id=ctd_stream_def_id)
+        # Assert that the data product has an associated stream at this stage
+        stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, RT.Stream, True)
+        self.assertNotEquals(len(stream_ids), 0)
+
+        # Assert that the data product has an associated stream def at this stage
+        stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStreamDefinition, RT.StreamDefinition, True)
+        self.assertNotEquals(len(stream_ids), 0)
+
         self.dpsc_cli.activate_data_product_persistence(dp_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
@@ -251,6 +259,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
+
+        # Assert that there are no associated streams leftover after deleting the data product
+        stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, RT.Stream, True)
+        self.assertEquals(len(stream_ids), 0)
+
         self.dpsc_cli.force_delete_data_product(dp_id)
 
         # now try to get the deleted dp object
@@ -514,7 +527,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dataset_modified = Event()
         def cb(*args, **kwargs):
             dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
         es.start()
         self.addCleanup(es.stop)
 

@@ -59,18 +59,20 @@ class AgentConfigurationBuilder(object):
 
     def _predicates_to_cache(self):
         return [PRED.hasOutputProduct,
-                PRED.hasStream,
-                PRED.hasStreamDefinition,
+                #PRED.hasStream,
+                #PRED.hasStreamDefinition,
                 PRED.hasAgentInstance,
                 PRED.hasAgentDefinition,
                 PRED.hasDataset,
                 PRED.hasDevice,
-                PRED.hasParameterContext]
+                #PRED.hasParameterContext,
+                ]
 
     def _resources_to_cache(self):
-        return [RT.StreamDefinition,
-                RT.ParameterDictionary,
-                RT.ParameterContext]
+        return [#RT.StreamDefinition,
+                #RT.ParameterDictionary,
+                #RT.ParameterContext,
+                ]
 
     def _update_cached_predicates(self):
         # cache some predicates for in-memory lookups
@@ -254,18 +256,19 @@ class AgentConfigurationBuilder(object):
 
         #retrieve the output products
         device_id = device_obj._id
-        data_product_ids = self.RR2.find_data_product_ids_of_instrument_device_using_has_output_product(device_id)
+        data_product_objs = self.RR2.find_data_products_of_instrument_device_using_has_output_product(device_id)
 
-        out_streams = []
-        for product_id in data_product_ids:
+        out_streams = {}
+        for d in data_product_objs:
+            product_id = d._id
             stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)
-            out_streams.append(stream_id)
+            out_streams[stream_id] = d.name
 
 
         stream_config = {}
 
         log.debug("Creating a stream config for each stream (dataproduct) assoc with this agent/device")
-        for product_stream_id in out_streams:
+        for product_stream_id in out_streams.keys():
 
             #get the streamroute object from pubsub by passing the stream_id
             stream_def_id = self.RR2.find_stream_definition_id_of_stream_using_has_stream_definition(product_stream_id)
@@ -273,15 +276,16 @@ class AgentConfigurationBuilder(object):
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
                 # read objects from cache to be compared
-                out_stream_def_obj = self.RR2.read(stream_def_id, RT.StreamDefinition)
-                agent_stream_def_obj = self.RR2.read(stream_info_dict.get('stream_def_id'), RT.StreamDefinition)
-                if PubsubManagementService.compare_stream_definition_objects(out_stream_def_obj, agent_stream_def_obj):
+
+                if psm.compare_stream_definition(stream_def_id, stream_info_dict.get('stream_def_id')):
                     #model_param_dict = self.RR2.find_resources_by_name(RT.ParameterDictionary,
                     #                                         stream_info_dict.get('param_dict_name'))[0]
-                    model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
-                    stream_route = self.RR2.read(product_stream_id).stream_route
-                    #model_param_dict = dsm.read_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
-                    #stream_route = psm.read_stream_route(stream_id=product_stream_id)
+                    #model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
+                    #stream_route = self.RR2.read(product_stream_id).stream_route
+                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
+                    stream_route = psm.read_stream_route(stream_id=product_stream_id)
+
+                    log.info("stream_config[%s] matches product '%s'", model_stream_name, out_streams[product_stream_id])
 
                     if model_stream_name in stream_config:
                         log.warn("Overwiting stream_config[%s]", model_stream_name)

@@ -62,7 +62,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
         #--------------------------------------------------------------------------------
-        data_product_id,rev = self.clients.resource_registry.create(data_product)
+        data_product_id = self.RR2.create(data_product, RT.DataProduct)
 
 
         #-----------------------------------------------------------------------------------------------
@@ -130,8 +130,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         # remove stream associations
         #--------------------------------------------------------------------------------
         #self.remove_streams(data_product_id)
+        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
+        self.clients.pubsub_management.delete_stream(stream_ids[0])
 
-
+        #--------------------------------------------------------------------------------
+        # retire the data product
+        #--------------------------------------------------------------------------------
         self.RR2.retire(data_product_id, RT.DataProduct)
 
 
