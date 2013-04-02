@@ -300,7 +300,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         agt_cmds_uninitialized = [
             PlatformAgentEvent.INITIALIZE,
-            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
         ]
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)

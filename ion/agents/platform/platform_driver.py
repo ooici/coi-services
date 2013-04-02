@@ -95,9 +95,35 @@ class PlatformDriver(object):
 
         self._driver_config = None
 
+        # The parameter dictionary.
+        self._param_dict = {}
+
         # construct FSM and start it with initial state UNCONFIGURED:
         self._construct_fsm()
         self._fsm.start(PlatformDriverState.UNCONFIGURED)
+
+    def get_resource_capabilities(self, current_state=True):
+        """
+        """
+        res_cmds = self._fsm.get_events(current_state)
+        res_cmds = self._filter_capabilities(res_cmds)
+        res_params = self._param_dict.keys()
+
+        # TODO: fix the above.  For the moment returning empty lists:
+        res_cmds = []
+        res_params = []
+
+        return [res_cmds, res_params]
+
+    def _filter_capabilities(self, events):
+        """
+        """
+        return events
+
+    def get_resource(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, *args, **kwargs)
 
     def _get_platform_attributes(self):
         """

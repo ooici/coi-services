@@ -755,7 +755,7 @@ class PlatformAgent(ResourceAgent):
     def _get_attribute_values(self, attrs):
         self._assert_driver()
         kwargs = dict(attrs=attrs)
-        result = self._trigger_driver_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, **kwargs)
+        result = self._plat_driver.get_resource(**kwargs)
         return result
 
     def _stop_resource_monitoring(self):
@@ -1579,16 +1579,9 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        # TODO
-
-        result = None
+        result = self._plat_driver.get_resource_capabilities(*args, **kwargs)
         next_state = None
-
-#        result = self._dvr_client.cmd_dvr('get_resource_capabilities', *args, **kwargs)
-        res_cmds = []
-        res_params = []
-        result = [res_cmds, res_params]
-        return (next_state, result)
+        return next_state, result
 
     def _filter_capabilities(self, events):
 
@@ -1923,7 +1916,6 @@ class PlatformAgent(ResourceAgent):
 
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
-        self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
