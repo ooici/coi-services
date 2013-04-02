@@ -409,9 +409,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         tdom = GridDomain.load(temporal_domain)
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
         scov = SimplexCoverage(file_root,uuid4().hex,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
-        print 'Created scov at: ', scov.persistence_dir
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
-        print 'Created vcov at: ', vcov.persistence_dir
         scov.close()
         return vcov
 
