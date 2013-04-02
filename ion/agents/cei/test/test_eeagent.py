@@ -10,6 +10,7 @@ import tempfile
 import socket
 import functools
 import unittest
+import threading
 
 from random import randint
 from BaseHTTPServer import HTTPServer
@@ -798,7 +799,7 @@ class HeartbeaterIntTest(IonIntegrationTestCase):
 
         self.agent_config = {
             'eeagent': {
-                'heartbeat': "0.01",
+                'heartbeat': 300,
                 'slots': 100,
                 'name': 'pyon_eeagent',
                 'launch_type': {
@@ -850,33 +851,31 @@ class HeartbeaterIntTest(IonIntegrationTestCase):
         a heartbeat to the PD
         """
 
-        # beat_died is a list because of a hack to get around a limitation in python 2.7
-        # See: http://stackoverflow.com/questions/8934772/local-var-referenced-before-assignment
-        beat_died = [False]
+        beat_died = threading.Event()
+        beat_succeeded = threading.Event()
 
         def heartbeat_callback(heartbeat, headers):
 
             eeagent_id = heartbeat['eeagent_id']
             agent_client = SimpleResourceAgentClient(eeagent_id, name=eeagent_id, process=FakeProcess())
-            ee_client = ExecutionEngineAgentClient(agent_client, timeout=2)
+            ee_client = ExecutionEngineAgentClient(agent_client, timeout=10)
 
             try:
                 ee_client.dump_state()
+                beat_succeeded.set()
             except:
                 log.exception("Heartbeat Failed!")
-                beat_died[0] = True
+                beat_died.set()
 
         self.beat_subscriber = HeartbeatSubscriber("heartbeat_queue",
             callback=heartbeat_callback, node=self.container.node)
         self.beat_subscriber.start()
-        try:
-            self._start_eeagent()
-            for i in range(0, 5):
-                if beat_died[0] is True:
-                    assert False, "A Hearbeat callback wasn't able to contact the eeagent"
-                gevent.sleep(0.5)
-        finally:
-            self.beat_subscriber.stop()
+
+        self._start_eeagent()
+        success = beat_succeeded.wait(20)
+        if success is False:
+            died = beat_died.wait(20)
+            assert died is False, "A Hearbeat callback wasn't able to contact the eeagent"
 
 
 @attr('UNIT', group='cei')
