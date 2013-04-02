@@ -1512,7 +1512,13 @@ Reason: %s
             context.description = description
             context.precision = precision
             if lookup_value:
-                context.lookup_value = True
+                if lookup_value.lower() == 'true':
+                    context.lookup_value = True
+                    context.document_key = ''
+                else:
+                    context.lookup_value = True
+                    context.document_key = lookup_value
+
 
         except TypeError as e:
             log.exception(e.message)

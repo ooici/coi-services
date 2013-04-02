@@ -356,10 +356,8 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
 
     def test_lookup_values_ingest_replay(self):
-        contexts = self.create_lookup_contexts()
-        context_ids = [_id for ctxt,_id in contexts.itervalues()]
-        pdict_id = self.dataset_management.create_parameter_dictionary('lookups', parameter_context_ids=context_ids, temporal_context='time')
-        self.addCleanup(self.dataset_management.delete_parameter_dictionary,pdict_id)
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_lookups()
         stream_def_id = self.pubsub_management.create_stream_definition('lookups', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
@@ -395,6 +393,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(20))
         np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20))
         np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20))
+        np.testing.assert_array_equal(rdt_out['offset_b'], np.array([rdt_out.fill_value('offset_b')] * 20))
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(20,40)
@@ -404,6 +403,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_monitor.event.clear()
 
         stored_value_manager.stored_value_cas('test1',{'offset_a':20.0})
+        stored_value_manager.stored_value_cas('coefficient_document',{'offset_b':10.0})
         gevent.sleep(2)
 
         publisher.publish(granule)
@@ -414,37 +414,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(40))
         np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20 + [20.] * 20))
+        np.testing.assert_array_equal(rdt_out['offset_b'], np.array([10.] * 40))
         np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20 + [40.]*20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated_b'], np.array([40.] * 20 + [50.] * 20))
 
 
-    def create_lookup_contexts(self):
-        contexts = {}
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
-        t_ctxt.uom = 'seconds since 01-01-1900'
-        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
-        contexts['time'] = (t_ctxt, t_ctxt_id)
-        
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        temp_ctxt.uom = 'deg_C'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
-        contexts['temp'] = temp_ctxt, temp_ctxt_id
-
-        offset_ctxt = ParameterContext(name='offset_a', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
-        offset_ctxt.lookup_value = True
-        offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
-        contexts['offset_a'] = offset_ctxt, offset_ctxt_id
-
-        func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
-        func.lookup_values = ['LV_offset']
-        calibrated = ParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
-        calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
-        contexts['calibrated'] = calibrated, calibrated_id
-
-        return contexts
 
     @unittest.skip('Doesnt work')
     @attr('LOCOINT')
