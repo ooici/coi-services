@@ -44,6 +44,7 @@ class AgentConfigurationBuilder(object):
         self.RR2 = RR2
 
         if self.RR2 is None:
+            log.warn("Creating new RR2")
             self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
         if not isinstance(self.RR2, EnhancedResourceRegistryClient):
@@ -100,6 +101,7 @@ class AgentConfigurationBuilder(object):
         log.info("Cached %s resource types in %s seconds", len(rsrcs), total_time / 1000.0)
 
     def _clear_caches(self):
+        log.warn("Clearing caches")
         for r in self._resources_to_cache():
             self.RR2.clear_cached_resource(r)
 
@@ -158,7 +160,6 @@ class AgentConfigurationBuilder(object):
 
         if self.last_id != agent_instance_obj._id:
             self.associated_objects = None
-            self._clear_caches()
 
         self.agent_instance_obj = agent_instance_obj
         self.last_id = agent_instance_obj._id
