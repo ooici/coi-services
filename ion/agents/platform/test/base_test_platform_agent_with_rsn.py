@@ -128,14 +128,14 @@ required_config_keys = [
     'children']
 
 
-# Instruments that can be used (see _create_instrument). Reflects the currently
-# available simulators on sbe37-simulator.oceanobservatories.org
+# Instruments that can be used (see _create_instrument). Reflects available
+# simulators on sbe37-simulator.oceanobservatories.org as of 2013/03/31.
 instruments_dict = {
     "SBE37_SIM_01": {
         'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
         'DEV_PORT'  : 4001,
-        'DATA_PORT' : 4000,
-        'CMD_PORT'  : 4003,
+        'DATA_PORT' : 5001,
+        'CMD_PORT'  : 6001,
         'PA_BINARY' : "port_agent"
     },
 
@@ -143,9 +143,51 @@ instruments_dict = {
         'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
         'DEV_PORT'  : 4002,
         'DATA_PORT' : 5002,
-        'CMD_PORT'  : 5003,
+        'CMD_PORT'  : 6002,
         'PA_BINARY' : "port_agent"
-    }
+    },
+
+    "SBE37_SIM_03": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4003,
+        'DATA_PORT' : 5003,
+        'CMD_PORT'  : 6003,
+        'PA_BINARY' : "port_agent"
+    },
+
+    "SBE37_SIM_04": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4004,
+        'DATA_PORT' : 5004,
+        'CMD_PORT'  : 6004,
+        'PA_BINARY' : "port_agent"
+    },
+
+    "SBE37_SIM_05": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4005,
+        'DATA_PORT' : 5005,
+        'CMD_PORT'  : 6005,
+        'PA_BINARY' : "port_agent"
+    },
+
+    "SBE37_SIM_06": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4006,
+        'DATA_PORT' : 5006,
+        'CMD_PORT'  : 6006,
+        'PA_BINARY' : "port_agent"
+    },
+
+    "SBE37_SIM_07": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4007,
+        'DATA_PORT' : 5007,
+        'CMD_PORT'  : 6007,
+        'PA_BINARY' : "port_agent"
+    },
+
+
 }
 
 # The value should probably be defined in pyon.yml or some common place so
