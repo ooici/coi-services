@@ -23,6 +23,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_connect_disconnect_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_check_sync
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_execute_resource
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
 #
 
 
@@ -34,9 +35,12 @@ from interface.objects import AgentCommand
 from interface.objects import CapabilityType
 from interface.objects import AgentCapability
 
+from pyon.core.exception import Conflict
+
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.responses import NormalResponse
+from ion.agents.platform.platform_driver import PlatformDriverState
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
@@ -243,6 +247,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+            PlatformAgentEvent.EXECUTE_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
@@ -338,6 +344,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
@@ -374,6 +381,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.RUN,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_idle)
@@ -423,6 +431,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+            PlatformAgentEvent.EXECUTE_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.START_MONITORING,
 
@@ -454,6 +464,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.CLEAR,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
         ]
 
         res_cmds_command = [
@@ -495,6 +506,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+            PlatformAgentEvent.EXECUTE_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.STOP_MONITORING,
 
@@ -679,3 +692,38 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._go_inactive()
         self._reset()
 
+    def test_resource_states(self):
+        #
+        # TODO add event subscriber to also verify ResourceAgentResourceStateEvents
+        #
+        self._create_network_and_start_root_platform()
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+
+        with self.assertRaises(Conflict):
+            self._pa_client.get_resource_state()
+
+        self._initialize()
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.DISCONNECTED)
+
+        self._go_active()
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.CONNECTED)
+
+        self._run()
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.CONNECTED)
+
+        self._go_inactive()
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.DISCONNECTED)
+
+        self._reset()
+
+        with self.assertRaises(Conflict):
+            self._pa_client.get_resource_state()

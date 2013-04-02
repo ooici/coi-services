@@ -125,6 +125,13 @@ class PlatformDriver(object):
         """
         return events
 
+    def get_resource_state(self, *args, **kwargs):
+        """
+        Return the current state of the driver.
+        @retval str current driver state.
+        """
+        return self._fsm.get_current_state()
+
     def get_resource(self, *args, **kwargs):
         """
         """
