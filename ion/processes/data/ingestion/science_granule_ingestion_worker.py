@@ -185,13 +185,21 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         return None
 
 
-    def insert_sparse_values(self, coverage, rdt, stream_id):
-
+    def fill_lookup_values(self, rdt):
+        rdt.fetch_lookup_values()
         for field in rdt.lookup_values():
             value = self.get_stored_values(field)
             rdt[field] = [value] * len(rdt)
+
+    def insert_sparse_values(self, coverage, rdt, stream_id):
+
+        self.fill_lookup_values(rdt)
+        for field in rdt._lookup_values():
+            if rdt[field] is None:
+                continue
+            value = rdt[field]
             try:
-                coverage.set_parameter_values(param_name=field, value=np.atleast_1d(value))
+                coverage.set_parameter_values(param_name=field, value=value)
             except IOError as e:
                 log.error("Couldn't insert values for coverage: %s",
                           coverage.persistence_dir, exc_info=True)

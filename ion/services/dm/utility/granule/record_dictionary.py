@@ -8,13 +8,15 @@
 @brief https://confluence.oceanobservatories.org/display/CIDev/Record+Dictionary
 '''
 
-from pyon.core.exception import BadRequest
+from pyon.container.cc import Container
+from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectSerializer
 from pyon.core.interceptor.encode import encode_ion
 from pyon.util.arg_check import validate_equal
 from pyon.util.log import log
 from pyon.util.memoize import memoize_lru
 
+from ion.util.stored_values import StoredValueManager
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
@@ -97,12 +99,26 @@ class RecordDictionaryTool(object):
         return paramval
 
     def lookup_values(self):
+        return [i for i in self._lookup_values() if not self.context(i).document_key]
+
+    def _lookup_values(self):
         lookup_values = []
         for field in self.fields:
             if hasattr(self.context(field), 'lookup_value'):
                 lookup_values.append(field)
         return lookup_values
 
+    def fetch_lookup_values(self):
+        for lv in self._lookup_values():
+            context = self.context(lv)
+            if context.document_key:
+                svm = StoredValueManager(Container.instance)
+                try:
+                    doc = svm.read_value(context.document_key)
+                except NotFound:
+                    continue
+                if lv in doc:
+                    self[lv] = doc[lv]
 
     @classmethod
     def load_from_granule(cls, g):
@@ -272,6 +288,7 @@ class RecordDictionaryTool(object):
                 retval = pfv[:]
                 return retval
             except Exception as e:
+                log.exception('Issue here')
                 log.warning(e.message)
                 return None
         else:
