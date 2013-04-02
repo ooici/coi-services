@@ -113,8 +113,10 @@ class InstrumentAgent(ResourceAgent):
         
         #This is the type of Resource managed by this agent
         self.resource_type = RT.InstrumentDevice
+        
         #This is the id of the resource managed by this agent
         self.resource_id = None
+        
         # Driver configuration. Passed as part of the spawn configuration
         # or with an initialize command. Sets driver specific
         # context.
@@ -279,8 +281,6 @@ class InstrumentAgent(ResourceAgent):
                    self.resource_id)
 
         return True, ''
-
-
 
     ##############################################################
     # Resource interface and common resource event handlers.
@@ -1299,7 +1299,7 @@ class InstrumentAgent(ResourceAgent):
 
         # If specified and configed, build the pubrate aparam.
         aparam_pubrate_config = self.CFG.get('aparam_pubrate_config', None)
-        if aparam_pubrate_config and 'aparam_pubrate' in aparams:
+        if aparam_pubrate_config and 'pubrate' in aparams:
             for (stream_name, pubrate) in aparam_pubrate_config:
                 if self.aparam_pubrate.has_key(stream_name) and \
                     isinstance(pubrate, (float, int)) and pubrate >= 0:
@@ -1307,10 +1307,9 @@ class InstrumentAgent(ResourceAgent):
                 else:
                     log.error('Instrument agent %s could not configure stream %s, pubrate %s',
                               self._proc_name, str(stream_name), str(pubrate))
-
         # If specified and configed, build the alerts aparam.                
         aparam_alert_config = self.CFG.get('aparam_alert_config', None)
-        if aparam_alert_config and 'aparam_alerts' in aparams:
+        if aparam_alert_config and 'alerts' in aparams:
             for alert_def in aparam_alert_config:
                 alert_def = copy.deepcopy(alert_def)
                 try:
