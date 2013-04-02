@@ -20,6 +20,7 @@ class ParameterHelper(object):
 
         parsed_param_dict_id = self.dataset_management.create_parameter_dictionary('parsed', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary,parsed_param_dict_id)
+        return parsed_param_dict_id
 
     def get_rdt(self, stream_def_id):
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)

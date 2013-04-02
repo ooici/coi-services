@@ -19,6 +19,7 @@ from ion.services.dm.ingestion.test.ingestion_management_test import IngestionMa
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.util.stored_values import StoredValueManager
 
 from coverage_model.parameter import ParameterContext
@@ -331,9 +332,26 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
         publisher = StandaloneStreamPublisher(stream_id, route)
         
-        # Copy / Paste programming, I KNOW IT'S A SIN!
-        rdt = ph.get_rdt()
+        rdt = ph.get_rdt(stream_def_id)
         ph.fill_parsed_rdt(rdt)
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], rdt['time'])
+        np.testing.assert_array_almost_equal(rdt_out['temp'], rdt['temp'])
+
+        np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
+        np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
+        np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
 
 
 
@@ -365,16 +383,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         granule = rdt.to_granule()
 
-        dataset_modified = Event()
-        def cb(*args, **kwargs):
-            dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
-        es.start()
-
-        self.addCleanup(es.stop)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
 
         publisher.publish(granule)
-        self.assertTrue(dataset_modified.wait(30))
+        self.assertTrue(dataset_monitor.event.wait(30))
         
         replay_granule = self.data_retriever.retrieve(dataset_id)
         rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
@@ -388,13 +401,13 @@ class TestDMEnd2End(IonIntegrationTestCase):
         rdt['temp'] = [20.0] * 20
         granule = rdt.to_granule()
 
-        dataset_modified.clear()
+        dataset_monitor.event.clear()
 
         stored_value_manager.stored_value_cas('test1',{'offset_a':20.0})
         gevent.sleep(2)
 
         publisher.publish(granule)
-        self.assertTrue(dataset_modified.wait(30))
+        self.assertTrue(dataset_monitor.event.wait(30))
 
         replay_granule = self.data_retriever.retrieve(dataset_id)
         rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
@@ -612,17 +625,13 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
 
-        dataset_modified = Event()
-        def cb(*args, **kwargs):
-            dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
-        es.start()
+        dataset_monitor = DatasetMonitor(dataset_id)
 
-        self.addCleanup(es.stop)
+        self.addCleanup(dataset_monitor.stop)
 
         self.publish_fake_data(stream_id, route)
 
-        self.assertTrue(dataset_modified.wait(30))
+        self.assertTrue(dataset_monitor.event.wait(30))
 
         query = {
             'start_time': 0 - 2208988800,
