@@ -246,6 +246,17 @@ class EnhancedResourceRegistryClient(object):
 
         return
 
+    def assign_stream_definition_to_data_product_with_has_stream_definition(self, stream_definition_id='', data_product_id=''):
+
+        self.RR.create_association(subject=data_product_id, predicate=PRED.hasStream, obj=stream_definition_id)
+
+    def assign_stream_to_data_product_with_has_stream(stream_id ='', data_product_id=''):
+
+        self.RR.create_association(subject=data_product_id, predicate=PRED.hasStream, obj=stream_id)
+
+    def assign_dataset_to_data_product_with_has_dataset(self, dataset_id = '', data_product_id = ''):
+
+        self.RR.create_association(subject=data_product_id, predicate=PRED.hasDataset, obj=dataset_id)
 
     def delete(self, resource_id):
 
