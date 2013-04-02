@@ -11,6 +11,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -18,6 +19,7 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from gevent.event import Event
 from nose.plugins.attrib import attr
 from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
+
 
 import numpy as np
 
@@ -150,10 +152,9 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         return rdt
 
     def create_lookup_rdt(self):
-        contexts = self.create_lookup_contexts()
-        context_ids = [c_id for c,c_id in contexts.itervalues()]
-        pdict_id = self.dataset_management.create_parameter_dictionary(name='lookup_pdict', parameter_context_ids=context_ids, temporal_context='time')
-        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_lookups()
+
         stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
@@ -195,7 +196,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         funcs = {}
 
         t_ctxt = ParameterContext('TIME', param_type=QuantityType(value_encoding=np.dtype('int64')))
-        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='test_TIME', parameter_context=t_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
         contexts['TIME'] = (t_ctxt, t_ctxt_id)
