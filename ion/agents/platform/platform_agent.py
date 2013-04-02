@@ -1395,10 +1395,6 @@ class PlatformAgent(ResourceAgent):
         result = None
         return result
 
-    def _ping_resource(self):
-        result = self._trigger_driver_event(PlatformDriverEvent.PING)
-        return result
-
     ##############################################################
     # UNINITIALIZED event handlers.
     ##############################################################
@@ -1647,13 +1643,11 @@ class PlatformAgent(ResourceAgent):
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._ping_resource()
+        result = self._trigger_driver_event(PlatformDriverEvent.PING)
 
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
+        return None, result
 
     def _handler_get_metadata(self, *args, **kwargs):
         """
