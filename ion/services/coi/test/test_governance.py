@@ -911,6 +911,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_r), 4)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
 
+        events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgMembershipGrantedEvent)
+        self.assertEquals(len(events_c), 1)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1162,7 +1164,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
         self.assertEqual(events_r[-1][2].role_name, sap_response2.role_name)
 
-
+        events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.UserRoleGrantedEvent)
+        self.assertEquals(len(events_c), 2)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1477,6 +1480,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_r), 6)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
         self.assertEqual(events_r[-1][2].resource_id, ia_list[0]._id)
+
+        events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.ResourceCommitmentCreatedEvent)
+        self.assertEquals(len(events_c), 2)
 
 
     @attr('LOCOINT')
