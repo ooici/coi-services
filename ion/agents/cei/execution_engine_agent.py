@@ -124,10 +124,20 @@ class HeartBeater(object):
 
     @property
     def _eea_started(self):
+        """_eea_started
+        We must ensure that the eea is listening before heartbeating to the PD.
+        If the eea isn't listening, the PD's reply will be lost.
+
+        So we must ensure that the Pyon process's listeners are created, and are ready
+        """
         if self._started:
             return True
 
-        if all(self.process._process.heartbeat()):
+        if len(self.process._process.listeners) > 0 and all(self.process._process.heartbeat()):
+            self._log.debug(
+                "eeagent heartbeat started because len(self.process._process.listeners) > 0 (%s) "
+                "and all(self.process._process.heartbeat()) == True (%s)" % (
+                    len(self.process._process.listeners), str(self.process._process.heartbeat())))
             self._started = True
             return True
         else:
