@@ -19,7 +19,6 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 
-# Pyon exceptions.
 from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
@@ -109,6 +108,8 @@ class PlatformAgentEvent(BaseEnum):
     PING_RESOURCE             = ResourceAgentEvent.PING_RESOURCE
     GET_RESOURCE              = ResourceAgentEvent.GET_RESOURCE
     SET_RESOURCE              = ResourceAgentEvent.SET_RESOURCE
+    EXECUTE_RESOURCE          = ResourceAgentEvent.EXECUTE_RESOURCE
+    GET_RESOURCE_STATE        = ResourceAgentEvent.GET_RESOURCE_STATE
 
     GET_METADATA              = 'PLATFORM_AGENT_GET_METADATA'
     GET_PORTS                 = 'PLATFORM_AGENT_GET_PORTS'
@@ -137,6 +138,9 @@ class PlatformAgentCapability(BaseEnum):
     PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
     SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
+
+    EXECUTE_RESOURCE          = PlatformAgentEvent.EXECUTE_RESOURCE
+    GET_RESOURCE_STATE        = PlatformAgentEvent.GET_RESOURCE_STATE
 
     GET_METADATA              = PlatformAgentEvent.GET_METADATA
     GET_PORTS                 = PlatformAgentEvent.GET_PORTS
@@ -756,7 +760,13 @@ class PlatformAgent(ResourceAgent):
     def _get_attribute_values(self, attrs):
         self._assert_driver()
         kwargs = dict(attrs=attrs)
-        result = self._trigger_driver_event(PlatformDriverEvent.GET_ATTRIBUTE_VALUES, **kwargs)
+        result = self._plat_driver.get_resource(**kwargs)
+        return result
+
+    def _set_attribute_values(self, attrs):
+        self._assert_driver()
+        kwargs = dict(attrs=attrs)
+        result = self._plat_driver.set_resource(**kwargs)
         return result
 
     def _stop_resource_monitoring(self):
@@ -1237,9 +1247,8 @@ class PlatformAgent(ResourceAgent):
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r: launching instrument agent %r: CFG=%s",
                       self._platform_id, instrument_id, self._pp.pformat(i_CFG))
-        elif log.isEnabledFor(logging.DEBUG):  # pragma: no cover
-            log.debug("%r: launching instrument agent %r",
-                      self._platform_id, instrument_id)
+        else:
+            log.debug("%r: launching instrument agent %r", self._platform_id, instrument_id)
 
         pid = self._launcher.launch_instrument(instrument_id, i_CFG)
 
@@ -1389,10 +1398,6 @@ class PlatformAgent(ResourceAgent):
         self._instruments_go_active()
         self._subplatforms_go_active()
         result = None
-        return result
-
-    def _ping_resource(self):
-        result = self._trigger_driver_event(PlatformDriverEvent.PING)
         return result
 
     ##############################################################
@@ -1581,16 +1586,9 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        # TODO
-
-        result = None
+        result = self._plat_driver.get_resource_capabilities(*args, **kwargs)
         next_state = None
-
-#        result = self._dvr_client.cmd_dvr('get_resource_capabilities', *args, **kwargs)
-        res_cmds = []
-        res_params = []
-        result = [res_cmds, res_params]
-        return (next_state, result)
+        return next_state, result
 
     def _filter_capabilities(self, events):
 
@@ -1635,8 +1633,7 @@ class PlatformAgent(ResourceAgent):
             raise BadRequest('set_resource missing attrs argument.')
 
         try:
-            result = self._trigger_driver_event(PlatformDriverEvent.SET_ATTRIBUTE_VALUES,
-                                        **kwargs)
+            result = self._set_attribute_values(attrs)
             next_state = self.get_agent_state()
 
         except:
@@ -1645,19 +1642,31 @@ class PlatformAgent(ResourceAgent):
 
         return (next_state, result)
 
+    def _handler_execute_resource(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        result = self._plat_driver.execute_resource(*args, **kwargs)
+        return None, result
+
+    def _handler_get_resource_state(self, *args, **kwargs):
+        result = self._plat_driver.get_resource_state(*args, **kwargs)
+        return None, result
+
     def _handler_ping_resource(self, *args, **kwargs):
         """
         Pings the driver.
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._ping_resource()
+        result = self._trigger_driver_event(PlatformDriverEvent.PING)
 
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
+        return None, result
 
     def _handler_get_metadata(self, *args, **kwargs):
         """
@@ -1925,7 +1934,6 @@ class PlatformAgent(ResourceAgent):
 
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
-        self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
@@ -1933,6 +1941,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
+        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
@@ -1940,12 +1949,14 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RESET, self._handler_idle_reset)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RUN, self._handler_idle_run)
+        self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
         # STOPPED state event handlers.
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.RESUME, self._handler_stopped_resume)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.CLEAR, self._handler_stopped_clear)
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
@@ -1962,9 +1973,11 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.TURN_OFF_PORT, self._handler_turn_off_port)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+            self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
             self._fsm.add_handler(state, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
+            self._fsm.add_handler(state, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.CHECK_SYNC, self._handler_check_sync)
 
         # COMMAND state event handlers.
