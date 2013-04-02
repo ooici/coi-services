@@ -691,21 +691,9 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         stream_definition = self.pubsub_management.read_stream_definition(stream_id=stream_id)
         stream_def_id = stream_definition._id
         publisher = StandaloneStreamPublisher(stream_id, route)
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        now = time.time()
-        ntp_now = now + 2208988800 # Do not use in production, this is a loose translation
-
-        rdt['internal_timestamp'] = [ntp_now]
-        rdt['temp'] = [300000]
-        rdt['preferred_timestamp'] = ['driver_timestamp']
-        rdt['time'] = [ntp_now]
-        rdt['port_timestamp'] = [ntp_now]
-        rdt['quality_flag'] = [None]
-        rdt['lat'] = [45]
-        rdt['conductivity'] = [4341400]
-        rdt['driver_timestamp'] = [ntp_now]
-        rdt['lon'] = [-71]
-        rdt['pressure'] = [256.8]
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        rdt = ph.get_rdt(stream_def_id)
+        ph.fill_parsed_rdt(rdt)
 
         granule = rdt.to_granule()
         publisher.publish(granule)

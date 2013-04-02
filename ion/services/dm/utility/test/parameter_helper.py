@@ -5,6 +5,8 @@
 @brief Helpers for Parameters
 '''
 from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
+from ion.services.dm.utility.granule import RecordDictionaryTool
+import time
 import numpy as np
 
 class ParameterHelper(object):
@@ -18,6 +20,28 @@ class ParameterHelper(object):
 
         parsed_param_dict_id = self.dataset_management.create_parameter_dictionary('parsed', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary,parsed_param_dict_id)
+
+    def get_rdt(self, stream_def_id):
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        return rdt
+
+    def fill_parsed_rdt(self, rdt):
+        now = time.time()
+        ntp_now = now + 2208988800 # Do not use in production, this is a loose translation
+
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [300000]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['time'] = [ntp_now]
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['lat'] = [45]
+        rdt['conductivity'] = [4341400]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['lon'] = [-71]
+        rdt['pressure'] = [256.8]
+        return rdt
+
 
     def create_parsed_params(self):
         
