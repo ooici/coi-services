@@ -24,6 +24,7 @@ from ion.util.stored_values import StoredValueManager
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
 from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType
+from coverage_model.coverage import SimplexCoverage, ViewCoverage
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -785,9 +786,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         sub.stop()
 
+    def test_coverage_types(self):
+        # Make a simple dataset and start ingestion, pretty standard stuff.
+        ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        cov = DatasetManagementService._get_coverage(dataset_id=dataset_id)
+        self.assertIsInstance(cov, ViewCoverage)
 
-
-
-
-
-
+        cov = DatasetManagementService._get_simplex_coverage(dataset_id=dataset_id)
+        self.assertIsInstance(cov, SimplexCoverage)
