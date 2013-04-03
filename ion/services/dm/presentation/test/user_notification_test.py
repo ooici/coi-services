@@ -344,7 +344,7 @@ class UserNotificationEventsTest(PyonTestCase):
                 result=None)),
 
        dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
-            attr=dict(state=DeviceStatusType.OK,
+            attr=dict(status=DeviceStatusType.STATUS_OK,
                 description="Event to deliver the status of instrument.")),
     ]
 

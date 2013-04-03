@@ -45,7 +45,7 @@ from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue, ComputedDictValue, ComputedListValue, ComputedEventListValue
 # Alarm types and events.
-from interface.objects import StreamAlertType,AggregateStatusType, DeviceStatusEnum
+from interface.objects import StreamAlertType,AggregateStatusType, DeviceStatusType
 
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
@@ -418,9 +418,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
             log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
             if event.sub_type == 'WARNING':
-                self.assertEqual(DeviceStatusEnum.STATUS_WARNING, retval[AggregateStatusType.AGGREGATE_DATA])
+                self.assertEqual(DeviceStatusType.STATUS_WARNING, retval[AggregateStatusType.AGGREGATE_DATA])
             elif event.sub_type == 'ALL_CLEAR':
-                self.assertEqual(DeviceStatusEnum.STATUS_OK, retval[AggregateStatusType.AGGREGATE_DATA])
+                self.assertEqual(DeviceStatusType.STATUS_OK, retval[AggregateStatusType.AGGREGATE_DATA])
 
             #once the alert is recived and the aggregate status is also received then finish
             if self._agg_event_recieved and self._alert_event_recieved:
@@ -580,7 +580,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-            origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
+            origin = instDevice_id, status=DeviceStatusType.STATUS_WARNING, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
             origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
@@ -601,7 +601,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-            origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
+            origin = instDevice_id, status=DeviceStatusType.STATUS_WARNING, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
             origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 

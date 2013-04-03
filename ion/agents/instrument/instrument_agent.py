@@ -59,7 +59,7 @@ from ion.agents.alerts.alerts import *
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
 from interface.objects import StreamRoute, StreamAlertType
-from interface.objects import AgentCommand, StatusType, DeviceStatusEnum, AggregateStatusType
+from interface.objects import AgentCommand, StatusType, DeviceStatusType, AggregateStatusType
 
 class InstrumentAgentState():
     UNINITIALIZED='xxx'
@@ -839,38 +839,36 @@ class InstrumentAgent(ResourceAgent):
         #init working status
         updated_status = {}
         for aggregate_type in AggregateStatusType._str_map.keys():
-            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                updated_status[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
+            updated_status[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
 
         for a in self.aparam_alerts:
             log.debug('_process_aggregate_alerts a: %s', a)
             curr_state = a.get_status()
-            if a._aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                #get the current value for this aggregate status
-                current_agg_state = updated_status[ a._aggregate_type ]
-                if a._status:
-                    # this alert is not 'tripped' so the status is OK
-                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
-                    log.debug('_process_aggregate_alerts Clear')
-                    if current_agg_state is DeviceStatusEnum.STATUS_UNKNOWN:
-                        updated_status[ a._aggregate_type ]  = DeviceStatusEnum.STATUS_OK
 
-                else:
-                    #the alert is active, either a warning or an alarm
-                    if a._alert_type is StreamAlertType.ALARM:
-                        log.debug('_process_aggregate_alerts Critical')
-                        updated_status[ a._aggregate_type ] = DeviceStatusEnum.STATUS_CRITICAL
-                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusEnum.STATUS_CRITICAL:
-                        log.debug('_process_aggregate_alerts Warn')
-                        updated_status[ a._aggregate_type ] = DeviceStatusEnum.STATUS_WARNING
+            #get the current value for this aggregate status
+            current_agg_state = updated_status[ a._aggregate_type ]
+            if a._status:
+                # this alert is not 'tripped' so the status is OK
+                #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                log.debug('_process_aggregate_alerts Clear')
+                if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
+                    updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
+
+            else:
+                #the alert is active, either a warning or an alarm
+                if a._alert_type is StreamAlertType.ALARM:
+                    log.debug('_process_aggregate_alerts Critical')
+                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
+                elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
+                    log.debug('_process_aggregate_alerts Warn')
+                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
 
         #compare old state with new state and publish alerts for any agg status that has changed.
         for aggregate_type in AggregateStatusType._str_map.keys():
-            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                if updated_status[aggregate_type] != self.aparam_aggstatus[aggregate_type]:
-                    log.debug('_process_aggregate_alerts pubevent')
-                    self._publish_agg_status_event(aggregate_type, updated_status[aggregate_type],self.aparam_aggstatus[aggregate_type])
-                    self.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
+            if updated_status[aggregate_type] != self.aparam_aggstatus[aggregate_type]:
+                log.debug('_process_aggregate_alerts pubevent')
+                self._publish_agg_status_event(aggregate_type, updated_status[aggregate_type],self.aparam_aggstatus[aggregate_type])
+                self.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
 
         return
 
@@ -1353,8 +1351,7 @@ class InstrumentAgent(ResourceAgent):
 
         # Always default the aggstatus to unknown.
         for aggregate_type in AggregateStatusType._str_map.keys():
-            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                self.aparam_aggstatus[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
+            self.aparam_aggstatus[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
 
     def _restore_resource(self):
         """

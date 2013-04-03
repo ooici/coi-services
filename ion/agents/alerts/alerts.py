@@ -45,8 +45,6 @@ class BaseAlert(object):
 
         if aggregate_type:
             assert aggregate_type in AggregateStatusType._str_map.keys()
-        else:
-            aggregate_type = AggregateStatusType.AGGREGATE_OTHER
 
         if value_id: assert isinstance(value_id, str)
         assert isinstance(resource_id, str)
