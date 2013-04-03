@@ -25,7 +25,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
-from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext
+from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext, Attachment, AttachmentType, ReferenceAttachmentContext
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.stored_values import StoredValueManager
 from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum
@@ -633,7 +633,9 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
     def ctd_l2_data_product(self):
         available_fields = [
-                'conductivity_L1',
+                'qc_temp_global_range',
+                'qc_pressure_global_range',
+                'qc_conductivity_global_range',
                 'time', 
                 'salinity',
                 'lookup_density']
@@ -1291,6 +1293,16 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         success = poll(verifier2)
         self.assertTrue(success)
         svm.delete_stored_value('example_document')
+
+    def make_grt_parser(self):
+        return self.data_acquisition_management.create_parser(name='grt', description='', module='ion.util.parsers.global_range_test', method='grt_parser', config=None)
+    
+    def attach_reference(self, data_product_id, parser_id, document):
+        attachment = Attachment(name='qc ref', attachment_type=AttachmentType.REFERENCE,content=document, context=ReferenceAttachmentContext(parser_id=parser_id))
+        att_id = self.resource_registry.create_attachment(data_product_id, attachment)
+        self.addCleanup(self.resource_registry.delete_attachment, att_id)
+        return att_id
+
             
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -1301,6 +1313,9 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         platform_data_product_id = self.ctd_platform_data_product()
 
         output_data_product_id = self.ctd_l2_data_product()
+
+        parser_id = self.make_grt_parser()
+        self.attach_reference(output_data_product_id, parser_id, global_range_test_document)
 
 
         stored_value_dpd_id = self.dpd_stored_value_transform()
@@ -1327,9 +1342,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         success = poll(verify_platform_doc)
         self.assertTrue(success)
 
-        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[output_data_product_id])
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[output_data_product_id], configuration={'process':{'lookup_docs':['platform_persistence']}})
         self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
-        self.attach_qc_document(output_data_product_id, 'platform_persistence')
 
         self.data_process_management.activate_data_process2(data_process_id)
         self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
@@ -1350,8 +1364,10 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         def validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
             np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.93513240786831]))
-            np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
             np.testing.assert_array_almost_equal(rdt['lookup_density'], np.array([1021.7144739593881]))
+            np.testing.assert_array_almost_equal(rdt['qc_temp_global_range'], np.array([1.]))
+            np.testing.assert_array_almost_equal(rdt['qc_pressure_global_range'], np.array([1.]))
+            np.testing.assert_array_almost_equal(rdt['qc_conductivity_global_range'], np.array([0.]))
             validated.set()
         self.setup_subscriber(output_data_product_id, callback=validation)
         self.publish_to_data_product(instrument_data_product_id, rdt)
@@ -1388,8 +1404,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             rdt = RecordDictionaryTool.load_from_granule(msg)
 
             np.testing.assert_array_almost_equal(rdt['qc_temp_global_range'], np.array([1.]))
-            np.testing.assert_array_almost_equal(rdt['qc_pressure_global_range'], np.array([0.]))
-            np.testing.assert_array_almost_equal(rdt['qc_conductivity_global_range'], np.array([1.]))
+            np.testing.assert_array_almost_equal(rdt['qc_pressure_global_range'], np.array([1.]))
+            np.testing.assert_array_almost_equal(rdt['qc_conductivity_global_range'], np.array([0.]))
 
             validated.set()
 
@@ -1398,11 +1414,9 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         stream_def_ids, _ = self.resource_registry.find_objects(instrument_data_product_id, PRED.hasStreamDefinition, id_only=True)
         stream_def_id = stream_def_ids[0]
 
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = [0]
-        rdt['conductivity'] = [2.]
-        rdt['pressure'] = [30.] # out of range
-        rdt['temp'] = [12.32]
+        ph.fill_parsed_rdt(rdt)
 
         self.publish_to_data_product(instrument_data_product_id, rdt)
         
