@@ -266,6 +266,8 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("activating deployment, expecting success")
         self.omsclient.activate_deployment(res.deployment_id)
 
+        log.debug("deactivatin deployment, expecting success")
+        self.omsclient.deactivate_deployment(res.deployment_id)
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nomodels(self):
@@ -335,7 +337,8 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_device_id = [self.RR2.create(any_old(RT.InstrumentDevice)) for _ in range(9)]
         platform_device_id   = [self.RR2.create(any_old(RT.PlatformDevice)) for _ in range(4)]
 
-        deployment_id = self.RR2.create(any_old(RT.Deployment))
+        deployment_id = self.RR2.create(any_old(RT.Deployment,
+                                        {"context": IonObject(OT.RemotePlatformDeploymentContext)}))
 
         def instrument_model_at(platform_idx, instrument_idx):
             m = platform_idx * 2
