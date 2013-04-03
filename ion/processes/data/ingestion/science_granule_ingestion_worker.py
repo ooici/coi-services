@@ -188,7 +188,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
     def fill_lookup_values(self, rdt):
         rdt.fetch_lookup_values()
         for field in rdt.lookup_values():
-            value = self.get_stored_values(field)
+            value = self.get_stored_values(rdt.context(field).lookup_value)
             rdt[field] = [value] * len(rdt)
 
     def insert_sparse_values(self, coverage, rdt, stream_id):

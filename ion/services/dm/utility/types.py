@@ -155,7 +155,7 @@ class TypesManager(object):
         pc.lookup_value = document_val
         pc.document_key = document_key
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
-        self.parameter_lookups[value] = ctxt_id
+        self.parameter_lookups[placeholder] = ctxt_id
         return value, placeholder
 
     def has_lookup_value(self, context):
@@ -183,7 +183,7 @@ class TypesManager(object):
             if isinstance(v, basestring) and 'LV' in v:
                 value, placeholder = self.get_lookup_value(v)
                 pmap[k] = placeholder
-                lookup_values.append(value)
+                lookup_values.append(placeholder)
         func = deepcopy(self.get_pfunc(pfid))
         func.param_map = pmap
         if lookup_values:

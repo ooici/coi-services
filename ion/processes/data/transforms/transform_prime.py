@@ -147,7 +147,7 @@ class TransformPrime(TransformDataProcess):
 
         for lookup_field in rdt_temp.lookup_values():
             s = lookup_field
-            stored_value = self._get_lookup_value(s)
+            stored_value = self._get_lookup_value(rdt_temp.context(s).lookup_value)
             if stored_value is not None:
                 rdt_temp[s] = stored_value
         
