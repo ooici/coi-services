@@ -185,7 +185,13 @@ instruments_dict = {
         'PA_BINARY' : "port_agent"
     },
 
-
+    "SBE37_SIM_08": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4008,
+        'DATA_PORT' : 5008,
+        'CMD_PORT'  : 6008,
+        'PA_BINARY' : "port_agent"
+    },
 }
 
 # The value should probably be defined in pyon.yml or some common place so
