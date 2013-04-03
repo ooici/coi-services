@@ -1516,8 +1516,11 @@ Reason: %s
                     context.lookup_value = name
                     context.document_key = ''
                 else:
-                    context.lookup_value = name
-                    context.document_key = lookup_value
+                    if '||' in lookup_value:
+                        context.lookup_value,context.document_key = lookup_value.split('||')
+                    else:
+                        context.lookup_value = name
+                        context.document_key = lookup_value
 
 
         except TypeError as e:
