@@ -1189,6 +1189,54 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[],configuration=config)
         self.addCleanup(self.data_process_management.delete_data_process2,data_process_id)
 
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+
+        stream_def_ids, _ = self.resource_registry.find_objects(input_data_product_id, PRED.hasStreamDefinition, id_only=True)
+        stream_def_id = stream_def_ids[0]
+        svm = StoredValueManager(self.container)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['lat'] = [40.38]
+        rdt['lon'] = [-72.21]
+
+        self.publish_to_data_product(input_data_product_id, rdt)
+
+        def verifier():
+            svm = StoredValueManager(self.container)
+            try:
+                doc = svm.read_value('example_document')
+            except NotFound:
+                return False
+            np.testing.assert_almost_equal(doc['lat'], 40.38, 4)
+            np.testing.assert_almost_equal(doc['lon'], -72.21, 4)
+            return True
+        success = poll(verifier)
+        self.assertTrue(success)
+        svm.delete_stored_value('example_document')
+
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0,1,2]
+        rdt['lat'] = np.array([40.38, 40.36, 40.37])
+        rdt['lon'] = np.array([-72.21, -72.22, -72.23])
+        self.publish_to_data_product(input_data_product_id, rdt)
+
+        def verifier2():
+            svm = StoredValueManager(self.container)
+            try:
+                doc = svm.read_value('example_document')
+            except NotFound:
+                return False
+            np.testing.assert_almost_equal(doc['lat'], 40.37, 4)
+            np.testing.assert_almost_equal(doc['lon'], -72.23, 4)
+            return True
+        success = poll(verifier2)
+        self.assertTrue(success)
+        svm.delete_stored_value('example_document')
+            
+
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_global_range_test(self):
