@@ -781,7 +781,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
         self.data_process_management.activate_data_process(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
     
 
         validated = Event()
@@ -823,7 +823,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
         self.data_process_management.activate_data_process(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
         stored_value_manager = StoredValueManager(self.container)
         lookup_table = {
@@ -1168,7 +1168,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
         self.data_process_management.activate_data_process(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
 
         #--------------------------------------------------------------------------------
@@ -1230,7 +1230,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_data_process,data_process_id)
 
         self.data_process_management.activate_data_process(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
         stream_def_ids, _ = self.resource_registry.find_objects(input_data_product_id, PRED.hasStreamDefinition, id_only=True)
         stream_def_id = stream_def_ids[0]
@@ -1297,7 +1297,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
         self.data_process_management.activate_data_process(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
     
 
         validated = Event()
