@@ -257,11 +257,6 @@ class EventManagementService(BaseEventManagementService):
                                                             predicate=PRED.hasProcessDefinition,
                                                             object=process_definition_id)
 
-        #-------------------------------------------------------------------------
-        # Register the process as a data producer
-        #-------------------------------------------------------------------------
-        self.clients.data_acquisition_management.register_event_process(process_id = pid)
-
         return pid
 
     def update_event_process(self):
