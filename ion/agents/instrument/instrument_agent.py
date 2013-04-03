@@ -1317,7 +1317,7 @@ class InstrumentAgent(ResourceAgent):
                 stream_def = config['stream_definition_ref']
                 rdt = RecordDictionaryTool(stream_definition_id=stream_def)
                 self.aparam_streams[stream_name] = rdt.fields
-                if 'aparam_pubrate' not in aparams:
+                if 'pubrate' in aparams:
                     self.aparam_pubrate[stream_name] = 0                
 
         # If specified and configed, build the pubrate aparam.
