@@ -427,16 +427,18 @@ class PlatformAgent(ResourceAgent):
         while PlatformAgentState.UNINITIALIZED != curr_state and attempts <= 3:
             attempts += 1
             try:
-                # all main states accept the RESET event so the following
-                # should work in general:
+                # most states accept the RESET event except as handled below.
+
+                if PlatformAgentState.STOPPED == curr_state:
+                    self._fsm.on_event(PlatformAgentEvent.CLEAR)
+                    continue
+
+                # RESET is accepted in any other state:
                 self._fsm.on_event(PlatformAgentEvent.RESET)
 
-            except FSMStateError as e:
-                #
-                # if this happens, need to consider unhandled case!
-                # TODO adjust logic to do appropriate action depending on
-                # the current state.
-                log.warn("TODO: for the quit sequence, a RESET event was tried "
+            except FSMStateError:
+                # Should not happen.
+                log.warn("For the quit sequence, a RESET event was tried "
                          "in a state (%s) that does not handle it; please "
                          "report this bug. (platform_id=%r)",
                          curr_state, self._platform_id)
