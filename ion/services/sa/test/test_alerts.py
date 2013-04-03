@@ -11,14 +11,7 @@
 from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
-from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
-from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
-from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
@@ -26,11 +19,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from nose.plugins.attrib import attr
-from ion.services.dm.utility.granule_utils import time_series_domain
-
-
 from pyon.public import CFG, RT, PRED
-
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentClient
 
@@ -99,47 +88,11 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
     pdict_id = None
 
     def setUp(self):
-        # Start container
-        #print 'instantiating container'
         self._start_container()
-        #container = Container()
-        #print 'starting container'
-        #container.start()
-        #print 'started container'
-
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        print 'started services'
-
         # Now create client to DataProductManagementService
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
-        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
-        self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
-        self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
-        self.dataset_management = self.datasetclient
-
-    def create_logger(self, name, stream_id=''):
-
-        # logger process
-        producer_definition = ProcessDefinition(name=name+'_logger')
-        producer_definition.executable = {
-            'module':'ion.processes.data.stream_granule_logger',
-            'class':'StreamGranuleLogger'
-        }
-
-        logger_procdef_id = self.processdispatchclient.create_process_definition(process_definition=producer_definition)
-        configuration = {
-            'process':{
-                'stream_id':stream_id,
-                }
-        }
-        pid = self.processdispatchclient.schedule_process(process_definition_id= logger_procdef_id, configuration=configuration)
-
-        return pid
 
     def _create_instrument_model(self):
 
@@ -205,8 +158,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
     def test_alerts(self):
 
-        self.loggerpids = []
-
         #-------------------------------------------------------------------------------------
         # Create InstrumentModel
         #-------------------------------------------------------------------------------------
@@ -254,7 +205,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         # Streaming
         #-------------------------------------------------------------------------------------
 
-
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
@@ -273,44 +223,15 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         self.assertTrue(reply.status == 0)
 
-        #todo ResourceAgentClient no longer has method set_param
-        #        # Make sure the sampling rate and transmission are sane.
-        #        params = {
-        #            SBE37Parameter.NAVG : 1,
-        #            SBE37Parameter.INTERVAL : 5,
-        #            SBE37Parameter.TXREALTIME : True
-        #        }
-        #        self._ia_client.set_param(params)
-
-
-        #todo There is no ResourceAgentEvent attribute for go_streaming... so what should be the command for it?
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
         # This gevent sleep is there to test the autosample time, which will show something different from default
         # only if the instrument runs for over a minute
-        gevent.sleep(90)
-
-        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id)
-
-        self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
-
-        autosample_string = extended_instrument.computed.uptime.value
-        autosampling_time = int(autosample_string.split()[4])
-
-        self.assertTrue(autosampling_time > 0)
+        gevent.sleep(45)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
-
-        #todo There is no ResourceAgentEvent attribute for go_observatory... so what should be the command for it?
-        #        log.debug("test_activateInstrumentStream: calling go_observatory")
-        #        cmd = AgentCommand(command='go_observatory')
-        #        reply = self._ia_client.execute_agent(cmd)
-        #        cmd = AgentCommand(command='get_current_state')
-        #        retval = self._ia_client.execute_agent(cmd)
-        #        state = retval.result
-        #        log.debug("test_activateInstrumentStream: return from go_observatory state  %s", str(state))
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         reply = self._ia_client.execute_agent(cmd)
@@ -320,17 +241,5 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------------------
         # Cleanup processes
         #-------------------------------------------------------------------------------------------------
-        for pid in self.loggerpids:
-            self.processdispatchclient.cancel_process(pid)
-
-
-        #--------------------------------------------------------------------------------
-        # Cleanup data products
-        #--------------------------------------------------------------------------------
-        dp_ids, _ = self.rrclient.find_resources(restype=RT.DataProduct, id_only=True)
-
-        for dp_id in dp_ids:
-            self.dataproductclient.delete_data_product(dp_id)
-
 
 
