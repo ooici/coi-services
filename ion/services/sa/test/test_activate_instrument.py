@@ -289,59 +289,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s (SA Req: L4-CI-SA-RQ-241) " , instDevice_id)
 
 
-
-        #Create stream alarms
-        """
-        test_two_sided_interval
-        Test interval alarm and alarm event publishing for a closed
-        inteval.
-        """
-
-        temp_alert_def = {
-            'name' : 'temperature_warning_interval',
-            'stream_name' : 'parsed',
-            'message' : 'Temperature is below the normal range of 50.0 and above.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'temp',
-            'resource_id' : instDevice_id,
-            'origin_type' : 'device',
-            'lower_bound' : 50.0,
-            'lower_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-
-        pressure_alert_def = {
-            'name' : 'pressure_warning_interval',
-            'stream_name' : 'parsed',
-            'message' : 'Pressure is below the normal range of 50.0 and above.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'pressure',
-            'resource_id' : instDevice_id,
-            'origin_type' : 'device',
-            'lower_bound' : 50.0,
-            'lower_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-
-        late_data_alert_def = {
-            'name' : 'late_data_warning',
-            'stream_name' : 'parsed',
-            'message' : 'Expected data has not arrived.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
-            'value_id' : None,
-            'resource_id' : instDevice_id,
-            'origin_type' : 'device',
-            'time_delta' : 2,
-            'get_state' : ResourceAgentState.STREAMING,
-            'alert_class' : 'LateDataAlert'
-        }
-
-
-
-
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
             'device_port':  CFG.device.sbe37.port,
@@ -357,15 +304,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           port_agent_config = port_agent_config,
-                                            alerts= [temp_alert_def, late_data_alert_def])
+                                            alerts= [])
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
                                                                                instAgent_id,
                                                                                instDevice_id)
-
-
-
 
 
         tdom, sdom = time_series_domain()
@@ -591,19 +535,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         temp_vals = rdt['temp']
         pressure_vals  = rdt['pressure']
         self.assertEquals(10, len(temp_vals))
-        log.debug("test_activateInstrumentSample: all temp_vals: %s", temp_vals )
-        log.debug("test_activateInstrumentSample: all pressure_vals: %s", pressure_vals )
-
-        out_of_range_temp_vals = [i for i in temp_vals if i < 50.0]
-        log.debug("test_activateInstrumentSample: Out_of_range_temp_vals: %s", out_of_range_temp_vals )
-
-        # if no bad values were produced, then do not wait for an event
-        if len(out_of_range_temp_vals) == 0:
-            self._async_sample_result.set()
-
-        log.debug("test_activateInstrumentSample: _events_received: %s", self._events_received )
-
-        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
         self.assertIsInstance(replay_data, Granule)

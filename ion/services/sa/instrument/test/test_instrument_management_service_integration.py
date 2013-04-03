@@ -511,7 +511,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_child_config(config, device_id, inst_device_id=None):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual(org_obj.name, config['org_name'])
+            self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertEqual({'resource_id': device_id}, config['agent'])
             self.assertIn('aparam_alert_config', config)

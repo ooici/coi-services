@@ -559,7 +559,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         config = DotDict()
         config.op = 'load'
         config.scenario = 'BASE,LC_TEST'
-        config.categories = 'ParameterFunctions,ParameterDefs,ParameterDictionary'
+        config.categories = 'ParameterFunctions,ParameterDefs,ParameterDictionary,Parser'
         config.path = 'res/preload/r2_ioc'
         
         self.container.spawn_process('preload','ion.processes.bootstrap.ion_loader','IONLoader', config)
@@ -683,7 +683,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         granule = rdt.to_granule()
         publisher.publish(granule)
 
-    def publish_to_data_product(self, data_product_id):
+    def publish_to_data_product(self, data_product_id, rdt=None):
         stream_ids, _ = self.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
         self.assertTrue(len(stream_ids))
         stream_id = stream_ids.pop()
@@ -692,8 +692,9 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         stream_def_id = stream_definition._id
         publisher = StandaloneStreamPublisher(stream_id, route)
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
-        rdt = ph.get_rdt(stream_def_id)
-        ph.fill_parsed_rdt(rdt)
+        if not rdt:
+            rdt = ph.get_rdt(stream_def_id)
+            ph.fill_parsed_rdt(rdt)
 
         granule = rdt.to_granule()
         publisher.publish(granule)
@@ -792,12 +793,16 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
                 'offset_a': 2.781
                 }
         stored_value_manager.stored_value_cas('calibrated_ctd', lookup_table)
+        self.addCleanup(stored_value_manager.delete_stored_value, 'calibrated_ctd')
+
+        stored_value_manager.stored_value_cas('coefficient_document', {'offset_b': 10.})
 
         validated=Event()
         def validation(msg, route, stream_id):
             rdt = RecordDictionaryTool.load_from_granule(msg)
             np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([22.781]))
+            np.testing.assert_array_equal(rdt['calibrated_b'], np.array([32.781]))
             validated.set()
 
         self.setup_subscriber(offset_data_product_id, callback=validation)
@@ -846,6 +851,23 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_plain_data_product(instrument_data_product_id)
 
         self.assertTrue(validated.wait(10))
+
+        stored_value_manager.stored_value_cas('lctest', {'lookup_val':10.})
+
+        validated2 = Event()
+        def validation2(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['calibrated_temperature'], np.array([22.781]))
+            np.testing.assert_array_almost_equal(rdt['extended_calibrated_temperature'], np.array([12.781]))
+            validated2.set()
+        self.setup_subscriber(offset_data_product_id, callback=validation2)
+        self.publish_to_plain_data_product(instrument_data_product_id)
+
+        self.assertTrue(validated2.wait(10))
+
+
+
    
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -1087,10 +1109,10 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         # Output DataProduct with lookup values
         #-------------------------------------------------------------------------------- 
         
-        contexts = self.create_lookup_contexts()
-        context_ids = [c_id for c,c_id in contexts.itervalues()]
-        pdict_id = self.dataset_management.create_parameter_dictionary(name='lookup_pdict', parameter_context_ids=context_ids, temporal_context='time')
-        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+
+        pdict_id = ph.create_lookups()
+
         stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
 
@@ -1167,6 +1189,60 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         data_process_id = self.data_process_management.create_data_process2(data_process_definition_id=data_process_definition_id, in_data_product_ids=[input_data_product_id], out_data_product_ids=[],configuration=config)
         self.addCleanup(self.data_process_management.delete_data_process2,data_process_id)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+    def test_global_range_test(self):
+        self.lc_preload()
+        parsers, _ = self.resource_registry.find_resources(restype=RT.Parser, name='Global Range Test', id_only=True)
+        parser_id = parsers[0]
+        self.data_acquisition_management.parse_qc_reference(parser_id, document=global_range_test_document)
+
+        svm = StoredValueManager(self.container)
+        doc = svm.read_value('grt_TEST_CONDWAT_CONDWAT')
+        self.assertEquals(doc['grt_min_value'], 0.)
+        self.assertEquals(doc['grt_max_value'], 30.)
+
+        instrument_data_product_id = self.ctd_instrument_data_product()
+        global_range_test_data_product_id = self.make_data_product('global_range_ctp','global range')
+
+        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[global_range_test_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+    
+
+        validated = Event()
+
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+
+            np.testing.assert_array_almost_equal(rdt['qc_temp_global_range'], np.array([1.]))
+            np.testing.assert_array_almost_equal(rdt['qc_pressure_global_range'], np.array([0.]))
+            np.testing.assert_array_almost_equal(rdt['qc_conductivity_global_range'], np.array([1.]))
+
+            validated.set()
+
+        self.setup_subscriber(global_range_test_data_product_id, callback=validation)
+
+        stream_def_ids, _ = self.resource_registry.find_objects(instrument_data_product_id, PRED.hasStreamDefinition, id_only=True)
+        stream_def_id = stream_def_ids[0]
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['conductivity'] = [2.]
+        rdt['pressure'] = [30.] # out of range
+        rdt['temp'] = [12.32]
+
+        self.publish_to_data_product(instrument_data_product_id, rdt)
+        
+        self.assertTrue(validated.wait(10))
 
 
+
+
+global_range_test_document = '''Array,Instrument Class,Reference Designator,Data Product In,Units,Data Product Flagged,Min Value (lim(1)),Max Value (lim(2))
+Array 1,SBE37,TEST,TEMPWAT,deg_C,TEMPWAT,10,28
+Array 1,SBE37,TEST,CONDWAT,S m-1,CONDWAT,0,30
+Array 1,SBE37,TEST,PRESWAT,dbar,PRESWAT,0,20'''
 

@@ -4,7 +4,7 @@
 @file ion/services/dm/utility/test/parameter_helper.py
 @brief Helpers for Parameters
 '''
-from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
+from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction, SparseConstantType
 from ion.services.dm.utility.granule import RecordDictionaryTool
 import time
 import numpy as np
@@ -224,12 +224,21 @@ class ParameterHelper(object):
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
+        offset_ctxt = ParameterContext(name='offset_a', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         offset_ctxt.uom = ''
-        offset_ctxt.lookup_value = True
+        offset_ctxt.lookup_value = 'offset_a'
+        offset_ctxt.document_key = ''
         offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
         contexts['offset_a'] = offset_ctxt, offset_ctxt_id
+
+        offsetb_ctxt = ParameterContext('offset_b', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999))
+        offsetb_ctxt.uom = ''
+        offsetb_ctxt.lookup_value = 'offset_b'
+        offsetb_ctxt.document_key = 'coefficient_document'
+        offsetb_ctxt_id = self.dataset_management.create_parameter_context(name='offset_b', parameter_context=offsetb_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, offsetb_ctxt_id)
+        contexts['offset_b'] = offsetb_ctxt, offsetb_ctxt_id
 
         func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
         func.lookup_values = ['LV_offset']
@@ -238,5 +247,13 @@ class ParameterHelper(object):
         calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
         contexts['calibrated'] = calibrated, calibrated_id
+
+        func = NumexprFunction('calibrated_b', 'temp + offset_a + offset_b', ['temp','offset_a', 'offset_b'], param_map={'temp':'temp', 'offset_a':'offset_a', 'offset_b':'offset_b'})
+        func.lookup_values = ['LV_offset_a', 'LV_offset_b']
+        calibrated_b = ParameterContext('calibrated_b', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
+        calibrated_b.uom = 'deg_C'
+        calibrated_b_id = self.dataset_management.create_parameter_context(name='calibrated_b', parameter_context=calibrated_b.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_b_id)
+        contexts['calibrated_b'] = calibrated_b, calibrated_b_id
 
         return contexts
