@@ -1194,6 +1194,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
         stream_def_ids, _ = self.resource_registry.find_objects(input_data_product_id, PRED.hasStreamDefinition, id_only=True)
         stream_def_id = stream_def_ids[0]
+        svm = StoredValueManager(self.container)
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = [0]
         rdt['lat'] = [40.38]
@@ -1212,7 +1213,26 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
             return True
         success = poll(verifier)
         self.assertTrue(success)
-        svm = StoredValueManager(self.container)
+        svm.delete_stored_value('example_document')
+
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0,1,2]
+        rdt['lat'] = np.array([40.38, 40.36, 40.37])
+        rdt['lon'] = np.array([-72.21, -72.22, -72.23])
+        self.publish_to_data_product(input_data_product_id, rdt)
+
+        def verifier2():
+            svm = StoredValueManager(self.container)
+            try:
+                doc = svm.read_value('example_document')
+            except NotFound:
+                return False
+            np.testing.assert_almost_equal(doc['lat'], 40.37, 4)
+            np.testing.assert_almost_equal(doc['lon'], -72.23, 4)
+            return True
+        success = poll(verifier2)
+        self.assertTrue(success)
         svm.delete_stored_value('example_document')
             
 

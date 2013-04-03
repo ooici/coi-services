@@ -6,6 +6,7 @@
 '''
 
 from pyon.core.exception import NotFound
+import gevent
 
 
 
@@ -22,6 +23,11 @@ class StoredValueManager(object):
         except NotFound:
             doc_id, rev = self.store.create_doc(document_updates, object_id=doc_key)
             return doc_id, rev
+        except KeyError as e:
+            if 'http' in e.message:
+                doc_id, rev = self.store.create_doc(document_updates, object_id=doc_key)
+                return doc_id, rev
+
         for k,v in document_updates.iteritems():
             doc[k] = v
         doc_id, rev = self.store.update_doc(doc)

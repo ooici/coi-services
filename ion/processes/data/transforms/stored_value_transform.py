@@ -11,6 +11,17 @@ from ion.services.dm.utility.granule import RecordDictionaryTool
 import numpy as np
 
 class StoredValueTransform(TransformStreamListener):
+    '''
+    Receives granules from a stream and persists the latest value in the object store
+
+    Background:
+        Platforms publish geospatial information on a separate stream from the 
+        instruments. Various data products require geospatial information about
+        the instrument to calculate the variables. This component persists the
+        latest value in a simple data storage container where complex data
+        containers can access it.
+    '''
+        
     def on_start(self):
         TransformStreamListener.on_start(self)
         self.document_key = self.CFG.get_safe('process.document_key')
@@ -26,17 +37,11 @@ class StoredValueTransform(TransformStreamListener):
             value_array = np.atleast_1d(v[:])
             print 'Some Values: ', repr(value_array)
             if 'f' in value_array.dtype.str:
-                print 'Storing'
-                if value_array.shape == (1,):
-                    document[k] = float(value_array[0])
-                else:
-                    document[k] = [float(i) for i in value_array]
+                print 'Storing ', k
+                document[k] = float(value_array[-1])
             elif 'i' in value_array.dtype.str:
-                print 'Storing'
-                if value_array.shape == (1,):
-                    document[k] = int(value_array[0])
-                else:
-                    document[k] = [int(i) for i in value_array]
+                print 'Storing ', k
+                document[k] = int(value_array[-1])
 
         self.stored_value_manager.stored_value_cas(self.document_key, document)
 
