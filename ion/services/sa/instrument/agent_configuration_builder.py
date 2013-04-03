@@ -194,12 +194,12 @@ class AgentConfigurationBuilder(object):
         return self.generate_config()
 
 
-    def _generate_org_name(self):
-        log.debug("_generate_org_name for %s", self.agent_instance_obj.name)
-        log.debug("retrieve the Org name to which this agent instance belongs")
+    def _generate_org_governance_name(self):
+        log.debug("_generate_org_governance_name for %s", self.agent_instance_obj.name)
+        log.debug("retrieve the Org governance name to which this agent instance belongs")
         try:
             org_obj = self.RR2.find_subject(RT.Org, PRED.hasResource, self.agent_instance_obj._id, id_only=False)
-            return org_obj.name
+            return org_obj.org_governance_name
         except NotFound:
             return ''
         except:
@@ -332,7 +332,7 @@ class AgentConfigurationBuilder(object):
 
         # Create agent_ config.
         agent_config['instance_name']       = self.agent_instance_obj.name
-        agent_config['org_name']            = self._generate_org_name()
+        agent_config['org_governance_name'] = self._generate_org_governance_name()
         agent_config['device_type']         = self._generate_device_type()
         agent_config['driver_config']       = self._generate_driver_config()
         agent_config['stream_config']       = self._generate_stream_config()
