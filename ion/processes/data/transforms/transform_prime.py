@@ -118,6 +118,7 @@ class TransformPrime(TransformDataProcess):
 
     def _get_lookup_value(self, lookup_value):
         lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
+        print 'Document Keys are: ', lookup_value_document_keys
         for key in lookup_value_document_keys:
             try:
                 document = self.stored_values.read_value(key)
@@ -147,12 +148,15 @@ class TransformPrime(TransformDataProcess):
 
         for lookup_field in rdt_temp.lookup_values():
             s = lookup_field
+            print 'Lookup field: ', s
             stored_value = self._get_lookup_value(rdt_temp.context(s).lookup_value)
             if stored_value is not None:
+                print 'Storing %s: %s' %(s, stored_value)
                 rdt_temp[s] = stored_value
         
         for field in rdt_temp.fields:
             if isinstance(rdt_temp._pdict.get_context(field).param_type, ParameterFunctionType):
+                print 'Setting %s: %s' %(field, rdt_temp[field])
                 rdt_temp[field] = rdt_temp[field]
 
         

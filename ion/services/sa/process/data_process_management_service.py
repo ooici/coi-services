@@ -791,6 +791,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if need_lookup_docs:
             for data_product_id in input_data_product_ids:
                 retval.extend(self.clients.data_acquisition_management.list_qc_references(data_product_id))
+            for data_product_id in output_data_product_ids:
+                retval.extend(self.clients.data_acquisition_management.list_qc_references(data_product_id))
         return retval
 
     def _manage_routes(self, routes):
