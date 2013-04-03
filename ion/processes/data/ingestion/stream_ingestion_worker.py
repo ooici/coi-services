@@ -10,8 +10,10 @@ from interface.objects import Granule
 from ion.core.process.transform import TransformStreamListener
 from ion.util.time_utils import TimeUtils
 
-from pyon.public import log, RT, PRED, CFG
+from pyon.public import log, RT, PRED, CFG, OT
 from pyon.util.arg_check import validate_is_instance
+from pyon.event.event import EventPublisher
+from pyon.core.object import IonObjectSerializer
 
 import collections
 import time
@@ -29,21 +31,28 @@ class StreamIngestionWorker(TransformStreamListener):
         self._datasets = collections.OrderedDict()
         self._coverages = collections.OrderedDict()
 
+
+    def on_start(self): #pragma no cover
+        super(StreamIngestionWorker,self).on_start()
+        self.event_publisher = EventPublisher(OT.DatasetModified)
+
     def recv_packet(self, msg, stream_route, stream_id):
         validate_is_instance(msg, Granule, 'Incoming packet must be of type granule')
 
         cov = self.get_coverage(stream_id)
-
         if cov:
             cov.insert_timesteps(1)
 
             if 'raw' in cov.list_parameters():
-                cov.set_parameter_value(parameter_name='raw', value=[msg])
+                gran = IonObjectSerializer().serialize(msg)
+                cov.set_parameter_values(param_name='raw', value=[gran])
 
             if 'ingestion_timestamp' in cov.list_parameters():
                 t_now = time.time()
                 ntp_time = TimeUtils.ts_to_units(cov.get_parameter_context('ingestion_timestamp').uom, t_now)
                 cov.set_parameter_values(param_name='ingestion_timestamp', value=ntp_time)
+
+            self.dataset_changed(self.get_dataset(stream_id), cov.num_timesteps)
 
     def on_quit(self): #pragma no cover
         super(StreamIngestionWorker, self).on_quit()
@@ -96,3 +105,6 @@ class StreamIngestionWorker(TransformStreamListener):
                 coverage.close(timeout=5)
         self._coverages[stream_id] = result
         return result
+
+    def dataset_changed(self, dataset_id, extents):
+        self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents)
