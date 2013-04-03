@@ -248,7 +248,7 @@ class HighAvailabilityAgentTest(BaseHighAvailabilityAgentTest):
         self.haa_client.reconfigure_policy(new_policy)
 
         result = self.haa_client.dump().result
-        self.assertEqual(result['policy'], new_policy)
+        self.assertEqual(result['policy_params'], new_policy)
 
         self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
 
@@ -328,7 +328,7 @@ class HighAvailabilityAgentTest(BaseHighAvailabilityAgentTest):
 
         new_policy = {'preserve_n': 0}
         dashi_conn.call(self._haa_dashi_name, "reconfigure_policy",
-            new_policy=new_policy)
+            new_policy_params=new_policy)
 
     def test_restart(self):
         new_policy = {'preserve_n': 3}
@@ -483,7 +483,7 @@ class HighAvailabilityAgentDefinitionByNameTest(BaseHighAvailabilityAgentTest):
         self.haa_client.reconfigure_policy(new_policy)
 
         result = self.haa_client.dump().result
-        self.assertEqual(result['policy'], new_policy)
+        self.assertEqual(result['policy_params'], new_policy)
 
         self.waiter.await_state_event(state=ProcessStateEnum.RUNNING)
         self.assertEqual(len(self.get_running_procs()), 1)

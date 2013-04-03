@@ -10,6 +10,7 @@ from ion.agents.instrument.driver_process import DriverProcessType
 from ion.services.dm.distribution.pubsub_management_service import PubsubManagementService
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from ooi import logging
 from pyon.core.exception import NotFound, BadRequest
 from pyon.ion.resource import PRED, RT
 
@@ -19,31 +20,32 @@ from pyon.util.containers import get_ion_ts
 
 class AgentConfigurationBuilderFactory(object):
 
-    def __init__(self, clients):
+    def __init__(self, clients, RR2=None):
         self.clients = clients
+        self.RR2 = RR2
 
     def create_by_device_type(self, device_type):
         if RT.InstrumentDevice == device_type:
-            return InstrumentAgentConfigurationBuilder(self.clients)
+            return InstrumentAgentConfigurationBuilder(self.clients, self.RR2)
         elif RT.PlatformDevice == device_type:
-            return PlatformAgentConfigurationBuilder(self.clients)
+            return PlatformAgentConfigurationBuilder(self.clients, self.RR2)
 
     def create_by_agent_instance_type(self, instance_type):
         if RT.InstrumentAgentInstance == instance_type:
-            return InstrumentAgentConfigurationBuilder(self.clients)
+            return InstrumentAgentConfigurationBuilder(self.clients, self.RR2)
         elif RT.PlatformAgentInstance == instance_type:
-            return PlatformAgentConfigurationBuilder(self.clients)
+            return PlatformAgentConfigurationBuilder(self.clients, self.RR2)
 
 
 class AgentConfigurationBuilder(object):
 
-    def __init__(self, clients):
+    def __init__(self, clients, RR2=None):
         self.clients = clients
+        self.RR2 = RR2
 
-        if not hasattr(self.clients, "RR2") or {} == self.clients.RR2:
-            self.clients.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
-
-        self.RR2 = self.clients.RR2
+        if self.RR2 is None:
+            log.warn("Creating new RR2")
+            self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
         if not isinstance(self.RR2, EnhancedResourceRegistryClient):
             raise AssertionError("Type of self.RR2 is %s not %s" %
@@ -53,21 +55,24 @@ class AgentConfigurationBuilder(object):
         self.associated_objects = None
         self.last_id            = None
         self.will_launch        = False
+        self.generated_config   = False
 
     def _predicates_to_cache(self):
         return [PRED.hasOutputProduct,
-                PRED.hasStream,
-                PRED.hasStreamDefinition,
+                #PRED.hasStream,
+                #PRED.hasStreamDefinition,
                 PRED.hasAgentInstance,
                 PRED.hasAgentDefinition,
                 PRED.hasDataset,
                 PRED.hasDevice,
-                PRED.hasParameterContext]
+                #PRED.hasParameterContext,
+                ]
 
     def _resources_to_cache(self):
-        return [RT.StreamDefinition,
-                RT.ParameterDictionary,
-                RT.ParameterContext]
+        return [#RT.StreamDefinition,
+                #RT.ParameterDictionary,
+                #RT.ParameterContext,
+                ]
 
     def _update_cached_predicates(self):
         # cache some predicates for in-memory lookups
@@ -76,7 +81,7 @@ class AgentConfigurationBuilder(object):
         time_caching_start = get_ion_ts()
         for pred in preds:
             log.debug(" - %s", pred)
-            self.clients.RR2.cache_predicate(pred)
+            self.RR2.cache_predicate(pred)
         time_caching_stop = get_ion_ts()
 
         total_time = int(time_caching_stop) - int(time_caching_start)
@@ -90,13 +95,21 @@ class AgentConfigurationBuilder(object):
         time_caching_start = get_ion_ts()
         for r in rsrcs:
             log.debug(" - %s", r)
-            self.clients.RR2.cache_resources(r)
+            self.RR2.cache_resources(r)
         time_caching_stop = get_ion_ts()
 
         total_time = int(time_caching_stop) - int(time_caching_start)
 
         log.info("Cached %s resource types in %s seconds", len(rsrcs), total_time / 1000.0)
 
+    def _clear_caches(self):
+        log.warn("Clearing caches")
+        for r in self._resources_to_cache():
+            self.RR2.clear_cached_resource(r)
+
+        for p in self._predicates_to_cache():
+            self.RR2.clear_cached_predicate(p)
+            
 
     def _lookup_means(self):
         """
@@ -152,7 +165,7 @@ class AgentConfigurationBuilder(object):
 
         self.agent_instance_obj = agent_instance_obj
         self.last_id = agent_instance_obj._id
-
+        self.generated_config = False
 
     def prepare(self, will_launch=True):
         """
@@ -181,12 +194,12 @@ class AgentConfigurationBuilder(object):
         return self.generate_config()
 
 
-    def _generate_org_name(self):
-        log.debug("_generate_org_name for %s", self.agent_instance_obj.name)
-        log.debug("retrieve the Org name to which this agent instance belongs")
+    def _generate_org_governance_name(self):
+        log.debug("_generate_org_governance_name for %s", self.agent_instance_obj.name)
+        log.debug("retrieve the Org governance name to which this agent instance belongs")
         try:
             org_obj = self.RR2.find_subject(RT.Org, PRED.hasResource, self.agent_instance_obj._id, id_only=False)
-            return org_obj.name
+            return org_obj.org_governance_name
         except NotFound:
             return ''
         except:
@@ -215,7 +228,7 @@ class AgentConfigurationBuilder(object):
         return driver_config
 
     def _get_param_dict_by_name(self, name):
-        dict_obj = self.RR2.find_by_name(RT.ParameterDictionary, name)
+        dict_obj = self.RR2.find_resources_by_name(RT.ParameterDictionary, name)[0]
         parameter_contexts = \
             self.RR2.find_parameter_contexts_of_parameter_dictionary_using_has_parameter_context(dict_obj._id)
         return DatasetManagementService.build_parameter_dictionary(dict_obj, parameter_contexts)
@@ -243,18 +256,19 @@ class AgentConfigurationBuilder(object):
 
         #retrieve the output products
         device_id = device_obj._id
-        data_product_ids = self.RR2.find_data_product_ids_of_instrument_device_using_has_output_product(device_id)
+        data_product_objs = self.RR2.find_data_products_of_instrument_device_using_has_output_product(device_id)
 
-        out_streams = []
-        for product_id in data_product_ids:
+        out_streams = {}
+        for d in data_product_objs:
+            product_id = d._id
             stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)
-            out_streams.append(stream_id)
+            out_streams[stream_id] = d.name
 
 
         stream_config = {}
 
         log.debug("Creating a stream config for each stream (dataproduct) assoc with this agent/device")
-        for product_stream_id in out_streams:
+        for product_stream_id in out_streams.keys():
 
             #get the streamroute object from pubsub by passing the stream_id
             stream_def_id = self.RR2.find_stream_definition_id_of_stream_using_has_stream_definition(product_stream_id)
@@ -262,15 +276,19 @@ class AgentConfigurationBuilder(object):
             #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
                 # read objects from cache to be compared
-                out_stream_def_obj = self.RR2.read(stream_def_id, RT.StreamDefinition)
-                agent_stream_def_obj = self.RR2.read(stream_info_dict.get('stream_def_id'), RT.StreamDefinition)
-                if PubsubManagementService.compare_stream_definition_objects(out_stream_def_obj, agent_stream_def_obj):
-                    #model_param_dict = self.RR2.find_by_name(RT.ParameterDictionary,
-                    #                                         stream_info_dict.get('param_dict_name'))
-                    model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
-                    stream_route = self.RR2.read(product_stream_id).stream_route
-                    #model_param_dict = dsm.read_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
-                    #stream_route = psm.read_stream_route(stream_id=product_stream_id)
+
+                if psm.compare_stream_definition(stream_def_id, stream_info_dict.get('stream_def_id')):
+                    #model_param_dict = self.RR2.find_resources_by_name(RT.ParameterDictionary,
+                    #                                         stream_info_dict.get('param_dict_name'))[0]
+                    #model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
+                    #stream_route = self.RR2.read(product_stream_id).stream_route
+                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
+                    stream_route = psm.read_stream_route(stream_id=product_stream_id)
+
+                    log.info("stream_config[%s] matches product '%s'", model_stream_name, out_streams[product_stream_id])
+
+                    if model_stream_name in stream_config:
+                        log.warn("Overwiting stream_config[%s]", model_stream_name)
 
                     stream_config[model_stream_name] = {'routing_key'           : stream_route.routing_key,
                                                         'stream_id'             : product_stream_id,
@@ -313,7 +331,8 @@ class AgentConfigurationBuilder(object):
         agent_config = self.agent_instance_obj.agent_config
 
         # Create agent_ config.
-        agent_config['org_name']            = self._generate_org_name()
+        agent_config['instance_name']       = self.agent_instance_obj.name
+        agent_config['org_governance_name'] = self._generate_org_governance_name()
         agent_config['device_type']         = self._generate_device_type()
         agent_config['driver_config']       = self._generate_driver_config()
         agent_config['stream_config']       = self._generate_stream_config()
@@ -327,10 +346,19 @@ class AgentConfigurationBuilder(object):
         return agent_config
 
 
+    def _summarize_children(self, config_dict):
+        ret = dict([(v['instance_name'], self._summarize_children(v))
+                                for k, v in config_dict["children"].iteritems()])
+        #agent_config['agent']['resource_id']
+        return ret
+
     def generate_config(self):
         """
         create the generic parts of the configuration including resource_id, egg_uri, and org
         """
+        if self.generated_config:
+            log.warn("Generating config again for the same Instance object (%s)", self.agent_instance_obj.name)
+
         self._check_associations()
 
         agent_config = self._generate_skeleton_config_block()
@@ -351,6 +379,13 @@ class AgentConfigurationBuilder(object):
             agent_config['driver_config']['dvr_egg'] = agent_obj.driver_uri
         else:
             agent_config['driver_config']['process_type'] = (DriverProcessType.PYTHON_MODULE,)
+
+
+        if log.isEnabledFor(logging.INFO):
+            tree = self._summarize_children(agent_config)
+            log.info("Children of %s are %s", self.agent_instance_obj.name, tree)
+
+        self.generated_config = True
 
         return agent_config
 
@@ -539,7 +574,7 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
 
         log.debug("combined device ids: %s", child_device_ids)
 
-        ConfigurationBuilder_factory = AgentConfigurationBuilderFactory(self.clients)
+        ConfigurationBuilder_factory = AgentConfigurationBuilderFactory(self.clients, self.RR2)
 
         agent_lookup_method = {
             RT.PlatformAgentInstance: self.RR2.find_platform_agent_instance_of_platform_device_using_has_agent_instance,
@@ -565,7 +600,7 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
             log.debug("generating %s config for device '%s'", agent_instance_type, d)
             ConfigurationBuilder = ConfigurationBuilder_factory.create_by_agent_instance_type(agent_instance_type)
             ConfigurationBuilder.set_agent_instance_object(a)
-            ConfigurationBuilder.prepare(will_launch=False)
-            ret[d] = ConfigurationBuilder.generate_config()
+            ret[d] = ConfigurationBuilder.prepare(will_launch=False)
+
 
         return ret

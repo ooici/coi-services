@@ -11,13 +11,14 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from coverage_model.parameter_types import QuantityType, ArrayType 
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType
-from coverage_model import ParameterFunctionType, ParameterContext
+from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
 from copy import deepcopy
 
 import ast
 import numpy as np
 import re
+from uuid import uuid4
 
 
 class TypesManager(object):
@@ -145,10 +146,16 @@ class TypesManager(object):
 
     def get_lookup_value(self,value):
         placeholder = value.replace('LV_','')
-        pc = ParameterContext(name=placeholder, param_type=QuantityType(value_encoding='float64'), fill_value=-9999.)
-        pc.lookup_value = True
+        document_key = ''
+        if '||' in placeholder:
+            document_key, placeholder = placeholder.split('||')
+        document_val = placeholder
+        placeholder = '%s_%s' % (placeholder, uuid4().hex)
+        pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
+        pc.lookup_value = document_val
+        pc.document_key = document_key
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
-        self.parameter_lookups[value] = ctxt_id
+        self.parameter_lookups[placeholder] = ctxt_id
         return value, placeholder
 
     def has_lookup_value(self, context):
@@ -176,7 +183,7 @@ class TypesManager(object):
             if isinstance(v, basestring) and 'LV' in v:
                 value, placeholder = self.get_lookup_value(v)
                 pmap[k] = placeholder
-                lookup_values.append(value)
+                lookup_values.append(placeholder)
         func = deepcopy(self.get_pfunc(pfid))
         func.param_map = pmap
         if lookup_values:

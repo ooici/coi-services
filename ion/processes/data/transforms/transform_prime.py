@@ -122,7 +122,7 @@ class TransformPrime(TransformDataProcess):
             try:
                 document = self.stored_values.read_value(key)
                 if lookup_value in document:
-                    return float(document[lookup_value]) # Force float just to make sure
+                    return document[lookup_value]
             except NotFound:
                 log.warning('Specified lookup document does not exist')
 
@@ -142,11 +142,14 @@ class TransformPrime(TransformDataProcess):
                     rdt_temp[field] = rdt_in[field]
                 except KeyError:
                     pass
+
+        rdt_temp.fetch_lookup_values()
+
         for lookup_field in rdt_temp.lookup_values():
             s = lookup_field
-            stored_value = self._get_lookup_value(s)
+            stored_value = self._get_lookup_value(rdt_temp.context(s).lookup_value)
             if stored_value is not None:
-                rdt_temp[s] = [stored_value] * len(rdt_temp)
+                rdt_temp[s] = stored_value
         
         for field in rdt_temp.fields:
             if isinstance(rdt_temp._pdict.get_context(field).param_type, ParameterFunctionType):

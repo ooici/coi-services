@@ -196,17 +196,17 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # the following assert will not work without elasticsearch.
         #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
-        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
-        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
-        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
+        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.communications_status_roll_up.value)
+        self.assertEqual(StatusType.STATUS_OK, extended_instrument.computed.data_status_roll_up.value)
+        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.power_status_roll_up.value)
 
         # Verify the computed attribute for user notification requests
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
-        self.assertEqual(notification.origin, expected_instrument_device_id)
-        self.assertEqual(notification.origin_type, "instrument")
-        self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
+        self.assertEqual(expected_instrument_device_id, notification.origin)
+        self.assertEqual("instrument", notification.origin_type)
+        self.assertEqual('ResourceLifecycleEvent', notification.event_type)
 
 
     def _check_computed_attributes_of_extended_product(self, expected_data_product_id = '', extended_data_product = None):
@@ -233,15 +233,15 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertIsInstance(extended_data_product.computed.data_datetime, ComputedListValue)
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
-        self.assertTrue( 'ok' in extended_data_product.computed.last_granule.value['quality_flag'] )
+        self.assertIn( 'ok', extended_data_product.computed.last_granule.value['quality_flag'] )
         self.assertEqual( 2, len(extended_data_product.computed.data_datetime.value) )
 
         notifications = extended_data_product.computed.user_notification_requests.value
 
         notification = notifications[0]
-        self.assertEqual(notification.origin, expected_data_product_id)
-        self.assertEqual(notification.origin_type, "data product")
-        self.assertEqual(notification.event_type, 'DetectionEvent')
+        self.assertEqual(expected_data_product_id, notification.origin)
+        self.assertEqual("data product", notification.origin_type)
+        self.assertEqual('DetectionEvent', notification.event_type)
 
 
     @attr('LOCOINT')
@@ -289,59 +289,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s (SA Req: L4-CI-SA-RQ-241) " , instDevice_id)
 
 
-
-        #Create stream alarms
-        """
-        test_two_sided_interval
-        Test interval alarm and alarm event publishing for a closed
-        inteval.
-        """
-
-        temp_alert_def = {
-            'name' : 'temperature_warning_interval',
-            'stream_name' : 'parsed',
-            'message' : 'Temperature is below the normal range of 50.0 and above.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'temp',
-            'resource_id' : instDevice_id,
-            'origin_type' : 'device',
-            'lower_bound' : 50.0,
-            'lower_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-
-        pressure_alert_def = {
-            'name' : 'pressure_warning_interval',
-            'stream_name' : 'parsed',
-            'message' : 'Pressure is below the normal range of 50.0 and above.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'pressure',
-            'resource_id' : instDevice_id,
-            'origin_type' : 'device',
-            'lower_bound' : 50.0,
-            'lower_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-
-        late_data_alert_def = {
-            'name' : 'late_data_warning',
-            'stream_name' : 'parsed',
-            'message' : 'Expected data has not arrived.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
-            'value_id' : None,
-            'resource_id' : instDevice_id,
-            'origin_type' : 'device',
-            'time_delta' : 2,
-            'get_state' : ResourceAgentState.STREAMING,
-            'alert_class' : 'LateDataAlert'
-        }
-
-
-
-
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
             'device_port':  CFG.device.sbe37.port,
@@ -357,15 +304,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           port_agent_config = port_agent_config,
-                                            alerts= [temp_alert_def, late_data_alert_def])
+                                            alerts= [])
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
                                                                                instAgent_id,
                                                                                instDevice_id)
-
-
-
 
 
         tdom, sdom = time_series_domain()
@@ -376,7 +320,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
+        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('raw', id_only=True)
         raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary_id=raw_pdict_id)
 
 
@@ -474,9 +418,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
             retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
             log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
             if event.sub_type == 'WARNING':
-                self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_WARNING)
+                self.assertEqual(DeviceStatusEnum.STATUS_WARNING, retval[AggregateStatusType.AGGREGATE_DATA])
             elif event.sub_type == 'ALL_CLEAR':
-                self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_OK)
+                self.assertEqual(DeviceStatusEnum.STATUS_OK, retval[AggregateStatusType.AGGREGATE_DATA])
 
             #once the alert is recived and the aggregate status is also received then finish
             if self._agg_event_recieved and self._alert_event_recieved:
@@ -528,14 +472,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: initialize %s" , str(retval))
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
+        self.assertEqual(ResourceAgentState.INACTIVE, state)
 
         log.debug("(L4-CI-SA-RQ-334): Sending go_active command ")
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrument: return value from go_active %s" , str(reply))
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.IDLE)
+        self.assertEqual(ResourceAgentState.IDLE, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
         retval = self._ia_client.execute_agent(cmd)
@@ -546,27 +490,27 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: run %s" , str(reply))
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        self.assertEqual(ResourceAgentState.COMMAND, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.STOPPED)
+        self.assertEqual(ResourceAgentState.STOPPED, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESUME)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        self.assertEqual(ResourceAgentState.COMMAND, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.CLEAR)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.IDLE)
+        self.assertEqual(ResourceAgentState.IDLE, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        self.assertEqual(ResourceAgentState.COMMAND, state)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
         for i in xrange(10):
@@ -587,30 +531,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertIsInstance(replay_data, Granule)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("test_activateInstrumentSample: RDT parsed: %s", str(rdt.pretty_print()) )
+        self.assertIn('temp', rdt)
         temp_vals = rdt['temp']
         pressure_vals  = rdt['pressure']
-        self.assertEquals(len(temp_vals) , 10)
-        log.debug("test_activateInstrumentSample: all temp_vals: %s", temp_vals )
-        log.debug("test_activateInstrumentSample: all pressure_vals: %s", pressure_vals )
-
-        out_of_range_temp_vals = [i for i in temp_vals if i < 50.0]
-        log.debug("test_activateInstrumentSample: Out_of_range_temp_vals: %s", out_of_range_temp_vals )
-
-        # if no bad values were produced, then do not wait for an event
-        if len(out_of_range_temp_vals) == 0:
-            self._async_sample_result.set()
-
-        log.debug("test_activateInstrumentSample: _events_received: %s", self._events_received )
-
-        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertEquals(10, len(temp_vals))
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
         self.assertIsInstance(replay_data, Granule)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("RDT raw: %s", str(rdt.pretty_print()) )
 
+        self.assertIn('raw', rdt)
         raw_vals = rdt['raw']
-        self.assertEquals(len(raw_vals) , 10)
+        self.assertEquals(10, len(raw_vals))
 
 
         log.debug("l4-ci-sa-rq-138")

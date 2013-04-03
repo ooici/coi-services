@@ -110,7 +110,8 @@ class BaseAlert(object):
         """
         """
         event_data = self.make_event_data()
-        print '########## publishing: ' + event_data['sub_type'] 
+        print '########## publishing: ' + event_data['sub_type']
+        print '########## publishing etc: ' + str(event_data)
         pub = EventPublisher()
         pub.publish_event(**event_data)
 
@@ -193,6 +194,86 @@ class IntervalAlert(BaseAlert):
                 
         if self._prev_status != self._status:
             self.publish_alert()
+
+
+class RSNEventAlert(BaseAlert):
+    """
+    """
+
+    # value_id represents the name of the monitorable in an RSNAlert
+    #
+
+    def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
+                 value_id=None, resource_id=None, origin_type=None, aggregate_type=None
+                ):
+
+        super(RSNEventAlert, self).__init__(name, '', message,
+                alert_type, value_id, resource_id, origin_type, aggregate_type)
+
+        assert isinstance(value_id, str)
+        self._value_id = value_id
+
+#        {
+#        "group": "power",
+#        "name" : "low_voltage_warning",
+#        "value_id" : "input_voltage",
+#        "value" : "1.2",
+#        "alert_type" : "warning",
+#        "url": "http://localhost:8000",
+#        "timestamp": 3573569514.295556,
+#        "ref_id": "44.78",
+#        "platform_id": "TODO_some_platform_id_of_type_UPS",
+#        "message": "low battery (synthetic event generated from simulator)"
+#        }
+
+        self._name = name
+        self._stream_name = stream_name
+        self._message = message
+        self._alert_type = alert_type
+        self._aggregate_type = aggregate_type
+        self._value_id = value_id
+        self._resource_id = resource_id
+        self._origin_type = origin_type
+
+        self._status = None
+        self._prev_status = None
+        self._current_value = None
+
+    def get_status(self):
+        status = super(RSNEventAlert, self).get_status()
+
+        return status
+
+    def eval_alert(self, x):
+
+        # x is an RSN event struct TBD
+        assert isinstance(x, dict)
+
+        #print 'x: %s',x.keys()
+        print 'x: %s',x
+
+        self._current_value = x['value']
+        self._prev_status = self._status
+
+        self._message = x['message']
+
+        if x['alert_type'] is "warning":
+            self._alert_type = StreamAlertType.WARNING
+            self._status = False
+        elif x['alert_type'] is "error":
+            self._alert_type = StreamAlertType.ALERT
+            self._status = False
+        else:
+            self._alert_type = StreamAlertType.ALL_CLEAR
+            self._status = True
+
+        self._resource_id = x['platform_id']
+
+        if self._prev_status != self._status:
+            self.publish_alert()
+
+        return
+
 
 class UserExpressionAlert(BaseAlert):
     """

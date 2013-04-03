@@ -48,8 +48,13 @@ class PlatformDriverEvent(BaseEnum):
     # Events for the CONNECTED state:
     PING                      = 'PLATFORM_DRIVER_PING'
     GET_METADATA              = 'PLATFORM_DRIVER_GET_METADATA'
-    GET_ATTRIBUTE_VALUES      = 'PLATFORM_DRIVER_GET_ATTRIBUTE_VALUES'
-    SET_ATTRIBUTE_VALUES      = 'PLATFORM_DRIVER_SET_ATTRIBUTE_VALUES'
+    GET                       = 'PLATFORM_DRIVER_GET'
+    SET                       = 'PLATFORM_DRIVER_SET'
+
+    EXECUTE                   = 'PLATFORM_DRIVER_EXECUTE'
+
+    # TODO: the following to be handled via EXECUTE
+
     CONNECT_INSTRUMENT        = 'PLATFORM_DRIVER_CONNECT_INSTRUMENT'
     DISCONNECT_INSTRUMENT     = 'PLATFORM_DRIVER_DISCONNECT_INSTRUMENT'
     GET_CONNECTED_INSTRUMENTS = 'PLATFORM_DRIVER_GET_CONNECTED_INSTRUMENTS'
@@ -95,9 +100,54 @@ class PlatformDriver(object):
 
         self._driver_config = None
 
+        # The parameter dictionary.
+        self._param_dict = {}
+
         # construct FSM and start it with initial state UNCONFIGURED:
         self._construct_fsm()
         self._fsm.start(PlatformDriverState.UNCONFIGURED)
+
+    def get_resource_capabilities(self, current_state=True):
+        """
+        """
+        res_cmds = self._fsm.get_events(current_state)
+        res_cmds = self._filter_capabilities(res_cmds)
+        res_params = self._param_dict.keys()
+
+        # TODO: fix the above.  For the moment returning empty lists:
+        res_cmds = []
+        res_params = []
+
+        return [res_cmds, res_params]
+
+    def _filter_capabilities(self, events):
+        """
+        """
+        return events
+
+    def get_resource_state(self, *args, **kwargs):
+        """
+        Return the current state of the driver.
+        @retval str current driver state.
+        """
+        return self._fsm.get_current_state()
+
+    def get_resource(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(PlatformDriverEvent.GET, *args, **kwargs)
+
+    def set_resource(self, *args, **kwargs):
+        """
+        """
+        return self._fsm.on_event(PlatformDriverEvent.SET, *args, **kwargs)
+
+    def execute_resource(self, resource_cmd, *args, **kwargs):
+        """
+        Platform agent calls this directly to trigger the execution of a
+        resource command. The actual action occurs in _execute.
+        """
+        return self._fsm.on_event(PlatformDriverEvent.EXECUTE, resource_cmd, *args, **kwargs)
 
     def _get_platform_attributes(self):
         """
@@ -192,15 +242,34 @@ class PlatformDriver(object):
 
         @param attrs 	[(attrName, attrValue), ...] 	List of attribute values
 
-        @retval {platform_id: {attrName : [(attrValue, timestamp), ...], ...}}
-                dict with a single entry for the requested platform ID and value
-                as a list of (value,timestamp) pairs for each attribute indicated
-                in the input. Returned timestamps indicate the time when the
+        @retval {attrName : [(attrValue, timestamp), ...], ...}
+                dict with a list of (value,timestamp) pairs for each attribute
+                indicated in the input. Returned timestamps indicate the time when the
                 value was set. Each timestamp is "a str representing an
-                integer number, the millis in UNIX epoch;" this is to be
-                aligned with description of pyon's get_ion_ts function.
+                integer number, the millis in UNIX epoch" to
+                align with description of pyon's get_ion_ts function.
+
         """
+        #
+        # TODO Any needed alignment with the instrument case?
+        #
         raise NotImplementedError()  #pragma: no cover
+
+    def _execute(self, cmd, *args, **kwargs):
+        """
+        Executes the given command.
+        Subclasses can override to execute particular commands or delegate to
+        this base implementation to handle common commands.
+
+        @param cmd   command
+
+        @return
+        """
+        # TODO do actual execution
+        result = "!! TODO !!: result of _execute: cmd=%s args=%s kwargs=%s" % (
+                 cmd, str(args), str(kwargs))
+
+        return result
 
     def connect_instrument(self, port_id, instrument_id, attributes):
         """
@@ -431,7 +500,7 @@ class PlatformDriver(object):
 
         return next_state, result
 
-    def _handler_connected_get_attribute_values(self, *args, **kwargs):
+    def _handler_connected_get(self, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
@@ -448,7 +517,7 @@ class PlatformDriver(object):
 
         return next_state, result
 
-    def _handler_connected_set_attribute_values(self, *args, **kwargs):
+    def _handler_connected_set(self, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
@@ -461,6 +530,22 @@ class PlatformDriver(object):
             raise FSMError('set_attribute_values: missing attrs argument')
 
         result = self.set_attribute_values(attrs)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_execute(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        if len(args) == 0:
+            raise FSMError('execute_resource: missing resource_cmd argument')
+
+        result = self._execute(*args, **kwargs)
         next_state = None
 
         return next_state, result
@@ -605,8 +690,9 @@ class PlatformDriver(object):
 
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.PING, self._handler_connected_ping)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_METADATA, self._handler_connected_get_metadata)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_ATTRIBUTE_VALUES, self._handler_connected_get_attribute_values)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.SET_ATTRIBUTE_VALUES, self._handler_connected_set_attribute_values)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET, self._handler_connected_get)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.SET, self._handler_connected_set)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.EXECUTE, self._handler_connected_execute)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_disconnected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, self._handler_connected_get_connected_instruments)

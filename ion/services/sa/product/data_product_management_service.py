@@ -37,7 +37,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point=''):
+    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
@@ -72,6 +72,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         #if stream_definition_id:
         #@todo: What about topics?
 
+        # Associate the StreamDefinition with the data product
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id, data_product_id)
+
         stream_id,route = self.clients.pubsub_management.create_stream(name=data_product.name,
                                                                 exchange_point=exchange_point,
                                                                 description=data_product.description,
@@ -80,6 +83,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Associate the Stream with the main Data Product and with the default data product version
         self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
 
+
+        if dataset_id:
+            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
 
 
         # Return the id of the new data product
@@ -124,8 +130,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         # remove stream associations
         #--------------------------------------------------------------------------------
         #self.remove_streams(data_product_id)
+        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
+        self.clients.pubsub_management.delete_stream(stream_ids[0])
 
-
+        #--------------------------------------------------------------------------------
+        # retire the data product
+        #--------------------------------------------------------------------------------
         self.RR2.retire(data_product_id, RT.DataProduct)
 
 
@@ -194,21 +204,28 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest("Data Product stream is without a stream definition")
         stream_def_id = stream_defs[0]
 
+
         stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id) # additional read necessary to fill in the pdict
 
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
         
-        
+        if not dataset_ids:
+            # No datasets are currently linked which means we need to create a new one
+            dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
+                                                                            stream_id=stream_id,
+                                                                            parameter_dict=stream_def.parameter_dictionary,
+                                                                            temporal_domain=data_product_obj.temporal_domain,
+                                                                            spatial_domain=data_product_obj.spatial_domain)
 
-        dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
-                                                                        stream_id=stream_id,
-                                                                        parameter_dict=stream_def.parameter_dictionary,
-                                                                        temporal_domain=data_product_obj.temporal_domain,
-                                                                        spatial_domain=data_product_obj.spatial_domain)
-
-        # link dataset with data product. This creates the association in the resource registry
-        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
-        
-        log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
+            # link dataset with data product. This creates the association in the resource registry
+            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+            
+            # register the dataset for externalization
+            self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
+            
+            log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
+        else:
+            dataset_id = dataset_ids[0]
 
 
 
@@ -238,8 +255,6 @@ class DataProductManagementService(BaseDataProductManagementService):
                                                 dataset_id=dataset_id, 
                                                 config=config)
 
-        # register the dataset for externalization
-        self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
 
 
         #--------------------------------------------------------------------------------
@@ -659,23 +674,24 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedListValue)
         ret.value = []
         try:
-            stream_id = self._get_stream_id(data_product_id)
-            if not stream_id:
+            stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            if not stream_def_ids:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
-                ret.reason = "There is no Stream associated with this DataProduct"
+                ret.reason = "There is no StreamDefinition associated with this DataProduct"
+                return ret
+            stream_def = self.clients.pubsub_management.read_stream_definition(stream_definition_id=stream_def_ids[0])
+
+            param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, id_only=True)
+            if not param_dict_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "There is no ParameterDictionary associated with this DataProduct"
             else:
-                stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=True)
-                if not stream_def_ids:
-                    ret.status = ComputedValueAvailability.NOTAVAILABLE
-                    ret.reason = "There is no StreamDefinition associated with this DataProduct"
+                ret.status = ComputedValueAvailability.PROVIDED
+                if stream_def.available_fields:
+                    retval = [i for i in self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0]) if i.name in stream_def.available_fields]
                 else:
-                    param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, id_only=True)
-                    if not param_dict_ids:
-                        ret.status = ComputedValueAvailability.NOTAVAILABLE
-                        ret.reason = "There is no ParameterDictionary associated with this DataProduct"
-                    else:
-                        ret.status = ComputedValueAvailability.PROVIDED
-                        ret.value = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                    retval = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                ret.value = retval
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -776,30 +792,39 @@ class DataProductManagementService(BaseDataProductManagementService):
             if not dataset_ids:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
                 ret.reason = "No dataset associated with this data product"
-            else:
-                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
-                #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
-                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                retval = {}
-                for k,v in rdt.iteritems():
-                    element = np.atleast_1d(rdt[k]).flatten()[0]
-                    if element == rdt._pdict.get_context(k).fill_value:
-                        retval[k] = '%s: Empty' % k
-                    elif 'seconds' in rdt._pdict.get_context(k).uom:
-                        units = rdt._pdict.get_context(k).uom
-                        element = np.atleast_1d(rdt[k]).flatten()[0]
-                        unix_ts = TimeUtils.units_to_ts(units, element)
-                        dtg = datetime.utcfromtimestamp(unix_ts)
-                        try:
-                            retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
-                        except:
-                            retval[k] = '%s: %s' %(k, element)
+                return ret
 
-                    else:
+            stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            if not stream_def_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No stream definition associated with this data product"
+                return ret
+
+            stream_def_id = stream_def_ids[0]
+
+            replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1, delivery_format=stream_def_id)
+            #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+            rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+            retval = {}
+            for k,v in rdt.iteritems():
+                element = np.atleast_1d(rdt[k]).flatten()[0]
+                if element == rdt._pdict.get_context(k).fill_value:
+                    retval[k] = '%s: Empty' % k
+                elif 'seconds' in rdt._pdict.get_context(k).uom:
+                    units = rdt._pdict.get_context(k).uom
+                    element = np.atleast_1d(rdt[k]).flatten()[0]
+                    unix_ts = TimeUtils.units_to_ts(units, element)
+                    dtg = datetime.utcfromtimestamp(unix_ts)
+                    try:
+                        retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                    except:
                         retval[k] = '%s: %s' %(k, element)
-                ret.value = retval
+
+                else:
+                    retval[k] = '%s: %s' %(k, element)
+            ret.value = retval
 #                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
-                ret.status = ComputedValueAvailability.PROVIDED
+            ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -841,45 +866,18 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
-    def _has_lookup_values(self,data_product_id):
-        pass
+    def _has_lookup_values(self, data_product_id):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('No streams found for this data product')
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+        if not stream_def_ids:
+            raise BadRequest('No stream definitions found for this stream')
+        
+        return self.clients.pubsub_management.has_lookup_values(stream_definition_id=stream_def_ids[0])
 
     def _get_lookup_documents(self, data_product_id):
-        ''' Performs a breadth-first traversal of the provenance for a data product in an attempt to collect all the document keys'''
-        document_keys = []
-        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
-        if not len(producer_ids):
-            raise BadRequest('Data product has no known data producers')
-        producer_id = producer_ids.pop(0)
-        def traversal(owner_id):
-            def edges(resource_ids=[]):
-                retval = []
-                if not isinstance(resource_ids, list):
-                    resource_ids = list(resource_ids)
-                for resource_id in resource_ids:
-                    print repr(resource_id)
-                    retval.extend(self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasParent,id_only=True)[0])
-                return retval
-
-            visited_resources = deque(edges([owner_id]))
-            traversal_queue = deque()
-            done = False
-            t = None
-            while not done:
-                t = traversal_queue or deque(visited_resources)
-                traversal_queue = deque()
-                for e in edges(t):
-                    if not e in visited_resources:
-                        visited_resources.append(e)
-                        traversal_queue.append(e)
-                if not len(traversal_queue): done = True
-            return list(visited_resources)
-
-        for prod_id in traversal(producer_id):
-            producer = self.clients.resource_registry.read(prod_id)
-            if 'qc_keys' in producer.producer_context.configuration:
-                document_keys.extend(producer.producer_context.configuration['qc_keys'])
-        return document_keys
+        return self.clients.data_acquisition_management.list_qc_references(data_product_id)
 
 
     def _find_producers(self, data_product_id='', provenance_results=''):

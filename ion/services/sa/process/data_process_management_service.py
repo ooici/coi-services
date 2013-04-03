@@ -260,6 +260,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         actor is either None (for ParameterFunctions) or a valid TransformFunction identifier
         '''
         configuration = DotDict(configuration or {}) 
+        in_data_product_ids = in_data_product_ids or []
+        out_data_product_ids = out_data_product_ids or []
         routes = configuration.get_safe('process.routes', {})
         if not routes and (1==len(in_data_product_ids)==len(out_data_product_ids)):
             routes = {in_data_product_ids[0]: {out_data_product_ids[0]:None}}
@@ -270,6 +272,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
         routes = self._manage_routes(routes)
         configuration.process.routes = routes
+        configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
         dproc = DataProcess()
         dproc.name = 'data_process_%s' % self.get_unique_id()
         dproc.configuration = configuration
@@ -491,6 +494,29 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         if not stream_ids: raise BadRequest('No streams associated with this data product')
         return stream_ids[0]
 
+    def _has_lookup_values(self, data_product_id):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('No streams found for this data product')
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+        if not stream_def_ids:
+            raise BadRequest('No stream definitions found for this stream')
+        stream_def_id = stream_def_ids[0]
+        retval = self.clients.pubsub_management.has_lookup_values(stream_def_id)
+        
+        return retval
+    
+    def _get_lookup_docs(self, input_data_product_ids=[], output_data_product_ids=[]):
+        retval = []
+        need_lookup_docs = False
+        for data_product_id in output_data_product_ids:
+            if self._has_lookup_values(data_product_id):
+                need_lookup_docs = True
+                break
+        if need_lookup_docs:
+            for data_product_id in input_data_product_ids:
+                retval.extend(self.clients.data_acquisition_management.list_qc_references(data_product_id))
+        return retval
 
     def _manage_routes(self, routes):
         retval = {}
@@ -617,6 +643,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 if output_stream_def not in output_stream_def_ids:
                     log.warning('Creating a data process with an unmatched stream definition output')
         
+        if not out_data_product_ids and data_process_definition_id:
+            return True
         if len(out_data_product_ids)>1 and not routes and not data_process_definition_id:
             raise BadRequest('Multiple output data products but no routes defined')
         if len(out_data_product_ids)==1:

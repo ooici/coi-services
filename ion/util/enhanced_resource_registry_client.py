@@ -5,19 +5,20 @@
 @author   Ian Katz
 """
 
-# THIS SHOULD BE FALSE IN COMMITTED CODE
-from ooi import logging
-from pyon.util.containers import get_ion_ts, DotDict
-
-TEST_LOCALLY=False
-#TEST_LOCALLY=True
-
 import re
+from ooi import logging
 from ooi.logging import log
+from pyon.util.containers import get_ion_ts, DotDict
 from pyon.core.exception import BadRequest, Inconsistent, NotFound
 from pyon.core.registry import getextends
 from pyon.ion.resource import LCE, RT, PRED
 from pyon.util.config import Config
+
+# THIS SHOULD BE FALSE IN COMMITTED CODE
+TEST_LOCALLY=False
+#TEST_LOCALLY=True
+
+
 
 class EnhancedResourceRegistryClient(object):
     """
@@ -170,8 +171,7 @@ class EnhancedResourceRegistryClient(object):
 
         if specific_type in self._cached_resources:
             log.info("Adding cached %s object", specific_type)
-            self._cached_resources[specific_type].by_id[resource_id] = resource_obj
-            self._cached_resources[specific_type].by_name[resource_obj.name] = resource_obj
+            self._add_resource_to_cache(specific_type, resource_obj)
 
         return resource_obj
 
@@ -201,8 +201,8 @@ class EnhancedResourceRegistryClient(object):
             misses_objs = self.RR.read_mult(misses)
             for mo in misses_objs:
                 if None is not mo:
-                    cache.by_id[mo._id] = mo
-                    cache.by_name[mo.name] = mo
+                    self._add_resource_to_cache(specific_type, mo)
+
 
         return [cache.by_id.get(r, None) for r in resource_ids]
 
@@ -245,7 +245,6 @@ class EnhancedResourceRegistryClient(object):
         self.RR.retire(resource_id)
 
         return
-
 
     def delete(self, resource_id):
 
@@ -290,21 +289,35 @@ class EnhancedResourceRegistryClient(object):
                                         object=object_id)
         self.RR.delete_association(assoc)
 
+    def find_resource_by_name(self, resource_type, name, id_only=False):
+        rsrcs = self.find_resources_by_name(resource_type, name, id_only)
 
-    def find_by_name(self, resource_type, name, id_only=False):
+        if 1 == len(rsrcs):
+            return rsrcs[0]
+        elif 1 < len(rsrcs):
+            raise Inconsistent("Expected 1 %s with name '%s', got %d" %
+                               (resource_type, name, len(rsrcs)))
+        else:
+            raise NotFound("Expected 1 %s with name '%s', got %d" %
+                           (resource_type, name, len(rsrcs)))
+
+    def find_resources_by_name(self, resource_type, name, id_only=False):
         assert name
         if resource_type not in self._cached_resources:
-            log.warn("Using find_by_name on resource type %s, which was not cached", resource_type)
+            log.warn("Using find_resources_by_name on resource type %s, which was not cached", resource_type)
             ret, _ = self.RR.find_resources(restype=resource_type, name=name, id_only=id_only)
-            return ret[0]
+            return ret
 
-        log.info("Returning object from cache")
-        obj = self._cached_resources[resource_type].by_name[name]
+        if not name in self._cached_resources[resource_type].by_name:
+            log.info("The %s resource with name '%s' was not in the cache", resource_type, name)
+            return []
+
+        log.info("Returning object(s) from cache")
+        objs = self._cached_resources[resource_type].by_name[name]
         if id_only:
-            return obj._id
+            return [obj._id for obj in objs]
         else:
-            return obj
-
+            return objs
 
     def find_subjects(self, subject_type, predicate, object, id_only=False):
         object_id, object_type = self._extract_id_and_type(object)
@@ -321,12 +334,16 @@ class EnhancedResourceRegistryClient(object):
         log.debug("Checking object_id=%s, subject_type=%s", object_id, subject_type)
         preds = self._cached_predicates[predicate]
         time_search_start = get_ion_ts()
-        [a.s for a in preds if object_id == a.o and a.st == subject_type] # filter cached list
+        subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
-        log.debug("Processed %s %s predicates for subjects in %s seconds", len(preds), predicate, total_time / 1000.0)
+        log.debug("Processed %s %s predicates for %s subjects in %s seconds",
+                 len(preds),
+                 predicate,
+                 len(subject_ids),
+                 total_time / 1000.0)
 
-        subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
+
         if id_only:
             return subject_ids
         else:
@@ -352,7 +369,11 @@ class EnhancedResourceRegistryClient(object):
         object_ids = [a.o for a in preds if subject_id == a.s and a.ot == object_type] # filter cached list
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
-        log.debug("Processed %s %s predicates for objects in %s seconds", len(preds), predicate, total_time / 1000.0)
+        log.debug("Processed %s %s predicates for %s objects in %s seconds",
+                  len(preds),
+                  predicate,
+                  len(object_ids),
+                  total_time / 1000.0)
 
         if id_only:
             return object_ids
@@ -452,6 +473,8 @@ class EnhancedResourceRegistryClient(object):
         """
         Save all associations of a given predicate type to memory, for in-memory find_subjects/objects ops
         """
+        log.info("Caching predicates: %s", predicate)
+        log.debug("This cache is %s", self)
         time_caching_start = get_ion_ts()
         preds = self.RR.find_associations(predicate=predicate, id_only=False)
         time_caching_stop = get_ion_ts()
@@ -462,10 +485,21 @@ class EnhancedResourceRegistryClient(object):
         self._cached_predicates[predicate] = preds
 
 
+
+    def _add_resource_to_cache(self, resource_type, resource_obj):
+        self._cached_resources[resource_type].by_id[resource_obj._id] = resource_obj
+
+        if not resource_obj.name in self._cached_resources[resource_type].by_name:
+            self._cached_resources[resource_type].by_name[resource_obj.name] = []
+        self._cached_resources[resource_type].by_name[resource_obj.name].append(resource_obj)
+
+
     def cache_resources(self, resource_type, specific_ids=None):
         """
         Save all resources of a given type to memory, for in-memory lookup ops
         """
+        log.info("Caching resources: %s", resource_type)
+        log.debug("This cache is %s", self)
         time_caching_start = get_ion_ts()
 
         resource_objs = []
@@ -477,15 +511,18 @@ class EnhancedResourceRegistryClient(object):
                 resource_objs = self.RR.read_mult(specific_ids)
 
         lookups = DotDict()
-        lookups.by_id =   dict([(r._id, r) for r in resource_objs])
-        lookups.by_name = dict([(r.name, r) for r in resource_objs])
+        lookups.by_id =   {}
+        lookups.by_name = {}
+        self._cached_resources[resource_type] = lookups
+
+        for r in resource_objs:
+            self._add_resource_to_cache(resource_type, r)
 
         time_caching_stop = get_ion_ts()
 
         total_time = int(time_caching_stop) - int(time_caching_start)
 
         log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
-        self._cached_resources[resource_type] = lookups
 
 
     def has_cached_prediate(self, predicate):
@@ -499,13 +536,13 @@ class EnhancedResourceRegistryClient(object):
     def clear_cached_predicate(self, predicate=None):
         if None is predicate:
             self._cached_predicates = {}
-        else:
+        elif predicate in self._cached_predicates:
             del self._cached_predicates[predicate]
 
     def clear_cached_resource(self, resource_type=None):
         if None is resource_type:
             self._cached_resources = {}
-        else:
+        elif resource_type in self._cached_resources:
             del self._cached_resources[resource_type]
 
 
@@ -702,6 +739,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 self.RR.create_association(subj_id, ipred, obj_id)
 
             return ret_fn
@@ -733,6 +771,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association (1)%s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 # see if there are any other objects of this type and pred on this subject
                 existing_subjs = self.find_subjects(isubj, ipred, obj_id, id_only=True)
 
@@ -781,6 +820,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association %s -> %s -> (1)%s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
 
                 # see if there are any other objects of this type and pred on this subject
                 existing_objs = self.find_objects(subj_id, ipred, iobj, id_only=True)
@@ -832,6 +872,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically deleting association %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 self.delete_association(subj_id, ipred, obj_id)
 
             return ret_fn
@@ -863,6 +904,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj):
                 log.info("Dynamically finding objects %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
@@ -895,6 +937,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj):
                 log.info("Dynamically finding subjects %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", obj, ipred, isubj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
@@ -928,6 +971,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj_id):
                 log.info("Dynamically finding object %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
 
@@ -959,6 +1003,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
 
@@ -995,6 +1040,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj):
                 log.info("Dynamically finding object_ids %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
@@ -1027,6 +1073,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj):
                 log.info("Dynamically finding subject_ids %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
@@ -1060,6 +1107,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj_id):
                 log.info("Dynamically finding object_id %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
 
@@ -1091,6 +1139,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject_id %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
 
@@ -1125,38 +1174,39 @@ class EnhancedResourceRegistryClient(object):
         @param verb what will happen to this  object (like "to be created")
         @raises BadRequest if name exists already or wasn't set
         """
+
         resource_type = type(resource_obj).__name__
 
         if not (hasattr(resource_obj, "name") and "" != resource_obj.name):
             raise BadRequest("The name field was not set in the resource %s"
             % verb)
 
-        name = resource_obj.name
-        try:
-            found_res, _ = self.RR.find_resources(resource_type,
-                                                  None,
-                                                  name,
-                                                  True)
-        except NotFound:
-            # New after all.  PROCEED.
-            pass
-        else:
-            # should never be more than one with a given name
-            if 1 < len(found_res):
-                raise Inconsistent("Multiple %s resources with name '%s' exist" % (resource_type, name))
-
-            # if creating
-            if not hasattr(resource_obj, "_id"):
-                # must not be any matching names
-                if 0 < len(found_res):
-                    raise BadRequest("Duplicate: %s resource named '%s' already exists with ID '%s'"
-                    % (resource_type, name, found_res[0]))
-            else: #updating
-            # any existing name must match the id
-                if 1 == len(found_res) and resource_obj._id != found_res[0]:
-                    raise BadRequest("Duplicate: %s resource named '%s' already exists with a different ID"
-                    % (resource_type, name))
-
+#        name = resource_obj.name
+#        try:
+#            found_res, _ = self.RR.find_resources(resource_type,
+#                                                  None,
+#                                                  name,
+#                                                  True)
+#        except NotFound:
+#            # New after all.  PROCEED.
+#            pass
+#        else:
+#            # should never be more than one with a given name
+#            if 1 < len(found_res):
+#                raise Inconsistent("Multiple %s resources with name '%s' exist" % (resource_type, name))
+#
+#            # if creating
+#            if not hasattr(resource_obj, "_id"):
+#                # must not be any matching names
+#                if 0 < len(found_res):
+#                    raise BadRequest("Duplicate: %s resource named '%s' already exists with ID '%s'"
+#                    % (resource_type, name, found_res[0]))
+#            else: #updating
+#            # any existing name must match the id
+#                if 1 == len(found_res) and resource_obj._id != found_res[0]:
+#                    raise BadRequest("Duplicate: %s resource named '%s' already exists with a different ID"
+#                    % (resource_type, name))
+        pass # we are not checking uniqueness based on name any  more.
 
 
 
