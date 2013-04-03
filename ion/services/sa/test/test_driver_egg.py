@@ -31,7 +31,7 @@ from pyon.agent.agent import ResourceAgentEvent
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
-from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
+from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum, ComputedStringValue
 
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
