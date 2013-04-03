@@ -22,6 +22,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 import unittest
+from ion.services.sa.process.test.test_int_data_process_management_service import global_range_test_document
+from interface.objects import Attachment, AttachmentType, ReferenceAttachmentContext, DataProduct, InstrumentDevice
+import numpy as np
+from ion.util.stored_values import StoredValueManager
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -398,3 +402,27 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
                 pass
             else:
                 self.fail("non-existing data product was found during read: %s" %bad_obj)
+
+
+    def make_grt_parser(self):
+        return self.client.create_parser(name='grt', description='', module='ion.util.parsers.global_range_test', method='grt_parser', config=None)
+
+
+    def test_qc_attachment(self):
+        instrument_device = InstrumentDevice(name='whatever')
+        instrument_device_id,_ = self.rrclient.create(instrument_device)
+        self.client.register_instrument(instrument_device_id)
+        dp = DataProduct(name='instrument output')
+
+        dp_id,_ = self.rrclient.create(dp)
+
+        parser_id = self.make_grt_parser()
+        attachment = Attachment(name='qc ref', attachment_type=AttachmentType.REFERENCE,content=global_range_test_document, context=ReferenceAttachmentContext(parser_id=parser_id))
+        self.rrclient.create_attachment(dp_id, attachment)
+
+        self.client.assign_data_product(instrument_device_id, dp_id)
+        svm = StoredValueManager(self.container)
+        doc = svm.read_value('grt_TEST_TEMPWAT_TEMPWAT')
+        np.testing.assert_array_almost_equal(doc['grt_min_value'], 10.)
+
+
