@@ -483,22 +483,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                 records_per_granule=2, granule_publish_rate=5)
         ]
 
-    def _generate_instrument_config(self, i_obj, suffix=''):
-        instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
-        instrument_id = i_obj.instrument_device_id
-
-        log.debug("Using iconfig_builder")
-        self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
-        self.iconfig_builder._update_cached_predicates()
-        config = self.iconfig_builder.prepare(will_launch=False)
-
-        self.verify_instrument_config(config, i_obj.org_obj,
-                                      i_obj.instrument_device_id)
-
-        self._debug_config(config, "instrument_CFG_generated_%s%s.txt" % (instrument_id, suffix))
-
-        return config
-
     def _debug_config(self, config, outname):
         if self._debug_config_enabled and log.isEnabledFor(logging.DEBUG):
             import pprint
@@ -893,24 +877,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         i_obj.org_obj = org_obj
 
         return i_obj
-
-    def verify_instrument_config(self, config, org_obj, device_id):
-        for key in required_config_keys:
-            self.assertIn(key, config)
-        self.assertEqual(org_obj.name, config['org_name'])
-        self.assertEqual(RT.InstrumentDevice, config['device_type'])
-        self.assertIn('driver_config', config)
-        driver_config = config['driver_config']
-        expected_driver_fields = {'process_type': ('ZMQEggDriverLauncher',),
-                                  }
-        for k, v in expected_driver_fields.iteritems():
-            self.assertIn(k, driver_config)
-            self.assertEqual(v, driver_config[k])
-
-        self.assertEqual({'resource_id': device_id}, config['agent'])
-        self.assertIn('stream_config', config)
-        for key in ['children']:
-            self.assertEqual({}, config[key])
 
     def _create_instrument(self, instr_key):
         """
