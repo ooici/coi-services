@@ -5,6 +5,7 @@
 '''
 
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.processes.data.ingestion.stream_ingestion_worker import retrieve_stream
 
 import numpy
 
@@ -14,6 +15,8 @@ from pyon.util.file_sys import FileSystem, FS
 from pyon.event.event import EventSubscriber
 from pyon.public import OT, PRED
 from pyon.util.containers import DotDict
+from pyon.core.object import IonObjectDeserializer
+from pyon.core.bootstrap import get_obj_registry
 
 from nose.plugins.attrib import attr
 
@@ -81,6 +84,18 @@ class TestStreamIngestionWorker(IonIntegrationTestCase):
 
         cov = self.get_coverage(dataset_id)
         self.assertIsNotNone(cov.get_parameter_values('raw'))
+
+        deserializer = IonObjectDeserializer(obj_registry=get_obj_registry())
+
+        granule = retrieve_stream(dataset_id)
+        rdt_complex = RecordDictionaryTool.load_from_granule(granule)
+        rdt_complex['raw'] = [deserializer.deserialize(i) for i in rdt_complex['raw']]
+        for gran in rdt_complex['raw']:
+            rdt_new = RecordDictionaryTool.load_from_granule(gran)
+            self.assertIn(1, rdt_new['conductivity'])
+            self.assertIn(2, rdt_new['pressure'])
+            self.assertIn(3, rdt_new['salinity'])
+
 
     def start_ingestion_worker(self):
         config = DotDict()

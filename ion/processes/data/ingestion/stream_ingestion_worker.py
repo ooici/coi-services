@@ -6,6 +6,7 @@
 '''
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from interface.objects import Granule
 from ion.core.process.transform import TransformStreamListener
 from ion.util.time_utils import TimeUtils
@@ -108,3 +109,6 @@ class StreamIngestionWorker(TransformStreamListener):
 
     def dataset_changed(self, dataset_id, extents):
         self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents)
+
+def retrieve_stream(dataset_id='', query=None):
+    return DataRetrieverService.retrieve_oob(dataset_id, query)
