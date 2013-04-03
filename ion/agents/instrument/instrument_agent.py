@@ -205,11 +205,18 @@ class InstrumentAgent(ResourceAgent):
         """
         super(InstrumentAgent, self).on_quit()
         
-        if self._fsm.get_current_state() != ResourceAgentState.UNINITIALIZED:
+        state = self._fsm.get_current_state()
+        if state == ResourceAgentState.UNINITIALIZED:
+            pass
+
+        elif state == ResourceAgentState.INACTIVE:
+            result = self._stop_driver()
+
+        else:
             self._dvr_client.cmd_dvr('disconnect')
             self._dvr_client.cmd_dvr('initialize')        
             result = self._stop_driver()
-
+            
     ##############################################################
     # Capabilities interface and event handlers.
     ##############################################################    
