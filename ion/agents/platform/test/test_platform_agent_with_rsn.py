@@ -41,6 +41,7 @@ from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.responses import NormalResponse
 from ion.agents.platform.platform_driver import PlatformDriverState
+from ion.agents.platform.platform_driver import PlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
@@ -671,12 +672,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._go_inactive()
         self._reset()
 
-    def _execute_resource(self):
-        # TODO actual commands
-        cmd = AgentCommand(command="TODO: FOO RESOURCE COMMAND")
+    def _execute_resource(self, cmd, *args, **kwargs):
+        cmd = AgentCommand(command=cmd, args=args, kwargs=kwargs)
         retval = self._pa_client.execute_resource(cmd)
-        log.debug("_execute_resource: retval=%s", retval)
+        log.debug("_execute_resource: cmd=%s: retval=%s", cmd, retval)
         self.assertTrue(retval.result)
+        return retval.result
 
     def test_execute_resource(self):
         self._create_network_and_start_root_platform()
@@ -687,15 +688,17 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._go_active()
         self._run()
 
-        self._execute_resource()
+        self._execute_resource(PlatformDriverEvent.GET_CHECKSUM)
+        self._execute_resource(PlatformDriverEvent.GET_METADATA)
+
+        ports = self._execute_resource(PlatformDriverEvent.GET_PORTS)
+        for port_id in ports:
+            self._execute_resource(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, port_id)
 
         self._go_inactive()
         self._reset()
 
     def test_resource_states(self):
-        #
-        # TODO add event subscriber to also verify ResourceAgentResourceStateEvents
-        #
         self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
@@ -704,6 +707,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
             self._pa_client.get_resource_state()
 
         self._initialize()
+
+        self._start_event_subscriber(event_type="ResourceAgentResourceStateEvent",
+                                     count=2)
 
         res_state = self._pa_client.get_resource_state()
         self.assertEqual(res_state, PlatformDriverState.DISCONNECTED)
@@ -727,3 +733,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         with self.assertRaises(Conflict):
             self._pa_client.get_resource_state()
+
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertGreaterEqual(len(self._events_received), 2)

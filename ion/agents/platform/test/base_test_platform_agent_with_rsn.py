@@ -298,7 +298,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._event_subscribers = []
         self._events_received = []
         self.addCleanup(self._stop_event_subscribers)
-        self._start_event_subscriber()
+        self._start_event_subscriber(sub_type="platform_event")
 
         # by default, in DEBUG mode, all intermediate agent configurations
         # (platforms and instruments) are saved in files (under logs/) by this
@@ -358,7 +358,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # event subscribers handling
     #################################################################
 
-    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
+    def _start_event_subscriber(self, event_type="DeviceEvent",
+                                sub_type=None,
+                                count=0):
         """
         Starts event subscriber for events of given event_type ("DeviceEvent"
         by default) and given sub_type ("platform_event" by default).
@@ -368,15 +370,19 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             # A callback for consuming events.
             log.info('Event subscriber received evt: %s.', str(evt))
             self._events_received.append(evt)
-            self._async_event_result.set(evt)
+            if count == 0:
+                self._async_event_result.set(evt)
+
+            elif count == len(self._events_received):
+                self._async_event_result.set()
 
         sub = EventSubscriber(event_type=event_type,
-            sub_type=sub_type,
-            callback=consume_event)
+                              sub_type=sub_type,
+                              callback=consume_event)
 
         sub.start()
-        log.info("registered event subscriber for event_type=%r, sub_type=%r",
-            event_type, sub_type)
+        log.info("registered event subscriber for event_type=%r, sub_type=%r, count=%d",
+                 event_type, sub_type, count)
 
         self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)

@@ -28,6 +28,7 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 from ion.agents.platform.exceptions import PlatformException, PlatformConfigurationException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
+from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
 
@@ -798,14 +799,33 @@ class PlatformAgent(ResourceAgent):
             self._handle_external_event_driver_event(driver_event)
             return
 
+        if isinstance(driver_event, StateChangeDriverEvent):
+            self._async_driver_event_state_change(driver_event.state)
+            return
+
         #
         # TODO handle other possible events.
         #
 
         else:
             log.warn('%r: driver_event not handled: %s',
-                self._platform_id, str(type(driver_event)))
+                     self._platform_id, str(type(driver_event)))
             return
+
+    def _async_driver_event_state_change(self, state):
+        """
+        @param state   the state entered by the driver.
+        """
+        try:
+            log.debug('%r: platform agent driver state change: %s', self._platform_id, state)
+            event_data = {'state': state}
+            self._event_publisher.publish_event(event_type='ResourceAgentResourceStateEvent',
+                                                origin_type=self.ORIGIN_TYPE,
+                                                origin=self.resource_id,
+                                                **event_data)
+        except:
+            log.exception('%r: platform agent could not publish driver state change event',
+                          self._platform_id)
 
     def _handle_attribute_value_event(self, driver_event):
 
