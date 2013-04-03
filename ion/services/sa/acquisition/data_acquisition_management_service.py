@@ -984,7 +984,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         document_keys = []
         producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
         if not len(producer_ids):
-            raise BadRequest('Data product has no known data producers')
+            return []
         producer_id = producer_ids.pop(0)
         def traversal(owner_id):
             def edges(resource_ids=[]):

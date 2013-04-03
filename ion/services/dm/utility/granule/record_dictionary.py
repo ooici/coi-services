@@ -117,8 +117,8 @@ class RecordDictionaryTool(object):
                     doc = svm.read_value(context.document_key)
                 except NotFound:
                     continue
-                if lv in doc:
-                    self[lv] = doc[lv]
+                if context.lookup_value in doc:
+                    self[lv] = doc[context.lookup_value]
 
     @classmethod
     def load_from_granule(cls, g):
