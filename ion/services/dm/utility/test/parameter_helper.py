@@ -226,7 +226,7 @@ class ParameterHelper(object):
 
         offset_ctxt = ParameterContext(name='offset_a', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         offset_ctxt.uom = ''
-        offset_ctxt.lookup_value = True
+        offset_ctxt.lookup_value = 'offset_a'
         offset_ctxt.document_key = ''
         offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
@@ -234,7 +234,7 @@ class ParameterHelper(object):
 
         offsetb_ctxt = ParameterContext('offset_b', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999))
         offsetb_ctxt.uom = ''
-        offsetb_ctxt.lookup_value = True
+        offsetb_ctxt.lookup_value = 'offset_b'
         offsetb_ctxt.document_key = 'coefficient_document'
         offsetb_ctxt_id = self.dataset_management.create_parameter_context(name='offset_b', parameter_context=offsetb_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, offsetb_ctxt_id)

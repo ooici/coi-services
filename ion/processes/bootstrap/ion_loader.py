@@ -1513,10 +1513,10 @@ Reason: %s
             context.precision = precision
             if lookup_value:
                 if lookup_value.lower() == 'true':
-                    context.lookup_value = True
+                    context.lookup_value = name
                     context.document_key = ''
                 else:
-                    context.lookup_value = True
+                    context.lookup_value = name
                     context.document_key = lookup_value
 
 
