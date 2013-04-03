@@ -192,6 +192,7 @@ class InstrumentAgent(ResourceAgent):
         Init objects that depend on the container services and start state
         machine.
         """
+        super(InstrumentAgent, self).on_init()
 
         # Set the driver config from the agent config if present.
         self._dvr_config = self.CFG.get('driver_config', None)
@@ -199,6 +200,23 @@ class InstrumentAgent(ResourceAgent):
         # Set the test mode.
         self._test_mode = self.CFG.get('test_mode', False)        
 
+    def on_quit(self):
+        """
+        """
+        super(InstrumentAgent, self).on_quit()
+        
+        state = self._fsm.get_current_state()
+        if state == ResourceAgentState.UNINITIALIZED:
+            pass
+
+        elif state == ResourceAgentState.INACTIVE:
+            result = self._stop_driver()
+
+        else:
+            self._dvr_client.cmd_dvr('disconnect')
+            self._dvr_client.cmd_dvr('initialize')        
+            result = self._stop_driver()
+            
     ##############################################################
     # Capabilities interface and event handlers.
     ##############################################################    
@@ -1162,6 +1180,7 @@ class InstrumentAgent(ResourceAgent):
         # Verify the driver has started.
         if not self._dvr_proc.getpid():
             log.error('Instrument agent %s error starting driver process.', self._proc_name)
+            self._dvr_proc = None
             raise ResourceError('Error starting driver process.')
 
         try:
@@ -1172,6 +1191,8 @@ class InstrumentAgent(ResourceAgent):
 
         except Exception, e:
             self._dvr_proc.stop()
+            self._dvr_proc = None
+            self._dvr_client = None
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
@@ -1181,9 +1202,13 @@ class InstrumentAgent(ResourceAgent):
         """
         Stop the driver process and driver client.
         """
-        self._stop_publisher_greenlets()        
-        self._dvr_proc.stop()
-        log.info('Instrument agent %s stopped its driver.', self._proc_name)
+        self._stop_publisher_greenlets()
+            
+        if self._dvr_proc:
+            self._dvr_proc.stop()
+            self._dvr_proc = None
+            self._dvr_client = None
+            log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
             
     def _validate_driver_config(self):
@@ -1338,9 +1363,7 @@ class InstrumentAgent(ResourceAgent):
             log.error('Instrument agent %s error no driver config on launch, cannot restore state.',
                       self.id)
             return
-        
-        state = self._get_state('agent_state')
-        
+                
         # Get resource parameters and agent state from persistence.
         rparams = self._get_state('rparams')        
         if rparams:
@@ -1350,68 +1373,97 @@ class InstrumentAgent(ResourceAgent):
             startup_config['parameters'] = rparams
             self._dvr_config['startup_config'] = startup_config
         
-        # If the last state was lost connection, use the prior connected
-        # state.
-        if state == 'ResourceAgentState.LOST_CONNECTION':        
-            state = self._get_state('prev_agent_state')
-            
-        # If uninitialized, do nothing.
-        if state == 'ResourceAgentState.UNINITIALIZED':
-            return
+        # Get state to restore. If the last state was lost connection,
+        # use the prior connected state.
+        state = self._get_state('agent_state')
+        if state == ResourceAgentState.LOST_CONNECTION:        
+            state = self._get_state('prev_agent_state') or \
+                ResourceAgentState.UNINITIALIZED
         
-        # Otherwise, initialize.
-        else:
-            try:
-                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
-            except Exception as ex:
-                log.error('Instrument agent %s error restoring state INITIALIZE, exception %s',
-                    self.id, str(ex))
+        try:
+            cur_state = self._fsm.get_current_state()
+            
+            # If unitialized, confirm and do nothing.
+            if state == ResourceAgentState.UNINITIALIZED:
+                if cur_state != state:
+                    raise Exception()
                 
-            
-        # If inactive, return here.
-        if state == 'ResourceAgentState.INACTIVE':
-            return
+            # If inactive, initialize and confirm.
+            elif state == ResourceAgentState.INACTIVE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
 
-        # Else, activate. Return if connect fails.
-        else:
-            try:
+            # If idle, initialize, activate and confirm.
+            elif state == ResourceAgentState.IDLE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
                 self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
 
-            except Exception as ex:
-                log.error('Instrument agent %s error restoring state GO_ACTIVE, exception: %s.',
-                          self.id, str(ex))
-                return
+            # If streaming, initialize, activate and confirm.
+            # Driver discover should put us in streaming mode.
+            elif state == ResourceAgentState.STREAMING:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
 
-        # If idle, return here.
-        if state == 'ResourceAgentState.RESOURCE_AGENT_STATE_IDLE':
-            return
+            # If command, initialize, activate, confirm idle,
+            # run and confirm command.
+            elif state == ResourceAgentState.COMMAND:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If in a command reachable substate, attempt to return to command.
+            # Initialize, activate, confirm idle, run confirm command.
+            elif state in [ResourceAgentState.TEST,
+                    ResourceAgentState.CALIBRATE,
+                    ResourceAgentState.DIRECT_ACCESS,
+                    ResourceAgentState.BUSY]:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            # If active unknown, return to active unknown or command if
+            # possible. Initialize, activate, confirm active unknown, else
+            # confirm idle, run, confirm command.
+            elif state == ResourceAgentState.ACTIVE_UNKNOWN:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state == ResourceAgentState.ACTIVE_UNKNOWN:
+                    return
+                elif cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            else:
+                log.error('Instrument agent %s error restoring unhandled state %s, current state %s',
+                        self.id, state, cur_state)
         
-        # Otherwise go into command mode.
-        else:
-            self._fsm.on_event(ResourceAgentEvent.RUN)
-
-        # If command mode, including busy states entered through command mode,
-        # return here. Return if active unknown.
-        if state == 'ResourceAgentState.COMMAND' or \
-            state == 'ResourceAgentState.TEST' or \
-            state == 'ResourceAgentState.CALIBRATE' or \
-            state == 'ResourceAgentState.DIRECT_ACCESS' or \
-            state == 'ResourceAgentState.BUSY' or \
-            state == 'ResourceAgentState.ACTIVE_UNKNOWN':
-            return
-
-        # Else if stopped, pause.       
-        elif state == 'ResourceAgentState.STOPPED':
-            self._fsm.on_event(ResourceAgentEvent.PAUSE)
-            return
-        
-        # Else if streaming, issue last reseource streamoing command.
-        elif state == 'ResourceAgentState.STREAMING':
-            resource_autosample_command = self._get_state('resource_autosample_command')
-            return
-
-        log.error('Instrument agent %s restore to state %s failed.',
-                  self.id, str(state))
+        except Exception as ex:
+            log.error('Instrument agent %s error restoring state %s, current state %s, exception %s',
+                    self.id, state, cur_state, str(ex))
 
     def aparam_set_streams(self, params):
         """
