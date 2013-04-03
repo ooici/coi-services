@@ -955,7 +955,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         document_keys = document_keys or []
 
         producer_obj = self.clients.resource_registry.read(producer_id)
-        producer_obj.producer_context.configuration['qc_keys'] = document_keys
+        if 'qc_keys' in producer_obj.producer_context.configuration: 
+            producer_obj.producer_context.configuration['qc_keys'].extend(document_keys)
+        else:
+            producer_obj.producer_context.configuration['qc_keys'] = document_keys
 
         self.clients.resource_registry.update(producer_obj)
         return True
