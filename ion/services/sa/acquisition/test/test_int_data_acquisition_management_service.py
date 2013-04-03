@@ -424,10 +424,20 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         att_id = self.rrclient.create_attachment(dp_id, attachment)
         self.addCleanup(self.rrclient.delete_attachment, att_id)
 
+        attachment2 = Attachment(name='qc ref2', attachment_type=AttachmentType.REFERENCE, content=global_range_test_document2, context=ReferenceAttachmentContext(parser_id=parser_id))
+        att2_id = self.rrclient.create_attachment(dp_id, attachment2)
+        self.addCleanup(self.rrclient.delete_attachment, att2_id)
+
         self.client.assign_data_product(instrument_device_id, dp_id)
         self.addCleanup(self.client.unassign_data_product, instrument_device_id, dp_id)
         svm = StoredValueManager(self.container)
         doc = svm.read_value('grt_TEST_TEMPWAT_TEMPWAT')
         np.testing.assert_array_almost_equal(doc['grt_min_value'], 10.)
 
+        doc = svm.read_value('grt_TEST_PRACSAL_PRACSAL')
+        np.testing.assert_array_almost_equal(doc['grt_min_value'], 0.)
+
+
+global_range_test_document2 = '''Array,Instrument Class,Reference Designator,Data Product In,Units,Data Product Flagged,Min Value (lim(1)),Max Value (lim(2))
+Array 1,SBE37,TEST,PRACSAL,deg_C,PRACSAL,0,28'''
 
