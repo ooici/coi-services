@@ -17,7 +17,7 @@ from pyon.util.arg_check import validate_is_instance
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
 from interface.objects import Parser, DataProducer, InstrumentProducerContext, ExtDatasetProducerContext, DataProcessProducerContext
 from ion.util.stored_values import StoredValueManager
-
+from interface.objects import AttachmentType
 from collections import deque
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
@@ -221,6 +221,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         data_producer_id = ''
 
+
         #connect the producer to the product directly
         self.clients.resource_registry.create_association(subject=input_resource_id, predicate=PRED.hasOutputProduct, object=data_product_id)
 
@@ -228,6 +229,11 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_producer_obj = DataProducer(name=data_product_obj.name, description=data_product_obj.description)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
+        for attachment in self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False):
+            if attachment.attachment_type == AttachmentType.REFERENCE:
+                parser_id = attachment.context.parser_id
+                if parser_id:
+                    self.register_producer_qc_reference(data_producer_id, parser_id, attachment._id)
 
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
@@ -942,7 +948,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def register_producer_qc_reference(self, producer_id='', parser_id='', attachment_id=''):
 
-        document = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
+        attachment = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
+        document = attachment.content
         document_keys = self.parse_qc_reference(parser_id, document)
 
         document_keys = document_keys or []
@@ -967,7 +974,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         except AttributeError:
             raise BadRequest('No method named {0} in {1}.'.format(parser.method, parser.module))
         except:
-            log.error('Failed to parse document')
+            log.exception('Failed to parse document')
+            raise
 
         svm = StoredValueManager(self.container)
         for key, doc in method(document):
