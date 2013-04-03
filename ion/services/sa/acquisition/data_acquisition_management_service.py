@@ -230,11 +230,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
         for attachment in self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False):
-            print 'Read attachment: ', attachment.name
             if attachment.attachment_type == AttachmentType.REFERENCE:
                 parser_id = attachment.context.parser_id
                 if parser_id:
-                    print 'Parsing'
                     self.register_producer_qc_reference(data_producer_id, parser_id, attachment._id)
 
         # Associate the Product with the Producer

@@ -411,16 +411,21 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
     def test_qc_attachment(self):
         instrument_device = InstrumentDevice(name='whatever')
         instrument_device_id,_ = self.rrclient.create(instrument_device)
+        self.addCleanup(self.rrclient.delete, instrument_device_id)
         self.client.register_instrument(instrument_device_id)
+        self.addCleanup(self.client.unregister_instrument, instrument_device_id)
         dp = DataProduct(name='instrument output')
 
         dp_id,_ = self.rrclient.create(dp)
+        self.addCleanup(self.rrclient.delete, dp_id)
 
         parser_id = self.make_grt_parser()
         attachment = Attachment(name='qc ref', attachment_type=AttachmentType.REFERENCE,content=global_range_test_document, context=ReferenceAttachmentContext(parser_id=parser_id))
-        self.rrclient.create_attachment(dp_id, attachment)
+        att_id = self.rrclient.create_attachment(dp_id, attachment)
+        self.addCleanup(self.rrclient.delete_attachment, att_id)
 
         self.client.assign_data_product(instrument_device_id, dp_id)
+        self.addCleanup(self.client.unassign_data_product, instrument_device_id, dp_id)
         svm = StoredValueManager(self.container)
         doc = svm.read_value('grt_TEST_TEMPWAT_TEMPWAT')
         np.testing.assert_array_almost_equal(doc['grt_min_value'], 10.)
