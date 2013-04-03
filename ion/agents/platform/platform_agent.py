@@ -19,6 +19,8 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 
+from pyon.event.event import EventSubscriber
+
 from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
@@ -266,6 +268,9 @@ class PlatformAgent(ResourceAgent):
 
         self._validate_configuration()
 
+        self._start_subscriber_device_status_event()
+        self._start_subscriber_device_aggregate_status_event()
+
         self._async_children_launched = AsyncResult()
 
         if LAUNCH_CHILDREN_ON_START:
@@ -458,16 +463,23 @@ class PlatformAgent(ResourceAgent):
 
         def terminate_process(subplatform_id):
             _, pid = self._pa_clients[subplatform_id]
+
+            sub_pnode = self._pnode.subplatforms[subplatform_id]
+            sub_resource_id = sub_pnode.CFG['agent']['resource_id']
+
+            log.debug(
+                "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
+                self._platform_id, subplatform_id, pid)
             try:
-                log.debug(
-                    "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
-                    self._platform_id, subplatform_id, pid)
 
                 self._launcher.cancel_process(pid)
 
                 log.debug(
                     "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
                     self._platform_id, subplatform_id, pid)
+
+                self._publish_subplatform_event(subplatform_id, sub_resource_id,
+                                                "device_removed")
 
             except:
                 if log.isEnabledFor(logging.TRACE):
@@ -969,6 +981,79 @@ class PlatformAgent(ResourceAgent):
             log.exception("Error while publishing platform event")
 
     ##############################################################
+    # coordination with children agents: subscribers and event dispatch
+    ##############################################################
+
+    #----------------------------------
+    # DeviceStatusEvent
+    #----------------------------------
+
+    def _got_device_status_event(self, evt, *args, **kwargs):
+        log.debug("%r: CC _got_device_status_event evt: %s",
+                  self._platform_id, evt)
+        # TODO handle _got_device_status_event
+
+    def _start_subscriber_device_status_event(self):
+        """
+        """
+        event_type="DeviceStatusEvent"
+        sub = EventSubscriber(event_type=event_type,
+                              callback=self._got_device_status_event)
+
+        sub.start()
+        log.debug("%r: CC registered event subscriber for event_type=%r",
+                  self._platform_id, event_type)
+
+    def _publish_subplatform_event(self, subplatform_id, sub_resource_id, sub_type):
+        """
+        Publishes a DeviceStatusEvent indicating that the given sub-platform
+        has been launched ("device_added") or stopped ("device_removed").
+
+        @param subplatform_id
+        @param sub_type    "device_added" or "device_removed"
+        """
+
+        assert sub_type in ("device_added", "device_removed")
+
+        description = "subplatform_id=%r" % subplatform_id
+        values = [sub_resource_id]
+        evt = dict(event_type='DeviceStatusEvent',
+                   sub_type=sub_type,
+                   origin_type=self.ORIGIN_TYPE,
+                   origin=self.resource_id,
+                   description=description,
+                   values=values)
+        try:
+            log.debug('%r: CC _publish_subplatform_event for %r: %s',
+                      self._platform_id, subplatform_id, evt)
+
+            self._event_publisher.publish_event(**evt)
+
+        except:
+            log.exception('%r: CC platform agent could not publish event: %s',
+                          self._platform_id, evt)
+
+    #----------------------------------
+    # DeviceAggregateStatusEvent
+    #----------------------------------
+
+    def _got_device_aggregate_status_event(self, evt, *args, **kwargs):
+        log.debug("%r: CC _got_device_aggregate_event evt: %s",
+                  self._platform_id, evt)
+        # TODO handle _got_device_aggregate_event
+
+    def _start_subscriber_device_aggregate_status_event(self):
+        """
+        """
+        event_type = "DeviceAggregateStatusEvent"
+        sub = EventSubscriber(event_type=event_type,
+                              callback=self._got_device_aggregate_status_event)
+
+        sub.start()
+        log.debug("%r: CC registered event subscriber for event_type=%r",
+                  self._platform_id, event_type)
+
+    ##############################################################
     # misc supporting routines
     ##############################################################
 
@@ -1047,6 +1132,9 @@ class PlatformAgent(ResourceAgent):
         assert PlatformAgentState.UNINITIALIZED == state
 
         self._pa_clients[subplatform_id] = (pa_client, pid)
+
+        self._publish_subplatform_event(subplatform_id, sub_resource_id,
+                                        "device_added")
 
     def _execute_platform_agent(self, a_client, cmd, sub_id):
         return self._execute_agent("platform", a_client, cmd, sub_id)
