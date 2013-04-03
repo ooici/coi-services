@@ -57,9 +57,8 @@ class OOILoader(object):
                        'Arrays',
                        'Sites',
                        'Subsites',
+                       'NTypes',
                        'Nodes',
-                       #'Platforms',
-                       'NodeTypes',
                        'PlatformAgents'
                      ]
 
@@ -370,14 +369,16 @@ class OOILoader(object):
     def _parse_Arrays(self, row):
         ooi_rd = row['Reference ID']
         name=row['Name']
+        geo_name = row['Geo Name']
         self._add_object_attribute('array',
-            ooi_rd, 'name', name, change_ok=True)
+            ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
 
     def _parse_Sites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
+        geo_name = row['Geo Name']
         self._add_object_attribute('site',
-            ooi_rd, 'name', name, change_ok=True)
+            ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
 
     def _parse_Subsites(self, row):
         ooi_rd = row['Reference ID']
@@ -400,6 +401,9 @@ class OOILoader(object):
             platform_config_type=row['Platform Configuration Type'],
             platform_agent_type=row['Platform Agent Type'],
             is_platform=row['Platform Reference ID'] == ooi_rd,
+            self_port=row['Self Port'],
+            uplink_node=row['Uplink Node'],
+            uplink_port=row['Uplink Port'],
             deployment_start=row['Start Deployment Cruise'],
         )
         self._add_object_attribute('node',
@@ -411,11 +415,14 @@ class OOILoader(object):
         self._add_object_attribute('nodetype',
             ooi_rd[9:11], 'array_list', ooi_rd[:2], value_is_list=True, list_dup_ok=True)
 
-    # def _parse_NodeTypes(self, row):
-    #     code = row['Code']
-    #     name = row['Name']
-    #     self._add_object_attribute('nodetype',
-    #         code, None, None, name=name)
+    def _parse_NTypes(self, row):
+        code = row['Code']
+        name = row['Name']
+
+        # Only add new stuff from spreadsheet
+        if code not in self.ooi_objects['nodetype']:
+            self._add_object_attribute('nodetype',
+                code, None, None, name=name)
 
     def _parse_PlatformAgents(self, row):
         #

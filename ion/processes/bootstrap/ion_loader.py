@@ -598,6 +598,8 @@ class IONLoader(ImmediateProcess):
             alias_ids = [alias_id for alias_id,int_id in self.resource_ids.iteritems() if int_id==res_id]
             if alias_ids:
                 return self.resource_objs[alias_ids[0]]
+
+        log.debug("_get_resource_obj(): No object found for '%s'", res_id)
         return None
 
     def _get_alt_id(self, res_obj, prefix):
@@ -1143,22 +1145,45 @@ class IONLoader(ImmediateProcess):
             support_bulk=True)
 
     def _load_Observatory_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("subsite_mod")
+
+        # Case 1: CG/EA arrays
+        ooi_objs = self.ooi_loader.get_type_assets("array")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
-            subsite_rd_list = ooi_obj['subsite_rd_list']
-            fakerow = {}
-            fakerow[COL_ID] = subsite_rd_list[0]
-            fakerow['obs/name'] = ooi_obj['name']
-            fakerow['obs/description'] = "Array: %s" % ", ".join(subsite_rd_list)
-            fakerow['obs/alt_ids'] = "['OOI:" + subsite_rd_list[0] + "']"
-            fakerow['constraint_ids'] = ''
-            fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            fakerow['org_ids'] = self._get_org_ids([subsite_rd_list[0]])
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            if ooi_rd.marine_io in ("CG", "EA"):
+                fakerow = {}
+                fakerow[COL_ID] = ooi_id
+                fakerow['obs/name'] = ooi_obj['geo_name']
+                fakerow['obs/description'] = "Array: %s" % ooi_id
+                fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
+                fakerow['constraint_ids'] = ''
+                fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+                fakerow['org_ids'] = self._get_org_ids([ooi_id])
 
-            if not self._match_filter(subsite_rd_list[0]):
-                continue
+                if not self._match_filter(ooi_id):
+                    continue
 
-            self._load_Observatory(fakerow)
+                self._load_Observatory(fakerow)
+
+        # Case 2: RSN primary sites
+        ooi_objs = self.ooi_loader.get_type_assets("site")
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(ooi_id)
+            if ooi_rd.marine_io == "RSN":
+                fakerow = {}
+                fakerow[COL_ID] = ooi_id
+                fakerow['obs/name'] = ooi_obj['geo_name']
+                fakerow['obs/description'] = "Site: %s" % ooi_id
+                fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
+                fakerow['constraint_ids'] = ''
+                fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+                fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+
+                if not self._match_filter(ooi_id[:2]):
+                    continue
+
+                self._load_Observatory(fakerow)
+
 
     def _load_Subsite(self, row):
         constraints = self._get_constraints(row, type='Subsite')
@@ -1185,7 +1210,28 @@ class IONLoader(ImmediateProcess):
     def _load_Subsite_OOI(self):
         # Note: there is no need to load all OOI site and subsite reference designators as intermediary
         # levels. They were for SE organizational purposes only and have no user relevance
-        pass
+        ooi_objs = self.ooi_loader.get_type_assets("subsite_mod")
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            subsite_rd_list = ooi_obj['subsite_rd_list']
+            ooi_rd = OOIReferenceDesignator(subsite_rd_list[0])
+            fakerow = {}
+            fakerow[COL_ID] = subsite_rd_list[0]
+            fakerow['site/name'] = ooi_obj['name']
+            fakerow['site/description'] = "Subsite: %s" % ", ".join(subsite_rd_list)
+            fakerow['site/alt_ids'] = "['OOI:" + subsite_rd_list[0] + "']"
+            fakerow['constraint_ids'] = ''
+            fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+            fakerow['org_ids'] = self._get_org_ids([subsite_rd_list[0]])
+
+            if ooi_rd.marine_io == "RSN":
+                fakerow['parent_site_id'] = ooi_rd.site_rd
+            else:
+                fakerow['parent_site_id'] = ooi_rd.array
+
+            if not self._match_filter(subsite_rd_list[0]):
+                continue
+
+            self._load_Subsite(fakerow)
 
     def _load_PlatformSite(self, row):
         constraints = self._get_constraints(row, type='PlatformSite')
@@ -1334,7 +1380,7 @@ class IONLoader(ImmediateProcess):
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow = {}
             fakerow[COL_ID] = ooi_id
-            fakerow['is/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['name'], nodes[ooi_id[:14]]['name'])
+            fakerow['is/name'] = iclass[ooi_rd.inst_class]['name']
             fakerow['is/description'] = "Instrument: %s" % ooi_id
             fakerow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
             fakerow['constraint_ids'] = const_id1
