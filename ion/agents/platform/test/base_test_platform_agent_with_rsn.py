@@ -84,8 +84,6 @@ import os
 import time
 import copy
 
-from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder
-from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from pyon.util.containers import DotDict
@@ -258,8 +256,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug('new InstrumentModel id = %s ', self.instModel_id)
 
-        self._create_config_builders()
-
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
@@ -299,12 +295,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._events_received = []
         self.addCleanup(self._stop_event_subscribers)
         self._start_event_subscriber(sub_type="platform_event")
-
-        # by default, in DEBUG mode, all intermediate agent configurations
-        # (platforms and instruments) are saved in files (under logs/) by this
-        # test. This flag allows to disable this to control which configurations
-        # to generate.
-        self._debug_config_enabled = True
 
         # the keys of instruments that have been set up
         self._setup_instruments = set()
@@ -407,53 +397,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # config supporting methods
     #################################################################
 
-    def _create_config_builders(self):
-        clients = DotDict()
-        clients.resource_registry  = self.RR
-        clients.pubsub_management  = self.PSC
-        clients.dataset_management = self.DSC
-
-        self.pconfig_builder = PlatformAgentConfigurationBuilder(clients)
-
-        self.iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
-
-    def _generate_parent_with_child_config(self, p_parent, p_child):
-        self.pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
-        self.pconfig_builder._update_cached_predicates()
-        parent_config = self.pconfig_builder.prepare(will_launch=False)
-        self._verify_parent_config(parent_config,
-                                   p_parent.platform_device_id,
-                                   p_child.platform_device_id,
-                                   is_platform=True)
-
-        self._debug_config(parent_config,
-                           "platform_CFG_generated_%s_->_%s.txt" % (
-                           p_parent.platform_id, p_child.platform_id))
-
-    def _generate_platform_with_instrument_config(self, p_obj, i_obj):
-        log.debug("Using pconfig_builder")
-        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
-        self.pconfig_builder._update_cached_predicates()
-        parent_config = self.pconfig_builder.prepare(will_launch=False)
-        self._verify_parent_config(parent_config,
-                                   p_obj.platform_device_id,
-                                   i_obj.instrument_device_id,
-                                   is_platform=False)
-
-        self._debug_config(parent_config,
-                           "platform_CFG_generated_%s_->_%s.txt" % (
-                           p_obj.platform_id, i_obj.instrument_device_id))
-
-    def _generate_platform_config(self, p_obj, suffix=''):
-        log.debug("Using pconfig_builder")
-        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
-        self.pconfig_builder._update_cached_predicates()
-        config = self.pconfig_builder.prepare(will_launch=False)
-
-        self._debug_config(config, "platform_CFG_generated_%s%s.txt" % (p_obj.platform_id, suffix))
-
-        return config
-
     def _get_platform_stream_configs(self):
         """
         This method is an adaptation of get_streamConfigs in
@@ -482,16 +425,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                 parameter_dictionary_name='ctd_parsed_param_dict',
                                 records_per_granule=2, granule_publish_rate=5)
         ]
-
-    def _debug_config(self, config, outname):
-        if self._debug_config_enabled and log.isEnabledFor(logging.DEBUG):
-            import pprint
-            outname = "logs/%s" % outname
-            try:
-                pprint.PrettyPrinter(stream=file(outname, "w")).pprint(config)
-                log.debug("config pretty-printed to %s", outname)
-            except Exception as e:
-                log.warn("error printing config to %s: %s", outname, e)
 
     def _verify_child_config(self, config, device_id, is_platform):
         for key in required_config_keys:
@@ -653,7 +586,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # platform child-parent linking
     #################################################################
 
-    def _assign_child_to_parent(self, p_child, p_parent, gen_verify=False):
+    def _assign_child_to_parent(self, p_child, p_parent):
 
         log.debug("assigning child platform %r to parent %r",
                   p_child.platform_id, p_parent.platform_id)
@@ -662,9 +595,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                                                            p_parent.platform_device_id)
         child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(p_parent.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
-
-        if gen_verify:
-            self._generate_parent_with_child_config(p_parent, p_child)
 
     #################################################################
     # instrument
@@ -909,7 +839,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # instrument-platform linking
     #################################################################
 
-    def _assign_instrument_to_platform(self, i_obj, p_obj, gen_verify=False):
+    def _assign_instrument_to_platform(self, i_obj, p_obj):
 
         log.debug("assigning instrument %r to platform %r",
                   i_obj.instrument_agent_instance_id, p_obj.platform_id)
@@ -920,9 +850,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         child_device_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(p_obj.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
-
-        if gen_verify:
-            self._generate_platform_with_instrument_config(p_obj, i_obj)
 
     #################################################################
     # some platform topologies
@@ -949,8 +876,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self._assign_child_to_parent(p_child, p_root)
         self._assign_child_to_parent(p_grandchild, p_child)
-
-        self._generate_platform_config(p_root, "_complete")
 
         return p_root
 

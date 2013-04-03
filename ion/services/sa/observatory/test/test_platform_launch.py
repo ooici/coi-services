@@ -75,8 +75,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         i_obj = self._create_instrument('SBE37_SIM_01')
         self._assign_instrument_to_platform(i_obj, p_root)
 
-        self._generate_platform_config(p_root, "_complete")
-
         #####################################
         # start the root platform:
         #####################################
@@ -111,24 +109,11 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #         LJ01B
         #         MJ01B
         #
-        # In DEBUG logging level for the relevant modules, the following
-        # files are generated under logs/:
+        # In DEBUG logging level for the platform agent, files like the following
+        # are generated under logs/:
         #    platform_CFG_received_Node1B.txt
-        #    platform_CFG_received_Node1C.txt
-        #    platform_CFG_received_Node1D.txt
         #    platform_CFG_received_MJ01C.txt
         #    platform_CFG_received_LJ01D.txt
-        #    platform_CFG_received_LV01C.txt
-        #    platform_CFG_received_PC01B.txt
-        #    platform_CFG_received_SC01B.txt
-        #    platform_CFG_received_SF01B.txt
-        #    platform_CFG_received_LJ01C.txt
-        #    platform_CFG_received_LV01B.txt
-        #    platform_CFG_received_LJ01B.txt
-        #    platform_CFG_received_MJ01B.txt
-
-        # disable the generation of config files
-        self._debug_config_enabled = False
 
         #####################################
         # create platform hierarchy
