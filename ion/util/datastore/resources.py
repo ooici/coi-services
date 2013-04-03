@@ -109,7 +109,7 @@ class ResourceRegistryHelper(object):
 
     def _dump_observatories(self):
         ws = self._wb.add_sheet("OBS")
-        [ws.write(0, col, hdr) for (col, hdr) in enumerate(["Type", "RD", "Org", "Geo Area", "Site", "Station", "Component/Instrument", "Instrument"])]
+        [ws.write(0, col, hdr) for (col, hdr) in enumerate(["Type", "Reference Designator", "Org", "Site", "Subsite", "Station", "Component", "Instrument"])]
         self._row = 1
 
         def follow_site(parent_id, level):
@@ -118,7 +118,11 @@ class ResourceRegistryHelper(object):
             for site in site_list:
                 ws.write(self._row, 0, site['type_'])
                 ws.write(self._row, 1, ",".join([i[4:] for i in site['alt_ids'] if i.startswith("OOI:")]))
-                ws.write(self._row, level, site['name'])
+                if site['type_'] == "InstrumentSite":
+                    ilevel = max(7, level)
+                    ws.write(self._row, ilevel, site['name'])
+                else:
+                    ws.write(self._row, level, site['name'])
                 self._row += 1
                 follow_site(site['_id'], level+1)
 

@@ -380,15 +380,27 @@ class OOILoader(object):
         self._add_object_attribute('site',
             ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
 
+        # Aggregated site level entries
+        self._add_object_attribute('site',
+                                   ooi_rd, 'site_mod', name)
+
+        self._add_object_attribute('site_mod',
+                                   name, None, None, name=name)
+        self._add_object_attribute('site_mod',
+                                   name, 'site_rd_list', ooi_rd, value_is_list=True)
+
+
     def _parse_Subsites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
+        extension = row['Name Extension']
 
+        # Aggregated subsite level entries
         self._add_object_attribute('subsite',
             ooi_rd, 'subsite_mod', name)
 
         self._add_object_attribute('subsite_mod',
-                                   name, None, None, name=name)
+                                   name, None, None, name=name, extension=extension)
         self._add_object_attribute('subsite_mod',
                                    name, 'subsite_rd_list', ooi_rd, value_is_list=True)
 
