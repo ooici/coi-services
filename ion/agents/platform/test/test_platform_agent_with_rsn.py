@@ -292,7 +292,15 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         agt_pars_all = ['example']  # 'cause ResourceAgent defines aparam_example
         res_pars_all = []
-        res_cmds_all = []
+        res_cmds_all = [
+            PlatformDriverEvent.GET_PORTS,
+            PlatformDriverEvent.CONNECT_INSTRUMENT,
+            PlatformDriverEvent.DISCONNECT_INSTRUMENT,
+            PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
+            PlatformDriverEvent.TURN_ON_PORT,
+            PlatformDriverEvent.TURN_OFF_PORT,
+            PlatformDriverEvent.GET_CHECKSUM
+        ]
 
         ##################################################################
         # UNINITIALIZED
@@ -361,9 +369,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, [])
-
 
         ##################################################################
         # IDLE
@@ -387,7 +394,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_idle)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, [])
 
         # Get exposed capabilities in all states as read from IDLE.
@@ -398,7 +405,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, [])
 
 
@@ -440,12 +447,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.CHECK_SYNC,
         ]
 
-        res_cmds_command = [
-        ]
-
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
 
@@ -468,12 +472,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.GET_RESOURCE_STATE,
         ]
 
-        res_cmds_command = [
-        ]
-
         self.assertItemsEqual(agt_cmds, agt_cmds_stopped)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
 
@@ -515,12 +516,9 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.CHECK_SYNC,
         ]
 
-        res_cmds_command = [
-        ]
-
         self.assertItemsEqual(agt_cmds, agt_cmds_monitoring)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
         # return to COMMAND state:

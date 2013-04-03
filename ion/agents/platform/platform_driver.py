@@ -65,6 +65,16 @@ class PlatformDriverEvent(BaseEnum):
     GET_CHECKSUM              = 'PLATFORM_DRIVER_GET_CHECKSUM'
 
 
+class PlatformDriverCapability(BaseEnum):
+    GET_PORTS                 = PlatformDriverEvent.GET_PORTS
+    CONNECT_INSTRUMENT        = PlatformDriverEvent.CONNECT_INSTRUMENT
+    DISCONNECT_INSTRUMENT     = PlatformDriverEvent.DISCONNECT_INSTRUMENT
+    GET_CONNECTED_INSTRUMENTS = PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS
+    TURN_ON_PORT              = PlatformDriverEvent.TURN_ON_PORT
+    TURN_OFF_PORT             = PlatformDriverEvent.TURN_OFF_PORT
+    GET_CHECKSUM              = PlatformDriverEvent.GET_CHECKSUM
+
+
 class PlatformDriver(object):
     """
     A platform driver handles a particular platform in a platform network.
@@ -116,16 +126,13 @@ class PlatformDriver(object):
         res_cmds = self._filter_capabilities(res_cmds)
         res_params = self._param_dict.keys()
 
-        # TODO: fix the above.  For the moment returning empty lists:
-        res_cmds = []
-        res_params = []
-
         return [res_cmds, res_params]
 
     def _filter_capabilities(self, events):
         """
         """
-        return events
+        events_out = [x for x in events if PlatformDriverCapability.has(x)]
+        return events_out
 
     def get_resource_state(self, *args, **kwargs):
         """
@@ -570,6 +577,19 @@ class PlatformDriver(object):
 
         return next_state, result
 
+    def _handler_connected_get_ports(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self._get_ports()
+        next_state = None
+
+        return next_state, result
+
     def _handler_connected_connect_instrument(self, *args, **kwargs):
         """
         """
@@ -713,6 +733,7 @@ class PlatformDriver(object):
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET, self._handler_connected_get)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.SET, self._handler_connected_set)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.EXECUTE, self._handler_connected_execute)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_PORTS, self._handler_connected_get_ports)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_disconnected_connect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, self._handler_connected_get_connected_instruments)
