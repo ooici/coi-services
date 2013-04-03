@@ -84,8 +84,6 @@ import os
 import time
 import copy
 
-from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder
-from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from pyon.util.containers import DotDict
@@ -187,7 +185,13 @@ instruments_dict = {
         'PA_BINARY' : "port_agent"
     },
 
-
+    "SBE37_SIM_08": {
+        'DEV_ADDR'  : "sbe37-simulator.oceanobservatories.org",
+        'DEV_PORT'  : 4008,
+        'DATA_PORT' : 5008,
+        'CMD_PORT'  : 6008,
+        'PA_BINARY' : "port_agent"
+    },
 }
 
 # The value should probably be defined in pyon.yml or some common place so
@@ -258,8 +262,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.instModel_id = self.IMS.create_instrument_model(instModel_obj)
         log.debug('new InstrumentModel id = %s ', self.instModel_id)
 
-        self._create_config_builders()
-
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])
         self._network_definition = RsnOmsUtil.build_network_definition(rsn_oms)
@@ -298,16 +300,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._event_subscribers = []
         self._events_received = []
         self.addCleanup(self._stop_event_subscribers)
-        self._start_event_subscriber()
+        self._start_event_subscriber(sub_type="platform_event")
 
-        # by default, in DEBUG mode, all intermediate agent configurations
-        # (platforms and instruments) are saved in files (under logs/) by this
-        # test. This flag allows to disable this to control which configurations
-        # to generate.
-        self._debug_config_enabled = True
-
-        # the keys of instruments that have been set up
-        self._setup_instruments = set()
+        # instruments that have been set up: instr_key: i_obj
+        self._setup_instruments = {}
 
     #################################################################
     # data subscribers handling
@@ -358,7 +354,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # event subscribers handling
     #################################################################
 
-    def _start_event_subscriber(self, event_type="DeviceEvent", sub_type="platform_event"):
+    def _start_event_subscriber(self, event_type="DeviceEvent",
+                                sub_type=None,
+                                count=0):
         """
         Starts event subscriber for events of given event_type ("DeviceEvent"
         by default) and given sub_type ("platform_event" by default).
@@ -368,15 +366,19 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             # A callback for consuming events.
             log.info('Event subscriber received evt: %s.', str(evt))
             self._events_received.append(evt)
-            self._async_event_result.set(evt)
+            if count == 0:
+                self._async_event_result.set(evt)
+
+            elif count == len(self._events_received):
+                self._async_event_result.set()
 
         sub = EventSubscriber(event_type=event_type,
-            sub_type=sub_type,
-            callback=consume_event)
+                              sub_type=sub_type,
+                              callback=consume_event)
 
         sub.start()
-        log.info("registered event subscriber for event_type=%r, sub_type=%r",
-            event_type, sub_type)
+        log.info("registered event subscriber for event_type=%r, sub_type=%r, count=%d",
+                 event_type, sub_type, count)
 
         self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)
@@ -400,53 +402,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     #################################################################
     # config supporting methods
     #################################################################
-
-    def _create_config_builders(self):
-        clients = DotDict()
-        clients.resource_registry  = self.RR
-        clients.pubsub_management  = self.PSC
-        clients.dataset_management = self.DSC
-
-        self.pconfig_builder = PlatformAgentConfigurationBuilder(clients)
-
-        self.iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
-
-    def _generate_parent_with_child_config(self, p_parent, p_child):
-        self.pconfig_builder.set_agent_instance_object(p_parent.platform_agent_instance_obj)
-        self.pconfig_builder._update_cached_predicates()
-        parent_config = self.pconfig_builder.prepare(will_launch=False)
-        self._verify_parent_config(parent_config,
-                                   p_parent.platform_device_id,
-                                   p_child.platform_device_id,
-                                   is_platform=True)
-
-        self._debug_config(parent_config,
-                           "platform_CFG_generated_%s_->_%s.txt" % (
-                           p_parent.platform_id, p_child.platform_id))
-
-    def _generate_platform_with_instrument_config(self, p_obj, i_obj):
-        log.debug("Using pconfig_builder")
-        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
-        self.pconfig_builder._update_cached_predicates()
-        parent_config = self.pconfig_builder.prepare(will_launch=False)
-        self._verify_parent_config(parent_config,
-                                   p_obj.platform_device_id,
-                                   i_obj.instrument_device_id,
-                                   is_platform=False)
-
-        self._debug_config(parent_config,
-                           "platform_CFG_generated_%s_->_%s.txt" % (
-                           p_obj.platform_id, i_obj.instrument_device_id))
-
-    def _generate_platform_config(self, p_obj, suffix=''):
-        log.debug("Using pconfig_builder")
-        self.pconfig_builder.set_agent_instance_object(p_obj.platform_agent_instance_obj)
-        self.pconfig_builder._update_cached_predicates()
-        config = self.pconfig_builder.prepare(will_launch=False)
-
-        self._debug_config(config, "platform_CFG_generated_%s%s.txt" % (p_obj.platform_id, suffix))
-
-        return config
 
     def _get_platform_stream_configs(self):
         """
@@ -476,32 +431,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                 parameter_dictionary_name='ctd_parsed_param_dict',
                                 records_per_granule=2, granule_publish_rate=5)
         ]
-
-    def _generate_instrument_config(self, i_obj, suffix=''):
-        instrument_agent_instance_obj = self.RR2.read(i_obj.instrument_agent_instance_id)
-        instrument_id = i_obj.instrument_device_id
-
-        log.debug("Using iconfig_builder")
-        self.iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
-        self.iconfig_builder._update_cached_predicates()
-        config = self.iconfig_builder.prepare(will_launch=False)
-
-        self.verify_instrument_config(config, i_obj.org_obj,
-                                      i_obj.instrument_device_id)
-
-        self._debug_config(config, "instrument_CFG_generated_%s%s.txt" % (instrument_id, suffix))
-
-        return config
-
-    def _debug_config(self, config, outname):
-        if self._debug_config_enabled and log.isEnabledFor(logging.DEBUG):
-            import pprint
-            outname = "logs/%s" % outname
-            try:
-                pprint.PrettyPrinter(stream=file(outname, "w")).pprint(config)
-                log.debug("config pretty-printed to %s", outname)
-            except Exception as e:
-                log.warn("error printing config to %s: %s", outname, e)
 
     def _verify_child_config(self, config, device_id, is_platform):
         for key in required_config_keys:
@@ -663,7 +592,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # platform child-parent linking
     #################################################################
 
-    def _assign_child_to_parent(self, p_child, p_parent, gen_verify=False):
+    def _assign_child_to_parent(self, p_child, p_parent):
 
         log.debug("assigning child platform %r to parent %r",
                   p_child.platform_id, p_parent.platform_id)
@@ -672,9 +601,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                                                            p_parent.platform_device_id)
         child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(p_parent.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
-
-        if gen_verify:
-            self._generate_parent_with_child_config(p_parent, p_child)
 
     #################################################################
     # instrument
@@ -886,25 +812,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         i_obj.instrument_agent_instance_id = instrument_agent_instance_id
         i_obj.org_obj = org_obj
 
+        log.debug("KK CREATED I_obj: %s", i_obj)
+
         return i_obj
-
-    def verify_instrument_config(self, config, org_obj, device_id):
-        for key in required_config_keys:
-            self.assertIn(key, config)
-        self.assertEqual(org_obj.name, config['org_name'])
-        self.assertEqual(RT.InstrumentDevice, config['device_type'])
-        self.assertIn('driver_config', config)
-        driver_config = config['driver_config']
-        expected_driver_fields = {'process_type': ('ZMQEggDriverLauncher',),
-                                  }
-        for k, v in expected_driver_fields.iteritems():
-            self.assertIn(k, driver_config)
-            self.assertEqual(v, driver_config[k])
-
-        self.assertEqual({'resource_id': device_id}, config['agent'])
-        self.assertIn('stream_config', config)
-        for key in ['children']:
-            self.assertEqual({}, config[key])
 
     def _create_instrument(self, instr_key):
         """
@@ -927,17 +837,25 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("making the structure for an instrument agent")
         i_obj = self._make_instrument_agent_structure(instr_key, org_obj)
 
-        self._setup_instruments.add(instr_key)
+        self._setup_instruments[instr_key] = i_obj
 
         log.debug("_create_instrument: created instrument %r", instr_key)
 
+        return i_obj
+
+    def _get_instrument(self, instr_key):
+        """
+        Gets the i_obj constructed by _create_instrument(instr_key).
+        """
+        self.assertIn(instr_key, self._setup_instruments)
+        i_obj = self._setup_instruments[instr_key]
         return i_obj
 
     #################################################################
     # instrument-platform linking
     #################################################################
 
-    def _assign_instrument_to_platform(self, i_obj, p_obj, gen_verify=False):
+    def _assign_instrument_to_platform(self, i_obj, p_obj):
 
         log.debug("assigning instrument %r to platform %r",
                   i_obj.instrument_agent_instance_id, p_obj.platform_id)
@@ -948,9 +866,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         child_device_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(p_obj.platform_device_id)
         self.assertNotEqual(0, len(child_device_ids))
-
-        if gen_verify:
-            self._generate_platform_with_instrument_config(p_obj, i_obj)
 
     #################################################################
     # some platform topologies
@@ -977,8 +892,6 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self._assign_child_to_parent(p_child, p_root)
         self._assign_child_to_parent(p_grandchild, p_child)
-
-        self._generate_platform_config(p_root, "_complete")
 
         return p_root
 
@@ -1009,6 +922,132 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             self._assign_child_to_parent(p_obj, parent_obj)
 
         return p_obj
+
+    def _set_up_single_platform_with_some_instruments(self, instr_keys):
+        """
+        Sets up single platform with some instruments
+
+        @param instr_keys  Keys of the instruments to be assigned.
+                           Must be keys in instruments_dict in
+                           base_test_platform_agent_with_rsn
+
+        @return p_root for subsequent termination
+        """
+
+        for instr_key in instr_keys:
+            self.assertIn(instr_key, instruments_dict)
+
+        p_root = self._create_single_platform()
+
+        # create and assign instruments:
+        for instr_key in instr_keys:
+            i_obj = self._create_instrument(instr_key)
+            self._assign_instrument_to_platform(i_obj, p_root)
+
+        return p_root
+
+    def _set_up_platform_hierarchy_with_some_instruments(self, instr_keys):
+        """
+        Sets up a multiple-level platform hierarchy with instruments associated
+        to some of the platforms.
+
+        The platform hierarchy corresponds to the sub-network in the
+        simulated topology rooted at 'Node1B', which at time of writing
+        looks like this:
+
+        Node1B
+            Node1C
+                Node1D
+                    MJ01C
+                        LJ01D
+                LV01C
+                    PC01B
+                        SC01B
+                            SF01B
+                    LJ01C
+            LV01B
+                LJ01B
+                MJ01B
+
+        In DEBUG logging level for the platform agent, files like the following
+        are generated under logs/:
+           platform_CFG_received_Node1B.txt
+           platform_CFG_received_MJ01C.txt
+           platform_CFG_received_LJ01D.txt
+
+        @param instr_keys  Keys of the instruments to be assigned.
+                           Must be keys in instruments_dict in
+                           base_test_platform_agent_with_rsn
+
+        @return p_root for subsequent termination
+        """
+
+        for instr_key in instr_keys:
+            self.assertIn(instr_key, instruments_dict)
+
+        #####################################
+        # create platform hierarchy
+        #####################################
+        log.info("will create platform hierarchy ...")
+        start_time = time.time()
+
+        root_platform_id = 'Node1B'
+        p_objs = {}
+        p_root = self._create_hierarchy(root_platform_id, p_objs)
+
+        log.info("platform hierarchy built. Took %.3f secs. "
+                  "Root platform=%r, number of platforms=%d: %s",
+                  time.time() - start_time,
+                  root_platform_id, len(p_objs), p_objs.keys())
+
+        self.assertIn(root_platform_id, p_objs)
+        self.assertEquals(13, len(p_objs))
+
+        #####################################
+        # create the indicated instruments
+        #####################################
+        log.info("will create %d instruments: %s", len(instr_keys), instr_keys)
+        start_time = time.time()
+
+        i_objs = []
+        for instr_key in instr_keys:
+            i_obj = self._create_instrument(instr_key)
+            i_objs.append(i_obj)
+            log.debug("instrument created = %r (%s)",
+                      i_obj.instrument_agent_instance_id, instr_key)
+
+        log.info("%d instruments created. Took %.3f secs.", len(instr_keys), time.time() - start_time)
+
+        #####################################
+        # assign the instruments
+        #####################################
+        log.info("will assign instruments ...")
+        start_time = time.time()
+
+        plats_to_assign_instrs = [
+            'LJ01D', 'SF01B', 'LJ01B', 'MJ01B',     # leaves
+            'MJ01C', 'Node1D', 'LV01B', 'Node1C'    # intermediate
+        ]
+
+        # assign one available instrument to a platform;
+        # the assignments are arbitrary.
+        num_assigns = min(len(instr_keys), len(plats_to_assign_instrs))
+
+        for ii in range(num_assigns):
+            platform_id = plats_to_assign_instrs[ii]
+            self.assertIn(platform_id, p_objs)
+            p_obj = p_objs[platform_id]
+            i_obj = i_objs[ii]
+            self._assign_instrument_to_platform(i_obj, p_obj)
+            log.debug("instrument %r (%s) assigned to platform %r",
+                      i_obj.instrument_agent_instance_id,
+                      instr_keys[ii],
+                      platform_id)
+
+        log.info("%d instruments assigned. Took %.3f secs.",
+                 num_assigns, time.time() - start_time)
+
+        return p_root
 
     #################################################################
     # start / stop platform
