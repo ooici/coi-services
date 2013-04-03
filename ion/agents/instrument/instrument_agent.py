@@ -192,12 +192,23 @@ class InstrumentAgent(ResourceAgent):
         Init objects that depend on the container services and start state
         machine.
         """
+        super(InstrumentAgent, self).on_init()
 
         # Set the driver config from the agent config if present.
         self._dvr_config = self.CFG.get('driver_config', None)
         
         # Set the test mode.
         self._test_mode = self.CFG.get('test_mode', False)        
+
+    def on_quit(self):
+        """
+        """
+        super(InstrumentAgent, self).on_quit()
+        
+        if self._fsm.get_current_state() != ResourceAgentState.UNINITIALIZED:
+            self._dvr_client.cmd_dvr('disconnect')
+            self._dvr_client.cmd_dvr('initialize')        
+            result = self._stop_driver()
 
     ##############################################################
     # Capabilities interface and event handlers.
@@ -1162,6 +1173,7 @@ class InstrumentAgent(ResourceAgent):
         # Verify the driver has started.
         if not self._dvr_proc.getpid():
             log.error('Instrument agent %s error starting driver process.', self._proc_name)
+            self._dvr_proc = None
             raise ResourceError('Error starting driver process.')
 
         try:
@@ -1172,6 +1184,8 @@ class InstrumentAgent(ResourceAgent):
 
         except Exception, e:
             self._dvr_proc.stop()
+            self._dvr_proc = None
+            self._dvr_client = None
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
@@ -1181,9 +1195,13 @@ class InstrumentAgent(ResourceAgent):
         """
         Stop the driver process and driver client.
         """
-        self._stop_publisher_greenlets()        
-        self._dvr_proc.stop()
-        log.info('Instrument agent %s stopped its driver.', self._proc_name)
+        self._stop_publisher_greenlets()
+            
+        if self._dvr_proc:
+            self._dvr_proc.stop()
+            self._dvr_proc = None
+            self._dvr_client = None
+            log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
             
     def _validate_driver_config(self):
