@@ -51,6 +51,8 @@ from pyon.ion.event import EventSubscriber
 from gevent.event import Event
 from pyon.public import OT
 from pyon.ion.stream import StandaloneStreamPublisher
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -493,10 +495,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             dp_obj = self.rrclient.read(dp_id)
 
     def test_lookup_values(self):
-        contexts = self.create_lookup_contexts()
-        context_ids = [c_id for c,c_id in contexts.itervalues()]
-        pdict_id = self.dataset_management.create_parameter_dictionary(name='lookup_pdict', parameter_context_ids=context_ids, temporal_context='time')
-        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_lookups()
         stream_def_id = self.pubsubcli.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
         self.addCleanup(self.pubsubcli.delete_stream_definition, stream_def_id)
 
@@ -524,12 +524,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
         dataset_id = dataset_ids[0]
 
-        dataset_modified = Event()
-        def cb(*args, **kwargs):
-            dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
-        es.start()
-        self.addCleanup(es.stop)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = [0]
@@ -543,7 +539,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         publisher = StandaloneStreamPublisher(stream_id, route)
         publisher.publish(granule)
 
-        self.assertTrue(dataset_modified.wait(10))
+        self.assertTrue(dataset_monitor.event.wait(10))
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)

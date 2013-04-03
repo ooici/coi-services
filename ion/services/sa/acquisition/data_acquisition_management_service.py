@@ -114,7 +114,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         if data_process_obj is None:
             raise NotFound('Data Process %s does not exist' % process_id)
 
-        producer_context_obj = DataProcessProducerContext(configuration=data_process_obj.configuration)
+        producer_context_obj = DataProcessProducerContext(configuration=data_process_obj.process_configuration)
 
         #create data producer resource and associate to this data_process_id
         data_producer_obj = DataProducer(name=data_process_obj.name,
