@@ -12,6 +12,7 @@ import re
 from pyon.public import log, iex
 from ion.core.ooiref import OOIReferenceDesignator
 from pyon.datastore.datastore import DatastoreManager, DataStore
+from ion.util.geo_utils import GeoUtils
 from ion.util.xlsparser import XLSParser
 
 class OOILoader(object):
@@ -166,6 +167,7 @@ class OOILoader(object):
                 obj_entry[okey] = oval
             ot_obj_attrs.add(okey)
 
+    # ---- Parse SAF export CSV files ----
     # Note: The following _parse_AttributeReport* function parse decomposed CSV files. Every attribute is in
     # its own row. There are, however, "static" attributes that are repeated with each attribute row.
 
@@ -367,6 +369,8 @@ class OOILoader(object):
         self._add_object_attribute('class',
             row['Class'].strip(), 'family', row['Family'].strip())
 
+    # ---- Parse mapping spreadsheet tab ----
+
     def _parse_Arrays(self, row):
         ooi_rd = row['Reference ID']
         name=row['Name']
@@ -453,6 +457,9 @@ class OOILoader(object):
         self._add_object_attribute('platformagent',
             code, None, None, **entry)
 
+
+    # ---- Post-processing and validation ----
+
     def _perform_ooi_checks(self):
         # Perform some consistency checking on imported objects
         ui_checks = [
@@ -519,22 +526,40 @@ class OOILoader(object):
                 name = subsites[ooi_rd[:8]]['name'] + " - " + nodetypes[ooi_rd[9:11]]['name']
                 obj['name'] = name
 
-        # Add rd to osites
+
+        def add_geospatial_bounds(obj, base_list):
+            base_geo = [dict(lat=ss.get('latitude',None), lon=ss.get('longitude',None), depth=ss.get('depth_subsite',None)) for ss in base_list]
+            bbox = GeoUtils.calc_bounding_box_from_points(base_list, key_mapping=dict(depth="depth_subsite"))
+
+            obj['lat_min'] = min(o['lat'] for o in base_geo if 'lat' in o)
+            obj['lat_max'] = max(o['lat'] for o in base_geo if 'lat' in o)
+            obj['lon_min'] = min(o['lon'] for o in base_geo if 'lon' in o)
+            obj['lon_max'] = max(o['lon'] for o in base_geo if 'lon' in o)
+            obj['depth_min'] = min(o['depth'] for o in base_geo if 'depth' in o)
+            obj['depth_max'] = max(o['depth'] for o in base_geo if 'depth' in o)
+
         osites = self.get_type_assets('osite')
-        for key, osite in osites.iteritems():
-            site_rd_list = osite['site_rd_list']
-            osite['rd'] = site_rd_list[0]
 
         # Add rd and parents to ssites
         sites = self.get_type_assets('site')
         ssites = self.get_type_assets('ssite')
         for key, ssite in ssites.iteritems():
             subsite_rd_list = ssite['subsite_rd_list']
+            subsite_objs = [subsites[subsite_id] for subsite_id in subsite_rd_list]
+            add_geospatial_bounds(ssite, subsite_objs)
             ssite['rd'] = subsite_rd_list[0]
             ooi_rd = OOIReferenceDesignator(subsite_rd_list[0])
             site = sites[ooi_rd.site_rd]
             osite = osites[site['osite']]
             ssite['parent_id'] = osite['site_rd_list'][0]
+
+        # Add rd to osites
+        for key, osite in osites.iteritems():
+            site_rd_list = osite['site_rd_list']
+            site_objs = [sites[site_id] for site_id in site_rd_list]
+            add_geospatial_bounds(osite, site_objs)
+            osite['rd'] = site_rd_list[0]
+
 
 
     def get_marine_io(self, ooi_rd_str):
@@ -666,3 +691,7 @@ class OOILoader(object):
             follow_child_nodes(0, platform_children.get(ooi_obj['id'], None))
 
         print "Instrument Models:", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_all))])
+
+        from ion.util.datastore.resources import ResourceRegistryHelper
+        rrh = ResourceRegistryHelper()
+        rrh.dump_dicts_as_xlsx(self.ooi_objects)

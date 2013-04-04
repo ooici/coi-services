@@ -77,3 +77,22 @@ class GeoUtils(object):
         rlon = round(rlon, 6)
         rlat = round(rlat, 6)
         return rlat, rlon
+
+    @staticmethod
+    def calc_bounding_box_from_points(obj_list, key_mapping=None):
+        """Calculates the geospatial bounding box for a list of geospatial points.
+        The input list is represented as a list of dicts.
+        This function assumes that bounding boxes do not span poles or datelines."""
+        lat_key = key_mapping['latitude'] if key_mapping and 'latitude' in key_mapping else 'latitude'
+        lon_key = key_mapping['longitude'] if key_mapping and 'longitude' in key_mapping else 'longitude'
+        depth_key = key_mapping['depth'] if key_mapping and 'depth' in key_mapping else 'depth'
+
+        res_bb = {}
+        res_bb['lat_north'] = max([0.0] + [o[lat_key] for o in obj_list if lat_key in o])
+        res_bb['lat_south'] = min([0.0] + [o[lat_key] for o in obj_list if lat_key in o])
+        res_bb['lon_east'] = max([0.0] + [o[lon_key] for o in obj_list if lon_key in o])
+        res_bb['lon_west'] = min([0.0] + [o[lon_key] for o in obj_list if lon_key in o])
+        res_bb['depth_min'] = min([0.0] + [o[depth_key] for o in obj_list if depth_key in o])
+        res_bb['depth_max'] = max([0.0] + [o[depth_key] for o in obj_list if depth_key in o])
+
+        return res_bb
