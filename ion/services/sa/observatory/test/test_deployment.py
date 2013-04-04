@@ -331,11 +331,20 @@ class TestDeployment(IonIntegrationTestCase):
         instrument_model_id  = [self.RR2.create(any_old(RT.InstrumentModel)) for _ in range(6)]
         platform_model_id    = [self.RR2.create(any_old(RT.PlatformModel)) for _ in range(3)]
 
-        instrument_site_id   = [self.RR2.create(any_old(RT.InstrumentSite)) for _ in range(9)]
-        platform_site_id     = [self.RR2.create(any_old(RT.PlatformSite)) for _ in range(4)]
-
         instrument_device_id = [self.RR2.create(any_old(RT.InstrumentDevice)) for _ in range(9)]
         platform_device_id   = [self.RR2.create(any_old(RT.PlatformDevice)) for _ in range(4)]
+
+        instrument_site_id   = [self.RR2.create(any_old(RT.InstrumentSite,
+                                                {"planned_uplink_port":
+                                                     IonObject(OT.PlatformPort,
+                                                               reference_designator="instport_%d" % (i+1))}))
+                                for i in range(9)]
+
+        platform_site_id     = [self.RR2.create(any_old(RT.PlatformSite,
+                                                {"planned_uplink_port":
+                                                    IonObject(OT.PlatformPort,
+                                                              reference_designator="platport_%d" % (i+1))}))
+                                for i in range(4)]
 
         deployment_id = self.RR2.create(any_old(RT.Deployment,
                                         {"context": IonObject(OT.RemotePlatformDeploymentContext)}))
@@ -380,6 +389,9 @@ class TestDeployment(IonIntegrationTestCase):
         self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[3])
         self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[3])
 
+
+
+
         # verify structure
         for p in range(3):
             parent_id = self.RR2.find_platform_device_id_by_platform_device_using_has_device(platform_device_id[p])
@@ -395,6 +407,14 @@ class TestDeployment(IonIntegrationTestCase):
             self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_device_using_has_deployment(i))
         for i in instrument_site_id:
             self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_site_using_has_deployment(i))
+
+        for i in range(len(platform_site_id)):
+            self.assertEqual(self.RR2.find_platform_model_of_platform_device_using_has_model(platform_device_id[i]),
+                             self.RR2.find_platform_model_of_platform_site_using_has_model(platform_site_id[i]))
+
+        for i in range(len(instrument_site_id)):
+            self.assertEqual(self.RR2.find_instrument_model_of_instrument_device_using_has_model(instrument_device_id[i]),
+                             self.RR2.find_instrument_model_of_instrument_site_using_has_model(instrument_site_id[i]))
 
 
         self.omsclient.activate_deployment(deployment_id)
