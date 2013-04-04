@@ -585,7 +585,6 @@ class InstrumentAgent(ResourceAgent):
         while self._autoreconnect_greenlet:
             gevent.sleep(10)
             try:
-                print '## attempting reconnect...'
                 self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
             except:
                 pass
@@ -1476,7 +1475,7 @@ class InstrumentAgent(ResourceAgent):
         
         retval = 0
         for (k,v) in params.iteritems():
-            if self.aparam_pubrate.has_key(k) and isinstance(v, int) and v >= 0:
+            if isinstance(k, str) and isinstance(v, int) and v >= 0:
                 self.aparam_pubrate[k] = v
             else:
                 retval = -1
