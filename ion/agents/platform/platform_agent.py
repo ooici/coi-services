@@ -242,7 +242,7 @@ class PlatformAgent(ResourceAgent):
         self.aparam_alerts = []
         #list of the aggregate status states for this device
         self.aparam_aggstatus = {}
-        #list of the aggregate status states for this device
+        #list of the rollup status states for this device
         self.aparam_rollup_status = {
             AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_UNKNOWN,
             AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_UNKNOWN,
