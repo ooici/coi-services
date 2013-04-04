@@ -21,7 +21,7 @@ from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
-from coverage_model import AbstractCoverage, ViewCoverage
+from coverage_model import AbstractCoverage, ViewCoverage, ComplexCoverage, ComplexCoverageType
 from coverage_model.parameter_functions import AbstractFunction
 
 from uuid import uuid4
@@ -412,6 +412,19 @@ class DatasetManagementService(BaseDatasetManagementService):
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
         scov.close()
         return vcov
+
+    def _splice_coverage(self, dataset_id):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        vcov = self._get_coverage(dataset_id,mode='a')
+        ccov = ComplexCoverage(file_root, uuid4().hex, 'Complex coverage for %s' % dataset_id, 
+                reference_coverage_locs=[vcov.head_coverage_path,],
+                parameter_dictionary=ParameterDictionary(),
+                complex_type=ComplexCoverageType.TEMPORAL_AGGREGATION)
+        ccov_pth = ccov.persistence_dir
+        ccov.close()
+        vcov.replace_reference_coverage(ccov_pth)
+        vcov.refresh()
+
 
     @classmethod
     def _save_coverage(cls, coverage):
