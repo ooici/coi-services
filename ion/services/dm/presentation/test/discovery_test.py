@@ -263,9 +263,9 @@ class DiscoveryUnitTest(PyonTestCase):
         mock_es().search_index_advanced.return_value = {'hits':{'hits':hits}}
 
         date1 = '2012-01-01'
-        ts1 = time.mktime( dateutil.parser.parse(date1).timetuple()) * 1000
+        ts1 = calendar.timegm( dateutil.parser.parse(date1).timetuple()) * 1000
         date2 = '2012-02-01'
-        ts2 = time.mktime( dateutil.parser.parse(date2).timetuple()) * 1000
+        ts2 = calendar.timegm( dateutil.parser.parse(date2).timetuple()) * 1000
 
         retval = self.discovery.query_time('index_id','field',date1,date2,id_only=False)
 
