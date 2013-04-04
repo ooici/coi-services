@@ -6,7 +6,7 @@ from ion.agents.port.port_agent_process import PortAgentProcessType
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import IonObject
 from pyon.util.containers import DotDict
-from pyon.util.int_test import IonIntegrationTestCase
+#from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import create_unique_identifier
 from pyon.ion.resource import LCS
 
@@ -514,18 +514,19 @@ class TestAssembly(GenericIntHelperTestCase):
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
                                    data_product_id=inst_data_product_id)
 
-        deployment_id = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=None,
+        deployment_obj = any_old(RT.Deployment, {"context": IonObject(OT.CabledNodeDeploymentContext)})
+        deployment_id = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=deployment_obj,
                                                   extra_fn=add_to_org_fn)
 
         c.OMS.deploy_platform_site(platform_site_id, deployment_id)
-        self.RR2.find_deployment_id_of_platform_site(platform_site_id)
+        self.RR2.find_deployment_id_of_platform_site_using_has_deployment(platform_site_id)
         c.IMS.deploy_platform_device(platform_device_id, deployment_id)
-        self.RR2.find_deployment_of_platform_device(platform_device_id)
+        self.RR2.find_deployment_of_platform_device_using_has_deployment(platform_device_id)
 
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id)
-        self.RR2.find_deployment_id_of_instrument_site(instrument_site_id)
+        self.RR2.find_deployment_id_of_instrument_site_using_has_deployment(instrument_site_id)
         c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
-        self.RR2.find_deployment_id_of_instrument_device(instrument_device_id)
+        self.RR2.find_deployment_id_of_instrument_device_using_has_deployment(instrument_device_id)
 
 
         c.OMS.activate_deployment(deployment_id, True)
@@ -570,7 +571,8 @@ class TestAssembly(GenericIntHelperTestCase):
                                    data_product_id=inst_data_product_id2)
 
         # create a new deployment for the new device
-        deployment_id2 = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=None,
+        deployment_obj = any_old(RT.Deployment, {"context": IonObject(OT.CabledNodeDeploymentContext)})
+        deployment_id2 = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=deployment_obj,
                                                    extra_fn=add_to_org_fn)
         log.debug("Associating instrument site with new deployment")
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id2)
