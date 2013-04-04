@@ -250,6 +250,9 @@ class PlatformAgent(ResourceAgent):
             AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_UNKNOWN
         }
 
+        # All EventSubscribers created
+        self._event_subscribers = []
+
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
@@ -405,8 +408,16 @@ class PlatformAgent(ResourceAgent):
         self._async_children_launched.set()
         log.info("%r: _children_launch completed", self._platform_id)
 
-        self._start_subscriber_device_status_event()
-        self._start_subscriber_device_aggregate_status_event()
+        # start event subscribers
+        for subplaform_id, dd in self._pa_clients.iteritems():
+            origin = dd.pa_client.resource_id
+            self._start_subscriber_device_status_event(origin)
+            self._start_subscriber_device_aggregate_status_event(origin)
+
+        for instrument_id, dd in self._ia_clients.iteritems():
+            origin = dd.ia_client.resource_id
+            self._start_subscriber_device_status_event(origin)
+            self._start_subscriber_device_aggregate_status_event(origin)
 
     def on_quit(self):
         try:
@@ -429,6 +440,7 @@ class PlatformAgent(ResourceAgent):
         self._bring_to_uninitialized_state()
 
         if LAUNCH_CHILDREN_ON_START:
+            self._deactivate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
@@ -473,6 +485,15 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _bring_to_uninitialized_state complete. "
                   "attempts=%d;  final state=%s",
                   self._platform_id, attempts, curr_state)
+
+    def _deactivate_event_subscribers(self):
+        try:
+            for es in self._event_subscribers:
+                es.deactivate()
+        except:
+            log.exception("%r: error deactivating event subscriber", self._platform_id)
+        finally:
+            self._event_subscribers = []
 
     def _terminate_subplatform_agent_processes(self):
         """
@@ -569,6 +590,7 @@ class PlatformAgent(ResourceAgent):
         self._unconfigured_params.clear()
 
         if not LAUNCH_CHILDREN_ON_START:
+            self._deactivate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
@@ -1006,62 +1028,25 @@ class PlatformAgent(ResourceAgent):
     # DeviceStatusEvent
     #----------------------------------
 
-    def _get_subplatform_for_event(self, evt):
-        """
-        Determines whether the event comes from a subplatform.
-        """
-        for subplatform_id, dd in self._pa_clients.iteritems():
-            if evt.origin == dd.pa_client.resource_id:
-                return subplatform_id
-
-        return None
-
-    def _get_instrument_for_event(self, evt):
-        """
-        Determines whether the event comes from an instrument.
-        """
-        for instrument_id, dd in self._ia_clients.iteritems():
-            if evt.origin == dd.ia_client.resource_id:
-                return instrument_id
-
-        return None
-
     def _got_device_status_event(self, evt, *args, **kwargs):
 
-        # ignore if not coming from one of my direct children:
+        self._calculate_rollup_status()
 
-        from_child = False
-
-        subtplaform_id = self._get_subplatform_for_event(evt)
-        if subtplaform_id:
-            from_child = True
-            log.debug("%r: TRS _got_device_status_event from"
-                      " subplatform=%r"
-                      " evt: %s",
-                      self._platform_id, subtplaform_id, evt)
-
-        else:
-            instrument_id = self._get_instrument_for_event(evt)
-            if instrument_id:
-                from_child = True
-                log.debug("%r: TRS _got_device_status_event from"
-                          " instrument=%r"
-                          " evt: %s",
-                          self._platform_id, instrument_id, evt)
-
-        if from_child:
-            self._calculate_rollup_status()
-
-    def _start_subscriber_device_status_event(self):
+    def _start_subscriber_device_status_event(self, origin):
         """
+        @param origin    the resource_id associated with child
         """
         event_type = "DeviceStatusEvent"
         sub = EventSubscriber(event_type=event_type,
+                              origin=origin,
                               callback=self._got_device_status_event)
 
+        self._event_subscribers.append(sub)
         sub.start()
-        log.debug("%r: TRS registered event subscriber for event_type=%r",
-                  self._platform_id, event_type)
+
+        log.debug("%r: TRS registered event subscriber for event_type=%r"
+                  "coming from origin=%r",
+                  self._platform_id, event_type, origin)
 
     def _publish_subplatform_event(self, subplatform_id, sub_resource_id, sub_type):
         """
@@ -1103,13 +1088,16 @@ class PlatformAgent(ResourceAgent):
         # TODO integrating Maurice's code:
         self._consume_child_agg_status_events(*args, **kwargs)
 
-    def _start_subscriber_device_aggregate_status_event(self):
+    def _start_subscriber_device_aggregate_status_event(self, origin):
         """
+        @param origin    the resource_id associated with child
         """
         event_type = "DeviceAggregateStatusEvent"
         sub = EventSubscriber(event_type=event_type,
+                              origin=origin,
                               callback=self._got_device_aggregate_status_event)
 
+        self._event_subscribers.append(sub)
         sub.start()
         log.debug("%r: TRS registered event subscriber for event_type=%r",
                   self._platform_id, event_type)
