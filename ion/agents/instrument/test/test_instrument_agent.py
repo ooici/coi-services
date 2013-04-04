@@ -2142,24 +2142,32 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 try:
                     gevent.sleep(.5)
                     test._ia_client.execute_resource(cmd)
+                    break
                 except:
                     pass
-                else:
-                    break
-        
-        gl = gevent.spawn(poll_func, self)
-        
-        # Let the poll go for a bit.
-        gevent.sleep(10)
-        
-        # Blow the port agent out from under the agent.
-        self._support.stop_pagent()
 
-        # Wait for a while, the supervisor is restarting the port agent.
-        gevent.sleep(5)
-        self._support.start_pagent()
+        gl = gevent.spawn(poll_func, self)        
+        timeout = gevent.Timeout(120)
+        timeout.start()
+        try:
 
-        gl.join()
+            # Start the command greenlet and let poll for a bit.
+            gevent.sleep(20)
+        
+            # Blow the port agent out from under the agent.
+            self._support.stop_pagent()
+
+            # Wait for a while, the supervisor is restarting the port agent.
+            gevent.sleep(5)
+            self._support.start_pagent()
+            
+            # Wait for the device to connect and start sampling again.
+            gl.join()
+            timeout.cancel()
+            
+        except Timeout as t:
+            gl.kill()
+            self.assertFail('Could not reconnect to device.')
 
     def test_connect_failed(self):
         """
