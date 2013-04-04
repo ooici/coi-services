@@ -59,6 +59,8 @@ class DeploymentOperatorFactory(object):
                                    include_children=False,
                                    RR2=self.RR2)
 
+        raise BadRequest("Can't activate deployments of unimplemented context type '%s'" % deployment_context_type)
+
 class DeploymentActivatorFactory(DeploymentOperatorFactory):
 
     def creation_type(self):
@@ -112,19 +114,22 @@ class DeploymentOperator(object):
 class DeploymentResourceCollector(DeploymentOperator):
 
     def on_init(self):
+        # return stuff
         self._device_models = {}
-        self._site_models = {}
+        self._site_models   = {}
+        self._device_tree   = {}
+        self._site_tree     = {}
 
+        # cache stuff
         self._model_lookup = {}
-        self._type_lookup = {}
-
-        self._typecache_hits = 0
-        self._typecache_miss = 0
-
+        self._type_lookup  = {}
+        self._typecache_hits  = 0
+        self._typecache_miss  = 0
         self._modelcache_hits = 0
         self._modelcache_miss = 0
 
 
+    # functions to return the result of the collect( ) operation
     def collected_device_ids(self):
         return self._device_models.keys()
 
@@ -137,7 +142,16 @@ class DeploymentResourceCollector(DeploymentOperator):
     def collected_models_by_device(self):
         return copy.copy(self._device_models)
 
+    def collected_site_tree(self):
+        return copy.copy(self._site_tree)
+
+    def collected_device_tree(self):
+        return copy.copy(self._device_tree)
+
     def typecache_add(self, resource_id, resource_type):
+        """
+        add an entry to the internal cache of resource types by id
+        """
         assert resource_type in RT
         log.trace("typecache_add type %s", resource_type)
         self._type_lookup[resource_id] = resource_type
@@ -160,10 +174,17 @@ class DeploymentResourceCollector(DeploymentOperator):
 
 
     def get_resource_type(self, resource_id):
+        """
+        get the type of a resource.  faster than an RR op because we cache.
+        """
         return self.read_using_typecache(resource_id)._get_type()
 
+
     def find_models_fromcache(self, resource_id):
-        if resource_id in self._type_lookup:
+        """
+        Find any models assiciatiated with a device/site id.  use a local cache
+        """
+        if resource_id in self._model_lookup:
             self._modelcache_hits += 1
             log.trace("Modelcache HIT/miss = %s / %s", self._modelcache_hits, self._modelcache_miss)
             return self._model_lookup[resource_id]
@@ -188,7 +209,9 @@ class DeploymentResourceCollector(DeploymentOperator):
         return model
 
 
-    
+    """
+    Functions to manage the RR2 cache
+    """
     def _predicates_to_cache(self):
         return [
             PRED.hasDeployment,
@@ -250,13 +273,18 @@ class DeploymentResourceCollector(DeploymentOperator):
             self.RR2.clear_cached_predicate(p)
 
 
+
+
     def _build_tree(self, root_id, assn_type, leaf_types, known_leaves):
+        """
+        Recursively build a tree of resources based on various types and allowed transitions
+
+
+        """
 
         # copy this list
         leftover_leaves = filter(lambda x: x != root_id, known_leaves)
-#        leftover_leaves = known_leaves[:]
-#        if root_id in leftover_leaves:
-#            leftover_leaves.remove(root_id)
+
 
         root_obj = self.read_using_typecache(root_id)
 
@@ -295,6 +323,13 @@ class DeploymentResourceCollector(DeploymentOperator):
 
 
     def _attempt_site_tree_build(self, site_ids):
+        """
+        attempt to build a site tree that includes all provided site ids.  return None if None
+
+        we do this by just trying each site id as the root and seeing if the resuling tree includes all site_ids
+        """
+        #TODO: optimize, because each id that shows up in the children can't be a valid one to try as root
+
         log.debug("Attempting site tree build")
         for d in site_ids:
             tree, leftovers = self._build_tree(d, PRED.hasSite, [RT.InstrumentSite, RT.PlatformSite], site_ids)
@@ -304,6 +339,13 @@ class DeploymentResourceCollector(DeploymentOperator):
 
 
     def _attempt_device_tree_build(self, device_ids):
+        """
+        attempt to build a device tree that includes all provided device ids.  return None if None
+
+        we do this by just trying each device id as the root and seeing if the resuling tree includes all device_ids
+        """
+        #TODO: optimize, because each id that shows up in the children can't be a valid one to try as root
+
         log.debug("Attempting device tree build")
         for d in device_ids:
             tree, leftovers = self._build_tree(d, PRED.hasDevice, [RT.InstrumentDevice, RT.PlatformDevice], device_ids)
@@ -312,7 +354,11 @@ class DeploymentResourceCollector(DeploymentOperator):
         return None
 
 
+
     def collect(self):
+        """
+        Get all the resources involved for a deployment.  store them several ways.
+        """
         # fetch caches just in time
         self._fetch_caches()
 
@@ -323,25 +369,31 @@ class DeploymentResourceCollector(DeploymentOperator):
 
         # collect all devices in this deployment
 
+        def add_site_models(site_id, model_ids):
+            if site_id in site_models:
+                log.warn("Site '%s' was already collected in deployment '%s'", site_id, deployment_id)
+            site_models[site_id] = model_ids
+            self._model_lookup[site_id] = model_ids
+
+        def add_device_model(device_id, model_id):
+            if device_id in device_models:
+                log.warn("Device '%s' was already collected in deployment '%s'", device_id, deployment_id)
+            device_models[device_id] = model_id
+            self._model_lookup[device_id] = model_id
+
         def add_sites(site_ids, model_type):
             for s in site_ids:
                 models = self.RR2.find_objects(s, PRED.hasModel, model_type, id_only=True)
                 for m in models: self.typecache_add(m, model_type)
                 log.trace("Found %s %s objects of site", len(models), model_type)
-                if s in site_models:
-                    log.warn("Site '%s' was already collected in deployment '%s'", s, deployment_id)
-                site_models[s] = models
-                self._model_lookup[s] = models
+                add_site_models(s, models)
 
         def add_devices(device_ids, model_type):
             for d in device_ids:
                 model = self.RR2.find_object(d, PRED.hasModel, model_type, id_only=True)
                 self.typecache_add(model, model_type)
                 log.trace("Found 1 %s object of device", model_type)
-                if d in device_models:
-                    log.warn("Device '%s' was already collected in deployment '%s'", d, deployment_id)
-                device_models[d] = model
-                self._model_lookup[d] = model
+                add_device_model(d, model)
 
 
         def collect_specific_resources(site_type, device_type, model_type):
@@ -379,12 +431,16 @@ class DeploymentResourceCollector(DeploymentOperator):
         if not device_tree:
             raise BadRequest("Devices in this deployment were not part of the same tree")
 
+        if not self.allow_children and 0 < len(device_tree["children"]):
+            raise BadRequest("This type of deployment does not allow child devices, but they were included")
+
         log.info("Got site tree: %s" % site_tree)
         log.info("Got device tree: %s" % device_tree)
 
-
         self._device_models = device_models
-        self._site_models = site_models
+        self._site_models   = site_models
+        self._device_tree   = device_tree
+        self._site_tree     = site_tree
 
 
 
@@ -416,57 +472,101 @@ class DeploymentActivator(DeploymentOperator):
         return ret
 
 
-    def prepare(self, will_launch=True):
-        """
-        Prepare (validate) an agent for launch, fetching all associated resources
 
-        @param will_launch - whether the running status should be checked -- set false if just generating config
+    def prepare(self):
+        """
+        Prepare (validate) a deployment for activation, returning lists of what associations need to be added
+        and which ones need to be removed.
         """
 
         #TODO: check for already deployed?
 
 
+        log.debug("about to collect deployment components")
         self.resource_collector.collect()
 
-        log.debug("about to collect deployment components")
-        device_models = self.resource_collector.collected_models_by_device()
-        site_models = self.resource_collector.collected_models_by_site()
 
-        log.debug("Collected %s device models, %s site models", len(device_models), len(site_models))
-
-        solutions = self._get_deployment_csp_solutions(device_models, site_models)
-
-        pairs_add = []
-        pairs_rem = []
-
-        if 1 > len(solutions):
-            raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
-                             "models") # and streamdefs")
-        elif 1 < len(solutions):
-            log.info("Found %d possible ways to map device and site", len(solutions))
-            log.trace("Here is the %s of all of them:", type(solutions).__name__)
-            for i, s in enumerate(solutions):
-                log.trace("Option %d: %s" , i+1, self._csp_solution_to_string(s))
+        if not self.deployment_obj.port_assignments:
+            log.info("No port assignments, so using CSP")
+            pairs_to_add = self._prepare_using_csp()
         else:
-            log.info("Found one possible way to map devices and sites.  Best case scenario!")
+            log.info("Merging trees with port assignments")
+            pairs_to_add = self._prepare_using_portassignment_trees()
 
-            #figure out if any of the devices in the new mapping are already mapped and need to be removed
-            #then add the new mapping to the output array
-            for device_id in device_models.keys():
-                site_id = solutions[0][mk_csp_var(device_id)]
-                old_pair = self._find_existing_relationship(site_id, device_id)
-                if old_pair:
-                    pairs_rem.append(old_pair)
-                new_pair = (site_id, device_id)
-                pairs_add.append(new_pair)
+        log.info("Pairs to add: %s", pairs_to_add)
+
+        #figure out if any of the devices in the new mapping are already mapped and need to be removed
+        pairs_to_remove = []
+        for (s, d) in pairs_to_add:
+            rm_pair = self._find_existing_relationship(s, d)
+            if rm_pair:
+                pairs_to_remove.append(rm_pair)
+
+        self._hasdevice_associations_to_create = pairs_to_add
+        self._hasdevice_associations_to_delete = pairs_to_remove
+
+        log.info("Pairs to remove: %s", pairs_to_remove)
 
 
+    def _prepare_using_portassignment_trees(self):
+        # return a list of (site, device) pairs
+        # badrequest if not all devices get consumed
 
-        log.debug("falling back on port assignments")
+        site_tree   = self.resource_collector.collected_site_tree()
+        device_tree = self.resource_collector.collected_device_tree()
 
-        self._hasdevice_associations_to_create = sorted(pairs_add)
-        self._hasdevice_associations_to_delete = sorted(pairs_rem)
+        merged_tree_pairs, leftover_devices = self._merge_trees(site_tree, device_tree)
+        if 0 < len(leftover_devices):
+            raise BadRequest("Merging site and device trees resulted in %s unassigned devices" % len(leftover_devices))
 
+        return merged_tree_pairs
+
+
+    def _merge_trees(self, site_tree, device_tree):
+        # return a list of (site, device) pairs and a list of unmatched devices
+
+        portref_of_device = self.deployment_obj.port_assignments
+
+        def all_children(some_tree):
+            def all_children_h(acc, t):
+                acc.append(t["_id"])
+                for c, ct in t["children"].iteritems():
+                    acc = all_children_h(acc[:], ct)
+
+                return acc
+            return all_children_h([], some_tree)
+
+        def _merge_helper(acc, site_ptr, dev_ptr, unmatched_list):
+            """
+            given 2 trees, try to match up all their children.  assume roots already matched
+            """
+            dev_id  = dev_ptr["_id"]
+            site_id = site_ptr["_id"]
+            if not dev_ptr["model"] in site_ptr["models"]:
+                raise BadRequest("Attempted to assign device '%s' to a site that doesn't support its model" % dev_id)
+
+            if dev_id in unmatched_list: unmatched_list.remove(dev_id)
+            acc.append((site_id, dev_id))
+
+            site_of_portref = dict([(v["uplink_port"], k) for k, v in site_ptr["children"].iteritems()])
+
+            for child_dev_id, child_dev_ptr in dev_ptr["children"].iteritems():
+                if not child_dev_id in portref_of_device:
+                    raise BadRequest("No reference_designator specified for device %s" % child_dev_id)
+                dev_port = portref_of_device[child_dev_id]
+                if not dev_port in site_of_portref:
+                    raise BadRequest("Couldn't find a port on site %s (%s) called '%s'" % (site_ptr["name"],
+                                                                                           site_id,
+                                                                                           dev_port))
+                child_site_id = site_of_portref[dev_port]
+                child_site_ptr = site_ptr["children"][child_site_id]
+                acc, unmatched_list = _merge_helper(acc[:], child_site_ptr, child_dev_ptr, unmatched_list[:])
+
+            return acc, unmatched_list
+
+        unmatched_devices = all_children(device_tree)
+
+        return _merge_helper([], site_tree, device_tree, unmatched_devices)
 
 
 
@@ -483,7 +583,7 @@ class DeploymentActivator(DeploymentOperator):
             device_type = self.resource_collector.get_resource_type(device_id)
 
 
-        log.debug("checking existing hasDevice links from site")
+        log.debug("checking existing %s hasDevice %s links", site_type, device_type)
 
         ret = None
 
@@ -492,12 +592,42 @@ class DeploymentActivator(DeploymentOperator):
 
             if found_device_id != device_id:
                 ret = (site_id, found_device_id)
-                log.info("%s '%s' is already hasDevice with a %s", site_type, site_id, device_type)
+                log.info("%s '%s' already hasDevice %s", site_type, site_id, device_type)
 
         except NotFound:
             pass
 
         return ret
+
+
+
+    def _prepare_using_csp(self):
+        """
+        use the previously collected resoures in a CSP problem
+        """
+        device_models = self.resource_collector.collected_models_by_device()
+        site_models = self.resource_collector.collected_models_by_site()
+
+        log.debug("Collected %s device models, %s site models", len(device_models), len(site_models))
+
+        solutions = self._get_deployment_csp_solutions(device_models, site_models)
+
+        if 1 > len(solutions):
+            raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
+                             "models") # and streamdefs")
+
+        if 1 < len(solutions):
+            log.info("Found %d possible ways to map device and site", len(solutions))
+            log.trace("Here is the %s of all of them:", type(solutions).__name__)
+            for i, s in enumerate(solutions):
+                log.trace("Option %d: %s" , i+1, self._csp_solution_to_string(s))
+            raise BadRequest(("The set of devices could be mapped to the set of sites in %s ways based only " +
+                              "on matching models, and no port assignments were specified") % len(solutions))
+
+        log.info("Found one possible way to map devices and sites.  Best case scenario!")
+        # return list of site_id, device_id
+        return [(solutions[0][mk_csp_var(device_id)], device_id) for device_id in device_models.keys()]
+
 
 
     def _get_deployment_csp_solutions(self, device_models, site_models):
