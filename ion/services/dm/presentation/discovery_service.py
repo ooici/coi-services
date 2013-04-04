@@ -446,7 +446,7 @@ class DiscoveryService(BaseDiscoveryService):
         
         
         #---------------------------------------------
-        # Time Search
+        # Time Bounds Search
         #---------------------------------------------
 
         elif QueryLanguage.query_is_time_bounds_search(query):
@@ -469,6 +469,31 @@ class DiscoveryService(BaseDiscoveryService):
                 kwargs['offset'] = query['offset']
             
             return self.query_time_bounds(**kwargs)
+        
+        #---------------------------------------------
+        # Vertical Bounds Search
+        #---------------------------------------------
+
+        elif QueryLanguage.query_is_vertical_bounds_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id  = source_id,
+                field      = query['field'],
+                limit      = limit,
+                id_only    = id_only
+            )
+            if get_safe(query,'vertical_bounds.from') is not None:
+                kwargs['from_value'] = query['vertical_bounds']['from']
+            if get_safe(query,'vertical_bounds.to') is not None:
+                kwargs['to_value'] = query['vertical_bounds']['to']
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+            
+            return self.query_vertical_bounds(**kwargs)
         
         #---------------------------------------------
         # Collection Search
@@ -793,6 +818,91 @@ class DiscoveryService(BaseDiscoveryService):
         return self._results_from_response(response, id_only)
  
 
+    def query_vertical_bounds(self, source_id='', field='', from_value=None, to_value=None, order=None, limit=0, offset=0, id_only=False):
+        if from_value is not None:
+            validate_is_instance(from_value,float,'"From" is not a valid float (%s)' % from_value)
+
+        if to_value is not None:
+            validate_is_instance(to_value,float,'"To" is not a valid float')
+
+        es = ep.ElasticSearch(host=self.elasticsearch_host, port=self.elasticsearch_port)
+
+        source = self.clients.resource_registry.read(source_id)
+
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        # If source is a view, catalog or collection go through it and recursively call query_time on all the results in the indexes
+        #- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+        iterate = self._multi(self.query_time, source, field=field, from_value=from_value, to_value=to_value, order=order, limit=limit, offset=offset, id_only=id_only)
+        if iterate is not None:
+            return iterate
+
+        index = source
+        validate_is_instance(index,ElasticSearchIndex,'%s does not refer to a valid index.' % source_id)
+        if order:
+            validate_is_instance(order,dict,'Order is incorrect.')
+            es.sort(**order)
+
+        if limit:
+            es.size(limit)
+
+        if field == '*':
+            field = '_all'
+            vertical_min = 'geospatial_vertical_min'
+            vertical_max = 'geospatial_vertical_max'
+        else:
+            vertical_min = '%s.geospatial_vertical_min' % field
+            vertical_max = '%s.geospatial_vertical_max' % field
+
+
+        query = {
+          "query": {
+            "match_all": {}
+          },
+          "filter": {
+            "and": [
+              {
+                "or": [
+                  {
+                    "range": {
+                      vertical_min: {
+                        "gte": from_value
+                      }
+                    }
+                  },
+                  {
+                    "range": {
+                      vertical_max: {
+                        "gte": from_value
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "or": [
+                  {
+                    "range": {
+                      vertical_min: {
+                        "lte": to_value
+                      }
+                    }
+                  },
+                  {
+                    "range": {
+                      vertical_max: {
+                        "lte": to_value
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+
+        response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query)
+        IndexManagementService._check_response(response)
+        return self._results_from_response(response, id_only)
 
 
     def query_association(self,resource_id='', depth=0, id_only=False):
