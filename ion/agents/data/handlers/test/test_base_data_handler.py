@@ -366,6 +366,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         self._bdh._polling = True
         self._bdh._polling_glet = Mock()
         self._bdh._terminate_polling = Mock()
+        self._bdh._stall_polling = Mock()
         ret1, ret2 = self._bdh.execute_stop_autosample()
         self.assertEqual(ret1, ResourceAgentState.COMMAND)
         self.assertIsNone(ret2)
