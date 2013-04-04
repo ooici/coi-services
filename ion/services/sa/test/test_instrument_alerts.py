@@ -129,6 +129,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             description="SBE37IMAgent",
             driver_uri="http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.4-py2.7.egg",
             stream_configurations = [raw_config, parsed_config] )
+
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
@@ -146,7 +147,44 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
         return instDevice_id
 
-    def _create_instrument_agent_instance(self, instAgent_id,instDevice_id):
+    def _create_instrument_stream_alarms(self, instDevice_id):
+        #Create stream alarms
+            """
+            test_two_sided_interval
+            Test interval alarm and alarm event publishing for a closed
+            inteval.
+            """
+
+            temp_alert_def = {
+                'name' : 'temperature_warning_interval',
+                'stream_name' : 'parsed',
+                'message' : 'Temperature is below the normal range of 50.0 and above.',
+                'alert_type' : StreamAlertType.WARNING,
+                'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+                'value_id' : 'temp',
+                'resource_id' : instDevice_id,
+                'origin_type' : 'device',
+                'lower_bound' : 50.0,
+                'lower_rel_op' : '<',
+                'alert_class' : 'IntervalAlert'
+            }
+
+            late_data_alert_def = {
+                'name' : 'late_data_warning',
+                'stream_name' : 'parsed',
+                'message' : 'Expected data has not arrived.',
+                'alert_type' : StreamAlertType.WARNING,
+                'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
+                'value_id' : None,
+                'resource_id' : instDevice_id,
+                'origin_type' : 'device',
+                'time_delta' : 2,
+                'alert_class' : 'LateDataAlert'
+            }
+            return temp_alert_def, late_data_alert_def
+
+
+    def _create_instrument_agent_instance(self, instAgent_id, instDevice_id):
 
 
         port_agent_config = {
@@ -161,9 +199,13 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             'type': PortAgentType.ETHERNET
         }
 
+        temp_alert, late_data_alert = self._create_instrument_stream_alarms(instDevice_id)
+
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
             description="SBE37IMAgentInstance",
-            port_agent_config = port_agent_config)
+            port_agent_config = port_agent_config,
+            alerts= [temp_alert, late_data_alert]
+            )
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
             instAgent_id,
@@ -192,27 +234,22 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         instDevice_id = self._create_instrument_device(instModel_id)
 
         # It is necessary for the instrument device to be associated with atleast one output data product
-        associated_out_data_products, _ = self.rrclient.find_objects(instDevice_id, PRED.hasOutputProduct, RT.DataProduct)
+        tdom, sdom = time_series_domain()
+        parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        log.debug("got assoc data product: %s", associated_out_data_products)
+        dp_obj = IonObject(RT.DataProduct,
+            name='output_data_prod',
+            description='Output data product for instrument',
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        if not associated_out_data_products:
-            tdom, sdom = time_series_domain()
-            parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-            parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
+        out_data_product_id = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=out_data_product_id)
 
-            dp_obj = IonObject(RT.DataProduct,
-                name='output_data_prod',
-                description='Output data product for instrument',
-                temporal_domain = tdom.dump(),
-                spatial_domain = sdom.dump())
+        log.debug("assigning instdevice id: %s to data product: %s", instDevice_id, out_data_product_id)
 
-            out_data_product_id = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
-            self.dataproductclient.activate_data_product_persistence(data_product_id=out_data_product_id)
-
-            log.debug("assigning instdevice id: %s to data product: %s", instDevice_id, out_data_product_id)
-
-            self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=out_data_product_id)
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=out_data_product_id)
 
         #-------------------------------------------------------------------------------------
         # Create Instrument Agent Instance
