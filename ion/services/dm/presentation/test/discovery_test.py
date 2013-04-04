@@ -27,12 +27,16 @@ from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 from mock import Mock, patch
 from datetime import date, timedelta
+from pyon.util.ion_time import IonTime
+from pyon.util.containers import get_ion_ts
 
+import gevent
 import elasticpy as ep
 import dateutil.parser
 import time
 import os
 import unittest
+import calendar
 
 
 
@@ -639,6 +643,9 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == bank_id)
 
+
+
+
     @skipIf(not use_es, 'No ElasticSearch')
     def test_collections_searching(self):
 
@@ -720,6 +727,42 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_temporal_bounds_searching(self):
+        dp = DataProduct(name='blah')
+        dp.nominal_datetime.start_datetime = get_ion_ts()
+        gevent.sleep(2)
+        dp.nominal_datetime.end_datetime = get_ion_ts()
+        dp_id, _ = self.rr.create(dp)
+
+        it = IonTime(time.time() - 3600)
+        start = str(it)
+        it = IonTime(time.time())
+        end = str(it)
+
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %(start,end)
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertTrue(results[0]['_id'] == dp_id)
+
+        it = IonTime(time.time())
+        start = str(it)
+        it = IonTime(time.time())
+        end = str(it)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %(start,end)
+        results = self.poll(1, self.discovery.parse, search_string)
+        try:
+            self.assertEquals(results,None)
+        except AssertionError:
+            print results
+            print 'X=', calendar.timegm(dateutil.parser.parse(start).timetuple()) * 1000
+            print 'Y=', calendar.timegm(dateutil.parser.parse(end).timetuple()) * 1000
+            print 'S=', results[0]['_source'].nominal_datetime.start_datetime
+            print 'F=', results[0]['_source'].nominal_datetime.end_datetime
+            raise
+
+
 
     @skipIf(not use_es, 'No ElasticSearch')
     def test_events_search(self):

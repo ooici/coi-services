@@ -24,7 +24,7 @@ class QueryLanguage(object):
     <association-query> ::= "BELONGS TO" <resource-id> [<limit-parameter>]
           <owner-query> ::= "HAS" <resource-id> [<limit-parameter>]
      <collection-query> ::= "IN" <collection-id>
-         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> | <fuzzy-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
+         <search_query> ::= "SEARCH" <field> (<term-query> | <range-query> | <fuzzy-query> | <time-query> | <geo-query> | <time-bounds>) "FROM" <index-name> [<query-parameter>]*
       <query-parameter> ::= <order-parameter> | <limit-parameter> | <offset-parameter>
      <offset-parameter> ::= "SKIP" <integer>
       <order-parameter> ::= "ORDER BY" <limited-string>
@@ -34,6 +34,7 @@ class QueryLanguage(object):
           <fuzzy-query> ::= "LIKE" <field-query>
           <field-query> ::= <wildcard-string>
           <range-query> ::= "VALUES" [<from-statement>] [<to-statement>]
+          <time-bounds> ::= "TIMEBOUNDS" [<from-statement>] [<to-statement>]
            <time-query> ::= "TIME" [<from-statement>] [<to-statement>]
             <geo-query> ::= "GEO" ( <geo-distance> | <geo-bbox> )
          <geo-distance> ::= "DISTANCE" <distance> "FROM" <coords>
@@ -137,6 +138,11 @@ class QueryLanguage(object):
         time_query.setParseAction(lambda x : self.time_frame())
            # time.mktime(dateutil.parser.parse(x[2])), 'to':time.mktime(dateutil.parser.parse(x[4]))}}))
 
+        #--------------------------------------------------------------------------------------
+        # <time-bounds> ::= "TIMEBOUNDS" <from-statement> <to-statement>
+        #--------------------------------------------------------------------------------------
+        time_bounds = CaselessLiteral("TIMEBOUNDS") + date_from_statement + date_to_statement
+        time_bounds.setParseAction(lambda x : self.time_bounds_frame())
 
         #--------------------------------------------------------------------------------------
         # <range-query>  ::= "VALUES" [<from-statement>] [<to-statement>]
@@ -187,13 +193,13 @@ class QueryLanguage(object):
         query_parameter = limit_parameter | order_parameter | offset_parameter
 
         #--------------------------------------------------------------------------------------
-        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <fuzzy-query> | <time-query> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
+        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <fuzzy-query> | <time-query> | <time-bounds> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
         # <collection-query>  ::= "IN <collection-id>"
         # <association-query> ::= "BELONGS TO" <resource-id> [ <depth-parameter> ]
         # <owner-query>       ::= "HAS" <resource-id> [ <depth-parameter> ]
         # <query>             ::= <search-query> | <association-query> | <collection-query> | <owner-query>
         #--------------------------------------------------------------------------------------
-        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
+        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | time_bounds | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
         # Add the field to the frame object
         search_query.setParseAction(lambda x : self.frame.update({'field' : x[1]}))
         collection_query = CaselessLiteral("IN") + collection_id
@@ -253,6 +259,16 @@ class QueryLanguage(object):
             self.frame['range']['to'] = float(self.frame['to'])
             del self.frame['to']
             
+    def time_bounds_frame(self):
+        if not 'time' in self.frame:
+            self.frame['time_bounds'] = {}
+        if 'from' in self.frame:
+            self.frame['time_bounds']['from'] = self.frame['from']
+            del self.frame['from']
+        if 'to' in self.frame:
+            self.frame['time_bounds']['to'] = self.frame['to']
+            del self.frame['to']
+    
     def time_frame(self):
         if not 'time' in self.frame:
             self.frame['time'] = {}
@@ -357,6 +373,15 @@ class QueryLanguage(object):
         if not isinstance(query,dict):
             return False
         if query.has_key('time') and isinstance(query['time'], dict) and query.has_key('index') and query.has_key('field'):
+            return True
+        return False
+    @classmethod
+    def query_is_time_bounds_search(cls,query=None):
+        if not query:
+            return False
+        if not isinstance(query,dict):
+            return False
+        if query.has_key('time_bounds') and isinstance(query['time_bounds'], dict) and query.has_key('index') and query.has_key('field'):
             return True
         return False
 
