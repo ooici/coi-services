@@ -2146,12 +2146,12 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 except:
                     pass
 
-        gl = gevent.spawn(poll_func, self)        
         timeout = gevent.Timeout(120)
         timeout.start()
         try:
 
             # Start the command greenlet and let poll for a bit.
+            gl = gevent.spawn(poll_func, self)        
             gevent.sleep(20)
         
             # Blow the port agent out from under the agent.
