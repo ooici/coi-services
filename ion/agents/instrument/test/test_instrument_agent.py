@@ -2167,7 +2167,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
         except Timeout as t:
             gl.kill()
-            self.assertFail('Could not reconnect to device.')
+            self.fail('Could not reconnect to device.')
 
     def test_connect_failed(self):
         """
