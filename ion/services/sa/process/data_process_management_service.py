@@ -271,6 +271,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
         routes = self._manage_routes(routes)
+        configuration.process.input_products = in_data_product_ids
+        configuration.process.output_products = out_data_product_ids
         configuration.process.routes = routes
         if 'lookup_docs' in configuration.process:
             configuration.process.lookup_docs.extend(self._get_lookup_docs(in_data_product_ids, out_data_product_ids))
