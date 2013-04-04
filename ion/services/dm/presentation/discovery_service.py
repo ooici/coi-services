@@ -167,10 +167,10 @@ class DiscoveryService(BaseDiscoveryService):
     #===================================================================
 
 
-    def query(self, query=None):
+    def query(self, query=None, id_only=True):
         validate_true(query,'Invalid query')
 
-        return self.request(query)
+        return self.request(query, id_only)
 
 
     def query_couch(self, index_id='', key='', limit=0, offset=0, id_only=True):
