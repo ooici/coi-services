@@ -14,7 +14,9 @@ from pyon.public import CFG, RT, PRED
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentClient
 from pyon.util.context import LocalContextMixin
+from pyon.event.event import EventSubscriber
 
+from interface.objects import StreamAlertType, AggregateStatusType
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -35,6 +37,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from mock import patch
 import gevent
+from gevent import event
 from nose.plugins.attrib import attr
 
 # Used to validate param config retrieved from driver.
@@ -89,7 +92,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
-class TestCTDTransformsIntegration(IonIntegrationTestCase):
+class TestInstrumentAlerts(IonIntegrationTestCase):
     pdict_id = None
 
     def setUp(self):
@@ -104,6 +107,8 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         self.dataset_management = DatasetManagementServiceClient(node=self.container.node)
         self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
+
+        self.catch_alert = gevent.event.AsyncResult()
 
     def _create_instrument_model(self):
 
@@ -165,7 +170,6 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             instDevice_id)
 
         return instAgentInstance_id
-
 
     def test_alerts(self):
 
@@ -236,7 +240,21 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
             process=FakeProcess())
 
         #-------------------------------------------------------------------------------------
-        # Streaming
+        # Set up the subscriber to catch the alert event
+        #-------------------------------------------------------------------------------------
+
+        def callback_for_alert(*args, **kwargs):
+            self.catch_alert.set()
+
+        self.event_subscriber = EventSubscriber(event_type='StreamAlertEvent',
+            origin=instDevice_id,
+            callback=callback_for_alert)
+
+        self.event_subscriber.start()
+        self.addCleanup(self.event_subscriber.stop)
+
+        #-------------------------------------------------------------------------------------
+        # Running the instrument....
         #-------------------------------------------------------------------------------------
 
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
