@@ -27,12 +27,16 @@ from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
 from mock import Mock, patch
 from datetime import date, timedelta
+from pyon.util.ion_time import IonTime
+from pyon.util.containers import get_ion_ts
 
+import gevent
 import elasticpy as ep
 import dateutil.parser
 import time
 import os
 import unittest
+import calendar
 
 
 
@@ -639,6 +643,9 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == bank_id)
 
+
+
+
     @skipIf(not use_es, 'No ElasticSearch')
     def test_collections_searching(self):
 
@@ -720,6 +727,69 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_vertical_bounds_searching(self):
+        dp = DataProduct(name='blah')
+        dp.geospatial_bounds.geospatial_vertical_min = 20
+        dp.geospatial_bounds.geospatial_vertical_max = 50
+        dp_id, _ = self.rr.create(dp)
+        self.addCleanup(self.rr.delete,dp_id)
+
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 10,30)
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertEquals(results[0]['_id'], dp_id)
+
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 30,40)
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertEquals(results[0]['_id'], dp_id)
+        
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 30,60)
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertEquals(results[0]['_id'], dp_id)
+        
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 10,15)
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results, None)
+        
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 55,60)
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results, None)
+
+    @skipIf(not use_es, 'no elasticsearch')
+    def test_temporal_bounds_searching(self):
+        dp = DataProduct(name='blah')
+        dp.nominal_datetime.start_datetime = str(int(calendar.timegm(dateutil.parser.parse('2013-03-15').timetuple()) * 1000))
+        dp.nominal_datetime.end_datetime = str(int(calendar.timegm(dateutil.parser.parse('2013-03-17').timetuple()) * 1000))
+        dp_id, _ = self.rr.create(dp)
+        self.addCleanup(self.rr.delete,dp_id)
+
+
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-19')
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertTrue(results[0]['_id'] == dp_id)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-16')
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertTrue(results[0]['_id'] == dp_id)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-16','2013-03-19')
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertTrue(results[0]['_id'] == dp_id)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-18','2013-03-19')
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results,None)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-13')
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results,None)
+
+
+
+
 
     @skipIf(not use_es, 'No ElasticSearch')
     def test_events_search(self):
