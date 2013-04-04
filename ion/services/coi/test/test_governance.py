@@ -914,6 +914,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgMembershipGrantedEvent)
         self.assertEquals(len(events_c), 1)
 
+        events_i = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgNegotiationInitiatedEvent)
+        self.assertEquals(len(events_i), 2)
+
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_org_role_negotiation(self):
@@ -1166,6 +1169,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.UserRoleGrantedEvent)
         self.assertEquals(len(events_c), 2)
+
+        events_i = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgNegotiationInitiatedEvent)
+        self.assertEquals(len(events_i), 3)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1484,6 +1490,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.ResourceCommitmentCreatedEvent)
         self.assertEquals(len(events_c), 2)
 
+        events_i = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgNegotiationInitiatedEvent)
+        self.assertEquals(len(events_i), 4)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1823,6 +1831,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.get_agent_state(headers=actor_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
 
+        events_i = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgNegotiationInitiatedEvent)
+        self.assertEquals(len(events_i), 2)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')

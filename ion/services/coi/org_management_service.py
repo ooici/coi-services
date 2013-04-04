@@ -395,6 +395,12 @@ class OrgManagementService(BaseOrgManagementService):
         if sap.proposal_status == ProposalStatusEnum.INITIAL:
             neg_id = self.negotiation_handler.create_negotiation(sap)
 
+            org = self.read_org(org_id=sap.provider)
+
+            #Publish an event indicating an Negotiation has been initiated
+            self.event_pub.publish_event(event_type=OT.OrgNegotiationInitiatedEvent, origin=org._id, origin_type='Org',
+                description=sap.description, org_name=org.name, negotiation_id=neg_id, sub_type=sap.type_ )
+
             #Synchronize the internal reference for later use
             sap.negotiation_id = neg_id
 
