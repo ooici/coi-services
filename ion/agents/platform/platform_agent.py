@@ -40,7 +40,6 @@ from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTo
 import numpy
 
 from pyon.agent.common import BaseEnum
-from pyon.agent.instrument_fsm import ThreadSafeFSM
 from pyon.agent.instrument_fsm import FSMStateError
 
 from ion.agents.platform.launcher import Launcher
