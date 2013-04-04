@@ -172,7 +172,7 @@ class Test(BaseIntTestPlatform):
             AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_CRITICAL,
             AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_CRITICAL
         }
-        self._set_rollup_statuses(pa_client_LJ01B, rollup_status)
+        self._set_rollup_statuses(pa_client_MJ01B, rollup_status)
         publish_and_verify_root_status(p_MJ01B.platform_device_id, rollup_status)
 
         #####################################################################
