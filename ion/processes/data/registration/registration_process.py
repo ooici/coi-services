@@ -5,7 +5,7 @@ from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model import SimplexCoverage
+from coverage_model import AbstractCoverage
 #from coverage_model.parameter_types import QuantityType
 
 from xml.dom.minidom import parse, parseString
@@ -83,7 +83,7 @@ class RegistrationProcess(StandaloneProcess):
         #http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html
         result = ''
         paths = os.path.split(coverage_path)
-        cov = SimplexCoverage.load(coverage_path)
+        cov = AbstractCoverage.load(coverage_path)
         doc = xml.dom.minidom.Document()
         
         #erd_type_map = {'d':'double', 'f':"float", 'h':'short', 'i':'int', 'l':'int', 'q':'int', 'b':'byte', 'b':'char', 'S':'String'} 
