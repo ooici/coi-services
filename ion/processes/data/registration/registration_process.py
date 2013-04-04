@@ -187,6 +187,8 @@ class RegistrationProcess(StandaloneProcess):
                             if not hasattr(var,key):
                                 continue
                             val = getattr(var,key)
+                            if not val:
+                                val = ''
                             att_element = doc.createElement('att')
                             att_element.setAttribute('name', key)
                             text_node = doc.createTextNode(val)
