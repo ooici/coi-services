@@ -139,7 +139,7 @@ class DeploymentResourceCollector(DeploymentOperator):
 
     def typecache_add(self, resource_id, resource_type):
         assert resource_type in RT
-        log.debug("typecache_add type %s", resource_type)
+        log.trace("typecache_add type %s", resource_type)
         self._type_lookup[resource_id] = resource_type
 
     def read_using_typecache(self, resource_id):
@@ -252,13 +252,14 @@ class DeploymentResourceCollector(DeploymentOperator):
 
     def _build_tree(self, root_id, assn_type, leaf_types, known_leaves):
 
-        leftover_leaves = known_leaves[:]
-        if root_id in leftover_leaves:
-            leftover_leaves.remove(root_id)
+        # copy this list
+        leftover_leaves = filter(lambda x: x != root_id, known_leaves)
+#        leftover_leaves = known_leaves[:]
+#        if root_id in leftover_leaves:
+#            leftover_leaves.remove(root_id)
 
         root_obj = self.read_using_typecache(root_id)
 
-        log.debug("building base values")
         # the base value
         tree = {}
         tree["_id"] = root_id
@@ -269,11 +270,8 @@ class DeploymentResourceCollector(DeploymentOperator):
             tree["model_name"] = self.RR2.read(tree["model"]).name
             assert type("") == type(tree["model"]) == type(tree["model_name"])
         elif PRED.hasSite == assn_type:
-            log.debug("making models")
             tree["models"] = self.find_models_fromcache(root_id)
-            log.debug("making model_names")
             tree["model_names"] = [self.read_using_typecache(m).name for m in tree["models"]]
-            log.debug("making uplink port")
             tree["uplink_port"] = root_obj.planned_uplink_port.reference_designator
             assert type([]) == type(tree["models"]) == type(tree["model_names"])
         else:
@@ -374,6 +372,12 @@ class DeploymentResourceCollector(DeploymentOperator):
 
         site_tree   = self._attempt_site_tree_build(site_models.keys())
         device_tree = self._attempt_device_tree_build(device_models.keys())
+
+        if not site_tree:
+            raise BadRequest("Sites in this deployment were not all part of the same tree")
+
+        if not device_tree:
+            raise BadRequest("Devices in this deployment were not part of the same tree")
 
         log.info("Got site tree: %s" % site_tree)
         log.info("Got device tree: %s" % device_tree)
