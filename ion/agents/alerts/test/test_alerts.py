@@ -251,7 +251,7 @@ class TestAlerts(IonIntegrationTestCase):
             'value_id' : None,
             'resource_id' : self._resource_id,
             'origin_type' : self._origin_type,            
-            'time_delta' : 2,
+            'time_delta' : 3,
             'get_state' : get_state,
             'alert_class' : 'LateDataAlert'
         }
@@ -259,27 +259,20 @@ class TestAlerts(IonIntegrationTestCase):
         cls = alert_def.pop('alert_class')
         alert = eval('%s(**alert_def)' % cls)
 
-        status = alert.get_status()
-
-        # This sequence will produce 6 alerts:        
-        """
-        ########## TIMER 2.000807:    1363907927.229689  1363907928.431442  0.701172:     DATA OK
-        ########## publishing: ALL_CLEAR
-        ########## TIMER 4.008615:    1363907928.431442  1363907930.532922  1.100384:     DATA OK
-        ########## TIMER 6.009832:    1363907930.532922  1363907933.034158  2.501236:     TIMESTEP TO LARGE
-        ########## publishing: WARNING
-        ########## TIMER 8.020597:    1363907933.034158  1363907933.034158  2.501236:     NO NEW DATA
-        ########## TIMER 10.021022:    1363907933.034158  1363907936.587945  0.501327:     DATA OK
-        ########## publishing: ALL_CLEAR
-        ########## TIMER 12.030837:    1363907936.587945  1363907938.839187  2.251242:     TIMESTEP TO LARGE
-        ########## publishing: WARNING
-        ########## TIMER 14.042304:    1363907938.839187  1363907939.841438  0.501182:     DATA OK
-        ########## publishing: ALL_CLEAR
-        ########## TIMER 16.052558:    1363907939.841438  1363907942.342575  2.501137:     TIMESTEP TO LARGE
-        ########## publishing: WARNING
-        """
+        status = alert.get_status()        
+        
+        # This sequence will produce 6 events:
+        # All clear on the first check data.
+        # Warning during the first 10s delay.
+        # All clear during the 1s samples following the first 10s delay.
+        # Warning during the 2nd 10s delay.
+        # All clear during the 1s samples following the second 10s delay.
+        # Warning during the final 10s delay.
         self._event_count = 6
-        sleep_vals = [0.5, 0.7, 1.0, 1.1, 2.5, 2.3, 0.75, 0.5, 2.25, 0.5, 0.5, 2.5, 2.5]
+        #sleep_vals = [0.5, 0.7, 1.0, 1.1, 2.5, 2.3, 0.75, 0.5, 2.25, 0.5, 0.5, 2.5, 2.5]
+        sleep_vals = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 10, 1, 1, 1, 1,
+                      1, 1, 1, 1, 1, 1, 1, 10, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                      1, 1, 1, 1, 1, 1, 1, 10]
         for x in sleep_vals:
             event_data = alert.eval_alert()
             gevent.sleep(x)
