@@ -26,9 +26,11 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
+from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
 from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext, Attachment, AttachmentType, ReferenceAttachmentContext
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.util.stored_values import StoredValueManager
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum
 from mock import patch
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
@@ -552,6 +554,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.data_process_management     = DataProcessManagementServiceClient()
         self.data_product_management     = DataProductManagementServiceClient()
         self.data_acquisition_management = DataAcquisitionManagementServiceClient()
+        self.data_retriever              = DataRetrieverServiceClient()
 
         self.validators = 0
 
@@ -675,6 +678,15 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
     def stream_def_for_data_product(self, data_product_id):
         stream_def_ids, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition,id_only=True)
         return stream_def_ids[0]
+
+    def dataset_for_data_product(self, data_product_id):
+        dataset_ids, _ = self.resource_registry.find_objects(data_product_id, PRED.hasDataset, id_only=True)
+        return dataset_ids[0]
+
+    def verify_dataset(self, dataset_id, verifier):
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        return verifier(rdt)
 
     def make_data_product(self, pdict_name, dp_name, available_fields=[]):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name(pdict_name, id_only=True)
@@ -821,6 +833,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         producer.producer_context = DataProcessProducerContext()
         producer.producer_context.configuration['qc_keys'] = document_keys
         self.resource_registry.update(producer)
+
 
 
     def test_static_lookup_values(self):
@@ -1439,6 +1452,78 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_data_product(instrument_data_product_id, rdt)
         
         self.assertTrue(validated.wait(10))
+
+    def test_instrument_platform_integration_full(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        ph.create_extended_and_platform()
+
+        instrument_data_product_id = self.make_data_product('extended_parsed', 'Instrument')
+
+        platform_data_product_id = self.make_data_product('platform_eng', 'Platform')
+
+        self.data_product_management.activate_data_product_persistence(instrument_data_product_id)
+        self.addCleanup(self.data_product_management.suspend_data_product_persistence, instrument_data_product_id)
+        instrument_dataset_id = self.dataset_for_data_product(instrument_data_product_id)
+
+        dataset_monitor = DatasetMonitor(instrument_dataset_id)
+        rdt = self.get_rdt_for_data_product(instrument_data_product_id)
+        ph.fill_parsed_rdt(rdt)
+
+        self.publish_to_data_product(instrument_data_product_id, rdt)
+
+        self.assertTrue(dataset_monitor.event.wait(10))
+
+        def verifier(rdt):
+            np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
+            np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
+            self.assertNotEquals(rdt['density_lookup'], [1021.7144739593881])
+            return True
+        self.assertTrue(self.verify_dataset(instrument_dataset_id, verifier))
+
+        dpd_id = self.dpd_stored_value_transform()
+        data_process_id = self.data_process_management.create_data_process2(dpd_id, [platform_data_product_id], configuration={'process':{'document_key':'platform_key'}})
+        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+
+        self.data_process_management.activate_data_process2(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process2,data_process_id)
+
+        rdt = self.get_rdt_for_data_product(platform_data_product_id)
+        rdt['time'] = [0]
+        rdt['lat'] = [45]
+        rdt['lon'] = [-71]
+        self.publish_to_data_product(platform_data_product_id, rdt)
+
+        def verify_lookup():
+            svm = StoredValueManager(self.container)
+            try:
+                doc = svm.read_value('platform_key')
+            except NotFound:
+                return False
+            np.testing.assert_almost_equal(doc['lat'], 45., 4)
+            np.testing.assert_almost_equal(doc['lon'], -71., 4)
+            return True
+        success = poll(verify_lookup)
+        self.assertTrue(success)
+        
+        ep = EventPublisher(event_type=OT.ExternalReferencesUpdatedEvent)
+        ep.publish_event(origin=instrument_data_product_id, reference_keys=['platform_key'])
+        gevent.sleep(2) # Yield
+
+        rdt = self.get_rdt_for_data_product(instrument_data_product_id)
+        ph.fill_parsed_rdt(rdt)
+
+        dataset_monitor.event.clear()
+        self.publish_to_data_product(instrument_data_product_id, rdt)
+        self.assertTrue(dataset_monitor.event.wait(10))
+
+        def verify_again(rdt):
+            np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914, 42.914]))
+            np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20., 20.]))
+            np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068, 3.068]))
+            np.testing.assert_array_almost_equal(rdt['density_lookup'][-1:], [1021.7144739593881])
+            return True
+        self.assertTrue(self.verify_dataset(instrument_dataset_id, verify_again))
 
 
 

@@ -195,7 +195,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             try:
                 document = self.stored_value_manager.read_value(key)
                 if lookup_value in document:
-                    return float(document[lookup_value]) # Force float just to make sure
+                    return document[lookup_value] 
             except NotFound:
                 log.warning('Specified lookup document does not exist')
         return None
@@ -205,7 +205,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         rdt.fetch_lookup_values()
         for field in rdt.lookup_values():
             value = self.get_stored_values(rdt.context(field).lookup_value)
-            rdt[field] = [value] * len(rdt)
+            if value:
+                rdt[field] = value
 
     def insert_sparse_values(self, coverage, rdt, stream_id):
 

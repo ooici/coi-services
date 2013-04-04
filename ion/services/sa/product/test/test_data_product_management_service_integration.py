@@ -568,32 +568,4 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
 
 
-    def create_lookup_contexts(self):
-        contexts = {}
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
-        t_ctxt.uom = 'seconds since 01-01-1900'
-        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
-        contexts['time'] = (t_ctxt, t_ctxt_id)
-        
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        temp_ctxt.uom = 'deg_C'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
-        contexts['temp'] = temp_ctxt, temp_ctxt_id
-
-        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
-        offset_ctxt.lookup_value = True
-        offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
-        contexts['offset_a'] = offset_ctxt, offset_ctxt_id
-
-        func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
-        func.lookup_values = ['LV_offset']
-        calibrated = ParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
-        calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
-        contexts['calibrated'] = calibrated, calibrated_id
-
-        return contexts
 
