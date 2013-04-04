@@ -1342,7 +1342,7 @@ class InstrumentAgent(ResourceAgent):
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
                     if cls == 'LateDataAlert':
-                        alert_def['get_state'] == self._fsm.get_current_state
+                        alert_def['get_state'] = self._fsm.get_current_state
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except:
