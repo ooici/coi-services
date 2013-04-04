@@ -4,6 +4,7 @@
 and the relationships between them"""
 
 import time
+from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
@@ -25,7 +26,7 @@ from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIn
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
-import constraint
+
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
@@ -557,155 +558,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         raise BadRequest("This method will be removed.  Superceded by coverage.")
 
 
-    def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
-        assert(type("") == type(site_id) == type(device_id))
-
-        log.debug("checking %s/%s pair for deployment", site_type, device_type)
-        #return a pair that should be REMOVED, or None
-
-        if site_type is None:
-            site_type = type(self.RR.read(site_id)).__name__
-
-        if device_type is None:
-            device_type = type(self.RR.read(device_id)).__name__
-
-        ret = None
-
-        log.trace("checking existing hasDevice links from site")
-        devices, _ = self.RR.find_objects(site_id, PRED.hasDevice, device_type, True)
-        if 1 < len(devices):
-            raise Inconsistent("Found more than 1 hasDevice relationship from %s '%s'" % (site_type, site_id))
-        elif 0 < len(devices):
-            if devices[0] != device_id:
-                ret = (site_id, devices[0])
-                log.info("%s '%s' is already hasDevice with a %s", site_type, site_id, device_type)
-
-        return ret
-
-
-    def collect_deployment_components(self, deployment_id, sub_platforms=False, sub_instruments=False):
-        """
-        get all devices and sites associated with this deployment and use their ID as a key to list of models
-        """
-        assert(type("") == type(deployment_id))
-
-        device_models = {}
-        site_models = {}
-
-        # significant change-up in how this works.
-        #
-        # collect all devices in this deployment
-
-        def add_sites(site_ids, model_type):
-            for s in site_ids:
-                models, _ = self.RR.find_objects(s, PRED.hasModel, model_type, id_only=True)
-                log.trace("Found %s %s objects of site", len(models), model_type)
-                if s in site_models:
-                    log.warn("Site '%s' was already collected in deployment '%s'", s, deployment_id)
-                site_models[s] = models
-
-        def add_devices(device_ids, model_type):
-            for d in device_ids:
-                model = self.RR2.find_object(d, PRED.hasModel, model_type, id_only=True)
-                log.trace("Found 1 %s object of device", model_type)
-                if d in device_models:
-                    log.warn("Device '%s' was already collected in deployment '%s'", d, deployment_id)
-                device_models[d] = model
-
-
-        def collect_specific_resources(site_type, device_type, model_type):
-            # check this deployment -- specific device types -- for validity
-            # return a list of pairs (site, device) to be associated
-            log.trace("Collecting resources: site=%s device=%s model=%s", site_type, device_type, model_type)
-            new_site_ids, _ = self.RR.find_subjects(site_type,
-                                                    PRED.hasDeployment,
-                                                    deployment_id,
-                                                    True)
-            log.trace("Found %s %s", len(new_site_ids), site_type)
-
-            new_device_ids, _ = self.RR.find_subjects(device_type,
-                                                      PRED.hasDeployment,
-                                                      deployment_id,
-                                                      True)
-            log.trace("Found %s %s", len(new_device_ids), device_type)
-
-            add_sites(new_site_ids, model_type)
-            add_devices(new_device_ids, model_type)
-
-        # collect platforms, verify that only one platform device exists in the deployment
-        collect_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)
-        if 1 < len(device_models):
-            raise BadRequest("Multiple platforms in the same deployment are not allowed")
-        elif 0 < len(device_models):
-            log.trace("adding devices and sites that are children of platform device / site")
-            dmks = device_models.keys()[0]
-            child_device_objs = self.RR2.find_platform_devices_of_platform_device_using_has_device(dmks)
-            child_site_objs = self.find_related_frames_of_reference(site_models.keys()[0],
-                [RT.PlatformSite, RT.InstrumentSite])
-
-            child_device_ids = [x._id for x in child_device_objs]
-            child_site_ids   = [x._id for x in child_site_objs[RT.InstrumentSite]]
-
-            # IGNORE child platforms
-            #  verify that platform site has no sub-platform-sites
-            #if 0 < len(child_site_ids[RT.PlatformSite]):
-            #    raise BadRequest("Deploying a platform with its own child platform is not allowed")
-
-            #  gather a list of all instrument sites on platform site
-            #  gather a list of all instrument devices on platform device
-            add_devices(child_device_ids, RT.InstrumentModel)
-            add_sites(child_site_ids, RT.InstrumentModel)
-        else:
-            log.warn("0 platforms in deployment being activated")
-
-        collect_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
-
-        return device_models, site_models
-
-
-    def get_deployment_csp_solutions(self, device_models, site_models):
-
-        log.debug("creating a CSP solver to match devices and sites")
-        problem = constraint.Problem()
-
-        log.debug("adding variables to CSP - the devices to be assigned, and their range (possible sites)")
-        for device_id in device_models.keys():
-            device_model = device_models[device_id]
-            assert type(device_model) == type('')
-            assert all([type('') == type(s) for s in site_models])
-            possible_sites = [s for s in site_models.keys()
-                              if device_model in site_models[s]]
-
-            if not possible_sites:
-                log.info("Device model: %s", device_model)
-                log.info("Site models: %s", site_models)
-                raise BadRequest("No sites were found in the deployment")
-
-            problem.addVariable("device_%s" % device_id, possible_sites)
-
-        log.debug("adding the constraint that all the variables have to pick their own site")
-        problem.addConstraint(constraint.AllDifferentConstraint(),
-            ["device_%s" % device_id for device_id in device_models.keys()])
-
-        log.debug("performing CSP solve")
-        # this will be a list of solutions, each a dict of var -> value
-        return problem.getSolutions()
-
-
-    def activate_deployment2(self, deployment_id):
-        depl_obj = self.RR2.read(deployment_id)
-
-        # based on deployment type, set the following variables:
-        # - collect sub platforms?
-        # - collect sub instruments?
-        # - allow sub platforms?
-        # - allow sub instruments?
-
-        device_models, site_models = self.collect_deployment_components()
-
-        site_structure = build_site_structure()
-
-
     def activate_deployment(self, deployment_id='', activate_subscriptions=False):
         """
         Make the devices on this deployment the primary devices for the sites
@@ -714,62 +566,22 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         depl_obj = self.RR2.read(deployment_id)
         log.debug("Activing deployment '%s' (%s)", depl_obj.name, deployment_id)
 
-#        if LCS.DEPLOYED == deployment_obj.lcstate:
-#            raise BadRequest("This deploment is already active")
-
-        log.trace("activate_deployment about to collect components")
-        device_models, site_models = self.collect_deployment_components(deployment_id)
-        log.trace("Collected %s device models, %s site models", len(device_models), len(site_models))
-
-        solutions = self.get_deployment_csp_solutions(device_models, site_models)
-
-        def solution_to_string(soln):
-            ret = "%s" % type(soln).__name__
-            for k, v in soln.iteritems():
-                dev_obj = self.RR.read(k)
-                site_obj = self.RR.read(v)
-                ret = "%s, %s '%s' -> %s '%s'" % (ret, dev_obj._get_type(), k, site_obj._get_type(), v)
-            return ret
-
-        if 1 > len(solutions):
-            raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
-                             "models") # and streamdefs")
-        elif 1 < len(solutions):
-            log.warn("Found %d possible ways to map device and site, but just picking the first one", len(solutions))
-            log.warn("Here is the %s of all of them:", type(solutions).__name__)
-            for i, s in enumerate(solutions):
-                log.warn("Option %d: %s" , i+1, solution_to_string(s))
-        else:
-            log.info("Found one possible way to map devices and sites.  Best case scenario!")
-
-        pairs_add = []
-        pairs_rem = []
-
-        #figure out if any of the devices in the new mapping are already mapped and need to be removed
-        #then add the new mapping to the output array
-        for device_id in device_models.keys():
-            site_id = solutions[0]["device_%s" % device_id]
-            old_pair = self.check_site_device_pair_for_deployment(site_id, device_id)
-            if old_pair:
-                pairs_rem.append(old_pair)
-            new_pair = (site_id, device_id)
-            pairs_add.append(new_pair)
+        deployment_activator_factory = DeploymentActivatorFactory(self.clients)
+        deployment_activator = deployment_activator_factory.create(depl_obj)
+        deployment_activator.prepare()
 
         # process any removals
-        for site_id, device_id in pairs_rem:
+        for site_id, device_id in deployment_activator.hasdevice_associations_to_delete():
             log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
-            if not activate_subscriptions:
-                log.warn("The input to the data product for site '%s' will no longer come from its primary device",
-                         site_id)
             self.unassign_device_from_site(device_id, site_id)
 
         # process the additions
-        for site_id, device_id in pairs_add:
+        for site_id, device_id in deployment_activator.hasdevice_associations_to_create():
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
 
 
-#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+        #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
 
 
     def deactivate_deployment(self, deployment_id=''):
@@ -781,13 +593,15 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         #Verify that the deployment exists
-        self.RR2.read(deployment_id)
+        deployment_obj = self.RR2.read(deployment_id)
 
 #        if LCS.DEPLOYED != deployment_obj.lcstate:
 #            raise BadRequest("This deploment is not active")
 
         # get all associated components
-        device_models, site_models = self.collect_deployment_components(deployment_id)
+        collector_factory = DeploymentResourceCollectorFactory(self.clients)
+        resource_collector = collector_factory.create(deployment_obj)
+        resource_collector.collect()
 
         # must only remove from sites that are not deployed under a different active deployment
         # must only remove    devices that are not deployed under a different active deployment
@@ -804,8 +618,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     ret.append(r)
             return ret
 
-        device_ids = filter_alternate_deployments(device_models.keys())
-        site_ids   = filter_alternate_deployments(site_models.keys())
+        device_ids = filter_alternate_deployments(resource_collector.collected_device_ids())
+        site_ids   = filter_alternate_deployments(resource_collector.collected_site_ids())
 
         # delete only associations where both site and device have passed the filter
         for s in site_ids:
