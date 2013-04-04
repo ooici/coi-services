@@ -47,7 +47,7 @@ def grt_parser(document):
 
     dr = DictReader(sio)
     for row in dr:
-        key = '_'.join([row['Reference Designator'], row['Data Product In'], row['Data Product Flagged']])
+        key = '_'.join(['grt',row['Reference Designator'], row['Data Product In'], row['Data Product Flagged']])
         document = {}
         document['array']                = row['Array']
         document['instrument_class']     = row['Instrument Class']

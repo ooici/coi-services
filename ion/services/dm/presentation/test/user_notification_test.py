@@ -344,7 +344,7 @@ class UserNotificationEventsTest(PyonTestCase):
                 result=None)),
 
        dict(et='DeviceStatusEvent', o='ID_1', ot='PlatformDevice', st='input_voltage',
-            attr=dict(state=DeviceStatusType.OK,
+            attr=dict(status=DeviceStatusType.STATUS_OK,
                 description="Event to deliver the status of instrument.")),
     ]
 
@@ -874,7 +874,7 @@ class UserNotificationIntTest(IonIntegrationTestCase):
                         proc1.q.queue.clear()
                         return reloaded_user_info, reloaded_reverse_user_info
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes, 3)
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes = processes, qsize = 3)
         notification_id_2 = self.unsc.create_notification(notification=notification_request_2, user_id=user_id)
 
         self.assertIsNotNone(reloaded_user_info)
@@ -906,7 +906,24 @@ class UserNotificationIntTest(IonIntegrationTestCase):
         # Create another notification
         #--------------------------------------------------------------------------------------
 
-        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes, 1)
+        def found_user_info_dicts(processes, qsize,*args, **kwargs):
+            for key in processes:
+                if key.startswith('notification_worker'):
+                    proc1 = processes[key]
+                    queue = proc1.q
+
+                    if queue.qsize() >= qsize:
+                        log.debug("the name of the process: %s" % key)
+
+                        reloaded_user_info, reloaded_reverse_user_info = queue.get(timeout=10)
+
+                        if not reloaded_reverse_user_info['event_origin'].has_key('instrument_2'):
+                            return None
+                        else:
+                            proc1.q.queue.clear()
+                            return reloaded_user_info, reloaded_reverse_user_info
+
+        reloaded_user_info,  reloaded_reverse_user_info= self.poll(20, found_user_info_dicts, processes = processes, qsize = 1)
 
         notification_request_2 = self.rrc.read(notification_id_2)
 

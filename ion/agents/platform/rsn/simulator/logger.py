@@ -30,10 +30,19 @@ class Logger(object):
         """
         if not cls.log:
             import logging
+            import os
             log = logging.getLogger('oms_simulator')
-            log.setLevel(logging.DEBUG)
+            level_expr = "logging.%s" % os.getenv("oms_simulator.loglevel", "WARN")
+            print "oms_simulator: setting log level to: %s" % level_expr
+            try:
+                level = eval(level_expr)
+            except Exception as ex:
+                print "oms_simulator: Error evaluating %r: %s" % (level_expr, str(ex))
+                print "oms_simulator: setting log level to: logging.DEBUG"
+                level = logging.DEBUG
+            log.setLevel(level)
             handler = logging.StreamHandler()
-            handler.setLevel(logging.DEBUG)
+            handler.setLevel(level)
             format = '%(asctime)s %(levelname)-8s %(threadName)s %(name) -15s:%(lineno)d %(funcName)s %(message)s'
             formatter = logging.Formatter(format)
             handler.setFormatter(formatter)

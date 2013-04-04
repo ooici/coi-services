@@ -474,7 +474,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         generic_alerts_config = {'lvl1': {'lvl2': 'lvl3val'}}
 
         required_config_keys = [
-            'org_name',
+            'org_governance_name',
             'device_type',
             'agent',
             'driver_config',
@@ -488,7 +488,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_instrument_config(config, device_id):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual(org_obj.name, config['org_name'])
+            self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.InstrumentDevice, config['device_type'])
             self.assertIn('driver_config', config)
             driver_config = config['driver_config']
@@ -511,7 +511,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_child_config(config, device_id, inst_device_id=None):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual(org_obj.name, config['org_name'])
+            self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertEqual({'resource_id': device_id}, config['agent'])
             self.assertIn('aparam_alert_config', config)
@@ -537,7 +537,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         def verify_parent_config(config, parent_device_id, child_device_id, inst_device_id=None):
             for key in required_config_keys:
                 self.assertIn(key, config)
-            self.assertEqual(org_obj.name, config['org_name'])
+            self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertIn('process_type', config['driver_config'])
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
@@ -585,8 +585,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
 
             # assignments
-            self.RR2.assign_platform_agent_instance_to_platform_device(platform_agent_instance_id, platform_device_id)
-            self.RR2.assign_platform_agent_to_platform_agent_instance(platform_agent_id, platform_agent_instance_id)
+            self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(platform_agent_instance_id, platform_device_id)
+            self.RR2.assign_platform_agent_to_platform_agent_instance_with_has_agent_definition(platform_agent_id, platform_agent_instance_id)
             self.RR2.assign_platform_device_to_org_with_has_resource(platform_agent_instance_id, org_id)
 
             return platform_agent_instance_id, platform_agent_id, platform_device_id
@@ -619,8 +619,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
 
             # assignments
-            self.RR2.assign_instrument_agent_instance_to_instrument_device(instrument_agent_instance_id, instrument_device_id)
-            self.RR2.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
+            self.RR2.assign_instrument_agent_instance_to_instrument_device_with_has_agent_instance(instrument_agent_instance_id, instrument_device_id)
+            self.RR2.assign_instrument_agent_to_instrument_agent_instance_with_has_agent_definition(instrument_agent_id, instrument_agent_instance_id)
             self.RR2.assign_instrument_device_to_org_with_has_resource(instrument_agent_instance_id, org_id)
 
             return instrument_agent_instance_id, instrument_agent_id, instrument_device_id
@@ -654,8 +654,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         verify_child_config(parent_config, platform_device_parent_id)
 
         log.debug("assigning child platform to parent")
-        self.RR2.assign_platform_device_to_platform_device(platform_device_child_id, platform_device_parent_id)
-        child_device_ids = self.RR2.find_platform_device_ids_of_device(platform_device_parent_id)
+        self.RR2.assign_platform_device_to_platform_device_with_has_device(platform_device_child_id,
+                                                                           platform_device_parent_id)
+        child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(platform_device_parent_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing parent + child as parent config")
@@ -676,8 +677,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         verify_instrument_config(instrument_config, instrument_device_id)
 
         log.debug("assigning instrument to platform")
-        self.RR2.assign_instrument_device_to_platform_device(instrument_device_id, platform_device_child_id)
-        child_device_ids = self.RR2.find_instrument_device_ids_of_device(platform_device_child_id)
+        self.RR2.assign_instrument_device_to_platform_device_with_has_device(instrument_device_id,
+                                                                             platform_device_child_id)
+        child_device_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(platform_device_child_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing entire config")

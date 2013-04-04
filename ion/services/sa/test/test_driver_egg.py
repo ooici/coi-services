@@ -31,7 +31,12 @@ from pyon.agent.agent import ResourceAgentEvent
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
-from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
+from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum, ComputedStringValue
+
+
+# This import will dynamically load the driver egg.  It is needed for the MI includes below
+import ion.agents.instrument.test.test_instrument_agent
+from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 
 import unittest
 
@@ -318,6 +323,8 @@ class TestDriverEgg(IonIntegrationTestCase):
 
         #wait for start
         instance_obj = self.imsclient.read_instrument_agent_instance(instAgentInstance_id)
+        print "Agent process id is '%s'" % str(instance_obj.agent_process_id)
+        self.assertTrue(instance_obj.agent_process_id)
         gate = ProcessStateGate(self.processdispatchclient.read_process,
                                 instance_obj.agent_process_id,
                                 ProcessStateEnum.RUNNING)
@@ -355,6 +362,37 @@ class TestDriverEgg(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
 
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        reply = self._ia_client.execute_agent(cmd)
+        self.assertTrue(reply.status == 0)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = retval.result
+        self.assertTrue(state, 'DRIVER_STATE_COMMAND')
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        reply = self._ia_client.execute_agent(cmd)
+        self.assertTrue(reply.status == 0)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+
+        # This gevent sleep is there to test the autosample time, which will show something different from default
+        # only if the instrument runs for over a minute
+        gevent.sleep(90)
+
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id)
+
+        self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
+
+        autosample_string = extended_instrument.computed.uptime.value
+        autosampling_time = int(autosample_string.split()[4])
+
+        self.assertTrue(autosampling_time > 0)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
 
         print "Sending command=ResourceAgentEvent.RESET"
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)

@@ -58,8 +58,8 @@ from ion.agents.alerts.alerts import *
 
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
-from interface.objects import StreamRoute
-from interface.objects import AgentCommand, StatusType, DeviceStatusEnum, AggregateStatusType
+from interface.objects import StreamRoute, StreamAlertType
+from interface.objects import AgentCommand, StatusType, DeviceStatusType, AggregateStatusType
 
 class InstrumentAgentState():
     UNINITIALIZED='xxx'
@@ -113,8 +113,10 @@ class InstrumentAgent(ResourceAgent):
         
         #This is the type of Resource managed by this agent
         self.resource_type = RT.InstrumentDevice
+        
         #This is the id of the resource managed by this agent
         self.resource_id = None
+        
         # Driver configuration. Passed as part of the spawn configuration
         # or with an initialize command. Sets driver specific
         # context.
@@ -181,12 +183,16 @@ class InstrumentAgent(ResourceAgent):
         # Connection index.
         self._connection_index = None
 
+        # Default initial state.
+        self._initial_state = ResourceAgentState.UNINITIALIZED
+
     def on_init(self):
         """
         Instrument agent pyon process initialization.
         Init objects that depend on the container services and start state
         machine.
         """
+        super(InstrumentAgent, self).on_init()
 
         # Set the driver config from the agent config if present.
         self._dvr_config = self.CFG.get('driver_config', None)
@@ -194,9 +200,23 @@ class InstrumentAgent(ResourceAgent):
         # Set the test mode.
         self._test_mode = self.CFG.get('test_mode', False)        
 
-        # Set up any preconfigured agent parameters.
-        self._configure_aparams()
+    def on_quit(self):
+        """
+        """
+        super(InstrumentAgent, self).on_quit()
+        
+        state = self._fsm.get_current_state()
+        if state == ResourceAgentState.UNINITIALIZED:
+            pass
 
+        elif state == ResourceAgentState.INACTIVE:
+            result = self._stop_driver()
+
+        else:
+            self._dvr_client.cmd_dvr('disconnect')
+            self._dvr_client.cmd_dvr('initialize')        
+            result = self._stop_driver()
+            
     ##############################################################
     # Capabilities interface and event handlers.
     ##############################################################    
@@ -279,8 +299,6 @@ class InstrumentAgent(ResourceAgent):
                    self.resource_id)
 
         return True, ''
-
-
 
     ##############################################################
     # Resource interface and common resource event handlers.
@@ -728,6 +746,8 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         # Publsih resource config change event.
+        if self._enable_persistence:
+            self._set_state('rparams', val)
         try:
             event_data = {
                 'config' : val
@@ -817,27 +837,55 @@ class InstrumentAgent(ResourceAgent):
         loop thru alerts list and retrieve status of any alert that contributes to the aggregate status and update the state
         """
         #init working status
+        updated_status = {}
         for aggregate_type in AggregateStatusType._str_map.keys():
-            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                self.aparam_aggstatus[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
+            updated_status[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
 
         for a in self.aparam_alerts:
+            log.debug('_process_aggregate_alerts a: %s', a)
             curr_state = a.get_status()
-            if a._aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                #get the current value for this aggregate status
-                current_agg_state = self.aparam_aggstatus[ a._aggregate_type ]
-                if a._status:
-                    # this alert is not 'tripped' so the status is OK
-                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
-                    if current_agg_state is DeviceStatusEnum.STATUS_UNKNOWN:
-                        self.aparam_aggstatus[ a._aggregate_type ]  = DeviceStatusEnum.STATUS_OK
 
-                else:
-                    #the alert is active, either a warning or an alarm
-                    if a._alert_type is StreamAlertType.ALARM:
-                        self.aparam_aggstatus[ a._aggregate_type ] = DeviceStatusEnum.STATUS_CRITICAL
-                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusEnum.STATUS_CRITICAL:
-                        self.aparam_aggstatus[ a._aggregate_type ] = DeviceStatusEnum.STATUS_WARNING
+            #get the current value for this aggregate status
+            current_agg_state = updated_status[ a._aggregate_type ]
+            if a._status:
+                # this alert is not 'tripped' so the status is OK
+                #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                log.debug('_process_aggregate_alerts Clear')
+                if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
+                    updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
+
+            else:
+                #the alert is active, either a warning or an alarm
+                if a._alert_type is StreamAlertType.ALARM:
+                    log.debug('_process_aggregate_alerts Critical')
+                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
+                elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
+                    log.debug('_process_aggregate_alerts Warn')
+                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
+
+        #compare old state with new state and publish alerts for any agg status that has changed.
+        for aggregate_type in AggregateStatusType._str_map.keys():
+            if updated_status[aggregate_type] != self.aparam_aggstatus[aggregate_type]:
+                log.debug('_process_aggregate_alerts pubevent')
+                self._publish_agg_status_event(aggregate_type, updated_status[aggregate_type],self.aparam_aggstatus[aggregate_type])
+                self.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
+
+        return
+
+    def _publish_agg_status_event(self, status_type, new_status, old_status):
+        # Publish resource config change event.
+        try:
+            self._event_publisher.publish_event(
+                event_type='DeviceAggregateStatusEvent',
+                origin_type=self.ORIGIN_TYPE,
+                origin=self.resource_id,
+                status_name=status_type,
+                status=new_status,
+                prev_status=old_status)
+        except:
+            log.error('Instrument agent %s could not publish aggregate status change event.',
+                self._proc_name)
+
         return
 
 
@@ -1002,9 +1050,10 @@ class InstrumentAgent(ResourceAgent):
     def _construct_fsm(self):
         """
         """
+        # Here we could define subsets of states and events to specialize fsm.
         
         # Construct default state machine states and handlers.
-        ResourceAgent._construct_fsm(self)
+        super(InstrumentAgent, self)._construct_fsm()
         
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(ResourceAgentState.UNINITIALIZED, ResourceAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
@@ -1094,6 +1143,8 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # LOST_CONNECTION state event handlers.
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_lost_connection_enter)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.EXIT, self._handler_lost_connection_exit)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.RESET, self._handler_lost_connection__reset)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.AUTORECONNECT, self._handler_lost_connection__autoreconnect)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GO_INACTIVE, self._handler_lost_connection__go_inactive)
@@ -1127,6 +1178,7 @@ class InstrumentAgent(ResourceAgent):
         # Verify the driver has started.
         if not self._dvr_proc.getpid():
             log.error('Instrument agent %s error starting driver process.', self._proc_name)
+            self._dvr_proc = None
             raise ResourceError('Error starting driver process.')
 
         try:
@@ -1137,6 +1189,8 @@ class InstrumentAgent(ResourceAgent):
 
         except Exception, e:
             self._dvr_proc.stop()
+            self._dvr_proc = None
+            self._dvr_client = None
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
@@ -1146,9 +1200,13 @@ class InstrumentAgent(ResourceAgent):
         """
         Stop the driver process and driver client.
         """
-        self._stop_publisher_greenlets()        
-        self._dvr_proc.stop()
-        log.info('Instrument agent %s stopped its driver.', self._proc_name)
+        self._stop_publisher_greenlets()
+            
+        if self._dvr_proc:
+            self._dvr_proc.stop()
+            self._dvr_proc = None
+            self._dvr_client = None
+            log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
             
     def _validate_driver_config(self):
@@ -1250,18 +1308,21 @@ class InstrumentAgent(ResourceAgent):
     # Agent parameter functions.
     ##############################################################    
     
-    def _configure_aparams(self):
-        
+    def _configure_aparams(self, aparams=[]):
+
+        # Always build the stream from the driver config.        
         stream_config = self.CFG.get('stream_config', None)
         if stream_config:
             for (stream_name, config) in stream_config.iteritems():
                 stream_def = config['stream_definition_ref']
                 rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-                self.aparam_streams[stream_name] = rdt.fields                
-                self.aparam_pubrate[stream_name] = 0
-                        
+                self.aparam_streams[stream_name] = rdt.fields
+                if 'pubrate' in aparams:
+                    self.aparam_pubrate[stream_name] = 0                
+
+        # If specified and configed, build the pubrate aparam.
         aparam_pubrate_config = self.CFG.get('aparam_pubrate_config', None)
-        if aparam_pubrate_config:
+        if aparam_pubrate_config and 'pubrate' in aparams:
             for (stream_name, pubrate) in aparam_pubrate_config:
                 if self.aparam_pubrate.has_key(stream_name) and \
                     isinstance(pubrate, (float, int)) and pubrate >= 0:
@@ -1269,9 +1330,9 @@ class InstrumentAgent(ResourceAgent):
                 else:
                     log.error('Instrument agent %s could not configure stream %s, pubrate %s',
                               self._proc_name, str(stream_name), str(pubrate))
-                
+        # If specified and configed, build the alerts aparam.                
         aparam_alert_config = self.CFG.get('aparam_alert_config', None)
-        if aparam_alert_config:
+        if aparam_alert_config and 'alerts' in aparams:
             for alert_def in aparam_alert_config:
                 alert_def = copy.deepcopy(alert_def)
                 try:
@@ -1280,17 +1341,127 @@ class InstrumentAgent(ResourceAgent):
                     cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
+                    if cls == 'LateDataAlert':
+                        alert_def['get_state'] == self._fsm.get_current_state
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except:
                     log.error('Instrument agent %s could not construct alert %s, for stream %s',
                               self._proc_name, str(alert_def), stream_name)
 
-        #initialize state of aggregate status to unknow until the first time alerts are processed
+        # Always default the aggstatus to unknown.
         for aggregate_type in AggregateStatusType._str_map.keys():
-            if aggregate_type is not AggregateStatusType.AGGREGATE_OTHER:
-                self.aparam_aggstatus[aggregate_type] = DeviceStatusEnum.STATUS_UNKNOWN
-                    
+            self.aparam_aggstatus[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
+
+    def _restore_resource(self):
+        """
+        """
+        if not self._dvr_config:
+            log.error('Instrument agent %s error no driver config on launch, cannot restore state.',
+                      self.id)
+            return
+                
+        # Get resource parameters and agent state from persistence.
+        rparams = self._get_state('rparams')        
+        if rparams:
+            startup_config = self._dvr_config.get('startup_config', None)
+            if not startup_config:
+                startup_config = {'parameters':rparams, 'scheduler':None}
+            startup_config['parameters'] = rparams
+            self._dvr_config['startup_config'] = startup_config
+        
+        # Get state to restore. If the last state was lost connection,
+        # use the prior connected state.
+        state = self._get_state('agent_state')
+        if state == ResourceAgentState.LOST_CONNECTION:        
+            state = self._get_state('prev_agent_state') or \
+                ResourceAgentState.UNINITIALIZED
+        
+        try:
+            cur_state = self._fsm.get_current_state()
+            
+            # If unitialized, confirm and do nothing.
+            if state == ResourceAgentState.UNINITIALIZED:
+                if cur_state != state:
+                    raise Exception()
+                
+            # If inactive, initialize and confirm.
+            elif state == ResourceAgentState.INACTIVE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If idle, initialize, activate and confirm.
+            elif state == ResourceAgentState.IDLE:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If streaming, initialize, activate and confirm.
+            # Driver discover should put us in streaming mode.
+            elif state == ResourceAgentState.STREAMING:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If command, initialize, activate, confirm idle,
+            # run and confirm command.
+            elif state == ResourceAgentState.COMMAND:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
+            # If in a command reachable substate, attempt to return to command.
+            # Initialize, activate, confirm idle, run confirm command.
+            elif state in [ResourceAgentState.TEST,
+                    ResourceAgentState.CALIBRATE,
+                    ResourceAgentState.DIRECT_ACCESS,
+                    ResourceAgentState.BUSY]:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            # If active unknown, return to active unknown or command if
+            # possible. Initialize, activate, confirm active unknown, else
+            # confirm idle, run, confirm command.
+            elif state == ResourceAgentState.ACTIVE_UNKNOWN:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state == ResourceAgentState.ACTIVE_UNKNOWN:
+                    return
+                elif cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+
+            else:
+                log.error('Instrument agent %s error restoring unhandled state %s, current state %s',
+                        self.id, state, cur_state)
+        
+        except Exception as ex:
+            log.error('Instrument agent %s error restoring state %s, current state %s, exception %s',
+                    self.id, state, cur_state, str(ex))
+
     def aparam_set_streams(self, params):
         """
         """
@@ -1337,6 +1508,8 @@ class InstrumentAgent(ResourceAgent):
                     cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
+                    if cls == 'LateDataAlert':
+                        alert_def['get_state'] == self._fsm.get_current_state                    
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except Exception as ex:

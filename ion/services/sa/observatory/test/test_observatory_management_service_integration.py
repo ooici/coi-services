@@ -19,7 +19,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-
+from pyon.core.governance import get_actor_header
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old
@@ -353,6 +353,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_siteb_id, PRED.hasSite, instrument_site_id)
 
         self.RR.create_association(platform_siteb_id, PRED.hasDevice, platform_deviceb_id)
+        #test network parent link
+        self.OMS.assign_device_to_network_parent(platform_device_id, platform_deviceb_id)
 
         self.RR.create_association(platform_site_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
@@ -412,32 +414,32 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                         name='TestPlatformSite',
                                         description='some new TestPlatformSite')
         geo_index_obj = IonObject(OT.GeospatialBounds)
-        geo_index_obj.geospatial_latitude_limit_north = 200.0
-        geo_index_obj.geospatial_latitude_limit_south = 100.0
-        geo_index_obj.geospatial_longitude_limit_east = 150.0
-        geo_index_obj.geospatial_longitude_limit_west = 200.0
+        geo_index_obj.geospatial_latitude_limit_north = 20.0
+        geo_index_obj.geospatial_latitude_limit_south = 10.0
+        geo_index_obj.geospatial_longitude_limit_east = 15.0
+        geo_index_obj.geospatial_longitude_limit_west = 20.0
         platformsite_obj.constraint_list = [geo_index_obj]
 
         platformsite_id = self.OMS.create_platform_site(platformsite_obj)
 
         # now get the dp back to see if it was updated
         platformsite_obj = self.OMS.read_platform_site(platformsite_id)
-        self.assertEquals(platformsite_obj.description,'some new TestPlatformSite')
-        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 150.0)
+        self.assertEquals('some new TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(15.0, platformsite_obj.geospatial_point_center.lat, places=1)
 
 
         #now adjust a few params
-        platformsite_obj.description ='some old TestPlatformSite'
+        platformsite_obj.description = 'some old TestPlatformSite'
         geo_index_obj = IonObject(OT.GeospatialBounds)
-        geo_index_obj.geospatial_latitude_limit_north = 300.0
-        geo_index_obj.geospatial_latitude_limit_south = 200.0
+        geo_index_obj.geospatial_latitude_limit_north = 30.0
+        geo_index_obj.geospatial_latitude_limit_south = 20.0
         platformsite_obj.constraint_list = [geo_index_obj]
         update_result = self.OMS.update_platform_site(platformsite_obj)
 
         # now get the dp back to see if it was updated
         platformsite_obj = self.OMS.read_platform_site(platformsite_id)
-        self.assertEquals(platformsite_obj.description,'some old TestPlatformSite')
-        self.assertEquals(platformsite_obj.geospatial_point_center.lat, 250.0)
+        self.assertEquals('some old TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(25.0, platformsite_obj.geospatial_point_center.lat, places=1)
 
         self.OMS.force_delete_platform_site(platformsite_id)
 
@@ -583,6 +585,17 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                             data_product_id=data_product_id1)
 
 
+        #Create a  user to be used as regular member
+        member_actor_obj = IonObject(RT.ActorIdentity, name='org member actor')
+        member_actor_id,_ = self.RR.create(member_actor_obj)
+        assert(member_actor_id)
+        member_actor_header = get_actor_header(member_actor_id)
+
+        #Build the Service Agreement Proposal to enroll a user actor
+        sap = IonObject(OT.EnrollmentProposal,consumer=member_actor_id, provider=stuff.org_id )
+
+        sap_response = self.org_management_service.negotiate(sap, headers=member_actor_header )
+
         #--------------------------------------------------------------------------------
         # Get the extended Site (platformSite)
         #--------------------------------------------------------------------------------
@@ -593,6 +606,11 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_site.platform_models))
         self.assertEqual(stuff.platform_device_id, extended_site.platform_devices[0]._id)
         self.assertEqual(stuff.platform_model_id, extended_site.platform_models[0]._id)
+
+        log.debug("verify that PlatformDeviceb is linked to PlatformDevice with hasNetworkParent link")
+        associations = self.RR.find_associations(subject=stuff.platform_deviceb_id, predicate=PRED.hasNetworkParent, object=stuff.platform_device_id, id_only=True)
+        self.assertIsNotNone(associations, "PlatformDevice child not connected to PlatformDevice parent.")
+
 
         #--------------------------------------------------------------------------------
         # Get the extended Org
@@ -607,6 +625,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(2, extended_org.number_of_instruments)
         self.assertEqual(2, len(extended_org.instrument_models) )
+
+        self.assertEqual(1, len(extended_org.open_negotiations))
 
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()

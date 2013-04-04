@@ -34,6 +34,7 @@ from mock import patch
 # Pyon pubsub and event support.
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.stream import StandaloneStreamSubscriber
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
@@ -125,7 +126,7 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.7-py2.7.egg'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -223,7 +224,9 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
         'driver_config' : DVR_CONFIG,
         'stream_config' : stream_config,
         'agent'         : {'resource_id': resource_id},
-        'test_mode' : True
+        'test_mode' : True,
+        'forget_past' : True,
+        'enable_persistence' : False
     }
 
     if org_governance_name is not None:
@@ -391,36 +394,44 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         # Create a pubsub client to create streams.
         pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-        dataset_management = DatasetManagementServiceClient() 
+        dataset_management = DatasetManagementServiceClient()
+        
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
 
-        streams = {
-            'parsed' : 'ctd_parsed_param_dict',
-            'raw'    : 'ctd_raw_param_dict'
-        }
-
-
-
-        for (stream_name, param_dict_name) in streams.iteritems():
-            pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-
-            stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-            pd            = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
-
-            stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
+        stream_name = 'parsed'
+        param_dict_name = 'ctd_parsed_param_dict'
+        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
+        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-
-            stream_config = dict(stream_route=stream_route,
+        stream_config = dict(stream_route=stream_route,
                                  routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
                                  parameter_dictionary=pd)
-            self._stream_config[stream_name] = stream_config
+        self._stream_config[stream_name] = stream_config
 
-    def _start_data_subscribers(self, count):
+        stream_name = 'raw'
+        param_dict_name = 'ctd_raw_param_dict'
+        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
+        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
+                                                exchange_point='science_data',
+                                                stream_definition_id=stream_def_id)
+        stream_config = dict(stream_route=stream_route,
+                                 routing_key=stream_route.routing_key,
+                                 exchange_point=stream_route.exchange_point,
+                                 stream_id=stream_id,
+                                 stream_definition_ref=stream_def_id,
+                                 parameter_dictionary=pd)
+        self._stream_config[stream_name] = stream_config
+
+    def _start_data_subscribers(self, count, raw_count):
         """
         """        
         # Create a pubsub client to create streams.
@@ -429,33 +440,50 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Create streams and subscriptions for each stream named in driver.
         self._data_subscribers = []
         self._samples_received = []
+        self._raw_samples_received = []
         self._async_sample_result = AsyncResult()
+        self._async_raw_sample_result = AsyncResult()
 
         # A callback for processing subscribed-to data.
         def recv_data(message, stream_route, stream_id):
-            log.info('Received message on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
+            log.info('Received parsed data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
             self._samples_received.append(message)
             if len(self._samples_received) == count:
                 self._async_sample_result.set()
 
-        for (stream_name, stream_config) in self._stream_config.iteritems():
-            
-            stream_id = stream_config['stream_id']
-            
-            # Create subscriptions for each stream.
+        def recv_raw_data(message, stream_route, stream_id):
+            log.info('Received raw data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
+            self._raw_samples_received.append(message)
+            if len(self._raw_samples_received) == raw_count:
+                self._async_raw_sample_result.set()
 
-            from pyon.util.containers import create_unique_identifier
-            # exchange_name = '%s_queue' % stream_name
-            exchange_name = create_unique_identifier("%s_queue" %
+        from pyon.util.containers import create_unique_identifier
+
+        stream_name = 'parsed'
+        parsed_config = self._stream_config[stream_name]
+        stream_id = parsed_config['stream_id']
+        exchange_name = create_unique_identifier("%s_queue" %
                     stream_name)
-            self._purge_queue(exchange_name)
-            sub = StandaloneStreamSubscriber(exchange_name, recv_data)
-            sub.start()
-            self._data_subscribers.append(sub)
-            print 'stream_id: %s' % stream_id
-            sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-            pubsub_client.activate_subscription(sub_id)
-            sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
+        self._purge_queue(exchange_name)
+        sub = StandaloneStreamSubscriber(exchange_name, recv_data)
+        sub.start()
+        self._data_subscribers.append(sub)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+        pubsub_client.activate_subscription(sub_id)
+        sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
+        
+        stream_name = 'raw'
+        parsed_config = self._stream_config[stream_name]
+        stream_id = parsed_config['stream_id']
+        exchange_name = create_unique_identifier("%s_queue" %
+                    stream_name)
+        self._purge_queue(exchange_name)
+        sub = StandaloneStreamSubscriber(exchange_name, recv_raw_data)
+        sub.start()
+        self._data_subscribers.append(sub)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+        pubsub_client.activate_subscription(sub_id)
+        sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
 
     def _purge_queue(self, queue):
         xn = self.container.ex_manager.create_xn_queue(queue)
@@ -1107,7 +1135,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         # Start data subscribers.
-        self._start_data_subscribers(6)
+        self._start_data_subscribers(3, 10)
         self.addCleanup(self._stop_data_subscribers)
         
         # Set up a subscriber to collect command events.
@@ -1145,9 +1173,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
-        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)        
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)        
         
         """
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_INITIALIZE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373063952', 'sub_type': '', 'origin_type': ''}
@@ -1159,13 +1185,21 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_RESET', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373076321', 'sub_type': '', 'origin_type': ''}        
         """
         
-        log.warning('******************* Checking events in test_poll:')
-        for x in self._events_received:
-            log.warning(str(x))
+        # Check that the events were received.
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)        
         self.assertGreaterEqual(len(self._events_received), 7)
         
+        """
+        {'domain': [1], 'data_producer_id': '123xyz', 'connection_index': 0, 'record_dictionary': {1: None, 2: [3573842031.2744761], 3: [3573842031.2744761], 4: None, 5: ['ok'], 6: ['port_timestamp'], 7: None, 8: [3573842030.3573842], 9: None, 10: [693.64899], 11: [57.46814], 12: None, 13: [36.3759], 14: None}, 'connection_id': 'ac8085c1572b4ac78e080d397cfa5d88', 'locator': None, 'type_': 'Granule', 'param_dictionary': '5907708894714910a80410f475709d69', 'creation_timestamp': 1364853231.735014, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'connection_index': 1, 'record_dictionary': {1: None, 2: [3573842032.6812067], 3: [3573842032.6812067], 4: None, 5: ['ok'], 6: ['port_timestamp'], 7: None, 8: [3573842032.3573842], 9: None, 10: [941.828], 11: [92.264343], 12: None, 13: [55.146198], 14: None}, 'connection_id': 'ac8085c1572b4ac78e080d397cfa5d88', 'locator': None, 'type_': 'Granule', 'param_dictionary': '5907708894714910a80410f475709d69', 'creation_timestamp': 1364853232.80932, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'connection_index': 2, 'record_dictionary': {1: None, 2: [3573842034.287919], 3: [3573842034.287919], 4: None, 5: ['ok'], 6: ['port_timestamp'], 7: None, 8: [3573842034.3573842], 9: None, 10: [132.754], 11: [59.86327], 12: None, 13: [83.803398], 14: None}, 'connection_id': 'ac8085c1572b4ac78e080d397cfa5d88', 'locator': None, 'type_': 'Granule', 'param_dictionary': '5907708894714910a80410f475709d69', 'creation_timestamp': 1364853234.387937, 'provider_metadata_update': {}}
+        """
+        
+        # Await the published samples and veirfy parsed and raw streams.        
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertGreater(len(self._samples_received), 6)
+        self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertEqual(len(self._samples_received), 3)
+        self.assertGreater(len(self._raw_samples_received), 10)
         
     def test_autosample(self):
         """
@@ -1175,7 +1209,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         
         # Start data subscribers.
-        self._start_data_subscribers(6)
+        self._start_data_subscribers(3, 10)
         self.addCleanup(self._stop_data_subscribers)    
         
         # Set up a subscriber to collect error events.
@@ -1214,10 +1248,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertGreaterEqual(len(self._events_received), 6)
+        self.assertGreaterEqual(len(self._events_received), 7)
 
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertGreaterEqual(len(self._samples_received), 6)
+        self.assertGreaterEqual(len(self._samples_received), 3)
+
+        self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertGreaterEqual(len(self._raw_samples_received), 10)
 
     def test_capabilities(self):
         """
@@ -1934,7 +1971,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         
         # Start data subscribers.
-        self._start_data_subscribers(1)
+        self._start_data_subscribers(1, 1)
         self.addCleanup(self._stop_data_subscribers)    
         
         state = self._ia_client.get_agent_state()
@@ -1977,12 +2014,23 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
 
-        # This includes raw parameters now as well so the number is higher
-        # We could be surgical here and check for parsed granules only
-        self.assertGreaterEqual(len(self._samples_received), 16)
-
-    @unittest.skip('Skip until driver eggs updated again.')
+        # Add check here to assure parsed granules are buffered.
+        for x in self._samples_received:
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            self.assertGreater(rdt['temp'].size, 1)
+            self.assertGreater(rdt['conductivity'].size, 1)
+            self.assertGreater(rdt['pressure'].size, 1)
+        
+        # Check that some of the raw granules are buffered.
+        raw_sizes = []
+        for x in self._raw_samples_received:
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            raw_sizes.append(rdt['raw'].size)
+        raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
+        self.assertTrue(any(raw_sizes_greater_than_one))
+                
     def test_lost_connection(self):
         """
         test_lost_connection
@@ -2050,7 +2098,6 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-    @unittest.skip('Skip until driver eggs updated again.')
     def test_autoreconnect(self):
         """
         test_autoreconnect

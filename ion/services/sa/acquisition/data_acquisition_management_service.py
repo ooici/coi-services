@@ -12,9 +12,13 @@ from interface.services.sa.idata_acquisition_management_service import BaseDataA
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, log, RT, LCS, PRED, OT
+from pyon.util.arg_check import validate_is_instance
 
 from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget, ProcessRestartMode
-
+from interface.objects import Parser, DataProducer, InstrumentProducerContext, ExtDatasetProducerContext, DataProcessProducerContext
+from ion.util.stored_values import StoredValueManager
+from interface.objects import AttachmentType
+from collections import deque
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
@@ -34,22 +38,23 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         @param external_dataset_id    str
         @retval data_producer_id    str
         """
-        # retrieve the data_source object
-        data_set_obj = self.clients.resource_registry.read(external_dataset_id)
-        if data_set_obj is None:
-            raise NotFound("External Data Set %s does not exist" % external_dataset_id)
+        ext_dataset_obj = self.clients.resource_registry.read(external_dataset_id)
 
-        #create a ExtDatasetProducerContext to hold the state of the this producer
-        producer_context_obj = IonObject(OT.ExtDatasetProducerContext)
+        if ext_dataset_obj is None:
+            raise NotFound('External Data Set %s does not exist' % external_dataset_id)
 
-        #create data producer resource and associate to this external_dataset_id
-        data_producer_obj = IonObject(RT.DataProducer,name=data_set_obj.name,
-            description="Primary DataProducer for ExternalDataset %s" % data_set_obj.name,
-            producer_context=producer_context_obj, is_primary=True)
+        #create a InstrumentProducerContext to hold the state of the this producer
+        producer_context_obj = ExtDatasetProducerContext()
+
+        #create data producer resource and associate to this data_process_id
+        data_producer_obj = DataProducer(name=ext_dataset_obj.name,
+                                         description='Primary DataProducer for External Dataset %s' % ext_dataset_obj.name,
+                                         is_primary=True,
+                                         producer_context=producer_context_obj)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
-        self.clients.resource_registry.create_association(external_dataset_id, PRED.hasDataProducer, data_producer_id)
+        self.clients.resource_registry.create_association(subject=external_dataset_id, predicate=PRED.hasDataProducer, object=data_producer_id)
 
         return data_producer_id
 
@@ -82,34 +87,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # retrieve the data_process object
         data_process_obj = self.clients.resource_registry.read(data_process_id)
         if data_process_obj is None:
-            raise NotFound("Data Process %s does not exist" % data_process_id)
+            raise NotFound('Data Process %s does not exist' % data_process_id)
 
-        #find the data process definition
-        parameters = []
-        data_process_def_objs, _ = self.clients.resource_registry.find_objects(
-            subject=data_process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition, id_only=False)
-        if not data_process_def_objs:
-            parameters = set()
-            out_data_product_ids, _ = self.clients.resource_registry.find_objects(
-                    subject=data_process_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct,id_only=True)
-            for dp_id in out_data_product_ids:
-                stream_ids, _ = self.clients.resource_registry.find_objects(subject=dp_id, predicate=PRED.hasStream, id_only=True)
-                for stream_id in stream_ids:
-                    stream_def = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
-                    parameters = parameters.union(stream_def.available_fields)
-            parameters = list(parameters)
-        else:
-            parameters = data_process_def_objs[0].parameters
-
-
-
-        #create a DataProcessProducerContext to hold the state of the this producer
-        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=data_process_obj.configuration, parameters=parameters)
+        producer_context_obj = DataProcessProducerContext(configuration=data_process_obj.configuration)
 
         #create data producer resource and associate to this data_process_id
-        data_producer_obj = IonObject(RT.DataProducer,name=data_process_obj.name,
-            description="Primary DataProducer for DataProcess %s" % data_process_obj.name,
-            producer_context=producer_context_obj, is_primary=True)
+        data_producer_obj = DataProducer(name=data_process_obj.name,
+            description='Primary DataProducer for DataProcess %s' % data_process_obj.name,
+            producer_context=producer_context_obj,
+            is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
@@ -123,21 +109,18 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         """
 
         # retrieve the data_process object
-        process_obj = self.clients.resource_registry.read(process_id)
-        if process_obj is None:
-            raise NotFound("Process %s does not exist" % process_id)
+        # retrieve the data_process object
+        data_process_obj = self.clients.resource_registry.read(process_id)
+        if data_process_obj is None:
+            raise NotFound('Data Process %s does not exist' % process_id)
 
-        #find the data process definition
-        process_def_objs, _ = self.clients.resource_registry.find_objects(subject=process_id,  predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=False)
-        if not process_def_objs:
-            raise NotFound("Process Definition for Process %s does not exist" % process_id)
+        producer_context_obj = DataProcessProducerContext(configuration=data_process_obj.process_configuration)
 
-        #create a DataProcessProducerContext to hold the state of the this producer
-        producer_context_obj = IonObject(OT.DataProcessProducerContext,  configuration=process_obj.process_configuration)
-
-        #create data producer resource and associate to this process_id
-        data_producer_obj = IonObject(RT.DataProducer,name=process_obj.name, description="primary producer resource for this process",
-            producer_context=producer_context_obj, is_primary=True)
+        #create data producer resource and associate to this data_process_id
+        data_producer_obj = DataProducer(name=data_process_obj.name,
+                                         description='Primary DataProducer for DataProcess %s' % data_process_obj.name,
+                                         producer_context=producer_context_obj,
+                                         is_primary=True)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
 
         # Create association
@@ -163,7 +146,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             log.debug("DAMS:unregister_process delete producer: %s ", str(producer) )
             self.clients.resource_registry.delete(producer)
 
-        return
 
     def unregister_event_process(self, process_id=''):
         """
@@ -190,15 +172,18 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # retrieve the data_process object
         instrument_obj = self.clients.resource_registry.read(instrument_id)
 
-        #create a InstrumentProducerContext to hold the state of the this producer
-        producer_context_obj = IonObject(OT.InstrumentProducerContext)
+        if instrument_obj is None:
+            raise NotFound('Instrument object %s does not exist' % instrument_id)
 
-        #create data producer resource and associate to this instrument_id
-        data_producer_obj = IonObject(RT.DataProducer, name=instrument_obj.name,
-            description="Primary DataProducer for InstrumentDevice %s" % instrument_obj.name,
-            producer_context=producer_context_obj, is_primary=True)
+        #create a InstrumentProducerContext to hold the state of the this producer
+        producer_context_obj = InstrumentProducerContext()
+
+        #create data producer resource and associate to this data_process_id
+        data_producer_obj = DataProducer(name=instrument_obj.name,
+                                         description='Primary DataProducer for DataProcess %s' % instrument_obj.name,
+                                         is_primary=True,
+                                         producer_context=producer_context_obj)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
-        log.debug("register_instrument  data_producer_id %s" % data_producer_id)
 
         # Create association
         self.clients.resource_registry.create_association(instrument_id, PRED.hasDataProducer, data_producer_id)
@@ -208,7 +193,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
     def unregister_instrument(self, instrument_id=''):
 
         # Verify that  id is valid
-        input_resource_obj = self.clients.resource_registry.read(instrument_id)
+        # Verify that  id is valid
+        input_process_obj = self.clients.resource_registry.read(instrument_id)
 
         # List all resource ids that are objects for this data_source and has the hasDataProducer link
         producers, producer_assns = self.clients.resource_registry.find_objects(subject=instrument_id, predicate=PRED.hasDataProducer, id_only=True)
@@ -228,28 +214,32 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_product_obj = self.clients.resource_registry.read(data_product_id)
 
         #find the data producer resource associated with the source resource that is creating the data product
-        primary_producer_ids, _ = self.clients.resource_registry.find_objects(input_resource_id, PRED.hasDataProducer, RT.DataProducer, id_only=True)
+        primary_producer_ids, _ = self.clients.resource_registry.find_objects(subject=input_resource_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
 
         if not primary_producer_ids:
             raise NotFound("Data Producer for input resource %s does not exist" % input_resource_id)
 
         data_producer_id = ''
 
+
         #connect the producer to the product directly
-        self.clients.resource_registry.create_association(input_resource_id,  PRED.hasOutputProduct,  data_product_id)
+        self.clients.resource_registry.create_association(subject=input_resource_id, predicate=PRED.hasOutputProduct, object=data_product_id)
 
         #create data producer resource for this data product
-        data_producer_obj = IonObject(RT.DataProducer,name=data_product_obj.name, description=data_product_obj.description)
+        data_producer_obj = DataProducer(name=data_product_obj.name, description=data_product_obj.description)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
+        for attachment in self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False):
+            if attachment.attachment_type == AttachmentType.REFERENCE:
+                parser_id = attachment.context.parser_id
+                if parser_id:
+                    self.register_producer_qc_reference(data_producer_id, parser_id, attachment._id)
 
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
 
         # Associate the Producer with the main Producer
         self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  primary_producer_ids[0])
-        # Associate the input resource with the child data Producer
-        self.clients.resource_registry.create_association(input_resource_id,  PRED.hasDataProducer, data_producer_id)
 
         return
 
@@ -286,11 +276,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
             #remove the link to the parent data producer
             associations = self.clients.resource_registry.find_associations(subject=producer, predicate=PRED.hasParent, id_only=True)
-            for association in associations:
-                self.clients.resource_registry.delete_association(association)
-
-            #remove the link to the input resource
-            associations = self.clients.resource_registry.find_associations(input_resource_id, PRED.hasDataProducer, producer, id_only=True)
             for association in associations:
                 self.clients.resource_registry.delete_association(association)
 
@@ -469,7 +454,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_source_agent_id = self.RR2.create(data_source_agent, RT.DataSourceAgent)
 
         if data_source_model_id:
-            self.RR2.assign_data_source_model_to_data_source_agent(data_source_model_id, data_source_agent_id)
+            self.RR2.assign_data_source_model_to_data_source_agent_with_has_model(data_source_model_id, data_source_agent_id)
         return data_source_agent_id
 
     def update_data_source_agent(self, data_source_agent=None):
@@ -494,10 +479,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_source_agent_instance_id = self.RR2.create(data_source_agent_instance, RT.DataSourceAgentInstance)
 
         if data_source_id:
-            self.RR2.assign_data_source_agent_instance_to_data_source(data_source_agent_instance_id, data_source_id)
+            self.RR2.assign_data_source_agent_instance_to_data_source_with_has_agent_instance(data_source_agent_instance_id, data_source_id)
 
         if data_source_agent_id:
-            self.RR2.assign_data_source_agent_to_data_source_agent_instance(data_source_agent_id, data_source_agent_instance_id)
+            self.RR2.assign_data_source_agent_to_data_source_agent_instance_with_has_agent_definition(data_source_agent_id, data_source_agent_instance_id)
 
         return data_source_agent_instance_id
 
@@ -545,7 +530,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Persist ExternalDataSet object and return object _id as OOI id
         external_dataset_id = self.RR2.create(external_dataset, RT.ExternalDataset)
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset(external_dataset_model_id, external_dataset_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_with_has_model(external_dataset_model_id, external_dataset_id)
         return external_dataset_id
 
     def update_external_dataset(self, external_dataset=None):
@@ -591,7 +576,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
         external_dataset_agent_id = self.RR2.create(external_dataset_agent, RT.ExternalDatasetAgent)
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset_agent(external_dataset_model_id, external_dataset_agent_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_agent_with_has_model(external_dataset_model_id,
+                                                                                            external_dataset_agent_id)
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
@@ -603,7 +589,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         log.debug("create_external_dataset_agent: create_process_definition id %s"  +  str(process_definition_id))
 
         #associate the agent and the process def
-        self.RR2.assign_process_definition_to_external_dataset_agent(process_definition_id, external_dataset_agent_id)
+        self.RR2.assign_process_definition_to_external_dataset_agent_with_has_process_definition(process_definition_id,
+                                                                                                 external_dataset_agent_id)
 
         return external_dataset_agent_id
 
@@ -632,7 +619,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         external_dataset_agent_instance_id = self.RR2.create(external_dataset_agent_instance, RT.ExternalDatasetAgentInstance)
 
         if external_dataset_id:
-            self.RR2.assign_external_dataset_agent_instance_to_external_dataset(external_dataset_agent_instance_id, external_dataset_id)
+            self.RR2.assign_external_dataset_agent_instance_to_external_dataset_with_has_agent_instance(external_dataset_agent_instance_id,
+                                                                                                        external_dataset_id)
 
         self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
         return external_dataset_agent_instance_id
@@ -934,4 +922,107 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         for association in associations:
             self.clients.resource_registry.delete_association(association)
 
+    def create_parser(self, name='', description='', module='', method='', config=None):
+        parser = Parser(name=name, description=description)
+
+        parser.module = module
+        parser.method = method
+        parser.config = config
+
+        parser_id, rev = self.clients.resource_registry.create(parser)
+        return parser_id
+
+    def read_parser(self, parser_id=''):
+        parser = self.clients.resource_registry.read(parser_id)
+        validate_is_instance(parser,Parser,'The specified identifier does not correspond to a Parser resource')
+        return parser
+
+    def delete_parser(self, parser_id=''):
+        self.clients.resource_registry.delete(parser_id)
+        return True
+
+    def update_parser(self, parser=None):
+        if parser:
+            self.clients.resource_registry.update(parser)
+
+
+    def register_producer_qc_reference(self, producer_id='', parser_id='', attachment_id=''):
+
+        attachment = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
+        document = attachment.content
+        document_keys = self.parse_qc_reference(parser_id, document)
+
+        document_keys = document_keys or []
+
+        producer_obj = self.clients.resource_registry.read(producer_id)
+        if 'qc_keys' in producer_obj.producer_context.configuration: 
+            producer_obj.producer_context.configuration['qc_keys'].extend(document_keys)
+        else:
+            producer_obj.producer_context.configuration['qc_keys'] = document_keys
+
+        self.clients.resource_registry.update(producer_obj)
+        return True
+
+    def parse_qc_reference(self, parser_id='', document=None):
+        document_keys = []
+        if document is None:
+            raise BadRequest('Empty Document')
+        parser = self.read_parser(parser_id=parser_id)
+        try:
+            module = __import__(parser.module, fromlist=[parser.method])
+            method = getattr(module, parser.method)
+
+        except ImportError:
+            raise BadRequest('No import named {0} found.'.format(parser.module))
+        except AttributeError:
+            raise BadRequest('No method named {0} in {1}.'.format(parser.method, parser.module))
+        except:
+            log.exception('Failed to parse document')
+            raise
+
+        svm = StoredValueManager(self.container)
+        for key, doc in method(document):
+            try:
+                svm.stored_value_cas(key, doc)
+                document_keys.append(key)
+            except:
+                log.error('Error parsing a row in document.')
+        return document_keys
+
+
+    def list_qc_references(self, data_product_id=''):
+        ''' Performs a breadth-first traversal of the provenance for a data product in an attempt to collect all the document keys'''
+        document_keys = []
+        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
+        if not len(producer_ids):
+            return []
+        producer_id = producer_ids.pop(0)
+        def traversal(owner_id):
+            def edges(resource_ids=[]):
+                retval = []
+                if not isinstance(resource_ids, list):
+                    resource_ids = list(resource_ids)
+                for resource_id in resource_ids:
+                    retval.extend(self.clients.resource_registry.find_objects(subject=resource_id, predicate=PRED.hasParent,id_only=True)[0])
+                return retval
+
+            visited_resources = deque([producer_id] + edges([owner_id]))
+            traversal_queue = deque()
+            done = False
+            t = None
+            while not done:
+                t = traversal_queue or deque(visited_resources)
+                traversal_queue = deque()
+                for e in edges(t):
+                    if not e in visited_resources:
+                        visited_resources.append(e)
+                        traversal_queue.append(e)
+                if not len(traversal_queue): done = True
+            return list(visited_resources)
+
+        for prod_id in traversal(producer_id):
+            producer = self.clients.resource_registry.read(prod_id)
+            if 'qc_keys' in producer.producer_context.configuration:
+                document_keys.extend(producer.producer_context.configuration['qc_keys'])
+        return document_keys
 

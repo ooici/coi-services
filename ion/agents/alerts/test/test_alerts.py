@@ -70,7 +70,7 @@ class TestAlerts(IonIntegrationTestCase):
         self._origin_type = "InstrumentDevice"
 
         def consume_event(*args, **kwargs):
-            log.info('Test recieved ION event: args=%s, kwargs=%s, event=%s.', 
+            log.debug('Test recieved ION event: args=%s, kwargs=%s, event=%s.',
                      str(args), str(kwargs), str(args[0]))
             self._events_received.append(args[0])
             if self._event_count > 0 and \
@@ -288,4 +288,73 @@ class TestAlerts(IonIntegrationTestCase):
         
         alert.stop()
 
+
+    def test_rsn_event_alert(self):
+        """
+        """
+        alert_def = {
+            'name' : 'input_voltage',
+            'message' : 'input_voltage is not in range range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'value_id' : 'input_voltage',
+            'resource_id' : self._resource_id,
+            'origin_type' : self._origin_type,
+            'alert_class' : 'RSNEventAlert',
+            'aggregate_type' : AggregateStatusType.AGGREGATE_POWER
+
+        }
+
+
+        # Example from CI-OMS interface spec
+        # need: tag for the value, current value and warning/error
+#        {
+#          "group": "power",
+#          "url": "http://localhost:8000",
+#          "timestamp": 3573569514.295556,
+#          "ref_id": "44.78",
+#          "platform_id": "TODO_some_platform_id_of_type_UPS",
+#          "message": "low battery (synthetic event generated from simulator)"
+#        }
+
+
+        #proposed structure:
+#        {
+#        "group": "power",
+#        "name" : "low_voltage_warning",
+#        "value_id" : "input_voltage",
+#        "value" : "1.2",
+#        "alert_type" : "warning",
+#        "url": "http://localhost:8000",
+#        "timestamp": 3573569514.295556,
+#        "ref_id": "44.78",
+#        "platform_id": "TODO_some_platform_id_of_type_UPS",
+#        "message": "low battery (synthetic event generated from simulator)"
+#        }
+
+
+
+        cls = alert_def.pop('alert_class')
+        alert = eval('%s(**alert_def)' % cls)
+
+        status = alert.get_status()
+
+        test_val = \
+        {
+        "group": "power",
+        "name" : "low_voltage_warning",
+        "value_id" : "input_voltage",
+        "value" : "1.2",
+        "alert_type" : "warning",
+        "url": "http://localhost:8000",
+        "ref_id": "44.78",
+        "platform_id": "e88f8b325b274dafabcc7d7d1e85bc5d",
+        "message": "low battery (synthetic event generated from simulator)"
+        }
+
+        alert.eval_alert(test_val)
+
+        status = alert.get_status()
+        log.debug('test_rsn_event_alert status: %s', alert)
+
+        #self._async_event_result.get(timeout=30)
 

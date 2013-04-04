@@ -22,6 +22,8 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_external_event_dispatch
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_connect_disconnect_instrument
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_check_sync
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_execute_resource
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
 #
 
 
@@ -33,25 +35,35 @@ from interface.objects import AgentCommand
 from interface.objects import CapabilityType
 from interface.objects import AgentCapability
 
+from pyon.core.exception import Conflict
+
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.responses import NormalResponse
-
-from nose.plugins.attrib import attr
+from ion.agents.platform.platform_driver import PlatformDriverState
+from ion.agents.platform.platform_driver import PlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
+from mock import patch
+from pyon.public import CFG
 
-@attr('INT', group='sa')
+
+@patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 class TestPlatformAgent(BaseIntTestPlatform):
 
-    def setUp(self):
-        super(TestPlatformAgent, self).setUp()
+    def _create_network_and_start_root_platform(self):
+        """
+        Call this at the beginning of each test. We need to make sure that
+        the patched timeout is in effect for the actions performed here.
 
-        #
+        @note this used to be done in setUp, but the patch.dict mechanism does
+        *not* take effect in setUp!
+        """
+        self.p_root = None
+
         # NOTE The tests expect to use values set up by HelperTestMixin for
         # for the following networks (see ion/agents/platform/test/helper.py)
-        #
         if self.PLATFORM_ID == 'Node1D':
             self.p_root = self._create_small_hierarchy()
 
@@ -61,10 +73,13 @@ class TestPlatformAgent(BaseIntTestPlatform):
         else:
             self.fail("self.PLATFORM_ID expected to be one of: 'Node1D', 'LJ01D'")
 
-        self._start_platform(self.p_root.platform_agent_instance_id)
+        self._start_platform(self.p_root)
 
     def tearDown(self):
-        self._stop_platform(self.p_root.platform_agent_instance_id)
+        if self.p_root:
+            # check p_root to avoid generating one more exception if the
+            # creation/launch of the network fails for some reason
+            self._stop_platform(self.p_root)
         super(TestPlatformAgent, self).tearDown()
 
     def _connect_instrument(self):
@@ -218,6 +233,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         return retval.result
 
     def test_capabilities(self):
+        self._create_network_and_start_root_platform()
 
         agt_cmds_all = [
             PlatformAgentEvent.INITIALIZE,
@@ -232,6 +248,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+            PlatformAgentEvent.EXECUTE_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
@@ -274,7 +292,15 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         agt_pars_all = ['example']  # 'cause ResourceAgent defines aparam_example
         res_pars_all = []
-        res_cmds_all = []
+        res_cmds_all = [
+            PlatformDriverEvent.GET_PORTS,
+            PlatformDriverEvent.CONNECT_INSTRUMENT,
+            PlatformDriverEvent.DISCONNECT_INSTRUMENT,
+            PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
+            PlatformDriverEvent.TURN_ON_PORT,
+            PlatformDriverEvent.TURN_OFF_PORT,
+            PlatformDriverEvent.GET_CHECKSUM
+        ]
 
         ##################################################################
         # UNINITIALIZED
@@ -290,7 +316,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         agt_cmds_uninitialized = [
             PlatformAgentEvent.INITIALIZE,
-            PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
         ]
         self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
         self.assertItemsEqual(agt_pars, agt_pars_all)
@@ -328,6 +353,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_inactive)
@@ -343,9 +369,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, [])
-
 
         ##################################################################
         # IDLE
@@ -364,11 +389,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.RUN,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_idle)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, [])
 
         # Get exposed capabilities in all states as read from IDLE.
@@ -379,7 +405,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, [])
 
 
@@ -413,18 +439,17 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+            PlatformAgentEvent.EXECUTE_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.START_MONITORING,
 
             PlatformAgentEvent.CHECK_SYNC,
         ]
 
-        res_cmds_command = [
-        ]
-
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
 
@@ -444,14 +469,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.CLEAR,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
-        ]
-
-        res_cmds_command = [
+            PlatformAgentEvent.GET_RESOURCE_STATE,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_stopped)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
 
@@ -485,18 +508,17 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
             PlatformAgentEvent.SET_RESOURCE,
+            PlatformAgentEvent.EXECUTE_RESOURCE,
+            PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.STOP_MONITORING,
 
             PlatformAgentEvent.CHECK_SYNC,
         ]
 
-        res_cmds_command = [
-        ]
-
         self.assertItemsEqual(agt_cmds, agt_cmds_monitoring)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_command)
+        self.assertItemsEqual(res_cmds, res_cmds_all)
         self.assertItemsEqual(res_pars, res_pars_all)
 
         # return to COMMAND state:
@@ -522,6 +544,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_some_state_transitions(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._initialize()   # -> INACTIVE
@@ -538,6 +561,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()        # -> UNINITIALIZED
 
     def test_get_set_resources(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -553,6 +577,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_some_commands(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -572,6 +597,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_resource_monitoring(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -588,6 +614,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_external_event_dispatch(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -602,6 +629,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_connect_disconnect_instrument(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -622,6 +650,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
 
     def test_check_sync(self):
+        self._create_network_and_start_root_platform()
 
         self._assert_state(PlatformAgentState.UNINITIALIZED)
         self._ping_agent()
@@ -641,3 +670,67 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._go_inactive()
         self._reset()
 
+    def _execute_resource(self, cmd, *args, **kwargs):
+        cmd = AgentCommand(command=cmd, args=args, kwargs=kwargs)
+        retval = self._pa_client.execute_resource(cmd)
+        log.debug("_execute_resource: cmd=%s: retval=%s", cmd, retval)
+        self.assertTrue(retval.result)
+        return retval.result
+
+    def test_execute_resource(self):
+        self._create_network_and_start_root_platform()
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        self._execute_resource(PlatformDriverEvent.GET_CHECKSUM)
+        self._execute_resource(PlatformDriverEvent.GET_METADATA)
+
+        ports = self._execute_resource(PlatformDriverEvent.GET_PORTS)
+        for port_id in ports:
+            self._execute_resource(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, port_id)
+
+        self._go_inactive()
+        self._reset()
+
+    def test_resource_states(self):
+        self._create_network_and_start_root_platform()
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+
+        with self.assertRaises(Conflict):
+            self._pa_client.get_resource_state()
+
+        self._initialize()
+
+        self._start_event_subscriber(event_type="ResourceAgentResourceStateEvent",
+                                     count=2)
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.DISCONNECTED)
+
+        self._go_active()
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.CONNECTED)
+
+        self._run()
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.CONNECTED)
+
+        self._go_inactive()
+
+        res_state = self._pa_client.get_resource_state()
+        self.assertEqual(res_state, PlatformDriverState.DISCONNECTED)
+
+        self._reset()
+
+        with self.assertRaises(Conflict):
+            self._pa_client.get_resource_state()
+
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertGreaterEqual(len(self._events_received), 2)

@@ -20,7 +20,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.services.ans.iworkflow_management_service import WorkflowManagementServiceProcessClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 from interface.services.ans.ivisualization_service import VisualizationServiceProcessClient
-
+from ion.services.ans.visualization_service import USER_VISUALIZATION_QUEUE
 from prototype.sci_data.stream_defs import SBE37_CDM_stream_definition
 
 
@@ -101,7 +101,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
         data_product_stream_ids.append(ctd_stream_id)
 
-        user_queue_name = 'user_queue'
+        user_queue_name = USER_VISUALIZATION_QUEUE
 
         xq = self.container.ex_manager.create_xn_queue(user_queue_name)
 
@@ -228,8 +228,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         # Now for each of the data_product_stream_ids create a queue and pipe their data to the queue
 
 
-        user_queue_name1 = 'user_queue_1'
-        user_queue_name2 = 'user_queue_2'
+        user_queue_name1 = USER_VISUALIZATION_QUEUE + '1'
+        user_queue_name2 = USER_VISUALIZATION_QUEUE + '2'
 
         # use idempotency to create queues
         xq1 = self.container.ex_manager.create_xn_queue(user_queue_name1)
@@ -289,13 +289,15 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         return
 
     @patch.dict(CFG, {'user_queue_monitor_timeout': 5})
+    @attr('SMOKE')
     def test_realtime_visualization(self):
 
-        #Start up multiple vis service workers
-        vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
-        self.addCleanup(self.container.terminate_process, vpid1)
-        vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
-        self.addCleanup(self.container.terminate_process, vpid2)
+        #Start up multiple vis service workers if not a CEI launch
+        if not os.getenv('CEI_LAUNCH_TEST', False):
+            vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
+            self.addCleanup(self.container.terminate_process, vpid1)
+            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
+            self.addCleanup(self.container.terminate_process, vpid2)
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
@@ -341,16 +343,21 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
     @patch.dict(CFG, {'user_queue_monitor_size': 25})
     def test_realtime_visualization_cleanup(self):
 
-        #Start up multiple vis service workers
-        vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
-        self.addCleanup(self.container.terminate_process, vpid1)
-        vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
-        self.addCleanup(self.container.terminate_process, vpid2)
+        #Start up multiple vis service workers if not a CEI launch
+        if not os.getenv('CEI_LAUNCH_TEST', False):
+            vpid1 = self.container.spawn_process('visualization_service1','ion.services.ans.visualization_service','VisualizationService', CFG )
+            self.addCleanup(self.container.terminate_process, vpid1)
+            vpid2 = self.container.spawn_process('visualization_service2','ion.services.ans.visualization_service','VisualizationService', CFG )
+            self.addCleanup(self.container.terminate_process, vpid2)
 
         #get the list of queues and message counts on the broker for the user vis queues
-        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
-        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
-        original_queue_count = len(q_names)
+        try:
+            queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+            q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+            original_queue_count = len(q_names)
+        except Exception, e:
+            log.warn('Unable to get queue information from broker management plugin: ' + e.message)
+            pass
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
@@ -372,14 +379,18 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
 
         #get the list of queues and message counts on the broker for the user vis queues
-        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
-        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+        try:
+            queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+            q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
 
-        self.assertIn(exchange + "." + bad_vis_token1, q_names)
-        self.assertIn(exchange + "." + bad_vis_token2, q_names)
-        self.assertIn(exchange + "." + bad_vis_token3, q_names)
-        self.assertIn(exchange + "." + vis_token, q_names)
+            self.assertIn(exchange + "." + bad_vis_token1, q_names)
+            self.assertIn(exchange + "." + bad_vis_token2, q_names)
+            self.assertIn(exchange + "." + bad_vis_token3, q_names)
+            self.assertIn(exchange + "." + vis_token, q_names)
 
+        except Exception, e:
+            log.warn('Unable to get queue information from broker management plugin: ' + e.message)
+            pass
 
         result = gevent.event.AsyncResult()
 
@@ -405,25 +416,28 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Trying to continue to receive messages in the queue
         gevent.sleep(2.0)  # Send some messages - don't care how many
 
+        try:
+            #get the list of queues and message counts on the broker for the user vis queues
+            queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+            q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
 
-        #get the list of queues and message counts on the broker for the user vis queues
-        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
-        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+            self.assertNotIn(exchange + "." + bad_vis_token1, q_names)
+            self.assertNotIn(exchange + "." + bad_vis_token2, q_names)
+            self.assertNotIn(exchange + "." + bad_vis_token3, q_names)
+            self.assertIn(exchange + "." + vis_token, q_names)
 
-        self.assertNotIn(exchange + "." + bad_vis_token1, q_names)
-        self.assertNotIn(exchange + "." + bad_vis_token2, q_names)
-        self.assertNotIn(exchange + "." + bad_vis_token3, q_names)
-        self.assertIn(exchange + "." + vis_token, q_names)
+            # Cleanup
+            self.vis_client.terminate_realtime_visualization_data(vis_token)
 
-        # Cleanup
-        self.vis_client.terminate_realtime_visualization_data(vis_token)
+            queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
+            q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
 
-        queues = self.container.ex_manager.list_queues(name=USER_VISUALIZATION_QUEUE, return_columns=['name', 'messages'])
-        q_names = [ q['name'] for q in queues if q['name']] #Get a list of only the queue names
+            self.assertNotIn(exchange + "." + vis_token, q_names)
 
-        self.assertNotIn(exchange + "." + vis_token, q_names)
-
-        self.assertEqual(original_queue_count,len(q_names))
+            self.assertEqual(original_queue_count,len(q_names))
+        except Exception, e:
+            log.warn('Unable to get queue information from broker management plugin: ' + e.message)
+            pass
 
         #Turning off after everything - since it is more representative of an always on stream of data!
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data

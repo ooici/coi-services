@@ -12,7 +12,7 @@ import sys
 if sys.platform == 'darwin':
     os.environ['C_INCLUDE_PATH'] = '/usr/local/include'
 
-version = '2.0.17-dev'
+version = '2.0.19-dev'
 
 setup(  name = 'coi-services',
         version = version,
@@ -46,7 +46,8 @@ setup(  name = 'coi-services',
             'pyparsing==1.5.6', 
             'ntplib',
             'xlrd==0.8.0',
-            'apscheduler==2.1.0'
+            'apscheduler==2.1.0',
+            'pyproj==1.9.3'
         ],
         entry_points = """
             [pydap.handler]

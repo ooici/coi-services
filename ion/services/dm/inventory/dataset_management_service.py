@@ -21,8 +21,10 @@ from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
-from coverage_model import SimplexCoverage as ViewCoverage
+from coverage_model import AbstractCoverage, ViewCoverage
 from coverage_model.parameter_functions import AbstractFunction
+
+from uuid import uuid4
 
 import os
 
@@ -308,8 +310,10 @@ class DatasetManagementService(BaseDatasetManagementService):
     def dataset_extents(self, dataset_id='', parameters=None):
         self.read_dataset(dataset_id)
         parameters = parameters or None
-        coverage = self._get_coverage(dataset_id)
-        return coverage.get_data_extents(parameters)
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+        extents = coverage.get_data_extents(parameters)
+        coverage.close()
+        return extents
 
     def dataset_extents_by_axis(self, dataset_id='', axis=None):
         self.read_dataset(dataset_id) 
@@ -368,8 +372,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
         pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
 
-        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
-        pdict._identifier = parameter_dictionary_id
+        return cls.build_parameter_dictionary(pd, pcs)
+
+    @classmethod
+    def build_parameter_dictionary(cls, parameter_dictionary_obj, parameter_contexts):
+        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in parameter_contexts],
+                                    parameter_dictionary_obj.temporal_context)
+        pdict._identifier = parameter_dictionary_obj._id
 
         return pdict
 
@@ -399,8 +408,10 @@ class DatasetManagementService(BaseDatasetManagementService):
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
-        return scov
+        scov = SimplexCoverage(file_root,uuid4().hex,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
+        vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
+        scov.close()
+        return vcov
 
     @classmethod
     def _save_coverage(cls, coverage):
@@ -409,14 +420,20 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
+        coverage = AbstractCoverage.load(file_root, dataset_id, mode=mode)
         return coverage
 
     @classmethod
-    def _get_view_coverage(cls, dataset_id, mode='r'):
-        file_root = cls._get_coverage_path(dataset_id)
-        coverage = ViewCoverage(file_root, dataset_id, mode=mode)
-        return coverage
+    def _get_simplex_coverage(cls, dataset_id, mode='w'):
+        cov = cls._get_coverage(dataset_id, mode=mode)
+        if isinstance(cov, SimplexCoverage):
+            return cov
+        if isinstance(cov, ViewCoverage):
+            path = cov.head_coverage_path
+            guid = os.path.basename(path)
+            cov.close()
+            return cls._get_simplex_coverage(guid, mode=mode)
+        raise BadRequest('Unsupported coverage type found: %s' % type(cov))
 
     @classmethod
     def _get_coverage_path(cls, dataset_id):
@@ -429,6 +446,10 @@ class DatasetManagementService(BaseDatasetManagementService):
             pc1 = ParameterContext.load(pc1) or {}
         if pc2:
             pc2 = ParameterContext.load(pc2) or {}
+        if hasattr(pc1,'lookup_value') or hasattr(pc2,'lookup_value'):
+            if hasattr(pc1,'lookup_value') and hasattr(pc2,'lookup_value'):
+                return bool(pc1 == pc2) and pc1.document_key == pc2.document_key
+            return False
         return bool(pc1 == pc2)
             
     @classmethod

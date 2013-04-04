@@ -5,18 +5,20 @@
 @author   Ian Katz
 """
 
-# THIS SHOULD BE FALSE IN COMMITTED CODE
-from ooi import logging
-
-TEST_LOCALLY=False
-#TEST_LOCALLY=True
-
 import re
+from ooi import logging
 from ooi.logging import log
+from pyon.util.containers import get_ion_ts, DotDict
 from pyon.core.exception import BadRequest, Inconsistent, NotFound
 from pyon.core.registry import getextends
 from pyon.ion.resource import LCE, RT, PRED
 from pyon.util.config import Config
+
+# THIS SHOULD BE FALSE IN COMMITTED CODE
+TEST_LOCALLY=False
+#TEST_LOCALLY=True
+
+
 
 class EnhancedResourceRegistryClient(object):
     """
@@ -89,6 +91,7 @@ class EnhancedResourceRegistryClient(object):
         #
 
         self._cached_predicates = {}
+        self._cached_resources  = {}
 
         log.debug("done init")
 
@@ -158,12 +161,50 @@ class EnhancedResourceRegistryClient(object):
         @param resource_id the id to be deleted
         @param specific_type the name of an Ion type (e.g. RT.Resource)
         """
+        if specific_type in self._cached_resources and resource_id in self._cached_resources[specific_type].by_id:
+            log.info("Returning cached %s object", specific_type)
+            return self._cached_resources[specific_type].by_id[resource_id]
 
         resource_obj = self.RR.read(resource_id)
 
         self._check_type(resource_obj, specific_type, "to be read")
 
+        if specific_type in self._cached_resources:
+            log.info("Adding cached %s object", specific_type)
+            self._add_resource_to_cache(specific_type, resource_obj)
+
         return resource_obj
+
+    def read_mult(self, resource_ids=None, specific_type=None):
+        if None is resource_ids:
+            resource_ids = []
+
+        if [] == resource_ids:
+            return [] # HACK because RR.read_mult([]) raises error instead of returning []
+
+        # normal case, check return types
+        if not specific_type in self._cached_resources:
+            ret = self.RR.read_mult(resource_ids)
+            if None is not specific_type:
+                if not all([type(r).__name__ == specific_type for r in ret]):
+                    raise BadRequest("Expected %s resources from read_mult, but received different type" %
+                                     specific_type)
+            return ret
+
+        log.info("Returning cached %s resources", specific_type)
+        cache = self._cached_resources[specific_type]
+
+        # fill in any holes that we can
+        misses = [x for x in resource_ids if x not in cache.by_id]
+        if misses:
+            log.info("Attempting to fill in %s cache misses", len(misses))
+            misses_objs = self.RR.read_mult(misses)
+            for mo in misses_objs:
+                if None is not mo:
+                    self._add_resource_to_cache(specific_type, mo)
+
+
+        return [cache.by_id.get(r, None) for r in resource_ids]
 
 
     def update(self, resource_obj=None, specific_type=None):
@@ -204,7 +245,6 @@ class EnhancedResourceRegistryClient(object):
         self.RR.retire(resource_id)
 
         return
-
 
     def delete(self, resource_id):
 
@@ -249,6 +289,36 @@ class EnhancedResourceRegistryClient(object):
                                         object=object_id)
         self.RR.delete_association(assoc)
 
+    def find_resource_by_name(self, resource_type, name, id_only=False):
+        rsrcs = self.find_resources_by_name(resource_type, name, id_only)
+
+        if 1 == len(rsrcs):
+            return rsrcs[0]
+        elif 1 < len(rsrcs):
+            raise Inconsistent("Expected 1 %s with name '%s', got %d" %
+                               (resource_type, name, len(rsrcs)))
+        else:
+            raise NotFound("Expected 1 %s with name '%s', got %d" %
+                           (resource_type, name, len(rsrcs)))
+
+    def find_resources_by_name(self, resource_type, name, id_only=False):
+        assert name
+        if resource_type not in self._cached_resources:
+            log.warn("Using find_resources_by_name on resource type %s, which was not cached", resource_type)
+            ret, _ = self.RR.find_resources(restype=resource_type, name=name, id_only=id_only)
+            return ret
+
+        if not name in self._cached_resources[resource_type].by_name:
+            log.info("The %s resource with name '%s' was not in the cache", resource_type, name)
+            return []
+
+        log.info("Returning object(s) from cache")
+        objs = self._cached_resources[resource_type].by_name[name]
+        if id_only:
+            return [obj._id for obj in objs]
+        else:
+            return objs
+
     def find_subjects(self, subject_type, predicate, object, id_only=False):
         object_id, object_type = self._extract_id_and_type(object)
 
@@ -262,14 +332,23 @@ class EnhancedResourceRegistryClient(object):
         log.info("Using %s cached results for 'find (%s) subjects'", len(self._cached_predicates[predicate]), predicate)
 
         log.debug("Checking object_id=%s, subject_type=%s", object_id, subject_type)
+        preds = self._cached_predicates[predicate]
+        time_search_start = get_ion_ts()
         subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
-        if [] == subject_ids:
-            return [] # HACK because read_mult([]) raises error instead of returning []
-        elif id_only:
+        time_search_stop = get_ion_ts()
+        total_time = int(time_search_stop) - int(time_search_start)
+        log.debug("Processed %s %s predicates for %s subjects in %s seconds",
+                 len(preds),
+                 predicate,
+                 len(subject_ids),
+                 total_time / 1000.0)
+
+
+        if id_only:
             return subject_ids
         else:
             log.debug("getting full subject IonObjects with read_mult")
-            return self.RR.read_mult(subject_ids)
+            return self.read_mult(subject_ids, subject_type)
 
 
     def find_objects(self, subject, predicate, object_type, id_only=False):
@@ -285,14 +364,22 @@ class EnhancedResourceRegistryClient(object):
         log.info("Using %s cached results for 'find (%s) objects'", len(self._cached_predicates[predicate]), predicate)
 
         log.debug("Checking subject_id=%s, object_type=%s", subject_id, object_type)
-        object_ids = [a.o for a in self._cached_predicates[predicate] if subject_id == a.s and a.ot == object_type]
-        if [] == object_ids:
-            return [] # HACK because read_mult([]) raises error instead of returning []
-        elif id_only:
+        preds = self._cached_predicates[predicate]
+        time_search_start = get_ion_ts()
+        object_ids = [a.o for a in preds if subject_id == a.s and a.ot == object_type] # filter cached list
+        time_search_stop = get_ion_ts()
+        total_time = int(time_search_stop) - int(time_search_start)
+        log.debug("Processed %s %s predicates for %s objects in %s seconds",
+                  len(preds),
+                  predicate,
+                  len(object_ids),
+                  total_time / 1000.0)
+
+        if id_only:
             return object_ids
         else:
             log.debug("getting full object IonObjects with read_mult")
-            return self.RR.read_mult(object_ids)
+            return self.read_mult(object_ids)
 
 
     def find_subject(self, subject_type, predicate, object, id_only=False):
@@ -381,11 +468,83 @@ class EnhancedResourceRegistryClient(object):
 
         return ret
 
+
     def cache_predicate(self, predicate):
-        self._cached_predicates[predicate] = self.RR.find_associations(predicate=predicate, id_only=False)
+        """
+        Save all associations of a given predicate type to memory, for in-memory find_subjects/objects ops
+        """
+        log.info("Caching predicates: %s", predicate)
+        log.debug("This cache is %s", self)
+        time_caching_start = get_ion_ts()
+        preds = self.RR.find_associations(predicate=predicate, id_only=False)
+        time_caching_stop = get_ion_ts()
+
+        total_time = int(time_caching_stop) - int(time_caching_start)
+
+        log.info("Cached %s %s predicates in %s seconds", len(preds), predicate, total_time / 1000.0)
+        self._cached_predicates[predicate] = preds
+
+
+
+    def _add_resource_to_cache(self, resource_type, resource_obj):
+        self._cached_resources[resource_type].by_id[resource_obj._id] = resource_obj
+
+        if not resource_obj.name in self._cached_resources[resource_type].by_name:
+            self._cached_resources[resource_type].by_name[resource_obj.name] = []
+        self._cached_resources[resource_type].by_name[resource_obj.name].append(resource_obj)
+
+
+    def cache_resources(self, resource_type, specific_ids=None):
+        """
+        Save all resources of a given type to memory, for in-memory lookup ops
+        """
+        log.info("Caching resources: %s", resource_type)
+        log.debug("This cache is %s", self)
+        time_caching_start = get_ion_ts()
+
+        resource_objs = []
+        if None is specific_ids:
+            resource_objs, _ = self.RR.find_resources(restype=resource_type, id_only=False)
+        else:
+            assert type([]) == type(specific_ids)
+            if specific_ids:
+                resource_objs = self.RR.read_mult(specific_ids)
+
+        lookups = DotDict()
+        lookups.by_id =   {}
+        lookups.by_name = {}
+        self._cached_resources[resource_type] = lookups
+
+        for r in resource_objs:
+            self._add_resource_to_cache(resource_type, r)
+
+        time_caching_stop = get_ion_ts()
+
+        total_time = int(time_caching_stop) - int(time_caching_start)
+
+        log.info("Cached %s %s resources in %s seconds", len(resource_objs), resource_type, total_time / 1000.0)
+
 
     def has_cached_prediate(self, predicate):
         return predicate in self._cached_predicates
+
+
+    def has_cached_resource(self, resource_type):
+        return resource_type in self._cached_resources
+
+
+    def clear_cached_predicate(self, predicate=None):
+        if None is predicate:
+            self._cached_predicates = {}
+        elif predicate in self._cached_predicates:
+            del self._cached_predicates[predicate]
+
+    def clear_cached_resource(self, resource_type=None):
+        if None is resource_type:
+            self._cached_resources = {}
+        elif resource_type in self._cached_resources:
+            del self._cached_resources[resource_type]
+
 
     def _uncamel(self, name):
         """
@@ -563,12 +722,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(assign_)(\w+)(_to_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("assign function",
-                                                                 item,
-                                                                 r"(assign_)(\w+)(_to_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("assign function",
+#                                                                 item,
+#                                                                 r"(assign_)(\w+)(_to_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -580,6 +739,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 self.RR.create_association(subj_id, ipred, obj_id)
 
             return ret_fn
@@ -594,12 +754,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(assign_)(\w+)(_to_one_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("assign single subject function",
-                                                                 item,
-                                                                 r"(assign_)(\w+)(_to_one_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("assign single subject function",
+#                                                                 item,
+#                                                                 r"(assign_)(\w+)(_to_one_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -611,6 +771,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association (1)%s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 # see if there are any other objects of this type and pred on this subject
                 existing_subjs = self.find_subjects(isubj, ipred, obj_id, id_only=True)
 
@@ -642,12 +803,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(assign_one_)(\w+)(_to_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("assign single object function",
-                                                                 item,
-                                                                 r"(assign_one_)(\w+)(_to_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("assign single object function",
+#                                                                 item,
+#                                                                 r"(assign_one_)(\w+)(_to_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -659,6 +820,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically creating association %s -> %s -> (1)%s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
 
                 # see if there are any other objects of this type and pred on this subject
                 existing_objs = self.find_objects(subj_id, ipred, iobj, id_only=True)
@@ -692,12 +854,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(unassign_)(\w+)(_from_)(\w+)(_with_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("unassign function",
-                                                                 item,
-                                                                 r"(unassign_)(\w+)(_from_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("unassign function",
+#                                                                 item,
+#                                                                 r"(unassign_)(\w+)(_from_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -710,6 +872,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id, subj_id):
                 log.info("Dynamically deleting association %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, obj_id)
                 self.delete_association(subj_id, ipred, obj_id)
 
             return ret_fn
@@ -724,12 +887,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(s_of_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find objects function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(s_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find objects function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(s_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
         if None is inputs:
             return None
 
@@ -741,6 +904,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj):
                 log.info("Dynamically finding objects %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
@@ -756,12 +920,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(s_by_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subjects function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(s_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subjects function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(s_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 
@@ -773,6 +937,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj):
                 log.info("Dynamically finding subjects %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", obj, ipred, isubj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
@@ -788,12 +953,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_of_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find object function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find object function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -806,6 +971,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj_id):
                 log.info("Dynamically finding object %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=False)
                 return ret
 
@@ -820,12 +986,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_by_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subject function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subject function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 
@@ -837,6 +1003,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=False)
                 return ret
 
@@ -855,12 +1022,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_ids_of_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find object_ids function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_ids_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find object_ids function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_ids_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -873,6 +1040,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj):
                 log.info("Dynamically finding object_ids %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj, ipred, iobj)
                 subj_id, _ = self._extract_id_and_type(subj)
                 ret = self.find_objects(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
@@ -888,12 +1056,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_ids_by_)(\w+)(_using_)(\w+)",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subject_ids function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_ids_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subject_ids function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_ids_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 
@@ -905,6 +1073,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj):
                 log.info("Dynamically finding subject_ids %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj)
                 obj_id, _ = self._extract_id_and_type(obj)
                 ret = self.find_subjects(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
@@ -920,12 +1089,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_id_of_)(\w+)(_using_)(\w+)?",
                                                              [2,3,4,5,6],
                                                              {"subject": 4, "predicate": 6, "object": 2})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find object_id function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_id_of_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 4, "predicate": None, "object": 2})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find object_id function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_id_of_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 4, "predicate": None, "object": 2})
 
         if None is inputs:
             return None
@@ -938,6 +1107,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(subj_id):
                 log.info("Dynamically finding object_id %s -> %s -> %s", isubj, ipred, iobj)
+                log.debug("%s -> %s -> %s", subj_id, ipred, iobj)
                 ret = self.find_object(subject=subj_id, predicate=ipred, object_type=iobj, id_only=True)
                 return ret
 
@@ -952,12 +1122,12 @@ class EnhancedResourceRegistryClient(object):
                                                              r"(find_)(\w+)(_id_by_)(\w+)(_using_)(\w+)?",
                                                              [2,3,4,5,6],
                                                              {"subject": 2, "predicate": 6, "object": 4})
-        if None is inputs:
-            inputs = self._parse_function_name_for_subj_pred_obj("find subject_id function",
-                                                                 item,
-                                                                 r"(find_)(\w+)(_id_by_)(\w+)",
-                                                                 [2,3,4],
-                                                                 {"subject": 2, "predicate": None, "object": 4})
+#        if None is inputs:
+#            inputs = self._parse_function_name_for_subj_pred_obj("find subject_id function",
+#                                                                 item,
+#                                                                 r"(find_)(\w+)(_id_by_)(\w+)",
+#                                                                 [2,3,4],
+#                                                                 {"subject": 2, "predicate": None, "object": 4})
         if None is inputs:
             return None
 
@@ -969,6 +1139,7 @@ class EnhancedResourceRegistryClient(object):
         def freeze():
             def ret_fn(obj_id):
                 log.info("Dynamically finding subject_id %s <- %s <- %s", iobj, ipred, isubj)
+                log.debug("%s <- %s <- %s", isubj, ipred, obj_id)
                 ret = self.find_subject(subject_type=isubj, predicate=ipred, object=obj_id, id_only=True)
                 return ret
 
@@ -1003,38 +1174,39 @@ class EnhancedResourceRegistryClient(object):
         @param verb what will happen to this  object (like "to be created")
         @raises BadRequest if name exists already or wasn't set
         """
+
         resource_type = type(resource_obj).__name__
 
         if not (hasattr(resource_obj, "name") and "" != resource_obj.name):
             raise BadRequest("The name field was not set in the resource %s"
             % verb)
 
-        name = resource_obj.name
-        try:
-            found_res, _ = self.RR.find_resources(resource_type,
-                                                  None,
-                                                  name,
-                                                  True)
-        except NotFound:
-            # New after all.  PROCEED.
-            pass
-        else:
-            # should never be more than one with a given name
-            if 1 < len(found_res):
-                raise Inconsistent("Multiple %s resources with name '%s' exist" % (resource_type, name))
-
-            # if creating
-            if not hasattr(resource_obj, "_id"):
-                # must not be any matching names
-                if 0 < len(found_res):
-                    raise BadRequest("Duplicate: %s resource named '%s' already exists with ID '%s'"
-                    % (resource_type, name, found_res[0]))
-            else: #updating
-            # any existing name must match the id
-                if 1 == len(found_res) and resource_obj._id != found_res[0]:
-                    raise BadRequest("Duplicate: %s resource named '%s' already exists with a different ID"
-                    % (resource_type, name))
-
+#        name = resource_obj.name
+#        try:
+#            found_res, _ = self.RR.find_resources(resource_type,
+#                                                  None,
+#                                                  name,
+#                                                  True)
+#        except NotFound:
+#            # New after all.  PROCEED.
+#            pass
+#        else:
+#            # should never be more than one with a given name
+#            if 1 < len(found_res):
+#                raise Inconsistent("Multiple %s resources with name '%s' exist" % (resource_type, name))
+#
+#            # if creating
+#            if not hasattr(resource_obj, "_id"):
+#                # must not be any matching names
+#                if 0 < len(found_res):
+#                    raise BadRequest("Duplicate: %s resource named '%s' already exists with ID '%s'"
+#                    % (resource_type, name, found_res[0]))
+#            else: #updating
+#            # any existing name must match the id
+#                if 1 == len(found_res) and resource_obj._id != found_res[0]:
+#                    raise BadRequest("Duplicate: %s resource named '%s' already exists with a different ID"
+#                    % (resource_type, name))
+        pass # we are not checking uniqueness based on name any  more.
 
 
 

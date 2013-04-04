@@ -45,7 +45,7 @@ from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue, ComputedDictValue, ComputedListValue, ComputedEventListValue
 # Alarm types and events.
-from interface.objects import StreamAlertType,AggregateStatusType, DeviceStatusEnum
+from interface.objects import StreamAlertType,AggregateStatusType, DeviceStatusType
 
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
@@ -196,17 +196,17 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # the following assert will not work without elasticsearch.
         #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
-        self.assertEqual(extended_instrument.computed.communications_status_roll_up.value, StatusType.STATUS_WARNING)
-        self.assertEqual(extended_instrument.computed.data_status_roll_up.value, StatusType.STATUS_OK)
-        self.assertEqual(extended_instrument.computed.power_status_roll_up.value, StatusType.STATUS_WARNING)
+        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.communications_status_roll_up.value)
+        self.assertEqual(StatusType.STATUS_OK, extended_instrument.computed.data_status_roll_up.value)
+        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.power_status_roll_up.value)
 
         # Verify the computed attribute for user notification requests
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
         notifications = extended_instrument.computed.user_notification_requests.value
         notification = notifications[0]
-        self.assertEqual(notification.origin, expected_instrument_device_id)
-        self.assertEqual(notification.origin_type, "instrument")
-        self.assertEqual(notification.event_type, 'ResourceLifecycleEvent')
+        self.assertEqual(expected_instrument_device_id, notification.origin)
+        self.assertEqual("instrument", notification.origin_type)
+        self.assertEqual('ResourceLifecycleEvent', notification.event_type)
 
 
     def _check_computed_attributes_of_extended_product(self, expected_data_product_id = '', extended_data_product = None):
@@ -233,15 +233,15 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertIsInstance(extended_data_product.computed.data_datetime, ComputedListValue)
 
         # exact text here keeps changing to fit UI capabilities.  keep assertion general...
-        self.assertTrue( 'ok' in extended_data_product.computed.last_granule.value['quality_flag'] )
+        self.assertIn( 'ok', extended_data_product.computed.last_granule.value['quality_flag'] )
         self.assertEqual( 2, len(extended_data_product.computed.data_datetime.value) )
 
         notifications = extended_data_product.computed.user_notification_requests.value
 
         notification = notifications[0]
-        self.assertEqual(notification.origin, expected_data_product_id)
-        self.assertEqual(notification.origin_type, "data product")
-        self.assertEqual(notification.event_type, 'DetectionEvent')
+        self.assertEqual(expected_data_product_id, notification.origin)
+        self.assertEqual("data product", notification.origin_type)
+        self.assertEqual('DetectionEvent', notification.event_type)
 
 
     @attr('LOCOINT')
@@ -289,29 +289,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s (SA Req: L4-CI-SA-RQ-241) " , instDevice_id)
 
 
-
-        #Create stream alarms
-        """
-        test_two_sided_interval
-        Test interval alarm and alarm event publishing for a closed
-        inteval.
-        """
-
-        alert_def1 = {
-            'name' : 'temperature_warning_interval',
-            'stream_name' : 'parsed',
-            'message' : 'Temperature is below the normal range of 50.0 and above.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'temp',
-            'resource_id' : instDevice_id,
-            'origin_type' : 'device',
-            'lower_bound' : 50.0,
-            'lower_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-
-
         port_agent_config = {
             'device_addr':  CFG.device.sbe37.host,
             'device_port':  CFG.device.sbe37.port,
@@ -327,15 +304,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
                                           port_agent_config = port_agent_config,
-                                            alerts= [alert_def1])
+                                            alerts= [])
 
 
         instAgentInstance_id = self.imsclient.create_instrument_agent_instance(instAgentInstance_obj,
                                                                                instAgent_id,
                                                                                instDevice_id)
-
-
-
 
 
         tdom, sdom = time_series_domain()
@@ -346,7 +320,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
+        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('raw', id_only=True)
         raw_stream_def_id = self.pubsubcli.create_stream_definition(name='raw', parameter_dictionary_id=raw_pdict_id)
 
 
@@ -423,28 +397,44 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         #setup a subscriber to alarm events from the device
         self._events_received= []
-        self._event_count = 0
-        self._samples_out_of_range = 0
-        self._samples_complete = False
         self._async_sample_result = AsyncResult()
+        self._agg_event_recieved = False
+        self._alert_event_recieved = False
 
         def consume_event(*args, **kwargs):
             log.debug('TestActivateInstrument recieved ION event: args=%s, kwargs=%s, event=%s.',
                 str(args), str(kwargs), str(args[0]))
             self._events_received.append(args[0])
-            self._event_count = len(self._events_received)
-            self._async_sample_result.set()
-            retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
-            log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
+
             event = args[0]
             log.debug('TestActivateInstrument consume_event event: %s', event)
+
+            if event.type_ is 'StreamAlertEvent':
+                self._alert_event_recieved = True
+            elif event.type_ is 'DeviceAggregateStatusEvent':
+                self._agg_event_recieved = True
+
+            #check that the current agg status matches the event sub_type
+            retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
+            log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
             if event.sub_type == 'WARNING':
-                self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_WARNING)
+                self.assertEqual(DeviceStatusType.STATUS_WARNING, retval[AggregateStatusType.AGGREGATE_DATA])
             elif event.sub_type == 'ALL_CLEAR':
-                self.assertEqual(retval[AggregateStatusType.AGGREGATE_DATA], DeviceStatusEnum.STATUS_OK)
+                self.assertEqual(DeviceStatusType.STATUS_OK, retval[AggregateStatusType.AGGREGATE_DATA])
+
+            #once the alert is recived and the aggregate status is also received then finish
+            if self._agg_event_recieved and self._alert_event_recieved:
+                self._async_sample_result.set()
+
 
         self._event_subscriber = EventSubscriber(
             event_type= 'StreamAlertEvent',
+            callback=consume_event,
+            origin=instDevice_id)
+        self._event_subscriber.start()
+
+        self._event_subscriber = EventSubscriber(
+            event_type= 'DeviceAggregateStatusEvent',
             callback=consume_event,
             origin=instDevice_id)
         self._event_subscriber.start()
@@ -482,14 +472,14 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: initialize %s" , str(retval))
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
+        self.assertEqual(ResourceAgentState.INACTIVE, state)
 
         log.debug("(L4-CI-SA-RQ-334): Sending go_active command ")
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrument: return value from go_active %s" , str(reply))
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.IDLE)
+        self.assertEqual(ResourceAgentState.IDLE, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.GET_RESOURCE_STATE)
         retval = self._ia_client.execute_agent(cmd)
@@ -500,27 +490,27 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: run %s" , str(reply))
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        self.assertEqual(ResourceAgentState.COMMAND, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.STOPPED)
+        self.assertEqual(ResourceAgentState.STOPPED, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESUME)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        self.assertEqual(ResourceAgentState.COMMAND, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.CLEAR)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.IDLE)
+        self.assertEqual(ResourceAgentState.IDLE, state)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        self.assertEqual(ResourceAgentState.COMMAND, state)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
         for i in xrange(10):
@@ -532,7 +522,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         reply = self._ia_client.execute_agent(cmd)
         log.debug("test_activateInstrumentSample: return from reset %s" , str(reply))
 
-        self._samples_complete = True
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
@@ -542,30 +531,19 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         self.assertIsInstance(replay_data, Granule)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("test_activateInstrumentSample: RDT parsed: %s", str(rdt.pretty_print()) )
+        self.assertIn('temp', rdt)
         temp_vals = rdt['temp']
-        self.assertEquals(len(temp_vals) , 10)
-        log.debug("test_activateInstrumentSample: all temp_vals: %s", temp_vals )
-
-        out_of_range_temp_vals = [i for i in temp_vals if i < 50.0]
-        log.debug("test_activateInstrumentSample: Out_of_range_temp_vals: %s", out_of_range_temp_vals )
-        self._samples_out_of_range = len(out_of_range_temp_vals)
-
-        # if no bad values were produced, then do not wait for an event
-        if self._samples_out_of_range == 0:
-            self._async_sample_result.set()
-
-        log.debug("test_activateInstrumentSample: _events_received: %s", self._events_received )
-        log.debug("test_activateInstrumentSample: _event_count: %s", self._event_count )
-
-        self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        pressure_vals  = rdt['pressure']
+        self.assertEquals(10, len(temp_vals))
 
         replay_data = self.dataretrieverclient.retrieve(self.raw_dataset)
         self.assertIsInstance(replay_data, Granule)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         log.debug("RDT raw: %s", str(rdt.pretty_print()) )
 
+        self.assertIn('raw', rdt)
         raw_vals = rdt['raw']
-        self.assertEquals(len(raw_vals) , 10)
+        self.assertEquals(10, len(raw_vals))
 
 
         log.debug("l4-ci-sa-rq-138")
@@ -602,7 +580,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-            origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
+            origin = instDevice_id, status=DeviceStatusType.STATUS_WARNING, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
             origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
@@ -623,7 +601,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         t = get_ion_ts()
         self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-            origin = instDevice_id, state=DeviceStatusType.OUT_OF_RANGE, values = [200] )
+            origin = instDevice_id, status=DeviceStatusType.STATUS_WARNING, values = [200] )
         self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
             origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 

@@ -24,7 +24,7 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.coi.iexchange_management_service import ExchangeManagementServiceProcessClient
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
-
+from interface.services.coi.isystem_management_service import SystemManagementServiceProcessClient
 
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
@@ -334,6 +334,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
 
+        self.sys_management = SystemManagementServiceProcessClient(node=self.container.node, process=process)
+
+
 
         #Get info on the ION System Actor
         self.system_actor = get_system_actor()
@@ -380,6 +383,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
         log.debug('Begin testing with policies')
+
+        #First check existing policies to see if they are in place to keep an anonymous user from creating things
+        with self.assertRaises(Unauthorized) as cm:
+            test_org_id = self.org_client.create_org(org=IonObject(RT.Org, name='test_org', description='A test Org'))
+        self.assertIn( 'org_management(create_org) has been denied',cm.exception.message)
+
+        with self.assertRaises(NotFound) as cm:
+            test_org = self.org_client.find_org(name='test_org')
 
         #Add a new policy to deny all operations to the exchange_management by default .
         test_policy_id = self.pol_client.create_service_access_policy('exchange_management', 'Exchange_Management_Deny_Policy',
@@ -630,21 +641,33 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         before_policy_set = self.container.governance_controller.get_active_policies()
 
-        event_publisher = EventPublisher()
 
-        event_data = dict()
-        event_data['origin_type'] = 'System_Request'
-        event_data['description'] = 'Policy Cache Reset Event'
+        #First clear all of the policies to test that failures will be caught due to missing policies
+        self.container.governance_controller._reset_container_policy_caches()
 
-        event_publisher.publish_event(event_type='PolicyCacheResetEvent', origin='', **event_data)
+        empty_policy_set = self.container.governance_controller.get_active_policies()
+        self.assertEqual(len(empty_policy_set['service_access'].keys()), 0)
+        self.assertEqual(len(empty_policy_set['resource_access'].keys()), 0)
+
+        #With policies gone, an anonymous user should be able to create an object
+        test_org_id = self.org_client.create_org(org=IonObject(RT.Org, name='test_org1', description='A test Org'))
+        test_org = self.org_client.find_org(name='test_org1')
+        self.assertEqual(test_org._id, test_org_id)
+
+        #Trigger the event to reset the policy caches
+        self.sys_management.reset_policy_cache()
 
         gevent.sleep(20)  # Wait for events to be published and policy reloaded for all running processes
 
-
         after_policy_set = self.container.governance_controller.get_active_policies()
 
-        #Reuse the basic test to make sure polices have been reloaded
-        self.test_basic_policy_operations()
+        #With policies refreshed, an anonymous user should NOT be able to create an object
+        with self.assertRaises(Unauthorized) as cm:
+            test_org_id = self.org_client.create_org(org=IonObject(RT.Org, name='test_org2', description='A test Org'))
+        self.assertIn( 'org_management(create_org) has been denied',cm.exception.message)
+
+        with self.assertRaises(NotFound) as cm:
+            test_org = self.org_client.find_org(name='test_org2')
 
         self.assertEqual(len(before_policy_set.keys()), len(after_policy_set.keys()))
         self.assertEqual(len(before_policy_set['service_access'].keys()), len(after_policy_set['service_access'].keys()))
@@ -888,6 +911,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_r), 4)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
 
+        events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgMembershipGrantedEvent)
+        self.assertEquals(len(events_c), 1)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1122,6 +1147,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Refresh headers with new role
         actor_header = get_actor_header(actor_id)
 
+        #now try to request the same role for the same user - should be denied
+        with self.assertRaises(BadRequest) as cm:
+            sap = IonObject(OT.RequestRoleProposal,consumer=actor_id, provider=org2_id, role_name=INSTRUMENT_OPERATOR_ROLE )
+            sap_response = self.org_client.negotiate(sap, headers=actor_header )
+        self.assertIn('A precondition for this request has not been satisfied: not has_role',cm.exception.message)
+
         #Now the user with the proper role should be able to create an instrument.
         self.ims_client.create_instrument_agent(ia_obj, headers=actor_header)
 
@@ -1133,7 +1164,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
         self.assertEqual(events_r[-1][2].role_name, sap_response2.role_name)
 
-
+        events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.UserRoleGrantedEvent)
+        self.assertEquals(len(events_c), 2)
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1448,6 +1480,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_r), 6)
         self.assertEqual(events_r[-1][2].description, ProposalStatusEnum._str_map[ProposalStatusEnum.GRANTED])
         self.assertEqual(events_r[-1][2].resource_id, ia_list[0]._id)
+
+        events_c = self.event_repo.find_events(origin=org2_id, event_type=OT.ResourceCommitmentCreatedEvent)
+        self.assertEquals(len(events_c), 2)
 
 
     @attr('LOCOINT')

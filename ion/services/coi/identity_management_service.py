@@ -18,7 +18,6 @@ import copy
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
 
-
 class IdentityManagementService(BaseIdentityManagementService):
     """
     A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a	A resource registry that stores identities of users and resources, including bindings of internal identities to external identities. Also stores metadata such as a user profile.a
@@ -220,10 +219,11 @@ class IdentityManagementService(BaseIdentityManagementService):
             log.debug("Signon returning actor_id, valid_until, registered: %s, %s, False" % (actor_id, valid_until))
             return actor_id, valid_until, False
 
-    def get_user_info_extension(self, user_info_id='', user_id=''):
+    def get_user_info_extension(self, user_info_id='', org_id=''):
         """Returns an UserInfoExtension object containing additional related information
 
         @param user_info_id    str
+        @param org_id    str  - An optional org id that the user is interested in filtering against.
         @retval user_info    UserInfoExtension
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified actor_id does not exist
@@ -231,13 +231,23 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not user_info_id:
             raise BadRequest("The user_info_id parameter is empty")
 
+
+        #THis is a hack to get the UI going. It would be preferable to get the actor id from the extended resource
+        #container below, but their would need to be a guarantee of order of field processing in order
+        #to ensure that the actor identity has been found BEFORE the negotiation methods are called - and probably
+        #some elegant way to indicate the field and sub field; ie actor_identity._id
+        actors, _ = self.clients.resource_registry.find_subjects(subject_type=RT.ActorIdentity, predicate=PRED.hasInfo, object=user_info_id, id_only=True)
+        actor_id = actors[0] if len(actors) > 0 else ''
+
+
         extended_resource_handler = ExtendedResourceContainer(self)
         extended_user = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.UserInfoExtension,
             resource_id=user_info_id,
             computed_resource_type=OT.ComputedAttributes,
-            user_id=user_id,
-            negotiation_status=0)
+            user_id=user_info_id,
+            org_id=org_id,
+            actor_id=actor_id)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if extended_user:
@@ -257,36 +267,43 @@ class IdentityManagementService(BaseIdentityManagementService):
             except Exception, e:
                 raise NotFound('Could not retrieve UserRoles for User Info id: %s - %s' % (user_info_id, e.message))
 
-        #set the notifications for this user
-
-        # retrieve the set of open negotaions for this user
-        #filer out the accepted/rejected negotiations
-        #TODO - discuss with Maurice - temporarily comment out
-        #extended_user.open_negotiations = []
-        #extended_user.closed_negotiations = []
-        #if hasattr(extended_user, 'actor_identity'):
-        #    negotiations, _ = self.clients.resource_registry.find_objects(extended_user.actor_identity, PRED.hasNegotiation, RT.Negotiation, id_only=False)
-        #    for negotiation in negotiations:
-        #        if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
-        #            extended_user.open_negotiations.append(negotiation)
-        #       elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
-        #           negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
-        #            extended_user.closed_negotiations.append(negotiation)
-
-
-        # replace list of lists with single list
-        #TODO - discuss with Maurice - temporarily comment out
-        #replacement_owned_resources = []
-        #for inner_list in extended_user.owned_resources:
-        #    if inner_list:
-        #        for actual_data_product in inner_list:
-        #            if actual_data_product:
-        #                replacement_owned_resources.append(actual_data_product)
-        #extended_user.owned_resources = replacement_owned_resources
-
-
 
         return extended_user
+
+    def find_user_open_negotiations(self, user_info_id='', actor_id='', org_id=''):
+        """
+        Local function to be called by extended resource framework from get_user_info_extension operation. The first
+        parameter MUST be the same user_info_id from that operation even though it is not used.
+
+        @param user_info_id:
+        @param actor_id:
+        @param org_id:
+        @return:
+        """
+        org_client = OrgManagementServiceProcessClient(process=self)
+
+        neg_list = org_client.find_user_negotiations(actor_id=actor_id, org_id=org_id, negotiation_status=NegotiationStatusEnum.OPEN)
+
+        return neg_list
+
+    def find_user_closed_negotiations(self, user_info_id='', actor_id='', org_id=''):
+        """
+        Local function to be called by extended resource framework from get_user_info_extension operation. The first
+        parameter MUST be the same user_info_id from that operation even though it is not used.
+        @param user_info_id:
+        @param actor_id:
+        @param org_id:
+        @return:
+        """
+        org_client = OrgManagementServiceProcessClient(process=self)
+
+        neg_list = org_client.find_user_negotiations(actor_id=actor_id, org_id=org_id)
+
+        #Filter out non Open negotiations
+        neg_list = [neg for neg in neg_list if neg.negotiation_status != NegotiationStatusEnum.OPEN]
+
+        return neg_list
+
 
     def delete_user_credential_association(self, user_credential_id, actor_identity_id):
         association_id = self.clients.resource_registry.find_associations(actor_identity_id, PRED.hasCredentials, user_credential_id, id_only=True)
