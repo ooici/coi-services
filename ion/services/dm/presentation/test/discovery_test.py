@@ -138,7 +138,7 @@ class DiscoveryUnitTest(PyonTestCase):
         self.assertTrue(retval[0]['_id']=='success', '%s' % retval)
 
     def test_query(self):
-        self.discovery.request = lambda x : x
+        self.discovery.request = lambda x,y : x
         retval = self.discovery.query('test')
         self.assertTrue(retval == 'test')
 
