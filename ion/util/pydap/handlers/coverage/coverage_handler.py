@@ -6,11 +6,12 @@ from pyon.util.log import log
 from email.utils import formatdate
 from stat import ST_MTIME
 
-from coverage_model.coverage import SimplexCoverage
-from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType
+from coverage_model.coverage import AbstractCoverage
+from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType, ParameterFunctionType
 from pydap.model import DatasetType,BaseType, GridType
 from pydap.handlers.lib import BaseHandler
 import time
+import simplejson as json
 
 class Handler(BaseHandler):
 
@@ -28,9 +29,18 @@ class Handler(BaseHandler):
             result = 'd'
         elif self.is_int(data):
             result = 'i'
+        elif result == 'O':
+            self.json_dump(data)
+            result = 'O'
         elif result not in ('d','f','h','i','b','H','I','B','S'):
-            raise TypeNotSupportedError()
+            raise TypeNotSupportedError(result)
         return result
+
+    def json_dump(self, data):
+        try:
+            return json.dumps([i for i in data])
+        except TypeError as e:
+            raise TypeNotSupportedError(e)
 
     def get_attrs(self, cov, name):
         pc = cov.get_parameter_context(name)
@@ -116,7 +126,13 @@ class Handler(BaseHandler):
                         #print "category end", time.time() - start
                     if isinstance(pc.param_type,ArrayType):
                         #start = time.time()
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                        if self.get_numpy_type(data) == 'O':
+                            try:
+                                for i,obj in enumerate(data):
+                                    data[i] = str(obj)
+                            except:
+                                data = np.asanyarray(['None' for d in data])
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, 'S')
                         #print "array end", time.time() - start
                     if isinstance(pc.param_type,RecordType):
                         #start = time.time()
@@ -128,6 +144,10 @@ class Handler(BaseHandler):
                             data = np.asanyarray(['None' for d in data])
                         #print "record end", time.time() - start
                         dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, 'S')
+
+                    if isinstance(pc.param_type, ParameterFunctionType):
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                        
                     if param.is_coordinate and cov.temporal_parameter_name == name:
                         dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
                 except Exception, e:
@@ -138,7 +158,7 @@ class Handler(BaseHandler):
 
     def parse_constraints(self, environ):
         base = os.path.split(self.filepath)
-        coverage = SimplexCoverage.load(base[0], base[1],mode='r')
+        coverage = AbstractCoverage.load(base[0], base[1],mode='r')
 
         last_modified = formatdate(time.mktime(time.localtime(os.stat(self.filepath)[ST_MTIME])))
         environ['pydap.headers'].append(('Last-modified', last_modified))

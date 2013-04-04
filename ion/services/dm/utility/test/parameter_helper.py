@@ -236,6 +236,30 @@ class ParameterHelper(object):
 
         return contexts, funcs
 
+    def create_qc_contexts(self):
+        contexts = {}
+        qc_whatever_ctxt = ParameterContext('qc_whatever', param_type=ArrayType())
+        qc_whatever_ctxt.uom = '1'
+        qc_whatever_ctxt_id = self.dataset_management.create_parameter_context(name='qc_whatever', parameter_context=qc_whatever_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, qc_whatever_ctxt_id)
+        contexts['qc_whatever'] = qc_whatever_ctxt, qc_whatever_ctxt_id
+
+        return contexts
+
+    def create_qc_pdict(self):
+        contexts, funcs = self.create_parsed_params()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        
+        contexts = self.create_qc_contexts()
+        context_ids.extend([i[1] for i in contexts.itervalues()])
+
+        qc_what_pdict_id = self.dataset_management.create_parameter_dictionary('qc_what', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, qc_what_pdict_id)
+
+        return qc_what_pdict_id
+
+
+
     def create_extended_and_platform(self):
         contexts,funcs = self.create_extended_parsed_contexts()
         context_ids = [i[1] for i in contexts.itervalues()]
