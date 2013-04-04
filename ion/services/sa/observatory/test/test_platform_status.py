@@ -103,8 +103,8 @@ class Test(BaseIntTestPlatform):
         self._set_rollup_statuses(pa_client_MJ01B, rollup_status)
 
         # Note that the above does NOT trigger any event publications. It
-        # would be interesting to see whether the PA can react to those
-        # settings to the publications.
+        # would be interesting to see whether the PA should react to those
+        # settings to do the publications.
         # The actual publication in this test happens below,
         # which simulates the PA doing that publication.
 
