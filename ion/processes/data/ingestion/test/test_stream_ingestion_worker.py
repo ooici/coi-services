@@ -31,6 +31,9 @@ from coverage_model.coverage import AbstractCoverage
 
 from gevent.event import Event
 
+import unittest
+import os
+
 @attr('INT', group='dm')
 class TestStreamIngestionWorker(IonIntegrationTestCase):
 
@@ -58,6 +61,8 @@ class TestStreamIngestionWorker(IonIntegrationTestCase):
 
         self.publisher = StandaloneStreamPublisher(self.stream_id, self.route_id)
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_stream_ingestion_worker(self):
         self.start_ingestion_worker()
 
@@ -95,6 +100,8 @@ class TestStreamIngestionWorker(IonIntegrationTestCase):
             self.assertIn(1, rdt_new['conductivity'])
             self.assertIn(2, rdt_new['pressure'])
             self.assertIn(3, rdt_new['salinity'])
+            
+        cov.close()
 
 
     def start_ingestion_worker(self):
