@@ -14,7 +14,7 @@ from pyon.util.containers import DotDict
 from pyon.datastore.datastore import DataStore
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.ion.exchange import ExchangeNameQueue
-from pyon.ion.event import EventSubscriber
+from pyon.ion.event import EventSubscriber, EventPublisher
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -525,7 +525,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dataset_id = dataset_ids[0]
 
         dataset_monitor = DatasetMonitor(dataset_id)
-        self.addCleanup(dataset_monitor.stop)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = [0]
@@ -540,11 +539,33 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         publisher.publish(granule)
 
         self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.stop()
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
         np.testing.assert_array_equal(rdt['temp'], rdt2['temp'])
         np.testing.assert_array_almost_equal(rdt2['calibrated'], np.array([22.0]))
+
+
+        svm.stored_value_cas('updated_document', {'offset_a':3.0})
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ep = EventPublisher(event_type=OT.ExternalReferencesUpdated)
+        ep.publish_event(origin=data_product_id, reference_keys=['updated_document'])
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [1]
+        rdt['temp'] = [20.]
+        granule = rdt.to_granule()
+        gevent.sleep(2) # Yield so that the event goes through
+        publisher.publish(granule)
+        self.assertTrue(dataset_monitor.event.wait(10))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt2['temp'],np.array([20.,20.]))
+        np.testing.assert_array_almost_equal(rdt2['calibrated'], np.array([22.0,23.0]))
+
 
 
     def create_lookup_contexts(self):

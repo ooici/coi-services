@@ -8,7 +8,8 @@
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.core.exception import CorruptionError, NotFound
-from pyon.event.event import handle_stream_exception, EventPublisher
+from pyon.ion.event import handle_stream_exception, EventPublisher
+from pyon.ion.event import EventSubscriber
 from pyon.public import log, RT, PRED, CFG, OT
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
@@ -27,6 +28,7 @@ import gevent
 import time
 import uuid
 import numpy as np
+from gevent.queue import Queue
 
 REPORT_FREQUENCY=100
 MAX_RETRY_TIME=3600
@@ -55,6 +57,12 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.event_publisher = EventPublisher(OT.DatasetModified)
         self.stored_value_manager = StoredValueManager(self.container)
 
+        self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
+        self.input_product = self.CFG.get_safe('process.input_product','')
+        self.new_lookups = Queue()
+        self.lookup_monitor = EventSubscriber(event_type='ExternalReferencesUpdated', callback=self._add_lookups, auto_delete=True)
+        self.lookup_monitor.start()
+
 
     def on_quit(self): #pragma no cover
         super(ScienceGranuleIngestionWorker, self).on_quit()
@@ -64,6 +72,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             except:
                 log.exception('Problems closing the coverage')
     
+    def _add_lookups(self, event, *args, **kwargs):
+        if event.origin == self.input_product:
+            if isinstance(event.reference_keys, list):
+                self.new_lookups.put(event.reference_keys)
+
     def _new_dataset(self, stream_id):
         '''
         Adds a new dataset to the internal cache of the ingestion worker
@@ -174,7 +187,10 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 raise CorruptionError(e.message)
     
     def get_stored_values(self, lookup_value):
-        lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
+        if not self.new_lookups.empty():
+            new_values = self.new_lookups.get()
+            self.lookup_docs = new_values + self.lookup_docs
+        lookup_value_document_keys = self.lookup_docs
         for key in lookup_value_document_keys:
             try:
                 document = self.stored_value_manager.read_value(key)

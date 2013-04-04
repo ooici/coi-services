@@ -7,9 +7,10 @@
 '''
 
 from nose.plugins.attrib import attr
+from pyon.ion.event import EventPublisher
 from pyon.public import LCS
 from pyon.public import log, IonObject
-from pyon.public import CFG, RT, PRED
+from pyon.public import CFG, RT, PRED, OT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.context import LocalContextMixin
 from pyon.util.int_test import IonIntegrationTestCase
@@ -839,9 +840,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
 
         stored_value_manager = StoredValueManager(self.container)
-        lookup_table = {
-                'offset_a': 2.781
-                }
+        lookup_table = { 'offset_a': 2.781 }
         stored_value_manager.stored_value_cas('calibrated_ctd', lookup_table)
         self.addCleanup(stored_value_manager.delete_stored_value, 'calibrated_ctd')
 
@@ -849,6 +848,8 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
         validated=Event()
         def validation(msg, route, stream_id):
+            if validated.is_set():
+                return
             rdt = RecordDictionaryTool.load_from_granule(msg)
             np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
             np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([22.781]))
@@ -859,6 +860,23 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_plain_data_product(instrument_data_product_id)
 
         self.assertTrue(validated.wait(10))
+
+        stored_value_manager.stored_value_cas('new_coefficients', {'offset_a': 3.0})
+        ep = EventPublisher(event_type=OT.ExternalReferencesUpdated)
+        ep.publish_event(origin=instrument_data_product_id, reference_keys=['new_coefficients'])
+        gevent.sleep(2)
+        validated2 = Event()
+
+        def validation2(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            np.testing.assert_array_almost_equal(rdt['temp'] , np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([23.0]))
+            np.testing.assert_array_equal(rdt['calibrated_b'], np.array([33.0]))
+            validated2.set()
+        self.setup_subscriber(offset_data_product_id, callback=validation2)
+        self.publish_to_plain_data_product(instrument_data_product_id)
+
+        self.assertTrue(validated2.wait(10))
         
 
     @attr('LOCOINT')
