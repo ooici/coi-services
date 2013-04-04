@@ -108,8 +108,8 @@ class BaseAlert(object):
         """
         """
         event_data = self.make_event_data()
-        #print '########## publishing: ' + event_data['sub_type']
-        #print '########## publishing etc: ' + str(event_data)
+        print '########## publishing: ' + event_data['sub_type']
+        print '########## publishing etc: ' + str(event_data)
         pub = EventPublisher()
         pub.publish_event(**event_data)
 
@@ -299,7 +299,6 @@ class LateDataAlert(BaseAlert):
         
         self._time_delta = time_delta
         self._get_state = get_state
-        self._cur_timestep = 0.0
         self._gl = gevent.spawn(self._check_data)
 
     def get_status(self):
@@ -319,6 +318,9 @@ class LateDataAlert(BaseAlert):
             self._cur_timestep = 0.0
         """
         self._current_value = time.time()
+        if not self._status:
+            self._status = True
+            self.publish_alert()
         
     def _check_data(self):
         """
@@ -349,14 +351,9 @@ class LateDataAlert(BaseAlert):
             prev_status = self._status
             gevent.sleep(self._time_delta)            
             if self._get_state() == ResourceAgentState.STREAMING:
-                if self._current_value == prev_value:
+                if self._current_value == prev_value and self._status:
                     self._status = False
-                else:
-                    self._status = True
-            else:
-                self._status = True
-            if prev_status != self._status:
-                self.publish_alert()
+                    self.publish_alert()
         
     def stop(self):
         if self._gl:
