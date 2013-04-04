@@ -60,7 +60,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
         self.input_product = self.CFG.get_safe('process.input_product','')
         self.new_lookups = Queue()
-        self.lookup_monitor = EventSubscriber(event_type='ExternalReferencesUpdated', callback=self._add_lookups, auto_delete=True)
+        self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
         self.lookup_monitor.start()
 
 

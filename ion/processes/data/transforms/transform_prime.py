@@ -16,6 +16,7 @@ from pyon.util.log import log
 from pyon.core.exception import NotFound
 from pyon.ion.event import EventSubscriber
 from ion.util.stored_values import StoredValueManager
+from pyon.public import OT
 
 from gevent.event import Event
 from gevent.queue import Queue
@@ -40,7 +41,7 @@ class TransformPrime(TransformDataProcess):
         self.output_data_product_ids = self.CFG.get_safe('process.output_products', [])
         self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
         self.new_lookups = Queue()
-        self.lookup_monitor = EventSubscriber(event_type="ExternalReferencesUpdated",callback=self._add_lookups, auto_delete=True)
+        self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent,callback=self._add_lookups, auto_delete=True)
         self.lookup_monitor.start()
 
     def on_quit(self):

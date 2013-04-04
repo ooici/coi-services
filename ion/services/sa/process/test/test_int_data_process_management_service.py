@@ -862,7 +862,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.assertTrue(validated.wait(10))
 
         stored_value_manager.stored_value_cas('new_coefficients', {'offset_a': 3.0})
-        ep = EventPublisher(event_type=OT.ExternalReferencesUpdated)
+        ep = EventPublisher(event_type=OT.ExternalReferencesUpdatedEvent)
         ep.publish_event(origin=instrument_data_product_id, reference_keys=['new_coefficients'])
         gevent.sleep(2)
         validated2 = Event()

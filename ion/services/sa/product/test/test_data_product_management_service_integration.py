@@ -550,7 +550,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         svm.stored_value_cas('updated_document', {'offset_a':3.0})
         dataset_monitor = DatasetMonitor(dataset_id)
         self.addCleanup(dataset_monitor.stop)
-        ep = EventPublisher(event_type=OT.ExternalReferencesUpdated)
+        ep = EventPublisher(event_type=OT.ExternalReferencesUpdatedEvent)
         ep.publish_event(origin=data_product_id, reference_keys=['updated_document'])
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
