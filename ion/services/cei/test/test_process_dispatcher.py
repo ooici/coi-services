@@ -188,7 +188,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
             NotFound: FakeDashiNotFoundError,
             BadRequest: FakeDashiBadRequestError,
             Conflict: FakeDashiWriteConflictError
-            }
+        }
 
         self.pd_dashi_handler = PDDashiHandler(self.mock_backend, self.mock_dashi)
 
@@ -427,7 +427,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -453,7 +453,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -480,7 +480,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -532,7 +532,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.mock_core.describe_process.return_value = None
 
         with self.assertRaises(NotFound):
-            proc = self.pd_service.read_process("processid")
+            self.pd_service.read_process("processid")
         assert self.mock_core.describe_process.called
 
     def test_read_process_with_config(self):
@@ -798,10 +798,10 @@ def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
             'launch_type': {
                 'name': 'pyon',
                 'persistence_directory': persistence_dir,
-                },
             },
+        },
         'agent': {'resource_id': resource_id},
-        }
+    }
 
 
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
@@ -843,7 +843,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             pd_config['processdispatcher']['dashi_uri'],
             pd_config['processdispatcher']['dashi_exchange'],
             sysname=CFG.get_safe("dashi.sysname")
-            )
+        )
 
         #send a fake node_state message to PD's dashi binding.
         self.node1_id = uuid.uuid4().hex
