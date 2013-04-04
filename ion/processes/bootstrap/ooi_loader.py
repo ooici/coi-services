@@ -148,6 +148,7 @@ class OOILoader(object):
                             self.warnings.append((objid, msg))
                     else:
                         obj_entry[key].append(value)
+                        obj_entry[key].sort()
                 else:
                     obj_entry[key] = [value]
             elif key in obj_entry and not change_ok:
@@ -382,11 +383,11 @@ class OOILoader(object):
 
         # Aggregated site level entries
         self._add_object_attribute('site',
-                                   ooi_rd, 'site_mod', name)
+                                   ooi_rd, 'osite', name)
 
-        self._add_object_attribute('site_mod',
+        self._add_object_attribute('osite',
                                    name, None, None, name=name)
-        self._add_object_attribute('site_mod',
+        self._add_object_attribute('osite',
                                    name, 'site_rd_list', ooi_rd, value_is_list=True)
 
 
@@ -397,11 +398,11 @@ class OOILoader(object):
 
         # Aggregated subsite level entries
         self._add_object_attribute('subsite',
-            ooi_rd, 'subsite_mod', name)
+            ooi_rd, 'ssite', name)
 
-        self._add_object_attribute('subsite_mod',
+        self._add_object_attribute('ssite',
                                    name, None, None, name=name, extension=extension)
-        self._add_object_attribute('subsite_mod',
+        self._add_object_attribute('ssite',
                                    name, 'subsite_rd_list', ooi_rd, value_is_list=True)
 
     def _parse_Nodes(self, row):
@@ -518,6 +519,24 @@ class OOILoader(object):
                 name = subsites[ooi_rd[:8]]['name'] + " - " + nodetypes[ooi_rd[9:11]]['name']
                 obj['name'] = name
 
+        # Add rd to osites
+        osites = self.get_type_assets('osite')
+        for key, osite in osites.iteritems():
+            site_rd_list = osite['site_rd_list']
+            osite['rd'] = site_rd_list[0]
+
+        # Add rd and parents to ssites
+        sites = self.get_type_assets('site')
+        ssites = self.get_type_assets('ssite')
+        for key, ssite in ssites.iteritems():
+            subsite_rd_list = ssite['subsite_rd_list']
+            ssite['rd'] = subsite_rd_list[0]
+            ooi_rd = OOIReferenceDesignator(subsite_rd_list[0])
+            site = sites[ooi_rd.site_rd]
+            osite = osites[site['osite']]
+            ssite['parent_id'] = osite['site_rd_list'][0]
+
+
     def get_marine_io(self, ooi_rd_str):
         ooi_rd = OOIReferenceDesignator(ooi_rd_str)
         if ooi_rd.error:
@@ -562,6 +581,7 @@ class OOILoader(object):
         log.info("Deleted %s OOI resources and associations", len(docs))
 
     def _analyze_ooi_assets(self, end_date):
+        report_lines = []
         node_objs = self.get_type_assets("node")
         inst_objs = self.get_type_assets("instrument")
 
@@ -591,35 +611,58 @@ class OOILoader(object):
         deploy_platform_list = deploy_platforms.values()
         deploy_platform_list.sort(key=lambda obj: [obj['deploy_date'], obj['name']])
 
+        inst_by_node = {}
+        isite_by_node = {}
+        pagent_objs = self.get_type_assets("platformagent")
+        for inst_id, inst_obj in inst_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(inst_id)
+            node_id = ooi_rd.node_rd
+            if node_id not in inst_by_node:
+                inst_by_node[node_id] = []
+            inst_by_node[node_id].append(ooi_rd.inst_class)
+            if node_id not in isite_by_node:
+                isite_by_node[node_id] = []
+            isite_by_node[node_id].append(inst_id)
+
+        # Set recovery mode etc in nodes and instruments
+        for ooi_id, ooi_obj in node_objs.iteritems():
+            pagent_type = ooi_obj.get('platform_agent_type', "")
+            pagent_obj = pagent_objs.get(pagent_type, None)
+            if pagent_obj:
+                instrument_agent_rt = pagent_obj['rt_data_path'] == "Direct"
+                data_agent_rt = pagent_obj['rt_data_path'] == "File Transfer"
+                data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial"
+                ooi_obj['instrument_agent_rt'] = instrument_agent_rt
+                ooi_obj['data_agent_rt'] = data_agent_rt
+                ooi_obj['data_agent_recovery'] = data_agent_recovery
+
+                for inst in isite_by_node.get(ooi_id, []):
+                    inst_obj = inst_objs[inst]
+                    inst_obj['instrument_agent_rt'] = instrument_agent_rt
+                    inst_obj['data_agent_rt'] = data_agent_rt
+                    inst_obj['data_agent_recovery'] = data_agent_recovery
+
         print "OOI ASSET REPORT - DEPLOYMENT UNTIL", end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"
         print "Platforms (top-level):"
         inst_class_all = set()
         for ooi_obj in deploy_platform_list:
             inst_class_top = set()
 
-            def get_instrument_classes(level, node_id):
-                inst_class_node = set()
-                for inst_id, inst_obj in inst_objs.iteritems():
-                    ooi_rd = OOIReferenceDesignator(inst_id)
-                    if ooi_rd.node_rd == node_id:
-                        inst_class_node.add(ooi_rd.inst_class)
-                return inst_class_node
-
             def follow_child_nodes(level, child_nodes=None):
                 if not child_nodes:
                     return
                 for ch_id in child_nodes:
                     ch_obj = node_objs[ch_id]
-                    inst_class_node = get_instrument_classes(level+1, ch_id)
+                    inst_class_node = set((inst, ch_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ch_id, []))
                     inst_class_top.update(inst_class_node)
-                    print "  "*level, "            +-"+ch_obj['id'], ch_obj['name'], ":", ", ".join(sorted(list(inst_class_node)))
+                    print "  "*level, "            +-"+ch_obj['id'], ch_obj['name'], ":", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_node))])
                     follow_child_nodes(level+1, platform_children.get(ch_id,None))
 
-            inst_class_node = get_instrument_classes(0, ooi_obj['id'])
+            inst_class_node = set((inst, ooi_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ooi_obj['id'], []))
             inst_class_top.update(inst_class_node)
-            print " ", ooi_obj['deployment_start'], ooi_obj['id'], ooi_obj['name'], ":", ", ".join(sorted(list(inst_class_node)))
+            print " ", ooi_obj['deployment_start'], ooi_obj['id'], ooi_obj['name'], ":", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_node))])
 
             inst_class_all.update(inst_class_top)
             follow_child_nodes(0, platform_children.get(ooi_obj['id'], None))
 
-        print "Instrument Models:", ", ".join(sorted(list(inst_class_all)))
+        print "Instrument Models:", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_all))])

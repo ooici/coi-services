@@ -128,9 +128,11 @@ DEFAULT_CATEGORIES = [
     'PlatformAgent',
     'PlatformAgentInstance',
     'InstrumentAgent',
+    #'ExternalDatasetAgent',
     'InstrumentDevice',
     'SensorDevice',
     'InstrumentAgentInstance',
+    #'ExternalDatasetAgentInstance',
     'DataProduct',
     'TransformFunction',
     'DataProcessDefinition',
@@ -1184,23 +1186,22 @@ class IONLoader(ImmediateProcess):
         #
         #         self._load_Observatory(fakerow)
 
-        ooi_objs = self.ooi_loader.get_type_assets("site_mod")
+        ooi_objs = self.ooi_loader.get_type_assets("osite")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             site_rd_list = ooi_obj['site_rd_list']
             fakerow = {}
-            fakerow[COL_ID] = site_rd_list[0]
+            fakerow[COL_ID] = ooi_obj['rd']
             fakerow['obs/name'] = ooi_obj['name']
             fakerow['obs/description'] = "Site: %s" % ", ".join(site_rd_list)
-            fakerow['obs/alt_ids'] = "['OOI:" + site_rd_list[0] + "']"
+            fakerow['obs/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
             fakerow['constraint_ids'] = ''
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            fakerow['org_ids'] = self._get_org_ids([site_rd_list[0]])
+            fakerow['org_ids'] = self._get_org_ids([ooi_obj['rd']])
 
-            if not self._match_filter(site_rd_list[0]):
+            if not self._match_filter(ooi_obj['rd']):
                 continue
 
             self._load_Observatory(fakerow)
-
 
     def _load_Subsite(self, row):
         constraints = self._get_constraints(row, type='Subsite')
@@ -1225,31 +1226,27 @@ class IONLoader(ImmediateProcess):
                     headers=headers)
 
     def _load_Subsite_OOI(self):
-        site_objs = self.ooi_loader.get_type_assets("site")
-        sitemod_objs = self.ooi_loader.get_type_assets("site_mod")
-        ooi_objs = self.ooi_loader.get_type_assets("subsite_mod")
+        ooi_objs = self.ooi_loader.get_type_assets("ssite")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             subsite_rd_list = ooi_obj['subsite_rd_list']
-            ooi_rd = OOIReferenceDesignator(subsite_rd_list[0])
+            ooi_rd = OOIReferenceDesignator(ooi_obj['rd'])
             fakerow = {}
-            fakerow[COL_ID] = subsite_rd_list[0]
+            fakerow[COL_ID] = ooi_obj['rd']
             fakerow['site/name'] = ooi_obj['name']
             fakerow['site/description'] = "Subsite: %s" % ", ".join(subsite_rd_list)
-            fakerow['site/alt_ids'] = "['OOI:" + subsite_rd_list[0] + "']"
+            fakerow['site/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
             fakerow['constraint_ids'] = ''
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            fakerow['org_ids'] = self._get_org_ids([subsite_rd_list[0]])
+            fakerow['org_ids'] = self._get_org_ids([ooi_obj['rd']])
 
             # if ooi_rd.marine_io == "RSN":
             #     fakerow['parent_site_id'] = ooi_rd.site_rd
             # else:
             #     fakerow['parent_site_id'] = ooi_rd.array
 
-            site = site_objs[ooi_rd.site_rd]
-            site_mod = sitemod_objs[site['site_mod']]
-            fakerow['parent_site_id'] = site_mod['site_rd_list'][0]
+            fakerow['parent_site_id'] = ooi_obj['parent_id']
 
-            if not self._match_filter(subsite_rd_list[0]):
+            if not self._match_filter(ooi_obj['rd']):
                 continue
 
             self._load_Subsite(fakerow)
@@ -1291,7 +1288,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_PlatformSite_OOI(self):
         subsite_objs = self.ooi_loader.get_type_assets("subsite")
-        subsite_mod_objs = self.ooi_loader.get_type_assets("subsite_mod")
+        ssite_objs = self.ooi_loader.get_type_assets("ssite")
 
         def _load_platform(ooi_id, ooi_obj):
             ooi_rd = OOIReferenceDesignator(ooi_id)
@@ -1317,15 +1314,27 @@ class IONLoader(ImmediateProcess):
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             if ooi_obj.get('is_platform', False):
+                # This is a top level platform (for a station)
                 ss = subsite_objs[ooi_rd.subsite_rd]
-                ss_mod = subsite_mod_objs[ss['subsite_mod']]
-                fakerow['parent_site_id'] = ss_mod['subsite_rd_list'][0]
+                ss_mod = ssite_objs[ss['ssite']]
+                fakerow['parent_site_id'] = ss_mod['rd']
                 fakerow['ps/description'] = "Node (platform): %s" % ooi_id
             else:
                 fakerow['parent_site_id'] = ooi_obj.get('platform_id', '')
                 fakerow['ps/description'] = "Node (child): %s" % ooi_id
             fakerow['platform_model_ids'] = ooi_id[9:11] + "_PM"
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+
+            uplink_node = ooi_obj.get('uplink_node', None)
+            uplink_port = ooi_obj.get('uplink_port', None)
+            if uplink_node and uplink_port:
+                if uplink_port.startswith("X"):
+                    fakerow['ps/planned_uplink_port/port_type'] = "EXPANSION"
+                    port_rd = "%s-0%s" % (uplink_node, uplink_port[1:])
+                else:
+                    fakerow['ps/planned_uplink_port/port_type'] = "PAYLOAD"
+                    port_rd = "%s-%s" % (uplink_node, uplink_port)
+                fakerow['ps/planned_uplink_port/reference_designator'] = port_rd
 
             if not self._match_filter(ooi_id[:2]):
                 return
@@ -1404,6 +1413,8 @@ class IONLoader(ImmediateProcess):
             fakerow['is/name'] = iclass[ooi_rd.inst_class]['name']
             fakerow['is/description'] = "Instrument: %s" % ooi_id
             fakerow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
+            fakerow['is/planned_uplink_port/port_type'] = "PAYLOAD"
+            fakerow['is/planned_uplink_port/reference_designator'] = ooi_rd.port_rd
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
@@ -1450,7 +1461,6 @@ Reason: %s
                 temporal_parameter_name = ''
         except KeyError:
             temporal_parameter_name = ''
-
 
         context_ids = {}
         for i in definitions:
@@ -1650,6 +1660,17 @@ Reason: %s
                 ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id,
                     headers=headers)
 
+        oms_client = self._get_service_client("observatory_management")
+        network_parent_id = row.get("network_parent_id", None)
+        if network_parent_id:
+            if self.bulk:
+                parent_obj = self._get_resource_obj(network_parent_id)
+                device_obj = self._get_resource_obj(row[COL_ID])
+                self._create_association(device_obj, PRED.hasNetworkParent, parent_obj)
+            else:
+                oms_client.assign_device_to_network_parent(self.resource_ids[network_parent_id], res_id,
+                                                                    headers=headers)
+
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
     def _load_PlatformDevice_OOI(self):
@@ -1663,6 +1684,10 @@ Reason: %s
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
             fakerow['platform_model_id'] = ooi_id[9:11] + "_PM"
             fakerow['contact_ids'] = ''
+
+            uplink_node = ooi_obj.get('uplink_node', None)
+            if uplink_node:
+                fakerow['network_parent_id'] = uplink_node
 
             if not self._match_filter(ooi_obj.get('array_list', None)):
                 continue
@@ -1869,6 +1894,12 @@ Reason: %s
 
             self._load_InstrumentAgent(fakerow)
 
+    def _load_ExternalDatasetAgent(self, row):
+        pass
+
+    def _load_ExternalDatasetAgent_OOI(self):
+        pass
+
     def _load_InstrumentAgentInstance(self, row):
 
         startup_config = parse_dict(row['startup_config'])
@@ -1903,6 +1934,15 @@ Reason: %s
 
         client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
+
+    def _load_InstrumentAgentInstance_OOI(self):
+        pass
+
+    def _load_ExternalDatasetAgentInstance(self, row):
+        pass
+
+    def _load_ExternalDatasetAgentInstance_OOI(self):
+        pass
 
 
     def _load_PlatformAgent(self, row):
@@ -1984,6 +2024,9 @@ Reason: %s
         client.assign_platform_agent_instance_to_platform_device(res_id, platform_device_id)
 
         self.resource_ids[row['ID']] = res_id
+
+    def _load_PlatformAgentInstance_OOI(self):
+        pass
 
     def _load_TransformFunction(self,row):
         res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
