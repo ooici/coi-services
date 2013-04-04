@@ -243,6 +243,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         config = DotDict()
         if self._has_lookup_values(data_product_id):
+            config.process.input_product = data_product_id
             config.process.lookup_docs = self._get_lookup_documents(data_product_id)
 
         #--------------------------------------------------------------------------------
