@@ -10,27 +10,32 @@
 
 from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.public import CFG, RT, PRED
+from pyon.agent.agent import ResourceAgentEvent
+from pyon.agent.agent import ResourceAgentClient
+from pyon.util.context import LocalContextMixin
 
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
+from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
+from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+
+from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition, ComputedStringValue, DataProduct
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
-from nose.plugins.attrib import attr
-from pyon.public import CFG, RT, PRED
-from pyon.agent.agent import ResourceAgentEvent
-from pyon.agent.agent import ResourceAgentClient
-
 from mock import patch
 import gevent
-
-from pyon.util.context import LocalContextMixin
-
-from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition, ComputedStringValue
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from nose.plugins.attrib import attr
 
 # Used to validate param config retrieved from driver.
 PARAMS = {
@@ -93,6 +98,12 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         # Now create client to DataProductManagementService
         self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
+        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
+        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
+        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
+        self.dataset_management = DatasetManagementServiceClient(node=self.container.node)
+        self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
+        self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
 
     def _create_instrument_model(self):
 
@@ -175,6 +186,29 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         instDevice_id = self._create_instrument_device(instModel_id)
+
+        # It is necessary for the instrument device to be associated with atleast one output data product
+        associated_out_data_products, _ = self.rrclient.find_objects(instDevice_id, PRED.hasOutputProduct, RT.DataProduct)
+
+        log.debug("got assoc data product: %s", associated_out_data_products)
+
+        if not associated_out_data_products:
+            tdom, sdom = time_series_domain()
+            parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+            parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
+
+            dp_obj = IonObject(RT.DataProduct,
+                name='output_data_prod',
+                description='Output data product for instrument',
+                temporal_domain = tdom.dump(),
+                spatial_domain = sdom.dump())
+
+            out_data_product_id = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
+            self.dataproductclient.activate_data_product_persistence(data_product_id=out_data_product_id)
+
+            log.debug("assigning instdevice id: %s to data product: %s", instDevice_id, out_data_product_id)
+
+            self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=out_data_product_id)
 
         #-------------------------------------------------------------------------------------
         # Create Instrument Agent Instance
