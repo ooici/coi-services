@@ -289,8 +289,13 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
             return agt_cmds, agt_pars, res_cmds, res_pars
 
-
-        agt_pars_all = ['example']  # 'cause ResourceAgent defines aparam_example
+        agt_pars_all = [
+            'example',
+            'child_agg_status',
+            'alerts',
+            'aggstatus',
+            'rollup_status',
+        ]
         res_pars_all = []
         res_cmds_all = [
             PlatformDriverEvent.GET_PORTS,
