@@ -116,6 +116,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             name='SBE37IMModel',
             description="SBE37IMModel"  )
         instModel_id = self.imsclient.create_instrument_model(instModel_obj)
+        self.addCleanup(self.imsclient.delete_instrument_model, instModel_id)
 
         return instModel_id
 
@@ -131,6 +132,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             stream_configurations = [raw_config, parsed_config] )
 
         instAgent_id = self.imsclient.create_instrument_agent(instAgent_obj)
+        self.addCleanup(self.imsclient.delete_instrument_agent, instAgent_id)
 
         self.imsclient.assign_instrument_model_to_instrument_agent(instModel_id, instAgent_id)
 
@@ -142,6 +144,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
         instDevice_id = self.imsclient.create_instrument_device(instrument_device=instDevice_obj)
         self.imsclient.assign_instrument_model_to_instrument_device(instModel_id, instDevice_id)
+        self.addCleanup(self.imsclient.delete_instrument_device, instDevice_id)
 
         log.debug("test_activateInstrumentSample: new InstrumentDevice id = %s    (SA Req: L4-CI-SA-RQ-241) ", instDevice_id)
 
@@ -223,6 +226,8 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             instAgent_id,
             instDevice_id)
 
+        self.addCleanup(self.imsclient.delete_instrument_agent_instance, instAgentInstance_id)
+
         return instAgentInstance_id
 
     def test_alerts(self):
@@ -271,7 +276,9 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         parsed_out_data_prod_id = self.dataproductclient.create_data_product(data_product=dp_obj_parsed, stream_definition_id=parsed_stream_def_id)
         raw_out_data_prod_id = self.dataproductclient.create_data_product(data_product=dp_obj_raw, stream_definition_id=raw_stream_def_id)
 
-        
+        self.addCleanup(self.dataproductclient.delete_data_product, parsed_out_data_prod_id)
+        self.addCleanup(self.dataproductclient.delete_data_product, raw_out_data_prod_id)
+
         self.dataproductclient.activate_data_product_persistence(data_product_id=parsed_out_data_prod_id)
         self.dataproductclient.activate_data_product_persistence(data_product_id=raw_out_data_prod_id)
 
