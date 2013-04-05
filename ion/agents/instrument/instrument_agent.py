@@ -882,9 +882,9 @@ class InstrumentAgent(ResourceAgent):
                 status_name=status_type,
                 status=new_status,
                 prev_status=old_status)
-        except:
-            log.error('Instrument agent %s could not publish aggregate status change event.',
-                self._proc_name)
+        except Exception as exc:
+            log.error('Instrument agent %s could not publish aggregate status change event. Exception message: %s',
+                self._proc_name, exc.message)
 
         return
 
@@ -1342,7 +1342,7 @@ class InstrumentAgent(ResourceAgent):
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
                     if cls == 'LateDataAlert':
-                        alert_def['get_state'] == self._fsm.get_current_state
+                        alert_def['get_state'] = self._fsm.get_current_state
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except:
