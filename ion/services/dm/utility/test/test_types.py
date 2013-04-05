@@ -27,6 +27,7 @@ from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordTyp
 
 import numpy as np
 import gevent
+import shutil
 
 
 @attr('UNIT')
@@ -79,6 +80,7 @@ class TestTypes(PyonTestCase):
 
         # Instantiate the SimplexCoverage providing the ParameterDictionary, spatial Domain and temporal Domain
         cov = SimplexCoverage('test_data', create_guid(), 'sample coverage_model', parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom)
+        self.addCleanup(shutil.rmtree, cov.persistence_dir)
 
         cov.insert_timesteps(len(value_array))
         cov.set_parameter_values('test', tdoa=slice(0,len(value_array)), value=value_array)
