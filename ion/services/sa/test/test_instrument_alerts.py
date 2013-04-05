@@ -37,7 +37,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 from mock import patch
 import gevent
-from gevent import event
+from gevent import queue
 from nose.plugins.attrib import attr
 
 # Used to validate param config retrieved from driver.
@@ -108,7 +108,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
 
-        self.catch_alert = gevent.event.AsyncResult()
+        self.catch_alert= gevent.queue.Queue()
 
     def _create_instrument_model(self):
 
@@ -299,8 +299,9 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         # Set up the subscriber to catch the alert event
         #-------------------------------------------------------------------------------------
 
-        def callback_for_alert(*args, **kwargs):
-            self.catch_alert.set()
+        def callback_for_alert(event, *args, **kwargs):
+            log.debug("caught an alert")
+            self.catch_alert.put(event)
 
         self.event_subscriber = EventSubscriber(event_type='StreamAlertEvent',
             origin=instDevice_id,
@@ -334,9 +335,10 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        # This gevent sleep is there to test the autosample time, which will show something different from default
-        # only if the instrument runs for over a minute
-        gevent.sleep(45)
+        caught_event = self.catch_alert.get(timeout=45)
+        log.debug("caught_event 1: %s", caught_event)
+        caught_event = self.catch_alert.get(timeout=45)
+        log.debug("caught_event 2: %s", caught_event)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
