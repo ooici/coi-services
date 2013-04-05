@@ -377,7 +377,7 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.EDA_RESOURCE_ID = ds_id
         self.EDA_NAME = ds_name
 
-class TestBulkIngestBase(object):
+class BulkIngestBase(object):
 
     def setUp(self):
         self._start_container()
@@ -527,7 +527,7 @@ class TestBulkIngestBase(object):
         return pid
 
 @attr('INT', group='sa')
-class TestBulkIngest_Hypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
+class TestBulkIngest_Hypm_WPF_CTD(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'Bulk Data Ingest HYPM WPF CTD'
@@ -593,7 +593,7 @@ class TestBulkIngest_Hypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
         #need to compare rdt from retrieve with the one from ingest somehow
 
 @attr('INT', group='sa')
-class TestBulkIngest_Slocum(TestBulkIngestBase, IonIntegrationTestCase):
+class TestBulkIngest_Slocum(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'Bulk Data Ingest Slocum'
