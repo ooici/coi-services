@@ -34,7 +34,10 @@ from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER,
 from pyon.core.governance import get_actor_header, get_web_authentication_actor
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
-from pyon.event.event import EventPublisher
+
+from ion.services.sa.test.test_find_related_resources import TestFindRelatedResources
+from ion.util.related_resources_crawler import RelatedResourcesCrawler
+
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
@@ -2028,3 +2031,171 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
         self.rr_client.delete(member_actor_id, headers=self.system_actor_header)
         self.rr_client.delete(obs_operator_actor_id, headers=self.system_actor_header)
+
+
+@attr('INT', group='coi')
+class TestResourcePolicyInt(TestFindRelatedResources):
+
+
+    def __init__(self, *args, **kwargs):
+
+        #Hack for running tests on CentOS which is significantly slower than a Mac
+        self.SLEEP_TIME = 1
+        ver = platform.mac_ver()
+        if ver[0] == '':
+            self.SLEEP_TIME = 3  # Increase for non Macs
+            log.info('Not running on a Mac')
+        else:
+            log.info('Running on a Mac)')
+
+        IonIntegrationTestCase.__init__(self, *args, **kwargs)
+
+    def setUp(self):
+
+        # Start container
+        self._start_container()
+
+        #Load a deploy file
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        #Instantiate a process to represent the test
+        process=GovernanceTestProcess()
+
+        #Load system policies after container has started all of the services
+        policy_loaded = CFG.get_safe('system.load_policy', False)
+
+        if not policy_loaded:
+            log.debug('Loading policy')
+            LoadSystemPolicy.op_load_system_policies(process)
+
+        gevent.sleep(self.SLEEP_TIME*2)  # Wait for events to be fired and policy updated
+
+        self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+        self.RR = self.rr_client  # support for the parent SA test class of this class
+
+        self.id_client = IdentityManagementServiceProcessClient(node=self.container.node, process=process)
+
+        self.pol_client = PolicyManagementServiceProcessClient(node=self.container.node, process=process)
+
+        self.org_client = OrgManagementServiceProcessClient(node=self.container.node, process=process)
+
+        self.ims_client = InstrumentManagementServiceProcessClient(node=self.container.node, process=process)
+
+        self.ems_client = ExchangeManagementServiceProcessClient(node=self.container.node, process=process)
+
+        self.ssclient = SchedulerServiceProcessClient(node=self.container.node, process=process)
+
+        self.sys_management = SystemManagementServiceProcessClient(node=self.container.node, process=process)
+
+
+
+        #Get info on the ION System Actor
+        self.system_actor = get_system_actor()
+        log.info('system actor:' + self.system_actor._id)
+
+        self.system_actor_header = get_system_actor_header()
+
+        #Get info on the Web Authentication Actor
+        self.apache_actor = get_web_authentication_actor()
+        if not self.apache_actor:
+            #Can't find the apache actor so just use the system actor
+            self.apache_actor = self.system_actor
+
+        self.apache_actor_header = get_actor_header(self.apache_actor._id)
+
+        self.anonymous_actor_headers = {'ion-actor-id':'anonymous'}
+
+        self.ion_org = self.org_client.find_org()
+
+
+        #Setup access to event repository
+        dsm = DatastoreManager()
+        ds = dsm.get_datastore("events")
+
+        self.event_repo = EventRepository(dsm)
+
+        self.care = {}
+        self.dontcare = {}
+        self.realtype = {}
+
+    def tearDown(self):
+        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy, headers=self.system_actor_header)
+
+        #Must remove the policies in the reverse order they were added
+        for policy in sorted(policy_list,key=lambda p: p.ts_created, reverse=True):
+            self.pol_client.delete_policy(policy._id, headers=self.system_actor_header)
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
+
+
+    def test_related_resource_policies(self):
+        """
+        This test is used to verify that policies of related resources can be setup and invoked in the "tree" of resources.
+        @return:
+        """
+
+        self.create_observatory(True)
+        self.create_observatory(False)
+
+        r = RelatedResourcesCrawler()
+
+        inst_devices,_ = self.rr_client.find_resources(restype=RT.InstrumentDevice)
+        assert len(inst_devices) > 0
+
+        instrument_id = inst_devices[1]._id   #just pick one
+        instrument_name = inst_devices[1].name   #just pick one
+
+        resource_types = [RT.InstrumentModel, RT.InstrumentSite, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory]
+        predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True)}
+        test_real_fn = r.generate_get_related_resources_fn(self.rr_client, resource_whitelist=resource_types, predicate_dictionary=predicate_set)
+        related_objs = test_real_fn(instrument_id)
+
+        unique_ids = [instrument_id]
+        for i in related_objs:
+            if i.o not in unique_ids: unique_ids.append(i.o)
+            if i.s not in unique_ids: unique_ids.append(i.s)
+
+        unique_objs = self.rr_client.read_mult(object_ids=unique_ids)
+
+        inst_model = [ o for o in unique_objs if o.type_ == RT.InstrumentModel ]
+        if inst_model:
+            pass
+
+        #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
+        from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
+        ia_client = start_instrument_agent_process(self.container, resource_id=instrument_id, resource_name=instrument_name,
+            org_governance_name=self.ion_org.org_governance_name, message_headers=self.system_actor_header)
+
+        #Going to try access to other operations on the agent, don't care if they actually work - just
+        #do they get denied or not
+        new_params = {
+            SBE37Parameter.TA0 : 2,
+            SBE37Parameter.INTERVAL : 100,
+            }
+
+        with self.assertRaises(Conflict) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=self.system_actor_header)
+
+
+        #Test access precondition to check policies for values
+        pre_func1 =\
+        """def precondition_func(process, msg, headers):
+
+            params = msg['params']
+            if params['INTERVAL'] > 50:
+                return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 50'
+            else:
+                return True, ''
+
+        """
+
+        #Add an example of a operation specific policy that checks internal values to decide on access
+        pol_id = self.pol_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='set_resource', policy_content=pre_func1, headers=self.system_actor_header )
+
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
+
+        with self.assertRaises(Unauthorized) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=self.system_actor_header)
+        self.assertIn( 'The value for SBE37Parameter.INTERVAL cannot be greater than 50',cm.exception.message)
+
+
