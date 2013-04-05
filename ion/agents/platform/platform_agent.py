@@ -250,8 +250,8 @@ class PlatformAgent(ResourceAgent):
             AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_UNKNOWN
         }
 
-        # All EventSubscribers created
-        self._event_subscribers = []
+        # All EventSubscribers created: {origin: EventSubscriber, ...}
+        self._event_subscribers = {}
 
         log.info("PlatformAgent constructor complete.")
 
@@ -440,7 +440,7 @@ class PlatformAgent(ResourceAgent):
         self._bring_to_uninitialized_state()
 
         if LAUNCH_CHILDREN_ON_START:
-            self._deactivate_event_subscribers()
+            self._terminate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
@@ -486,14 +486,19 @@ class PlatformAgent(ResourceAgent):
                   "attempts=%d;  final state=%s",
                   self._platform_id, attempts, curr_state)
 
-    def _deactivate_event_subscribers(self):
-        try:
-            for es in self._event_subscribers:
-                es.deactivate()
-        except:
-            log.exception("%r: error deactivating event subscriber", self._platform_id)
-        finally:
-            self._event_subscribers = []
+    def _terminate_event_subscribers(self):
+        """
+        Terminates event subscribers and clears self._event_subscribers.
+        """
+        for origin, es in self._event_subscribers.iteritems():
+            try:
+                es.stop()
+
+            except Exception as ex:
+                log.warn("%r: error stopping event subscriber: origin=%r: %s",
+                         self._platform_id, origin, ex)
+
+        self._event_subscribers.clear()
 
     def _terminate_subplatform_agent_processes(self):
         """
@@ -590,7 +595,7 @@ class PlatformAgent(ResourceAgent):
         self._unconfigured_params.clear()
 
         if not LAUNCH_CHILDREN_ON_START:
-            self._deactivate_event_subscribers()
+            self._terminate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
@@ -1041,7 +1046,7 @@ class PlatformAgent(ResourceAgent):
                               origin=origin,
                               callback=self._got_device_status_event)
 
-        self._event_subscribers.append(sub)
+        self._event_subscribers[origin] = sub
         sub.start()
 
         log.debug("%r: TRS registered event subscriber for event_type=%r"
@@ -1097,7 +1102,7 @@ class PlatformAgent(ResourceAgent):
                               origin=origin,
                               callback=self._got_device_aggregate_status_event)
 
-        self._event_subscribers.append(sub)
+        self._event_subscribers[origin] = sub
         sub.start()
         log.debug("%r: TRS registered event subscriber for event_type=%r",
                   self._platform_id, event_type)
