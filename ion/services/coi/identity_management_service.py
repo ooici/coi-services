@@ -17,6 +17,7 @@ import copy
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, NegotiationTypeEnum
 
 class IdentityManagementService(BaseIdentityManagementService):
     """
@@ -270,7 +271,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
         return extended_user
 
-    def find_user_open_negotiations(self, user_info_id='', actor_id='', org_id=''):
+    def find_user_open_requests(self, user_info_id='', actor_id='', org_id=''):
         """
         Local function to be called by extended resource framework from get_user_info_extension operation. The first
         parameter MUST be the same user_info_id from that operation even though it is not used.
@@ -284,9 +285,9 @@ class IdentityManagementService(BaseIdentityManagementService):
 
         neg_list = org_client.find_user_negotiations(actor_id=actor_id, org_id=org_id, negotiation_status=NegotiationStatusEnum.OPEN)
 
-        return neg_list
+        return self._convert_negotiations_to_requests(neg_list, user_info_id, org_id)
 
-    def find_user_closed_negotiations(self, user_info_id='', actor_id='', org_id=''):
+    def find_user_closed_requests(self, user_info_id='', actor_id='', org_id=''):
         """
         Local function to be called by extended resource framework from get_user_info_extension operation. The first
         parameter MUST be the same user_info_id from that operation even though it is not used.
@@ -302,7 +303,36 @@ class IdentityManagementService(BaseIdentityManagementService):
         #Filter out non Open negotiations
         neg_list = [neg for neg in neg_list if neg.negotiation_status != NegotiationStatusEnum.OPEN]
 
-        return neg_list
+        return self._convert_negotiations_to_requests(neg_list, user_info_id, org_id)
+
+    def _convert_negotiations_to_requests(self, negotiations=None, user_info_id='', org_id=''):
+        assert isinstance(negotiations, list)
+
+        org = None
+        if org_id:
+            try:
+                org = self.clients.resource_registry.read(object_id=org_id)
+            except:
+                pass
+
+        ret_list = []
+        for neg in negotiations:
+
+            request = IonObject(OT.OrgUserNegotiationRequest, ts_updated=neg.ts_updated, negotiation_id=neg._id,
+                negotiation_type=NegotiationTypeEnum._str_map[neg.negotiation_type],
+                negotiation_status=NegotiationStatusEnum._str_map[neg.negotiation_status],
+                originator=ProposalOriginatorEnum._str_map[neg.proposals[-1].originator],
+                request_type=neg.proposals[-1].type_,
+                description=neg.description, reason=neg.reason,
+                user_id=user_info_id)
+
+            if org_id and org is not None:
+                request.org_id = org_id
+                request.name = org.name
+
+            ret_list.append(request)
+
+        return ret_list
 
 
     def delete_user_credential_association(self, user_credential_id, actor_identity_id):
