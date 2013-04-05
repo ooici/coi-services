@@ -98,7 +98,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGIzUEdZQUZGeHJaRWVFbTBHMkpuUGc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdDJwUHdxdjBnOGxnMW5wRndQQ2tjcUE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -2383,11 +2383,17 @@ Reason: %s
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
         coordinate_name = row['coordinate_system']
+        context_type = row['context_type']
+
+        context = IonObject(context_type)
+
 
         deployment_id = self._basic_resource_create(row, "Deployment", "d/",
                                              "observatory_management", "create_deployment",
                                              constraints=constraints, constraint_field='constraint_list',
-                                             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None)
+                                             set_attributes={"coordinate_reference_system": self.resource_ids[coordinate_name] if coordinate_name else None,
+                                                             "context": context})
+
 
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]
