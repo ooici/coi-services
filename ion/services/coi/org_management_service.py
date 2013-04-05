@@ -11,10 +11,11 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier, get_ion_ts, create_basic_identifier
 from pyon.core.governance.negotiation import Negotiation
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability, ComputedIntValue, StatusType
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability, ComputedIntValue, StatusType, NegotiationTypeEnum
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
+from interface.objects import MarineFacilityOrgExtension
 
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
@@ -1216,21 +1217,6 @@ class OrgManagementService(BaseOrgManagementService):
             'skip': 0
             }
 
-        #Fill out service request information for requesting open negotiations
-        extended_org.open_negotiations_request.service_name = 'org_management'
-        extended_org.open_negotiations_request.service_operation = 'find_org_negotiations'
-        extended_org.open_negotiations_request.request_parameters = {
-            'org_id': org_id,
-            'negotiation_status': 0
-        }
-
-        #Fill out service request information for requesting open negotiations
-        extended_org.closed_negotiations_request.service_name = 'org_management'
-        extended_org.closed_negotiations_request.service_operation = 'find_org_closed_negotiations'
-        extended_org.closed_negotiations_request.request_parameters = {
-            'org_id': org_id,
-        }
-
         # set org members from the ION org
         ion_org = self.find_org()
         if org_id == ion_org._id:
@@ -1248,30 +1234,10 @@ class OrgManagementService(BaseOrgManagementService):
                     log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
                     extended_org.members.append( user_info_objs[0] )
 
-        #TODO -  discuss with Maurice - temporarily comment out
-        instruments_not_deployed = []
-        #compute the non deployed devices
-        #if hasattr(extended_org, 'instruments') and hasattr(extended_org, 'instruments_deployed') :
-        #    extended_org.instruments_deployed = extended_org.instruments_deployed
-            # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between
-            #     a site and a device so get the only element from inside this list
-        #    extended_org.instruments_deployed = [d[0] for d in extended_org.instruments_deployed
-        #                                         if len(d) and hasattr(d, "type_") and d.type_ == RT.InstrumentDevice]
 
-#            instruments_not_deployed = [x for x in extended_org.instruments
-#                                        if x not in extended_org.instruments_deployed]
-
-        #TODO -  discuss with Maurice - temporarily comment out
-        platforms_not_deployed = []
-        #if hasattr(extended_org, 'platforms') and hasattr(extended_org, 'platforms_deployed'):
-            # a compound assoc returns a list of lists but only one hasDevice assoc is permitted between
-            #     a site and a device so get the only element from inside this list
-        #    extended_org.platforms_deployed = [d[0] for d in extended_org.platforms_deployed
-        #                                         if len(d) and hasattr(d, "type_") and d.type_ == RT.PlatformDevice]
-
-#            platforms_not_deployed = [x for x in extended_org.platforms
-#                                      if x not in extended_org.platforms_deployed]
-
+        #Convert Negotiations to OrgUserNegotiationRequest
+        extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
+        extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
 
         # Status computation
         from ion.services.sa.observatory.observatory_util import ObservatoryUtil
@@ -1343,4 +1309,40 @@ class OrgManagementService(BaseOrgManagementService):
 
         return extended_org
 
+
+    def _convert_negotiations_to_requests(self, extended_marine_facility=None, negotiations=None):
+        assert isinstance(extended_marine_facility, MarineFacilityOrgExtension)
+        assert isinstance(negotiations, list)
+
+        #for m in extended_marine_facility.actors:
+        #    print m
+
+        #for m in extended_marine_facility.members:
+            #print m
+
+        #Get all associations for user info
+        assoc_list = self.clients.resource_registry.find_associations(predicate=PRED.hasInfo, object=RT.UserInfo, id_only=False)
+        #for i in assoc_list:
+        #    print i
+
+        ret_list = []
+        for neg in negotiations:
+
+            request = IonObject(OT.OrgUserNegotiationRequest, ts_updated=neg.ts_updated, negotiation_id=neg._id,
+                negotiation_type=NegotiationTypeEnum._str_map[neg.negotiation_type],
+                negotiation_status=NegotiationStatusEnum._str_map[neg.negotiation_status],
+                originator=ProposalOriginatorEnum._str_map[neg.proposals[-1].originator],
+                request_type=neg.proposals[-1].type_,
+                description=neg.description, reason=neg.reason,
+                org_id=neg.proposals[-1].provider)
+
+            #TODO - replace with memory search of associations from above
+            user_info,_ = self.clients.resource_registry.find_objects(subject=neg.proposals[-1].consumer, predicate=PRED.hasInfo)
+            if user_info:
+                request.user_id = user_info[0]._id
+                request.name = user_info[0].name
+
+            ret_list.append(request)
+
+        return ret_list
 

@@ -14,7 +14,7 @@ from pyon.util.containers import DotDict
 from pyon.datastore.datastore import DataStore
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
 from pyon.ion.exchange import ExchangeNameQueue
-from pyon.ion.event import EventSubscriber
+from pyon.ion.event import EventSubscriber, EventPublisher
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -525,7 +525,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dataset_id = dataset_ids[0]
 
         dataset_monitor = DatasetMonitor(dataset_id)
-        self.addCleanup(dataset_monitor.stop)
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = [0]
@@ -540,6 +539,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         publisher.publish(granule)
 
         self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.stop()
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
@@ -547,32 +547,25 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt2['calibrated'], np.array([22.0]))
 
 
-    def create_lookup_contexts(self):
-        contexts = {}
-        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
-        t_ctxt.uom = 'seconds since 01-01-1900'
-        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
-        contexts['time'] = (t_ctxt, t_ctxt_id)
-        
-        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        temp_ctxt.uom = 'deg_C'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
-        contexts['temp'] = temp_ctxt, temp_ctxt_id
+        svm.stored_value_cas('updated_document', {'offset_a':3.0})
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ep = EventPublisher(event_type=OT.ExternalReferencesUpdatedEvent)
+        ep.publish_event(origin=data_product_id, reference_keys=['updated_document'])
 
-        offset_ctxt = ParameterContext('offset_a', param_type=QuantityType(value_encoding='float32'), fill_value=-9999)
-        offset_ctxt.lookup_value = True
-        offset_ctxt_id = self.dataset_management.create_parameter_context(name='offset_a', parameter_context=offset_ctxt.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, offset_ctxt_id)
-        contexts['offset_a'] = offset_ctxt, offset_ctxt_id
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [1]
+        rdt['temp'] = [20.]
+        granule = rdt.to_granule()
+        gevent.sleep(2) # Yield so that the event goes through
+        publisher.publish(granule)
+        self.assertTrue(dataset_monitor.event.wait(10))
 
-        func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
-        func.lookup_values = ['LV_offset']
-        calibrated = ParameterContext('calibrated', param_type=ParameterFunctionType(func, value_encoding='float32'), fill_value=-9999)
-        calibrated_id = self.dataset_management.create_parameter_context(name='calibrated', parameter_context=calibrated.dump())
-        self.addCleanup(self.dataset_management.delete_parameter_context, calibrated_id)
-        contexts['calibrated'] = calibrated, calibrated_id
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt2['temp'],np.array([20.,20.]))
+        np.testing.assert_array_almost_equal(rdt2['calibrated'], np.array([22.0,23.0]))
 
-        return contexts
+
+
 

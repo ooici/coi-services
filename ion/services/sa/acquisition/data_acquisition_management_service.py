@@ -44,7 +44,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound('External Data Set %s does not exist' % external_dataset_id)
 
         #create a InstrumentProducerContext to hold the state of the this producer
-        producer_context_obj = ExtDatasetProducerContext()
+        producer_context_obj = ExtDatasetProducerContext(configuration=vars(ext_dataset_obj))
 
         #create data producer resource and associate to this data_process_id
         data_producer_obj = DataProducer(name=ext_dataset_obj.name,
@@ -176,7 +176,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             raise NotFound('Instrument object %s does not exist' % instrument_id)
 
         #create a InstrumentProducerContext to hold the state of the this producer
-        producer_context_obj = InstrumentProducerContext()
+        producer_context_obj = InstrumentProducerContext(configuration=vars(instrument_obj))
 
         #create data producer resource and associate to this data_process_id
         data_producer_obj = DataProducer(name=instrument_obj.name,
@@ -227,6 +227,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         #create data producer resource for this data product
         data_producer_obj = DataProducer(name=data_product_obj.name, description=data_product_obj.description)
+        data_producer_obj.producer_context.configuration = vars(data_product_obj)
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
         for attachment in self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False):

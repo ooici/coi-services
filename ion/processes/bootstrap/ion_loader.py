@@ -98,7 +98,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydGIzUEdZQUZGeHJaRWVFbTBHMkpuUGc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdDJwUHdxdjBnOGxnMW5wRndQQ2tjcUE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -128,9 +128,11 @@ DEFAULT_CATEGORIES = [
     'PlatformAgent',
     'PlatformAgentInstance',
     'InstrumentAgent',
+    #'ExternalDatasetAgent',
     'InstrumentDevice',
     'SensorDevice',
     'InstrumentAgentInstance',
+    #'ExternalDatasetAgentInstance',
     'DataProduct',
     'TransformFunction',
     'DataProcessDefinition',
@@ -599,6 +601,8 @@ class IONLoader(ImmediateProcess):
             alias_ids = [alias_id for alias_id,int_id in self.resource_ids.iteritems() if int_id==res_id]
             if alias_ids:
                 return self.resource_objs[alias_ids[0]]
+
+        log.debug("_get_resource_obj(): No object found for '%s'", res_id)
         return None
 
     def _get_alt_id(self, res_obj, prefix):
@@ -1144,43 +1148,75 @@ class IONLoader(ImmediateProcess):
             support_bulk=True)
 
     def _load_Observatory_OOI(self):
-        # Case 1: CG/EA arrays
-        ooi_objs = self.ooi_loader.get_type_assets("array")
+
+        # # Case 1: CG/EA arrays
+        # ooi_objs = self.ooi_loader.get_type_assets("array")
+        # for ooi_id, ooi_obj in ooi_objs.iteritems():
+        #     ooi_rd = OOIReferenceDesignator(ooi_id)
+        #     if ooi_rd.marine_io in ("CG", "EA"):
+        #         fakerow = {}
+        #         fakerow[COL_ID] = ooi_id
+        #         fakerow['obs/name'] = ooi_obj['geo_name']
+        #         fakerow['obs/description'] = "Array: %s" % ooi_id
+        #         fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
+        #         fakerow['constraint_ids'] = ''
+        #         fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+        #         fakerow['org_ids'] = self._get_org_ids([ooi_id])
+        #
+        #         if not self._match_filter(ooi_id):
+        #             continue
+        #
+        #         self._load_Observatory(fakerow)
+        #
+        # # Case 2: RSN primary sites
+        # ooi_objs = self.ooi_loader.get_type_assets("site")
+        # for ooi_id, ooi_obj in ooi_objs.iteritems():
+        #     ooi_rd = OOIReferenceDesignator(ooi_id)
+        #     if ooi_rd.marine_io == "RSN":
+        #         fakerow = {}
+        #         fakerow[COL_ID] = ooi_id
+        #         fakerow['obs/name'] = ooi_obj['geo_name']
+        #         fakerow['obs/description'] = "Site: %s" % ooi_id
+        #         fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
+        #         fakerow['constraint_ids'] = ''
+        #         fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+        #         fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+        #
+        #         if not self._match_filter(ooi_id[:2]):
+        #             continue
+        #
+        #         self._load_Observatory(fakerow)
+
+        ooi_objs = self.ooi_loader.get_type_assets("osite")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
-            ooi_rd = OOIReferenceDesignator(ooi_id)
-            if ooi_rd.marine_io != "RSN":
-                fakerow = {}
-                fakerow[COL_ID] = ooi_id
-                fakerow['obs/name'] = ooi_obj['name']
-                fakerow['obs/description'] = "Array: %s" % ooi_id
-                fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
-                fakerow['constraint_ids'] = ''
-                fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-                fakerow['org_ids'] = self._get_org_ids([ooi_id])
+            site_rd_list = ooi_obj['site_rd_list']
 
-                if not self._match_filter(ooi_id):
-                    continue
+            constrow = {}
+            const_id1 = ooi_id + "_const1"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'geospatial'
+            constrow['south'] = ooi_obj['lat_south'] or '0.0'
+            constrow['north'] = ooi_obj['lat_north'] or '0.0'
+            constrow['west'] = ooi_obj['lon_west'] or '0.0'
+            constrow['east'] = ooi_obj['lon_east'] or '0.0'
+            constrow['vertical_direction'] = 'depth'
+            constrow['top'] = ooi_obj['depth_min'] or '0.0'
+            constrow['bottom'] = ooi_obj['depth_max'] or '0.0'
+            self._load_Constraint(constrow)
 
-                self._load_Observatory(fakerow)
+            fakerow = {}
+            fakerow[COL_ID] = ooi_obj['rd']
+            fakerow['obs/name'] = ooi_obj['name']
+            fakerow['obs/description'] = "Site: %s" % ", ".join(site_rd_list)
+            fakerow['obs/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
+            fakerow['constraint_ids'] = const_id1
+            fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+            fakerow['org_ids'] = self._get_org_ids([ooi_obj['rd']])
 
-        # Case 2: RSN primary sites
-        ooi_objs = self.ooi_loader.get_type_assets("site")
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
-            ooi_rd = OOIReferenceDesignator(ooi_id)
-            if ooi_rd.marine_io == "RSN":
-                fakerow = {}
-                fakerow[COL_ID] = ooi_id
-                fakerow['obs/name'] = ooi_obj['name']
-                fakerow['obs/description'] = "Site: %s" % ooi_id
-                fakerow['obs/alt_ids'] = "['OOI:" + ooi_id + "']"
-                fakerow['constraint_ids'] = ''
-                fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-                fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+            if not self._match_filter(ooi_obj['rd']):
+                continue
 
-                if not self._match_filter(ooi_id[:2]):
-                    continue
-
-                self._load_Observatory(fakerow)
+            self._load_Observatory(fakerow)
 
     def _load_Subsite(self, row):
         constraints = self._get_constraints(row, type='Subsite')
@@ -1205,9 +1241,44 @@ class IONLoader(ImmediateProcess):
                     headers=headers)
 
     def _load_Subsite_OOI(self):
-        # Note: there is no need to load all OOI site and subsite reference designators as intermediary
-        # levels. They were for SE organizational purposes only and have no user relevance
-        pass
+        ooi_objs = self.ooi_loader.get_type_assets("ssite")
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            subsite_rd_list = ooi_obj['subsite_rd_list']
+            ooi_rd = OOIReferenceDesignator(ooi_obj['rd'])
+
+            constrow = {}
+            const_id1 = ooi_obj['rd'] + "_const1"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'geospatial'
+            constrow['south'] = ooi_obj['lat_south'] or '0.0'
+            constrow['north'] = ooi_obj['lat_north'] or '0.0'
+            constrow['west'] = ooi_obj['lon_west'] or '0.0'
+            constrow['east'] = ooi_obj['lon_east'] or '0.0'
+            constrow['vertical_direction'] = 'depth'
+            constrow['top'] = ooi_obj['depth_min'] or '0.0'
+            constrow['bottom'] = ooi_obj['depth_max'] or '0.0'
+            self._load_Constraint(constrow)
+
+            fakerow = {}
+            fakerow[COL_ID] = ooi_obj['rd']
+            fakerow['site/name'] = ooi_obj['name']
+            fakerow['site/description'] = "Subsite: %s" % ", ".join(subsite_rd_list)
+            fakerow['site/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
+            fakerow['constraint_ids'] = const_id1
+            fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
+            fakerow['org_ids'] = self._get_org_ids([ooi_obj['rd']])
+
+            # if ooi_rd.marine_io == "RSN":
+            #     fakerow['parent_site_id'] = ooi_rd.site_rd
+            # else:
+            #     fakerow['parent_site_id'] = ooi_rd.array
+
+            fakerow['parent_site_id'] = ooi_obj['parent_id']
+
+            if not self._match_filter(ooi_obj['rd']):
+                continue
+
+            self._load_Subsite(fakerow)
 
     def _load_PlatformSite(self, row):
         constraints = self._get_constraints(row, type='PlatformSite')
@@ -1245,6 +1316,8 @@ class IONLoader(ImmediateProcess):
                         headers=headers)
 
     def _load_PlatformSite_OOI(self):
+        subsite_objs = self.ooi_loader.get_type_assets("subsite")
+        ssite_objs = self.ooi_loader.get_type_assets("ssite")
 
         def _load_platform(ooi_id, ooi_obj):
             ooi_rd = OOIReferenceDesignator(ooi_id)
@@ -1262,6 +1335,14 @@ class IONLoader(ImmediateProcess):
                 constrow['top'] = ooi_obj['depth_subsite'] or '0.0'
                 constrow['bottom'] = ooi_obj['depth_subsite'] or '0.0'
                 self._load_Constraint(constrow)
+            elif ooi_obj.get('is_platform', False):
+                ss = subsite_objs[ooi_rd.subsite_rd]
+                ss_mod = ssite_objs[ss['ssite']]
+                const_id1 = ss_mod['rd'] + "_const1"
+            else:
+                ss = subsite_objs[ooi_obj.get('platform_id', '')[:8]]
+                ss_mod = ssite_objs[ss['ssite']]
+                const_id1 = ss_mod['rd'] + "_const1"
 
             fakerow = {}
             fakerow[COL_ID] = ooi_id
@@ -1270,16 +1351,29 @@ class IONLoader(ImmediateProcess):
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             if ooi_obj.get('is_platform', False):
-                if ooi_rd.marine_io == "RSN":
-                    fakerow['parent_site_id'] = ooi_id[:4]
-                else:
-                    fakerow['parent_site_id'] = ooi_id[:2]
+                # This is a top level platform (for a station)
+                ss = subsite_objs[ooi_rd.subsite_rd]
+                ss_mod = ssite_objs[ss['ssite']]
+                fakerow['parent_site_id'] = ss_mod['rd']
                 fakerow['ps/description'] = "Node (platform): %s" % ooi_id
+                fakerow['ps/alt_resource_type'] = "StationSite"
             else:
                 fakerow['parent_site_id'] = ooi_obj.get('platform_id', '')
                 fakerow['ps/description'] = "Node (child): %s" % ooi_id
+                fakerow['ps/alt_resource_type'] = "PlatformComponentSite"
             fakerow['platform_model_ids'] = ooi_id[9:11] + "_PM"
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
+
+            uplink_node = ooi_obj.get('uplink_node', None)
+            uplink_port = ooi_obj.get('uplink_port', None)
+            if uplink_node and uplink_port:
+                if uplink_port.startswith("X"):
+                    fakerow['ps/planned_uplink_port/port_type'] = "EXPANSION"
+                    port_rd = "%s-0%s" % (uplink_node, uplink_port[1:])
+                else:
+                    fakerow['ps/planned_uplink_port/port_type'] = "PAYLOAD"
+                    port_rd = "%s-%s" % (uplink_node, uplink_port)
+                fakerow['ps/planned_uplink_port/reference_designator'] = port_rd
 
             if not self._match_filter(ooi_id[:2]):
                 return
@@ -1355,9 +1449,11 @@ class IONLoader(ImmediateProcess):
             ooi_rd = OOIReferenceDesignator(ooi_id)
             fakerow = {}
             fakerow[COL_ID] = ooi_id
-            fakerow['is/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['name'], nodes[ooi_id[:14]]['name'])
+            fakerow['is/name'] = iclass[ooi_rd.inst_class]['name']
             fakerow['is/description'] = "Instrument: %s" % ooi_id
             fakerow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
+            fakerow['is/planned_uplink_port/port_type'] = "PAYLOAD"
+            fakerow['is/planned_uplink_port/reference_designator'] = ooi_rd.port_rd
             fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
@@ -1404,7 +1500,6 @@ Reason: %s
                 temporal_parameter_name = ''
         except KeyError:
             temporal_parameter_name = ''
-
 
         context_ids = {}
         for i in definitions:
@@ -1629,6 +1724,17 @@ Reason: %s
                 ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id,
                     headers=headers)
 
+        oms_client = self._get_service_client("observatory_management")
+        network_parent_id = row.get("network_parent_id", None)
+        if network_parent_id:
+            if self.bulk:
+                parent_obj = self._get_resource_obj(network_parent_id)
+                device_obj = self._get_resource_obj(row[COL_ID])
+                self._create_association(device_obj, PRED.hasNetworkParent, parent_obj)
+            else:
+                oms_client.assign_device_to_network_parent(self.resource_ids[network_parent_id], res_id,
+                                                                    headers=headers)
+
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
     def _load_PlatformDevice_OOI(self):
@@ -1642,6 +1748,10 @@ Reason: %s
             fakerow['org_ids'] = self._get_org_ids(ooi_obj.get('array_list', None))
             fakerow['platform_model_id'] = ooi_id[9:11] + "_PM"
             fakerow['contact_ids'] = ''
+
+            uplink_node = ooi_obj.get('uplink_node', None)
+            if uplink_node:
+                fakerow['network_parent_id'] = uplink_node
 
             if not self._match_filter(ooi_obj.get('array_list', None)):
                 continue
@@ -1848,6 +1958,12 @@ Reason: %s
 
             self._load_InstrumentAgent(fakerow)
 
+    def _load_ExternalDatasetAgent(self, row):
+        pass
+
+    def _load_ExternalDatasetAgent_OOI(self):
+        pass
+
     def _load_InstrumentAgentInstance(self, row):
 
         startup_config = parse_dict(row['startup_config'])
@@ -1882,6 +1998,15 @@ Reason: %s
 
         client.assign_instrument_agent_to_instrument_agent_instance(agent_id, res_id)
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
+
+    def _load_InstrumentAgentInstance_OOI(self):
+        pass
+
+    def _load_ExternalDatasetAgentInstance(self, row):
+        pass
+
+    def _load_ExternalDatasetAgentInstance_OOI(self):
+        pass
 
 
     def _load_PlatformAgent(self, row):
@@ -1963,6 +2088,9 @@ Reason: %s
         client.assign_platform_agent_instance_to_platform_device(res_id, platform_device_id)
 
         self.resource_ids[row['ID']] = res_id
+
+    def _load_PlatformAgentInstance_OOI(self):
+        pass
 
     def _load_TransformFunction(self,row):
         res_id = self._basic_resource_create(row,"TransformFunction", "tfm/", "data_process_management", "create_transform_function")
@@ -2140,13 +2268,7 @@ Reason: %s
             else:
                 svc_client = self._get_service_client("data_acquisition_management")
                 svc_client.assign_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
-        elif type=='InstrumentSite':
-            if self.bulk and do_bulk:
-                # Why create a site data product here???
-                pass
-            else:
-                svc_client = self._get_service_client('observatory_management')
-                svc_client.create_site_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
+
 
     def _load_DataProductLink_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
@@ -2255,11 +2377,17 @@ Reason: %s
     def _load_Deployment(self,row):
         constraints = self._get_constraints(row, type='Deployment')
         coordinate_name = row['coordinate_system']
+        context_type = row['context_type']
+
+        context = IonObject(context_type)
+
 
         deployment_id = self._basic_resource_create(row, "Deployment", "d/",
                                              "observatory_management", "create_deployment",
                                              constraints=constraints, constraint_field='constraint_list',
-                                             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None)
+                                             set_attributes={"coordinate_reference_system": self.resource_ids[coordinate_name] if coordinate_name else None,
+                                                             "context": context})
+
 
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]

@@ -125,7 +125,7 @@ class IntervalAlert(BaseAlert):
     def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
                  value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
                  lower_bound=None, lower_rel_op=None, upper_bound=None,
-                 upper_rel_op=None):
+                 upper_rel_op=None, **kwargs):
 
         super(IntervalAlert, self).__init__(name, stream_name, message,
                 alert_type, value_id, resource_id, origin_type, aggregate_type)
@@ -155,8 +155,8 @@ class IntervalAlert(BaseAlert):
         status = super(IntervalAlert, self).get_status()
         status['lower_bound'] = self._lower_bound
         status['upper_bound'] = self._upper_bound
-        status['lower_rel_op'] = self._upper_rel_op
-        status['upper_rel_op'] = self._lower_rel_op
+        status['lower_rel_op'] = self._lower_rel_op
+        status['upper_rel_op'] = self._upper_rel_op
         return status
 
     def eval_alert(self, x):
@@ -202,8 +202,8 @@ class RSNEventAlert(BaseAlert):
     #
 
     def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
-                 value_id=None, resource_id=None, origin_type=None, aggregate_type=None
-                ):
+                 value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
+                 **kwargs):
 
         super(RSNEventAlert, self).__init__(name, '', message,
                 alert_type, value_id, resource_id, origin_type, aggregate_type)
@@ -288,7 +288,7 @@ class LateDataAlert(BaseAlert):
     """
     def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
                  value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
-                 time_delta=None, get_state=None):
+                 time_delta=None, get_state=None, **kwargs):
 
         super(LateDataAlert, self).__init__(name, stream_name, message,
                 alert_type, value_id, resource_id, origin_type, aggregate_type)
@@ -299,10 +299,15 @@ class LateDataAlert(BaseAlert):
         
         self._time_delta = time_delta
         self._get_state = get_state
-        self._cur_timestep = 0.0
         self._gl = gevent.spawn(self._check_data)
 
+    def get_status(self):
+        status = super(LateDataAlert, self).get_status()
+        status['time_delta'] = self._time_delta
+        return status
+
     def eval_alert(self):
+        """
         if self._get_state() == ResourceAgentState.STREAMING:
             prev_value = self._current_value
             self._current_value = time.time()
@@ -311,8 +316,14 @@ class LateDataAlert(BaseAlert):
         else:
             self._current_value = None
             self._cur_timestep = 0.0
-            
+        """
+        self._current_value = time.time()
+        if not self._status:
+            self._status = True
+            self.publish_alert()
+        
     def _check_data(self):
+        """
         start = time.time()
         while True:
             if self._get_state() == ResourceAgentState.STREAMING:
@@ -334,7 +345,16 @@ class LateDataAlert(BaseAlert):
                         
             else:
                 gevent.sleep(self._time_delta)
-
+        """
+        while True:
+            prev_value = self._current_value
+            prev_status = self._status
+            gevent.sleep(self._time_delta)            
+            if self._get_state() == ResourceAgentState.STREAMING:
+                if self._current_value == prev_value and self._status:
+                    self._status = False
+                    self.publish_alert()
+        
     def stop(self):
         if self._gl:
             self._gl.kill()

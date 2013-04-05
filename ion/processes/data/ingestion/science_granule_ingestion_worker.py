@@ -8,7 +8,8 @@
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.core.exception import CorruptionError, NotFound
-from pyon.event.event import handle_stream_exception, EventPublisher
+from pyon.ion.event import handle_stream_exception, EventPublisher
+from pyon.ion.event import EventSubscriber
 from pyon.public import log, RT, PRED, CFG, OT
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
@@ -27,6 +28,7 @@ import gevent
 import time
 import uuid
 import numpy as np
+from gevent.queue import Queue
 
 REPORT_FREQUENCY=100
 MAX_RETRY_TIME=3600
@@ -55,6 +57,14 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.event_publisher = EventPublisher(OT.DatasetModified)
         self.stored_value_manager = StoredValueManager(self.container)
 
+        self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
+        self.input_product = self.CFG.get_safe('process.input_product','')
+        self.qc_enabled = self.CFG.get_safe('process.qc_enabled', True)
+        self.new_lookups = Queue()
+        self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
+        self.lookup_monitor.start()
+        self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
+
 
     def on_quit(self): #pragma no cover
         super(ScienceGranuleIngestionWorker, self).on_quit()
@@ -64,6 +74,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             except:
                 log.exception('Problems closing the coverage')
     
+    def _add_lookups(self, event, *args, **kwargs):
+        if event.origin == self.input_product:
+            if isinstance(event.reference_keys, list):
+                self.new_lookups.put(event.reference_keys)
+
     def _new_dataset(self, stream_id):
         '''
         Adds a new dataset to the internal cache of the ingestion worker
@@ -110,6 +125,25 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
     def dataset_changed(self, dataset_id, extents, window):
         self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents, window=window)
+
+    def evaluate_qc(self, rdt, dataset_id):
+        if self.qc_enabled:
+            for field in rdt.fields:
+                if not field.endswith('_qc'):
+                    continue
+                try:
+                    values = rdt[field]
+                    if values is not None:
+                        if not all(values):
+                            topology = np.nonzero(values)
+                            first_occurrence = topology[0][0]
+                            ts = rdt[rdt.temporal_parameter][first_occurrence]
+                            self.flag_qc_parameter(dataset_id, field, ts, {})
+                except:
+                    continue
+    def flag_qc_parameter(self, dataset_id, parameter, temporal_value, configuration):
+        self.qc_publisher.publish_event(origin=dataset_id, qc_parameter=parameter, temporal_value=temporal_value, configuration=configuration)
+
 
     @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
@@ -174,12 +208,15 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
                 raise CorruptionError(e.message)
     
     def get_stored_values(self, lookup_value):
-        lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
+        if not self.new_lookups.empty():
+            new_values = self.new_lookups.get()
+            self.lookup_docs = new_values + self.lookup_docs
+        lookup_value_document_keys = self.lookup_docs
         for key in lookup_value_document_keys:
             try:
                 document = self.stored_value_manager.read_value(key)
                 if lookup_value in document:
-                    return float(document[lookup_value]) # Force float just to make sure
+                    return document[lookup_value] 
             except NotFound:
                 log.warning('Specified lookup document does not exist')
         return None
@@ -189,7 +226,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         rdt.fetch_lookup_values()
         for field in rdt.lookup_values():
             value = self.get_stored_values(rdt.context(field).lookup_value)
-            rdt[field] = [value] * len(rdt)
+            if value:
+                rdt[field] = value
 
     def insert_sparse_values(self, coverage, rdt, stream_id):
 
@@ -293,6 +331,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         
         start_index = coverage.num_timesteps - elements
         self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
+
+        self.evaluate_qc(rdt, dataset_id)
         
         if debugging:
             timer.complete_step('notify')
