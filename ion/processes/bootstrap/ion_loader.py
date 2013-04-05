@@ -55,6 +55,7 @@ import numpy as np
 import re
 import requests
 import time
+from udunitspy.udunits2 import Unit, UdunitsError
 
 from pyon.core.bootstrap import get_service_registry
 from pyon.core.exception import NotFound
@@ -1593,11 +1594,19 @@ Reason: %s
         lookup_value = row['Lookup Value']
 
         dataset_management = self._get_service_client('dataset_management')
+        
+        #validate unit of measure
+
+        #validate parameter type
         try:
             tm = TypesManager(dataset_management)
             param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
+            try:
+                tm.get_unit(uom)
+            except UdunitsError as e:
+                log.warning(e.message)
             context.fill_value = tm.get_fill_value(fill_value, encoding, param_type)
             context.reference_urls = references
             context.internal_name = name

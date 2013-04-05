@@ -25,6 +25,8 @@ from pyon.ion.stream import StandaloneStreamPublisher
 from interface.objects import DataProduct
 from coverage_model import ArrayType, QuantityType, ConstantRangeType, RecordType, ConstantType, CategoryType, create_guid, CRS, AxisTypeEnum, GridDomain, GridShape, MutabilityEnum, SimplexCoverage, ParameterFunctionType, NumexprFunction
 
+from udunitspy.udunits2 import UdunitsError
+
 import numpy as np
 import gevent
 import shutil
@@ -58,7 +60,6 @@ class TestTypes(PyonTestCase):
 
         testval = comp_val if comp_val is not None else value_array
         actual = rdt2['test']
-
 
         if isinstance(testval, basestring):
             self.assertEquals(testval, actual)
@@ -169,6 +170,8 @@ class TestTypes(PyonTestCase):
 
         self.rdt_to_granule(context, [[1,2,3]] * 20, testval)
         self.cov_io(context, testval)
+
+
 
     def test_category_type(self):
         ptype      = 'category<int8:str>'
@@ -329,8 +332,6 @@ class TestTypes(PyonTestCase):
 
         self.assertRaises(TypeError, self.types_manager.get_fill_value,fill_value, encoding, ptype)
 
-
-
     def test_record_type(self):
         ptype = 'record<>'
         encoding = ''
@@ -362,6 +363,10 @@ class TestTypes(PyonTestCase):
         tm.parameter_lookups['LV_coeff_a'] = 'abc123'
         self.assertEquals(tm.get_lookup_value_ids(test_context), ['abc123'])
 
+
+    def test_bad_units(self):
+        self.assertRaises(UdunitsError, get_unit, 'something')
+    
 
 
 @attr('EXHAUSTIVE')
