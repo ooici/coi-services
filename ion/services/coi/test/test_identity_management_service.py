@@ -622,6 +622,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         self.assertEqual(extended_user.open_requests[0].user_id, user_info_id)
         self.assertEqual(extended_user.open_requests[0].request_type, OT.RequestRoleProposal)
         self.assertEqual(len(extended_user.closed_requests),0)
+        self.assertEqual(extended_user.open_requests[0]._id, extended_user.open_requests[0].negotiation_id)
 
         neg = self.resource_registry.read(object_id=extended_user.open_requests[0].negotiation_id)
         sap_response = Negotiation.create_counter_proposal(neg, ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
