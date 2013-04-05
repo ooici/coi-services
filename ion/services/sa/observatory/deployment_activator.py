@@ -23,6 +23,11 @@ def unpack_csp_var(var):
     return var.split("_")[1]
 
 class DeploymentOperatorFactory(object):
+    """
+    Deployment operators all require a deployment object and a set of options describing how their devices
+    are included.  This class builds them appropriately based on deployment objects
+    """
+
     def __init__(self, clients, RR2=None):
         self.clients = clients
         self.RR2 = RR2 #enhanced resource registry client
@@ -78,6 +83,12 @@ class DeploymentResourceCollectorFactory(DeploymentOperatorFactory):
 
 
 class DeploymentOperator(object):
+    """
+    A deployment operator (in the functional addition/subtraction/comparison operator sense) understands attributes
+    of a deployment, as determined by several static parameters. (these are based on the deployment context).
+
+    This is the base class
+    """
 
     def __init__(self, clients, deployment_obj, allow_children, include_children, RR2=None):
         """
@@ -112,7 +123,13 @@ class DeploymentOperator(object):
 
 
 class DeploymentResourceCollector(DeploymentOperator):
+    """
+    A deployment resource collector pulls in all devices, sites, and models related to a deployment.
 
+    its primary purpose is to collect( ) after which you'll be able to access what it collected.
+
+    various lookup tables exist to prevent too many hits on the resource registry.
+    """
     def on_init(self):
         # return stuff
         self._device_models = {}
@@ -147,6 +164,7 @@ class DeploymentResourceCollector(DeploymentOperator):
 
     def collected_device_tree(self):
         return copy.copy(self._device_tree)
+
 
     def typecache_add(self, resource_id, resource_type):
         """
@@ -277,8 +295,7 @@ class DeploymentResourceCollector(DeploymentOperator):
 
     def _build_tree(self, root_id, assn_type, leaf_types, known_leaves):
         """
-        Recursively build a tree of resources based on various types and allowed transitions
-
+        Recursively build a tree of resources based on various types and allowed relationships between resources
 
         """
 
@@ -305,6 +322,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         else:
             raise AssertionError("Got unexpected predicate %s" % assn_type)
 
+        # build list of children
         children  = []
         for lt in leaf_types:
             immediate_children = self.RR2.find_objects(root_id, assn_type, lt, True)
@@ -315,6 +333,7 @@ class DeploymentResourceCollector(DeploymentOperator):
 
             children += immediate_children
 
+        # recurse on children
         for c in children:
             child_tree, leftover_leaves = self._build_tree(c, assn_type, leaf_types, leftover_leaves)
             tree["children"][c] = child_tree
@@ -329,6 +348,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         we do this by just trying each site id as the root and seeing if the resuling tree includes all site_ids
         """
         #TODO: optimize, because each id that shows up in the children can't be a valid one to try as root
+        # presumably the ids in "leftovers" are valid candidates
 
         log.debug("Attempting site tree build")
         for d in site_ids:
@@ -345,6 +365,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         we do this by just trying each device id as the root and seeing if the resuling tree includes all device_ids
         """
         #TODO: optimize, because each id that shows up in the children can't be a valid one to try as root
+        # presumably the ids in "leftovers" are valid candidates
 
         log.debug("Attempting device tree build")
         for d in device_ids:
@@ -359,6 +380,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         """
         Get all the resources involved for a deployment.  store them several ways.
         """
+
         # fetch caches just in time
         self._fetch_caches()
 
@@ -367,8 +389,8 @@ class DeploymentResourceCollector(DeploymentOperator):
         device_models = {}
         site_models = {}
 
-        # collect all devices in this deployment
 
+        # functions to add resources to the lookup tables as well as the return values
         def add_site_models(site_id, model_ids):
             if site_id in site_models:
                 log.warn("Site '%s' was already collected in deployment '%s'", site_id, deployment_id)
@@ -422,9 +444,11 @@ class DeploymentResourceCollector(DeploymentOperator):
         collect_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)
         collect_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
 
+        # build the trees to get the entire picture
         site_tree   = self._attempt_site_tree_build(site_models.keys())
         device_tree = self._attempt_device_tree_build(device_models.keys())
 
+        # various validation
         if len(device_models) > len(site_models):
             raise BadRequest("Devices in this deployment outnumber sites (%s to %s)" % (len(device_models), len(site_models)))
 
@@ -443,6 +467,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         log.info("Got site tree: %s" % site_tree)
         log.info("Got device tree: %s" % device_tree)
 
+        # store output values
         self._device_models = device_models
         self._site_models   = site_models
         self._device_tree   = device_tree
@@ -451,6 +476,13 @@ class DeploymentResourceCollector(DeploymentOperator):
 
 
 class DeploymentActivator(DeploymentOperator):
+    """
+    A deployment activator validates that a set of devices will map to a set of sites in one unique way
+
+    its primary purpose is to prepare( ) after which you'll be able to access what associations must be made (and unmade)
+
+    it makes use of the deployment resource colelctor
+    """
 
     def on_init(self):
         resource_collector_factory = DeploymentResourceCollectorFactory(self.clients, self.RR2)
@@ -459,12 +491,14 @@ class DeploymentActivator(DeploymentOperator):
         self._hasdevice_associations_to_delete = []
         self._hasdevice_associations_to_create = []
 
+    # these are the output accessors
     def hasdevice_associations_to_delete(self):
         return self._hasdevice_associations_to_delete[:]
 
     def hasdevice_associations_to_create(self):
         return self._hasdevice_associations_to_create[:]
 
+    # for debugging purposes
     def _csp_solution_to_string(self, soln):
         ret = "%s" % type(soln).__name__
 
@@ -476,7 +510,6 @@ class DeploymentActivator(DeploymentOperator):
             site_obj = self.resource_collector.read_using_typecache(s)
             ret = "%s, %s '%s' -> %s '%s'" % (ret, dev_obj._get_type(), d, site_obj._get_type(), s)
         return ret
-
 
 
     def prepare(self):
@@ -503,11 +536,19 @@ class DeploymentActivator(DeploymentOperator):
 
         #figure out if any of the devices in the new mapping are already mapped and need to be removed
         pairs_to_remove = []
+        pairs_to_ignore = []
         for (s, d) in pairs_to_add:
-            rm_pair = self._find_existing_relationship(s, d)
+            rm_pair, ignore_pair = self._find_existing_relationship(s, d)
             if rm_pair:
                 pairs_to_remove.append(rm_pair)
+            if ignore_pair:
+                pairs_to_ignore.append(ignore_pair)
 
+        log.info("Pairs to ignore (will be removed from add list): %s", pairs_to_ignore)
+
+        # make sure that anything being removed is not also being added
+        pairs_to_add = filter(lambda x: x not in pairs_to_ignore, pairs_to_add)
+        
         self._hasdevice_associations_to_create = pairs_to_add
         self._hasdevice_associations_to_delete = pairs_to_remove
 
@@ -577,6 +618,8 @@ class DeploymentActivator(DeploymentOperator):
 
 
     def _find_existing_relationship(self, site_id, device_id, site_type=None, device_type=None):
+        # look for an existing relationship between the site_id and another device.
+        # if this site/device pair already exists, we leave it alone
         assert(type("") == type(site_id) == type(device_id))
 
         log.debug("checking %s/%s pair for deployment", site_type, device_type)
@@ -591,19 +634,22 @@ class DeploymentActivator(DeploymentOperator):
 
         log.debug("checking existing %s hasDevice %s links", site_type, device_type)
 
-        ret = None
+        ret_remove = None
+        ret_ignore = None
 
         try:
             found_device_id = self.RR2.find_object(site_id, PRED.hasDevice, device_type, True)
 
-            if found_device_id != device_id:
-                ret = (site_id, found_device_id)
+            if found_device_id == device_id:
+                ret_ignore = (site_id, device_id)
+            else:
+                ret_remove = (site_id, found_device_id)
                 log.info("%s '%s' already hasDevice %s", site_type, site_id, device_type)
 
         except NotFound:
             pass
 
-        return ret
+        return ret_remove, ret_ignore
 
 
 
