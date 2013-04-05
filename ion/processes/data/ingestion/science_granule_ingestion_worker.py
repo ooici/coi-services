@@ -6,6 +6,7 @@
 @description Ingestion Process
 '''
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.services.dm.utility.granule_utils import time_series_domain
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 from pyon.core.exception import CorruptionError, NotFound
 from pyon.ion.event import handle_stream_exception, EventPublisher
@@ -64,6 +65,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
         self.lookup_monitor.start()
         self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
+        self.connection_id = ''
+        self.connection_index = None
 
 
     def on_quit(self): #pragma no cover
@@ -123,6 +126,20 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self._coverages[stream_id] = result
         return result
 
+    def gap_coverage(self,stream_id):
+        try:
+            old_cov = self._coverages.pop(stream_id)
+            dataset_id = self.get_dataset(stream_id)
+            sdom, tdom = time_series_domain()
+            new_cov = DatasetManagementService._create_simplex_coverage(dataset_id, old_cov.parameter_dictionary, sdom, tdom, old_cov._persistence_layer.inline_data_writes)
+            old_cov.close()
+            result = new_cov
+        except KeyError:
+            result = self.get_coverage(stream_id)
+        self._coverages[stream_id] = result
+        return result
+
+
     def dataset_changed(self, dataset_id, extents, window):
         self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents, window=window)
 
@@ -144,6 +161,38 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
     def flag_qc_parameter(self, dataset_id, parameter, temporal_value, configuration):
         self.qc_publisher.publish_event(origin=dataset_id, qc_parameter=parameter, temporal_value=temporal_value, configuration=configuration)
 
+    def update_connection_index(self, connection_id, connection_index):
+        self.connection_id = connection_id
+        try:
+            connection_index = int(connection_index)
+            self.connection_index = connection_index
+        except ValueError:
+            pass
+
+    def has_gap(self, connection_id, connection_index):
+        if connection_id:
+            if not self.connection_id:
+                self.update_connection_index(connection_id, connection_index)
+                return False
+            else:
+                if connection_id != self.connection_id:
+                    return True
+        if connection_index:
+            if self.connection_index is None:
+                self.update_connection_index(connection_id, connection_index)
+                return False
+            try:
+                connection_index = int(connection_index)
+                if connection_index != self.connection_index+1:
+                    return True
+            except ValueError:
+                pass
+
+        return False
+
+    def splice_coverage(self, dataset_id, coverage):
+        log.info('Splicing new coverage')
+        DatasetManagementService._splice_coverage(dataset_id, coverage)
 
     @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
@@ -157,6 +206,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         if not isinstance(msg, Granule):
             log.error('Ingestion received a message that is not a granule: %s', msg)
             return
+
 
         rdt = RecordDictionaryTool.load_from_granule(msg)
         if rdt is None:
@@ -280,6 +330,15 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             log.info('Message attempting to be inserted into bad coverage: %s',
                      DatasetManagementService._get_coverage_path(self.get_dataset(stream_id)))
             
+        #--------------------------------------------------------------------------------
+        # Gap Analysis
+        #--------------------------------------------------------------------------------
+        gap_found = self.has_gap(rdt.connection_id, rdt.connection_index)
+        if gap_found:
+            log.error('Gap Found!   New connection: (%s,%s)\tOld Connection: (%s,%s)', rdt.connection_id, rdt.connection_index, self.connection_id, self.connection_index)
+            self.gap_coverage(stream_id)
+
+
 
         #--------------------------------------------------------------------------------
         # Coverage determiniation and appending
@@ -288,6 +347,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         if not dataset_id:
             log.error('No dataset could be determined on this stream: %s', stream_id)
             return
+
         try:
             coverage = self.get_coverage(stream_id)
         except IOError as e:
@@ -332,11 +392,16 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         start_index = coverage.num_timesteps - elements
         self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
 
+        if gap_found:
+            self.splice_coverage(dataset_id, coverage)
+
         self.evaluate_qc(rdt, dataset_id)
         
         if debugging:
             timer.complete_step('notify')
             self._add_timing_stats(timer)
+
+        self.update_connection_index(rdt.connection_id, rdt.connection_index)
 
     def _add_timing_stats(self, timer):
         """ add stats from latest coverage operation to Accumulator and periodically log results """

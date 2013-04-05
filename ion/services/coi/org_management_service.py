@@ -1314,16 +1314,8 @@ class OrgManagementService(BaseOrgManagementService):
         assert isinstance(extended_marine_facility, MarineFacilityOrgExtension)
         assert isinstance(negotiations, list)
 
-        #for m in extended_marine_facility.actors:
-        #    print m
-
-        #for m in extended_marine_facility.members:
-            #print m
-
         #Get all associations for user info
-        assoc_list = self.clients.resource_registry.find_associations(predicate=PRED.hasInfo, object=RT.UserInfo, id_only=False)
-        #for i in assoc_list:
-        #    print i
+        assoc_list = self.clients.resource_registry.find_associations(predicate=PRED.hasInfo, id_only=False)
 
         ret_list = []
         for neg in negotiations:
@@ -1336,11 +1328,15 @@ class OrgManagementService(BaseOrgManagementService):
                 description=neg.description, reason=neg.reason,
                 org_id=neg.proposals[-1].provider)
 
-            #TODO - replace with memory search of associations from above
-            user_info,_ = self.clients.resource_registry.find_objects(subject=neg.proposals[-1].consumer, predicate=PRED.hasInfo)
-            if user_info:
-                request.user_id = user_info[0]._id
-                request.name = user_info[0].name
+            # since this is a proxy for the Negotiation object, simulate its id to help the UI deal with it
+            request._id = neg._id
+
+            actor_assoc = [ a for a in assoc_list if a.s == neg.proposals[-1].consumer ]
+            if actor_assoc:
+                member_assoc = [ m for m in extended_marine_facility.members if m._id == actor_assoc[0].o ]
+                if member_assoc:
+                    request.user_id = member_assoc[0]._id
+                    request.name = member_assoc[0].name
 
             ret_list.append(request)
 

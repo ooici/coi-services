@@ -21,7 +21,7 @@ from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
-from coverage_model import AbstractCoverage, ViewCoverage
+from coverage_model import AbstractCoverage, ViewCoverage, ComplexCoverage, ComplexCoverageType
 from coverage_model.parameter_functions import AbstractFunction
 
 from uuid import uuid4
@@ -404,14 +404,44 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
         pdict = ParameterDictionary.load(parameter_dict)
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
-        file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,uuid4().hex,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
+        scov = self._create_simplex_coverage(dataset_id, pdict, sdom, tdom, self.inline_data_writes)
         vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
         scov.close()
         return vcov
+
+    @classmethod
+    def _create_simplex_coverage(cls, dataset_id, parameter_dictionary, spatial_domain, temporal_domain, inline_data_writes=True):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        scov = SimplexCoverage(file_root,uuid4().hex,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
+        return scov
+
+    @classmethod
+    def _splice_coverage(cls, dataset_id, scov):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        vcov = cls._get_coverage(dataset_id,mode='a')
+        scov_pth = scov.persistence_dir
+        if isinstance(vcov.reference_coverage, SimplexCoverage):
+            ccov = ComplexCoverage(file_root, uuid4().hex, 'Complex coverage for %s' % dataset_id, 
+                    reference_coverage_locs=[vcov.head_coverage_path,],
+                    parameter_dictionary=ParameterDictionary(),
+                    complex_type=ComplexCoverageType.TEMPORAL_AGGREGATION)
+            log.info('Creating Complex Coverage: %s', ccov.persistence_dir)
+            ccov.append_reference_coverage(scov_pth)
+            ccov_pth = ccov.persistence_dir
+            ccov.close()
+            vcov.replace_reference_coverage(ccov_pth)
+        elif isinstance(vcov.reference_coverage, ComplexCoverage):
+            log.info('Appending simplex coverage to complex coverage')
+            vcov.reference_coverage.append_reference_coverage(scov_pth)
+        vcov.refresh()
+        vcov.close()
+
+
+
 
     @classmethod
     def _save_coverage(cls, coverage):
