@@ -12,6 +12,7 @@ import re
 from pyon.public import log, iex
 from ion.core.ooiref import OOIReferenceDesignator
 from pyon.datastore.datastore import DatastoreManager, DataStore
+from ion.util.geo_utils import GeoUtils
 from ion.util.xlsparser import XLSParser
 
 class OOILoader(object):
@@ -57,9 +58,8 @@ class OOILoader(object):
                        'Arrays',
                        'Sites',
                        'Subsites',
+                       'NTypes',
                        'Nodes',
-                       #'Platforms',
-                       'NodeTypes',
                        'PlatformAgents'
                      ]
 
@@ -137,7 +137,7 @@ class OOILoader(object):
         ot_obj_attrs = self.ooi_obj_attrs[objtype]
 
         if objid not in ot_objects:
-            ot_objects[objid] = {}
+            ot_objects[objid] = dict(id=objid)
         obj_entry = ot_objects[objid]
         if key:
             key = key if mapping is None else mapping.get(key, key)
@@ -149,6 +149,7 @@ class OOILoader(object):
                             self.warnings.append((objid, msg))
                     else:
                         obj_entry[key].append(value)
+                        obj_entry[key].sort()
                 else:
                     obj_entry[key] = [value]
             elif key in obj_entry and not change_ok:
@@ -166,6 +167,7 @@ class OOILoader(object):
                 obj_entry[okey] = oval
             ot_obj_attrs.add(okey)
 
+    # ---- Parse SAF export CSV files ----
     # Note: The following _parse_AttributeReport* function parse decomposed CSV files. Every attribute is in
     # its own row. There are, however, "static" attributes that are repeated with each attribute row.
 
@@ -223,13 +225,15 @@ class OOILoader(object):
             return
         # TODO: Create a default name by structure (subsite name + node type name)
         nodetypes = self.get_type_assets('nodetype')
+        if row['Attribute'] == "longitude" and row['AttributeValue']:
+            row['AttributeValue'] = str(-1 * float(row['AttributeValue']))
         self._add_object_attribute('node',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             mapping={},
             Node_Type=row['Node_Type'], Node_Site_Sequence=row['Node_Site_Sequence'])
 
     def _parse_NodeTypes(self, row):
-        self._add_object_attribute('nodetype1',
+        self._add_object_attribute('nodetype',
                                    row['LNodeType'], None, None,
                                    mapping={'Name':'name'},
                                    Name=row['Name'])
@@ -250,6 +254,8 @@ class OOILoader(object):
             msg = "invalid_rd: %s is not an instrument designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
+        if row['Attribute'] == "longitude" and row['AttributeValue']:
+            row['AttributeValue'] = str(-1 * float(row['AttributeValue']))
         self._add_object_attribute('instrument',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             mapping={},
@@ -285,6 +291,8 @@ class OOILoader(object):
             msg = "invalid_rd: %s is not a subsite designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
+        if row['Attribute'] == "longitude" and row['AttributeValue']:
+            row['AttributeValue'] = str(-1 * float(row['AttributeValue']))
         self._add_object_attribute('subsite',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             name=row['Subsite_Name'])
@@ -349,6 +357,7 @@ class OOILoader(object):
         dpt_obj = dp_types.get(dp_type, {})
         key = dp_type + "_" + row['Data_Product_Level1'].strip()
         entry = dpt_obj.copy()
+        entry.pop("id", None)
         entry.update(dict(
             name=row['Data_Product_Name'].strip(),
             level=row['Data_Product_Level1'].strip(),
@@ -366,23 +375,56 @@ class OOILoader(object):
         self._add_object_attribute('class',
             row['Class'].strip(), 'family', row['Family'].strip())
 
+    # ---- Parse mapping spreadsheet tab ----
+
     def _parse_Arrays(self, row):
         ooi_rd = row['Reference ID']
         name=row['Name']
+        geo_name = row['Geo Name']
         self._add_object_attribute('array',
-            ooi_rd, 'name', name, change_ok=True)
+            ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
 
     def _parse_Sites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
+        geo_name = row['Geo Name']
         self._add_object_attribute('site',
-            ooi_rd, 'name', name, change_ok=True)
+            ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
+
+        # Aggregated site level entries
+        self._add_object_attribute('site',
+                                   ooi_rd, 'osite', name)
+
+        self._add_object_attribute('osite',
+                                   name, None, None, name=name)
+        self._add_object_attribute('osite',
+                                   name, 'site_rd_list', ooi_rd, value_is_list=True)
+
 
     def _parse_Subsites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
+        extension = row['Name Extension']
+
+        coord_dict = dict(
+            lat_north = float(row['lat_north']) if row['lat_north'] else None,
+            lat_south = float(row['lat_south']) if row['lat_south'] else None,
+            lon_east = float(row['lon_east']) if row['lon_east'] else None,
+            lon_west = float(row['lon_west']) if row['lon_west'] else None,
+            depth_min = float(row['depth_min']) if row['depth_min'] else None,
+            depth_max = float(row['depth_max']) if row['depth_max'] else None,
+        )
+        # Aggregated subsite level entries
         self._add_object_attribute('subsite',
-            ooi_rd, 'name', name, change_ok=True)
+            ooi_rd, 'ssite', name)
+
+        self._add_object_attribute('ssite',
+                                   name, None, None, name=name, extension=extension)
+        self._add_object_attribute('ssite',
+                                   name, 'subsite_rd_list', ooi_rd, value_is_list=True)
+        if row['lat_north']:
+            self._add_object_attribute('ssite',
+                                   name, None, None, **coord_dict)
 
     def _parse_Nodes(self, row):
         ooi_rd = row['Reference ID']
@@ -393,6 +435,9 @@ class OOILoader(object):
             platform_config_type=row['Platform Configuration Type'],
             platform_agent_type=row['Platform Agent Type'],
             is_platform=row['Platform Reference ID'] == ooi_rd,
+            self_port=row['Self Port'],
+            uplink_node=row['Uplink Node'],
+            uplink_port=row['Uplink Port'],
             deployment_start=row['Start Deployment Cruise'],
         )
         self._add_object_attribute('node',
@@ -404,11 +449,14 @@ class OOILoader(object):
         self._add_object_attribute('nodetype',
             ooi_rd[9:11], 'array_list', ooi_rd[:2], value_is_list=True, list_dup_ok=True)
 
-    def _parse_NodeTypes(self, row):
+    def _parse_NTypes(self, row):
         code = row['Code']
         name = row['Name']
-        self._add_object_attribute('nodetype',
-            code, None, None, name=name)
+
+        # Only add new stuff from spreadsheet
+        if code not in self.ooi_objects['nodetype']:
+            self._add_object_attribute('nodetype',
+                code, None, None, name=name)
 
     def _parse_PlatformAgents(self, row):
         #
@@ -425,6 +473,9 @@ class OOILoader(object):
         )
         self._add_object_attribute('platformagent',
             code, None, None, **entry)
+
+
+    # ---- Post-processing and validation ----
 
     def _perform_ooi_checks(self):
         # Perform some consistency checking on imported objects
@@ -480,17 +531,51 @@ class OOILoader(object):
         nodes = self.get_type_assets('node')
         nodetypes = self.get_type_assets('nodetype')
         subsites = self.get_type_assets('subsite')
+        osites = self.get_type_assets('osite')
+        sites = self.get_type_assets('site')
+        ssites = self.get_type_assets('ssite')
 
         # Make sure all node types have a name
         for code, obj in nodetypes.iteritems():
             if not obj.get('name', None):
                 obj['name'] = "(" + code + ")"
 
-        # Make sure all nodes have a name
+        # Add rd and parents to ssites
+        for key, ssite in ssites.iteritems():
+            subsite_rd_list = ssite['subsite_rd_list']
+            if not 'lat_north' in ssite or not ssite['lat_north']:
+                subsite_objs = [subsites[subsite_id] for subsite_id in subsite_rd_list]
+                bbox = GeoUtils.calc_bounding_box_for_points(subsite_objs, key_mapping=dict(depth="depth_subsite"))
+                ssite.update(bbox)
+            ssite['rd'] = subsite_rd_list[0]
+            ooi_rd = OOIReferenceDesignator(subsite_rd_list[0])
+            site = sites[ooi_rd.site_rd]
+            osite = osites[site['osite']]
+            if 'ssite_list' not in osite:
+                osite['ssite_list'] = []
+            osite['ssite_list'].append(key)
+            ssite['parent_id'] = osite['site_rd_list'][0]
+
+        # Add rd to osites
+        for key, osite in osites.iteritems():
+            site_rd_list = osite['site_rd_list']
+            ssite_list = osite.get('ssite_list', [])
+
+            ssite_objs = [ssites[ss_id] for ss_id in ssite_list]
+            bbox = GeoUtils.calc_bounding_box_for_boxes(ssite_objs)
+
+            osite.update(bbox)
+            osite['rd'] = site_rd_list[0]
+
+        # Make sure all nodes have a name and geospatial coordinates
         for ooi_rd, obj in nodes.iteritems():
             if not obj.get('name', None):
                 name = subsites[ooi_rd[:8]]['name'] + " - " + nodetypes[ooi_rd[9:11]]['name']
                 obj['name'] = name
+            if not obj.get('latitude', None):
+                pass
+
+
 
     def get_marine_io(self, ooi_rd_str):
         ooi_rd = OOIReferenceDesignator(ooi_rd_str)
@@ -536,48 +621,92 @@ class OOILoader(object):
         log.info("Deleted %s OOI resources and associations", len(docs))
 
     def _analyze_ooi_assets(self, end_date):
-        deploy_platforms = {}
+        report_lines = []
         node_objs = self.get_type_assets("node")
+        inst_objs = self.get_type_assets("instrument")
+
+        deploy_platforms = {}
+        platform_children = {}
         for ooi_id, ooi_obj in node_objs.iteritems():
-            ooi_obj['id'] = ooi_id
+            if ooi_obj.get('parent_id', None):
+                parent_id = ooi_obj.get('parent_id')
+                if parent_id not in platform_children:
+                    platform_children[parent_id] = []
+                platform_children[parent_id].append(ooi_id)
             if not ooi_obj.get('is_platform', False):
                 continue
             deploy_date_col = ooi_obj['deployment_start']
             if not deploy_date_col:
-                continue
+                deploy_date_col = "2020-01-01"
+                ooi_obj['deployment_start'] = deploy_date_col
             try:
                 deploy_date = datetime.datetime.strptime(deploy_date_col, "%Y-%m-%d")
                 ooi_obj['deploy_date'] = deploy_date
-                if not end_date or deploy_date < end_date:
+                if not end_date or deploy_date <= end_date:
                     deploy_platforms[ooi_id] = ooi_obj
             except Exception as ex:
+                ooi_obj['deploy_date'] = None
                 print "Date parse error", ex
 
         deploy_platform_list = deploy_platforms.values()
-        deploy_platform_list.sort(key=lambda obj: obj['deploy_date'])
+        deploy_platform_list.sort(key=lambda obj: [obj['deploy_date'], obj['name']])
 
-        inst_objs = self.get_type_assets("instrument")
+        inst_by_node = {}
+        isite_by_node = {}
+        pagent_objs = self.get_type_assets("platformagent")
+        for inst_id, inst_obj in inst_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(inst_id)
+            node_id = ooi_rd.node_rd
+            if node_id not in inst_by_node:
+                inst_by_node[node_id] = []
+            inst_by_node[node_id].append(ooi_rd.inst_class)
+            if node_id not in isite_by_node:
+                isite_by_node[node_id] = []
+            isite_by_node[node_id].append(inst_id)
 
-        print "OOI ASSET REPORT - DEPLOYMENT UNTIL", end_date if end_date else "PROGRAM END"
-        print "Platforms:"
+        # Set recovery mode etc in nodes and instruments
+        for ooi_id, ooi_obj in node_objs.iteritems():
+            pagent_type = ooi_obj.get('platform_agent_type', "")
+            pagent_obj = pagent_objs.get(pagent_type, None)
+            if pagent_obj:
+                instrument_agent_rt = pagent_obj['rt_data_path'] == "Direct"
+                data_agent_rt = pagent_obj['rt_data_path'] == "File Transfer"
+                data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial"
+                ooi_obj['instrument_agent_rt'] = instrument_agent_rt
+                ooi_obj['data_agent_rt'] = data_agent_rt
+                ooi_obj['data_agent_recovery'] = data_agent_recovery
+
+                for inst in isite_by_node.get(ooi_id, []):
+                    inst_obj = inst_objs[inst]
+                    inst_obj['instrument_agent_rt'] = instrument_agent_rt
+                    inst_obj['data_agent_rt'] = data_agent_rt
+                    inst_obj['data_agent_recovery'] = data_agent_recovery
+
+        print "OOI ASSET REPORT - DEPLOYMENT UNTIL", end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"
+        print "Platforms (top-level):"
+        inst_class_all = set()
         for ooi_obj in deploy_platform_list:
-            print " ", ooi_obj['deployment_start'], ooi_obj['name']
+            inst_class_top = set()
 
-            inst_class = set()
-            for inst_id, inst_obj in inst_objs.iteritems():
-                ooi_rd = OOIReferenceDesignator(inst_id)
-                node_id = ooi_rd.node_rd
-                node_obj = node_objs[node_id]
-                if not node_obj.get('is_platform', False):
-                    node_id = node_obj['platform_id']
-                    node_obj = node_objs[node_id]
-                if node_id == ooi_obj['id']:
-                    inst_class.add(ooi_rd.inst_class)
-            print "    Instrument Models:", ", ".join(sorted(list(inst_class)))
-            print "    Assembly:"
-            for pl_id, pl_obj in node_objs.iteritems():
-                if not pl_obj.get('is_platform', False):
-                    parent_id = pl_obj['platform_id']
-                    if parent_id == ooi_obj['id']:
-                        print "      ", pl_obj['name']
+            def follow_child_nodes(level, child_nodes=None):
+                if not child_nodes:
+                    return
+                for ch_id in child_nodes:
+                    ch_obj = node_objs[ch_id]
+                    inst_class_node = set((inst, ch_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ch_id, []))
+                    inst_class_top.update(inst_class_node)
+                    print "  "*level, "            +-"+ch_obj['id'], ch_obj['name'], ":", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_node))])
+                    follow_child_nodes(level+1, platform_children.get(ch_id,None))
 
+            inst_class_node = set((inst, ooi_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ooi_obj['id'], []))
+            inst_class_top.update(inst_class_node)
+            print " ", ooi_obj['deployment_start'], ooi_obj['id'], ooi_obj['name'], ":", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_node))])
+
+            inst_class_all.update(inst_class_top)
+            follow_child_nodes(0, platform_children.get(ooi_obj['id'], None))
+
+        print "Instrument Models:", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_all))])
+
+        from ion.util.datastore.resources import ResourceRegistryHelper
+        rrh = ResourceRegistryHelper()
+        rrh.dump_dicts_as_xlsx(self.ooi_objects)
