@@ -1190,12 +1190,26 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("osite")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             site_rd_list = ooi_obj['site_rd_list']
+
+            constrow = {}
+            const_id1 = ooi_id + "_const1"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'geospatial'
+            constrow['south'] = ooi_obj['lat_south'] or '0.0'
+            constrow['north'] = ooi_obj['lat_north'] or '0.0'
+            constrow['west'] = ooi_obj['lon_west'] or '0.0'
+            constrow['east'] = ooi_obj['lon_east'] or '0.0'
+            constrow['vertical_direction'] = 'depth'
+            constrow['top'] = ooi_obj['depth_min'] or '0.0'
+            constrow['bottom'] = ooi_obj['depth_max'] or '0.0'
+            self._load_Constraint(constrow)
+
             fakerow = {}
             fakerow[COL_ID] = ooi_obj['rd']
             fakerow['obs/name'] = ooi_obj['name']
             fakerow['obs/description'] = "Site: %s" % ", ".join(site_rd_list)
             fakerow['obs/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
-            fakerow['constraint_ids'] = ''
+            fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             fakerow['org_ids'] = self._get_org_ids([ooi_obj['rd']])
 
@@ -1231,12 +1245,26 @@ class IONLoader(ImmediateProcess):
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             subsite_rd_list = ooi_obj['subsite_rd_list']
             ooi_rd = OOIReferenceDesignator(ooi_obj['rd'])
+
+            constrow = {}
+            const_id1 = ooi_obj['rd'] + "_const1"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'geospatial'
+            constrow['south'] = ooi_obj['lat_south'] or '0.0'
+            constrow['north'] = ooi_obj['lat_north'] or '0.0'
+            constrow['west'] = ooi_obj['lon_west'] or '0.0'
+            constrow['east'] = ooi_obj['lon_east'] or '0.0'
+            constrow['vertical_direction'] = 'depth'
+            constrow['top'] = ooi_obj['depth_min'] or '0.0'
+            constrow['bottom'] = ooi_obj['depth_max'] or '0.0'
+            self._load_Constraint(constrow)
+
             fakerow = {}
             fakerow[COL_ID] = ooi_obj['rd']
             fakerow['site/name'] = ooi_obj['name']
             fakerow['site/description'] = "Subsite: %s" % ", ".join(subsite_rd_list)
             fakerow['site/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
-            fakerow['constraint_ids'] = ''
+            fakerow['constraint_ids'] = const_id1
             fakerow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             fakerow['org_ids'] = self._get_org_ids([ooi_obj['rd']])
 
@@ -1307,6 +1335,14 @@ class IONLoader(ImmediateProcess):
                 constrow['top'] = ooi_obj['depth_subsite'] or '0.0'
                 constrow['bottom'] = ooi_obj['depth_subsite'] or '0.0'
                 self._load_Constraint(constrow)
+            elif ooi_obj.get('is_platform', False):
+                ss = subsite_objs[ooi_rd.subsite_rd]
+                ss_mod = ssite_objs[ss['ssite']]
+                const_id1 = ss_mod['rd'] + "_const1"
+            else:
+                ss = subsite_objs[ooi_obj.get('platform_id', '')[:8]]
+                ss_mod = ssite_objs[ss['ssite']]
+                const_id1 = ss_mod['rd'] + "_const1"
 
             fakerow = {}
             fakerow[COL_ID] = ooi_id
@@ -1320,9 +1356,11 @@ class IONLoader(ImmediateProcess):
                 ss_mod = ssite_objs[ss['ssite']]
                 fakerow['parent_site_id'] = ss_mod['rd']
                 fakerow['ps/description'] = "Node (platform): %s" % ooi_id
+                fakerow['ps/alt_resource_type'] = "StationSite"
             else:
                 fakerow['parent_site_id'] = ooi_obj.get('platform_id', '')
                 fakerow['ps/description'] = "Node (child): %s" % ooi_id
+                fakerow['ps/alt_resource_type'] = "PlatformComponentSite"
             fakerow['platform_model_ids'] = ooi_id[9:11] + "_PM"
             fakerow['org_ids'] = self._get_org_ids([ooi_id[:2]])
 

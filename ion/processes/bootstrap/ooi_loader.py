@@ -225,6 +225,8 @@ class OOILoader(object):
             return
         # TODO: Create a default name by structure (subsite name + node type name)
         nodetypes = self.get_type_assets('nodetype')
+        if row['Attribute'] == "longitude" and row['AttributeValue']:
+            row['AttributeValue'] = str(-1 * float(row['AttributeValue']))
         self._add_object_attribute('node',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             mapping={},
@@ -252,6 +254,8 @@ class OOILoader(object):
             msg = "invalid_rd: %s is not an instrument designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
+        if row['Attribute'] == "longitude" and row['AttributeValue']:
+            row['AttributeValue'] = str(-1 * float(row['AttributeValue']))
         self._add_object_attribute('instrument',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             mapping={},
@@ -287,6 +291,8 @@ class OOILoader(object):
             msg = "invalid_rd: %s is not a subsite designator" % (ooi_rd.rd)
             self.warnings.append((ooi_rd.rd, msg))
             return
+        if row['Attribute'] == "longitude" and row['AttributeValue']:
+            row['AttributeValue'] = str(-1 * float(row['AttributeValue']))
         self._add_object_attribute('subsite',
             ooi_rd.rd, row['Attribute'], row['AttributeValue'],
             name=row['Subsite_Name'])
@@ -400,6 +406,14 @@ class OOILoader(object):
         name = row['Full Name']
         extension = row['Name Extension']
 
+        coord_dict = dict(
+            lat_north = float(row['lat_north']) if row['lat_north'] else None,
+            lat_south = float(row['lat_south']) if row['lat_south'] else None,
+            lon_east = float(row['lon_east']) if row['lon_east'] else None,
+            lon_west = float(row['lon_west']) if row['lon_west'] else None,
+            depth_min = float(row['depth_min']) if row['depth_min'] else None,
+            depth_max = float(row['depth_max']) if row['depth_max'] else None,
+        )
         # Aggregated subsite level entries
         self._add_object_attribute('subsite',
             ooi_rd, 'ssite', name)
@@ -408,6 +422,9 @@ class OOILoader(object):
                                    name, None, None, name=name, extension=extension)
         self._add_object_attribute('ssite',
                                    name, 'subsite_rd_list', ooi_rd, value_is_list=True)
+        if row['lat_north']:
+            self._add_object_attribute('ssite',
+                                   name, None, None, **coord_dict)
 
     def _parse_Nodes(self, row):
         ooi_rd = row['Reference ID']
@@ -514,51 +531,49 @@ class OOILoader(object):
         nodes = self.get_type_assets('node')
         nodetypes = self.get_type_assets('nodetype')
         subsites = self.get_type_assets('subsite')
+        osites = self.get_type_assets('osite')
+        sites = self.get_type_assets('site')
+        ssites = self.get_type_assets('ssite')
 
         # Make sure all node types have a name
         for code, obj in nodetypes.iteritems():
             if not obj.get('name', None):
                 obj['name'] = "(" + code + ")"
 
-        # Make sure all nodes have a name
-        for ooi_rd, obj in nodes.iteritems():
-            if not obj.get('name', None):
-                name = subsites[ooi_rd[:8]]['name'] + " - " + nodetypes[ooi_rd[9:11]]['name']
-                obj['name'] = name
-
-
-        def add_geospatial_bounds(obj, base_list):
-            base_geo = [dict(lat=ss.get('latitude',None), lon=ss.get('longitude',None), depth=ss.get('depth_subsite',None)) for ss in base_list]
-            bbox = GeoUtils.calc_bounding_box_from_points(base_list, key_mapping=dict(depth="depth_subsite"))
-
-            obj['lat_min'] = min(o['lat'] for o in base_geo if 'lat' in o)
-            obj['lat_max'] = max(o['lat'] for o in base_geo if 'lat' in o)
-            obj['lon_min'] = min(o['lon'] for o in base_geo if 'lon' in o)
-            obj['lon_max'] = max(o['lon'] for o in base_geo if 'lon' in o)
-            obj['depth_min'] = min(o['depth'] for o in base_geo if 'depth' in o)
-            obj['depth_max'] = max(o['depth'] for o in base_geo if 'depth' in o)
-
-        osites = self.get_type_assets('osite')
-
         # Add rd and parents to ssites
-        sites = self.get_type_assets('site')
-        ssites = self.get_type_assets('ssite')
         for key, ssite in ssites.iteritems():
             subsite_rd_list = ssite['subsite_rd_list']
-            subsite_objs = [subsites[subsite_id] for subsite_id in subsite_rd_list]
-            add_geospatial_bounds(ssite, subsite_objs)
+            if not 'lat_north' in ssite or not ssite['lat_north']:
+                subsite_objs = [subsites[subsite_id] for subsite_id in subsite_rd_list]
+                bbox = GeoUtils.calc_bounding_box_for_points(subsite_objs, key_mapping=dict(depth="depth_subsite"))
+                ssite.update(bbox)
             ssite['rd'] = subsite_rd_list[0]
             ooi_rd = OOIReferenceDesignator(subsite_rd_list[0])
             site = sites[ooi_rd.site_rd]
             osite = osites[site['osite']]
+            if 'ssite_list' not in osite:
+                osite['ssite_list'] = []
+            osite['ssite_list'].append(key)
             ssite['parent_id'] = osite['site_rd_list'][0]
 
         # Add rd to osites
         for key, osite in osites.iteritems():
             site_rd_list = osite['site_rd_list']
-            site_objs = [sites[site_id] for site_id in site_rd_list]
-            add_geospatial_bounds(osite, site_objs)
+            ssite_list = osite.get('ssite_list', [])
+
+            ssite_objs = [ssites[ss_id] for ss_id in ssite_list]
+            bbox = GeoUtils.calc_bounding_box_for_boxes(ssite_objs)
+
+            osite.update(bbox)
             osite['rd'] = site_rd_list[0]
+
+        # Make sure all nodes have a name and geospatial coordinates
+        for ooi_rd, obj in nodes.iteritems():
+            if not obj.get('name', None):
+                name = subsites[ooi_rd[:8]]['name'] + " - " + nodetypes[ooi_rd[9:11]]['name']
+                obj['name'] = name
+            if not obj.get('latitude', None):
+                pass
 
 
 

@@ -79,7 +79,38 @@ class GeoUtils(object):
         return rlat, rlon
 
     @staticmethod
-    def calc_bounding_box_from_points(obj_list, key_mapping=None):
+    def calc_bounding_box_for_boxes(obj_list, key_mapping=None):
+        """Calculates the geospatial bounding box for a list of geospatial bounding boxes.
+        The input list is represented as a list of dicts.
+        This function assumes that bounding boxes do not span poles or datelines."""
+        lat_north_key = key_mapping['lat_north'] if key_mapping and 'lat_north' in key_mapping else 'lat_north'
+        lat_south_key = key_mapping['lat_south'] if key_mapping and 'lat_south' in key_mapping else 'lat_south'
+        lon_east_key = key_mapping['lon_east'] if key_mapping and 'lon_east' in key_mapping else 'lon_east'
+        lon_west_key = key_mapping['lon_west'] if key_mapping and 'lon_west' in key_mapping else 'lon_west'
+        depth_min_key = key_mapping['depth_min'] if key_mapping and 'depth_min' in key_mapping else 'depth_min'
+        depth_max_key = key_mapping['depth_max'] if key_mapping and 'depth_max' in key_mapping else 'depth_max'
+
+        lat_north_list = [float(o[lat_north_key]) for o in obj_list if lat_north_key in o and o[lat_north_key]]
+        lat_south_list = [float(o[lat_south_key]) for o in obj_list if lat_south_key in o and o[lat_south_key]]
+        lon_east_list = [float(o[lon_east_key]) for o in obj_list if lon_east_key in o and o[lon_east_key]]
+        lon_west_list = [float(o[lon_west_key]) for o in obj_list if lon_west_key in o and o[lon_west_key]]
+        depth_min_list = [float(o[depth_min_key]) for o in obj_list if depth_min_key in o and o[depth_min_key]]
+        depth_max_list = [float(o[depth_max_key]) for o in obj_list if depth_max_key in o and o[depth_max_key]]
+
+        res_bb = {}
+        res_bb['lat_north'] = max(lat_north_list) if lat_north_list else 0.0
+        res_bb['lat_south'] = min(lat_south_list) if lat_south_list else 0.0
+
+        res_bb['lon_east'] = max(lon_east_list) if lon_east_list else 0.0
+        res_bb['lon_west'] = min(lon_west_list) if lon_west_list else 0.0
+
+        res_bb['depth_max'] = max(depth_min_list) if depth_min_list else 0.0
+        res_bb['depth_min'] = min(depth_max_list) if depth_max_list else 0.0
+
+        return res_bb
+
+    @staticmethod
+    def calc_bounding_box_for_points(obj_list, key_mapping=None):
         """Calculates the geospatial bounding box for a list of geospatial points.
         The input list is represented as a list of dicts.
         This function assumes that bounding boxes do not span poles or datelines."""
@@ -87,12 +118,18 @@ class GeoUtils(object):
         lon_key = key_mapping['longitude'] if key_mapping and 'longitude' in key_mapping else 'longitude'
         depth_key = key_mapping['depth'] if key_mapping and 'depth' in key_mapping else 'depth'
 
+        lat_list = [float(o[lat_key]) for o in obj_list if lat_key in o and o[lat_key]]
+        lon_list = [float(o[lon_key]) for o in obj_list if lon_key in o and o[lon_key]]
+        depth_list = [float(o[depth_key]) for o in obj_list if depth_key in o and o[depth_key]]
+
         res_bb = {}
-        res_bb['lat_north'] = max([0.0] + [o[lat_key] for o in obj_list if lat_key in o])
-        res_bb['lat_south'] = min([0.0] + [o[lat_key] for o in obj_list if lat_key in o])
-        res_bb['lon_east'] = max([0.0] + [o[lon_key] for o in obj_list if lon_key in o])
-        res_bb['lon_west'] = min([0.0] + [o[lon_key] for o in obj_list if lon_key in o])
-        res_bb['depth_min'] = min([0.0] + [o[depth_key] for o in obj_list if depth_key in o])
-        res_bb['depth_max'] = max([0.0] + [o[depth_key] for o in obj_list if depth_key in o])
+        res_bb['lat_north'] = max(lat_list) if lat_list else 0.0
+        res_bb['lat_south'] = min(lat_list) if lat_list else 0.0
+
+        res_bb['lon_east'] = max(lon_list) if lon_list else 0.0
+        res_bb['lon_west'] = min(lon_list) if lon_list else 0.0
+
+        res_bb['depth_max'] = max(depth_list) if depth_list else 0.0
+        res_bb['depth_min'] = min(depth_list) if depth_list else 0.0
 
         return res_bb
