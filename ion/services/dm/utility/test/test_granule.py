@@ -104,10 +104,12 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         with self.assertRaises(KeyError):
             rdt['pressure'] = np.arange(20)
 
-        granule = rdt.to_granule()
+        granule = rdt.to_granule(connection_id='c1', connection_index='0')
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
         self.assertEquals(rdt._available_fields, rdt2._available_fields)
         self.assertEquals(rdt.fields, rdt2.fields)
+        self.assertEquals(rdt2.connection_id,'c1')
+        self.assertEquals(rdt2.connection_index,'0')
         for k,v in rdt.iteritems():
             self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
         
