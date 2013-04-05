@@ -187,7 +187,7 @@ class ObservatoryUtil(object):
         min_ts = str(int(time.time() - 3) * 1000)
         # Events come back as 3-tuples of (id, key, obj)
         pwr_events = self.container.event_repository.find_events(event_type=OT.DeviceStatusEvent, start_ts=min_ts, descending=True)
-        comm_events = self.container.event_repository.find_events(event_type=OT.DeviceCommsEvent, start_ts=min_ts, descending=True)
+        comm_events = self.container.event_repository.find_events(event_type=OT.StreamAlertEvent, start_ts=min_ts, descending=True)
         events = []
         events.extend(pwr_events)
         events.extend(comm_events)
@@ -323,7 +323,7 @@ class ObservatoryUtil(object):
             event_type = event._get_type()
             if event_type == OT.DeviceStatusEvent and event.status == DeviceStatusType.STATUS_WARNING:
                 status['power'] = StatusType.STATUS_WARNING
-            elif event_type == OT.DeviceCommsEvent and event.state == DeviceCommsType.DATA_DELIVERY_INTERRUPTION:
+            elif event_type == OT.StreamAlertEvent and event.name == 'late_data_warning':
                 status['comms'] = StatusType.STATUS_WARNING
             # @TODO data, loc
 

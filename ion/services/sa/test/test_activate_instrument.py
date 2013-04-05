@@ -196,7 +196,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # the following assert will not work without elasticsearch.
         #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
-        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.communications_status_roll_up.value)
         self.assertEqual(StatusType.STATUS_OK, extended_instrument.computed.data_status_roll_up.value)
         self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.power_status_roll_up.value)
 

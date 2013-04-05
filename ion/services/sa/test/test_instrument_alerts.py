@@ -16,7 +16,7 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
 
-from interface.objects import StreamAlertType, AggregateStatusType
+from interface.objects import StreamAlertType, AggregateStatusType, StatusType
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -369,5 +369,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             elif c.name == 'late_data_warning':
                 self.assertEqual(c.message, 'Expected data has not arrived.')
 
+        extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id)
+        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.communications_status_roll_up.value)
 
 
