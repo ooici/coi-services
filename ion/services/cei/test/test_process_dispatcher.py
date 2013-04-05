@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import uuid
 import unittest
+import time
 import os
 
 from mock import Mock, patch, DEFAULT
@@ -585,6 +586,15 @@ class TestProcess(BaseService):
         return proc._proc_name
 
 
+class TestProcessThatCrashes(BaseService):
+    """Test process to deploy via PD
+    """
+    name = __name__ + "test"
+
+    def on_init(self):
+        raise Exception("I died :(")
+
+
 class TestClient(RPCClient):
     def __init__(self, to_name=None, node=None, **kwargs):
         to_name = to_name or __name__ + "test"
@@ -739,6 +749,85 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         definition = ProcessDefinition(name="test_process", executable=executable)
         with self.assertRaises(BadRequest):
             self.pd_cli.create_process_definition(definition)
+
+
+@unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
+@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+@attr('INT', group='cei')
+class ProcessDispatcherServiceLaunchIntTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
+
+        self.rr_cli = ResourceRegistryServiceClient()
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
+
+        self.waiter = ProcessStateWaiter()
+
+    def tearDown(self):
+        self.waiter.stop()
+
+    def test_restart_throttling(self):
+
+        process_definition = ProcessDefinition(name='test_process')
+        process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
+                                         'class': 'TestProcessThatCrashes'}
+        process_definition_id = self.pd_cli.create_process_definition(process_definition)
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.restart_mode = ProcessRestartMode.ALWAYS
+
+        pid = self.pd_cli.create_process(process_definition_id)
+        self.waiter.start(pid)
+
+        # feed in a string that the process will return -- verifies that
+        # configuration actually makes it to the instantiated process
+        configuration = {'process': {'minimum_time_between_starts': 15}}
+
+        pid2 = self.pd_cli.schedule_process(process_definition_id,
+            process_schedule, configuration=configuration, process_id=pid)
+        self.assertEqual(pid, pid2)
+
+        # The process hits PENDING right away
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+
+        # Then crashes on init, and restarts quickly once (see TestProcessThatCrashes impl above)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time < 2.0, "Process should restart quickly, not be throttled"
+
+        # Now the process schould be throttled, and restart more slowly
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time > 10.0, "Process should take more than 10s to start, throttled"
+
+        # We check again for good measure
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time > 10.0, "Process should take more than 10s to start, throttled"
+
+        # kill the process
+        self.pd_cli.cancel_process(pid)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
 
 
 pd_config = {
