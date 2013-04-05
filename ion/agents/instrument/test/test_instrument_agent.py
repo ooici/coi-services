@@ -92,6 +92,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_lost_connection
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autoreconnect
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_connect_failed
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_alerts
 """
 
 ###############################################################################
@@ -2142,24 +2143,32 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 try:
                     gevent.sleep(.5)
                     test._ia_client.execute_resource(cmd)
+                    break
                 except:
                     pass
-                else:
-                    break
-        
-        gl = gevent.spawn(poll_func, self)
-        
-        # Let the poll go for a bit.
-        gevent.sleep(10)
-        
-        # Blow the port agent out from under the agent.
-        self._support.stop_pagent()
 
-        # Wait for a while, the supervisor is restarting the port agent.
-        gevent.sleep(5)
-        self._support.start_pagent()
+        timeout = gevent.Timeout(120)
+        timeout.start()
+        try:
 
-        gl.join()
+            # Start the command greenlet and let poll for a bit.
+            gl = gevent.spawn(poll_func, self)        
+            gevent.sleep(20)
+        
+            # Blow the port agent out from under the agent.
+            self._support.stop_pagent()
+
+            # Wait for a while, the supervisor is restarting the port agent.
+            gevent.sleep(5)
+            self._support.start_pagent()
+            
+            # Wait for the device to connect and start sampling again.
+            gl.join()
+            timeout.cancel()
+            
+        except Timeout as t:
+            gl.kill()
+            self.fail('Could not reconnect to device.')
 
     def test_connect_failed(self):
         """
@@ -2188,4 +2197,130 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+    def test_get_set_alerts(self):
+        """
+        test_get_set_alerts
+        Test specific of get/set alerts, including using result of get to
+        set later.
+        """
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertItemsEqual(retval, [])
+
+        alert_def1 = {
+            'name' : 'temp_warning_interval',
+            'stream_name' : 'parsed',
+            'message' : 'Temperature is above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+            'value_id' : 'temp',
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 10.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
+        }
+        
+        alert_def2 = {
+            'name' : 'temp_alarm_interval',
+            'stream_name' : 'parsed',
+            'message' : 'Temperature is way above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+            'value_id' : 'temp',
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 15.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
+        }
+
+
+        """
+        Interval alerts are returned from get like this:
+        (value and status fields describe state of the alert)
+        {
+        'name': 'temp_warning_interval',
+        'stream_name': 'parsed',
+        'message': 'Temperature is above normal range.',
+        'alert_type': 1,
+        'aggregate_type': 2,
+        'value_id': 'temp',
+        'lower_bound': None,
+        'lower_rel_op': None,
+        'upper_bound': 10.5,
+        'upper_rel_op': '<',
+        'alert_class': 'IntervalAlert',
+
+        'status': None,
+        'value': None
+        }
+        """
+        
+        alert_def3 = {
+            'name' : 'late_data_warning',
+            'stream_name' : 'parsed',
+            'message' : 'Expected data has not arrived.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
+            'value_id' : None,
+            'time_delta' : 180,
+            'alert_class' : 'LateDataAlert'
+        }
+
+        """
+        Late data alerts are returned from get like this:
+        (value and status fields describe state of the alert)
+        {
+        'name': 'late_data_warning',
+        'stream_name': 'parsed',
+        'message': 'Expected data has not arrived.',
+        'alert_type': 1,
+        'aggregate_type': 1,
+        'value_id': None,
+        'time_delta': 180,
+        'alert_class': 'LateDataAlert',
+        
+        'status': None,
+        'value': None
+        }
+        """
+
+        orig_alerts = [alert_def1, alert_def2, alert_def3]
+        self._ia_client.set_agent({'alerts' : orig_alerts})
+        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==3)
+        alerts = retval
+
+        self._ia_client.set_agent({'alerts' : ['clear']})        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertItemsEqual(retval, [])
+
+        self._ia_client.set_agent({'alerts' : alerts})
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==3)
+        
+        count = 0
+        for x in retval:
+            x.pop('status')
+            x.pop('value')
+            for y in orig_alerts:
+                if x['name'] == y['name']:
+                    count += 1
+                    self.assertItemsEqual(x.keys(), y.keys())
+        self.assertEquals(count, 3)
+        
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 

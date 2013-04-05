@@ -271,8 +271,13 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.validate_compatibility(data_process_definition_id, in_data_product_ids, out_data_product_ids, routes)
         routes = self._manage_routes(routes)
+        configuration.process.input_products = in_data_product_ids
+        configuration.process.output_products = out_data_product_ids
         configuration.process.routes = routes
-        configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
+        if 'lookup_docs' in configuration.process:
+            configuration.process.lookup_docs.extend(self._get_lookup_docs(in_data_product_ids, out_data_product_ids))
+        else:
+            configuration.process.lookup_docs = self._get_lookup_docs(in_data_product_ids, out_data_product_ids)
         dproc = DataProcess()
         dproc.name = 'data_process_%s' % self.get_unique_id()
         dproc.configuration = configuration
@@ -790,6 +795,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 break
         if need_lookup_docs:
             for data_product_id in input_data_product_ids:
+                retval.extend(self.clients.data_acquisition_management.list_qc_references(data_product_id))
+            for data_product_id in output_data_product_ids:
                 retval.extend(self.clients.data_acquisition_management.list_qc_references(data_product_id))
         return retval
 

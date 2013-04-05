@@ -205,6 +205,8 @@ class InstrumentAgent(ResourceAgent):
         """
         super(InstrumentAgent, self).on_quit()
         
+        [a.stop for a in self.aparam_alerts]
+        
         state = self._fsm.get_current_state()
         if state == ResourceAgentState.UNINITIALIZED:
             pass
@@ -583,7 +585,6 @@ class InstrumentAgent(ResourceAgent):
         while self._autoreconnect_greenlet:
             gevent.sleep(10)
             try:
-                print '## attempting reconnect...'
                 self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
             except:
                 pass
@@ -817,7 +818,6 @@ class InstrumentAgent(ResourceAgent):
                       self._proc_name)
             return
 
-        
         for a in self.aparam_alerts:
             if stream_name == a._stream_name:
                 if a._value_id:
@@ -1475,7 +1475,7 @@ class InstrumentAgent(ResourceAgent):
         
         retval = 0
         for (k,v) in params.iteritems():
-            if self.aparam_pubrate.has_key(k) and isinstance(v, int) and v >= 0:
+            if isinstance(k, str) and isinstance(v, int) and v >= 0:
                 self.aparam_pubrate[k] = v
             else:
                 retval = -1
@@ -1509,7 +1509,7 @@ class InstrumentAgent(ResourceAgent):
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
                     if cls == 'LateDataAlert':
-                        alert_def['get_state'] == self._fsm.get_current_state                    
+                        alert_def['get_state'] = self._fsm.get_current_state                    
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except Exception as ex:
@@ -1525,9 +1525,7 @@ class InstrumentAgent(ResourceAgent):
 
         for a in self.aparam_alerts:
             log.info('Instrument agent alert: %s', str(a))
-                
-        return len(self.aparam_alerts)
-        
+                       
     def aparam_get_alerts(self):
         """
         """
