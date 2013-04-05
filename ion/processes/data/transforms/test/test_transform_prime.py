@@ -146,41 +146,6 @@ class TestTransformPrime(IonIntegrationTestCase):
         listener.start()
         self.addCleanup(listener.stop)
 
-    
-    @attr('LOCOINT')
-    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
-    def test_execute_advanced_transform(self):
-        # Runs a transform across L0-L2 with stream definitions including available fields
-        streams = self.setup_advanced_transform()
-        in_stream_id, in_stream_def_id = streams[0]
-        out_stream_id, out_stream_defs_id = streams[1]
-
-        validation_event = Event()
-        def validator(msg, route, stream_id):
-            rdt = RecordDictionaryTool.load_from_granule(msg)
-            if not np.allclose(rdt['rho'], np.array([1001.0055034])):
-                return
-            validation_event.set()
-
-        self.setup_validator(validator)
-
-        in_route = self.pubsub_management.read_stream_route(in_stream_id)
-        publisher = StandaloneStreamPublisher(in_stream_id, in_route)
-
-        outbound_rdt = RecordDictionaryTool(stream_definition_id=in_stream_def_id)
-        outbound_rdt['time'] = [0]
-        outbound_rdt['TEMPWAT_L0'] = [280000]
-        outbound_rdt['CONDWAT_L0'] = [100000]
-        outbound_rdt['PRESWAT_L0'] = [2789]
-
-        outbound_rdt['lat'] = [45]
-        outbound_rdt['lon'] = [-71]
-
-        outbound_granule = outbound_rdt.to_granule()
-
-        publisher.publish(outbound_granule)
-
-        self.assertTrue(validation_event.wait(2))
 
 
     @attr('LOCOINT')
