@@ -196,7 +196,10 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         # the following assert will not work without elasticsearch.
         #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
-        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.communications_status_roll_up.value)
+
+        #REMOVE THIS CHECK AS THE COMMS TRANSFORM IS OBE. Update to use the new late_data_alert
+        #self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.communications_status_roll_up.value)
+
         self.assertEqual(StatusType.STATUS_OK, extended_instrument.computed.data_status_roll_up.value)
         self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.power_status_roll_up.value)
 
