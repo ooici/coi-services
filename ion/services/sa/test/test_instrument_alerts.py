@@ -238,18 +238,37 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         parsed_stream_def_id = self.pubsubclient.create_stream_definition(name='parsed', parameter_dictionary_id=parsed_pdict_id)
 
-        dp_obj = IonObject(RT.DataProduct,
-            name='output_data_prod',
-            description='Output data product for instrument',
+        raw_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('raw', id_only=True)
+        raw_stream_def_id = self.pubsubclient.create_stream_definition(name='raw', parameter_dictionary_id=raw_pdict_id)
+
+
+        # We are creating two data products here, one for parsed and another raw
+        dp_obj_parsed = IonObject(RT.DataProduct,
+            name='parsed_data_product',
+            description='Parsed output data product for instrument',
             temporal_domain = tdom.dump(),
             spatial_domain = sdom.dump())
 
-        out_data_product_id = self.dataproductclient.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
-        self.dataproductclient.activate_data_product_persistence(data_product_id=out_data_product_id)
+        dp_obj_raw = IonObject(RT.DataProduct,
+            name='raw_data_prod',
+            description='Raw output data product for instrument',
+            temporal_domain = tdom.dump(),
+            spatial_domain = sdom.dump())
 
-        log.debug("assigning instdevice id: %s to data product: %s", instDevice_id, out_data_product_id)
 
-        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=out_data_product_id)
+        parsed_out_data_prod_id = self.dataproductclient.create_data_product(data_product=dp_obj_parsed, stream_definition_id=parsed_stream_def_id)
+        raw_out_data_prod_id = self.dataproductclient.create_data_product(data_product=dp_obj_raw, stream_definition_id=raw_stream_def_id)
+
+        
+        self.dataproductclient.activate_data_product_persistence(data_product_id=parsed_out_data_prod_id)
+        self.dataproductclient.activate_data_product_persistence(data_product_id=raw_out_data_prod_id)
+
+        # todo: note that the generated config on the instruments will be done for both raw and parsed stream defs since these two data products constructed with each are associated as output data products with the instrument
+        # todo: if the config is not generated for a stream def, then the instrument agent will complain if the simulator generates data corresponding to a stream def that is not there in the stream config as a mentioned stream def
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=parsed_out_data_prod_id)
+        self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=raw_out_data_prod_id)
+
+        log.debug("assigned instdevice id: %s to data product: %s", instDevice_id, raw_out_data_prod_id)
 
         #-------------------------------------------------------------------------------------
         # Create Instrument Agent Instance
