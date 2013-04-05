@@ -1,12 +1,13 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
+import unittest
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
 
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import IonObject
 from pyon.util.containers import DotDict
-from pyon.util.int_test import IonIntegrationTestCase
+#from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.containers import create_unique_identifier
 from pyon.ion.resource import LCS
 
@@ -389,6 +390,7 @@ class TestAssembly(GenericIntHelperTestCase):
         x.serial_number = "12345"
         self.client.IMS.update_platform_device(x)
         self.assert_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.DEVELOP)
+
         log.info("Associate platform model with platform device")
         self.assert_lcs_fail(self.client.IMS, "platform_device", platform_device_id, LCE.DEVELOP)
         self.perform_association_script(c.IMS.assign_platform_model_to_platform_device,
@@ -423,6 +425,7 @@ class TestAssembly(GenericIntHelperTestCase):
         x.serial_number = "12345"
         self.client.IMS.update_instrument_device(x)
         self.assert_lcs_fail(self.client.IMS, "instrument_device", instrument_device_id, LCE.DEVELOP)
+
         log.info("Associate instrument model with instrument device")
         self.perform_association_script(c.IMS.assign_instrument_model_to_instrument_device,
                                         c.IMS.find_instrument_device_by_instrument_model,
@@ -498,8 +501,7 @@ class TestAssembly(GenericIntHelperTestCase):
         #create data products for instrument data
 
         dp_obj = self.create_data_product_obj()
-
-        log.debug("Created an IonObject for a data product: %s", dp_obj)
+        #log.debug("Created an IonObject for a data product: %s", dp_obj)
 
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
@@ -508,22 +510,25 @@ class TestAssembly(GenericIntHelperTestCase):
         dp_obj.name = 'Data Product'
         inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
-        dp_obj.name = 'Log Data Product'
-        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
                                    data_product_id=inst_data_product_id)
-        c.OMS.create_site_data_product(instrument_site_id, log_data_product_id)
 
-        deployment_id = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=None,
+        deployment_obj = any_old(RT.Deployment, {"context": IonObject(OT.CabledNodeDeploymentContext)})
+        deployment_id = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=deployment_obj,
                                                   extra_fn=add_to_org_fn)
 
         c.OMS.deploy_platform_site(platform_site_id, deployment_id)
+        self.RR2.find_deployment_id_of_platform_site_using_has_deployment(platform_site_id)
         c.IMS.deploy_platform_device(platform_device_id, deployment_id)
+        self.RR2.find_deployment_of_platform_device_using_has_deployment(platform_device_id)
 
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id)
+        self.RR2.find_deployment_id_of_instrument_site_using_has_deployment(instrument_site_id)
         c.IMS.deploy_instrument_device(instrument_device_id, deployment_id)
+        self.RR2.find_deployment_id_of_instrument_device_using_has_deployment(instrument_device_id)
+
 
         c.OMS.activate_deployment(deployment_id, True)
         self.assertLess(0, len(self.RR2.find_instrument_sites_by_instrument_device_using_has_device(instrument_device_id)))
@@ -567,7 +572,8 @@ class TestAssembly(GenericIntHelperTestCase):
                                    data_product_id=inst_data_product_id2)
 
         # create a new deployment for the new device
-        deployment_id2 = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=None,
+        deployment_obj = any_old(RT.Deployment, {"context": IonObject(OT.CabledNodeDeploymentContext)})
+        deployment_id2 = self.perform_fcruf_script(RT.Deployment, "deployment", c.OMS, actual_obj=deployment_obj,
                                                    extra_fn=add_to_org_fn)
         log.debug("Associating instrument site with new deployment")
         c.OMS.deploy_instrument_site(instrument_site_id, deployment_id2)
@@ -581,8 +587,6 @@ class TestAssembly(GenericIntHelperTestCase):
         assocs = self.client.RR.find_associations(instrument_site_id, PRED.hasDevice, instrument_device_id2, id_only=True)
         self.assertIsNotNone(assocs)
 
-        log.debug("Transferring site subscriptions")
-        c.OMS.transfer_site_subscription(instrument_site_id)
 
         #----------------------------------------------
         #
@@ -740,13 +744,10 @@ class TestAssembly(GenericIntHelperTestCase):
         dp_obj.name = create_unique_identifier('Inst Data Product')
         inst_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
-        dp_obj.name = create_unique_identifier('Log Data Product')
-        log_data_product_id = c.DPMS.create_data_product(dp_obj, ctd_stream_def_id)
 
         #assign data products appropriately
         c.DAMS.assign_data_product(input_resource_id=instrument_device_id,
                                    data_product_id=inst_data_product_id)
-        c.OMS.create_site_data_product(instrument_site_id, log_data_product_id)
 
 
         deployment_obj = any_old(RT.Deployment, dict(context=context))
@@ -769,20 +770,24 @@ class TestAssembly(GenericIntHelperTestCase):
 
 
     # test all 4 deployment contexts.  can fill in these context when their fields get defined
-    def test_deployment_buoy(self):
+    def test_deployment_remoteplatform(self):
         context = IonObject(OT.RemotePlatformDeploymentContext)
         self.template_tst_deployment_context(context)
 
-    def test_deployment_mooring(self):
+    def test_deployment_cablednode(self):
         context = IonObject(OT.CabledNodeDeploymentContext)
         self.template_tst_deployment_context(context)
+
+    def test_deployment_cabledinstrument(self):
         context = IonObject(OT.CabledInstrumentDeploymentContext)
         self.template_tst_deployment_context(context)
 
-    def test_deployment_glider(self):
+    @unittest.skip("mobile deployments are unimplemented")
+    def test_deployment_mobile(self):
         context = IonObject(OT.MobileAssetDeploymentContext)
         self.template_tst_deployment_context(context)
 
+    @unittest.skip("cruise deployments are unimplemented")
     def test_deployment_cruise(self):
         context = IonObject(OT.CruiseDeploymentContext)
         self.template_tst_deployment_context(context)
