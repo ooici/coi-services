@@ -365,7 +365,8 @@ class TestTypes(PyonTestCase):
 
 
     def test_bad_units(self):
-        self.assertRaises(UdunitsError, get_unit, 'something')
+        tm = TypesManager(None)
+        self.assertRaises(UdunitsError,tm.get_unit, 'something')
     
 
 

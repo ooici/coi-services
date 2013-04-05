@@ -1606,7 +1606,7 @@ Reason: %s
             try:
                 tm.get_unit(uom)
             except UdunitsError as e:
-                log.warning(e.message)
+                log.warning('Parameter %s (%s) has invalid units: %s', name,param_id, uom)
             context.fill_value = tm.get_fill_value(fill_value, encoding, param_type)
             context.reference_urls = references
             context.internal_name = name
