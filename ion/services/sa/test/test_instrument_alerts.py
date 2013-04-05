@@ -187,9 +187,21 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
     def _create_instrument_agent_instance(self, instAgent_id, instDevice_id):
 
 
+#        port_agent_config = {
+#            'device_addr':  CFG.device.sbe37.host,
+#            'device_port':  CFG.device.sbe37.port,
+#            'process_type': PortAgentProcessType.UNIX,
+#            'binary_path': "port_agent",
+#            'port_agent_addr': 'localhost',
+#            'command_port': CFG.device.sbe37.port_agent_cmd_port,
+#            'data_port': CFG.device.sbe37.port_agent_data_port,
+#            'log_level': 5,
+#            'type': PortAgentType.ETHERNET
+#        }
+
         port_agent_config = {
-            'device_addr':  CFG.device.sbe37.host,
-            'device_port':  CFG.device.sbe37.port,
+            'device_addr': CFG.device.sbe37.host,
+            'device_port': 4008,
             'process_type': PortAgentProcessType.UNIX,
             'binary_path': "port_agent",
             'port_agent_addr': 'localhost',
@@ -197,7 +209,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             'data_port': CFG.device.sbe37.port_agent_data_port,
             'log_level': 5,
             'type': PortAgentType.ETHERNET
-        }
+            }
 
         temp_alert, late_data_alert = self._create_instrument_stream_alarms(instDevice_id)
 
@@ -342,16 +354,5 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         for c in caught_events:
             self.assertIn(c.name, ['temperature_warning_interval', 'late_data_warning'])
 
-        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
-        retval = self._ia_client.execute_resource(cmd)
-
-        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-        reply = self._ia_client.execute_agent(cmd)
-        self.assertTrue(reply.status == 0)
-
-
-        #-------------------------------------------------------------------------------------------------
-        # Cleanup processes
-        #-------------------------------------------------------------------------------------------------
 
 
