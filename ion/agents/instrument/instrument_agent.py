@@ -880,7 +880,7 @@ class InstrumentAgent(ResourceAgent):
                 origin_type=self.ORIGIN_TYPE,
                 origin=self.resource_id,
                 status_name=status_type,
-                new_status=new_status,
+                status=new_status,
                 prev_status=old_status)
         except Exception as exc:
             log.error('Instrument agent %s could not publish aggregate status change event. Exception message: %s',
