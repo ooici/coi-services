@@ -2268,13 +2268,7 @@ Reason: %s
             else:
                 svc_client = self._get_service_client("data_acquisition_management")
                 svc_client.assign_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
-        elif type=='InstrumentSite':
-            if self.bulk and do_bulk:
-                # Why create a site data product here???
-                pass
-            else:
-                svc_client = self._get_service_client('observatory_management')
-                svc_client.create_site_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
+
 
     def _load_DataProductLink_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
