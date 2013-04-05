@@ -319,7 +319,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         #-------------------------------------------------------------------------------------
 
         def callback_for_alert(event, *args, **kwargs):
-            log.debug("caught an alert")
+            log.debug("caught an alert: %s", event)
             self.catch_alert.put(event)
 
         self.event_subscriber = EventSubscriber(event_type='StreamAlertEvent',
@@ -360,6 +360,14 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
 
         for c in caught_events:
             self.assertIn(c.name, ['temperature_warning_interval', 'late_data_warning'])
+            self.assertEqual(c.origin, instDevice_id)
+            self.assertEqual(c.type_, 'StreamAlertEvent')
+            self.assertEqual(c.origin_type, 'InstrumentDevice')
+
+            if c.name == 'temperature_warning_interval':
+                self.assertEqual(c.message, 'Temperature is below the normal range of 50.0 and above.')
+            elif c.name == 'late_data_warning':
+                self.assertEqual(c.message, 'Expected data has not arrived.')
 
 
 
