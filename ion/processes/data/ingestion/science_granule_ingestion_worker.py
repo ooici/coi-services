@@ -335,7 +335,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
         gap_found = self.has_gap(rdt.connection_id, rdt.connection_index)
         if gap_found:
-            log.error('Gap Found!   New connection: (%s,%s)\tOld Connection: (%s,%s)', (rdt.connection_id, rdt.connection_index), (self.connection_id, self.connection_index))
+            log.error('Gap Found!   New connection: (%s,%s)\tOld Connection: (%s,%s)', rdt.connection_id, rdt.connection_index, self.connection_id, self.connection_index)
             self.gap_coverage(stream_id)
 
 

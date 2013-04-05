@@ -227,7 +227,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         #create data producer resource for this data product
         data_producer_obj = DataProducer(name=data_product_obj.name, description=data_product_obj.description)
-        data_producer_obj.producer_context.configuration = vars(data_product_obj)
+        data_producer_obj.producer_context.configuration = {}
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
         log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
         for attachment in self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False):
