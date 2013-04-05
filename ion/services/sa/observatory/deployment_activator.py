@@ -569,19 +569,23 @@ class DeploymentActivator(DeploymentOperator):
         return merged_tree_pairs
 
 
+    def _resource_ids_in_tree(self, some_tree):
+        # get all the resource ids stored in a tree
+        def all_children_h(acc, t):
+            acc.append(t["_id"])
+            for c, ct in t["children"].iteritems():
+                acc = all_children_h(acc[:], ct)
+
+            return acc
+        return all_children_h([], some_tree)
+
+
     def _merge_trees(self, site_tree, device_tree):
         # return a list of (site, device) pairs and a list of unmatched devices
 
         portref_of_device = self.deployment_obj.port_assignments
 
-        def all_children(some_tree):
-            def all_children_h(acc, t):
-                acc.append(t["_id"])
-                for c, ct in t["children"].iteritems():
-                    acc = all_children_h(acc[:], ct)
 
-                return acc
-            return all_children_h([], some_tree)
 
         def _merge_helper(acc, site_ptr, dev_ptr, unmatched_list):
             """
@@ -611,7 +615,7 @@ class DeploymentActivator(DeploymentOperator):
 
             return acc, unmatched_list
 
-        unmatched_devices = all_children(device_tree)
+        unmatched_devices = self._resource_ids_in_tree(device_tree)
 
         return _merge_helper([], site_tree, device_tree, unmatched_devices)
 
@@ -661,6 +665,21 @@ class DeploymentActivator(DeploymentOperator):
         site_models = self.resource_collector.collected_models_by_site()
 
         log.debug("Collected %s device models, %s site models", len(device_models), len(site_models))
+
+        # csp solver can't handle multiple platforms, because it doesn't understand hierarchy.
+        #             (parent-platformsite---hasmodel-a, child-platformsite---hasmodel-b)
+        # would match (parent-platformdevice-hasmodel-b, child-platformdevice-hasmodel-a)
+        #
+        # we can avoid this by simply restricting the deployment to 1 platform device/site in this case
+
+        n_pdev = sum(RT.PlatformDevice == self.resource_collector.get_resource_type(d) for d in device_models.keys())
+        if 1 < n_pdev:
+            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformDevice, got %s" % n_pdev)
+
+        n_psite = sum(RT.PlatformSite == self.resource_collector.get_resource_type(d) for d in site_models.keys())
+        if 1 < n_psite:
+            raise BadRequest("Deployment activation without port_assignment is limited to 1 PlatformSite, got %s" % n_psite)
+
 
         solutions = self._get_deployment_csp_solutions(device_models, site_models)
 

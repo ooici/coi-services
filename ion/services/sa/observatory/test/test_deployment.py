@@ -281,6 +281,37 @@ class TestDeployment(IonIntegrationTestCase):
         self.assert_deploy_fail(res.deployment_id, BadRequest, "No devices were found in the deployment")
 
 
+    def test_activate_deployment_csp_fail(self):
+        platform_model_id    = [self.RR2.create(any_old(RT.PlatformModel)) for _ in range(2)]
+        platform_device_id   = [self.RR2.create(any_old(RT.PlatformDevice)) for _ in range(2)]
+        platform_site_id     = [self.RR2.create(any_old(RT.PlatformSite,
+                {"planned_uplink_port":
+                     IonObject(OT.PlatformPort,
+                               reference_designator="platport_%d" % (i+1))}))
+                                for i in range(2)]
+
+        deployment_id = self.RR2.create(any_old(RT.Deployment,
+                {"context": IonObject(OT.CabledNodeDeploymentContext)}))
+
+
+        # set up the structure
+        for p in range(2):
+            self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id[p], platform_site_id[p])
+            self.RR2.assign_platform_model_to_platform_device_with_has_model(platform_model_id[p], platform_device_id[p])
+            self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[p])
+            self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[p])
+
+        self.RR2.assign_platform_device_to_platform_device_with_has_device(platform_device_id[1], platform_device_id[0])
+        self.RR2.assign_platform_site_to_platform_site_with_has_site(platform_site_id[1], platform_site_id[0])
+
+        self.assert_deploy_fail(deployment_id, BadRequest,
+                                "Deployment activation without port_assignment is limited to 1 PlatformDevice")
+
+        self.RR2.unassign_deployment_from_platform_device_with_has_deployment(deployment_id, platform_device_id[1])
+
+        self.assert_deploy_fail(deployment_id, BadRequest,
+                                "Deployment activation without port_assignment is limited to 1 PlatformSite")
+
     def assert_deploy_fail(self, deployment_id, err_type=BadRequest, fail_message="did not specify fail_message"):
         with self.assertRaises(err_type) as cm:
             self.omsclient.activate_deployment(deployment_id)
