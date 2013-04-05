@@ -335,10 +335,12 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        caught_event = self.catch_alert.get(timeout=45)
-        log.debug("caught_event 1: %s", caught_event)
-        caught_event = self.catch_alert.get(timeout=45)
-        log.debug("caught_event 2: %s", caught_event)
+        caught_events = [self.catch_alert.get(timeout=45)]
+        caught_events.append(self.catch_alert.get(timeout=45))
+        log.debug("caught_events: %s", [c.name for c in caught_events])
+
+        for c in caught_events:
+            self.assertIn(c.name, ['temperature_warning_interval', 'late_data_warning'])
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
