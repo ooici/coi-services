@@ -158,30 +158,6 @@ class TestDeployment(IonIntegrationTestCase):
         ctd_stream_def_id = self.psmsclient.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
 
 
-        # Construct temporal and spatial Coordinate Reference System objects
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
-
-
-        dp_obj = IonObject(RT.DataProduct,
-            name='Log Data Product',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        out_log_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id)
-
-        #----------------------------------------------------------------------------------------------------
-        # Start the transform (a logical transform) that acts as an instrument site
-        #----------------------------------------------------------------------------------------------------
-
-        self.omsclient.create_site_data_product(    site_id= instrument_site_id,
-                                                    data_product_id =  out_log_data_product_id)
-
-
         #----------------------------------------------------------------------------------------------------
         # Create an instrument device
         #----------------------------------------------------------------------------------------------------
@@ -193,17 +169,7 @@ class TestDeployment(IonIntegrationTestCase):
         self.rrclient.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
 
-        dp_obj = IonObject(RT.DataProduct,
-            name='Instrument Data Product',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
 
-        inst_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id)
-
-        #assign data products appropriately
-        self.damsclient.assign_data_product(input_resource_id=instrument_device_id,
-                                            data_product_id=inst_data_product_id)
         #----------------------------------------------------------------------------------------------------
         # Create an instrument model
         #----------------------------------------------------------------------------------------------------
@@ -222,9 +188,10 @@ class TestDeployment(IonIntegrationTestCase):
         end = IonTime(datetime.datetime(2014,1,1))
         temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=start.to_string(), end_datetime=end.to_string())
         deployment_obj = IonObject(RT.Deployment,
-                                        name='TestDeployment',
-                                        description='some new deployment',
-                                        constraint_list=[temporal_bounds])
+                                   name='TestDeployment',
+                                   description='some new deployment',
+                                   context=IonObject(OT.CabledNodeDeploymentContext),
+                                   constraint_list=[temporal_bounds])
         deployment_id = self.omsclient.create_deployment(deployment_obj)
 
         log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
@@ -275,13 +242,13 @@ class TestDeployment(IonIntegrationTestCase):
         self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
 
         log.debug("activating deployment without site+device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "Expected at least 1 model for InstrumentSite")
+        self.assert_deploy_fail(res.deployment_id, NotFound, "Expected 1")
 
         log.debug("assigning instrument site model")
         self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
 
         log.debug("activating deployment without device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "Expected 1 model for InstrumentDevice")
+        self.assert_deploy_fail(res.deployment_id, NotFound, "Expected 1")
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nosite(self):
@@ -295,8 +262,8 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("deploying instrument device only")
         self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
 
-        log.debug("activating deployment without device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "No sites were found in the deployment")
+        log.debug("activating deployment without instrument site, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, BadRequest, "Devices in this deployment outnumber sites")
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nodevice(self):
@@ -310,12 +277,12 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("deploying instrument site only")
         self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
 
-        log.debug("activating deployment without device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "The set of devices could not be mapped to the set of sites")
+        log.debug("activating deployment without device, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, BadRequest, "No devices were found in the deployment")
 
 
-    def assert_deploy_fail(self, deployment_id, fail_message="did not specify fail_message"):
-        with self.assertRaises(BadRequest) as cm:
+    def assert_deploy_fail(self, deployment_id, err_type=BadRequest, fail_message="did not specify fail_message"):
+        with self.assertRaises(err_type) as cm:
             self.omsclient.activate_deployment(deployment_id)
         self.assertIn(fail_message, cm.exception.message)
 
@@ -425,9 +392,10 @@ class TestDeployment(IonIntegrationTestCase):
         self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[3])
 
         if OT.CabledInstrumentDeploymentContext == deployment_context_type:
-            self.assertRaises(BadRequest, self.omsclient.activate_deployment, deployment_id)
+            self.omsclient.activate_deployment(deployment_id)
+            self.omsclient.deactivate_deployment(deployment_id)
 
-        if OT.CabledNodeDeploymentContext == deployment_context_type:
+        if OT.RemotePlatformDeploymentContext != deployment_context_type:
             for p in range(3):
                 m = platform_model_at(p)
                 self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[p])
@@ -440,7 +408,7 @@ class TestDeployment(IonIntegrationTestCase):
                     self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id[idx])
 
         #verify the deployment
-        if OT.CabledNodeDeploymentContext == deployment_context_type:
+        if OT.RemotePlatformDeploymentContext != deployment_context_type:
             for p in platform_device_id:
                 self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_device_using_has_deployment(p))
             for p in platform_site_id:

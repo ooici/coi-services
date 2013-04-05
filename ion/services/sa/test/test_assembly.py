@@ -1,5 +1,6 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
+import unittest
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.agents.port.port_agent_process import PortAgentProcessType
 
@@ -769,20 +770,24 @@ class TestAssembly(GenericIntHelperTestCase):
 
 
     # test all 4 deployment contexts.  can fill in these context when their fields get defined
-    def test_deployment_buoy(self):
+    def test_deployment_remoteplatform(self):
         context = IonObject(OT.RemotePlatformDeploymentContext)
         self.template_tst_deployment_context(context)
 
-    def test_deployment_mooring(self):
+    def test_deployment_cablednode(self):
         context = IonObject(OT.CabledNodeDeploymentContext)
         self.template_tst_deployment_context(context)
+
+    def test_deployment_cabledinstrument(self):
         context = IonObject(OT.CabledInstrumentDeploymentContext)
         self.template_tst_deployment_context(context)
 
-    def test_deployment_glider(self):
+    @unittest.skip("mobile deployments are unimplemented")
+    def test_deployment_mobile(self):
         context = IonObject(OT.MobileAssetDeploymentContext)
         self.template_tst_deployment_context(context)
 
+    @unittest.skip("cruise deployments are unimplemented")
     def test_deployment_cruise(self):
         context = IonObject(OT.CruiseDeploymentContext)
         self.template_tst_deployment_context(context)

@@ -425,6 +425,12 @@ class DeploymentResourceCollector(DeploymentOperator):
         site_tree   = self._attempt_site_tree_build(site_models.keys())
         device_tree = self._attempt_device_tree_build(device_models.keys())
 
+        if len(device_models) > len(site_models):
+            raise BadRequest("Devices in this deployment outnumber sites (%s to %s)" % (len(device_models), len(site_models)))
+
+        if 0 == len(device_models):
+            raise BadRequest("No devices were found in the deployment")
+
         if not site_tree:
             raise BadRequest("Sites in this deployment were not all part of the same tree")
 
