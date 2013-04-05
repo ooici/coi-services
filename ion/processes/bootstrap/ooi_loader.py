@@ -584,6 +584,20 @@ class OOILoader(object):
         else:
             return ooi_rd.marine_io
 
+    def get_org_ids(self, ooi_rd_list):
+        if not ooi_rd_list:
+            return ""
+        marine_ios = set()
+        for ooi_rd in ooi_rd_list:
+            marine_io = self.get_marine_io(ooi_rd)
+            if marine_io == "CG":
+                marine_ios.add("MF_CGSN")
+            elif marine_io == "RSN":
+                marine_ios.add("MF_RSN")
+            elif marine_io == "EA":
+                marine_ios.add("MF_EA")
+        return ",".join(marine_ios)
+
     def delete_ooi_assets(self):
         res_ids = []
 
@@ -603,22 +617,33 @@ class OOILoader(object):
                            'DataProduct'
         ]
 
-        for restype in ooi_asset_types:
-            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
-            res_ids.extend(res_is_list)
-            #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
-
         self.resource_ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
 
-        docs = self.resource_ds.read_doc_mult(res_ids)
-
-        for doc in docs:
+        del_objs = {}
+        del_assocs = {}
+        all_objs = self.resource_ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
+        for obj_id, key, obj in all_objs:
+            if obj_id.startswith("_design") or not isinstance(obj, dict):
+                continue
+            obj_type = obj.get("type_", None)
+            if obj_type and obj_type in ooi_asset_types:
+                del_objs[obj_id] = obj
+        for obj_id, key, obj in all_objs:
+            if obj_id.startswith("_design") or not isinstance(obj, dict):
+                continue
+            obj_type = obj.get("type_", None)
+            if obj_type == "Association":
+                if obj['o'] in del_objs or obj['s'] in del_objs:
+                    del_assocs[obj_id] = obj
+        for doc in del_objs.values():
+            doc['_deleted'] = True
+        for doc in del_assocs.values():
             doc['_deleted'] = True
 
-        # TODO: Also delete associations
+        self.resource_ds.update_doc_mult(del_objs.values())
+        self.resource_ds.update_doc_mult(del_assocs.values())
 
-        self.resource_ds.update_doc_mult(docs)
-        log.info("Deleted %s OOI resources and associations", len(docs))
+        log.info("Deleted %s OOI resources and %s associations", len(del_objs), len(del_assocs))
 
     def _analyze_ooi_assets(self, end_date):
         report_lines = []
