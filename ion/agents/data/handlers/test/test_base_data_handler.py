@@ -140,7 +140,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         _init_acquisition_cycle_mock.assert_called_once_with(config)
         _constraints_for_historical_request_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
-        _publish_data_mock.assert_called_once_with(publisher, data_generator)
+        _publish_data_mock.assert_called_once_with(publisher, data_generator, config, update_new_data_check_attachment)
 
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
@@ -178,7 +178,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         _init_acquisition_cycle_mock.assert_called_once_with(config)
         _constraints_for_new_request_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
-        _publish_data_mock.assert_called_once_with(publisher, data_generator)
+        _publish_data_mock.assert_called_once_with(publisher, data_generator, config, update_new_data_check_attachment)
 
     @patch.object(BaseDataHandler, '_init_acquisition_cycle')
     @patch.object(BaseDataHandler, '_get_data')
@@ -223,7 +223,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
 
         _init_acquisition_cycle_mock.assert_called_once_with(config)
         _get_data_mock.assert_called_once_with(config)
-        _publish_data_mock.assert_called_once_with(publisher, data_generator)
+        _publish_data_mock.assert_called_once_with(publisher, data_generator, config, update_new_data_check_attachment)
         _constraints_for_historical_request_mock.assert_called_once_with(config)
         EventPublisher_mock.publish_event.assert_called_once()
 
@@ -410,7 +410,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         #TODO: Need to change back to enums instead of strings. Problem with BaseEnum.
         ret = self._bdh.get(['DRIVER_PARAMETER_ALL'])
         self.assertEqual(ret, {
-            'POLLING_INTERVAL': 3600,
+            'POLLING_INTERVAL': 30,
             'PATCHABLE_CONFIG_KEYS': ['stream_id', 'constraints', 'stream_route']
         })
 
@@ -418,7 +418,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         ret = self._bdh.get()
 
         self.assertEqual(ret, {
-            'POLLING_INTERVAL': 3600,
+            'POLLING_INTERVAL': 30,
             'PATCHABLE_CONFIG_KEYS': ['stream_id', 'constraints', 'stream_route']
         })
 
@@ -429,7 +429,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         #TODO: Need to change back to enums instead of strings.
         # Problem with BaseEnum.
         ret = self._bdh.get(['POLLING_INTERVAL'])
-        self.assertEqual(ret, {'POLLING_INTERVAL': 3600})
+        self.assertEqual(ret, {'POLLING_INTERVAL': 30})
 
     def test_get_patchable_config_keys(self):
         #TODO: Need to change back to enums instead of strings. Problem with BaseEnum.
@@ -444,7 +444,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         ret = self._bdh.get(['POLLING_INTERVAL',
                              'PATCHABLE_CONFIG_KEYS'])
         self.assertEqual(ret, {
-            'POLLING_INTERVAL': 3600,
+            'POLLING_INTERVAL': 30,
             'PATCHABLE_CONFIG_KEYS': ['stream_id',
                                       'constraints',
                                       'stream_route']
@@ -517,7 +517,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         ret = self._bdh._find_new_data_check_attachment(res_id='res_id')
         self.assertEqual(ret, 'content')
         rr_cli.find_attachments.assert_called_once_with(resource_id='res_id',
-            include_content=False,
+            include_content=True,
             id_only=False)
 
     @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
@@ -532,7 +532,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
         ret = self._bdh._find_new_data_check_attachment(res_id='res_id')
         self.assertEqual(ret, None)
         rr_cli.find_attachments.assert_called_once_with(resource_id='res_id',
-            include_content=False,
+            include_content=True,
             id_only=False)
 
     @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
@@ -544,7 +544,7 @@ class TestBaseDataHandlerUnit(PyonTestCase):
             self._bdh._find_new_data_check_attachment(res_id='not_found')
 
         rr_cli.find_attachments.assert_called_once_with(resource_id='not_found',
-            include_content=False,
+            include_content=True,
             id_only=False)
 
     @patch('ion.agents.data.handlers.base_data_handler.ResourceRegistryServiceClient')
