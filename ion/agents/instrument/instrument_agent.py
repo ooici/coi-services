@@ -882,9 +882,9 @@ class InstrumentAgent(ResourceAgent):
                 status_name=status_type,
                 status=new_status,
                 prev_status=old_status)
-        except:
-            log.error('Instrument agent %s could not publish aggregate status change event.',
-                self._proc_name)
+        except Exception as exc:
+            log.error('Instrument agent %s could not publish aggregate status change event. Exception message: %s',
+                self._proc_name, exc.message)
 
         return
 
