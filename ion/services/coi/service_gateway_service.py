@@ -9,9 +9,10 @@ from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
-from pyon.core.registry import getextends, is_ion_object_dict, is_ion_object, isenum
+from pyon.core.registry import getextends, is_ion_object_dict
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.event.event import EventSubscriber
+from pyon.ion.resource import get_object_schema
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -592,60 +593,6 @@ def list_resource_types():
 
     except Exception, e:
         return build_error_response(e)
-
-
-#@TODO - move this to pyon
-
-def get_object_schema(resource_type):
-
-
-    schema_info = dict()
-
-    #Prepare the dict entry for schema information including all of the internal object types
-    schema_info['schemas'] = dict()
-
-    #ION Objects are not registered as UNICODE names
-    ion_object_name = str(resource_type)
-    ret_obj = IonObject(ion_object_name, {})
-
-    # If it's an op input param or response message object.
-    # Walk param list instantiating any params that were marked None as default.
-    if hasattr(ret_obj, "_svc_name"):
-        schema = ret_obj._schema
-        for field in ret_obj._schema:
-            if schema[field]["default"] is None:
-                try:
-                    value = IonObject(schema[field]["type"], {})
-                except NotFound:
-                    # TODO
-                    # Some other non-IonObject type.  Just use None as default for now.
-                    value = None
-                setattr(ret_obj, field, value)
-
-    #Add schema information for sub object types
-    schema_info['schemas'][ion_object_name] = ret_obj._schema
-    for field in ret_obj._schema:
-        obj_type = ret_obj._schema[field]['type']
-
-        #First look for ION objects
-        if is_ion_object(obj_type):
-
-            try:
-                value = IonObject(obj_type, {})
-                schema_info['schemas'][obj_type] = value._schema
-
-            except NotFound:
-                pass
-
-        #Next look for ION Enums
-        elif ret_obj._schema[field].has_key('enum_type'):
-            if isenum(ret_obj._schema[field]['enum_type']):
-                value = IonObject(ret_obj._schema[field]['enum_type'], {})
-                schema_info['schemas'][ret_obj._schema[field]['enum_type']] = value._str_map
-
-
-    schema_info['object'] = ret_obj
-    return schema_info
 
 
 #Returns a json object for a specified resource type with all default values.
