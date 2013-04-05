@@ -741,8 +741,8 @@ def find_resources_by_type(resource_type):
 
 #Accept/Reject negotiation
 # special cased here because coi-services offers superior logic to what we can provide in the UI
-@service_gateway_app.route('/ion-negotiations', methods=['POST'])
-def accept_or_reject_negotiation():
+@service_gateway_app.route('/ion-service/resolve-org-negotiation', methods=['POST'])
+def resolve_org_negotiation():
     try:
         payload              = request.form['payload']
         json_params          = simplejson.loads(str(payload))
@@ -751,10 +751,11 @@ def accept_or_reject_negotiation():
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
         headers              = build_message_headers(ion_actor_id, expiry)
 
-        # extract negotiation-specific data
-        verb                 = json_params['verb']
-        originator           = json_params['originator']
-        negotiation_id       = json_params['negotiation_id']
+        # extract negotiation-specific data (convert from unicode just in case - these are machine generated and unicode specific
+        # chars are unexpected)
+        verb                 = str(json_params['verb'])
+        originator           = str(json_params['originator'])
+        negotiation_id       = str(json_params['negotiation_id'])
 
         proposal_status = None
         if verb.lower() == "accept":
