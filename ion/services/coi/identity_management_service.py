@@ -308,12 +308,7 @@ class IdentityManagementService(BaseIdentityManagementService):
     def _convert_negotiations_to_requests(self, negotiations=None, user_info_id='', org_id=''):
         assert isinstance(negotiations, list)
 
-        org = None
-        if org_id:
-            try:
-                org = self.clients.resource_registry.read(object_id=org_id)
-            except:
-                pass
+        orgs,_ = self.clients.resource_registry.find_resources(restype=RT.Org)
 
         ret_list = []
         for neg in negotiations:
@@ -326,9 +321,13 @@ class IdentityManagementService(BaseIdentityManagementService):
                 description=neg.description, reason=neg.reason,
                 user_id=user_info_id)
 
-            if org_id and org is not None:
-                request.org_id = org_id
-                request.name = org.name
+            #org = [ o for o in orgs if o._id == neg.proposals[-1].provider ]
+            #TODO - fix this
+            for o in orgs:
+                if o._id == neg.proposals[-1].provider:
+                    request.org_id = o._id
+                    request.name = o.name
+                    break
 
             ret_list.append(request)
 
