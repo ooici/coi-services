@@ -11,6 +11,7 @@ from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
 from pyon.core.registry import getextends, is_ion_object_dict
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
+from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber
 from pyon.ion.resource import get_object_schema
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
@@ -25,6 +26,7 @@ from pyon.util.containers import current_time_millis
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
 from interface.objects import Attachment
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
 
 #Initialize the flask app
 service_gateway_app = Flask(__name__)
@@ -737,5 +739,45 @@ def find_resources_by_type(resource_type):
         return build_error_response(e)
 
 
+#Accept/Reject negotiation
+# special cased here because coi-services offers superior logic to what we can provide in the UI
+@service_gateway_app.route('/ion-negotiations', methods=['POST'])
+def accept_or_reject_negotiation():
+    try:
+        payload              = request.form['payload']
+        json_params          = simplejson.loads(str(payload))
 
+        ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+        headers              = build_message_headers(ion_actor_id, expiry)
+
+        # extract negotiation-specific data
+        verb                 = json_params['verb']
+        originator           = json_params['originator']
+        negotiation_id       = json_params['negotiation_id']
+
+        proposal_status = None
+        if verb.lower() == "accept":
+            proposal_status = ProposalStatusEnum.ACCEPTED
+        elif verb.lower() == "reject":
+            proposal_status = ProposalStatusEnum.REJECTED
+
+        proposal_originator = None
+        if originator.lower() == "consumer":
+            proposal_originator = ProposalOriginatorEnum.CONSUMER
+        elif originator.lower() == "provider":
+            proposal_originator = ProposalOriginatorEnum.PROVIDER
+
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        negotiation = rr_client.read(negotiation_id, headers=headers)
+
+        new_negotiation_sap = Negotiation.create_counter_proposal(negotiation, proposal_status, proposal_originator)
+
+        org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        resp = org_client.negotiate(new_negotiation_sap, headers=headers)
+
+        return gateway_json_response(resp)
+
+    except Exception, e:
+        return build_error_response(e)
 
