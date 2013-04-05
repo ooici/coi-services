@@ -1487,34 +1487,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return self.RR2.find_platform_devices_by_instrument_device_using_has_device(instrument_device_id)
 
 
-    def find_instrument_device_by_logical_instrument(self, logical_instrument_id=''):
-        raise NotImplementedError("TODO: this function will be removed")
-
-    def find_logical_instrument_by_instrument_device(self, instrument_device_id=''):
-        raise NotImplementedError("TODO: this function will be removed")
-
-    def find_platform_device_by_logical_platform(self, logical_platform_id=''):
-        raise NotImplementedError("TODO: this function will be removed")
-
-    def find_logical_platform_by_platform_device(self, platform_device_id=''):
-        raise NotImplementedError("TODO: this function will be removed")
-
-    def find_data_product_by_instrument_device(self, instrument_device_id=''):
-        raise NotImplementedError("TODO: this function will be removed")
-
-    def find_instrument_device_by_data_product(self, data_product_id=''):
-        raise NotImplementedError("TODO: this function will be removed")
-
-
-    ############################
-    #
-    #  SPECIALIZED FIND METHODS
-    #
-    ############################
-
-    def find_data_product_by_platform_device(self, platform_device_id=''):
-        raise NotImplementedError("TODO: this function will be removed")
-        
 
 
     ############################
