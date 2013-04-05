@@ -59,9 +59,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
         self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
         self.input_product = self.CFG.get_safe('process.input_product','')
+        self.qc_enabled = self.CFG.get_safe('process.qc_enabled', True)
         self.new_lookups = Queue()
         self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
         self.lookup_monitor.start()
+        self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
 
 
     def on_quit(self): #pragma no cover
@@ -123,6 +125,25 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
 
     def dataset_changed(self, dataset_id, extents, window):
         self.event_publisher.publish_event(origin=dataset_id, author=self.id, extents=extents, window=window)
+
+    def evaluate_qc(self, rdt, dataset_id):
+        if self.qc_enabled:
+            for field in rdt.fields:
+                if not field.endswith('_qc'):
+                    continue
+                try:
+                    values = rdt[field]
+                    if values is not None:
+                        if not all(values):
+                            topology = np.nonzero(values)
+                            first_occurrence = topology[0][0]
+                            ts = rdt[rdt.temporal_parameter][first_occurrence]
+                            self.flag_qc_parameter(dataset_id, field, ts, {})
+                except:
+                    continue
+    def flag_qc_parameter(self, dataset_id, parameter, temporal_value, configuration):
+        self.qc_publisher.publish_event(origin=dataset_id, qc_parameter=parameter, temporal_value=temporal_value, configuration=configuration)
+
 
     @handle_stream_exception()
     def recv_packet(self, msg, stream_route, stream_id):
@@ -310,6 +331,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         
         start_index = coverage.num_timesteps - elements
         self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
+
+        self.evaluate_qc(rdt, dataset_id)
         
         if debugging:
             timer.complete_step('notify')
