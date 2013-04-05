@@ -547,7 +547,7 @@ class BaseDataHandler(object):
         else:
             raise InstrumentParameterException('Data constraints must be of type \'dict\':  {0}'.format(constraints))
 
-        cls._publish_data(publisher, cls._get_data(config), config=config, update_new_data_check_attachment=update_new_data_check_attachment)
+        cls._publish_data(publisher, cls._get_data(config), config, update_new_data_check_attachment)
 
         # Publish a 'TestFinished' event
         if get_safe(config, 'TESTING'):
@@ -612,7 +612,7 @@ class BaseDataHandler(object):
             if isinstance(gran, Granule):
                 #log.warn('_publish_data: {0}\n{1}'.format(count, gran))
                 publisher.publish(gran)
-                if 'set_new_data_check' in config:
+                if config and 'set_new_data_check' in config:
                     update_new_data_check_attachment(config['external_dataset_res_id'], config['set_new_data_check'])
             else:
                 log.warn('Could not publish object of {0} returned by _get_data: {1}'.format(type(gran), gran))
