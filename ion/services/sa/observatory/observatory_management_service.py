@@ -554,9 +554,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.RR2.unassign_deployment_from_platform_site_with_has_deployment(deployment_id, platform_site_id)
 
 
-    def create_site_data_product(self, site_id="", data_product_id=""):
-        raise BadRequest("This method will be removed.  Superceded by coverage.")
-
 
     def activate_deployment(self, deployment_id='', activate_subscriptions=False):
         """
@@ -634,12 +631,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-    def transfer_site_subscription(self, site_id=""):
-        """
-        Transfer the site subscription to the current hasDevice link
-        """
-
-        raise BadRequest("This method is obsolete and will be removed.")
 
 
 
