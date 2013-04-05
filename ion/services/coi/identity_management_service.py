@@ -321,6 +321,9 @@ class IdentityManagementService(BaseIdentityManagementService):
                 description=neg.description, reason=neg.reason,
                 user_id=user_info_id)
 
+            # since this is a proxy for the Negotiation object, simulate its id to help the UI deal with it
+            request._id = neg._id
+
             #org = [ o for o in orgs if o._id == neg.proposals[-1].provider ]
             #TODO - fix this
             for o in orgs:

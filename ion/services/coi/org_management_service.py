@@ -1336,6 +1336,9 @@ class OrgManagementService(BaseOrgManagementService):
                 description=neg.description, reason=neg.reason,
                 org_id=neg.proposals[-1].provider)
 
+            # since this is a proxy for the Negotiation object, simulate its id to help the UI deal with it
+            request._id = neg._id
+
             #TODO - replace with memory search of associations from above
             user_info,_ = self.clients.resource_registry.find_objects(subject=neg.proposals[-1].consumer, predicate=PRED.hasInfo)
             if user_info:
