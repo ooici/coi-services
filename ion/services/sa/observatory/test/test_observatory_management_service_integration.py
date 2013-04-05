@@ -591,10 +591,19 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         assert(member_actor_id)
         member_actor_header = get_actor_header(member_actor_id)
 
+        member_user_obj = IonObject(RT.UserInfo, name='org member user')
+        member_user_id,_ = self.RR.create(member_user_obj)
+        assert(member_user_id)
+
+        self.RR.create_association(subject=member_actor_id, predicate=PRED.hasInfo, object=member_user_id)
+
         #Build the Service Agreement Proposal to enroll a user actor
         sap = IonObject(OT.EnrollmentProposal,consumer=member_actor_id, provider=stuff.org_id )
 
         sap_response = self.org_management_service.negotiate(sap, headers=member_actor_header )
+
+        #enroll the member without using negotiation
+        self.org_management_service.enroll_member(org_id=stuff.org_id, actor_id=member_actor_id)
 
         #--------------------------------------------------------------------------------
         # Get the extended Site (platformSite)
@@ -626,13 +635,14 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(2, extended_org.number_of_instruments)
         self.assertEqual(2, len(extended_org.instrument_models) )
 
-        self.assertEqual(1, len(extended_org.open_negotiations))
+        self.assertEqual(1, len(extended_org.members))
+        self.assertEqual(1, len(extended_org.open_requests))
 
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
         extended_org = self.org_management_service.get_marine_facility_extension(ion_org_id._id, user_id=12345)
         log.debug("test_observatory_org_extended: extended_ION_org:  %s ", str(extended_org))
-        self.assertEqual(0, len(extended_org.members))
+        self.assertEqual(1, len(extended_org.members))
         self.assertEqual(0, extended_org.number_of_platforms)
         #self.assertEqual(1, len(extended_org.sites))
 
