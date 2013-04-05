@@ -1,4 +1,4 @@
-from ion.services.sa.acquisition.test.test_bulk_data_ingestion import TestBulkIngestBase
+from ion.services.sa.acquisition.test.test_bulk_data_ingestion import BulkIngestBase
 from interface.objects import ExternalDataset
 from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -15,7 +15,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 
 @attr('INT', group='eoi')
-class TestHypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
+class TestHypm_WPF_CTD(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'hypm_01_wpf_ctd'
@@ -80,7 +80,7 @@ class TestHypm_WPF_CTD(TestBulkIngestBase, IonIntegrationTestCase):
         self.assertIsNotNone(rdt['temperature'])
 
 @attr('INT', group='eoi')
-class TestHypm_WPF_ACM(TestBulkIngestBase, IonIntegrationTestCase):
+class TestHypm_WPF_ACM(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'hypm_01_wpf_acm'
@@ -165,7 +165,7 @@ class TestHypm_WPF_ACM(TestBulkIngestBase, IonIntegrationTestCase):
         self.assertIsNotNone(rdt['time'])
 
 @attr('INT', group='eoi')
-class TestHypm_WPF_ENG(TestBulkIngestBase, IonIntegrationTestCase):
+class TestHypm_WPF_ENG(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
         self.name = 'hypm_01_wpf_eng'
