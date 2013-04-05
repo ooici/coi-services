@@ -43,7 +43,6 @@ class ParameterHelper(object):
         rdt['pressure'] = [256.8]
         return rdt
 
-
     def create_parsed_params(self):
         
         contexts = {}
@@ -107,10 +106,10 @@ class ParameterHelper(object):
         internal_ctxt_id = self.dataset_management.create_parameter_context(name='internal_timestamp', parameter_context=internal_ctxt.dump())
         contexts['internal_timestamp'] = internal_ctxt, internal_ctxt_id
         
-        press_ctxt = ParameterContext('quality_flag', param_type=ArrayType())
-        press_ctxt.uom = ''
-        press_ctxt_id = self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump())
-        contexts['quality_flag'] = press_ctxt, press_ctxt_id
+        quality_ctxt = ParameterContext('quality_flag', param_type=ArrayType())
+        quality_ctxt.uom = ''
+        quality_ctxt_id = self.dataset_management.create_parameter_context(name='quality_flag', parameter_context=quality_ctxt.dump())
+        contexts['quality_flag'] = quality_ctxt, quality_ctxt_id
 
         # Dependent Parameters
 
@@ -203,6 +202,100 @@ class ParameterHelper(object):
 
         return contexts, funcs
     
+    def create_extended_parsed_contexts(self):
+        contexts, funcs = self.create_parsed_params()
+        expr, expr_id = funcs['density_L2']
+        
+        density_lookup_map = {'conductivity':'conductivity_L1', 'temp':'temp_L1', 'pressure':'pressure_L1', 'lat':'lat_lookup', 'lon':'lon_lookup'}
+        expr.param_map = density_lookup_map
+        density_lookup_ctxt = ParameterContext('density_lookup', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
+        density_lookup_ctxt.uom = 'kg m-3'
+        density_lookup_ctxt_id = self.dataset_management.create_parameter_context(name='density_lookup', parameter_context=density_lookup_ctxt.dump(), parameter_function_id=expr_id)
+        self.addCleanup(self.dataset_management.delete_parameter_context, density_lookup_ctxt_id)
+        contexts['density_lookup'] = density_lookup_ctxt, density_lookup_ctxt_id
+
+
+        lat_lookup_ctxt = ParameterContext('lat_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
+        lat_lookup_ctxt.axis = AxisTypeEnum.LAT
+        lat_lookup_ctxt.uom = 'degree_north'
+        lat_lookup_ctxt.lookup_value = 'lat'
+        lat_lookup_ctxt.document_key = ''
+        lat_lookup_ctxt_id = self.dataset_management.create_parameter_context(name='lat_lookup', parameter_context=lat_lookup_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, lat_lookup_ctxt_id)
+        contexts['lat_lookup'] = lat_lookup_ctxt, lat_lookup_ctxt_id
+        
+
+        lon_lookup_ctxt = ParameterContext('lon_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
+        lon_lookup_ctxt.axis = AxisTypeEnum.LON
+        lon_lookup_ctxt.uom = 'degree_east'
+        lon_lookup_ctxt.lookup_value = 'lon'
+        lon_lookup_ctxt.document_key = ''
+        lon_lookup_ctxt_id = self.dataset_management.create_parameter_context(name='lon_lookup', parameter_context=lon_lookup_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, lon_lookup_ctxt_id)
+        contexts['lon_lookup'] = lon_lookup_ctxt, lon_lookup_ctxt_id
+
+        return contexts, funcs
+
+    def create_qc_contexts(self):
+        contexts = {}
+        qc_whatever_ctxt = ParameterContext('qc_whatever', param_type=ArrayType())
+        qc_whatever_ctxt.uom = '1'
+        qc_whatever_ctxt_id = self.dataset_management.create_parameter_context(name='qc_whatever', parameter_context=qc_whatever_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, qc_whatever_ctxt_id)
+        contexts['qc_whatever'] = qc_whatever_ctxt, qc_whatever_ctxt_id
+
+
+        nexpr = NumexprFunction('range_qc', 'min < var > max', ['min','max','var'])
+        expr_id = self.dataset_management.create_parameter_function(name='range_qc', parameter_function=nexpr.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
+
+        pmap = {'min':0, 'max':20, 'var':'temp'}
+        nexpr.param_map = pmap
+        temp_qc_ctxt = ParameterContext('temp_qc', param_type=ParameterFunctionType(function=nexpr), variability=VariabilityEnum.TEMPORAL)
+        temp_qc_ctxt.uom = '1'
+        temp_qc_ctxt_id = self.dataset_management.create_parameter_context(name='temp_qc', parameter_context=temp_qc_ctxt.dump(), parameter_function_id=expr_id)
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_qc_ctxt_id)
+        contexts['temp_qc'] = temp_qc_ctxt, temp_qc_ctxt_id
+
+        return contexts
+
+    def create_qc_pdict(self):
+        contexts, funcs = self.create_parsed_params()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        
+        contexts = self.create_qc_contexts()
+        context_ids.extend([i[1] for i in contexts.itervalues()])
+
+        qc_what_pdict_id = self.dataset_management.create_parameter_dictionary('qc_what', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, qc_what_pdict_id)
+
+        return qc_what_pdict_id
+
+
+
+    def create_extended_and_platform(self):
+        contexts,funcs = self.create_extended_parsed_contexts()
+        context_ids = [i[1] for i in contexts.itervalues()]
+
+        extended_pdict_id = self.dataset_management.create_parameter_dictionary('extended_parsed', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, extended_pdict_id)
+
+        context_ids = [i[1] for i in contexts.itervalues() if i[0].name in ['time', 'lat', 'lon', 'internal_timestamp', 'driver_timestamp', 'port_timestamp', 'preferred_timestamp']]
+        platform_pdict_id = self.dataset_management.create_parameter_dictionary('platform_eng', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, platform_pdict_id)
+
+        return extended_pdict_id
+
+
+    def create_extended_parsed(self):
+        contexts,funcs = self.create_extended_parsed_contexts()
+        context_ids = [i[1] for i in contexts.itervalues()]
+
+        extended_pdict_id = self.dataset_management.create_parameter_dictionary('extended_parsed', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, extended_pdict_id)
+
+        return extended_pdict_id
+
     def create_lookups(self):
         contexts = self.create_lookup_contexts()
         context_ids = [i[1] for i in contexts.itervalues()]

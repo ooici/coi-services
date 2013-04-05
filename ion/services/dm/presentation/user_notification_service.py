@@ -637,7 +637,7 @@ class UserNotificationService(BaseUserNotificationService):
         elif "ResourceAgentResourceCommandEvent" in event_types:
             summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)
         elif "DeviceStatusEvent" in event_types:
-            summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.state,"???"))
+            summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.status,"???"))
         elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
             summary = "Operator entered: %s" % event.description
 

@@ -14,6 +14,8 @@ from pyon.public import PRED, RT, IonObject, OT
 from ion.services.coi.identity_management_service import IdentityManagementService
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+
 from unittest.case import skip
 from pyon.util.context import LocalContextMixin
 from pyon.core.governance import ORG_MANAGER_ROLE
@@ -439,6 +441,7 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        self.resource_registry = ResourceRegistryServiceClient(node=self.container.node)
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
         self.org_client = OrgManagementServiceClient(node=self.container.node)
 
@@ -611,22 +614,29 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
             self.identity_management_service.get_user_info_extension()
 
         #Check the user without the negotiation role request
-        extended_user = self.identity_management_service.get_user_info_extension(user_info_id)
+        extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id)
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),1)
-        self.assertEqual(len(extended_user.open_negotiations),1)
-        self.assertEqual(len(extended_user.closed_negotiations),0)
+        self.assertEqual(len(extended_user.open_requests),1)
+        self.assertEqual(extended_user.open_requests[0].org_id, ion_org._id)
+        self.assertEqual(extended_user.open_requests[0].user_id, user_info_id)
+        self.assertEqual(extended_user.open_requests[0].request_type, OT.RequestRoleProposal)
+        self.assertEqual(len(extended_user.closed_requests),0)
+        self.assertEqual(extended_user.open_requests[0]._id, extended_user.open_requests[0].negotiation_id)
 
-        sap_response = Negotiation.create_counter_proposal(extended_user.open_negotiations[0], ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
+        neg = self.resource_registry.read(object_id=extended_user.open_requests[0].negotiation_id)
+        sap_response = Negotiation.create_counter_proposal(neg, ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
         sap_response2 = self.org_client.negotiate(sap_response)
 
         #Now check the user after the negotiation has been accepted and the role granted
-        extended_user = self.identity_management_service.get_user_info_extension(user_info_id)
+        extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id)
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),2)
-        self.assertEqual(len(extended_user.open_negotiations),0)
-        self.assertEqual(len(extended_user.closed_negotiations),1)
-
+        self.assertEqual(len(extended_user.open_requests),0)
+        self.assertEqual(len(extended_user.closed_requests),1)
+        self.assertEqual(extended_user.closed_requests[0].org_id, ion_org._id)
+        self.assertEqual(extended_user.closed_requests[0].user_id, user_info_id)
+        self.assertEqual(extended_user.closed_requests[0].request_type, OT.RequestRoleProposal)
 
         self.identity_management_service.delete_user_info(user_info_id)
 

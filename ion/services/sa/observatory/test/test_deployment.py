@@ -3,6 +3,7 @@
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.services.sa.test.helpers import any_old
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from pyon.public import log, IonObject
 from pyon.util.containers import DotDict
@@ -25,9 +26,6 @@ from pyon.util.ion_time import IonTime
 from nose.plugins.attrib import attr
 from pyon.public import OT
 
-
-from coverage_model.coverage import GridDomain, GridShape, CRS
-from coverage_model.basic_types import MutabilityEnum, AxisTypeEnum
 
 import datetime
 
@@ -160,30 +158,6 @@ class TestDeployment(IonIntegrationTestCase):
         ctd_stream_def_id = self.psmsclient.create_stream_definition(name='SBE37_CDM', parameter_dictionary_id=pdict_id)
 
 
-        # Construct temporal and spatial Coordinate Reference System objects
-        tdom, sdom = time_series_domain()
-
-        sdom = sdom.dump()
-        tdom = tdom.dump()
-
-
-
-        dp_obj = IonObject(RT.DataProduct,
-            name='Log Data Product',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        out_log_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id)
-
-        #----------------------------------------------------------------------------------------------------
-        # Start the transform (a logical transform) that acts as an instrument site
-        #----------------------------------------------------------------------------------------------------
-
-        self.omsclient.create_site_data_product(    site_id= instrument_site_id,
-                                                    data_product_id =  out_log_data_product_id)
-
-
         #----------------------------------------------------------------------------------------------------
         # Create an instrument device
         #----------------------------------------------------------------------------------------------------
@@ -195,17 +169,7 @@ class TestDeployment(IonIntegrationTestCase):
         self.rrclient.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
 
-        dp_obj = IonObject(RT.DataProduct,
-            name='Instrument Data Product',
-            description='some new dp',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
 
-        inst_data_product_id = self.dmpsclient.create_data_product(dp_obj, ctd_stream_def_id)
-
-        #assign data products appropriately
-        self.damsclient.assign_data_product(input_resource_id=instrument_device_id,
-                                            data_product_id=inst_data_product_id)
         #----------------------------------------------------------------------------------------------------
         # Create an instrument model
         #----------------------------------------------------------------------------------------------------
@@ -224,9 +188,10 @@ class TestDeployment(IonIntegrationTestCase):
         end = IonTime(datetime.datetime(2014,1,1))
         temporal_bounds = IonObject(OT.TemporalBounds, name='planned', start_datetime=start.to_string(), end_datetime=end.to_string())
         deployment_obj = IonObject(RT.Deployment,
-                                        name='TestDeployment',
-                                        description='some new deployment',
-                                        constraint_list=[temporal_bounds])
+                                   name='TestDeployment',
+                                   description='some new deployment',
+                                   context=IonObject(OT.CabledNodeDeploymentContext),
+                                   constraint_list=[temporal_bounds])
         deployment_id = self.omsclient.create_deployment(deployment_obj)
 
         log.debug("test_create_deployment: created deployment id: %s ", str(deployment_id) )
@@ -265,6 +230,8 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("activating deployment, expecting success")
         self.omsclient.activate_deployment(res.deployment_id)
 
+        log.debug("deactivatin deployment, expecting success")
+        self.omsclient.deactivate_deployment(res.deployment_id)
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nomodels(self):
@@ -275,13 +242,13 @@ class TestDeployment(IonIntegrationTestCase):
         self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
 
         log.debug("activating deployment without site+device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "Expected at least 1 model for InstrumentSite")
+        self.assert_deploy_fail(res.deployment_id, NotFound, "Expected 1")
 
         log.debug("assigning instrument site model")
         self.omsclient.assign_instrument_model_to_instrument_site(res.instrument_model_id, res.instrument_site_id)
 
         log.debug("activating deployment without device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "Expected 1 model for InstrumentDevice")
+        self.assert_deploy_fail(res.deployment_id, NotFound, "Expected 1")
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nosite(self):
@@ -295,8 +262,8 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("deploying instrument device only")
         self.imsclient.deploy_instrument_device(res.instrument_device_id, res.deployment_id)
 
-        log.debug("activating deployment without device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "No sites were found in the deployment")
+        log.debug("activating deployment without instrument site, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, BadRequest, "Devices in this deployment outnumber sites")
 
     #@unittest.skip("targeting")
     def test_activate_deployment_nodevice(self):
@@ -310,11 +277,188 @@ class TestDeployment(IonIntegrationTestCase):
         log.debug("deploying instrument site only")
         self.omsclient.deploy_instrument_site(res.instrument_site_id, res.deployment_id)
 
-        log.debug("activating deployment without device models, expecting fail")
-        self.assert_deploy_fail(res.deployment_id, "The set of devices could not be mapped to the set of sites")
+        log.debug("activating deployment without device, expecting fail")
+        self.assert_deploy_fail(res.deployment_id, BadRequest, "No devices were found in the deployment")
 
 
-    def assert_deploy_fail(self, deployment_id, fail_message="did not specify fail_message"):
-        with self.assertRaises(BadRequest) as cm:
+    def test_activate_deployment_csp_fail(self):
+        platform_model_id    = [self.RR2.create(any_old(RT.PlatformModel)) for _ in range(2)]
+        platform_device_id   = [self.RR2.create(any_old(RT.PlatformDevice)) for _ in range(2)]
+        platform_site_id     = [self.RR2.create(any_old(RT.PlatformSite,
+                {"planned_uplink_port":
+                     IonObject(OT.PlatformPort,
+                               reference_designator="platport_%d" % (i+1))}))
+                                for i in range(2)]
+
+        deployment_id = self.RR2.create(any_old(RT.Deployment,
+                {"context": IonObject(OT.CabledNodeDeploymentContext)}))
+
+
+        # set up the structure
+        for p in range(2):
+            self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id[p], platform_site_id[p])
+            self.RR2.assign_platform_model_to_platform_device_with_has_model(platform_model_id[p], platform_device_id[p])
+            self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[p])
+            self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[p])
+
+        self.RR2.assign_platform_device_to_platform_device_with_has_device(platform_device_id[1], platform_device_id[0])
+        self.RR2.assign_platform_site_to_platform_site_with_has_site(platform_site_id[1], platform_site_id[0])
+
+        self.assert_deploy_fail(deployment_id, BadRequest,
+                                "Deployment activation without port_assignment is limited to 1 PlatformDevice")
+
+        self.RR2.unassign_deployment_from_platform_device_with_has_deployment(deployment_id, platform_device_id[1])
+
+        self.assert_deploy_fail(deployment_id, BadRequest,
+                                "Deployment activation without port_assignment is limited to 1 PlatformSite")
+
+    def assert_deploy_fail(self, deployment_id, err_type=BadRequest, fail_message="did not specify fail_message"):
+        with self.assertRaises(err_type) as cm:
             self.omsclient.activate_deployment(deployment_id)
         self.assertIn(fail_message, cm.exception.message)
+
+    def test_3x3_matchups_remoteplatform(self):
+        self.base_3x3_matchups(IonObject(OT.RemotePlatformDeploymentContext))
+
+    def test_3x3_matchups_cabledinstrument(self):
+        self.base_3x3_matchups(IonObject(OT.CabledInstrumentDeploymentContext))
+
+    def test_3x3_matchups_cablednode(self):
+        self.base_3x3_matchups(IonObject(OT.CabledNodeDeploymentContext))
+
+    def base_3x3_matchups(self, deployment_context):
+        """
+        This will be 1 root platform, 3 sub platforms (2 of one model, 1 of another) and 3 sub instruments each (2-to-1)
+        """
+        deployment_context_type = type(deployment_context).__name__
+
+        instrument_model_id  = [self.RR2.create(any_old(RT.InstrumentModel)) for _ in range(6)]
+        platform_model_id    = [self.RR2.create(any_old(RT.PlatformModel)) for _ in range(3)]
+
+        instrument_device_id = [self.RR2.create(any_old(RT.InstrumentDevice)) for _ in range(9)]
+        platform_device_id   = [self.RR2.create(any_old(RT.PlatformDevice)) for _ in range(4)]
+
+        instrument_site_id   = [self.RR2.create(any_old(RT.InstrumentSite,
+                                                {"planned_uplink_port":
+                                                     IonObject(OT.PlatformPort,
+                                                               reference_designator="instport_%d" % (i+1))}))
+                                for i in range(9)]
+
+        platform_site_id     = [self.RR2.create(any_old(RT.PlatformSite,
+                                                {"planned_uplink_port":
+                                                    IonObject(OT.PlatformPort,
+                                                              reference_designator="platport_%d" % (i+1))}))
+                                for i in range(4)]
+
+
+
+        def instrument_model_at(platform_idx, instrument_idx):
+            m = platform_idx * 2
+            if instrument_idx > 0:
+                m += 1
+            return m
+
+        def platform_model_at(platform_idx):
+            if platform_idx > 0:
+                return 1
+            return 0
+
+        def instrument_at(platform_idx, instrument_idx):
+            return platform_idx * 3 + instrument_idx
+
+        # set up the structure
+        for p in range(3):
+            m = platform_model_at(p)
+            self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id[m], platform_site_id[p])
+            self.RR2.assign_platform_model_to_platform_device_with_has_model(platform_model_id[m], platform_device_id[p])
+            self.RR2.assign_platform_device_to_platform_device_with_has_device(platform_device_id[p], platform_device_id[3])
+            self.RR2.assign_platform_site_to_platform_site_with_has_site(platform_site_id[p], platform_site_id[3])
+
+            for i in range(3):
+                m = instrument_model_at(p, i)
+                idx = instrument_at(p, i)
+                self.RR2.assign_instrument_model_to_instrument_site_with_has_model(instrument_model_id[m], instrument_site_id[idx])
+                self.RR2.assign_instrument_model_to_instrument_device_with_has_model(instrument_model_id[m], instrument_device_id[idx])
+                self.RR2.assign_instrument_device_to_platform_device_with_has_device(instrument_device_id[idx], platform_device_id[p])
+                self.RR2.assign_instrument_site_to_platform_site_with_has_site(instrument_site_id[idx], platform_site_id[p])
+
+        # top level models
+        self.RR2.assign_platform_model_to_platform_device_with_has_model(platform_model_id[2], platform_device_id[3])
+        self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id[2], platform_site_id[3])
+
+
+
+        # verify structure
+        for p in range(3):
+            parent_id = self.RR2.find_platform_device_id_by_platform_device_using_has_device(platform_device_id[p])
+            self.assertEqual(platform_device_id[3], parent_id)
+
+            parent_id = self.RR2.find_platform_site_id_by_platform_site_using_has_site(platform_site_id[p])
+            self.assertEqual(platform_site_id[3], parent_id)
+
+        for i in range(len(platform_site_id)):
+            self.assertEqual(self.RR2.find_platform_model_of_platform_device_using_has_model(platform_device_id[i]),
+                             self.RR2.find_platform_model_of_platform_site_using_has_model(platform_site_id[i]))
+
+        for i in range(len(instrument_site_id)):
+            self.assertEqual(self.RR2.find_instrument_model_of_instrument_device_using_has_model(instrument_device_id[i]),
+                             self.RR2.find_instrument_model_of_instrument_site_using_has_model(instrument_site_id[i]))
+
+
+        port_assignments = {}
+        for p in range(3):
+            port_assignments[platform_device_id[p]] = "platport_%d" % (p+1)
+            for i in range(3):
+                idx = instrument_at(p, i)
+                port_assignments[instrument_device_id[idx]] = "instport_%d" % (idx+1)
+
+        deployment_id = self.RR2.create(any_old(RT.Deployment,
+                {"context": deployment_context,
+                 "port_assignments": port_assignments}))
+
+
+        # set up the deployment
+        # top level stuff always goes into the deployment
+        self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[3])
+        self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[3])
+
+        if OT.CabledInstrumentDeploymentContext == deployment_context_type:
+            self.omsclient.activate_deployment(deployment_id)
+            self.omsclient.deactivate_deployment(deployment_id)
+
+        if OT.RemotePlatformDeploymentContext != deployment_context_type:
+            for p in range(3):
+                m = platform_model_at(p)
+                self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[p])
+                self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[p])
+
+                for i in range(3):
+                    m = instrument_model_at(p, i)
+                    idx = instrument_at(p, i)
+                    self.RR2.assign_deployment_to_instrument_device_with_has_deployment(deployment_id, instrument_device_id[idx])
+                    self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id[idx])
+
+        #verify the deployment
+        if OT.RemotePlatformDeploymentContext != deployment_context_type:
+            for p in platform_device_id:
+                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_device_using_has_deployment(p))
+            for p in platform_site_id:
+                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_site_using_has_deployment(p))
+            for i in instrument_device_id:
+                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_device_using_has_deployment(i))
+            for i in instrument_site_id:
+                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_site_using_has_deployment(i))
+
+        if OT.CabledInstrumentDeploymentContext == deployment_context_type:
+            self.assertRaises(BadRequest, self.omsclient.activate_deployment, deployment_id)
+        else:
+            self.omsclient.activate_deployment(deployment_id)
+
+            # verify proper associations
+            for i, d in enumerate(platform_device_id):
+                self.assertEqual(d, self.RR2.find_platform_device_id_of_platform_site_using_has_device(platform_site_id[i]))
+
+            for i, d in enumerate(instrument_device_id):
+                self.assertEqual(d, self.RR2.find_instrument_device_id_of_instrument_site_using_has_device(instrument_site_id[i]))
+
+

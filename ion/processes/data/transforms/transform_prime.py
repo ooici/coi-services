@@ -14,8 +14,12 @@ from coverage_model.parameter_types import ParameterFunctionType
 from pyon.util.memoize import memoize_lru
 from pyon.util.log import log
 from pyon.core.exception import NotFound
+from pyon.ion.event import EventSubscriber
 from ion.util.stored_values import StoredValueManager
+from pyon.public import OT
 
+from gevent.event import Event
+from gevent.queue import Queue
 class TransformPrime(TransformDataProcess):
     binding=['output']
     '''
@@ -33,6 +37,22 @@ class TransformPrime(TransformDataProcess):
         TransformDataProcess.on_start(self)
         self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
         self.stored_values = StoredValueManager(self.container)
+        self.input_data_product_ids = self.CFG.get_safe('process.input_products', [])
+        self.output_data_product_ids = self.CFG.get_safe('process.output_products', [])
+        self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
+        self.new_lookups = Queue()
+        self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent,callback=self._add_lookups, auto_delete=True)
+        self.lookup_monitor.start()
+
+    def on_quit(self):
+        self.lookup_monitor.stop()
+        TransformDataProcess.on_quit(self)
+
+    def _add_lookups(self, event, *args, **kwargs):
+        if event.origin in self.input_data_product_ids + self.output_data_product_ids:
+            if isinstance(event.reference_keys, list):
+                self.new_lookups.put(event.reference_keys)
+
 
     @memoize_lru(100)
     def read_stream_def(self,stream_id):
@@ -117,7 +137,11 @@ class TransformPrime(TransformDataProcess):
 
 
     def _get_lookup_value(self, lookup_value):
-        lookup_value_document_keys = self.CFG.get_safe('process.lookup_docs',[])
+        if not self.new_lookups.empty():
+            new_values = self.new_lookups.get()
+            self.lookup_docs = new_values + self.lookup_docs
+
+        lookup_value_document_keys = self.lookup_docs
         for key in lookup_value_document_keys:
             try:
                 document = self.stored_values.read_value(key)

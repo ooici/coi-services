@@ -243,6 +243,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         config = DotDict()
         if self._has_lookup_values(data_product_id):
+            config.process.input_product = data_product_id
             config.process.lookup_docs = self._get_lookup_documents(data_product_id)
 
         #--------------------------------------------------------------------------------
@@ -336,16 +337,51 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def get_data_product_provenance_report(self, data_product_id=''):
 
-        # Retrieve information that characterizes how this data was produced
-        # Return in a dictionary
+        ''' Performs a breadth-first traversal of the provenance for a data product'''
+        validate_is_not_none(data_product_id, 'A data product identifier must be passed to create a provenance report')
 
-        self.provenance_results = self.get_data_product_provenance(data_product_id)
+        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
+        if not len(producer_ids):
+            raise BadRequest('Data product has no known data producers')
 
-        results = ''
+        producer_id = producer_ids.pop(0)
+        result = {}
 
-        results = self._write_product_provenance_report(data_product_id, self.provenance_results)
+        def traversal(result, producer_id):
+            ret = {}
+            data_producer_obj = self.clients.resource_registry.read(object_id=producer_id)
+            ret['config'] = data_producer_obj.producer_context.configuration
+            data_obj_ids, _ = self.clients.resource_registry.find_subjects(predicate=PRED.hasDataProducer, object=producer_id, id_only=True)
 
-        return results
+            if data_obj_ids:
+
+                producer_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasParent, id_only=True)
+
+                if producer_ids:
+                    ret['parent'] = producer_ids
+
+                result[data_obj_ids[0]] = ret
+
+                for prod_id in producer_ids:
+                    traversal(result, prod_id)
+
+        traversal(result, producer_id)
+
+        return result
+
+
+
+
+        # # Retrieve information that characterizes how this data was produced
+        # # Return in a dictionary
+        #
+        # self.provenance_results = self.get_data_product_provenance(data_product_id)
+        #
+        # results = ''
+        #
+        # results = self._write_product_provenance_report(data_product_id, self.provenance_results)
+        #
+        # return results
 
     ############################
     #

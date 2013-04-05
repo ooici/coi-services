@@ -321,7 +321,7 @@ class ObservatoryUtil(object):
         dev_events = device_events.get(device_id, [])
         for event in dev_events:
             event_type = event._get_type()
-            if event_type == OT.DeviceStatusEvent and event.state == DeviceStatusType.OUT_OF_RANGE:
+            if event_type == OT.DeviceStatusEvent and event.status == DeviceStatusType.STATUS_WARNING:
                 status['power'] = StatusType.STATUS_WARNING
             elif event_type == OT.DeviceCommsEvent and event.state == DeviceCommsType.DATA_DELIVERY_INTERRUPTION:
                 status['comms'] = StatusType.STATUS_WARNING

@@ -14,6 +14,10 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import  ContactInformation
 from interface.objects import AttachmentType
+from interface.objects import Device
+from interface.objects import DataProduct
+from interface.objects import DataProcess
+from interface.objects import DataProducer
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest 
@@ -70,6 +74,85 @@ class TestDataProductProvenance(IonIntegrationTestCase):
                 self.dataprocessclient.deactivate_data_process(proc_id)
                 self.dataprocessclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
+
+    def test_get_data_product_provenance_report(self):
+        #Create a test device
+        device_obj = Device(name='Device1',
+                                        description='test instrument site')
+        device_id, _ = self.rrclient.create(device_obj)
+        self.addCleanup(self.rrclient.delete, device_id)
+
+        #Create a test DataProduct
+        data_product1_obj = DataProduct(name='DataProduct1',
+                                        description='test data product 1')
+        data_product1_id, _ = self.rrclient.create(data_product1_obj)
+        self.addCleanup(self.rrclient.delete, data_product1_id)
+
+        #Create a test DataProcess
+        data_process_obj = DataProcess(name='DataProcess',
+                                       description='test data process')
+        data_process_id, _ = self.rrclient.create(data_process_obj)
+        self.addCleanup(self.rrclient.delete, data_process_id)
+
+        #Create a second test DataProduct
+        data_product2_obj = DataProduct(name='DataProduct2',
+                                        description='test data product 2')
+        data_product2_id, _ = self.rrclient.create(data_product2_obj)
+        self.addCleanup(self.rrclient.delete, data_product2_id)
+
+        #Create a test DataProducer
+        data_producer_obj = DataProducer(name='DataProducer',
+                                         description='test data producer')
+        data_producer_id, rev = self.rrclient.create(data_producer_obj)
+
+        #Link the DataProcess to the second DataProduct manually
+        assoc_id, _ = self.rrclient.create_association(subject=data_process_id, predicate=PRED.hasInputProduct, object=data_product2_id)
+        self.addCleanup(self.rrclient.delete_association, assoc_id)
+
+        # Register the instrument and process. This links the device and the data process
+        # with their own producers
+        self.damsclient.register_instrument(device_id)
+        self.addCleanup(self.damsclient.unregister_instrument, device_id)
+        self.damsclient.register_process(data_process_id)
+        self.addCleanup(self.damsclient.unregister_process, data_process_id)
+
+        #Manually link the first DataProduct with the test DataProducer
+        assoc_id, _ = self.rrclient.create_association(subject=data_product1_id, predicate=PRED.hasDataProducer, object=data_producer_id)
+
+        #Get the DataProducer linked to the DataProcess (created in register_process above)
+        #Associate that with with DataProduct1's DataProducer
+        data_process_producer_ids, _ = self.rrclient.find_objects(subject=data_process_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
+        assoc_id, _ = self.rrclient.create_association(subject=data_process_producer_ids[0], predicate=PRED.hasParent, object=data_producer_id)
+        self.addCleanup(self.rrclient.delete_association, assoc_id)
+
+        #Get the DataProducer linked to the Device (created in register_instrument
+        #Associate that with the DataProcess's DataProducer
+        device_producer_ids, _ = self.rrclient.find_objects(subject=device_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
+        assoc_id, _ = self.rrclient.create_association(subject=data_producer_id, predicate=PRED.hasParent, object=device_producer_ids[0])
+
+        #Create the links between the Device, DataProducts, DataProcess, and all DataProducers
+        self.damsclient.assign_data_product(input_resource_id=device_id, data_product_id=data_product1_id)
+        self.addCleanup(self.damsclient.unassign_data_product, device_id, data_product1_id)
+        self.damsclient.assign_data_product(input_resource_id=data_process_id, data_product_id=data_product2_id)
+        self.addCleanup(self.damsclient.unassign_data_product, data_process_id, data_product2_id)
+
+        #Traverse through the relationships to get the links between objects
+        res = self.dpmsclient.get_data_product_provenance_report(data_product2_id)
+
+        #Make sure there are four keys
+        self.assertEqual(len(res.keys()), 4)
+
+        parent_count = 0
+        config_count = 0
+        for v in res.itervalues():
+            if 'parent' in v:
+                parent_count += 1
+            if 'config' in v:
+                config_count += 1
+
+        #Make sure there are three parents and four configs
+        self.assertEqual(parent_count, 3)
+        self.assertEqual(config_count, 4)
 
 
     @unittest.skip('This test is obsolete with new framework')
@@ -621,7 +704,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # Request the xml report
         #-------------------------------
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
-
+        print results
 
         #-------------------------------
         # Cleanup

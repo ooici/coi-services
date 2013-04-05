@@ -245,7 +245,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                 values = bad_values,
                 time_stamps = bad_value_times,
                 valid_values = self.valid_values,
-                state = DeviceStatusType.OUT_OF_RANGE,
+                status = DeviceStatusType.STATUS_WARNING,
                 description = "Event to deliver the status of instrument."
             )
 

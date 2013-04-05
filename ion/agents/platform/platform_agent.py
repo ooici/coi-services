@@ -19,6 +19,8 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 
+from pyon.event.event import EventSubscriber
+
 from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
@@ -28,6 +30,7 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 from ion.agents.platform.exceptions import PlatformException, PlatformConfigurationException
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
+from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
 
@@ -36,8 +39,9 @@ from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDri
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 import numpy
 
+from pyon.util.containers import DotDict
+
 from pyon.agent.common import BaseEnum
-from pyon.agent.instrument_fsm import ThreadSafeFSM
 from pyon.agent.instrument_fsm import FSMStateError
 
 from ion.agents.platform.launcher import Launcher
@@ -46,6 +50,9 @@ from ion.agents.platform.platform_resource_monitor import PlatformResourceMonito
 
 from coverage_model.parameter import ParameterDictionary
 from interface.objects import StreamRoute
+
+from interface.objects import AggregateStatusType
+from interface.objects import DeviceStatusType
 
 import logging
 import time
@@ -211,13 +218,13 @@ class PlatformAgent(ResourceAgent):
         # configured. Allows to log corresponding warning only once.
         self._unconfigured_params = set()
 
-        # {subplatform_id: (ResourceAgentClient, PID), ...}
+        # {subplatform_id: DotDict(ResourceAgentClient, PID), ...}
         self._pa_clients = {}  # Never None
 
         # see on_init
         self._launcher = None
 
-        # {instrument_id: (ResourceAgentClient, PID), ...}
+        # {instrument_id: DotDict(ResourceAgentClient, PID), ...}
         self._ia_clients = {}  # Never None
 
         # self.CFG.endpoint.receive.timeout -- see on_init
@@ -225,6 +232,26 @@ class PlatformAgent(ResourceAgent):
 
         # to sync in _initialize
         self._async_children_launched = None
+
+        # Default initial state.
+        self._initial_state = PlatformAgentState.UNINITIALIZED
+
+        # used for status info of ALL children
+        self.aparam_child_agg_status = {}
+        # List of current alarm objects.
+        self.aparam_alerts = []
+        #list of the aggregate status states for this device
+        self.aparam_aggstatus = {}
+        #list of the rollup status states for this device
+        self.aparam_rollup_status = {
+            AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_UNKNOWN,
+            AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_UNKNOWN,
+            AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_UNKNOWN,
+            AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_UNKNOWN
+        }
+
+        # All EventSubscribers created: {origin: EventSubscriber, ...}
+        self._event_subscribers = {}
 
         log.info("PlatformAgent constructor complete.")
 
@@ -240,8 +267,6 @@ class PlatformAgent(ResourceAgent):
         self._plat_config_processed = False
 
         self._launcher = Launcher(self._timeout)
-
-        self._fsm.start(PlatformAgentState.UNINITIALIZED)
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             platform_id = self.CFG.get_safe('platform_config.platform_id', '')
@@ -383,6 +408,17 @@ class PlatformAgent(ResourceAgent):
         self._async_children_launched.set()
         log.info("%r: _children_launch completed", self._platform_id)
 
+        # start event subscribers
+        for subplaform_id, dd in self._pa_clients.iteritems():
+            origin = dd.pa_client.resource_id
+            self._start_subscriber_device_status_event(origin)
+            self._start_subscriber_device_aggregate_status_event(origin)
+
+        for instrument_id, dd in self._ia_clients.iteritems():
+            origin = dd.ia_client.resource_id
+            self._start_subscriber_device_status_event(origin)
+            self._start_subscriber_device_aggregate_status_event(origin)
+
     def on_quit(self):
         try:
             log.debug("%r: PlatformAgent: on_quit called. current_state=%s",
@@ -404,6 +440,7 @@ class PlatformAgent(ResourceAgent):
         self._bring_to_uninitialized_state()
 
         if LAUNCH_CHILDREN_ON_START:
+            self._terminate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
@@ -425,16 +462,18 @@ class PlatformAgent(ResourceAgent):
         while PlatformAgentState.UNINITIALIZED != curr_state and attempts <= 3:
             attempts += 1
             try:
-                # all main states accept the RESET event so the following
-                # should work in general:
+                # most states accept the RESET event except as handled below.
+
+                if PlatformAgentState.STOPPED == curr_state:
+                    self._fsm.on_event(PlatformAgentEvent.CLEAR)
+                    continue
+
+                # RESET is accepted in any other state:
                 self._fsm.on_event(PlatformAgentEvent.RESET)
 
-            except FSMStateError as e:
-                #
-                # if this happens, need to consider unhandled case!
-                # TODO adjust logic to do appropriate action depending on
-                # the current state.
-                log.warn("TODO: for the quit sequence, a RESET event was tried "
+            except FSMStateError:
+                # Should not happen.
+                log.warn("For the quit sequence, a RESET event was tried "
                          "in a state (%s) that does not handle it; please "
                          "report this bug. (platform_id=%r)",
                          curr_state, self._platform_id)
@@ -447,23 +486,44 @@ class PlatformAgent(ResourceAgent):
                   "attempts=%d;  final state=%s",
                   self._platform_id, attempts, curr_state)
 
+    def _terminate_event_subscribers(self):
+        """
+        Terminates event subscribers and clears self._event_subscribers.
+        """
+        for origin, es in self._event_subscribers.iteritems():
+            try:
+                es.stop()
+
+            except Exception as ex:
+                log.warn("%r: error stopping event subscriber: origin=%r: %s",
+                         self._platform_id, origin, ex)
+
+        self._event_subscribers.clear()
+
     def _terminate_subplatform_agent_processes(self):
         """
         Terminates sub-platforms processes and clears self._pa_clients.
         """
 
         def terminate_process(subplatform_id):
-            _, pid = self._pa_clients[subplatform_id]
+            pid = self._pa_clients[subplatform_id].pid
+
+            sub_pnode = self._pnode.subplatforms[subplatform_id]
+            sub_resource_id = sub_pnode.CFG['agent']['resource_id']
+
+            log.debug(
+                "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
+                self._platform_id, subplatform_id, pid)
             try:
-                log.debug(
-                    "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
-                    self._platform_id, subplatform_id, pid)
 
                 self._launcher.cancel_process(pid)
 
                 log.debug(
                     "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
                     self._platform_id, subplatform_id, pid)
+
+                self._publish_subplatform_event(subplatform_id, sub_resource_id,
+                                                "device_removed")
 
             except:
                 if log.isEnabledFor(logging.TRACE):
@@ -493,7 +553,7 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: terminating instrument agent processes (%d): %s",
                       self._platform_id, len(self._ia_clients), self._ia_clients.keys())
             for instrument_id in self._ia_clients:
-                _, pid = self._ia_clients[instrument_id]
+                pid = self._ia_clients[instrument_id].pid
                 try:
                     self._launcher.cancel_process(pid)
                 except:
@@ -535,6 +595,7 @@ class PlatformAgent(ResourceAgent):
         self._unconfigured_params.clear()
 
         if not LAUNCH_CHILDREN_ON_START:
+            self._terminate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
@@ -797,14 +858,33 @@ class PlatformAgent(ResourceAgent):
             self._handle_external_event_driver_event(driver_event)
             return
 
+        if isinstance(driver_event, StateChangeDriverEvent):
+            self._async_driver_event_state_change(driver_event.state)
+            return
+
         #
         # TODO handle other possible events.
         #
 
         else:
             log.warn('%r: driver_event not handled: %s',
-                self._platform_id, str(type(driver_event)))
+                     self._platform_id, str(type(driver_event)))
             return
+
+    def _async_driver_event_state_change(self, state):
+        """
+        @param state   the state entered by the driver.
+        """
+        try:
+            log.debug('%r: platform agent driver state change: %s', self._platform_id, state)
+            event_data = {'state': state}
+            self._event_publisher.publish_event(event_type='ResourceAgentResourceStateEvent',
+                                                origin_type=self.ORIGIN_TYPE,
+                                                origin=self.resource_id,
+                                                **event_data)
+        except:
+            log.exception('%r: platform agent could not publish driver state change event',
+                          self._platform_id)
 
     def _handle_attribute_value_event(self, driver_event):
 
@@ -946,6 +1026,198 @@ class PlatformAgent(ResourceAgent):
             log.exception("Error while publishing platform event")
 
     ##############################################################
+    # coordination with children agents: subscribers and event dispatch
+    ##############################################################
+
+    #----------------------------------
+    # DeviceStatusEvent
+    #----------------------------------
+
+    def _got_device_status_event(self, evt, *args, **kwargs):
+
+        self._calculate_rollup_status()
+
+    def _start_subscriber_device_status_event(self, origin):
+        """
+        @param origin    the resource_id associated with child
+        """
+        event_type = "DeviceStatusEvent"
+        sub = EventSubscriber(event_type=event_type,
+                              origin=origin,
+                              callback=self._got_device_status_event)
+
+        self._event_subscribers[origin] = sub
+        sub.start()
+
+        log.debug("%r: TRS registered event subscriber for event_type=%r"
+                  "coming from origin=%r",
+                  self._platform_id, event_type, origin)
+
+    def _publish_subplatform_event(self, subplatform_id, sub_resource_id, sub_type):
+        """
+        Publishes a DeviceStatusEvent indicating that the given sub-platform
+        has been launched ("device_added") or stopped ("device_removed").
+
+        @param subplatform_id
+        @param sub_type    "device_added" or "device_removed"
+        """
+
+        assert sub_type in ("device_added", "device_removed")
+
+        description = "subplatform_id=%r" % subplatform_id
+        values = [sub_resource_id]
+        evt = dict(event_type='DeviceStatusEvent',
+                   sub_type=sub_type,
+                   origin_type=self.ORIGIN_TYPE,
+                   origin=self.resource_id,
+                   description=description,
+                   values=values)
+        try:
+            log.debug('%r: TRS _publish_subplatform_event for %r: %s',
+                      self._platform_id, subplatform_id, evt)
+
+            self._event_publisher.publish_event(**evt)
+
+        except:
+            log.exception('%r: TRS platform agent could not publish event: %s',
+                          self._platform_id, evt)
+
+    #----------------------------------
+    # DeviceAggregateStatusEvent
+    #----------------------------------
+
+    def _got_device_aggregate_status_event(self, *args, **kwargs):
+        log.debug("%r: TRS _got_device_aggregate_event args: %s",
+                  self._platform_id, args)
+
+        # TODO integrating Maurice's code:
+        self._consume_child_agg_status_events(*args, **kwargs)
+
+    def _start_subscriber_device_aggregate_status_event(self, origin):
+        """
+        @param origin    the resource_id associated with child
+        """
+        event_type = "DeviceAggregateStatusEvent"
+        sub = EventSubscriber(event_type=event_type,
+                              origin=origin,
+                              callback=self._got_device_aggregate_status_event)
+
+        self._event_subscribers[origin] = sub
+        sub.start()
+        log.debug("%r: TRS registered event subscriber for event_type=%r",
+                  self._platform_id, event_type)
+
+    ##############################################################
+    # monitoring and status routines
+    ##############################################################
+
+    def _calculate_rollup_status(self, status_type=None):
+        # TODO complement docstring
+        """
+        @param status_type   The specific status type from AggregateStatusType
+                             to process. Is None, all types are processed.
+        """
+
+        if status_type and status_type in AggregateStatusType._str_map.keys():
+            status_type_list = [status_type]
+        else:
+            status_type_list = AggregateStatusType._str_map.keys()
+
+        log.debug("%r/%r: TRS _calculate_rollup_status: status_type_list=%s\n"
+                  "aparam_rollup_status: %s",
+                  self._platform_id, self.get_agent_state(),
+                  status_type_list, self.aparam_rollup_status)
+
+        subplatform_ids = self._get_subplatform_ids()
+        subinstrument_ids = self._get_instrument_ids()
+
+        for status_type in status_type_list:
+
+            curr_status_list = []
+
+            # for child platforms, get the rollup status
+            for subplatform_id in subplatform_ids:
+                pa_client = self._pa_clients[subplatform_id].pa_client
+                subplatform_rollup_status = pa_client.get_agent(['rollup_status'])['rollup_status']
+                curr_status_list.append(subplatform_rollup_status[status_type])
+
+            #for child instruments, get the agg status from aparam_child_agg_status
+            # TODO handle instruments -- for now, commenting out while
+            # completing things for platforms
+            #for i_dev in subinstrument_ids:
+            #    curr_status_list.append(self.aparam_child_agg_status[i_dev][status_type] )
+
+            if DeviceStatusType.STATUS_CRITICAL in curr_status_list:
+                new_status = DeviceStatusType.STATUS_CRITICAL
+
+            elif DeviceStatusType.STATUS_WARNING in curr_status_list:
+                new_status = DeviceStatusType.STATUS_WARNING
+
+            elif DeviceStatusType.STATUS_OK in curr_status_list:
+                new_status = DeviceStatusType.STATUS_OK
+
+            else:
+                new_status = DeviceStatusType.STATUS_UNKNOWN
+
+            old_status = self.aparam_rollup_status[status_type]
+            if new_status != old_status:
+
+                self.aparam_rollup_status[status_type] = new_status
+
+                # and publish event for others to see
+
+                #
+                # TODO wouldn't it be better to include the status in the
+                # event itself to avoid triggering a subsequent request??
+                #
+
+                evt = dict(event_type='DeviceStatusEvent',
+                           origin_type=self.ORIGIN_TYPE,
+                           origin=self.resource_id,
+                           description='platform rollup status has changed',
+                           sub_type='platform_event')
+
+                log.debug("%r: TRS rollup status has changed for %r "
+                          "Now: %s "
+                          "Old: %s "
+                          "Publishing: %s",
+                          self._platform_id, status_type,
+                          DeviceStatusType._str_map[new_status],
+                          DeviceStatusType._str_map[old_status],
+                          evt)
+                try:
+                    self._event_publisher.publish_event(**evt)
+
+                except:
+                    log.exception("%r: Error while publishing %s",
+                                  self._platform_id, evt)
+
+    def _consume_child_agg_status_events(self, *args, **kwargs):
+        # TODO docstring
+
+        event = args[0]
+
+        log.debug("%r/%r: _consume_child_agg_status_events: args=%s, kwargs=%s, event=%s.",
+                  self._platform_id, self.get_agent_state(), str(args), str(kwargs), str(args[0]))
+
+        if event.type_ is 'DeviceAggregateStatusEvent' and not event.roll_up:
+            if event.origin in self.aparam_child_agg_status:
+                #update to new status
+                self.aparam_child_agg_status[event.origin][event.status_name] = event.status
+            else:
+                #initialize status set to unknown
+                self.aparam_child_agg_status[event.origin] = {
+                    AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_UNKNOWN,
+                    AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_UNKNOWN,
+                    AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_UNKNOWN,
+                    AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_UNKNOWN
+                }
+                self.aparam_child_agg_status[event.origin][event.status_name] = event.status
+
+            log.debug("%r: _consume_child_agg_status_events: aparam_child_agg_status=%s.",
+                      self._platform_id, self.aparam_child_agg_status)
+
+    ##############################################################
     # misc supporting routines
     ##############################################################
 
@@ -1023,7 +1295,11 @@ class PlatformAgent(ResourceAgent):
         # TODO: handle properly in case not UNINITIALIZED
         assert PlatformAgentState.UNINITIALIZED == state
 
-        self._pa_clients[subplatform_id] = (pa_client, pid)
+        self._pa_clients[subplatform_id] = DotDict(pa_client=pa_client,
+                                                   pid=pid)
+
+        self._publish_subplatform_event(subplatform_id, sub_resource_id,
+                                        "device_added")
 
     def _execute_platform_agent(self, a_client, cmd, sub_id):
         return self._execute_agent("platform", a_client, cmd, sub_id)
@@ -1032,7 +1308,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _ping_subplatform -> %r,  _pa_clients=%s",
                   self._platform_id, subplatform_id, self._pa_clients)
 
-        pa_client, _ = self._pa_clients[subplatform_id]
+        pa_client = self._pa_clients[subplatform_id].pa_client
 
         retval = pa_client.ping_agent(timeout=self._timeout)
         log.debug("%r: _ping_subplatform %r  retval = %s",
@@ -1061,7 +1337,7 @@ class PlatformAgent(ResourceAgent):
             log.exception(msg)
             raise PlatformException(msg)
 
-        pa_client, _ = self._pa_clients[subplatform_id]
+        pa_client = self._pa_clients[subplatform_id].pa_client
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         retval = self._execute_platform_agent(pa_client, cmd, subplatform_id)
@@ -1140,7 +1416,7 @@ class PlatformAgent(ResourceAgent):
         # TODO what to do if a sub-platform fails in some way?
         #
         for subplatform_id in self._pa_clients:
-            pa_client, _ = self._pa_clients[subplatform_id]
+            pa_client = self._pa_clients[subplatform_id].pa_client
             cmd = AgentCommand(command=command) if command else create_command(subplatform_id)
 
             # execute command:
@@ -1194,7 +1470,7 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _ping_instrument -> %r",
                   self._platform_id, instrument_id)
 
-        ia_client, _ = self._ia_clients[instrument_id]
+        ia_client = self._ia_clients[instrument_id].ia_client
 
         retval = ia_client.ping_agent(timeout=self._timeout)
         log.debug("%r: _ping_instrument %r  retval = %s",
@@ -1216,7 +1492,7 @@ class PlatformAgent(ResourceAgent):
         # first, ping:
         self._ping_instrument(instrument_id)
 
-        ia_client, _ = self._ia_clients[instrument_id]
+        ia_client = self._ia_clients[instrument_id].ia_client
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         try:
@@ -1260,7 +1536,8 @@ class PlatformAgent(ResourceAgent):
         # TODO: handle properly in case not UNINITIALIZED
         assert ResourceAgentState.UNINITIALIZED == state
 
-        self._ia_clients[instrument_id] = (ia_client, pid)
+        self._ia_clients[instrument_id] = DotDict(ia_client=ia_client,
+                                                  pid=pid)
 
     def _instruments_launch(self):
         """
@@ -1316,7 +1593,7 @@ class PlatformAgent(ResourceAgent):
         # successfully
         #
         for instrument_id in self._ia_clients:
-            ia_client, _ = self._ia_clients[instrument_id]
+            ia_client = self._ia_clients[instrument_id].ia_client
             cmd = AgentCommand(command=command) if command else create_command(instrument_id)
 
             # execute command:
