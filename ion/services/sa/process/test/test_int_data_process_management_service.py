@@ -1391,9 +1391,9 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
 
         stored_value_dpd_id = self.dpd_stored_value_transform()
 
-        stored_value_transform_id = self.data_process_management.create_data_process2(data_process_definition_id=stored_value_dpd_id, in_data_product_ids=[platform_data_product_id], out_data_product_ids=[],configuration={'process':{'document_key':'platform_persistence'}})
-        self.data_process_management.activate_data_process2(stored_value_transform_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, stored_value_transform_id)
+        stored_value_transform_id = self.data_process_management.create_data_process(data_process_definition_id=stored_value_dpd_id, in_data_product_ids=[platform_data_product_id], out_data_product_ids=[],configuration={'process':{'document_key':'platform_persistence'}})
+        self.data_process_management.activate_data_process(stored_value_transform_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, stored_value_transform_id)
 
         rdt = self.get_rdt_for_data_product(platform_data_product_id)
         rdt['time'] = [time.time() + 2208988800]
@@ -1413,11 +1413,11 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         success = poll(verify_platform_doc)
         self.assertTrue(success)
 
-        data_process_id = self.data_process_management.create_data_process2(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[output_data_product_id], configuration={'process':{'lookup_docs':['platform_persistence']}})
-        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+        data_process_id = self.data_process_management.create_data_process(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[output_data_product_id], configuration={'process':{'lookup_docs':['platform_persistence']}})
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
-        self.data_process_management.activate_data_process2(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2, data_process_id)
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
 
         rdt = self.get_rdt_for_data_product(instrument_data_product_id)
         ntp_now = time.time() + 2208988800
@@ -1522,11 +1522,11 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.assertTrue(self.verify_dataset(instrument_dataset_id, verifier))
 
         dpd_id = self.dpd_stored_value_transform()
-        data_process_id = self.data_process_management.create_data_process2(dpd_id, [platform_data_product_id], configuration={'process':{'document_key':'platform_key'}})
-        self.addCleanup(self.data_process_management.delete_data_process2, data_process_id)
+        data_process_id = self.data_process_management.create_data_process(dpd_id, [platform_data_product_id], configuration={'process':{'document_key':'platform_key'}})
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
 
-        self.data_process_management.activate_data_process2(data_process_id)
-        self.addCleanup(self.data_process_management.deactivate_data_process2,data_process_id)
+        self.data_process_management.activate_data_process(data_process_id)
+        self.addCleanup(self.data_process_management.deactivate_data_process,data_process_id)
 
         rdt = self.get_rdt_for_data_product(platform_data_product_id)
         rdt['time'] = [0]
