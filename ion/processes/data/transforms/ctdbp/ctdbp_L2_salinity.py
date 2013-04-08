@@ -23,16 +23,11 @@ class CTDBP_SalinityTransform(TransformDataProcess):
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
     """
-    output_bindings = ['salinity']
 
     def on_start(self):
         super(CTDBP_SalinityTransform, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('salinity'):
-            raise BadRequest("For CTD transforms, please send the stream_id "
-                             "using a special keyword (ex: salinity)")
-
-        self.sal_stream_id = self.CFG.process.publish_streams.salinity
+        self.sal_stream_id = self.CFG.process.publish_streams.values()[0]
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -51,7 +46,7 @@ class CTDBP_SalinityTransform(TransformDataProcess):
 
         log.debug("CTDBP L2 salinity transform publishing granule with record dict: %s", granule.record_dictionary)
 
-        self.salinity.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class CTDBP_SalinityTransformAlgorithm(SimpleGranuleTransformFunction):
