@@ -206,6 +206,7 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 process_config = wf_step.configuration
 
             data_process_id = self.clients.data_process_management.create_data_process(
+                data_process_definition_id=data_process_definition._id,
                 in_data_product_ids = [data_process_input_dp_id],
                 out_data_product_ids = output_data_products.values(),
                 configuration=process_config)
