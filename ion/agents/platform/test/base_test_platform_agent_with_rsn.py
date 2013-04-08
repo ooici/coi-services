@@ -523,6 +523,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=self.parsed_stream_def_id)
             self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
             self.DP.activate_data_product_persistence(data_product_id=dp_id)
+            self.addCleanup(self.DP.delete_data_product, dp_id)
 
             # assignments
             self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(platform_agent_instance_id, platform_device_id)
@@ -776,6 +777,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         data_product_id1 = self.DP.create_data_product(data_product=dp_obj,
                                                        stream_definition_id=parsed_stream_def_id)
         self.DP.activate_data_product_persistence(data_product_id=data_product_id1)
+        self.addCleanup(self.DP.delete_data_product, data_product_id1)
 
         self.DAMS.assign_data_product(input_resource_id=instrument_device_id,
                                       data_product_id=data_product_id1)
@@ -797,6 +799,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                                        stream_definition_id=raw_stream_def_id)
 
         self.DP.activate_data_product_persistence(data_product_id=data_product_id2)
+        self.addCleanup(self.DP.delete_data_product, data_product_id2)
 
         self.DAMS.assign_data_product(input_resource_id=instrument_device_id,
                                       data_product_id=data_product_id2)
