@@ -756,6 +756,7 @@ def resolve_org_negotiation():
         verb                 = str(json_params['verb'])
         originator           = str(json_params['originator'])
         negotiation_id       = str(json_params['negotiation_id'])
+        reason               = str(json_params.get('reason', ''))
 
         proposal_status = None
         if verb.lower() == "accept":
@@ -776,6 +777,13 @@ def resolve_org_negotiation():
 
         org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         resp = org_client.negotiate(new_negotiation_sap, headers=headers)
+
+        # update reason if it exists
+        if reason:
+            # reload negotiation because it has changed
+            negotiation = rr_client.read(negotiation_id, headers=headers)
+            negotiation.reason = reason
+            rr_client.update(negotiation)
 
         return gateway_json_response(resp)
 
