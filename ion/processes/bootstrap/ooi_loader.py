@@ -60,8 +60,10 @@ class OOILoader(object):
                        'Subsites',
                        'NTypes',
                        'Nodes',
-                       'PlatformAgents'
-                     ]
+                       'PlatformAgents',
+                       'Series',
+                       'InstAgents',
+        ]
 
         # Holds the object representations of parsed OOI assets by type
         self.ooi_objects = {}
@@ -209,7 +211,7 @@ class OOILoader(object):
         self._add_object_attribute('family',
             row['Family'], row['Attribute'], row['AttributeValue'],
             mapping={},
-            Family_Name=row['Family_Name'])
+            name=row['Family_Name'])
 
     def _parse_AttributeReportMakeModel(self, row):
         self._add_object_attribute('makemodel',
@@ -303,20 +305,26 @@ class OOILoader(object):
         refid = row['ReferenceDesignator']
         series_id = row['SClass_PublicID']+row['SSeries_PublicID']
         subseries_id = series_id+row['SSubseries_PublicID']
+        makemodel = row['MMInstrument_PublicID']
         entry = dict(
             instrument_class=row['SClass_PublicID'],
             instrument_series=row['SSeries_PublicID'],
             instrument_subseries=row['SSubseries_PublicID'],
-            instrument_model=row['SClass_PublicID'],
-            instrument_model1=series_id,
-            makemodel=row['MMInstrument_PublicID'],
+            instrument_model1=row['SClass_PublicID'],
+            instrument_model=series_id,
+            makemodel=makemodel,
             ready_for_2013=row['Ready_For_2013_']
         )
         self._add_object_attribute('instrument',
             refid, None, None, **entry)
 
-        self._add_object_attribute('subseries',
-            subseries_id, 'makemodel', row['MMInstrument_PublicID'], value_is_list=True, list_dup_ok=True)
+        if makemodel:
+            self._add_object_attribute('class',
+                                       row['SClass_PublicID'], 'makemodel', makemodel, value_is_list=True, list_dup_ok=True)
+            self._add_object_attribute('series',
+                                       series_id, None, None, makemodel=makemodel)
+            self._add_object_attribute('subseries',
+                subseries_id, None, None, makemodel=makemodel)
 
         # Build up the node type here
         ntype_txt = row['Textbox11']
@@ -387,6 +395,9 @@ class OOILoader(object):
     def _parse_Sites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
+        local_name = row['Name Extension']
+        standalone_name = name
+
         geo_name = row['Geo Name']
         self._add_object_attribute('site',
             ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
@@ -396,7 +407,7 @@ class OOILoader(object):
                                    ooi_rd, 'osite', name)
 
         self._add_object_attribute('osite',
-                                   name, None, None, name=name)
+                                   name, None, None, name=name, local_name=local_name, standalone_name=standalone_name)
         self._add_object_attribute('osite',
                                    name, 'site_rd_list', ooi_rd, value_is_list=True)
 
@@ -404,7 +415,8 @@ class OOILoader(object):
     def _parse_Subsites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
-        extension = row['Name Extension']
+        local_name = row['Name Extension']
+        standalone_name = row['Standalone Name']
 
         coord_dict = dict(
             lat_north = float(row['lat_north']) if row['lat_north'] else None,
@@ -419,7 +431,7 @@ class OOILoader(object):
             ooi_rd, 'ssite', name)
 
         self._add_object_attribute('ssite',
-                                   name, None, None, name=name, extension=extension)
+                                   name, None, None, name=name, local_name=local_name, standalone_name=standalone_name)
         self._add_object_attribute('ssite',
                                    name, 'subsite_rd_list', ooi_rd, value_is_list=True)
         if row['lat_north']:
@@ -429,7 +441,10 @@ class OOILoader(object):
     def _parse_Nodes(self, row):
         ooi_rd = row['Reference ID']
         name=row['Full Name']
+        local_name = row['Name Extension']
         node_entry = dict(
+            local_name=local_name,
+            standalone_name=name,
             parent_id=row['Parent Reference ID'],
             platform_id=row['Platform Reference ID'],
             platform_config_type=row['Platform Configuration Type'],
@@ -459,7 +474,6 @@ class OOILoader(object):
                 code, None, None, name=name)
 
     def _parse_PlatformAgents(self, row):
-        #
         code = row['Code']
         entry = dict(
             name=row['Name'],
@@ -474,6 +488,32 @@ class OOILoader(object):
         self._add_object_attribute('platformagent',
             code, None, None, **entry)
 
+    def _parse_Series(self, row):
+        code = row['Class Code']
+        series = row['Series']
+        series_rd = code + series
+        agent_name = row['Agent Code']
+
+        entry = dict(
+            agent_name=agent_name,
+            connection=row['Connection'],
+            driver=row['Driver'] == "Yes",
+            tier1=row['Tier 1'] == "Yes"
+            )
+        self._add_object_attribute('series',
+                                   series_rd, None, None, **entry)
+        if agent_name and agent_name != "NA":
+            self._add_object_attribute('instagent',
+                                       agent_name, None, None,
+                                       inst_class=code,
+                                       tier1=row['Tier 1'] == "Yes")
+            self._add_object_attribute('instagent',
+                                       agent_name, 'series_list', series_rd, value_is_list=True, list_dup_ok=True)
+
+    def _parse_InstAgents(self, row):
+        agent_code = row['Agent Code']
+        self._add_object_attribute('instagent',
+                                   agent_code, None, None, active=row['Active'] == "Yes")
 
     # ---- Post-processing and validation ----
 
@@ -584,6 +624,20 @@ class OOILoader(object):
         else:
             return ooi_rd.marine_io
 
+    def get_org_ids(self, ooi_rd_list):
+        if not ooi_rd_list:
+            return ""
+        marine_ios = set()
+        for ooi_rd in ooi_rd_list:
+            marine_io = self.get_marine_io(ooi_rd)
+            if marine_io == "CG":
+                marine_ios.add("MF_CGSN")
+            elif marine_io == "RSN":
+                marine_ios.add("MF_RSN")
+            elif marine_io == "EA":
+                marine_ios.add("MF_EA")
+        return ",".join(marine_ios)
+
     def delete_ooi_assets(self):
         res_ids = []
 
@@ -603,22 +657,37 @@ class OOILoader(object):
                            'DataProduct'
         ]
 
-        for restype in ooi_asset_types:
-            res_is_list, _ = self.container.resource_registry.find_resources(restype, id_only=True)
-            res_ids.extend(res_is_list)
-            #log.debug("Found %s resources of type %s" % (len(res_is_list), restype))
-
         self.resource_ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
 
-        docs = self.resource_ds.read_doc_mult(res_ids)
+        del_objs = {}
+        del_assocs = {}
+        all_objs = self.resource_ds.find_by_view("_all_docs", None, id_only=False, convert_doc=False)
+        for obj_id, key, obj in all_objs:
+            if obj_id.startswith("_design") or not isinstance(obj, dict):
+                continue
+            obj_type = obj.get("type_", None)
+            if obj_type and obj_type in ooi_asset_types:
+                del_objs[obj_id] = obj
+        for obj_id, key, obj in all_objs:
+            if obj_id.startswith("_design") or not isinstance(obj, dict):
+                continue
+            obj_type = obj.get("type_", None)
+            if obj_type == "Association":
+                if obj['o'] in del_objs or obj['s'] in del_objs:
+                    del_assocs[obj_id] = obj
+        for doc in del_objs.values():
+            doc_id, doc_rev = doc['_id'], doc['_rev']
+            doc.clear()
+            doc.update(dict(_id=doc_id, _rev=doc_rev, _deleted=True))
+        for doc in del_assocs.values():
+            doc_id, doc_rev = doc['_id'], doc['_rev']
+            doc.clear()
+            doc.update(dict(_id=doc_id, _rev=doc_rev, _deleted=True))
 
-        for doc in docs:
-            doc['_deleted'] = True
+        self.resource_ds.update_doc_mult(del_objs.values())
+        self.resource_ds.update_doc_mult(del_assocs.values())
 
-        # TODO: Also delete associations
-
-        self.resource_ds.update_doc_mult(docs)
-        log.info("Deleted %s OOI resources and associations", len(docs))
+        log.info("Deleted %s OOI resources and %s associations", len(del_objs), len(del_assocs))
 
     def _analyze_ooi_assets(self, end_date):
         report_lines = []
@@ -627,23 +696,36 @@ class OOILoader(object):
 
         deploy_platforms = {}
         platform_children = {}
+
+        # Pass: Propagate first deployment date to
+        for ooi_id, ooi_obj in node_objs.iteritems():
+            platform_node = node_objs[ooi_obj['platform_id']]
+            if ooi_obj.get('First Deployment Date', None):
+                platform_node['First Deployment Date'] = min(platform_node.get('First Deployment Date', '2020-01'), ooi_obj['First Deployment Date'])
+
+        # Pass: Determine node first deployment dates
         for ooi_id, ooi_obj in node_objs.iteritems():
             if ooi_obj.get('parent_id', None):
                 parent_id = ooi_obj.get('parent_id')
                 if parent_id not in platform_children:
                     platform_children[parent_id] = []
                 platform_children[parent_id].append(ooi_id)
-            if not ooi_obj.get('is_platform', False):
-                continue
             deploy_date_col = ooi_obj['deployment_start']
             if not deploy_date_col:
-                deploy_date_col = "2020-01-01"
-                ooi_obj['deployment_start'] = deploy_date_col
+                try:
+                    deploy_date = datetime.datetime.strptime(ooi_obj['First Deployment Date'], "%Y-%m")
+                    ooi_obj['deploy_date'] = deploy_date
+                    deploy_date_col = deploy_date.strftime('%Y-%m-%d')
+                    ooi_obj['deployment_start'] = deploy_date_col
+                except Exception as ex:
+                    deploy_date_col = "2020-01-01"
+                    ooi_obj['deployment_start'] = deploy_date_col
             try:
                 deploy_date = datetime.datetime.strptime(deploy_date_col, "%Y-%m-%d")
                 ooi_obj['deploy_date'] = deploy_date
                 if not end_date or deploy_date <= end_date:
-                    deploy_platforms[ooi_id] = ooi_obj
+                    if ooi_obj.get('is_platform', False):
+                        deploy_platforms[ooi_id] = ooi_obj
             except Exception as ex:
                 ooi_obj['deploy_date'] = None
                 print "Date parse error", ex
@@ -651,6 +733,7 @@ class OOILoader(object):
         deploy_platform_list = deploy_platforms.values()
         deploy_platform_list.sort(key=lambda obj: [obj['deploy_date'], obj['name']])
 
+        # Pass: Find instruments by node, set datetime
         inst_by_node = {}
         isite_by_node = {}
         pagent_objs = self.get_type_assets("platformagent")
@@ -659,10 +742,26 @@ class OOILoader(object):
             node_id = ooi_rd.node_rd
             if node_id not in inst_by_node:
                 inst_by_node[node_id] = []
-            inst_by_node[node_id].append(ooi_rd.inst_class)
+            inst_by_node[node_id].append(ooi_rd.series_rd)
             if node_id not in isite_by_node:
                 isite_by_node[node_id] = []
             isite_by_node[node_id].append(inst_id)
+            inst_deploy = inst_obj.get("First Deployment Date", None)
+            node_deploy = node_objs[ooi_rd.node_rd].get("deploy_date", None)
+            deploy_date = None
+            if inst_deploy:
+                try:
+                    deploy_date = datetime.datetime.strptime(inst_deploy, "%Y-%m")
+                except Exception as ex:
+                    try:
+                        deploy_date = datetime.datetime.strptime(inst_deploy, "%Y")
+                    except Exception as ex:
+                        pass
+                if deploy_date and node_deploy:
+                    deploy_date = max(deploy_date, node_deploy)
+            elif node_deploy:
+                deploy_date = node_deploy
+            inst_obj['deploy_date'] = deploy_date or datetime.datetime(2020, 1, 1)
 
         # Set recovery mode etc in nodes and instruments
         for ooi_id, ooi_obj in node_objs.iteritems():
@@ -683,7 +782,7 @@ class OOILoader(object):
                     inst_obj['data_agent_recovery'] = data_agent_recovery
 
         print "OOI ASSET REPORT - DEPLOYMENT UNTIL", end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"
-        print "Platforms (top-level):"
+        print "Platforms by deployment date:"
         inst_class_all = set()
         for ooi_obj in deploy_platform_list:
             inst_class_top = set()
@@ -695,17 +794,24 @@ class OOILoader(object):
                     ch_obj = node_objs[ch_id]
                     inst_class_node = set((inst, ch_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ch_id, []))
                     inst_class_top.update(inst_class_node)
-                    print "  "*level, "            +-"+ch_obj['id'], ch_obj['name'], ":", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_node))])
+                    print "  "*level, "            +-"+ch_obj['id'], ch_obj['name'], ch_obj.get('platform_agent_type', ""), ":", ", ".join([i for i,p in sorted(list(inst_class_node))])
                     follow_child_nodes(level+1, platform_children.get(ch_id,None))
 
             inst_class_node = set((inst, ooi_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ooi_obj['id'], []))
             inst_class_top.update(inst_class_node)
-            print " ", ooi_obj['deployment_start'], ooi_obj['id'], ooi_obj['name'], ":", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_node))])
+            print " ", ooi_obj['deployment_start'], ooi_obj['id'], ooi_obj['name'], ooi_obj.get('platform_agent_type', ""), ":", ", ".join([i for i,p in sorted(list(inst_class_node))])
 
-            inst_class_all.update(inst_class_top)
             follow_child_nodes(0, platform_children.get(ooi_obj['id'], None))
+            inst_class_all.update(inst_class_top)
 
-        print "Instrument Models:", ", ".join(["%s:%s"%(i,p) for i,p in sorted(list(inst_class_all))])
+        print "Instrument Models:"
+        inst_by_conn = {}
+        for clss, conn in inst_class_all:
+            if conn not in inst_by_conn:
+                inst_by_conn[conn] = []
+            inst_by_conn[conn].append(clss)
+        for conn, inst in inst_by_conn.iteritems():
+            print " ", conn, ":", ",".join(sorted(inst))
 
         from ion.util.datastore.resources import ResourceRegistryHelper
         rrh = ResourceRegistryHelper()

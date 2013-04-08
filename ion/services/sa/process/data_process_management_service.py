@@ -243,7 +243,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             self.clients.resource_registry.delete_association(association)
 
 
-    def create_data_process2(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
+    def create_data_process(self, data_process_definition_id='', in_data_product_ids=None, out_data_product_ids=None, configuration=None):
         '''
         Creates a DataProcess resource and launches the process.
         A DataProcess is a process that receives one (or more) data products and produces one (or more) data products.
@@ -304,173 +304,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
         return dproc_id
-    # ------------------------------------------------------------------------------------------------
-    # Working with DataProcess
-
-    def create_data_process(self, data_process_definition_id='', in_data_product_ids=None, out_data_products=None, configuration=None):
-        """
-        @param  data_process_definition_id: Object with definition of the
-                    process to apply to the input data product
-        @param  in_data_product_ids: ID of the input data products
-        @param  out_data_products: list of IDs of the output data products
-        @retval data_process_id: ID of the newly created data process object
-        """
-
-        inform = "Input Data Product: "+str(in_data_product_ids)+\
-                 "\nTransformed by: "+str(data_process_definition_id)+\
-                 "\nTo create output Product: "+str(out_data_products) + "\n"
-        log.debug("DataProcessManagementService:create_data_process() method called with parameters:\n" +
-                  inform)
-
-        #---------------------------------------------------------------------------------------
-        # Initialize
-        #---------------------------------------------------------------------------------------
-
-        configuration = configuration or DotDict()
-
-        #validate_is_not_none( out_data_products, "No output data products passed in")
-
-        #---------------------------------------------------------------------------------------
-        # Read the data process definition
-        #---------------------------------------------------------------------------------------
-        data_process_definition = self.read_data_process_definition(data_process_definition_id)
-
-        #---------------------------------------------------------------------------------------
-        # Read the output bindings from the definition
-        #---------------------------------------------------------------------------------------
-
-        output_bindings = data_process_definition.output_bindings
-
-        #---------------------------------------------------------------------------------------
-        # Find the process definition associated with this data process definition.
-        # From the process definition, we can get the module and class to run....
-        #---------------------------------------------------------------------------------------
-
-        procdef_ids,_ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
-        if not procdef_ids:
-            raise BadRequest("Cannot find associated ProcessDefinition for DataProcessDefinition id=%s" % data_process_definition_id)
-
-        process_definition_id = procdef_ids[0]
-
-        #---------------------------------------------------------------------------------------
-        # Create a data process object and register it
-        #---------------------------------------------------------------------------------------
-
-        # get the name of the data process and create an IONObject for it
-        data_process_name = create_unique_identifier("process_" + data_process_definition.name)
-        data_process_obj = IonObject(RT.DataProcess, name=data_process_name)
-
-        # register the data process
-        data_process_id, version = self.clients.resource_registry.create(data_process_obj)
-
-        data_process_obj = self.clients.resource_registry.read(data_process_id)
-
-        #---------------------------------------------------------------------------------------
-        # Make the necessary associations, registering
-        #---------------------------------------------------------------------------------------
-
-        #todo check if this assoc is needed?
-        # Associate the data process with the data process definition
-        self.clients.resource_registry.create_association(data_process_id,  PRED.hasProcessDefinition, data_process_definition_id)
-
-        # Register the data process instance as a data producer with DataAcquisitionMgmtSvc
-        data_producer_id = self.clients.data_acquisition_management.register_process(data_process_id)
-        log.debug("DataProcessManagementService:create_data_process register process "
-                  "with DataAcquisitionMgmtSvc: data_producer_id: %s   (L4-CI-SA-RQ-181)", str(data_producer_id) )
-
-        #---------------------------------------------------------------------------------------
-        # Register each output data product with DAMS to create DataProducer links
-        #---------------------------------------------------------------------------------------
-
-        output_stream_dict = {}
-
-#        if out_data_products is None:
-#            raise BadRequest("Data Process must have output product(s) specified %s",  str(data_process_definition_id) )
-        if out_data_products:
-            for binding, output_data_product_id in out_data_products.iteritems():
-
-                # check that the product is not already associated with a producer
-                producer_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
-                if producer_ids:
-                    raise BadRequest("Data Product should not already be associated to a DataProducer %s hasDataProducer %s", str(data_process_id), str(producer_ids[0]))
-
-                #Assign each output Data Product to this producer resource
-                output_data_product_obj = self.clients.resource_registry.read(output_data_product_id)
-                if not output_data_product_obj:
-                    raise NotFound("Output Data Product %s does not exist" % output_data_product_id)
-
-                # Associate with DataProcess: register as an output product for this process
-                log.debug("Link data process %s and output out data product: %s  (L4-CI-SA-RQ-260)", str(data_process_id), str(output_data_product_id))
-                self.clients.data_acquisition_management.assign_data_product(input_resource_id= data_process_id,data_product_id= output_data_product_id)
-
-                # Retrieve the id of the OUTPUT stream from the out Data Product
-                stream_ids, _ = self.clients.resource_registry.find_objects(output_data_product_id, PRED.hasStream, RT.Stream, True)
-
-                if not stream_ids:
-                    raise NotFound("No Stream created for output Data Product " + str(output_data_product_id))
-
-                if len(stream_ids) != 1:
-                    raise BadRequest("Data Product should only have ONE stream at this time" + str(output_data_product_id))
-
-                output_stream_dict[binding] = stream_ids[0]
-
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        #Check for attached objects and put them into the configuration
-        #------------------------------------------------------------------------------------------------------------------------------------------
-
-        # check for attachments in data process definition
-        configuration = self._find_lookup_tables(data_process_definition_id, configuration)
-        input_stream_ids = []
-
-        if in_data_product_ids:
-            for  in_data_product_id in in_data_product_ids:
-
-                self.clients.resource_registry.create_association(data_process_id, PRED.hasInputProduct, in_data_product_id)
-                log.debug("Associate data process workflows with source data products %s "
-                          "hasInputProducts  %s   (L4-CI-SA-RQ-260)", str(data_process_id), str(in_data_product_ids))
-
-                #check if in data product is attached to an instrument, check instrumentDevice and InstrumentModel for lookup table attachments
-                instdevice_ids, _ = self.clients.resource_registry.find_subjects(RT.InstrumentDevice, PRED.hasOutputProduct, in_data_product_id, True)
-
-                for instdevice_id in instdevice_ids:
-                    log.debug("Instrument device_id assoc to the input data product of this data process: %s   (L4-CI-SA-RQ-231)", str(instdevice_id))
-
-                    # check for attachments in instrument device
-                    configuration = self._find_lookup_tables(instdevice_id, configuration)
-                    instmodel_ids, _ = self.clients.resource_registry.find_objects(instdevice_id, PRED.hasModel, RT.InstrumentModel, True)
-
-                    for instmodel_id in instmodel_ids:
-                        # check for attachments in instrument model
-                        configuration = self._find_lookup_tables(instmodel_id, configuration)
-
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            # Get the input stream from the input_data_product, which should already be associated with a stream via the Data Producer
-            #------------------------------------------------------------------------------------------------------------------------------------------
-            input_stream_ids = self._get_input_stream_ids(in_data_product_ids)
-
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        # Create subscription to the input stream
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        input_subscription_id = self.clients.pubsub_management.create_subscription(name=data_process_name, stream_ids=input_stream_ids)
-
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        # Add the subscription id to the data process
-        #------------------------------------------------------------------------------------------------------------------------------------------
-        data_process_obj.input_subscription_id = input_subscription_id
-
-        log.info("Launching the process")
-        debug_str = "\n\tQueue Name: %s\n\tOutput Streams: %s\n\tProcess Definition ID: %s\n\tConfiguration: %s" % (data_process_name, output_stream_dict, process_definition_id, configuration)
-        log.debug(debug_str)
-
-        pid = self._launch_process(
-                           queue_name=data_process_name,
-                           out_streams=output_stream_dict,
-                           process_definition_id=process_definition_id,
-                           configuration=configuration)
-
-        data_process_obj.process_id = pid
-        self.clients.resource_registry.update(data_process_obj)
-        return data_process_id
 
     def _get_input_stream_ids(self, in_data_product_ids = None):
 
@@ -573,77 +406,20 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
             
 
-    def update_data_process(self,):
-        #todo: What are valid ways to update a data process?.
-
-        return
-
-    def update_data_process2(self):
+    def update_data_process(self):
         raise BadRequest('Cannot update an existing data process.')
 
-    def read_data_process(self, data_process_id=""):
 
-        data_proc_obj = self.clients.resource_registry.read(data_process_id)
-        return data_proc_obj
-
-    def read_data_process2(self, data_process_id=''):
+    def read_data_process(self, data_process_id=''):
         data_proc_obj = self.clients.resource_registry.read(data_process_id)
         return data_proc_obj
 
 
     def delete_data_process(self, data_process_id=""):
 
-        # Delete the specified DataProcessDefinition object
-        data_process_obj = self.read_data_process(data_process_id)
-
-        log.debug("delete the association with DataProcessDefinition")
-        dpd_assn_ids = self.clients.resource_registry.find_associations(subject=data_process_id,  predicate=PRED.hasProcessDefinition, id_only=True)
-        for dpd_assn_id in dpd_assn_ids:
-            log.debug("Trying to delete the association with this data process definition: %s", dpd_assn_id)
-            self.clients.resource_registry.delete_association(dpd_assn_id)
-
-        self._stop_process(data_process_obj)
-
-
-        log.debug("Finalizing data products by removing streams associated with the dataset and product")
-        out_products, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasOutputProduct, id_only=True)
-        for out_product, assoc in zip(out_products, assocs):
-            self.data_product_management.remove_streams(out_product)
-            log.debug("deleting association with output data product '%s'" % out_product)
-            self.clients.resource_registry.delete_association(assoc)
-
-            self.clients.data_acquisition_management.unassign_data_product(data_process_id, out_product)
-
-
-        log.debug("Delete the input product links")
-        inprod_associations = self.clients.resource_registry.find_associations(data_process_id, PRED.hasInputProduct)
-        for inprod_association in inprod_associations:
-            self.clients.resource_registry.delete_association(inprod_association)
-
-
-        try:
-            self.deactivate_data_process(data_process_id=data_process_id)
-            log.debug('Deleteing activated data process...')
-        except BadRequest:
-            pass
-
-        subscription_id = data_process_obj.input_subscription_id
-        self.clients.pubsub_management.delete_subscription(subscription_id)
-        data_process_obj.input_subscription_id = None
-        self.clients.resource_registry.update(data_process_obj)
-
-        #unregister the data process in DataAcquisitionMgmtSvc
-        self.clients.data_acquisition_management.unregister_process(data_process_id)
-
-        # Delete the data process
-        self.clients.resource_registry.retire(data_process_id)
-        return
-
-    def delete_data_process2(self, data_process_id=''):
-
         #Stops processes and deletes the data process associations
         #TODO: Delete the processes also?
-        self.deactivate_data_process2(data_process_id)
+        self.deactivate_data_process(data_process_id)
         processes, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasProcess, id_only=False)
         for process, assoc in zip(processes,assocs):
             self._stop_process(data_process=process)
@@ -691,7 +467,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         data_process_list , _ = self.clients.resource_registry.find_resources(RT.DataProcess, None, None, True)
         return data_process_list
 
-    def activate_data_process2(self, data_process_id=''):
+    def activate_data_process(self, data_process_id=''):
         #@Todo: Data Process Producer context stuff
         subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
         for subscription_id in subscription_ids:
@@ -699,7 +475,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 self.clients.pubsub_management.activate_subscription(subscription_id)
         return True
 
-    def deactivate_data_process2(self, data_process_id=''):
+    def deactivate_data_process(self, data_process_id=''):
         #@todo: data process producer context stuff
         subscription_ids, assocs = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
         for subscription_id in subscription_ids:
@@ -707,57 +483,6 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 self.clients.pubsub_management.deactivate_subscription(subscription_id)
 
         return True
-    
-    def activate_data_process(self, data_process_id=""):
-
-        data_process_obj = self.read_data_process(data_process_id)
-        log.debug("activate_data_process:data_process_obj  %s ", str(data_process_obj))
-
-
-#        #update the producer context with the activation time and the configuration
-
-
-        # todo: update the setting of this context with the return vals from process_dispatcher:schedule_process after convert
-        # todo: process_id, process_definition, schedule, configuration
-
-        producer_obj = self._get_process_producer(data_process_id)
-        producertype = type(producer_obj).__name__
-        #todo: producer_obj.producer_context.type_ is returning the base type, not the derived type.
-        if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
-            log.debug("activate_data_process:activation_time  %s ", str(IonTime().to_string()))
-            producer_obj.producer_context.activation_time = IonTime().to_string()
-            producer_obj.producer_context.configuration = data_process_obj.configuration
-            self.clients.resource_registry.update(producer_obj)
-
-        subscription_id = data_process_obj.input_subscription_id
-        self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
-
-    def deactivate_data_process(self, data_process_id=""):
-
-        data_process_obj = self.read_data_process(data_process_id)
-
-        if not data_process_obj.input_subscription_id:
-            log.warn("data process '%s' has no subscription id to deactivate", data_process_id)
-            return
-
-        subscription_obj = self.clients.pubsub_management.read_subscription(data_process_obj.input_subscription_id)
-
-        if subscription_obj.activated:
-
-            #update the producer context with the deactivation time
-            # todo: update the setting of this contect with the return vals from process_dispatcher:schedule_process after convert
-            producer_obj = self._get_process_producer(data_process_id)
-            producertype = type(producer_obj).__name__
-            if producer_obj.producer_context.type_ == OT.DataProcessProducerContext :
-                log.debug("data_process '%s' (producer '%s'): deactivation_time = %s ",
-                          data_process_id, producer_obj._id, str(IonTime().to_string()))
-                producer_obj.producer_context.deactivation_time = IonTime().to_string()
-                self.clients.resource_registry.update(producer_obj)
-
-            subscription_id = data_process_obj.input_subscription_id
-            log.debug("Deactivating subscription '%s'", subscription_id)
-            self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription_id)
-
 
 
     def attach_process(self, process=''):

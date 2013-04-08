@@ -20,17 +20,11 @@ class CTDBP_L1_Transform(TransformDataProcess):
     L1 takes the L0 stream and the passed in Calibration Coefficients and performs the appropriate calculations
     to output the L1 values.
     """
-    output_bindings = ['L1_stream']
 
     def on_start(self):
         super(CTDBP_L1_Transform, self).on_start()
 
-        #  Validate the CFG used to launch the transform has all the required fields
-        if not self.CFG.process.publish_streams.has_key('L1_stream'):
-            raise BadRequest("For CTDBP transforms, please send the stream_id for the L1_stream using "
-                     "a special keyword (L1_stream)")
-
-        self.L1_stream_id = self.CFG.process.publish_streams.L1_stream
+        self.L1_stream_id = self.CFG.process.publish_streams.values()[0]
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -61,7 +55,7 @@ class CTDBP_L1_Transform(TransformDataProcess):
 
         log.debug('calculated L1 values: temp %s, pressure %s, conductivity %s',
                   l1_values['temp'], l1_values['pressure'], l1_values['conductivity'])
-        self.L1_stream.publish(msg=l1_values.to_granule())
+        self.publisher.publish(msg=l1_values.to_granule())
 
     def calculate_temperature(self, l0):
         TEMPWAT_L0 = l0['temperature']

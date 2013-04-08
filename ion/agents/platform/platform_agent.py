@@ -1035,7 +1035,18 @@ class PlatformAgent(ResourceAgent):
 
     def _got_device_status_event(self, evt, *args, **kwargs):
 
-        self._calculate_rollup_status()
+        # TODO the aggregated status handling is being revised (in
+        # particular, the initial mixed push/pull approach will be
+        # replaced with only a "push" approach (ie., just reacting to events)
+        try:
+            self._calculate_rollup_status()
+
+        except Exception as ex:
+            # Timeouts are happening on coi_pycc (presumably toward the end
+            # of the platform tests when the children processes are being
+            # destroyed); avoid the stack traces to reduce noise while a more
+            # appropriate implementation is in place:
+            log.warn("exception in _calculate_rollup_status: %s", ex)
 
     def _start_subscriber_device_status_event(self, origin):
         """
@@ -1112,7 +1123,11 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
 
     def _calculate_rollup_status(self, status_type=None):
-        # TODO complement docstring
+        #
+        # TODO method to be rewritten/replaced to only use a push based
+        # approach, ie. reacting to the events (which will contain enough
+        # information to proceed with the updates).
+        #
         """
         @param status_type   The specific status type from AggregateStatusType
                              to process. Is None, all types are processed.

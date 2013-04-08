@@ -49,6 +49,8 @@ class ResourceRegistryHelper(object):
 
         self._dump_observatories()
 
+        self._dump_network()
+
         for restype in sorted(self._res_by_type.keys()):
             self._dump_resource_type(restype)
 
@@ -121,13 +123,11 @@ class ResourceRegistryHelper(object):
         for i, res_obj in enumerate(res_objs):
             for j, attr in enumerate(sorted(list(self._attr_by_type[restype]))):
                 value = res_obj.get(attr, "")
-                if type(value) in (str, unicode):
-                    try:
-                        ws.write(i+1, j, value.encode("ascii", "replace"))
-                    except Exception as ex:
-                        print "!!! ", restype, attr, value
-                        #ws.write(i+1, j, unicode(value, "latin1").encode("utf8"))
-                        ws.write(i+1, j, "???")
+                if type(value) is str:
+                    value = unicode(value, "latin1")
+                    ws.write(i+1, j, value.encode("ascii", "replace"))
+                elif type(value) is unicode:
+                    ws.write(i+1, j, value.encode("ascii", "replace"))
                 elif type(value) in (bool, int, None, float):
                     ws.write(i+1, j, value)
                 elif isinstance(value, dict):
@@ -176,3 +176,32 @@ class ResourceRegistryHelper(object):
                     ws.write(self._row, 3, obs['name'])
                     self._row += 1
                     follow_site(obs['_id'], 4)
+
+    def _dump_network(self):
+        ws = self._wb.add_sheet("Network")
+        [ws.write(0, col, hdr) for (col, hdr) in enumerate(["Network"])]
+        self._row = 1
+
+        parents = {}
+        child_set = set()
+
+        for assoc in self._associations.values():
+            if assoc['p'] == "hasNetworkParent":
+                parent_id = assoc['o']
+                if parent_id not in parents:
+                    parents[parent_id] = []
+                parents[parent_id].append(assoc['s'])
+                child_set.add(assoc['s'])
+
+        roots = set(parents.keys()) - child_set
+
+        def follow_dev(dev_id, level):
+            dev_obj = self._resources[dev_id]
+            ws.write(self._row, level, dev_obj['name'])
+            self._row += 1
+            if dev_id in parents:
+                for ch_id in parents[dev_id]:
+                    follow_dev(ch_id, level+1)
+
+        for dev_id in roots:
+            follow_dev(dev_id, 0)

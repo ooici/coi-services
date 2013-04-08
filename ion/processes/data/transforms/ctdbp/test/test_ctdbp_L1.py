@@ -235,13 +235,17 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         # We need the key name here to be "L1_stream", since when the data process is launched, this name goes into
         # the config as in config.process.publish_streams.L1_stream when the config is used to launch the data process
-        self.output_products = {'L1_stream' : L1_stream_dp_id}
         out_stream_ids, _ = self.resource_registry.find_objects(L1_stream_dp_id, PRED.hasStream, RT.Stream, True)
         self.assertTrue(len(out_stream_ids))
         output_stream_id = out_stream_ids[0]
 
         config = self._create_calibration_coefficients_dict()
-        dproc_id = self.data_process_management.create_data_process( dprocdef_id, [input_dp_id], self.output_products, config)
+        dproc_id = self.data_process_management.create_data_process(
+            data_process_definition_id = dprocdef_id,
+            in_data_product_ids = [input_dp_id],
+            out_data_product_ids=  [L1_stream_dp_id],
+            configuration=config)
+        
         self.addCleanup(self.data_process_management.delete_data_process, dproc_id)
         log.debug("Created a data process for ctdbp_L1. id: %s", dproc_id)
 

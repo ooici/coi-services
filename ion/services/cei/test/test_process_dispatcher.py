@@ -752,7 +752,8 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
 
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
-@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip if not in CEI LAUNCH mode')
+@unittest.skipIf(os.getenv('PYCC_MODE', False), 'Skip if in PYCC mode')
 @attr('INT', group='cei')
 class ProcessDispatcherServiceLaunchIntTest(IonIntegrationTestCase):
 
@@ -846,6 +847,13 @@ pd_config = {
             "engine2": {
                 "slots": 100,
                 "base_need": 1
+            },
+            "engine3": {
+                "slots": 100,
+                "base_need": 1,
+                "heartbeat_period": 2,
+                "heartbeat_warning": 4,
+                "heartbeat_missing": 6
             }
         }
     }
@@ -1157,10 +1165,15 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
-    def _add_test_process(self, restart_mode=None):
+    def _add_test_process(self, restart_mode=None, queueing_mode=None, execution_engine_id=None):
         process_schedule = ProcessSchedule()
         if restart_mode is not None:
             process_schedule.restart_mode = restart_mode
+        if queueing_mode is not None:
+            process_schedule.queueing_mode = queueing_mode
+        if execution_engine_id is not None:
+            process_schedule.target = ProcessTarget(execution_engine_id=execution_engine_id)
+
         pid = self.pd_cli.create_process(self.process_definition_id)
 
         pid_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
@@ -1277,3 +1290,53 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.assertEqual(proc.process_id, pid)
         self.assertEqual(proc.process_configuration, {})
         self.assertEqual(proc.process_state, ProcessStateEnum.TERMINATED)
+
+    def test_missing_eeagent(self):
+        self.waiter.start()
+
+        # start a non-default engine that has heartbeat monitoring enabled
+        node2_id = uuid.uuid4().hex
+        self._send_node_state("engine3", node2_id)
+        eeagent_pid = self._start_eeagent(node2_id)
+
+        pids = []
+        clients = {}
+        # start 10 processes with RestartMode.ALWAYS
+        for _ in range(10):
+            pid, client = self._add_test_process(ProcessRestartMode.ALWAYS,
+                ProcessQueueingMode.ALWAYS, "engine3")
+            pids.append(pid)
+            clients[pid] = client
+
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
+
+        for pid in pids:
+            client = clients[pid]
+            self.assertFalse(client.is_restart())
+            self.assertEqual(client.count(), 1)
+
+        before_time = time.time()
+        # now kill the whole eeagent. doctor should detect
+        resource_id = self._eea_pid_to_resource_id[eeagent_pid]
+        persistence_dir = self._eea_pid_to_persistence_dir[eeagent_pid]
+        self._kill_eeagent(eeagent_pid)
+
+        # manually kill the processes to simulate a real container failure
+        for pid in pids:
+            self.container.terminate_process(pid)
+
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.WAITING)
+
+        elapsed = time.time() - before_time
+        log.info("Elapsed time from EEagent kill to process restarts is %s s", elapsed)
+        # resource heartbeat_missing time is 6 seconds. so we should expect
+        # elapsed time to be roughly in this range. This may end up racy on
+        # slower test environments however
+        self.assertTrue(4 <= elapsed < 10)
+
+        # now add the eeagent back and processes should resume
+        self._start_eeagent(node2_id, resource_id=resource_id,
+            persistence_dir=persistence_dir)
+
+        # wait for restartables to restart
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
