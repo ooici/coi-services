@@ -21,8 +21,6 @@ class PresfL0Splitter(TransformDataProcess):
         (as well as supporting params: time, port_timestamp, driver_timestamp, internal_timestamp, preferred_timestamp,)
         other data parameters are dropped
     '''
-    output_bindings = ['absolute_pressure']
-
     def on_start(self):
         super(PresfL0Splitter, self).on_start()
 
@@ -39,7 +37,7 @@ class PresfL0Splitter(TransformDataProcess):
         if packet == {}:
             return
         granule = PresfL0SplitterAlgorithm.execute(packet, params=self.stream_definition._id)
-        self.absolute_pressure.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class PresfL0SplitterAlgorithm(SimpleGranuleTransformFunction):

@@ -46,7 +46,7 @@ class DensityTransform(TransformDataProcess):
 
         log.debug("L2 density transform publishing granule with record dict: %s", granule.record_dictionary)
 
-        self.density.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):

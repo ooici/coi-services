@@ -48,7 +48,7 @@ class SalinityTransform(TransformDataProcess):
         log.debug("L2 salinity transform publishing granule with record dict: %s", granule.record_dictionary)
 
         granule.data_producer_id=self.id
-        self.salinity.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):

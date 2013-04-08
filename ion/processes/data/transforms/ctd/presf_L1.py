@@ -18,7 +18,6 @@ class PresfL1Transform(TransformDataProcess):
         param and outputs the seafloor_pressure stream with a seafloor_pressure  param and
         supporting params.
     '''
-    output_bindings = ['seafloor_pressure']
 
     def on_start(self):
         super(PresfL1Transform, self).on_start()
@@ -36,7 +35,7 @@ class PresfL1Transform(TransformDataProcess):
         if packet == {}:
             return
         granule = PresfL1TransformAlgorithm.execute(packet, params=self.stream_definition._id)
-        self.seafloor_pressure.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class PresfL1TransformAlgorithm(SimpleGranuleTransformFunction):

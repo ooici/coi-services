@@ -38,7 +38,7 @@ class CTDL1TemperatureTransform(TransformDataProcess):
         if packet == {}:
             return
         granule = CTDL1TemperatureTransformAlgorithm.execute(packet, params=self.stream_definition._id)
-        self.temperature.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 class CTDL1TemperatureTransformAlgorithm(SimpleGranuleTransformFunction):
     '''
