@@ -752,7 +752,8 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
 
 
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
-@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip if not in CEI LAUNCH mode')
+@unittest.skipIf(os.getenv('PYCC_MODE', False), 'Skip if in PYCC mode')
 @attr('INT', group='cei')
 class ProcessDispatcherServiceLaunchIntTest(IonIntegrationTestCase):
 
