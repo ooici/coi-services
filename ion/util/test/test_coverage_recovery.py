@@ -64,7 +64,7 @@ from pyon.ion.stream import StandaloneStreamPublisher
 
 
 from subprocess import call
-not_have_h5stat = call('which h5stat'.split())
+not_have_h5stat = call('which h5stat'.split(), stdout=open('/dev/null','w'))
 
 @attr('INT', group='dm')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
