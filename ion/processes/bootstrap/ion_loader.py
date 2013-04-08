@@ -327,15 +327,15 @@ class IONLoader(ImmediateProcess):
         row_skip = row_do = 0
         rows = []
         for row in reader:
-            if row[COL_SCENARIO] not in scenarios:
+            if any(sc in scenarios for sc in row[COL_SCENARIO].split(",")):
+                row_do += 1
+                rows.append(row)
+            else:
                 row_skip += 1
                 if COL_ID in row:
                     log.trace('skipping %s row %s in scenario %s', category, row[COL_ID], row[COL_SCENARIO])
                 else:
                     log.trace('skipping %s row in scenario %s: %r', category, row[COL_SCENARIO], row)
-            else:
-                row_do += 1
-                rows.append(row)
         log.debug('parsed entries for category %s: using %d rows, skipping %d rows', category, row_do, row_skip)
         return rows
 
@@ -1046,28 +1046,33 @@ class IONLoader(ImmediateProcess):
             support_bulk=True)
 
     def _load_InstrumentModel_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("class")
+        class_objs = self.ooi_loader.get_type_assets("class")
+        series_objs = self.ooi_loader.get_type_assets("series")
+        family_objs = self.ooi_loader.get_type_assets("family")
+        makemodel_objs = self.ooi_loader.get_type_assets("makemodel")
 
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
-            if "DEPRECATED" in ooi_obj['name']:
+        for ooi_id, series_obj in series_objs.iteritems():
+            class_obj = class_objs[series_obj['Class']]
+            class_name = class_obj["name"]
+            if "DEPRECATED" in class_name:
                 continue
-            family_obj = self.ooi_loader.get_type_assets("family")[ooi_obj['family']]
+            family_obj = family_objs[class_obj['family']]
             newrow = {}
             newrow[COL_ID] = ooi_id
-            newrow['im/name'] = ooi_obj['name']
+            newrow['im/name'] = "%s (%s-%s)" % (class_name, series_obj['Class'], series_obj['Series'])
             newrow['im/alt_ids'] = "['OOI:" + ooi_id + "']"
-            newrow['im/description'] = ooi_obj['description']
-            newrow['im/instrument_family'] = ooi_obj['family']
-            newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
+            newrow['im/description'] = series_obj['description']
+            newrow['im/instrument_family'] = family_obj['name']
+            newrow['im/reference_designator'] = ooi_id
+            newrow['org_ids'] = self.ooi_loader.get_org_ids(class_obj.get('array_list', None))
             reference_urls = []
             addl = {}
-            if ooi_obj.get('makemodel', None) and ooi_obj['makemodel'][0]:
-                # TODO: Catch case where there is more than one makemodel per subseries
-                makemodel_obj = self.ooi_loader.get_type_assets("makemodel")[ooi_obj['makemodel'][0]]
+            if series_obj.get('makemodel', None):
+                makemodel_obj = makemodel_objs[series_obj['makemodel']]
                 newrow['im/manufacturer'] = makemodel_obj['Manufacturer']
                 newrow['im/manufacturer_url'] = makemodel_obj['Vendor Website']
                 addl.update(dict(connector=makemodel_obj['Connector'],
-                    makemodel=ooi_obj['makemodel'][0],
+                    makemodel=series_obj['makemodel'],
                     makemodel_description=makemodel_obj['Make_Model_Description'],
                     input_voltage_range=makemodel_obj['Input Voltage Range'],
                     interface=makemodel_obj['Interface'],
@@ -1076,12 +1081,12 @@ class IONLoader(ImmediateProcess):
                 ))
                 if makemodel_obj['Make/Model Website']: reference_urls.append(makemodel_obj['Make/Model Website'])
             newrow['im/reference_urls'] = ",".join(reference_urls)
-            addl['alternate_name'] = ooi_obj['Alternate Instrument Class Name']
-            addl['class_long_name'] = ooi_obj['ClassLongName']
-            addl['comments'] = ooi_obj['Comments']
+            addl['alternate_name'] = series_obj['Alternate Instrument Class Name']
+            addl['class_long_name'] = series_obj['ClassLongName']
+            addl['comments'] = series_obj['Comments']
             newrow['im/addl'] = repr(addl)
 
-            if not self._match_filter(ooi_obj.get('array_list', None)):
+            if not self._match_filter(class_obj.get('array_list', None)):
                 continue
 
             self._load_InstrumentModel(newrow)
@@ -1118,6 +1123,9 @@ class IONLoader(ImmediateProcess):
             newrow['obs/name'] = ooi_obj['name']
             newrow['obs/description'] = "Site: %s" % ", ".join(site_rd_list)
             newrow['obs/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
+            newrow['obs/local_name'] = ooi_obj['local_name']
+            newrow['obs/standalone_name'] = ooi_obj['standalone_name']
+            newrow['obs/reference_designator'] = ooi_obj['rd']
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_obj['rd']])
@@ -1171,6 +1179,9 @@ class IONLoader(ImmediateProcess):
             newrow['site/name'] = ooi_obj['name']
             newrow['site/description'] = "Subsite: %s" % ", ".join(subsite_rd_list)
             newrow['site/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
+            newrow['site/local_name'] = ooi_obj['local_name']
+            newrow['site/standalone_name'] = ooi_obj['standalone_name']
+            newrow['site/reference_designator'] = ooi_obj['rd']
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_obj['rd']])
@@ -1249,6 +1260,9 @@ class IONLoader(ImmediateProcess):
             newrow[COL_ID] = ooi_id
             newrow['ps/name'] = ooi_obj.get('name', ooi_id)
             newrow['ps/alt_ids'] = "['OOI:" + ooi_id + "']"
+            newrow['ps/local_name'] = ooi_obj['local_name']
+            newrow['ps/standalone_name'] = ooi_obj['standalone_name']
+            newrow['ps/reference_designator'] = ooi_id
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             if ooi_obj.get('is_platform', False):
@@ -1327,38 +1341,45 @@ class IONLoader(ImmediateProcess):
                         headers=headers)
 
     def _load_InstrumentSite_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("instrument")
-        nodes = self.ooi_loader.get_type_assets("node")
-        iclass = self.ooi_loader.get_type_assets("class")
+        inst_objs = self.ooi_loader.get_type_assets("instrument")
+        node_objs = self.ooi_loader.get_type_assets("node")
+        class_objs = self.ooi_loader.get_type_assets("class")
+        series_objs = self.ooi_loader.get_type_assets("series")
 
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
+        for ooi_id, inst_obj in inst_objs.iteritems():
             constrow = {}
             const_id1 = ''
-            if ooi_obj['latitude'] or ooi_obj['longitude'] or ooi_obj['depth_port_max'] or ooi_obj['depth_port_min']:
+            if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
                 const_id1 = ooi_id + "_const1"
                 constrow[COL_ID] = const_id1
                 constrow['type'] = 'geospatial'
-                constrow['south'] = ooi_obj['latitude'] or '0.0'
-                constrow['north'] = ooi_obj['latitude'] or '0.0'
-                constrow['west'] = ooi_obj['longitude'] or '0.0'
-                constrow['east'] = ooi_obj['longitude'] or '0.0'
+                constrow['south'] = inst_obj['latitude'] or '0.0'
+                constrow['north'] = inst_obj['latitude'] or '0.0'
+                constrow['west'] = inst_obj['longitude'] or '0.0'
+                constrow['east'] = inst_obj['longitude'] or '0.0'
                 constrow['vertical_direction'] = 'depth'
-                constrow['top'] = ooi_obj['depth_port_min'] or '0.0'
-                constrow['bottom'] = ooi_obj['depth_port_max'] or '0.0'
+                constrow['top'] = inst_obj['depth_port_min'] or '0.0'
+                constrow['bottom'] = inst_obj['depth_port_max'] or '0.0'
                 self._load_Constraint(constrow)
 
             ooi_rd = OOIReferenceDesignator(ooi_id)
+            class_obj = class_objs[ooi_rd.inst_class]
+            series_obj = series_objs[ooi_rd.series_rd]
+            inst_name = "%s (%s-%s)" % (class_obj['name'], series_obj['Class'], series_obj['Series'])
             newrow = {}
             newrow[COL_ID] = ooi_id
-            newrow['is/name'] = iclass[ooi_rd.inst_class]['name']
+            newrow['is/name'] = inst_name
             newrow['is/description'] = "Instrument: %s" % ooi_id
             newrow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
+            newrow['is/local_name'] = inst_name
+            newrow['is/standalone_name'] = inst_name
             newrow['is/planned_uplink_port/port_type'] = "PAYLOAD"
             newrow['is/planned_uplink_port/reference_designator'] = ooi_rd.port_rd
+            newrow['is/reference_designator'] = ooi_id
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-            newrow['instrument_model_ids'] = ooi_obj['instrument_model']
+            newrow['instrument_model_ids'] = inst_obj['instrument_model']
             newrow['parent_site_id'] = ooi_id[:14]
 
             if not self._match_filter(ooi_id[:2]):
@@ -1644,6 +1665,22 @@ Reason: %s
 
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
+    def _load_PlatformDevice_ext(self, row):
+        # HACK: This is to set the network parent after creating the device
+        headers = self._get_op_headers(row)
+        res_id = self._get_resource_id(row[COL_ID])
+        oms_client = self._get_service_client("observatory_management")
+        network_parent_id = row.get("network_parent_id", None)
+        if network_parent_id:
+            if self.bulk:
+                parent_obj = self._get_resource_obj(network_parent_id)
+                device_obj = self._get_resource_obj(row[COL_ID])
+                self._create_association(device_obj, PRED.hasNetworkParent, parent_obj)
+            else:
+                oms_client.assign_device_to_network_parent(self.resource_ids[network_parent_id], res_id,
+                                                           headers=headers)
+
+
     def _load_PlatformDevice_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("node")
 
@@ -1655,12 +1692,23 @@ Reason: %s
             newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
             newrow['platform_model_id'] = ooi_id[9:11] + "_PM"
             newrow['contact_ids'] = ''
-            newrow['network_parent_id'] = ooi_obj.get('uplink_node', "")
+            newrow['network_parent_id'] = ""
 
             if not self._match_filter(ooi_obj.get('array_list', None)):
                 continue
 
             self._load_PlatformDevice(newrow)
+
+        for ooi_id, ooi_obj in ooi_objs.iteritems():
+            newrow = {}
+            newrow[COL_ID] = ooi_id + "_PD"
+            uplink_node = ooi_obj.get('uplink_node', "")
+            newrow['network_parent_id'] = uplink_node + "_PD" if uplink_node else ""
+
+            if not self._match_filter(ooi_obj.get('array_list', None)):
+                continue
+
+            self._load_PlatformDevice_ext(newrow)
 
     def _load_InstrumentDevice(self, row):
         row['id/reference_urls'] = repr(get_typed_value(row['id/reference_urls'], targettype="simplelist"))
@@ -1703,27 +1751,27 @@ Reason: %s
         self._resource_advance_lcs(row, res_id, "InstrumentDevice")
 
     def _load_InstrumentDevice_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("instrument")
-        nodes = self.ooi_loader.get_type_assets("node")
-        iclass = self.ooi_loader.get_type_assets("class")
+        inst_objs = self.ooi_loader.get_type_assets("instrument")
+        node_objs = self.ooi_loader.get_type_assets("node")
+        class_objs = self.ooi_loader.get_type_assets("class")
 
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
+        for ooi_id, inst_obj in inst_objs.iteritems():
             node_id = ooi_id[:14]
-            node_obj = nodes[node_id]
+            node_obj = node_objs[node_id]
             if not node_obj.get('is_platform', False):
                 node_id = node_obj.get('platform_id')
-                node_obj = nodes[node_id]
+                node_obj = node_objs[node_id]
                 if not node_obj.get('is_platform', False):
                     log.warn("Node %s is not a platform!!" % node_id)
 
             ooi_rd = OOIReferenceDesignator(ooi_id)
             newrow = {}
             newrow[COL_ID] = ooi_id + "_ID"
-            newrow['id/name'] = "%s on %s" % (iclass[ooi_rd.inst_class]['name'], nodes[ooi_id[:14]]['name'])
+            newrow['id/name'] = "%s on %s" % (class_objs[ooi_rd.inst_class]['name'], node_objs[ooi_id[:14]]['name'])
             newrow['id/description'] = "Instrument %s device #01" % ooi_id
             newrow['id/reference_urls'] = ''
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-            newrow['instrument_model_id'] = ooi_rd.inst_class
+            newrow['instrument_model_id'] = ooi_rd.series_rd
             newrow['platform_device_id'] = node_id + "_PD"
             newrow['contact_ids'] = ''
 
@@ -1845,21 +1893,23 @@ Reason: %s
         self._resource_advance_lcs(row, res_id, "InstrumentAgent")
 
     def _load_InstrumentAgent_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("subseries")
+        agent_objs = self.ooi_loader.get_type_assets("instagent")
 
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
-            newrow = {}
-            newrow[COL_ID] = ooi_id + "_IA"
-            newrow['ia/name'] = "Instrument Agent for " + ooi_id
-            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
-            ooi_rd = OOIReferenceDesignator(ooi_id)
-            newrow['instrument_model_ids'] = ooi_rd.inst_class
-            newrow['stream_configurations'] = ""
+        for ooi_id, agent_obj in agent_objs.iteritems():
+            if agent_obj.get('active', False):
+                ooi_rd = OOIReferenceDesignator(ooi_id)
+                newrow = {}
+                newrow[COL_ID] = "IA_" + ooi_id
+                newrow['ia/name'] = "Instrument Agent " + ooi_id
+                newrow['ia/description'] = "Supports models: " + ",".join(agent_obj.get('series_list', []))
+                newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
+                newrow['instrument_model_ids'] = ",".join(agent_obj.get('series_list', []))
+                newrow['stream_configurations'] = ""
 
-            if not self._match_filter(ooi_id[:2]):
-                continue
+                if not self._match_filter(ooi_id[:2]):
+                    continue
 
-            self._load_InstrumentAgent(newrow)
+                self._load_InstrumentAgent(newrow)
 
     def _load_ExternalDatasetAgent(self, row):
         pass
