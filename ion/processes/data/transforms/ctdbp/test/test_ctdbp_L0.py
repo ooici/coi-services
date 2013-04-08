@@ -170,6 +170,7 @@ class CtdbpTransformsIntTest(IonIntegrationTestCase):
         output_stream_id = out_stream_ids[0]
 
         dproc_id = self.data_process_management.create_data_process(
+                                                data_process_definition_id = dprocdef_id,
                                                 in_data_product_ids = [input_dp_id],
                                                 out_data_product_ids = [L0_stream_dp_id],
                                                 configuration=None)

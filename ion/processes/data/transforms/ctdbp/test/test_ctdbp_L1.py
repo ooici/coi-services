@@ -241,6 +241,7 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 
         config = self._create_calibration_coefficients_dict()
         dproc_id = self.data_process_management.create_data_process(
+            data_process_definition_id = dprocdef_id,
             in_data_product_ids = [input_dp_id],
             out_data_product_ids=  [L1_stream_dp_id],
             configuration=config)
