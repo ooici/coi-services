@@ -9,7 +9,7 @@ from pyon.datastore.datastore import DataStore
 from pyon.event.event import EventSubscriber
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from pyon.public import RT, log, OT
+from pyon.public import RT, log, OT, PRED
 from pyon.util.containers import DotDict
 from pyon.util.poller import poll
 from pyon.util.int_test import IonIntegrationTestCase
@@ -24,7 +24,7 @@ from ion.util.stored_values import StoredValueManager
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
-from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType, ViewCoverage, ComplexCoverage
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -36,6 +36,8 @@ from interface.objects import Granule
 
 from gevent.event import Event
 from nose.plugins.attrib import attr
+
+from uuid import uuid4
 
 import gevent
 import time
@@ -352,6 +354,41 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
         np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
         np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+
+
+    def test_qc_events(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_qc_pdict()
+        stream_def_id = self.pubsub_management.create_stream_definition('qc stream def', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('qc stream', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        ingestion_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+        config = DotDict()
+
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_config_id, dataset_id=dataset_id, config=config)
+        self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(10)
+        rdt['temp'] = np.arange(10) * 3
+
+        verified = Event()
+        def verification(event, *args, **kwargs):
+            self.assertEquals(event.qc_parameter, 'temp_qc')
+            self.assertEquals(event.temporal_value, 7)
+            verified.set()
+
+        es = EventSubscriber(event_type=OT.ParameterQCEvent, origin=dataset_id, callback=verification, auto_delete=True)
+        es.start()
+        self.addCleanup(es.stop)
+
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(verified.wait(10))
 
 
 
@@ -758,6 +795,62 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(event.is_set())
 
         
+    def publish_and_wait(self, dataset_id, granule):
+        stream_ids, _ = self.resource_registry.find_objects(dataset_id, PRED.hasStream,id_only=True)
+        stream_id=stream_ids[0]
+        route = self.pubsub_management.read_stream_route(stream_id)
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        publisher.publish(granule)
+        self.assertTrue(dataset_monitor.event.wait(10))
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_thorough_gap_analysis(self):
+        dataset_id = self.test_ingestion_gap_analysis()
+        vcov = DatasetManagementService._get_coverage(dataset_id)
+
+        self.assertIsInstance(vcov,ViewCoverage)
+        ccov = vcov.reference_coverage
+
+        self.assertIsInstance(ccov, ComplexCoverage)
+        self.assertEquals(len(ccov._reference_covs), 3)
+
+
+    def test_ingestion_gap_analysis(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
+
+        connection1 = uuid4().hex
+        connection2 = uuid4().hex
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['temp'] = [0]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='0'))
+        rdt['time'] = [1]
+        rdt['temp'] = [1]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index=1))
+        rdt['time'] = [2]
+        rdt['temp'] = [2]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='3')) # Gap, missed message
+        rdt['time'] = [3]
+        rdt['temp'] = [3]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='3')) # Gap, new connection
+        rdt['time'] = [4]
+        rdt['temp'] = [4]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='4'))
+        rdt['time'] = [5]
+        rdt['temp'] = [5]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index=5))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['time'], np.arange(6))
+        np.testing.assert_array_equal(rdt['temp'], np.arange(6))
+        return dataset_id
+
 
     @unittest.skip('Outdated due to ingestion retry')
     @attr('LOCOINT')

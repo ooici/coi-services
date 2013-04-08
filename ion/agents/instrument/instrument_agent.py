@@ -192,13 +192,13 @@ class InstrumentAgent(ResourceAgent):
         Init objects that depend on the container services and start state
         machine.
         """
-        super(InstrumentAgent, self).on_init()
-
         # Set the driver config from the agent config if present.
         self._dvr_config = self.CFG.get('driver_config', None)
-        
+
         # Set the test mode.
         self._test_mode = self.CFG.get('test_mode', False)        
+
+        super(InstrumentAgent, self).on_init()        
 
     def on_quit(self):
         """
@@ -882,9 +882,9 @@ class InstrumentAgent(ResourceAgent):
                 status_name=status_type,
                 status=new_status,
                 prev_status=old_status)
-        except:
-            log.error('Instrument agent %s could not publish aggregate status change event.',
-                self._proc_name)
+        except Exception as exc:
+            log.error('Instrument agent %s could not publish aggregate status change event. Exception message: %s',
+                self._proc_name, exc.message)
 
         return
 
@@ -1342,7 +1342,7 @@ class InstrumentAgent(ResourceAgent):
                     alert_def['resource_id'] = self.resource_id
                     alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
                     if cls == 'LateDataAlert':
-                        alert_def['get_state'] == self._fsm.get_current_state
+                        alert_def['get_state'] = self._fsm.get_current_state
                     alert = eval('%s(**alert_def)' % cls)
                     self.aparam_alerts.append(alert)
                 except:
@@ -1362,6 +1362,8 @@ class InstrumentAgent(ResourceAgent):
             return
                 
         # Get resource parameters and agent state from persistence.
+        # Enable this when new eggs have read-only startup parameters ready.
+        """
         rparams = self._get_state('rparams')        
         if rparams:
             startup_config = self._dvr_config.get('startup_config', None)
@@ -1369,10 +1371,14 @@ class InstrumentAgent(ResourceAgent):
                 startup_config = {'parameters':rparams, 'scheduler':None}
             startup_config['parameters'] = rparams
             self._dvr_config['startup_config'] = startup_config
+        """
         
         # Get state to restore. If the last state was lost connection,
         # use the prior connected state.
         state = self._get_state('agent_state')
+        if not state:
+            return
+        
         if state == ResourceAgentState.LOST_CONNECTION:        
             state = self._get_state('prev_agent_state') or \
                 ResourceAgentState.UNINITIALIZED
@@ -1422,6 +1428,23 @@ class InstrumentAgent(ResourceAgent):
                 if cur_state != state:
                     raise Exception()
 
+            # If paused, initialize, activate, confirm idle,
+            # run, confirm command, pause and confirm stopped.
+            elif state == ResourceAgentState.STOPPED:
+                self._fsm.on_event(ResourceAgentEvent.INITIALIZE)
+                self._fsm.on_event(ResourceAgentEvent.GO_ACTIVE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.IDLE:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.RUN)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != ResourceAgentState.COMMAND:
+                    raise Exception()
+                self._fsm.on_event(ResourceAgentEvent.PAUSE)
+                cur_state = self._fsm.get_current_state()
+                if cur_state != state:
+                    raise Exception()
+
             # If in a command reachable substate, attempt to return to command.
             # Initialize, activate, confirm idle, run confirm command.
             elif state in [ResourceAgentState.TEST,
@@ -1455,13 +1478,19 @@ class InstrumentAgent(ResourceAgent):
                     raise Exception()
 
             else:
-                log.error('Instrument agent %s error restoring unhandled state %s, current state %s',
+                log.error('Instrument agent %s error restoring unhandled state %s, current state %s.',
                         self.id, state, cur_state)
         
         except Exception as ex:
-            log.error('Instrument agent %s error restoring state %s, current state %s, exception %s',
+            log.error('Instrument agent %s error restoring state %s, current state %s, exception %s.',
                     self.id, state, cur_state, str(ex))
-
+            
+        else:
+            log.info('Instrument agent %s restored state %s.',
+                     self.id, state, cur_state)
+            print '##############################'
+            print 'IA restored to state: ' + str(state)
+        
     def aparam_set_streams(self, params):
         """
         """

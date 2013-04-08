@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import uuid
 import unittest
+import time
 import os
 
 from mock import Mock, patch, DEFAULT
@@ -188,7 +189,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
             NotFound: FakeDashiNotFoundError,
             BadRequest: FakeDashiBadRequestError,
             Conflict: FakeDashiWriteConflictError
-            }
+        }
 
         self.pd_dashi_handler = PDDashiHandler(self.mock_backend, self.mock_dashi)
 
@@ -427,7 +428,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -453,7 +454,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -480,7 +481,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -532,7 +533,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.mock_core.describe_process.return_value = None
 
         with self.assertRaises(NotFound):
-            proc = self.pd_service.read_process("processid")
+            self.pd_service.read_process("processid")
         assert self.mock_core.describe_process.called
 
     def test_read_process_with_config(self):
@@ -583,6 +584,15 @@ class TestProcess(BaseService):
         if proc is None:
             return
         return proc._proc_name
+
+
+class TestProcessThatCrashes(BaseService):
+    """Test process to deploy via PD
+    """
+    name = __name__ + "test"
+
+    def on_init(self):
+        raise Exception("I died :(")
 
 
 class TestClient(RPCClient):
@@ -741,6 +751,85 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             self.pd_cli.create_process_definition(definition)
 
 
+@unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
+@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
+@attr('INT', group='cei')
+class ProcessDispatcherServiceLaunchIntTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
+
+        self.rr_cli = ResourceRegistryServiceClient()
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
+
+        self.waiter = ProcessStateWaiter()
+
+    def tearDown(self):
+        self.waiter.stop()
+
+    def test_restart_throttling(self):
+
+        process_definition = ProcessDefinition(name='test_process')
+        process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
+                                         'class': 'TestProcessThatCrashes'}
+        process_definition_id = self.pd_cli.create_process_definition(process_definition)
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.restart_mode = ProcessRestartMode.ALWAYS
+
+        pid = self.pd_cli.create_process(process_definition_id)
+        self.waiter.start(pid)
+
+        # feed in a string that the process will return -- verifies that
+        # configuration actually makes it to the instantiated process
+        configuration = {'process': {'minimum_time_between_starts': 15}}
+
+        pid2 = self.pd_cli.schedule_process(process_definition_id,
+            process_schedule, configuration=configuration, process_id=pid)
+        self.assertEqual(pid, pid2)
+
+        # The process hits PENDING right away
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+
+        # Then crashes on init, and restarts quickly once (see TestProcessThatCrashes impl above)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time < 2.0, "Process should restart quickly, not be throttled"
+
+        # Now the process schould be throttled, and restart more slowly
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time > 10.0, "Process should take more than 10s to start, throttled"
+
+        # We check again for good measure
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time > 10.0, "Process should take more than 10s to start, throttled"
+
+        # kill the process
+        self.pd_cli.cancel_process(pid)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+
+
 pd_config = {
     'processdispatcher': {
         'backend': "native",
@@ -798,10 +887,10 @@ def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
             'launch_type': {
                 'name': 'pyon',
                 'persistence_directory': persistence_dir,
-                },
             },
+        },
         'agent': {'resource_id': resource_id},
-        }
+    }
 
 
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
@@ -843,7 +932,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             pd_config['processdispatcher']['dashi_uri'],
             pd_config['processdispatcher']['dashi_exchange'],
             sysname=CFG.get_safe("dashi.sysname")
-            )
+        )
 
         #send a fake node_state message to PD's dashi binding.
         self.node1_id = uuid.uuid4().hex

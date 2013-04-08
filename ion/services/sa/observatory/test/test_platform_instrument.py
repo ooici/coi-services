@@ -27,6 +27,7 @@ from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProce
 from pyon.agent.agent import ResourceAgentState
 
 from interface.objects import AgentCommand
+import unittest
 
 import gevent
 
@@ -70,6 +71,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 class Test(BaseIntTestPlatform):
 
+    @unittest.skip('This test is immature.')
     def test_platform_with_instrument_streaming(self):
         #
         # The following is with just a single platform and the single

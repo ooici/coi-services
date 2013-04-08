@@ -66,7 +66,7 @@ class VisualizationService(BaseVisualizationService):
 
     def user_vis_queue_monitor(self, **kwargs):
 
-        log.debug("Starting Monitor Loop worker: " + self.id + " timeout=" + str(self.monitor_timeout))
+        log.debug("Starting Monitor Loop worker: %s timeout=%s" , self.id,  self.monitor_timeout)
 
         while not self.monitor_event.wait(timeout=self.monitor_timeout):
 
@@ -81,17 +81,17 @@ class VisualizationService(BaseVisualizationService):
                 log.warn('Unable to get queue information from broker management plugin: ' + e.message)
                 pass
 
-            log.debug( "In Monitor Loop worker: " + self.id)
+            log.debug( "In Monitor Loop worker: %s", self.id)
             for queue in queues:
 
-                log.debug(queue['name'], queue['messages'])
+                log.debug('queue name: %s, messages: %d', queue['name'], queue['messages'])
 
                 #Check for queues which are getting too large and clean them up if need be.
                 if queue['messages'] > self.monitor_queue_size:
                     vis_token = queue['name'][queue['name'].index('UserVisQueue'):]
 
                     try:
-                        log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources." % (queue['name'], queue['messages'] ))
+                        log.warn("Real-time visualization queue %s had too many messages %d, so terminating this queue and associated resources.", queue['name'], queue['messages'] )
 
                         #Clear out the queue
                         msgs = self.get_realtime_visualization_data(query_token=vis_token)
@@ -119,7 +119,7 @@ class VisualizationService(BaseVisualizationService):
         @param callback     str
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
-        log.debug( "initiate_realtime_visualization Vis worker: " + self.id)
+        log.debug( "initiate_realtime_visualization Vis worker: %s " , self.id)
 
         query = None
         if visualization_parameters:
@@ -158,7 +158,7 @@ class VisualizationService(BaseVisualizationService):
             # detect the output data product of the workflow
             workflow_dp_ids,_ = self.clients.resource_registry.find_objects(subject=workflow_id, predicate=PRED.hasOutputProduct, object_type=RT.DataProduct, id_only=True)
             if len(workflow_dp_ids) != 1:
-                log.warn("Workflow Data Product %s has multiple output data products (%d) - using first one found " % (workflow_id, len(workflow_dp_ids)))
+                log.warn("Workflow Data Product %s has multiple output data products (%d) - using first one found ", workflow_id, len(workflow_dp_ids))
 
             workflow_product_id = workflow_dp_ids[0]
 
@@ -282,7 +282,7 @@ class VisualizationService(BaseVisualizationService):
         @retval datatable    str
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
-        log.debug( "get_realtime_visualization_data Vis worker: " + self.id)
+        log.debug( "get_realtime_visualization_data Vis worker: %s", self.id)
 
         log.debug("Query token : " + query_token + " CB : " + callback + "TQX : " + tqx)
 
@@ -328,7 +328,7 @@ class VisualizationService(BaseVisualizationService):
         @param query_token    str
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
-        log.debug( "terminate_realtime_visualization_data Vis worker: " + self.id)
+        log.debug( "terminate_realtime_visualization_data Vis worker: %s" , self.id)
 
         if not query_token:
             raise BadRequest("The query_token parameter is missing")
@@ -386,7 +386,7 @@ class VisualizationService(BaseVisualizationService):
 
                 #Need to clean up associated workflow from the data product as long as they are going to be created for each user
                 if len(workflow_data_product_id) == 0:
-                    log.error("Cannot find Data Product for Stream id %s", ( sub_stream_id ))
+                    log.error("Cannot find Data Product for Stream id %s", sub_stream_id )
                 else:
 
                     #Get the total number of subscriptions
@@ -400,7 +400,7 @@ class VisualizationService(BaseVisualizationService):
 
                         workflow_id, _  = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasOutputProduct, object=workflow_data_product_id[0], id_only=True)
                         if len(workflow_id) == 0:
-                            log.error("Cannot find Workflow for Data Product id %s", ( workflow_data_product_id[0] ))
+                            log.error("Cannot find Workflow for Data Product id %s", workflow_data_product_id[0] )
                         else:
                             self.clients.workflow_management.terminate_data_process_workflow(workflow_id=workflow_id[0], delete_data_products=True, timeout=self.terminate_workflow_timeout)
 

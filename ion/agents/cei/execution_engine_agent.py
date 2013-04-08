@@ -177,32 +177,33 @@ class HeartBeater(object):
 
 class ExecutionEngineAgentClient(object):
 
-    def __init__(self, agent_client):
+    def __init__(self, agent_client, timeout=30):
         self.client = agent_client
+        self.timeout = timeout
 
     def launch_process(self, u_pid, round, run_type, parameters):
 
         args = [u_pid, round, run_type, parameters]
         cmd = AgentCommand(command='launch_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def terminate_process(self, u_pid, round):
 
         args = [u_pid, round]
         cmd = AgentCommand(command='terminate_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def restart_process(self, u_pid, round):
 
         args = [u_pid, round]
         cmd = AgentCommand(command='restart_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def cleanup_process(self, u_pid, round):
         args = [u_pid, round]
         cmd = AgentCommand(command='cleanup_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def dump_state(self):
         cmd = AgentCommand(command='dump_state', args=[])
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)

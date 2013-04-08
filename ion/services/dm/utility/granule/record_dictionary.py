@@ -55,6 +55,9 @@ class RecordDictionaryTool(object):
     _dirty_shape        = False
     _available_fields   = None
     _creation_timestamp = None
+    connection_id       = ''
+    connection_index    = ''
+
 
     def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
         """
@@ -139,7 +142,7 @@ class RecordDictionaryTool(object):
 
         if g.creation_timestamp:
             instance._creation_timestamp = g.creation_timestamp
-        
+
         for k,v in g.record_dictionary.iteritems():
             key = instance._pdict.key_from_ord(k)
             if v is not None:
@@ -147,9 +150,12 @@ class RecordDictionaryTool(object):
                 paramval = cls.get_paramval(ptype, instance.domain, v)
                 instance._rd[key] = paramval
         
+        instance.connection_id = g.connection_id
+        instance.connection_index = g.connection_index
+
         return instance
 
-    def to_granule(self, data_producer_id='',provider_metadata_update={}):
+    def to_granule(self, data_producer_id='',provider_metadata_update={}, connection_id='', connection_index=''):
         granule = Granule()
         granule.record_dictionary = {}
         
@@ -165,6 +171,8 @@ class RecordDictionaryTool(object):
         granule.data_producer_id=data_producer_id
         granule.provider_metadata_update=provider_metadata_update
         granule.creation_timestamp = time.time()
+        granule.connection_id = connection_id
+        granule.connection_index = connection_index
         return granule
 
 

@@ -244,6 +244,19 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, qc_whatever_ctxt_id)
         contexts['qc_whatever'] = qc_whatever_ctxt, qc_whatever_ctxt_id
 
+
+        nexpr = NumexprFunction('range_qc', 'min < var > max', ['min','max','var'])
+        expr_id = self.dataset_management.create_parameter_function(name='range_qc', parameter_function=nexpr.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, expr_id)
+
+        pmap = {'min':0, 'max':20, 'var':'temp'}
+        nexpr.param_map = pmap
+        temp_qc_ctxt = ParameterContext('temp_qc', param_type=ParameterFunctionType(function=nexpr), variability=VariabilityEnum.TEMPORAL)
+        temp_qc_ctxt.uom = '1'
+        temp_qc_ctxt_id = self.dataset_management.create_parameter_context(name='temp_qc', parameter_context=temp_qc_ctxt.dump(), parameter_function_id=expr_id)
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_qc_ctxt_id)
+        contexts['temp_qc'] = temp_qc_ctxt, temp_qc_ctxt_id
+
         return contexts
 
     def create_qc_pdict(self):
