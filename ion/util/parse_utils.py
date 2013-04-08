@@ -19,29 +19,27 @@ def get_typed_value(value, schema_entry=None, targettype=None):
     if schema_entry and 'enum_type' in schema_entry:
         enum_clzz = getattr(objects, schema_entry['enum_type'])
         return enum_clzz._value_map[value]
-    elif targettype is 'str':
+    elif targettype == 'str':
         return str(value)
-    elif targettype is 'bool':
-        lvalue = value.lower()
-        if lvalue == 'true' or lvalue == '1':
+    elif targettype == 'bool':
+        if value in ('TRUE', 'True', 'true', '1', 1, True):
             return True
-        elif lvalue == 'false' or lvalue == '' or lvalue == '0':
+        if value in ('FALSE', 'False', 'false', '0', 0, '', None, False):
             return False
-        else:
-            raise iex.BadRequest("Value %s is no bool" % value)
-    elif targettype is 'int':
+        raise iex.BadRequest("Value %s is no bool" % value)
+    elif targettype == 'int':
         try:
             return int(value)
         except Exception:
             log.warn("Value %s is type %s not type %s" % (value, type(value), targettype))
             return ast.literal_eval(value)
-    elif targettype is 'float':
+    elif targettype == 'float':
         try:
             return float(value)
         except Exception:
             log.warn("Value %s is type %s not type %s" % (value, type(value), targettype))
             return ast.literal_eval(value)
-    elif targettype is 'simplelist':
+    elif targettype == 'simplelist':
         if value.startswith('[') and value.endswith(']'):
             value = value[1:len(value)-1].strip()
         elif not value.strip():

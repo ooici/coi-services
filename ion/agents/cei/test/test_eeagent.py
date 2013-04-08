@@ -731,7 +731,7 @@ class HeartbeaterIntTest(IonIntegrationTestCase):
 
         self.agent_config = {
             'eeagent': {
-                'heartbeat': 0.01,
+                'heartbeat': "0.01",
                 'slots': 100,
                 'name': 'pyon_eeagent',
                 'launch_type': {
