@@ -301,8 +301,8 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
-        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
+        ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
         vis_params ={}
         vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id, visualization_parameters=vis_params)
