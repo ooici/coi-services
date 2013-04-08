@@ -21,21 +21,17 @@ class CTDBP_DensityTransform(TransformDataProcess):
     the defined algorithm. If the transform
     has an output_stream it will publish the output on the output stream.
     """
-    output_bindings = ['density']
-
     def on_start(self):
         super(CTDBP_DensityTransform, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('density'):
-            raise BadRequest("For CTD transforms, please send the stream_id using a special keyword (ex: density)")
-        self.dens_stream_id = self.CFG.process.publish_streams.density
+        self.dens_stream_id = self.CFG.process.publish_streams.values()[0]
 
         lat = self.CFG.get_safe('process.lat',None)
         if lat is None:
             raise BadRequest('Latitude is required to determine density')
         lon = self.CFG.get_safe('process.lon',None)
         if lon is None:
-            raise BadRequest('Lonitude is required to determine density')
+            raise BadRequest('Longitude is required to determine density')
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -55,7 +51,7 @@ class CTDBP_DensityTransform(TransformDataProcess):
 
         log.debug("CTDBP L2 density transform publishing granule with record dict: %s", granule.record_dictionary)
 
-        self.density.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class CTDBP_DensityTransformAlgorithm(SimpleGranuleTransformFunction):

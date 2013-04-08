@@ -19,9 +19,6 @@ class EventToStreamTransform(TransformEventListener, TransformStreamPublisher):
     def on_start(self):
         super(EventToStreamTransform, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('output'):
-            raise BadRequest("For event-in/stream-out transform, please send the stream_id "
-                             "using the special keyword, output")
         self.variables = self.CFG.process.variables or []
 
     def process_event(self, msg, headers):

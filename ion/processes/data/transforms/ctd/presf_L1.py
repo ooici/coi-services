@@ -18,16 +18,11 @@ class PresfL1Transform(TransformDataProcess):
         param and outputs the seafloor_pressure stream with a seafloor_pressure  param and
         supporting params.
     '''
-    output_bindings = ['seafloor_pressure']
 
     def on_start(self):
         super(PresfL1Transform, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('seafloor_pressure'):
-            raise BadRequest("For the PresfL1Transform, please send the stream_id using "
-                             "a special keyword (ex: seafloor_pressure)")
-
-        self.pres_stream = self.CFG.process.publish_streams.seafloor_pressure
+        self.pres_stream = self.CFG.process.publish_streams.values()[0]
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -40,7 +35,7 @@ class PresfL1Transform(TransformDataProcess):
         if packet == {}:
             return
         granule = PresfL1TransformAlgorithm.execute(packet, params=self.stream_definition._id)
-        self.seafloor_pressure.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class PresfL1TransformAlgorithm(SimpleGranuleTransformFunction):
