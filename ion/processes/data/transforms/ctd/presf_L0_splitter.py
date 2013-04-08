@@ -26,11 +26,7 @@ class PresfL0Splitter(TransformDataProcess):
     def on_start(self):
         super(PresfL0Splitter, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('absolute_pressure'):
-            raise BadRequest("For the PresfL0Splitter, please send the stream_id using "
-                             "a special keyword (ex: absolute_pressure)")
-
-        self.pres_stream = self.CFG.process.publish_streams.absolute_pressure
+        self.pres_stream = self.CFG.process.publish_streams.values()[0]
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
