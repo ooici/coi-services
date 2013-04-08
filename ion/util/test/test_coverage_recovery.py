@@ -62,6 +62,10 @@ from pyon.ion.stream import StandaloneStreamPublisher
 # from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 # from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 
+
+from subprocess import call
+not_have_h5stat = call('which h5stat'.split())
+
 @attr('INT', group='dm')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
@@ -163,8 +167,11 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
             spatial_domain = sdom)
         pdict_id = dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         stream_def_id = pubsub_management.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
+        self.addCleanup(pubsub_management.delete_stream_definition, stream_def_id)
         data_product_id = data_product_management.create_data_product(data_product=dp_obj, stream_definition_id=stream_def_id)
+        self.addCleanup(data_product_management.delete_data_product, data_product_id)
         data_product_management.activate_data_product_persistence(data_product_id)
+        self.addCleanup(data_product_management.suspend_data_product_persistence, data_product_id)
 
         stream_ids, assocs = resource_registry.find_objects(subject=data_product_id, predicate='hasStream', id_only=True)
         stream_id = stream_ids[0]
@@ -194,6 +201,7 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
 
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    @unittest.skipIf(not_have_h5stat, 'h5stat is not accessible in current PATH')
     def test_coverage_recovery(self):
         # Create the coverage
         dp_id, stream_id, route, stream_def_id, dataset_id = self.load_data_product()
