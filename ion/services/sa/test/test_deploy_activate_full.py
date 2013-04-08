@@ -433,7 +433,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
-        self.output_products={}
+        self.out_prod_dict={}
         log.debug("test_deployAsPrimaryDevice: create output data product L0 conductivity")
 
         ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct,
@@ -443,7 +443,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_conductivity_output_dp_obj, stream_definition_id=parsed_stream_def_id)
-        self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
+        self.out_prod_dict['conductivity'] = ctd_l0_conductivity_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
@@ -457,7 +457,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_pressure_output_dp_obj, stream_definition_id=parsed_stream_def_id)
 
-        self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
+        self.out_prod_dict['pressure'] = ctd_l0_pressure_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 temperature")
@@ -470,7 +470,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_temperature_output_dp_obj, stream_definition_id=parsed_stream_def_id)
 
-        self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
+        self.out_prod_dict['temperature'] = ctd_l0_temperature_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
@@ -480,7 +480,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product_year1], self.output_products)
+            out_data_products = self.out_prod_dict.values()
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product_year1], out_data_products)
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)

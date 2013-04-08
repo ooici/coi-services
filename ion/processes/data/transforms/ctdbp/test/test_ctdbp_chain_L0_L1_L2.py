@@ -314,8 +314,6 @@ class TestCTDPChain(IonIntegrationTestCase):
         elif name_of_transform == 'L2_density':
             binding = 'density'
 
-        output_products = {binding : output_dpod_id}
-
         config = None
         if name_of_transform == 'L1':
             config = self._create_calibration_coefficients_dict()
@@ -323,7 +321,14 @@ class TestCTDPChain(IonIntegrationTestCase):
             config = DotDict()
             config.process = {'lat' : 32.7153, 'lon' : 117.1564}
 
-        data_proc_id = self.data_process_management.create_data_process( data_proc_def_id, [input_dpod_id], output_products, config)
+        log.debug("launching transform for name: %s",name_of_transform )
+        log.debug("launching transform for data_proc_def_id: %s\ninput_dpod_id: %s\noutput_dpod_id: %s", data_proc_def_id, input_dpod_id, output_dpod_id )
+
+        data_proc_id = self.data_process_management.create_data_process(
+                                                        in_data_product_ids= [input_dpod_id],
+                                                        out_data_product_ids = [output_dpod_id],
+                                                        configuration = config)
+
         self.addCleanup(self.data_process_management.delete_data_process, data_proc_id)
 
         self.data_process_management.activate_data_process(data_proc_id)
@@ -453,7 +458,6 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertNotEquals(len(rdt[key]), 0)
 
     def _check_application_of_L1_algorithm(self, granule = None):
         """ Check the algorithm applied by the L1 transform """
@@ -463,7 +467,6 @@ class TestCTDPChain(IonIntegrationTestCase):
 
         for key in list_of_expected_keys:
             self.assertIn(key, rdt)
-            self.assertNotEquals(len(rdt[key]), 0)
 
     def _check_application_of_L2_density_algorithm(self, granule = None):
         """ Check the algorithm applied by the L2 transform """
