@@ -302,6 +302,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasProcess, object=pid)
 
+        if data_process_definition_id:
+            self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasDataProcess ,dproc_id)
 
         return dproc_id
 
@@ -715,6 +717,8 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
+        data_process_ids, _ = self.clients.resource_registry.find_objects(data_process_definition_id, PRED.hasDataProcess, RT.DataProcess, True)
+        extended_data_process_definition.data_processes = data_process_ids
 
         return extended_data_process_definition
 
@@ -741,6 +745,9 @@ class DataProcessManagementService(BaseDataProcessManagementService):
             for att in extended_data_process.attachments:
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
+
+        input_data_products, _ = self.clients.resource_registry.find_objects(data_process_id, PRED.hasInputProduct, RT.DataProduct, True)
+        extended_data_process.input_data_products = input_data_products
 
         return extended_data_process
 
