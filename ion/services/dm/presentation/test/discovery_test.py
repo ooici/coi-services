@@ -25,7 +25,7 @@ from ion.services.dm.inventory.index_management_service import IndexManagementSe
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
-from mock import Mock, patch
+from mock import Mock, patch, sentinel
 from datetime import date, timedelta
 from pyon.util.ion_time import IonTime
 from pyon.util.containers import get_ion_ts
@@ -180,8 +180,8 @@ class DiscoveryUnitTest(PyonTestCase):
         mock_parser().parse.return_value = 'arg'
         self.discovery.request = Mock()
         self.discovery.request.return_value = 'correct_value'
-        retval = self.discovery.parse('blah blah')
-        self.discovery.request.assert_called_once_with('arg')
+        retval = self.discovery.parse('blah blah', id_only=sentinel.id_only)
+        self.discovery.request.assert_called_once_with('arg', id_only=sentinel.id_only)
         self.assertTrue(retval=='correct_value', '%s' % retval)
 
     def test_query_request_term_search(self):
