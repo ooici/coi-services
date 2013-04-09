@@ -24,6 +24,7 @@ import gevent
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
+from nose.plugins.attrib import attr
 
 # Event pubsub support.
 from pyon.event.event import EventSubscriber
