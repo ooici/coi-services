@@ -512,9 +512,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
         self.assertEquals(len(inprod_associations), 0)
 
-        # Check of the data process has been deactivated
-        self.assertIsNone(dp_obj.input_subscription_id)
-
         # Read the original subscription id of the data process and check that it has been deactivated
         with self.assertRaises(NotFound):
             self.pubsubclient.read_subscription(input_subscription_id)
