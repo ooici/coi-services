@@ -56,6 +56,42 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.event.set()
 
 
+    def test_serialize_compatability(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_extended_parsed()
+
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd extended', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('ctd1', 'xp1', stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        sub_id = self.pubsub_management.create_subscription('sub1', stream_ids=[stream_id])
+        self.addCleanup(self.pubsub_management.delete_subscription, sub_id)
+        self.pubsub_management.activate_subscription(sub_id)
+        self.addCleanup(self.pubsub_management.deactivate_subscription, sub_id)
+
+        verified = Event()
+        def verifier(msg, route, stream_id):
+            for k,v in msg.record_dictionary.iteritems():
+                if v is not None:
+                    self.assertIsInstance(v, np.ndarray)
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            for field in rdt.fields:
+                self.assertIsInstance(rdt[field], np.ndarray)
+            verified.set()
+
+        subscriber = StandaloneStreamSubscriber('sub1', callback=verifier)
+        subscriber.start()
+        self.addCleanup(subscriber.stop)
+
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        ph.fill_rdt(rdt,10)
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(verified.wait(10))
+
+
     def test_granule(self):
         
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)

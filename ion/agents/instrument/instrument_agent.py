@@ -1486,10 +1486,8 @@ class InstrumentAgent(ResourceAgent):
                     self.id, state, cur_state, str(ex))
             
         else:
-            log.info('Instrument agent %s restored state %s.',
+            log.info('Instrument agent %s restored state %s = %s.',
                      self.id, state, cur_state)
-            print '##############################'
-            print 'IA restored to state: ' + str(state)
         
     def aparam_set_streams(self, params):
         """
