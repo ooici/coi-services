@@ -409,7 +409,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         config.process.params.lat = 45.
         config.process.params.lon = -71.
 
-        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process( in_data_product_ids = in_data_product_ids,
+        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(    data_process_definition_id = ctd_L0_all_dprocdef_id,
+                                                                                    in_data_product_ids = in_data_product_ids,
                                                                                     out_data_product_ids = out_data_product_ids,
                                                                                     configuration= config
                                                                                 )

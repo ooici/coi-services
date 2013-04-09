@@ -287,7 +287,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         for data_product_id in in_data_product_ids:
             self.clients.resource_registry.create_association(subject=dproc_id, predicate=PRED.hasInputProduct, object=data_product_id)
-        
+
+        if data_process_definition_id:
+            self.clients.resource_registry.create_association(data_process_definition_id, PRED.hasDataProcess ,dproc_id)
+
         self._manage_producers(dproc_id, out_data_product_ids)
 
         self._manage_attachments()
