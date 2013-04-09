@@ -43,6 +43,63 @@ class ParameterHelper(object):
         rdt['pressure'] = [256.8]
         return rdt
 
+    def fill_rdt(self, rdt, t, offset=0):
+        rdt[rdt.temporal_parameter] = np.arange(offset,t+offset)
+        for field in rdt.fields:
+            if field == rdt.temporal_parameter:
+                continue
+            self.fill_parameter(rdt,field,t)
+
+
+    def fill_parameter(self,rdt,parameter,t):
+        tn = np.arange(t)
+        context = rdt.context(parameter)
+        if isinstance(context.param_type, QuantityType):
+            if parameter == 'temp':
+                # t' = temp
+                # t = (t' / 1e5)-10 
+                # 0 < t < 30 =>
+                # 1e5 < t' < 4e5
+                rdt[parameter] = self.float_range(1e5,4e5,tn)
+            elif parameter == 'conductivity':
+                # c' = conductivity
+                # c = (c' / 1e5) - 0.5 
+                # 4.6 < c < 5.0 =>
+                # 5.1e5 < c' 5.5e5
+                rdt[parameter] = self.float_range(510000, 550000,tn)
+            elif parameter == 'pressure':
+                # p' = pressure
+                # p = (p' / 100) + 0.5
+                # 0 < p < 303.3 =>
+                # 50 < p' < 30380
+                rdt[parameter] = self.float_range(50,30380, tn)
+            elif parameter == 'lat':
+                rdt[parameter] = [45] * t
+            elif parameter == 'lon':
+                rdt[parameter] = [-71] * t
+            else:
+                rdt[parameter] = np.sin(np.pi * 2 * tn / 60)
+        elif isinstance(context.param_type, ArrayType):
+            rdt[parameter] = np.array([range(10)] * t)
+        elif isinstance(context.param_type, CategoryType):
+            rdt[parameter] = [context.categories.keys()[0]] * t
+        elif isinstance(context.param_type, ConstantType):
+            rdt[parameter] = np.dtype(context.param_type.value_encoding).type(1)
+        
+    def float_range(self,minvar, maxvar,t):
+        '''
+        Produces a signal with values between minvar and maxvar 
+        at a frequency of 1/60 Hz centered at the midpoint 
+        between minvar and maxvar.
+
+
+        This method provides a deterministic function that 
+        varies over time and is sinusoidal when graphed.
+        '''
+        a = (maxvar-minvar)/2
+        return np.sin(np.pi * 2 * t /60) * a + (minvar + a)
+
+
     def create_parsed_params(self):
         
         contexts = {}
