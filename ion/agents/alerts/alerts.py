@@ -108,8 +108,8 @@ class BaseAlert(object):
         """
         """
         event_data = self.make_event_data()
-        print '########## publishing: ' + event_data['sub_type']
-        print '########## publishing etc: ' + str(event_data)
+        #print '########## publishing: ' + event_data['sub_type']
+        #print '########## publishing etc: ' + str(event_data)
         pub = EventPublisher()
         pub.publish_event(**event_data)
 
@@ -248,7 +248,7 @@ class RSNEventAlert(BaseAlert):
         assert isinstance(x, dict)
 
         #print 'x: %s',x.keys()
-        print 'x: %s',x
+        #print 'x: %s',x
 
         self._current_value = x['value']
         self._prev_status = self._status

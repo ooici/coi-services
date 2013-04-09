@@ -54,13 +54,13 @@ class ParameterHelper(object):
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
         contexts['time'] = (t_ctxt, t_ctxt_id)
 
-        lat_ctxt = ParameterContext('lat', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
+        lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         lat_ctxt.axis = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
         lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump())
         contexts['lat'] = lat_ctxt, lat_ctxt_id
 
-        lon_ctxt = ParameterContext('lon', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
+        lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         lon_ctxt.axis = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
         lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump())

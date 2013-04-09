@@ -56,7 +56,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)
 
-        interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
+        interval = float(self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT))
         if interval > 0:
             self.heartbeater = HeartBeater(
                 self.CFG, self._factory, self.resource_id, self, log=log)
@@ -98,7 +98,7 @@ class HeartBeater(object):
         self._log.log(logging.DEBUG, "Starting the heartbeat thread")
         self._CFG = CFG
         self._res = None
-        self._interval = int(CFG.eeagent.heartbeat)
+        self._interval = float(CFG.eeagent.heartbeat)
         self._res = None
         self._done = False
         self._started = False

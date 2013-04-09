@@ -24,6 +24,7 @@ import gevent
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
+from nose.plugins.attrib import attr
 
 # Event pubsub support.
 from pyon.event.event import EventSubscriber
@@ -46,6 +47,7 @@ bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAle
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_late_data
 """
 
+@attr('INT', group='sa')
 class TestAlerts(IonIntegrationTestCase):
     """
     """

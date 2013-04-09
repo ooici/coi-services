@@ -2081,15 +2081,15 @@ Reason: %s
             configuration = get_typed_value(configuration, targettype="dict")
 
         out_data_products = row["out_data_products"]
+        out_data_product_ids = None
         if out_data_products:
             out_data_products = get_typed_value(out_data_products, targettype="dict")
-            for name, dp_id in out_data_products.iteritems():
-                out_data_products[name] = self.resource_ids[dp_id]
+            out_data_product_ids = [self.resource_ids[dp_id] for dp_id in out_data_products.values()]
 
         svc_client = self._get_service_client("data_process_management")
-
+        
         headers = self._get_op_headers(row)
-        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_products, configuration, headers=headers)
+        res_id = svc_client.create_data_process(dpd_id, [in_data_product_id], out_data_product_ids, configuration, headers=headers)
         self._register_id(row[COL_ID], res_id)
 
         self._resource_assign_org(row, res_id)

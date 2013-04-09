@@ -27,7 +27,7 @@ class SalinityDoubler(TransformDataProcess):
         super(SalinityDoubler, self).on_start()
 
     def publish(self, msg, stream_id=''):
-        self.salinity.publish(msg)
+        self.publisher.publish(msg)
 
     def recv_packet(self, granule, stream_route, stream_id):
         """

@@ -16,14 +16,10 @@ class CTDBP_L0_all(TransformDataProcess):
     """
     L0 listens to the parsed and pulls only C, T, & Pressure from the parsed and puts it onto the L0 stream. The other parameters are dropped.
     """
-    output_bindings = ['L0_stream']
     def on_start(self):
         super(CTDBP_L0_all, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('L0_stream'):
-            raise BadRequest("For CTD transforms, please send the stream_id for the L0_stream using "
-                             "a special keyword (L0_stream)")
-        self.L0_stream_id = self.CFG.process.publish_streams.L0_stream
+        self.L0_stream_id = self.CFG.process.publish_streams.values()[0]
 
         log.debug("the output stream: %s", self.L0_stream_id)
 
@@ -47,7 +43,7 @@ class CTDBP_L0_all(TransformDataProcess):
             return
         granules = ctdbp_L0_algorithm.execute([packet], params=self.params)
         for granule in granules:
-            self.L0_stream.publish(msg=granule)
+            self.publisher.publish(msg=granule)
 
 class ctdbp_L0_algorithm(MultiGranuleTransformFunction):
 

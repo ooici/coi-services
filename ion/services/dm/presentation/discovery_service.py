@@ -321,10 +321,10 @@ class DiscoveryService(BaseDiscoveryService):
     def union(self, left=[], right=[]):
         return list(set(left).union(right))
 
-    def parse(self, search_request=''):
+    def parse(self, search_request='', id_only=True):
         parser = QueryLanguage()
         query_request = parser.parse(search_request)
-        return self.request(query_request)
+        return self.request(query_request, id_only=id_only)
 
     def query_request(self, query=None, limit=0, id_only=False):
         validate_is_instance(query,dict, 'invalid query')

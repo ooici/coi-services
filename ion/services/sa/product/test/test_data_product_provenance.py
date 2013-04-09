@@ -390,7 +390,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
-        self.output_products={}
         log.debug("TestDataProductProvenance: create output data product L0 conductivity")
 
         ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
@@ -401,8 +400,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         ctd_l0_conductivity_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
                                                                                 outgoing_stream_l0_conductivity_id)
-
-        self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
 
 
         log.debug("TestDataProductProvenance: create output data product L0 pressure")
@@ -415,8 +412,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         ctd_l0_pressure_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_pressure_output_dp_obj,
                                                                             outgoing_stream_l0_pressure_id)
-        self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-
         log.debug("TestDataProductProvenance: create output data product L0 temperature")
 
         ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
@@ -427,8 +422,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         ctd_l0_temperature_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_temperature_output_dp_obj,
                                                                                 outgoing_stream_l0_temperature_id)
-        self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-
 
         #-------------------------------
         # L1 Conductivity - Temperature - Pressure: Output Data Products
@@ -540,7 +533,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+            input_data_products = [ctd_parsed_data_product]
+            output_data_products = [ctd_l0_conductivity_output_dp_id, ctd_l0_pressure_output_dp_id, ctd_l0_temperature_output_dp_id]
+
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L0_all_dprocdef_id,
+                in_data_product_ids = input_data_products,
+                out_data_product_ids = output_data_products
+            )
             #activate only this data process just for coverage
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
@@ -559,7 +559,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1 Conductivity data_process start")
         try:
-            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, [ctd_l0_conductivity_output_dp_id], {'conductivity':ctd_l1_conductivity_output_dp_id})
+            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L1_conductivity_dprocdef_id,
+                in_data_product_ids = [ctd_l0_conductivity_output_dp_id],
+                out_data_product_ids = [ctd_l1_conductivity_output_dp_id])
+            
             self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -572,7 +576,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
-            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, [ctd_l0_pressure_output_dp_id], {'pressure':ctd_l1_pressure_output_dp_id})
+            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L1_pressure_dprocdef_id,
+                in_data_product_ids = [ctd_l0_pressure_output_dp_id],
+                out_data_product_ids = [ctd_l1_pressure_output_dp_id])
+
             self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -583,7 +591,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
-            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, [ctd_l0_temperature_output_dp_id], {'temperature':ctd_l1_temperature_output_dp_id})
+            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L1_temperature_dprocdef_id,
+                in_data_product_ids = [ctd_l0_temperature_output_dp_id],
+                out_data_product_ids = [ctd_l1_temperature_output_dp_id])
+
             self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -593,7 +605,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L2_salinity data_process start")
         try:
-            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'salinity':ctd_l2_salinity_output_dp_id})
+            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L2_salinity_dprocdef_id,
+                in_data_product_ids = [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id],
+                out_data_product_ids = [ctd_l2_salinity_output_dp_id])
+
             self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -604,7 +620,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L2_Density data_process start")
         try:
-            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'density':ctd_l2_density_output_dp_id})
+            in_dp_ids = [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id]
+            out_dp_ids = [ctd_l2_density_output_dp_id]
+
+            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L2_density_dprocdef_id,
+                in_data_product_ids = in_dp_ids,
+                out_data_product_ids = out_dp_ids)
+
             self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
