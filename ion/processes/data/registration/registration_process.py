@@ -71,9 +71,9 @@ class RegistrationProcess(StandaloneProcess):
     def get_errdap_name_map(self, names):
         result = {}
         for name in names:
-            if 'lon' in name:
+            if name == 'lon':
                 result[name] = 'longitude'
-            elif 'lat' in name:
+            elif name == 'lat':
                 result[name] = 'latitude'
             else:
                 result[name] = name
