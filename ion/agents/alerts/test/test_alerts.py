@@ -46,6 +46,7 @@ bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAle
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_late_data
 """
 
+@attr('INT', group='sa')
 class TestAlerts(IonIntegrationTestCase):
     """
     """
