@@ -411,6 +411,28 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         name = self.mock_core.schedule_process.call_args[1]['name']
         self.assertTrue(name.startswith("payload_process-ha"))
 
+    def test_queueing_mode_default(self):
+
+        proc_def = DotDict()
+        proc_def['name'] = "someprocess"
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+        mock_read_definition = Mock()
+        mock_read_definition.return_value = proc_def
+        self.pd_service.backend.read_definition = mock_read_definition
+
+        pid = self.pd_service.create_process("fake-process-def-id")
+
+        proc_schedule = ProcessSchedule()
+
+        configuration = {"some": "value"}
+
+        self.pd_service.schedule_process("fake-process-def-id",
+            proc_schedule, configuration, pid)
+
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.schedule_process.call_args
+        self.assertEqual(call_kwargs['queueing_mode'], "ALWAYS")
+
     def test_queueing_mode(self):
 
         proc_def = DotDict()
@@ -422,8 +444,8 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         pid = self.pd_service.create_process("fake-process-def-id")
 
-        pyon_queueing_mode = ProcessQueueingMode.ALWAYS
-        core_queueing_mode = "ALWAYS"
+        pyon_queueing_mode = ProcessQueueingMode.NEVER
+        core_queueing_mode = "NEVER"
 
         proc_schedule = ProcessSchedule()
         proc_schedule.queueing_mode = pyon_queueing_mode
