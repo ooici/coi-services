@@ -477,18 +477,18 @@ class PolicyManagementService(BasePolicyManagementService):
         #Include related resource policies for specific resource types
         #TODO - this is the first attempt at this... may have to iterate on this
         if resource.type_ == RT.InstrumentDevice:
-            resource_types = [RT.InstrumentModel, RT.InstrumentSite, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory]
-            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True)}
+            resource_types = [RT.InstrumentModel, RT.InstrumentSite, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True), PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
             resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
 
         elif resource.type_ == RT.PlatformDevice:
-            resource_types = [RT.PlatformModel, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory]
-            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True)}
+            resource_types = [RT.PlatformModel, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
             resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
         else:
             #For anything else attempt to add Observatory by default
-            resource_types = [ RT.Observatory]
-            predicate_set = {PRED.hasSite: (False, True)}
+            resource_types = [ RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
             resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
 
         for res_id in resource_id_list:
