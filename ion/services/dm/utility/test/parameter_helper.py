@@ -56,10 +56,22 @@ class ParameterHelper(object):
         context = rdt.context(parameter)
         if isinstance(context.param_type, QuantityType):
             if parameter == 'temp':
+                # t' = temp
+                # t = (t' / 1e5)-10 
+                # 0 < t < 30 =>
+                # 1e5 < t' < 4e5
                 rdt[parameter] = self.float_range(1e5,4e5,tn)
             elif parameter == 'conductivity':
+                # c' = conductivity
+                # c = (c' / 1e5) - 0.5 
+                # 4.6 < c < 5.0 =>
+                # 5.1e5 < c' 5.5e5
                 rdt[parameter] = self.float_range(510000, 550000,tn)
             elif parameter == 'pressure':
+                # p' = pressure
+                # p = (p' / 100) + 0.5
+                # 0 < p < 303.3 =>
+                # 50 < p' < 30380
                 rdt[parameter] = self.float_range(50,30380, tn)
             elif parameter == 'lat':
                 rdt[parameter] = [45] * t
@@ -75,6 +87,15 @@ class ParameterHelper(object):
             rdt[parameter] = np.dtype(context.param_type.value_encoding).type(1)
         
     def float_range(self,minvar, maxvar,t):
+        '''
+        Produces a signal with values between minvar and maxvar 
+        at a frequency of 1/60 Hz centered at the midpoint 
+        between minvar and maxvar.
+
+
+        This method provides a deterministic function that 
+        varies over time and is sinusoidal when graphed.
+        '''
         a = (maxvar-minvar)/2
         return np.sin(np.pi * 2 * t /60) * a + (minvar + a)
 
