@@ -143,7 +143,7 @@ class ResourceRegistryHelper(object):
 
     def _dump_observatories(self):
         ws = self._wb.add_sheet("OBS")
-        [ws.write(0, col, hdr) for (col, hdr) in enumerate(["Type", "Reference Designator", "Facility", "Site", "Subsite", "Station", "Component", "Instrument"])]
+        [ws.write(0, col, hdr) for (col, hdr) in enumerate(["Type", "Reference Designator", "Facility", "Geo Area", "Site", "Station", "Component", "Instrument"])]
         self._row = 1
 
         def follow_site(parent_id, level):
@@ -168,14 +168,20 @@ class ResourceRegistryHelper(object):
             self._row += 1
 
             obs_list = [self._resources[obs_id] for obs_id in self._assoc_by_sub.get((org["_id"], "hasResource"), [])]
-            obs_list.sort(key=lambda obj: obj['name'])
+            obs_list.sort(key=lambda obj: (obj.get('spatial_area_name', ""), obj['name']))
+            prior_area = ""
             for obs in obs_list:
                 if obs["type_"] == "Observatory":
+                    if obs['spatial_area_name'] != prior_area:
+                        prior_area = obs['spatial_area_name']
+                        ws.write(self._row, 0, "(none)")
+                        ws.write(self._row, 3, obs['spatial_area_name'])
+                        self._row += 1
                     ws.write(self._row, 0, obs['type_'])
                     ws.write(self._row, 1, ",".join([i[4:] for i in obs['alt_ids'] if i.startswith("OOI:")]))
-                    ws.write(self._row, 3, obs['name'])
+                    ws.write(self._row, 4, obs['name'])
                     self._row += 1
-                    follow_site(obs['_id'], 4)
+                    follow_site(obs['_id'], 5)
 
     def _dump_network(self):
         ws = self._wb.add_sheet("Network")
