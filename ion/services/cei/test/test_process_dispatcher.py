@@ -31,10 +31,12 @@ from ion.services.cei.test import ProcessStateWaiter
 try:
     from epu.states import InstanceState
     from epu.processdispatcher.engines import domain_id_from_engine
+    from epu.dashiproc.epumanagement import EPUManagementClient
     _HAS_EPU = True
 except ImportError:
     InstanceState = None
     domain_id_from_engine = None
+    EPUManagementClient = None
     _HAS_EPU = False
 
 # NOTE: much of the Process Dispatcher functionality is tested directly in the
@@ -749,6 +751,153 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
         definition = ProcessDefinition(name="test_process", executable=executable)
         with self.assertRaises(BadRequest):
             self.pd_cli.create_process_definition(definition)
+
+
+@unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
+@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while not in CEI LAUNCH mode')
+@unittest.skipUnless(os.getenv('CEI_LAUNCHINT_TEST', False), 'Skip Test that messes up the database')
+@attr('LAUNCHINT', group='cei')
+class ProcessDispatcherServiceDestructiveLaunchIntTest(IonIntegrationTestCase):
+
+    """ProcessDispatcherServiceDestructiveLaunchIntTest
+
+    These tests cause the pd to request more VMs, which can cause problems in
+    a test environment. Also, they require two extra engines to be started. To run
+    the tests, add the following to your launch yml file:
+
+    test_one_spare_slot:
+      base_need: 1
+      replicas: 1
+      slots: 1
+      spare_slots: 1
+
+    test_maximum_of_one:
+      base_need: 1
+      replicas: 1
+      slots: 1
+      maximum_vms: 1
+    """
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
+
+        from pyon.public import CFG
+        import dashi
+
+        uri = "amqp://%s:%s@%s:%s" % (
+            CFG.server.amqp.username, CFG.server.amqp.password,
+            CFG.server.amqp.host, "5672")
+        exchange = CFG.dashi.exchange
+        sysname = CFG.dashi.sysname
+        self.dashi = dashi.DashiConnection("test", uri, exchange, sysname=sysname)
+
+        self.rr_cli = ResourceRegistryServiceClient()
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
+        self.epum_cli = EPUManagementClient(self.dashi, "epu_management_service")
+
+        self.proc_prefix = 'test_launchint_process'
+
+        self.process_definition = ProcessDefinition(name=self.proc_prefix)
+        self.process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
+                                              'class': 'TestProcess'}
+        self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
+
+        self.waiter = ProcessStateWaiter()
+        self.waiter.start()
+
+    def tearDown(self):
+        procs = self.pd_cli.list_processes()
+        for process in procs:
+            if process.process_id.startswith(self.proc_prefix) and process.process_state <= ProcessStateEnum.RUNNING:
+                print "Killing process %s" % process.process_id
+                self.pd_cli.cancel_process(process.process_id)
+        self.waiter.stop()
+
+    def assert_available_instances(self, engine, n, timeout=240):
+
+        start_time = time.time()
+
+        while True:
+            domain = self.epum_cli.describe_domain("pd_domain_%s" % engine)
+
+            available_instances = []
+            for instance in domain.get('instances', []):
+                state = instance['state']
+                if state == '600-RUNNING':
+                    available_instances.append(instance)
+
+            try:
+                self.assertEqual(len(available_instances), n)
+                break
+            except AssertionError:
+                if start_time + timeout > time.time():
+                    time.sleep(1)
+                    continue
+                else:
+                    raise
+
+    def test_spare_slots(self):
+        engine = "test_one_spare_slot"
+
+        self.assert_available_instances(engine, 1)
+
+        target = ProcessTarget(execution_engine_id=engine)
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.target = target
+
+        pid = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(
+            self.process_definition_id, process_schedule, process_id=pid)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING, timeout=60)
+
+        self.assert_available_instances(engine, 2)
+
+        time.sleep(20)
+
+        self.pd_cli.cancel_process(pid)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED, timeout=120)
+
+        time.sleep(20)
+
+        self.assert_available_instances(engine, 1)
+
+    def test_maximum_vms(self):
+        engine = "test_maximum_of_one"
+
+        self.assert_available_instances(engine, 1)
+
+        target = ProcessTarget(execution_engine_id=engine)
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.target = target
+
+        pid0 = self.pd_cli.create_process(self.process_definition_id)
+        pid1 = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(
+            self.process_definition_id, process_schedule, process_id=pid0)
+        self.pd_cli.schedule_process(
+            self.process_definition_id, process_schedule, process_id=pid1)
+
+        self.waiter.await_state_event(pid0, ProcessStateEnum.RUNNING, timeout=60)
+
+        assertion_error = None
+        try:
+            self.assert_available_instances(engine, 2)
+        except AssertionError as e:
+            assertion_error = e
+        assert assertion_error is not None, "Engine started 2 VMs, when maximum is 1"
+
+        self.pd_cli.cancel_process(pid0)
+        self.pd_cli.cancel_process(pid1)
+        self.waiter.await_state_event(pid0, ProcessStateEnum.TERMINATED, timeout=120)
 
 
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
