@@ -15,6 +15,7 @@ from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
+from interface.objects import OrgTypeEnum
 
 import string
 
@@ -80,8 +81,14 @@ class TestFindRelatedResources(IonIntegrationTestCase):
         return rsrc_id
 
 
-    def create_observatory(self, first=False):
+    def create_observatory(self, first=False, create_with_marine_facility=False):
         obs_id = self.create_any(RT.Observatory, first)
+
+        if create_with_marine_facility:
+            org = any_old(RT.Org)
+            org.org_type = OrgTypeEnum.MARINE_FACILITY
+            rsrc_id, rev = self.RR.create(org)
+            aid = self.RR.create_association(subject=rsrc_id, predicate=PRED.hasResource, object=obs_id)
 
         site_id1 = self.create_site(first)
         site_id2 = self.create_site(False)
