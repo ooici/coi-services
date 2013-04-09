@@ -409,7 +409,8 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         config.process.params.lat = 45.
         config.process.params.lon = -71.
 
-        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process( in_data_product_ids = in_data_product_ids,
+        ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(    data_process_definition_id = ctd_L0_all_dprocdef_id,
+                                                                                    in_data_product_ids = in_data_product_ids,
                                                                                     out_data_product_ids = out_data_product_ids,
                                                                                     configuration= config
                                                                                 )
@@ -460,12 +461,12 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Retrieve the extended resources for data process definition and for data process
         #-------------------------------
         extended_process_definition = self.dataprocessclient.get_data_process_definition_extension(ctd_L0_all_dprocdef_id)
-        self.assertEqual(1, len(extended_process_definition.data_processes))
         log.debug("test_createDataProcess: extended_process_definition  %s", str(extended_process_definition))
+        self.assertEqual(1, len(extended_process_definition.data_processes))
 
         extended_process = self.dataprocessclient.get_data_process_extension(ctd_l0_all_data_process_id)
-        self.assertEqual(1, len(extended_process.input_data_products))
         log.debug("test_createDataProcess: extended_process  %s", str(extended_process))
+        self.assertEqual(1, len(extended_process.input_data_products))
 
         ################################ Test the removal of data processes ##################################
 
@@ -510,9 +511,6 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         # Check for input data products still attached to the data process
         inprod_associations = self.rrclient.find_associations(ctd_l0_all_data_process_id, PRED.hasInputProduct)
         self.assertEquals(len(inprod_associations), 0)
-
-        # Check of the data process has been deactivated
-        self.assertIsNone(dp_obj.input_subscription_id)
 
         # Read the original subscription id of the data process and check that it has been deactivated
         with self.assertRaises(NotFound):
