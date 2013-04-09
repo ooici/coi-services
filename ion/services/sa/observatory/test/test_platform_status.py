@@ -21,15 +21,13 @@ from pyon.public import log
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
-from pyon.agent.agent import ResourceAgentClient
-from ion.agents.platform.test.base_test_platform_agent_with_rsn import FakeProcess
-
 from pyon.event.event import EventPublisher
+from pyon.event.event import EventSubscriber
 
 from interface.objects import AggregateStatusType
 from interface.objects import DeviceStatusType
 
-import gevent
+from gevent.event import AsyncResult
 
 from mock import patch
 from pyon.public import CFG
@@ -41,24 +39,98 @@ class Test(BaseIntTestPlatform):
     def setUp(self):
         super(Test, self).setUp()
         self._event_publisher = EventPublisher()
+        self._last_checked_status = None
 
-    def _create_resource_client(self, resource_id):
-        ra_client = ResourceAgentClient(resource_id, process=FakeProcess())
-        return ra_client
+    def _start_agg_status_event_subscriber(self, p_root):
+        """
+        Start the event subscriber to the given root platform. Upon reception
+        of event, the callback only sets the async result with the event.
+        """
 
-    def _set_rollup_statuses(self, ra_client, rollup_status):
+        event_type = "DeviceAggregateStatusEvent"
 
-        log.debug("TRS setting rollup_status in child: %s", rollup_status)
-        ra_client.set_agent({'rollup_status': rollup_status})
+        def consume_event(evt, *args, **kwargs):
+            self._async_result.set(evt)
 
-        # sanity check: verify the statues were actually set:
-        ret_rollup_status = ra_client.get_agent(['rollup_status'])['rollup_status']
-        self.assertEquals(ret_rollup_status, rollup_status)
+        sub = EventSubscriber(event_type=event_type,
+                              origin=p_root.platform_device_id,
+                              callback=consume_event)
+
+        sub.start()
+        self._data_subscribers.append(sub)
+        sub._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
+
+        log.debug("registered for DeviceAggregateStatusEvent")
+
+    def _publish_for_child(self, origin, status_name, status):
+        """
+        Publishes a DeviceAggregateStatusEvent from the given origin
+
+        NOTE that we just publish on behalf of the child, but the statuses in
+        the child itself are *not* set. This is OK for these tests; we just
+        need that child's parent to react to the event.
+        """
+
+        # create new AsyncResult for the subsequent event reception:
+        self._async_result = AsyncResult()
+
+        # create and publish event from the given origin:
+        evt = dict(event_type='DeviceAggregateStatusEvent',
+                   origin_type="PlatformDevice",
+                   origin=origin,
+                   description="Fake event",
+                   status_name=status_name,
+                   status=status)
+
+        log.debug("publishing for child %r: evt=%s", origin, evt)
+        self._event_publisher.publish_event(**evt)
+
+    def _wait_root_event_and_verify(self, status_name, status):
+        """
+        Waits for event from root and verifies that the root status has been
+        updated as expected.
+
+        @param status_name   Entry in AggregateStatusType
+        @param status        Entry in DeviceStatusType
+        """
+
+        # verify we are not checking the same status twice in a row:
+        self.assertNotEquals(self._last_checked_status, (status_name, status),
+                             "The same status cannot be checked twice in a row "
+                             "because there won't be any event going to be "
+                             "published in the second case. Fix the test!")
+        self._last_checked_status = (status_name, status)
+
+        # wait for event from root:
+        root_evt = self._async_result.get(timeout=CFG.endpoint.receive.timeout)
+
+        self.assertEquals(root_evt.origin, self.p_root.platform_device_id)
+        self.assertEquals(root_evt.type_, 'DeviceAggregateStatusEvent')
+
+        log.debug("Got event from root platform: %s = %s",
+                  AggregateStatusType._str_map[root_evt.status_name],
+                  DeviceStatusType._str_map[root_evt.status])
+
+        # verify the status name:
+        self.assertEquals(status_name, root_evt.status_name,
+                          "Expected: %s, Got: %s" % (
+                          AggregateStatusType._str_map[status_name],
+                          AggregateStatusType._str_map[root_evt.status_name]))
+
+        # verify the status value:
+        self.assertEquals(status, root_evt.status,
+                          "Expected: %s, Got: %s" % (
+                          DeviceStatusType._str_map[status],
+                          DeviceStatusType._str_map[root_evt.status]))
 
     def test_platform_status_small_network(self):
+        #
+        # Test of status propagation in a small platform network (no instruments)
+        #
 
+        # create the network:
         p_objs = {}
-        p_root = self._create_hierarchy("LV01B", p_objs)
+        self.p_root = p_root = self._create_hierarchy("LV01B", p_objs)
         #   LV01B
         #       LJ01B
         #       MJ01B
@@ -67,9 +139,9 @@ class Test(BaseIntTestPlatform):
         for platform_id in ["LV01B", "LJ01B", "MJ01B"]:
             self.assertIn(platform_id, p_objs)
 
-        #####################################################################
-        # todo assign some instruments
-        # ...
+        # the two children
+        p_LJ01B = p_objs["LJ01B"]
+        p_MJ01B = p_objs["MJ01B"]
 
         #####################################################################
         # start up the network
@@ -80,100 +152,90 @@ class Test(BaseIntTestPlatform):
         self._run()
 
         #####################################################################
-        # specific preparations:
+        # do the actual stuff and verifications: we "set" a particular status
+        # in a child (that is, via publishing an event on behalf of that
+        # child) and then confirm that the event has been propagated
+        # to the root to have the corresponding status updated:
 
-        pa_client_root = self._create_resource_client(p_root.platform_device_id)
-        p_LJ01B = p_objs["LJ01B"]
-        pa_client_LJ01B = self._create_resource_client(p_LJ01B.platform_device_id)
+        # Note:
+        #  - every device in the network starts in STATUS_UNKNOWN
+        #  - we only test cases that trigger an actual change in the root (so
+        #    we get the corresponding events for confirmation), so make sure
+        #    there are NO consecutive calls to _wait_root_event_and_verify with
+        #    the same expected status!
+        #  - the root statuses are updated *ONLY* because of status updates
+        #    in their two children. When other elements are considered (in
+        #    particular, platform attributes), then these tests will need to be
+        #    adjusted.
 
-        p_MJ01B = p_objs["MJ01B"]
-        pa_client_MJ01B = self._create_resource_client(p_MJ01B.platform_device_id)
+        # -------------------------------------------------------------------
+        # start the only event subscriber for this test:
+        self._start_agg_status_event_subscriber(p_root)
 
-        #####################################################################
-        # set rollup_status for the children, initially all OK
+        # -------------------------------------------------------------------
+        # LJ01B publishes a STATUS_WARNING for AGGREGATE_COMMS
+        self._publish_for_child(p_LJ01B.platform_device_id,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_WARNING)
 
-        rollup_status = {
-            AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_OK
-        }
+        # confirm root gets updated to STATUS_WARNING
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
+                                         DeviceStatusType.STATUS_WARNING)
 
-        self._set_rollup_statuses(pa_client_LJ01B, rollup_status)
-        self._set_rollup_statuses(pa_client_MJ01B, rollup_status)
+        # -------------------------------------------------------------------
+        # MJ01B publishes a STATUS_CRITICAL for AGGREGATE_COMMS
+        self._publish_for_child(p_MJ01B.platform_device_id,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_CRITICAL)
 
-        # Note that the above does NOT trigger any event publications. It
-        # would be interesting to see whether the PA should react to those
-        # settings to do the publications.
-        # The actual publication in this test happens below,
-        # which simulates the PA doing that publication.
+        # confirm root gets updated to STATUS_CRITICAL
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
+                                         DeviceStatusType.STATUS_CRITICAL)
 
-        #####################################################################
-        # do the actual stuff and verifications
+        # -------------------------------------------------------------------
+        # MJ01B publishes a STATUS_OK for AGGREGATE_COMMS
+        self._publish_for_child(p_MJ01B.platform_device_id,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_OK)
 
-        def publish_and_verify_root_status(origin, expected_rollup_status):
-            """
-            publishes a DeviceStatusEvent with a gioven child as the originator
-            to trigger the updates, and then verifies the expected rollup
-            statuses in the root.
-            """
-            evt = dict(event_type='DeviceStatusEvent',
-                       origin_type="PlatformDevice",
-                       origin=origin,
-                       description="TRS Fake event to test rollup status")
-            log.debug("TRS publishing for child 'LJ01B': %s", evt)
-            self._event_publisher.publish_event(**evt)
+        # confirm root gets updated to STATUS_WARNING because of LJ01B
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
+                                         DeviceStatusType.STATUS_WARNING)
 
-            # TODO set a subscriber to get publication from root.
-            # for now, just sleeping for a bit, which is a weak mechanism of course.
-            gevent.sleep(5)
+        # -------------------------------------------------------------------
+        # LJ01B publishes a STATUS_OK for AGGREGATE_COMMS
+        self._publish_for_child(p_LJ01B.platform_device_id,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_OK)
 
-            # retrieve root status
-            root_rollup_status = pa_client_root.get_agent(['rollup_status'])['rollup_status']
-            log.debug("TRS root rollup_status: %s", root_rollup_status)
+        # confirm root gets updated to STATUS_OK because both children are OK
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
+                                         DeviceStatusType.STATUS_OK)
 
-            # verify expected statuses at the root:
-            for key in AggregateStatusType._value_map.values():
-                self.assertEquals(root_rollup_status[key],
-                                  expected_rollup_status[key])
+        # -------------------------------------------------------------------
+        # LJ01B publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
+        self._publish_for_child(p_LJ01B.platform_device_id,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_UNKNOWN)
 
-        # ----------------------------------
-        # verify OKs at the root
-        publish_and_verify_root_status(p_LJ01B.platform_device_id, rollup_status)
+        # Note that the root platform should continue in STATUS_OK, but we are
+        # not verifying that via reception of event because there's no
+        # such event to be published. We verify this with explicit call to
+        # the agent to get its aggstatus dict:
+        aggstatus = self._pa_client.get_agent(['aggstatus'])['aggstatus']
+        self.assertEquals(aggstatus[AggregateStatusType.AGGREGATE_COMMS],
+                          DeviceStatusType.STATUS_OK)
 
-        # ----------------------------------
-        # verify with some variations
-        rollup_status = {
-            AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_WARNING,
-            AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_CRITICAL,
-            AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_OK
-        }
-        self._set_rollup_statuses(pa_client_LJ01B, rollup_status)
-        publish_and_verify_root_status(p_LJ01B.platform_device_id, rollup_status)
+        # -------------------------------------------------------------------
+        # MJ01B publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
+        self._publish_for_child(p_MJ01B.platform_device_id,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_UNKNOWN)
 
-        # ----------------------------------
-        # verify with all back to OK
-        rollup_status = {
-            AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_OK
-        }
-        self._set_rollup_statuses(pa_client_LJ01B, rollup_status)
-        publish_and_verify_root_status(p_LJ01B.platform_device_id, rollup_status)
-
-        # ----------------------------------
-        # verify with all STATUS_CRITICAL
-        # In this case, use the other child p_MJ01B
-        rollup_status = {
-            AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_CRITICAL,
-            AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_CRITICAL,
-            AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_CRITICAL,
-            AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_CRITICAL
-        }
-        self._set_rollup_statuses(pa_client_MJ01B, rollup_status)
-        publish_and_verify_root_status(p_MJ01B.platform_device_id, rollup_status)
+        # now, both children are in STATUS_UNKNOWN (from point of view of the
+        # root), so confirm root gets updated to STATUS_UNKNOWN;
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
+                                         DeviceStatusType.STATUS_UNKNOWN)
 
         #####################################################################
         # done
