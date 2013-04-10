@@ -1336,14 +1336,18 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
-    def _add_test_process(self, restart_mode=None, queueing_mode=None, execution_engine_id=None):
+    def _add_test_process(self, restart_mode=None, queueing_mode=None, execution_engine_id=None,
+                          node_exclusive=None):
         process_schedule = ProcessSchedule()
+        target = process_schedule.target = ProcessTarget()
         if restart_mode is not None:
             process_schedule.restart_mode = restart_mode
         if queueing_mode is not None:
             process_schedule.queueing_mode = queueing_mode
         if execution_engine_id is not None:
-            process_schedule.target = ProcessTarget(execution_engine_id=execution_engine_id)
+            target.execution_engine_id = execution_engine_id
+        if node_exclusive is not None:
+            target.node_exclusive = node_exclusive
 
         pid = self.pd_cli.create_process(self.process_definition_id)
 
@@ -1479,6 +1483,14 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             pids.append(pid)
             clients[pid] = client
 
+        # now add a couple processes with node exclusive tags
+        # per OOIION-816, this was not correctly handled.
+        for i in range(2):
+            pid, client = self._add_test_process(ProcessRestartMode.ALWAYS,
+                ProcessQueueingMode.ALWAYS, "engine3", node_exclusive="xlc%s" % i)
+            pids.append(pid)
+            clients[pid] = client
+
         self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
 
         for pid in pids:
@@ -1511,3 +1523,8 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         # wait for restartables to restart
         self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
+
+        for pid in pids:
+            client = clients[pid]
+            self.assertTrue(client.is_restart())
+            self.assertEqual(client.count(), 1)
