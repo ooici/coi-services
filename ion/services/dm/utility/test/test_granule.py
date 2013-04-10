@@ -26,8 +26,6 @@ import numpy as np
 
 @attr('INT',group='dm')
 class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
-    xps = []
-    xns = []
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
@@ -38,14 +36,6 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.data_producer_id         = None
         self.provider_metadata_update = None
         self.event                    = Event()
-
-    def tearDown(self):
-        for xn in self.xns:
-            xni = self.container.ex_manager.create_xn_queue(xn)
-            xni.delete()
-        for xp in self.xps:
-            xpi = self.container.ex_manager.create_xp(xp)
-            xpi.delete()
 
     def verify_incoming(self, m,r,s):
         rdt = RecordDictionaryTool.load_from_granule(m)
@@ -101,14 +91,12 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         stream_id, route = self.pubsub_management.create_stream('ctd_stream', 'xp1', stream_definition_id=stream_def_id)
         self.addCleanup(self.pubsub_management.delete_stream,stream_id)
-        self.xps.append('xp1')
         publisher = StandaloneStreamPublisher(stream_id, route)
 
         subscriber = StandaloneStreamSubscriber('sub', self.verify_incoming)
         subscriber.start()
 
         subscription_id = self.pubsub_management.create_subscription('sub', stream_ids=[stream_id])
-        self.xns.append('sub')
         self.pubsub_management.activate_subscription(subscription_id)
 
 
