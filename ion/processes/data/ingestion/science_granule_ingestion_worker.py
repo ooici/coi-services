@@ -19,6 +19,7 @@ from ion.util.time_utils import TimeUtils
 from ion.util.stored_values import StoredValueManager
 
 from coverage_model.parameter_values import SparseConstantValue
+from coverage_model import SparseConstantType
 
 from ooi.timer import Timer, Accumulator
 from ooi.logging import TRACE
@@ -285,6 +286,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         for field in rdt._lookup_values():
             if rdt[field] is None:
                 continue
+            if not isinstance(rdt.context(field).param_type, SparseConstantType):
+                # We only set sparse values before insert
+                continue 
             value = rdt[field]
             try:
                 coverage.set_parameter_values(param_name=field, value=value)
