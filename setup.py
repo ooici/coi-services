@@ -47,7 +47,8 @@ setup(  name = 'coi-services',
             'ntplib',
             'xlrd==0.8.0',
             'apscheduler==2.1.0',
-            'pyproj==1.9.3'
+            'pyproj==1.9.3',
+            'udunitspy==0.0.4',
         ],
         entry_points = """
             [pydap.handler]
