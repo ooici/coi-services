@@ -2165,15 +2165,26 @@ Reason: %s
 
     def _load_DataProductLink(self, row, do_bulk=False):
         dp_id = self.resource_ids[row["data_product_id"]]
-        res_id = self.resource_ids[row["input_resource_id"]]
-        type = row['resource_type']
+        input_res_id = row["input_resource_id"]
+        restype = row['resource_type']
 
-        #create link to data product source
-#        source_id = self.resource_ids[row['source_resource_id']]
-#        svc_client = self._get_service_client("data_acquisition_management")
-#        svc_client.assign_data_product_source(dp_id, source_id, headers=self._get_system_actor_headers())
+        svc_client = self._get_service_client("data_acquisition_management")
+        headers = self._get_system_actor_headers()
 
-        if type=='InstrumentDevice' or type=='PlatformDevice':
+        # create link from DataProduct to original source
+        source_id = row.get('source_resource_id', None)
+        if source_id:
+            source_id = self.resource_ids[source_id]
+            if self.bulk and do_bulk:
+                dp_obj = self._get_resource_obj(row["data_product_id"])
+                source_obj = self._get_resource_obj(source_id)
+                self._create_association(dp_obj, PRED.hasSource, source_obj)
+            else:
+                svc_client.assign_data_product_source(dp_id, source_id, headers=headers)
+
+        # Create data product assignment
+        if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice'):
+            input_res_id = self.resource_ids.get(input_res_id)
             if self.bulk and do_bulk:
                 id_obj = self._get_resource_obj(row["input_resource_id"])
                 dp_obj = self._get_resource_obj(row["data_product_id"])
@@ -2187,8 +2198,7 @@ Reason: %s
                 self._create_association(dp_obj, PRED.hasDataProducer, data_producer_obj)
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
-                svc_client = self._get_service_client("data_acquisition_management")
-                svc_client.assign_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
+                svc_client.assign_data_product(input_res_id, dp_id, headers=headers)
 
 
     def _load_DataProductLink_OOI(self):
