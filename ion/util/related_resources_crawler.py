@@ -21,8 +21,8 @@ class RelatedResourcesCrawler(object):
 
         It returns a second generator function that configures the crawl behavior
 
-        The second generator returns the function that crawls the associaiton list given a resource id,
-          returning an associaiton list
+        The second generator returns the function that crawls the association list given a resource id,
+          returning an association list
         """
 
         # basically a lambda function: add a list of associations-matching-a-predicate to an accumulated list

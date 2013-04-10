@@ -501,11 +501,13 @@ class PolicyManagementService(BasePolicyManagementService):
 
         return rules
 
-    def _get_related_resource_ids(self, resource_id, resource_types=[], predicate_set={}):
+    def _get_related_resource_ids(self, resource_id, resource_types=None, predicate_set=None):
         """
         An internal helper function to generate a unique list of related resources
         @return:
         """
+        resource_types = resource_types if resource_types is not None else []
+        predicate_set = predicate_set if predicate_set is not None else {}
         r = RelatedResourcesCrawler()
         test_real_fn = r.generate_get_related_resources_fn(self.clients.resource_registry, resource_whitelist=resource_types, predicate_dictionary=predicate_set)
         related_objs = test_real_fn(resource_id)
