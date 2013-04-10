@@ -26,6 +26,7 @@ setup(  name = 'coi-services',
         packages = find_packages(),
         dependency_links = [
             'http://sddevrepo.oceanobservatories.org/releases/',
+            'https://github.com/lukecampbell/udunitspy/tarball/master#egg=udunitspy-0.0.5',
         ],
         test_suite = 'pyon',
         install_requires = [
@@ -48,7 +49,7 @@ setup(  name = 'coi-services',
             'xlrd==0.8.0',
             'apscheduler==2.1.0',
             'pyproj==1.9.3',
-            'udunitspy==0.0.4',
+            'udunitspy==0.0.5',
         ],
         entry_points = """
             [pydap.handler]
