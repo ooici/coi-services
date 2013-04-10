@@ -53,6 +53,7 @@ import csv
 import re
 import requests
 import time
+from udunitspy.udunits2 import Unit, UdunitsError
 
 from pyon.core.bootstrap import get_service_registry
 from pyon.core.exception import NotFound
@@ -1105,10 +1106,10 @@ class IONLoader(ImmediateProcess):
             support_bulk=True)
 
     def _load_Observatory_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("osite")
+        ooi_objs = self.ooi_loader.get_type_assets("ssite")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             constrow = {}
-            const_id1 = ooi_id + "_const1"
+            const_id1 = ooi_obj['rd'] + "_const1"
             constrow[COL_ID] = const_id1
             constrow['type'] = 'geospatial'
             constrow['south'] = ooi_obj['lat_south'] or '0.0'
@@ -1120,15 +1121,15 @@ class IONLoader(ImmediateProcess):
             constrow['bottom'] = ooi_obj['depth_max'] or '0.0'
             self._load_Constraint(constrow)
 
-            site_rd_list = ooi_obj['site_rd_list']
+            subsite_rd_list = ooi_obj['subsite_rd_list']
             newrow = {}
             newrow[COL_ID] = ooi_obj['rd']
             newrow['obs/name'] = ooi_obj['name']
-            newrow['obs/description'] = "Site: %s" % ", ".join(site_rd_list)
+            newrow['obs/description'] = "Subsite: %s" % ", ".join(subsite_rd_list)
             newrow['obs/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
             newrow['obs/local_name'] = ooi_obj['local_name']
-            newrow['obs/standalone_name'] = ooi_obj['standalone_name']
             newrow['obs/reference_designator'] = ooi_obj['rd']
+            newrow['obs/spatial_area_name'] = ooi_obj['geo_area']
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_obj['rd']])
@@ -1161,39 +1162,7 @@ class IONLoader(ImmediateProcess):
                     headers=headers)
 
     def _load_Subsite_OOI(self):
-        ooi_objs = self.ooi_loader.get_type_assets("ssite")
-        for ooi_id, ooi_obj in ooi_objs.iteritems():
-            constrow = {}
-            const_id1 = ooi_obj['rd'] + "_const1"
-            constrow[COL_ID] = const_id1
-            constrow['type'] = 'geospatial'
-            constrow['south'] = ooi_obj['lat_south'] or '0.0'
-            constrow['north'] = ooi_obj['lat_north'] or '0.0'
-            constrow['west'] = ooi_obj['lon_west'] or '0.0'
-            constrow['east'] = ooi_obj['lon_east'] or '0.0'
-            constrow['vertical_direction'] = 'depth'
-            constrow['top'] = ooi_obj['depth_min'] or '0.0'
-            constrow['bottom'] = ooi_obj['depth_max'] or '0.0'
-            self._load_Constraint(constrow)
-
-            subsite_rd_list = ooi_obj['subsite_rd_list']
-            newrow = {}
-            newrow[COL_ID] = ooi_obj['rd']
-            newrow['site/name'] = ooi_obj['name']
-            newrow['site/description'] = "Subsite: %s" % ", ".join(subsite_rd_list)
-            newrow['site/alt_ids'] = "['OOI:" + ooi_obj['rd'] + "']"
-            newrow['site/local_name'] = ooi_obj['local_name']
-            newrow['site/standalone_name'] = ooi_obj['standalone_name']
-            newrow['site/reference_designator'] = ooi_obj['rd']
-            newrow['constraint_ids'] = const_id1
-            newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
-            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_obj['rd']])
-            newrow['parent_site_id'] = ooi_obj['parent_id']
-
-            if not self._match_filter(ooi_obj['rd']):
-                continue
-
-            self._load_Subsite(newrow)
+        pass
 
     def _load_PlatformSite(self, row):
         constraints = self._get_constraints(row, type='PlatformSite')
@@ -1231,7 +1200,9 @@ class IONLoader(ImmediateProcess):
                         headers=headers)
 
     def _load_PlatformSite_OOI(self):
+        site_objs = self.ooi_loader.get_type_assets("site")
         subsite_objs = self.ooi_loader.get_type_assets("subsite")
+        osite_objs = self.ooi_loader.get_type_assets("osite")
         ssite_objs = self.ooi_loader.get_type_assets("ssite")
 
         def _load_platform(ooi_id, ooi_obj):
@@ -1264,7 +1235,6 @@ class IONLoader(ImmediateProcess):
             newrow['ps/name'] = ooi_obj.get('name', ooi_id)
             newrow['ps/alt_ids'] = "['OOI:" + ooi_id + "']"
             newrow['ps/local_name'] = ooi_obj['local_name']
-            newrow['ps/standalone_name'] = ooi_obj['standalone_name']
             newrow['ps/reference_designator'] = ooi_id
             newrow['constraint_ids'] = const_id1
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
@@ -1375,7 +1345,6 @@ class IONLoader(ImmediateProcess):
             newrow['is/description'] = "Instrument: %s" % ooi_id
             newrow['is/alt_ids'] = "['OOI:" + ooi_id + "']"
             newrow['is/local_name'] = inst_name
-            newrow['is/standalone_name'] = inst_name
             newrow['is/planned_uplink_port/port_type'] = "PAYLOAD"
             newrow['is/planned_uplink_port/reference_designator'] = ooi_rd.port_rd
             newrow['is/reference_designator'] = ooi_id
@@ -1524,11 +1493,19 @@ Reason: %s
         lookup_value = row['Lookup Value']
 
         dataset_management = self._get_service_client('dataset_management')
+        
+        #validate unit of measure
+
+        #validate parameter type
         try:
             tm = TypesManager(dataset_management)
             param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
+            try:
+                tm.get_unit(uom)
+            except UdunitsError as e:
+                log.warning('Parameter %s (%s) has invalid units: %s', name,param_id, uom)
             context.fill_value = tm.get_fill_value(fill_value, encoding, param_type)
             context.reference_urls = references
             context.internal_name = name
@@ -2303,15 +2280,26 @@ Reason: %s
 
     def _load_DataProductLink(self, row, do_bulk=False):
         dp_id = self.resource_ids[row["data_product_id"]]
-        res_id = self.resource_ids[row["input_resource_id"]]
-        type = row['resource_type']
+        input_res_id = row["input_resource_id"]
+        restype = row['resource_type']
 
-        #create link to data product source
-#        source_id = self.resource_ids[row['source_resource_id']]
-#        svc_client = self._get_service_client("data_acquisition_management")
-#        svc_client.assign_data_product_source(dp_id, source_id, headers=self._get_system_actor_headers())
+        svc_client = self._get_service_client("data_acquisition_management")
+        headers = self._get_system_actor_headers()
 
-        if type=='InstrumentDevice' or type=='PlatformDevice':
+        # create link from DataProduct to original source
+        source_id = row.get('source_resource_id', None)
+        if source_id:
+            source_id = self.resource_ids[source_id]
+            if self.bulk and do_bulk:
+                dp_obj = self._get_resource_obj(row["data_product_id"])
+                source_obj = self._get_resource_obj(source_id)
+                self._create_association(dp_obj, PRED.hasSource, source_obj)
+            else:
+                svc_client.assign_data_product_source(dp_id, source_id, headers=headers)
+
+        # Create data product assignment
+        if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice'):
+            input_res_id = self.resource_ids.get(input_res_id)
             if self.bulk and do_bulk:
                 id_obj = self._get_resource_obj(row["input_resource_id"])
                 dp_obj = self._get_resource_obj(row["data_product_id"])
@@ -2325,8 +2313,7 @@ Reason: %s
                 self._create_association(dp_obj, PRED.hasDataProducer, data_producer_obj)
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
-                svc_client = self._get_service_client("data_acquisition_management")
-                svc_client.assign_data_product(res_id, dp_id, headers=self._get_system_actor_headers())
+                svc_client.assign_data_product(input_res_id, dp_id, headers=headers)
 
 
     def _load_DataProductLink_OOI(self):

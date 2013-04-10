@@ -6,6 +6,9 @@
 '''
 from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction, SparseConstantType
 from ion.services.dm.utility.granule import RecordDictionaryTool
+from pyon.container.cc import Container
+from pyon.ion.stream import StandaloneStreamPublisher
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 import time
 import numpy as np
 
@@ -49,6 +52,15 @@ class ParameterHelper(object):
             if field == rdt.temporal_parameter:
                 continue
             self.fill_parameter(rdt,field,t)
+
+    def publish_rdt_to_data_product(self,data_product_id, rdt, connection_id='', connection_index=''):
+        resource_registry       = Container.instance.resource_registry
+        pubsub_management       = PubsubManagementServiceClient()
+        stream_ids, _ = resource_registry.find_objects(data_product_id,'hasStream',id_only=True)
+        stream_id = stream_ids[0]
+        route = pubsub_management.read_stream_route(stream_id)
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        publisher.publish(rdt.to_granule(connection_id=connection_id, connection_index=connection_index))
 
 
     def fill_parameter(self,rdt,parameter,t):
