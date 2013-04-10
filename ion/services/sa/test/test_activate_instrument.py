@@ -197,12 +197,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         # the following assert will not work without elasticsearch.
         #self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
 
-        #REMOVE THIS CHECK AS THE COMMS TRANSFORM IS OBE. Update to use the new late_data_alert
-        #self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.communications_status_roll_up.value)
-
-        self.assertEqual(StatusType.STATUS_OK, extended_instrument.computed.data_status_roll_up.value)
-        self.assertEqual(StatusType.STATUS_WARNING, extended_instrument.computed.power_status_roll_up.value)
-
         # Verify the computed attribute for user notification requests
         self.assertEqual( 1, len(extended_instrument.computed.user_notification_requests.value) )
         notifications = extended_instrument.computed.user_notification_requests.value
@@ -577,22 +571,12 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
 
         self._check_computed_attributes_of_extended_product( expected_data_product_id = data_product_id1, extended_data_product = extended_product)
 
-        #--------------------------------------------------------------------------------
-        #put some events into the eventsdb to test - this should set the comms and data status to WARNING
-        #--------------------------------------------------------------------------------
-
-        t = get_ion_ts()
-        self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-            origin = instDevice_id, status=DeviceStatusType.STATUS_WARNING, values = [200] )
-        self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
-            origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
         #--------------------------------------------------------------------------------
         # Get the extended instrument
         #--------------------------------------------------------------------------------
 
         extended_instrument = self.imsclient.get_instrument_device_extension(instrument_device_id=instDevice_id, user_id=user_id_1)
-        self._check_computed_attributes_of_extended_instrument(expected_instrument_device_id = instDevice_id, extended_instrument = extended_instrument)
 
         #--------------------------------------------------------------------------------
         # For the second user, check the extended data product and the extended intrument
@@ -600,13 +584,6 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         extended_product = self.dpclient.get_data_product_extension(data_product_id=data_product_id2, user_id=user_id_2)
         self._check_computed_attributes_of_extended_product(expected_data_product_id = data_product_id2, extended_data_product = extended_product)
 
-        #---------- Put some events into the eventsdb to test - this should set the comms and data status to WARNING  ---------
-
-        t = get_ion_ts()
-        self.event_publisher.publish_event(  ts_created= t,  event_type = 'DeviceStatusEvent',
-            origin = instDevice_id, status=DeviceStatusType.STATUS_WARNING, values = [200] )
-        self.event_publisher.publish_event( ts_created= t,   event_type = 'DeviceCommsEvent',
-            origin = instDevice_id, state=DeviceCommsType.DATA_DELIVERY_INTERRUPTION, lapse_interval_seconds = 20 )
 
         #--------------------------------------------------------------------------------
         # Get the extended instrument
