@@ -210,17 +210,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #Connect the producer for an existing input resource with a data product
 
         # Verify that both ids are valid
-        input_resource_obj = self.clients.resource_registry.read(input_resource_id)
+#        input_resource_obj = self.clients.resource_registry.read(input_resource_id) -- don't need this unless producer is not found
         data_product_obj = self.clients.resource_registry.read(data_product_id)
 
         #find the data producer resource associated with the source resource that is creating the data product
         primary_producer_ids, _ = self.clients.resource_registry.find_objects(subject=input_resource_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
 
         if not primary_producer_ids:
+            self.clients.resource_registry.read(input_resource_id) # raise different NotFound if resource doesn't exist
             raise NotFound("Data Producer for input resource %s does not exist" % input_resource_id)
-
-        data_producer_id = ''
-
 
         #connect the producer to the product directly
         self.clients.resource_registry.create_association(subject=input_resource_id, predicate=PRED.hasOutputProduct, object=data_product_id)
@@ -229,7 +227,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_producer_obj = DataProducer(name=data_product_obj.name, description=data_product_obj.description)
         data_producer_obj.producer_context.configuration = {}
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
-        log.debug("DAMS:assign_data_product: data_producer_id %s" % str(data_producer_id))
+        log.debug("DAMS:assign_data_product: data_producer_id %s", data_producer_id)
         for attachment in self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False):
             if attachment.attachment_type == AttachmentType.REFERENCE:
                 parser_id = attachment.context.parser_id
@@ -241,8 +239,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # Associate the Producer with the main Producer
         self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  primary_producer_ids[0])
-
-        return
 
     def unassign_data_product(self, input_resource_id='', data_product_id=''):
         """
