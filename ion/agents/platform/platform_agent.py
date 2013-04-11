@@ -240,14 +240,15 @@ class PlatformAgent(ResourceAgent):
         # List of current alarm objects.
         self.aparam_alerts = []
 
-        # aggregate statuses for each child: { origin: {statuses}, ... }
-        self.aparam_child_agg_status = {}
-
-        # dict of aggregate statuses for this device: {statuses}
+        # dict of aggregate statuses for the platform itself (depending on its
+        # own attributes and ports)
         self.aparam_aggstatus = {}
 
-        # rollup status states for this device: {statuses}
-        # TODO what exactly needs to be done with this?
+        # dict of aggregate statuses for all descendants (immediate children
+        # and all their descendants)
+        self.aparam_child_agg_status = {}
+
+        # Dict with consolidation of both aggregate statuses above
         self.aparam_rollup_status = {}
 
         # All EventSubscribers created: {origin: EventSubscriber, ...}
@@ -283,14 +284,17 @@ class PlatformAgent(ResourceAgent):
 
     def on_start(self):
         """
-        Validates the given configuration and does related preparations.
-        Children agents (platforms and instruments) are launched here (in a
-        separate greenlet) if that's the mode of operation.
+        - Validates the given configuration and does related preparations.
+        - Starts event subscribers
+        - Children agents (platforms and instruments) are launched here (in a
+          separate greenlet) if that's the mode of operation.
         """
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running: on_start called.')
 
         self._validate_configuration()
+
+        self._start_event_subscribers()
 
         self._async_children_launched = AsyncResult()
 
@@ -408,14 +412,17 @@ class PlatformAgent(ResourceAgent):
         # launch instruments:
         self._instruments_launch()
 
-        # gather all my children
-        all_children = []
-        for subplaform_id, dd in self._pa_clients.iteritems():
-            origin = dd.pa_client.resource_id
-            all_children.append(origin)
-        for instrument_id, dd in self._ia_clients.iteritems():
-            origin = dd.ia_client.resource_id
-            all_children.append(origin)
+        # Ready, children launched and event subscribers in place
+        self._async_children_launched.set()
+        log.debug("%r: _children_launch completed", self._platform_id)
+
+    def _start_event_subscribers(self):
+        """
+        Initializes all status parameters and starts all related
+        subscribers for this agent.
+        """
+
+        all_children = self._get_descendent_resource_ids()
 
         # initialize aparam_child_agg_status for each child:
         for origin in all_children:
@@ -427,8 +434,8 @@ class PlatformAgent(ResourceAgent):
         # the initial values for the children above, which is the case: all
         # UNKNOWN consolidates to UNKNOWN:
         for aggregate_type in AggregateStatusType._str_map.keys():
-            self.aparam_rollup_status[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
             self.aparam_aggstatus[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
+            self.aparam_rollup_status[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
 
         # start event subscribers for each child:
         for origin in all_children:
@@ -436,9 +443,46 @@ class PlatformAgent(ResourceAgent):
             self._start_subscriber_device_status_event(origin)
             self._start_subscriber_device_aggregate_status_event(origin)
 
-        # Ready, children launched and event subscribers in place
-        self._async_children_launched.set()
-        log.debug("%r: _children_launch completed", self._platform_id)
+    def _get_descendent_resource_ids(self, immediate_children=False):
+        """
+        Gathers the resource IDs of descendents (platforms and instruments)
+        of this agent.
+
+        @param immediate_children  True to only consider immediate children.
+                                   False to include all descendants.
+        @return list of resouce_ids
+        """
+        resource_ids = []
+
+        def gather(pnode):
+            """
+            helper routine to gather the descendant resource ids.
+            """
+
+            # gather resource_ids of immediate sub-platforms:
+            for subplatform_id in pnode.subplatforms:
+                sub_pnode = pnode.subplatforms[subplatform_id]
+                sub_agent_config = sub_pnode.CFG
+                sub_resource_id = sub_agent_config.get("agent", {}).get("resource_id", None)
+                assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
+                resource_ids.append(sub_resource_id)
+
+            # gather resource_ids of instruments:
+            for instrument_id in pnode.instruments:
+                inode = pnode.instruments[instrument_id]
+                agent_config = inode.CFG
+                resource_id = agent_config.get("agent", {}).get("resource_id", None)
+                assert resource_id, "agent.resource_id must be present for child %r" % instrument_id
+                resource_ids.append(resource_id)
+
+            if not immediate_children:
+                # call recursively on sub-platforms:
+                for subplatform_id in pnode.subplatforms:
+                    sub_pnode = pnode.subplatforms[subplatform_id]
+                    gather(sub_pnode)
+
+        gather(self._pnode)
+        return resource_ids
 
     def on_quit(self):
         try:
@@ -452,16 +496,18 @@ class PlatformAgent(ResourceAgent):
 
     def _do_quit(self):
         """
-        Brings this agent to the UNINITIALIZED state and then
-        terminates sub-platforms and instrument processes if they were
-        launched on_start..
+        - terminates all event subscribers
+        - brings this agent to the UNINITIALIZED state
+        - terminates sub-platforms and instrument processes if they were
+          launched on_start.
         """
         log.info("%r: PlatformAgent: executing quit secuence", self._platform_id)
+
+        self._terminate_event_subscribers()
 
         self._bring_to_uninitialized_state()
 
         if LAUNCH_CHILDREN_ON_START:
-            self._terminate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
@@ -620,7 +666,6 @@ class PlatformAgent(ResourceAgent):
         self._unconfigured_params.clear()
 
         if not LAUNCH_CHILDREN_ON_START:
-            self._terminate_event_subscribers()
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
