@@ -12,7 +12,7 @@ import sys
 if sys.platform == 'darwin':
     os.environ['C_INCLUDE_PATH'] = '/usr/local/include'
 
-version = '2.0.19-dev'
+version = '2.0.21-dev'
 
 setup(  name = 'coi-services',
         version = version,
@@ -26,6 +26,7 @@ setup(  name = 'coi-services',
         packages = find_packages(),
         dependency_links = [
             'http://sddevrepo.oceanobservatories.org/releases/',
+            'https://github.com/lukecampbell/udunitspy/tarball/master#egg=udunitspy-0.0.6',
         ],
         test_suite = 'pyon',
         install_requires = [
@@ -47,7 +48,8 @@ setup(  name = 'coi-services',
             'ntplib',
             'xlrd==0.8.0',
             'apscheduler==2.1.0',
-            'pyproj==1.9.3'
+            'pyproj==1.9.3',
+            'udunitspy==0.0.6',
         ],
         entry_points = """
             [pydap.handler]

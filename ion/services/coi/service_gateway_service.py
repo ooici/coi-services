@@ -645,12 +645,21 @@ def create_attachment():
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment)
 
-        ret_obj = {'attachment_id': ret}
-
-        return json_response(ret_obj)
+        return gateway_json_response(ret)
 
     except Exception, e:
         log.exception("Error creating attachment")
+        return build_error_response(e)
+
+@service_gateway_app.route('/ion-service/attachment/<attachment_id>', methods=['DELETE'])
+def delete_attachment(attachment_id):
+    try:
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        ret = rr_client.delete_attachment(attachment_id)
+        return gateway_json_response(ret)
+
+    except Exception, e:
+        log.exception("Error deleting attachment")
         return build_error_response(e)
 
 # Get a visualization image for a specific data product

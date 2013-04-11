@@ -6,6 +6,7 @@
 @author  Carlos Rueda
 @brief   Helper class for aggregate and rollup status handling.
          Some basic algorithms adapted from observatory_util.py
+@see     https://confluence.oceanobservatories.org/display/CIDev/Platform+agent+statuses
 """
 
 __author__ = 'Carlos Rueda'
@@ -49,6 +50,8 @@ def _consolidate_status(statuses, warn_if_unknown=False):
 class StatusUtil(object):
     """
     Helper class for aggregate and rollup status handling.
+
+    @see https://confluence.oceanobservatories.org/display/CIDev/Platform+agent+statuses
     """
 
     def __init__(self, pa):
@@ -59,6 +62,7 @@ class StatusUtil(object):
         self._platform_id            = pa._platform_id
         self.aparam_child_agg_status = pa.aparam_child_agg_status
         self.aparam_aggstatus        = pa.aparam_aggstatus
+        self.aparam_rollup_status    = pa.aparam_rollup_status
         self.resource_id             = pa.resource_id
         self._event_publisher        = pa._event_publisher
 
@@ -66,8 +70,8 @@ class StatusUtil(object):
         """
         Reacts to a DeviceAggregateStatusEvent from a platform's child.
         It updates the local image of the child status for the corresponding
-        status name, then updates the consolidated for that status name. If this
-        consolidated status changes, then a subsequent DeviceAggregateStatusEvent
+        status name, then updates the rollup status for that status name.
+        If this rollup status changes, then a subsequent DeviceAggregateStatusEvent
         is published.
         The consolidation operation is adapted from observatory_util.py to
         work on DeviceStatusType (instead of StatusType).
@@ -105,22 +109,26 @@ class StatusUtil(object):
         # update the specific status
         self.aparam_child_agg_status[child_origin][status_name] = child_status
 
-        # calculate new aggstatus:
-        new_aggstatus = _consolidate_status(
-            [s[status_name] for s in self.aparam_child_agg_status.values()])
+        # get all status values for the status name, that is,
+        # all from the children and from the platform itself ...
+        all_status_values = [s[status_name] for s in self.aparam_child_agg_status.values()]
+        all_status_values.append(self.aparam_aggstatus[status_name])
+        # ... to calculate the new rollup_status:
+        new_rollup_status = _consolidate_status(all_status_values)
 
-        old_aggstatus = self.aparam_aggstatus[status_name]
-        if old_aggstatus == new_aggstatus:
+        old_rollup_status = self.aparam_rollup_status[status_name]
+        if old_rollup_status == new_rollup_status:
             #
-            # The specific status changed, but the consolidated one did not;
-            # no need to propagate any event up the tree:
+            # The specific status changed, but the rollup one did not;
+            # no need to propagate any event up the tree from here:
             #
             return
 
-        # Here, consolidated status has changed: update aggstatus for this
-        # device and status category, and publish event to notify parent:
+        # Here, rollup status has changed: update rollup_status for this
+        # device and status category, and publish event to notify all
+        # interested ancestors:
 
-        self.aparam_aggstatus[status_name] = new_aggstatus
+        self.aparam_rollup_status[status_name] = new_rollup_status
 
         description = "event generated from platform_id=%r" % self._platform_id
         description += " triggered by event from origin=%r" % child_origin
@@ -128,12 +136,13 @@ class StatusUtil(object):
                        origin_type="PlatformDevice",
                        origin=self.resource_id,
                        status_name=status_name,
-                       status=new_aggstatus,
-                       prev_status=old_aggstatus,
+                       status=new_rollup_status,
+                       prev_status=old_rollup_status,
+                       roll_up_status=True,
                        description=description)
 
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            self._log_agg_status_update(log.trace, evt, new_aggstatus)
+            self._log_agg_status_update(log.trace, evt, new_rollup_status)
 
         log.debug("%r: publishing event: %s", self._platform_id, evt_out)
         self._event_publisher.publish_event(**evt_out)
@@ -147,49 +156,53 @@ class StatusUtil(object):
         #
         pass
 
-    def _log_agg_status_update(self, logfun, evt, new_aggstatus):  # pragma: no cover
+    def _log_agg_status_update(self, logfun, evt, new_rollup_status):  # pragma: no cover
         """
         Logs formatted statuses for easier inspection; looks like:
 
-2013-04-08 22:22:25,436 DEBUG Dummy-160 ion.agents.platform.status_util:163 'LV01B': event published triggered by event from origin='05c78de65bf7400fac9d56e5d69a72ef'.
-Got from child AGGREGATE_COMMS = STATUS_WARNING
-updated statuses:
-        4fffa3db5a6440c19dbb8b7d975598de : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-        05c78de65bf7400fac9d56e5d69a72ef : {'AGGREGATE_COMMS': 'STATUS_WARNING  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-                            consolidated : {'AGGREGATE_COMMS': 'STATUS_WARNING  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-                                     agg : STATUS_WARNING
-Published AGGREGATE_COMMS = STATUS_WARNING
-
+013-04-10 21:10:24,193 TRACE Dummy-174 ion.agents.platform.status_util:204 'LV01A': event published triggered by event from child '6c9ed2a39e2b426890e14de986c48db9': AGGREGATE_COMMS -> STATUS_CRITICAL
+                               aggstatus : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+        12977248dd594e0ca4048bfbd28cfb56 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+        a583e69d83e549088764757d7beaa9a4 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+        6c9ed2a39e2b426890e14de986c48db9 : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+        42301443895f4f038845f772c4af437d : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+                           rollup_status : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+Published event: AGGREGATE_COMMS -> STATUS_CRITICAL
         """
+
         status_name = evt.status_name
         child_origin = evt.origin
         child_status = evt.status
 
-        msg = "Got from child %s = %s\n" % (
+        # show the event from the child:
+        msg = "%s -> %s\n" % (
             AggregateStatusType._str_map[status_name],
             DeviceStatusType._str_map[child_status])
 
-        msg += "updated statuses:\n"
+        # show aparam_aggstatus:
+        vs = dict((AggregateStatusType._str_map[k2],
+                   "%-16s" % DeviceStatusType._str_map[v2]) for
+                  (k2, v2) in self.aparam_aggstatus.items())
+        msg += "%40s : %s\n" % ("aggstatus", vs)
+
+        # show updated aparam_child_agg_status:
         for k, v in self.aparam_child_agg_status.iteritems():
             vs = dict((AggregateStatusType._str_map[k2],
                        "%-16s" % DeviceStatusType._str_map[v2]) for
                       (k2, v2) in v.items())
             msg += "%40s : %s\n" % (k, vs)
 
+        # show updated aparam_rollup_status:
         vs = dict((AggregateStatusType._str_map[k2],
                    "%-16s" % DeviceStatusType._str_map[v2]) for
-                  (k2, v2) in self.aparam_aggstatus.items())
-        msg += "%40s : %s\n" % ("consolidated", vs)
+                  (k2, v2) in self.aparam_rollup_status.items())
+        msg += "%40s : %s\n" % ("rollup_status", vs)
 
-        # 'agg" is the consolidated across the status categories; similar
-        # to _rollup_statuses in observatory_util.py.
-        agg = _consolidate_status(self.aparam_aggstatus.values())
-        msg += "%40s : %s\n" % ("agg", DeviceStatusType._str_map[agg])
-
-        msg += "Published %s = %s\n" % (
+        # show published event with the specific new_rollup_status:
+        msg += "Published event: %s -> %s\n" % (
             AggregateStatusType._str_map[status_name],
-            DeviceStatusType._str_map[new_aggstatus]
+            DeviceStatusType._str_map[new_rollup_status]
         )
 
-        logfun("%r: event published triggered by event from origin=%r.\n%s",
+        logfun("%r: event published triggered by event from child %r: %s",
                self._platform_id, child_origin, msg)
