@@ -14,6 +14,7 @@ from coverage_model.parameter_types import ConstantType, ConstantRangeType
 from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
 from copy import deepcopy
+from udunitspy.udunits2 import Unit
 
 import ast
 import numpy as np
@@ -226,4 +227,8 @@ class TypesManager(object):
 
     def get_string_type(self):
         return self.get_array_type()
+
+    def get_unit(self, uom):
+        return Unit(uom)
+
 
