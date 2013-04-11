@@ -6,46 +6,52 @@
 @test ion.services.sa.process.DataProcessManagementService integration test
 '''
 
+import time
+import numpy as np
+from gevent.event import Event
 from nose.plugins.attrib import attr
+from mock import patch
+import gevent
+from sets import Set
+import unittest
+import os
+
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.ion.event import EventPublisher
 from pyon.public import LCS
 from pyon.public import log, IonObject
 from pyon.public import CFG, RT, PRED, OT
 from pyon.core.exception import BadRequest, NotFound
 from pyon.util.context import LocalContextMixin
-from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.poller import poll
 from pyon.util.containers import DotDict
+from pyon.ion.stream import StandaloneStreamPublisher, StandaloneStreamSubscriber
+
+from ion.services.dm.utility.granule_utils import time_series_domain
+from ion.util.stored_values import StoredValueManager
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
+from ion.services.cei.process_dispatcher_service import ProcessStateGate
+from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+
+from coverage_model import ParameterContext, QuantityType, NumexprFunction, ParameterFunctionType
+
+from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum, AgentCommand
+from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext, Attachment, AttachmentType, ReferenceAttachmentContext
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+from interface.services.coi.iresource_management_service import ResourceManagementServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-from interface.objects import LastUpdate, ComputedValueAvailability, DataProduct, DataProducer, DataProcessProducerContext, Attachment, AttachmentType, ReferenceAttachmentContext
-from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.util.stored_values import StoredValueManager
-from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
-from interface.objects import ProcessStateEnum, TransformFunction, TransformFunctionType, DataProcessDefinition, DataProcessTypeEnum
-from mock import patch
-from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
-from ion.services.cei.process_dispatcher_service import ProcessStateGate
-import gevent
-from sets import Set
-import unittest
-import os
-from coverage_model import ParameterContext, QuantityType, CategoryType, ArrayType, NumexprFunction, ParameterFunctionType, ConstantType, AxisTypeEnum, VariabilityEnum, PythonFunction
-from pyon.ion.stream import StandaloneStreamPublisher, StandaloneStreamSubscriber
-from ion.services.dm.utility.granule import RecordDictionaryTool
-from ion.services.dm.utility.test.parameter_helper import ParameterHelper
-import time
-import numpy as np
-from gevent.event import Event
+
 
 class FakeProcess(LocalContextMixin):
     """
@@ -65,16 +71,16 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
         # Now create client to DataProductManagementService
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.pubsubclient =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
-        self.imsclient = InstrumentManagementServiceClient(node=self.container.node)
-        self.dataproductclient = DataProductManagementServiceClient(node=self.container.node)
-        self.dataprocessclient = DataProcessManagementServiceClient(node=self.container.node)
-        self.datasetclient =  DatasetManagementServiceClient(node=self.container.node)
+        self.rrclient = ResourceRegistryServiceClient()
+        self.damsclient = DataAcquisitionManagementServiceClient()
+        self.pubsubclient =  PubsubManagementServiceClient()
+        self.ingestclient = IngestionManagementServiceClient()
+        self.imsclient = InstrumentManagementServiceClient()
+        self.dataproductclient = DataProductManagementServiceClient()
+        self.dataprocessclient = DataProcessManagementServiceClient()
+        self.datasetclient =  DatasetManagementServiceClient()
         self.dataset_management = self.datasetclient
-        self.process_dispatcher = ProcessDispatcherServiceClient(node=self.container.node)
+        self.process_dispatcher = ProcessDispatcherServiceClient()
 
     def create_L0_transform_function(self):
         tf = TransformFunction(name='ctdbp_L0_all', module='ion.processes.data.transforms.ctdbp.ctdbp_L0', cls='ctdbp_L0_algorithm')
@@ -590,6 +596,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.data_product_management     = DataProductManagementServiceClient()
         self.data_acquisition_management = DataAcquisitionManagementServiceClient()
         self.data_retriever              = DataRetrieverServiceClient()
+        self.rmsclient =  ResourceManagementServiceClient()
 
         self.validators = 0
 
@@ -851,7 +858,75 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
         self.publish_to_data_product(instrument_data_product_id)
         
         self.assertTrue(validated.wait(10))
-        
+
+    def test_data_process_via_rms(self):
+        self.bootstrap_params()
+        instrument_data_product_id = self.sbe37_data_product()
+        derived_data_product_id = self.make_data_product('parsed', 'ctd derived products')
+
+        data_process_id = self.data_process_management.create_data_process(in_data_product_ids=[instrument_data_product_id], out_data_product_ids=[derived_data_product_id])
+        self.addCleanup(self.data_process_management.delete_data_process, data_process_id)
+
+        res_get = self.rmsclient.get_resource(data_process_id, params=['subscriptions_count', 'subscriptions_active_count'])
+        self.assertIn("subscriptions_count", res_get)
+        self.assertIn("subscriptions_active_count", res_get)
+        self.assertEquals(res_get["subscriptions_count"], 1)
+        self.assertEquals(res_get["subscriptions_active_count"], 0)
+
+        cmd = AgentCommand(command="activate", command_id="ID_1")
+        cmd_res = self.rmsclient.execute_resource(data_process_id, cmd)
+        self.assertEquals(cmd_res.command_id, "ID_1")
+        self.assertEquals(cmd_res.command, "activate")
+        self.assertEquals(cmd_res.status, 0)
+
+        self.addCleanup(self.data_process_management.deactivate_data_process, data_process_id)
+
+        res_get = self.rmsclient.get_resource(data_process_id, params=['subscriptions_count', 'subscriptions_active_count'])
+        self.assertEquals(res_get["subscriptions_count"], 1)
+        self.assertEquals(res_get["subscriptions_active_count"], 1)
+
+        subscription_ids, assocs = self.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
+        found_one = False
+        for subscription_id in subscription_ids:
+            if self.pubsub_management.subscription_is_active(subscription_id):
+                found_one = True
+        if not found_one:
+            self.fail("No active subscription found. Activate did not succeed")
+
+        validated = Event()
+
+        def validation(msg, route, stream_id):
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+
+            np.testing.assert_array_almost_equal(rdt['conductivity_L1'], np.array([42.914]))
+            np.testing.assert_array_almost_equal(rdt['temp_L1'], np.array([20.]))
+            np.testing.assert_array_almost_equal(rdt['pressure_L1'], np.array([3.068]))
+            np.testing.assert_array_almost_equal(rdt['density'], np.array([1021.7144739593881]))
+            np.testing.assert_array_almost_equal(rdt['salinity'], np.array([30.935132729668283]))
+
+            validated.set()
+
+        self.setup_subscriber(derived_data_product_id, callback=validation)
+        self.publish_to_data_product(instrument_data_product_id)
+
+        self.assertTrue(validated.wait(10))
+
+        cmd = AgentCommand(command="deactivate", command_id="ID_2")
+        cmd_res = self.rmsclient.execute_resource(data_process_id, cmd)
+        self.assertEquals(cmd_res.command_id, "ID_2")
+        self.assertEquals(cmd_res.command, "deactivate")
+        self.assertEquals(cmd_res.status, 0)
+
+        res_get = self.rmsclient.get_resource(data_process_id, params=['subscriptions_count', 'subscriptions_active_count'])
+        self.assertEquals(res_get["subscriptions_count"], 1)
+        self.assertEquals(res_get["subscriptions_active_count"], 0)
+
+        subscription_ids, assocs = self.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
+        for subscription_id in subscription_ids:
+            if self.pubsub_management.subscription_is_active(subscription_id):
+                self.fail("Active subscription found. Deactivate did not succeed")
+
+
     def attach_qc_document(self, data_product_id, document_keys=[]):
         producers, _ = self.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, id_only=False)
         if producers:
