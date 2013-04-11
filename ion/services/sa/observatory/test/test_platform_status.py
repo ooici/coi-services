@@ -78,20 +78,28 @@ class Test(BaseIntTestPlatform):
         self._received_events = []
         self._async_result = AsyncResult()
 
-    def _publish_for_child(self, origin, status_name, status):
+    def _publish_for_child(self, child_obj, status_name, status):
         """
-        Publishes a DeviceAggregateStatusEvent from the given origin
+        Publishes a DeviceAggregateStatusEvent from the given platform or
+        instrument object.
 
         NOTE that we just publish on behalf of the child, but the statuses in
         the child itself are *not* set. This is OK for these tests; we just
-        need that child's parent to react to the event.
+        need that child's ancestors to react to the event.
         """
 
-        # create and publish event from the given origin:
+        if 'platform_device_id' in child_obj:
+            origin = child_obj.platform_device_id
+            origin_type = "PlatformDevice"
+        else:
+            origin = child_obj.instrument_device_id
+            origin_type = "InstrumentDevice"
+
+        # create and publish event from the given origin and type:
         evt = dict(event_type='DeviceAggregateStatusEvent',
-                   origin_type="PlatformDevice",
+                   origin_type=origin_type,
                    origin=origin,
-                   description="Fake event",
+                   description="Fake event for testing",
                    status_name=status_name,
                    status=status)
 
@@ -215,7 +223,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # LJ01B publishes a STATUS_WARNING for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_LJ01B.platform_device_id,
+        self._publish_for_child(p_LJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_WARNING)
 
@@ -226,7 +234,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # MJ01B publishes a STATUS_CRITICAL for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_MJ01B.platform_device_id,
+        self._publish_for_child(p_MJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_CRITICAL)
 
@@ -237,7 +245,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # MJ01B publishes a STATUS_OK for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_MJ01B.platform_device_id,
+        self._publish_for_child(p_MJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_OK)
 
@@ -248,7 +256,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # LJ01B publishes a STATUS_OK for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_LJ01B.platform_device_id,
+        self._publish_for_child(p_LJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_OK)
 
@@ -259,7 +267,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # LJ01B publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
         self._expect_from_root(0)
-        self._publish_for_child(p_LJ01B.platform_device_id,
+        self._publish_for_child(p_LJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_UNKNOWN)
 
@@ -276,7 +284,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # MJ01B publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_MJ01B.platform_device_id,
+        self._publish_for_child(p_MJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_UNKNOWN)
 
@@ -361,7 +369,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # SF01A publishes a STATUS_CRITICAL for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_SF01A.platform_device_id,
+        self._publish_for_child(p_SF01A,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_CRITICAL)
 
@@ -373,7 +381,7 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # SF01A publishes a STATUS_OK for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_SF01A.platform_device_id,
+        self._publish_for_child(p_SF01A,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_OK)
 
@@ -385,7 +393,105 @@ class Test(BaseIntTestPlatform):
         # -------------------------------------------------------------------
         # SF01A publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
         self._expect_from_root(1)
-        self._publish_for_child(p_SF01A.platform_device_id,
+        self._publish_for_child(p_SF01A,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_UNKNOWN)
+
+        # now, all descendants are back in STATUS_UNKNOWN, so confirm root
+        # gets updated to STATUS_UNKNOWN
+        self._wait_root_event()
+        self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
+                                    DeviceStatusType.STATUS_UNKNOWN)
+
+        #####################################################################
+        # done
+        self._go_inactive()
+        self._reset()
+
+    def test_platform_status_small_network_5_1(self):
+        #
+        # Test of status propagation in a small network of 5 platforms with
+        # multiple levels, and 1 instrument, with all updates triggered from
+        # the instrument.
+        #
+        #   LV01A
+        #       LJ01A
+        #       PC01A
+        #           SC01A
+        #               SF01A*
+        #
+        # This test is similar to test_platform_status_small_network_5 but
+        # here also assign an instrument to a platform and trigger all
+        # updates from that instrument.
+        #
+
+        # create the network:
+        p_objs = {}
+        self.p_root = p_root = self._create_hierarchy("LV01A", p_objs)
+
+        self.assertEquals(5, len(p_objs))
+        for platform_id in ["LV01A", "LJ01A", "PC01A", "SC01A", "SF01A"]:
+            self.assertIn(platform_id, p_objs)
+
+        # the leaf that is 3 levels below the root:
+        p_SF01A = p_objs["SF01A"]
+
+        # create and assign an instrument to SF01A
+        i_obj = self._create_instrument("SBE37_SIM_01")
+        self._assign_instrument_to_platform(i_obj, p_SF01A)
+
+        #####################################################################
+        # start up the network
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        self._initialize()
+        self._go_active()
+        self._run()
+
+        #####################################################################
+        # verify the root platform has set its aparam_child_agg_status with
+        # all its descendant nodes (including the instrument):
+        all_origins = [p_obj.platform_device_id for p_obj in p_objs.values()]
+        all_origins.remove(p_root.platform_device_id)
+        all_origins.append(i_obj.instrument_device_id)
+        child_agg_status = self._pa_client.get_agent(['child_agg_status'])['child_agg_status']
+        self.assertItemsEqual(all_origins, child_agg_status.keys())
+
+        #####################################################################
+        # trigger status updates from the instrument
+
+        # -------------------------------------------------------------------
+        # start the only event subscriber for this test:
+        self._start_agg_status_event_subscriber(p_root)
+
+        # -------------------------------------------------------------------
+        # instrument publishes a STATUS_CRITICAL for AGGREGATE_COMMS
+        self._expect_from_root(1)
+        self._publish_for_child(i_obj,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_CRITICAL)
+
+        # confirm root gets updated to STATUS_CRITICAL
+        self._wait_root_event()
+        self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
+                                    DeviceStatusType.STATUS_CRITICAL)
+
+        # -------------------------------------------------------------------
+        # instrument publishes a STATUS_OK for AGGREGATE_COMMS
+        self._expect_from_root(1)
+        self._publish_for_child(i_obj,
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_OK)
+
+        # confirm root gets updated to STATUS_OK
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
+                                         DeviceStatusType.STATUS_OK)
+
+        # -------------------------------------------------------------------
+        # -------------------------------------------------------------------
+        # instrument publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
+        self._expect_from_root(1)
+        self._publish_for_child(i_obj,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_UNKNOWN)
 
