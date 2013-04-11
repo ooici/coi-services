@@ -1888,7 +1888,7 @@ Reason: %s
             raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
         contact = contacts[0] if len(contacts)==1 else None
         institution = self._create_object_from_row("Institution", row, "i/")
-        provider = objects.ExternalDataProvider(name=row["name"], description=row["description"], lcstate=row["lcstate"],
+        provider = IonObject(RT.ExternalDataProvider, name=row["name"], description=row["description"], lcstate=row["lcstate"],
             institution=institution, contact=contact, alt_ids=['PRE:'+row[COL_ID]])
         id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
         provider._id = id
@@ -1908,8 +1908,10 @@ Reason: %s
         model = self._get_resource_id(row['model'])
         params = parse_dict(row['parameters'])
         sampling = getattr(objects.DatasetDescriptionDataSamplingEnum, row['data_sampling'])
+        print 'params is %r, sampling is %r' % (params, sampling)
+        print 'TYPES: params is %s, sampling is %s' % (params.__class__.__name__, sampling.__class__.__name__)
         descriptor = objects.DatasetDescription(data_sampling=sampling, parameters=params)
-        dataset = objects.ExternalDataset(name=row['name'], description=row['description'], dataset_description=descriptor,
+        dataset = IonObject(RT.ExternalDataset, name=row['name'], description=row['description'], dataset_description=descriptor,
             contact=contact, alt_ids=['PRE:'+row[COL_ID]], lcstate=row[COL_LCSTATE])
         id = self._get_service_client('data_acquisition_management').create_external_dataset(external_dataset=dataset, external_dataset_model_id=model)
         dataset._id = id
@@ -1917,82 +1919,59 @@ Reason: %s
 
     def _load_ExternalDatasetAgent(self, row):
         agent = self._create_object_from_row(RT.ExternalDatasetAgent, row, 'eda/')
-        model = self._get_resource_id(row['model'])
+        model = self._get_resource_id(row['dataset_model'])
         id = self._get_service_client('data_acquisition_management').create_external_dataset_agent(external_dataset_agent=agent, external_dataset_model_id=model)
         agent._id = id
         self._register_id(row['ID'], id, agent)
 
     def _load_ExternalDatasetAgentInstance(self, row):
+        # FIELDS IN THE ION OBJECT:
+        # name='', description='', lcstate='DRAFT', availability='PRIVATE', ts_created='', ts_updated='', alt_ids=None, addl=None,
+        # deployment_type=DeploymentTypeEnum.PROCESS, driver_config=None, agent_config=None, agent_process_id='',
+        # alerts=None, handler_module='', handler_class='', dataset_driver_config=None, dataset_agent_config=None, dataset_agent_process_id=''):
+
         # Generate the data product and associate it to the ExternalDataset
-        self.DVR_CONFIG = {
-            'dvr_mod' : 'ion.agents.data.handlers.slocum_data_handler',
-            'dvr_cls' : 'SlocumDataHandler',
-            }
-        pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
-        streamdef_id = self.pubsub_client.create_stream_definition(name="temp", parameter_dictionary_id=pdict.identifier)
+        name = row['name']
+        description = row['description']
+        dataset = self._get_resource_obj(row['dataset'])
+        streamdef_id = self._get_resource_id(row['streamdef'])
+        agent = self._get_resource_obj(row['agent'])
+        agent_config = parse_dict(row['agent_config'])
+        driver_config = parse_dict(row['driver_config'])
 
-        tdom, sdom = time_series_domain()
-        tdom = tdom.dump()
-        sdom = sdom.dump()
+#        handler_module = agent.handler_module
+#        handler_class = agent.handler_class
 
-
-        dprod = IonObject(RT.DataProduct,
-            name='slocum_parsed_product',
-            description='parsed slocum product',
-            temporal_domain = tdom,
-            spatial_domain = sdom)
-
-        self.dproduct_id = self.dataproductclient.create_data_product(data_product=dprod,
-            stream_definition_id=streamdef_id)
-
-        self.dams_client.assign_data_product(input_resource_id=ds_id, data_product_id=self.dproduct_id)
-
-        #save the incoming slocum data
-        self.dataproductclient.activate_data_product_persistence(self.dproduct_id)
-
-        stream_ids, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
-        stream_id = stream_ids[0]
-
-        dataset_id, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasDataset, object_type=RT.Dataset, id_only=True)
-        self.dataset_id = dataset_id[0]
-
-        pid = self.create_logger('slocum_parsed_product', stream_id )
-        self.loggerpids.append(pid)
-
-        self.DVR_CONFIG['dh_cfg'] = {
-            'TESTING':True,
-            'stream_id':stream_id,
-            'param_dictionary':pdict.dump(),
-            'data_producer_id':dproducer_id, #CBM: Should this be put in the main body of the config - with mod & cls?
-            'max_records':20,
-            }
-
-        # Create the logger for receiving publications
-        #self.create_stream_and_logger(name='slocum',stream_id=stream_id)
-        # Create agent config.
-        self.EDA_RESOURCE_ID = ds_id
-        self.EDA_NAME = ds_name
-
-        self._setup_resources()
-
-        self.agent_config = {
-            'driver_config' : self.DVR_CONFIG,
+        # NOTE: unit tests show additional keys in this configuration
+        # but some are handler-specific, others seem just for testing
+        # TODO: come back and look again when trying to start this process
+        driver_config.update( {
+            'dvr_mod' : agent.handler_module,
+            'dvr_cls' : agent.handler_class,
+            'dh_cfg': {
+#                'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
+#                'parser_cls': 'HYPM_01_WFP_CTDParser',
+                #'TESTING':True,
+                'stream_def': streamdef_id,
+#                'stream_id':stream_id,
+#                'param_dictionary':pdict.dump(),
+#                'data_producer_id':dproducer_id, #CBM: Should this be put in the main body of the config - with mod & cls?
+#                'max_records':20,
+                }
+            } )
+        agent_config.update( {
+            'driver_config' : driver_config,
             'stream_config' : {},
-            'agent'         : {'resource_id': self.EDA_RESOURCE_ID},
-            'test_mode' : True
-        }
+            'agent'         : {'resource_id': dataset._id},
+            #'test_mode' : True
+        } )
 
-        datasetagent_instance_obj = IonObject(RT.ExternalDatasetAgentInstance,  name='ExternalDatasetAgentInstance1', description='external data agent instance',
-            handler_module=self.EDA_MOD, handler_class=self.EDA_CLS,
-            dataset_driver_config=self.DVR_CONFIG, dataset_agent_config=self.agent_config )
-        self.dataset_agent_instance_id = self.dams_client.create_external_dataset_agent_instance(external_dataset_agent_instance=datasetagent_instance_obj,
-            external_dataset_agent_id=self.datasetagent_id, external_dataset_id=self.EDA_RESOURCE_ID)
+        agent_instance = IonObject(RT.ExternalDatasetAgentInstance,  name=name, description=description,
+            handler_module=agent.handler_module, handler_class=agent.handler_class,
+            dataset_driver_config=driver_config, dataset_agent_config=agent_config)
 
-
-        #TG: Setup/configure the granule logger to log granules as they're published
-        pid = self.dams_client.start_external_dataset_agent_instance(self.dataset_agent_instance_id)
-
-
+        self.dataset_agent_instance_id = self._get_service_client('data_acquisition_management').create_external_dataset_agent_instance(external_dataset_agent_instance=agent_instance,
+            external_dataset_agent_id=agent._id, external_dataset_id=dataset._id)
 
     def _load_InstrumentAgentInstance(self, row):
         startup_config = parse_dict(row['startup_config'])
@@ -2289,7 +2268,7 @@ Reason: %s
                 svc_client.assign_data_product_source(dp_id, source_id, headers=headers)
 
         # Create data product assignment
-        if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice'):
+        if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
             input_res_id = self.resource_ids.get(input_res_id)
             if self.bulk and do_bulk:
                 id_obj = self._get_resource_obj(row["input_resource_id"])
