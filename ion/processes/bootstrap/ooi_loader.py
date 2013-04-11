@@ -217,6 +217,7 @@ class OOILoader(object):
         self._add_object_attribute('makemodel',
             row['Make_Model'], row['Attribute'], row['Attribute_Value'],
             mapping={},
+            name=row['Make_Model'],
             Manufacturer=row['Manufacturer'], Make_Model_Description=row['Make_Model_Description'])
 
     def _parse_AttributeReportNodes(self, row):

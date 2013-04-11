@@ -1055,6 +1055,7 @@ class IONLoader(ImmediateProcess):
     def _load_InstrumentModel_OOI(self):
         class_objs = self.ooi_loader.get_type_assets("class")
         series_objs = self.ooi_loader.get_type_assets("series")
+        subseries_objs = self.ooi_loader.get_type_assets("subseries")
         family_objs = self.ooi_loader.get_type_assets("family")
         makemodel_objs = self.ooi_loader.get_type_assets("makemodel")
 
@@ -1064,31 +1065,41 @@ class IONLoader(ImmediateProcess):
             if "DEPRECATED" in class_name:
                 continue
             family_obj = family_objs[class_obj['family']]
+            makemodel_obj = makemodel_objs[series_obj['makemodel']] if series_obj.get('makemodel', None) else None
+            subseries_obj = subseries_objs.get(ooi_id + "01", None)
             newrow = {}
             newrow[COL_ID] = ooi_id
             newrow['im/name'] = "%s (%s-%s)" % (class_name, series_obj['Class'], series_obj['Series'])
             newrow['im/alt_ids'] = "['OOI:" + ooi_id + "']"
             newrow['im/description'] = series_obj['description']
-            newrow['im/instrument_family'] = family_obj['name']
+            newrow['im/instrument_family'] = family_obj['name']   # DEPRECATED. Remove when UI db updated.
+            newrow['im/family_id'] = family_obj['id']
+            newrow['im/family_name'] = family_obj['name']
+            newrow['im/class_id'] = class_obj['id']
+            newrow['im/class_name'] = class_obj['name']
+            newrow['im/class_alternate_name'] = class_obj['Alternate Instrument Class Name']
+            newrow['im/class_description'] = class_obj['description']
+            newrow['im/series_id'] = series_obj['id']
+            newrow['im/series_name'] = series_obj['name']
+            newrow['im/subseries_id'] = subseries_obj['id'] if subseries_obj else ""
+            newrow['im/subseries_name'] = subseries_obj['name'] if subseries_obj else ""
+            newrow['im/configuration'] = subseries_obj['Instrument Configuration'] if subseries_obj else ""
+            newrow['im/ooi_make_model'] = makemodel_obj['name'] if makemodel_obj else ""
+            newrow['im/manufacturer'] = makemodel_obj['Manufacturer'] if makemodel_obj else ""
+            newrow['im/manufacturer_url'] = makemodel_obj['Vendor Website'] if makemodel_obj else ""
             newrow['im/reference_designator'] = ooi_id
             newrow['org_ids'] = self.ooi_loader.get_org_ids(class_obj.get('array_list', None))
             reference_urls = []
             addl = {}
-            if series_obj.get('makemodel', None):
-                makemodel_obj = makemodel_objs[series_obj['makemodel']]
-                newrow['im/manufacturer'] = makemodel_obj['Manufacturer']
-                newrow['im/manufacturer_url'] = makemodel_obj['Vendor Website']
+            if makemodel_obj:
                 addl.update(dict(connector=makemodel_obj['Connector'],
-                    makemodel=series_obj['makemodel'],
                     makemodel_description=makemodel_obj['Make_Model_Description'],
                     input_voltage_range=makemodel_obj['Input Voltage Range'],
                     interface=makemodel_obj['Interface'],
-                    makemodel_url=makemodel_obj['Make/Model Website'],
                     output_description=makemodel_obj['Output Description'],
                 ))
                 if makemodel_obj['Make/Model Website']: reference_urls.append(makemodel_obj['Make/Model Website'])
             newrow['im/reference_urls'] = ",".join(reference_urls)
-            addl['alternate_name'] = series_obj['Alternate Instrument Class Name']
             addl['class_long_name'] = series_obj['ClassLongName']
             addl['comments'] = series_obj['Comments']
             newrow['im/addl'] = repr(addl)
@@ -1165,6 +1176,7 @@ class IONLoader(ImmediateProcess):
                     headers=headers)
 
     def _load_Subsite_OOI(self):
+        # Not needed for current OOI import. Only one level of geospatial site is used.
         pass
 
     def _load_PlatformSite(self, row):
@@ -2207,6 +2219,11 @@ Reason: %s
     def _load_DataProduct_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("instrument")
         data_products = self.ooi_loader.get_type_assets("data_product")
+
+
+        # For each device agent
+        #   for each stream
+        #     create Dataset
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             const_id1 = ''
