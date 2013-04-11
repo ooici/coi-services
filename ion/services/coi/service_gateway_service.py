@@ -645,9 +645,7 @@ def create_attachment():
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment)
 
-        ret_obj = {'attachment_id': ret}
-
-        return json_response(ret_obj)
+        return gateway_json_response(ret)
 
     except Exception, e:
         log.exception("Error creating attachment")
@@ -658,7 +656,7 @@ def delete_attachment(attachment_id):
     try:
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         ret = rr_client.delete_attachment(attachment_id)
-        return json_response(ret)
+        return gateway_json_response(ret)
 
     except Exception, e:
         log.exception("Error deleting attachment")
