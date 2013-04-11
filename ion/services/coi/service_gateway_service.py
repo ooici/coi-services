@@ -653,6 +653,17 @@ def create_attachment():
         log.exception("Error creating attachment")
         return build_error_response(e)
 
+@service_gateway_app.route('/ion-service/attachment/<attachment_id>', methods=['DELETE'])
+def delete_attachment(attachment_id):
+    try:
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        ret = rr_client.delete_attachment(attachment_id)
+        return json_response(ret)
+
+    except Exception, e:
+        log.exception("Error deleting attachment")
+        return build_error_response(e)
+
 # Get a visualization image for a specific data product
 #TODO - will need to update this to handle parameters to pass on to the Vis service and to use proper return keys
 @service_gateway_app.route('/ion-service/visualization/<data_product_id>/<img_name>')
