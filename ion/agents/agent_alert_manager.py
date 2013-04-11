@@ -13,3 +13,8 @@ __license__ = 'Apache 2.0'
 
 # Pyon imports
 from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG
+
+class AgentAlertManager(object):
+    """
+    """
+    pass

@@ -15,6 +15,9 @@ __license__ = 'Apache 2.0'
 from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG
 
 
-
+class AgentStreamPublisher(object):
+    """
+    """
+    pass
 
 
