@@ -95,10 +95,10 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdDJwUHdxdjBnOGxnMW5wRndQQ2tjcUE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDVqLTlUcXZtTHVIS2o1QXp2OF9FR3c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
-TESTED_DOC=MASTER_DOC
+#TESTED_DOC=MASTER_DOC
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
@@ -174,7 +174,7 @@ class IONLoader(ImmediateProcess):
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
         self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
         self.alarms = {} # id -> alarm definition dict
-
+        self.external_dataset_producer_id = {} # keep producer ID for later use by AgentInstance
         self.object_definitions = None
 
         # process to use for RPC communications (override to use as utility, default to use as process)
@@ -401,7 +401,10 @@ class IONLoader(ImmediateProcess):
         # before you see an error
         self._read_and_parse(scenarios)
 
+        count = len(self.categories)
+        index = 0
         for category in self.categories:
+            index += 1
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
@@ -415,7 +418,7 @@ class IONLoader(ImmediateProcess):
             if category not in self.object_definitions or not self.object_definitions[category]:
                 log.debug('no rows for category: %s', category)
             else:
-                log.debug("Loading category %s", category)
+                log.info("Loading category %d/%d: %s", index, count, category)
 
             for row in self.object_definitions.get(category, []):
                 if COL_ID in row:
@@ -1922,9 +1925,12 @@ Reason: %s
         descriptor = objects.DatasetDescription(data_sampling=sampling, parameters=params)
         dataset = IonObject(RT.ExternalDataset, name=row['name'], description=row['description'], dataset_description=descriptor,
             contact=contact, alt_ids=['PRE:'+row[COL_ID]], lcstate=row[COL_LCSTATE])
-        id = self._get_service_client('data_acquisition_management').create_external_dataset(external_dataset=dataset, external_dataset_model_id=model)
+        client = self._get_service_client('data_acquisition_management')
+        id = client.create_external_dataset(external_dataset=dataset, external_dataset_model_id=model)
         dataset._id = id
         self._register_id(row['ID'], id, dataset)
+        producer_id = client.register_external_data_set(external_dataset_id=id)
+        self.external_dataset_producer_id[id] = producer_id
 
     def _load_ExternalDatasetAgent(self, row):
         agent = self._create_object_from_row(RT.ExternalDatasetAgent, row, 'eda/')
@@ -1964,7 +1970,7 @@ Reason: %s
                 'stream_def': streamdef_id,
 #                'stream_id':stream_id,
 #                'param_dictionary':pdict.dump(),
-#                'data_producer_id':dproducer_id, #CBM: Should this be put in the main body of the config - with mod & cls?
+                'data_producer_id':self.external_dataset_producer_id[dataset._id],
 #                'max_records':20,
                 }
             } )
@@ -1979,7 +1985,8 @@ Reason: %s
             handler_module=agent.handler_module, handler_class=agent.handler_class,
             dataset_driver_config=driver_config, dataset_agent_config=agent_config)
 
-        self.dataset_agent_instance_id = self._get_service_client('data_acquisition_management').create_external_dataset_agent_instance(external_dataset_agent_instance=agent_instance,
+        client = self._get_service_client('data_acquisition_management')
+        instance_id = client.create_external_dataset_agent_instance(external_dataset_agent_instance=agent_instance,
             external_dataset_agent_id=agent._id, external_dataset_id=dataset._id)
 
     def _load_InstrumentAgentInstance(self, row):

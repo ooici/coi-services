@@ -154,7 +154,8 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals(edm1._id, edm2[0])
 
         inst = self.find_object_by_name('Test Instrument Agent Instance', RT.ExternalDatasetAgentInstance)
-        self.assertEquals('value1', inst.agent_config['key1'])
+        self.assertEquals('value1', inst.dataset_agent_config['key1'], msg='dataset_agent_config[key1] is not value1:\n%r'%inst.agent_config)
+
         # check for an Org
         org = self.find_object_by_name('CASPER', RT.Org)
         self.assertFalse(org.contacts is None)
