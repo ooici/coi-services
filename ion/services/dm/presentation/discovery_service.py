@@ -640,7 +640,9 @@ class DiscoveryService(BaseDiscoveryService):
         if fuzzy:
             query = ep.ElasticQuery.fuzzy_like_this(value, fields=[field])
         elif match:
-            query = ep.ElasticQuery.match(field=field,query=value)
+            match_query = ep.ElasticQuery.match(field=field,query=value)
+            query = {"match_phrase_prefix":match_query['match']}
+            
         elif '*' in value:
             query = ep.ElasticQuery.wildcard(field=field, value=value)
         else:
