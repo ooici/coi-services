@@ -740,7 +740,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             if include_devices:
                 site_devices = struct_dict.get("devices", {})
                 result_dict["site_devices"] = site_devices
-                device_ids = [stype_devid_dtype_tuple[1] for stype_devid_dtype_tuple in site_devices.values() if stype_devid_dtype_tuple]
+                device_ids = [tuple_list[0][1] for tuple_list in site_devices.values() if tuple_list]
                 device_objs = self.RR.read_mult(device_ids)
                 result_dict["device_resources"] = dict(zip(device_ids, device_objs))
             result_dict["site_status"] = status_rollups
@@ -752,8 +752,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return result_dict
 
+    def find_site_data_products(self, parent_resource_id='', include_sites=False, include_devices=False,
+                                include_data_products=False):
+        if not parent_resource_id:
+            raise BadRequest("Must provide a parent parent_resource_id")
 
+        res_dict = self.outil.get_site_data_products(parent_resource_id, include_sites=include_sites,
+                                                     include_devices=include_devices,
+                                                     include_data_products=include_data_products)
 
+        return res_dict
 
 
     ############################

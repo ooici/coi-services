@@ -143,8 +143,8 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
         site_devices = self.obs_util.get_site_devices(['Sub_1', 'PS_1', 'IS_1'])
         self.assertEquals(len(site_devices), 3)
-        self.assertEquals(site_devices['Sub_1'], None)
-        self.assertEquals(site_devices['IS_1'], ('InstrumentSite', 'ID_1', 'InstrumentDevice'))
+        self.assertEquals(site_devices['Sub_1'], [])
+        self.assertEquals(site_devices['IS_1'], [('InstrumentSite', 'ID_1', 'InstrumentDevice')])
 
     def test_get_child_devices(self):
         self.mu.load_mock_resources(self.res_list)
@@ -383,3 +383,54 @@ class TestObservatoryUtil(IonUnitTestCase):
 #        self.assertEquals(res_status['data'], data)
 #        self.assertEquals(res_status['comms'], comms)
 #        self.assertEquals(res_status['power'], power)
+
+    res_list1 = [
+        dict(rt='DataProduct', _id='DP_1', attr={}),
+        dict(rt='DataProduct', _id='DP_2', attr={}),
+        dict(rt='DataProduct', _id='DP_3', attr={}),
+        dict(rt='DataProduct', _id='DP_4', attr={}),
+        dict(rt='DataProduct', _id='DP_5', attr={}),
+        ]
+
+    assoc_list3 = [
+        ['DP_1', 'hasSource', 'ID_1'],
+        ['DP_2', 'hasSource', 'ID_1'],
+        ['DP_3', 'hasSource', 'ID_1'],
+        ['DP_3', 'hasSource', 'PD_1'],
+        ['DP_4', 'hasSource', 'PD_1'],
+        ['DP_5', 'hasSource', 'PD_1'],
+        ]
+
+    def test_get_device_data_products(self):
+        self.mu.load_mock_resources(self.res_list + self.res_list1)
+        self.mu.load_mock_associations(self.assoc_list + self.assoc_list1 + self.assoc_list2 + self.assoc_list3)
+
+        self.mu.assign_mockres_find_objects(filter_predicate="hasResource")
+
+        self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
+        res_dict = self.obs_util.get_site_data_products('Obs_1', RT.Observatory)
+        self.assertGreaterEqual(len(res_dict), 6)
+        self.assertIsNone(res_dict['data_product_resources'])
+        self.assertIn('ID_1', res_dict['device_data_products'])
+        self.assertEquals(len(res_dict['device_data_products']['ID_1']), 3)
+        self.assertIn('DP_1', res_dict['device_data_products']['ID_1'])
+        self.assertIn('PD_1', res_dict['device_data_products'])
+        self.assertEquals(len(res_dict['device_data_products']['PD_1']), 3)
+
+        res_dict = self.obs_util.get_site_data_products('PS_1', RT.PlatformSite)
+        self.assertEquals(len(res_dict['device_data_products']['ID_1']), 3)
+        self.assertIn('ID_1', res_dict['device_data_products'])
+        self.assertIn('DP_1', res_dict['device_data_products']['ID_1'])
+        self.assertIn('PD_1', res_dict['device_data_products'])
+        self.assertEquals(len(res_dict['device_data_products']['PD_1']), 3)
+
+        res_dict = self.obs_util.get_site_data_products('Org_1', RT.Org)
+        self.assertIn('DP_1', res_dict['device_data_products']['ID_1'])
+
+        res_dict = self.obs_util.get_site_data_products('PS_1', RT.PlatformSite, include_data_products=True)
+        self.assertIsNotNone(res_dict['data_product_resources'])
+        self.assertIn('DP_1', res_dict['data_product_resources'])
+
+        #import pprint
+        #pprint.pprint(res_dict)
+

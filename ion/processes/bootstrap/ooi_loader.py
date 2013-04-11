@@ -388,26 +388,23 @@ class OOILoader(object):
     def _parse_Arrays(self, row):
         ooi_rd = row['Reference ID']
         name=row['Name']
-        geo_name = row['Geo Name']
         self._add_object_attribute('array',
-            ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
+            ooi_rd, 'name', name, change_ok=True)
 
     def _parse_Sites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
         local_name = row['Name Extension']
-        standalone_name = name
 
-        geo_name = row['Geo Name']
         self._add_object_attribute('site',
-            ooi_rd, 'name', name, geo_name=geo_name, change_ok=True)
+            ooi_rd, 'name', name, change_ok=True)
 
         # Aggregated site level entries
         self._add_object_attribute('site',
                                    ooi_rd, 'osite', name)
 
         self._add_object_attribute('osite',
-                                   name, None, None, name=name, local_name=local_name, standalone_name=standalone_name)
+                                   name, None, None, name=name, local_name=local_name)
         self._add_object_attribute('osite',
                                    name, 'site_rd_list', ooi_rd, value_is_list=True)
 
@@ -415,8 +412,8 @@ class OOILoader(object):
     def _parse_Subsites(self, row):
         ooi_rd = row['Reference ID']
         name = row['Full Name']
-        local_name = row['Name Extension']
-        standalone_name = row['Standalone Name']
+        local_name = row['Local Name']
+        geo_area = row['Site Name']
 
         coord_dict = dict(
             lat_north = float(row['lat_north']) if row['lat_north'] else None,
@@ -431,7 +428,7 @@ class OOILoader(object):
             ooi_rd, 'ssite', name)
 
         self._add_object_attribute('ssite',
-                                   name, None, None, name=name, local_name=local_name, standalone_name=standalone_name)
+                                   name, None, None, name=name, local_name=local_name, geo_area=geo_area)
         self._add_object_attribute('ssite',
                                    name, 'subsite_rd_list', ooi_rd, value_is_list=True)
         if row['lat_north']:
@@ -444,7 +441,6 @@ class OOILoader(object):
         local_name = row['Name Extension']
         node_entry = dict(
             local_name=local_name,
-            standalone_name=name,
             parent_id=row['Parent Reference ID'],
             platform_id=row['Platform Reference ID'],
             platform_config_type=row['Platform Configuration Type'],

@@ -813,7 +813,8 @@ class DiscoveryService(BaseDiscoveryService):
           }
         }
 
-        response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query)
+        
+        response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query, host=self.elasticsearch_host, port=self.elasticsearch_port)
         IndexManagementService._check_response(response)
         return self._results_from_response(response, id_only)
  
@@ -900,7 +901,7 @@ class DiscoveryService(BaseDiscoveryService):
           }
         }
 
-        response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query)
+        response = IndexManagementService._es_call(es.raw_query,'%s/_search' % index.index_name,method='POST', data=query, host=self.elasticsearch_host, port=self.elasticsearch_port)
         IndexManagementService._check_response(response)
         return self._results_from_response(response, id_only)
 

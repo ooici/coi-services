@@ -95,6 +95,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         self._do_test_get_sites_devices_status(resources)
 
+        self._do_test_find_site_data_products(resources)
+
         self._do_test_find_related_frames_of_reference(resources)
 
         self._do_test_create_geospatial_point_center(resources)
@@ -155,14 +157,14 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEquals(len(site_resources), 14)
         self.assertEquals(len(site_children), 9)
         self.assertEquals(len(site_devices), 18)
-        self.assertIsNone(site_devices[resources.observatory_id])
-        self.assertEquals(site_devices[resources.platform_site_id][0], RT.PlatformSite)
-        self.assertEquals(site_devices[resources.platform_site_id][1], resources.platform_device_id)
-        self.assertEquals(site_devices[resources.platform_site_id][2], RT.PlatformDevice)
+        self.assertEquals(site_devices[resources.observatory_id], [])
+        self.assertEquals(site_devices[resources.platform_site_id][0][0], RT.PlatformSite)
+        self.assertEquals(site_devices[resources.platform_site_id][0][1], resources.platform_device_id)
+        self.assertEquals(site_devices[resources.platform_site_id][0][2], RT.PlatformDevice)
 
-        self.assertEquals(site_devices[resources.instrument_site_id][0], RT.InstrumentSite)
-        self.assertEquals(site_devices[resources.instrument_site_id][1], resources.instrument_device_id)
-        self.assertEquals(site_devices[resources.instrument_site_id][2], RT.InstrumentDevice)
+        self.assertEquals(site_devices[resources.instrument_site_id][0][0], RT.InstrumentSite)
+        self.assertEquals(site_devices[resources.instrument_site_id][0][1], resources.instrument_device_id)
+        self.assertEquals(site_devices[resources.instrument_site_id][0][2], RT.InstrumentDevice)
 
         self.assertEquals(len(device_resources), 4)
         self.assertEquals(device_resources[resources.instrument_device_id].type_, RT.InstrumentDevice)
@@ -184,6 +186,16 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEquals(len(site_resources), 13)
         self.assertEquals(len(site_children), 8)
         self.assertEquals(len(site_devices), 17)
+
+    def _do_test_find_site_data_products(self, resources):
+        res_dict = self.OMS.find_site_data_products(resources.org_id)
+
+        #import sys, pprint
+        #print >> sys.stderr, pprint.pformat(res_dict)
+
+        self.assertIsNone(res_dict['data_product_resources'])
+        self.assertIn(resources.platform_device_id, res_dict['device_data_products'])
+        self.assertIn(resources.instrument_device_id, res_dict['device_data_products'])
 
     #@unittest.skip('targeting')
     def _do_test_find_related_frames_of_reference(self, stuff):
