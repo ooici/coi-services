@@ -104,8 +104,8 @@ class InstrumentAgent(ResourceAgent):
     def __init__(self, *args, **kwargs):
         """
         """
-        ResourceAgent.__init__(self, *args, **kwargs)
-
+        super(InstrumentAgent, self).__init__(self, *args, **kwargs)
+        
         ###############################################################################
         # Instrument agent internal parameters.
         ###############################################################################
@@ -1160,6 +1160,15 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+
+    ##############################################################
+    # Common state enter, exit extenders.
+    ##############################################################    
+
+    def _on_state_enter(self, state):
+        """
+        """
+        pass
 
     ##############################################################
     # Start and stop driver.
