@@ -747,3 +747,22 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
         return extended_data_process
 
+    def get_data_process_subscriptions_count(self, data_process_id=""):
+        if not data_process_id:
+            raise BadRequest("The data_process_definition_id parameter is empty")
+
+        subscription_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
+        log.debug("get_data_process_subscriptions_count(id=%s): %s subscriptions", data_process_id, len(subscription_ids))
+        return len(subscription_ids)
+
+    def get_data_process_active_subscriptions_count(self, data_process_id=""):
+        if not data_process_id:
+            raise BadRequest("The data_process_definition_id parameter is empty")
+
+        subscription_ids, _ = self.clients.resource_registry.find_objects(subject=data_process_id, predicate=PRED.hasSubscription, id_only=True)
+        active_count = 0
+        for subscription_id in subscription_ids:
+            if self.clients.pubsub_management.subscription_is_active(subscription_id):
+                active_count += 1
+        log.debug("get_data_process_active_subscriptions_count(id=%s): %s subscriptions", data_process_id, active_count)
+        return active_count
