@@ -125,7 +125,8 @@ class StatusUtil(object):
             return
 
         # Here, rollup status has changed: update rollup_status for this
-        # device and status category, and publish event to notify parent:
+        # device and status category, and publish event to notify all
+        # interested ancestors:
 
         self.aparam_rollup_status[status_name] = new_rollup_status
 
