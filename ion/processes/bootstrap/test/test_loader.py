@@ -147,6 +147,15 @@ class TestLoader(IonIntegrationTestCase):
         # first make sure this scenario loads successfully
         self.assert_can_load("BASE,BETA,NOSE")
 
+        # check for ExternalDataset
+        eds = self.find_object_by_name('Test External Dataset', RT.ExternalDataset)
+        edm1 = self.find_object_by_name('Test External Dataset Model', RT.ExternalDatasetModel)
+        edm2,_ = self.container.resource_registry.find_objects(eds._id, PRED.hasModel, RT.ExternalDatasetModel, True)
+        self.assertEquals(edm1._id, edm2[0])
+
+        inst = self.find_object_by_name('Test Instrument Agent Instance', RT.ExternalDatasetAgentInstance)
+        self.assertEquals('value1', inst.dataset_agent_config['key1'], msg='dataset_agent_config[key1] is not value1:\n%r'%inst.agent_config)
+
         # check for an Org
         org = self.find_object_by_name('CASPER', RT.Org)
         self.assertFalse(org.contacts is None)

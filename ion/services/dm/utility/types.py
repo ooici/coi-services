@@ -5,6 +5,7 @@
 @date Thu Jan 17 15:51:16 EST 2013
 '''
 from pyon.core.exception import BadRequest, NotFound
+from pyon.public import CFG
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
@@ -14,7 +15,7 @@ from coverage_model.parameter_types import ConstantType, ConstantRangeType
 from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
 from copy import deepcopy
-from udunitspy.udunits2 import Unit
+from udunitspy.udunits2 import Unit, System
 
 import ast
 import numpy as np
@@ -25,6 +26,7 @@ from uuid import uuid4
 class TypesManager(object):
     function_lookups = {}
     parameter_lookups = {}
+    system = System(path=CFG.get_safe('units', 'res/config/units/udunits2.xml'))
 
     def __init__(self, dataset_management_client):
         self.dataset_management = dataset_management_client
@@ -229,6 +231,6 @@ class TypesManager(object):
         return self.get_array_type()
 
     def get_unit(self, uom):
-        return Unit(uom)
+        return Unit(uom, system=self.system)
 
 
