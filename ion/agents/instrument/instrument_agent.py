@@ -57,7 +57,7 @@ from ion.core.includes.mi import DriverAsyncEvent
 from interface.objects import StreamAlertType
 from interface.objects import AgentCommand, StatusType, DeviceStatusType, AggregateStatusType
 
-class InstrumentAgentState():
+class InstrumentAgentState(BaseEnum):
     POWERED_DOWN = ResourceAgentState.POWERED_DOWN
     UNINITIALIZED = ResourceAgentState.UNINITIALIZED
     INACTIVE = ResourceAgentState.INACTIVE
@@ -71,7 +71,7 @@ class InstrumentAgentState():
     LOST_CONNECTION = ResourceAgentState.LOST_CONNECTION
     ACTIVE_UNKNOWN = ResourceAgentState.ACTIVE_UNKNOWN
 
-class InstrumentAgentEvent():
+class InstrumentAgentEvent(BaseEnum):
     ENTER = ResourceAgentEvent.ENTER
     EXIT = ResourceAgentEvent.EXIT
     POWER_UP = ResourceAgentEvent.POWER_UP
