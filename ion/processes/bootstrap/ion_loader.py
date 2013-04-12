@@ -95,7 +95,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AiJoHeWBzmnAdDJwUHdxdjBnOGxnMW5wRndQQ2tjcUE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDVqLTlUcXZtTHVIS2o1QXp2OF9FR3c&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -125,11 +125,14 @@ DEFAULT_CATEGORIES = [
     'PlatformAgent',
     'PlatformAgentInstance',
     'InstrumentAgent',
-    #'ExternalDatasetAgent',
+    'ExternalDataProvider',
+    'ExternalDatasetModel',
+    'ExternalDataset',
+    'ExternalDatasetAgent',
+    'ExternalDatasetAgentInstance',
     'InstrumentDevice',
     'SensorDevice',
     'InstrumentAgentInstance',
-    #'ExternalDatasetAgentInstance',
     'DataProduct',
     'TransformFunction',
     'DataProcessDefinition',
@@ -171,7 +174,7 @@ class IONLoader(ImmediateProcess):
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
         self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
         self.alarms = {} # id -> alarm definition dict
-
+        self.external_dataset_producer_id = {} # keep producer ID for later use by AgentInstance
         self.object_definitions = None
 
         # process to use for RPC communications (override to use as utility, default to use as process)
@@ -398,7 +401,10 @@ class IONLoader(ImmediateProcess):
         # before you see an error
         self._read_and_parse(scenarios)
 
+        count = len(self.categories)
+        index = 0
         for category in self.categories:
+            index += 1
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
             # First load all OOI assets for this category
@@ -412,7 +418,7 @@ class IONLoader(ImmediateProcess):
             if category not in self.object_definitions or not self.object_definitions[category]:
                 log.debug('no rows for category: %s', category)
             else:
-                log.debug("Loading category %s", category)
+                log.info("Loading category %d/%d: %s", index, count, category)
 
             for row in self.object_definitions.get(category, []):
                 if COL_ID in row:
@@ -1888,11 +1894,100 @@ Reason: %s
 
                 self._load_InstrumentAgent(newrow)
 
-    def _load_ExternalDatasetAgent(self, row):
-        pass
+    def _load_ExternalDataProvider(self, row):
+        contacts = self._get_contacts(row, field='contact_id')
+        if len(contacts) > 1:
+            raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
+        contact = contacts[0] if len(contacts)==1 else None
+        institution = self._create_object_from_row("Institution", row, "i/")
+        provider = IonObject(RT.ExternalDataProvider, name=row["name"], description=row["description"], lcstate=row["lcstate"],
+            institution=institution, contact=contact, alt_ids=['PRE:'+row[COL_ID]])
+        id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
+        provider._id = id
+        self._register_id(row['ID'], id, provider)
 
-    def _load_ExternalDatasetAgent_OOI(self):
-        pass
+    def _load_ExternalDatasetModel(self, row):
+        # ID, lcstate, name, description, dataset_type
+        self._basic_resource_create(row, 'ExternalDatasetModel', 'edm/', 'data_acquisition_management', 'create_external_dataset_model')
+
+    def _load_ExternalDataset(self, row):
+        # ID	owner_id	lcstate	org_ids	contact_id	name	description	data_sampling	parameters
+        contacts = self._get_contacts(row, field='contact_id')
+        if len(contacts) > 1:
+            raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
+        contact = contacts[0] if len(contacts)==1 else None
+
+        model = self._get_resource_id(row['model'])
+        params = parse_dict(row['parameters'])
+        sampling = getattr(objects.DatasetDescriptionDataSamplingEnum, row['data_sampling'])
+        print 'params is %r, sampling is %r' % (params, sampling)
+        print 'TYPES: params is %s, sampling is %s' % (params.__class__.__name__, sampling.__class__.__name__)
+        descriptor = objects.DatasetDescription(data_sampling=sampling, parameters=params)
+        dataset = IonObject(RT.ExternalDataset, name=row['name'], description=row['description'], dataset_description=descriptor,
+            contact=contact, alt_ids=['PRE:'+row[COL_ID]], lcstate=row[COL_LCSTATE])
+        client = self._get_service_client('data_acquisition_management')
+        id = client.create_external_dataset(external_dataset=dataset, external_dataset_model_id=model)
+        dataset._id = id
+        self._register_id(row['ID'], id, dataset)
+        producer_id = client.register_external_data_set(external_dataset_id=id)
+        self.external_dataset_producer_id[id] = producer_id
+
+    def _load_ExternalDatasetAgent(self, row):
+        agent = self._create_object_from_row(RT.ExternalDatasetAgent, row, 'eda/')
+        model = self._get_resource_id(row['dataset_model'])
+        id = self._get_service_client('data_acquisition_management').create_external_dataset_agent(external_dataset_agent=agent, external_dataset_model_id=model)
+        agent._id = id
+        self._register_id(row['ID'], id, agent)
+
+    def _load_ExternalDatasetAgentInstance(self, row):
+        # FIELDS IN THE ION OBJECT:
+        # name='', description='', lcstate='DRAFT', availability='PRIVATE', ts_created='', ts_updated='', alt_ids=None, addl=None,
+        # deployment_type=DeploymentTypeEnum.PROCESS, driver_config=None, agent_config=None, agent_process_id='',
+        # alerts=None, handler_module='', handler_class='', dataset_driver_config=None, dataset_agent_config=None, dataset_agent_process_id=''):
+
+        # Generate the data product and associate it to the ExternalDataset
+        name = row['name']
+        description = row['description']
+        dataset = self._get_resource_obj(row['dataset'])
+        streamdef_id = self._get_resource_id(row['streamdef'])
+        agent = self._get_resource_obj(row['agent'])
+        agent_config = parse_dict(row['agent_config'])
+        driver_config = parse_dict(row['driver_config'])
+
+#        handler_module = agent.handler_module
+#        handler_class = agent.handler_class
+
+        # NOTE: unit tests show additional keys in this configuration
+        # but some are handler-specific, others seem just for testing
+        # TODO: come back and look again when trying to start this process
+        driver_config.update( {
+            'dvr_mod' : agent.handler_module,
+            'dvr_cls' : agent.handler_class,
+            'dh_cfg': {
+#                'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
+#                'parser_cls': 'HYPM_01_WFP_CTDParser',
+                #'TESTING':True,
+                'stream_def': streamdef_id,
+#                'stream_id':stream_id,
+#                'param_dictionary':pdict.dump(),
+                'data_producer_id':self.external_dataset_producer_id[dataset._id],
+#                'max_records':20,
+                }
+            } )
+        agent_config.update( {
+            'driver_config' : driver_config,
+            'stream_config' : {},
+            'agent'         : {'resource_id': dataset._id},
+            #'test_mode' : True
+        } )
+
+        agent_instance = IonObject(RT.ExternalDatasetAgentInstance,  name=name, description=description,
+            handler_module=agent.handler_module, handler_class=agent.handler_class,
+            dataset_driver_config=driver_config, dataset_agent_config=agent_config)
+
+        client = self._get_service_client('data_acquisition_management')
+        instance_id = client.create_external_dataset_agent_instance(external_dataset_agent_instance=agent_instance,
+            external_dataset_agent_id=agent._id, external_dataset_id=dataset._id)
 
     def _load_InstrumentAgentInstance(self, row):
         startup_config = parse_dict(row['startup_config'])
@@ -1929,9 +2024,6 @@ Reason: %s
         client.assign_instrument_agent_instance_to_instrument_device(res_id, device_id)
 
     def _load_InstrumentAgentInstance_OOI(self):
-        pass
-
-    def _load_ExternalDatasetAgentInstance(self, row):
         pass
 
     def _load_ExternalDatasetAgentInstance_OOI(self):
@@ -2192,7 +2284,7 @@ Reason: %s
                 svc_client.assign_data_product_source(dp_id, source_id, headers=headers)
 
         # Create data product assignment
-        if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice'):
+        if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
             input_res_id = self.resource_ids.get(input_res_id)
             if self.bulk and do_bulk:
                 id_obj = self._get_resource_obj(row["input_resource_id"])
