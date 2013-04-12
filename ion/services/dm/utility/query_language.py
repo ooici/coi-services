@@ -32,6 +32,7 @@ class QueryLanguage(object):
       <depth-parameter> ::= "DEPTH" <integer>
            <term-query> ::= "IS" <field-query>
           <fuzzy-query> ::= "LIKE" <field-query>
+          <match-query> ::= "MATCH" <field-query>
           <field-query> ::= <wildcard-string>
           <range-query> ::= "VALUES" [<from-statement>] [<to-statement>]
           <time-bounds> ::= "TIMEBOUNDS" <from-statement> <to-statement>
@@ -171,6 +172,7 @@ class QueryLanguage(object):
         # <field-query>  ::= <wildcard-string>
         # <term-query>   ::= "IS" <field-query>
         # <fuzzy-query>  ::= "LIKE" <field-query>
+        # <match-query>  ::= "MATCH" <field-query>
         # <geo-query>    ::= "GEO" ( <geo-distance> | <geo-bbox> )
         #--------------------------------------------------------------------------------------
         field_query = wildcard_string
@@ -181,6 +183,8 @@ class QueryLanguage(object):
 
         fuzzy_query = CaselessLiteral("LIKE") + field_query
         fuzzy_query.setParseAction(lambda x : self.frame.update({'fuzzy':x[1]}))
+        match_query = CaselessLiteral("MATCH") + field_query
+        match_query.setParseAction(lambda x : self.frame.update({'match':x[1]}))
 
         #--------------------------------------------------------------------------------------
         # <limit-parameter>  ::= "LIMIT" <integer>
@@ -200,13 +204,13 @@ class QueryLanguage(object):
         query_parameter = limit_parameter | order_parameter | offset_parameter
 
         #--------------------------------------------------------------------------------------
-        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <fuzzy-query> | <time-query> | <time-bounds> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
+        # <search-query>      ::= "SEARCH" <field> (<range-query> | <term-query> | <fuzzy-query> | <match-query> | <time-query> | <time-bounds> | <vertical-bounds> | <geo-query>) "FROM" <index-name> [<query-parameter>]*
         # <collection-query>  ::= "IN <collection-id>"
         # <association-query> ::= "BELONGS TO" <resource-id> [ <depth-parameter> ]
         # <owner-query>       ::= "HAS" <resource-id> [ <depth-parameter> ]
         # <query>             ::= <search-query> | <association-query> | <collection-query> | <owner-query>
         #--------------------------------------------------------------------------------------
-        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | vertical_bounds | time_bounds | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
+        search_query = CaselessLiteral("SEARCH") + field + (range_query | term_query | fuzzy_query | match_query | vertical_bounds | time_bounds | time_query | geo_query) + CaselessLiteral("FROM") + index_name + query_parameter*(0,None)
         # Add the field to the frame object
         search_query.setParseAction(lambda x : self.frame.update({'field' : x[1]}))
         collection_query = CaselessLiteral("IN") + collection_id
@@ -320,6 +324,15 @@ class QueryLanguage(object):
         if not isinstance(query,dict):
             return False
         if query.has_key('index') and query.has_key('field') and query.has_key('fuzzy'):
+            return True
+        return False
+    @classmethod
+    def query_is_match_search(cls, query=None):
+        if not query:
+            return False
+        if not isinstance(query,dict):
+            return False
+        if query.has_key('index') and query.has_key('field') and query.has_key('match'):
             return True
         return False
     @classmethod

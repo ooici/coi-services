@@ -934,6 +934,59 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
+    
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_match_search(self):
+        dp = DataProduct(name='example', description='This is simply a description for this data product')
+        dp_id, _ = self.rr.create(dp)
+
+        search_string = 'search "description" match "this data product" from "data_products"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(results[0]['_id'] == dp_id)
+        self.assertEquals(results[0]['_source'].name, 'example')
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_expected_match_results(self):
+        names = [
+            'Instrument for site1',
+            'Instrument for simulator',
+            'CTD1',
+            'SBE37',
+            'SSN-719',
+            'Submerssible Expendable Bathyothermograph',
+            'VELPT',
+            'VELO',
+            'Safire2 169'
+            ]
+        for name in names:
+            res_id, _ = self.rr.create(InstrumentDevice(name=name))
+            self.addCleanup(self.rr.delete, res_id)
+
+        search_string = 'search "name" match "expendable" from "devices"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertEquals(len(results),1)
+        self.assertEquals(results[0]['_source'].name, 'Submerssible Expendable Bathyothermograph')
+
+
+        search_string = 'search "name" match "instrument for" from "devices"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertEquals(len(results),2)
+        self.assertTrue('Instrument for' in results[0]['_source'].name)
+        self.assertTrue('Instrument for' in results[1]['_source'].name)
+
+
+        search_string = 'search "name" match "velo for" from "devices"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertEquals(len(results),1)
+        self.assertEquals(results[0]['_source'].name, 'VELO')
+
 
 
     @skipIf(not use_es, 'No ElasticSearch')

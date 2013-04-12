@@ -96,15 +96,15 @@ class DriverProcess(object):
         self._driver_process = self._spawn(cmd)
 
         if not self._driver_process and not self.poll():
-            log.error("Failed to launch driver: %s" % cmd)
+            log.error("Failed to launch driver: %s", cmd)
             raise DriverLaunchException('Error starting driver process')
 
-        log.debug("driver process started, pid: %s" % self.getpid())
+        log.debug("driver process started, pid: %s", self.getpid())
 
         self._command_port = self._get_port_from_file(self._driver_command_port_file())
         self._event_port = self._get_port_from_file(self._driver_event_port_file())
 
-        log.debug("-- command port: %s, event port: %s" % (self._command_port, self._event_port))
+        log.debug("-- command port: %s, event port: %s", self._command_port, self._event_port)
 
     def poll(self):
         """
@@ -201,7 +201,7 @@ class DriverProcess(object):
                          program and arguments much be in additional list elements.
         @returns subprocess.Popen object
         """
-        log.debug("run cmd: %s" % " ".join(spawnargs))
+        log.debug("run cmd: %s", " ".join(spawnargs))
         return subprocess.Popen(spawnargs, close_fds=True)
 
 
@@ -221,12 +221,12 @@ class DriverProcess(object):
         """
         maxWait=10          # try for up to 10sec
         waitInterval=0.5    # repeating every 1/2 sec
-        log.debug("about to read port from file %s" % filename)
+        log.debug("about to read port from file %s", filename)
         for n in xrange(int(maxWait/waitInterval)):
             try:
                 with open(filename, 'r') as f:
                     port = int(f.read().strip())
-                    log.debug("read port %d from file %s" % (port, filename))
+                    log.debug("read port %d from file %s", port, filename)
                     return port
             except: pass
             time.sleep(waitInterval)
@@ -273,7 +273,7 @@ class DriverProcess(object):
                 self._driver_client = driver_client
             except Exception, e:
                 self.stop()
-                log.error('Error starting driver client: %s' % e)
+                log.error('Error starting driver client: %s', e)
                 raise DriverLaunchException('Error starting driver client.')
 
         return self._driver_client
@@ -306,7 +306,7 @@ class ZMQPyClassDriverProcess(DriverProcess):
         Build the process command line using the driver_config dict
         @return a list containing spawn args for the _spawn method
         """
-        log.debug("cwd: %s" % os.getcwd())
+        log.debug("cwd: %s", os.getcwd())
         mi_repo = self.config.get('mi_repo', None)
         driver_module = self.config.get('dvr_mod')
         driver_class = self.config.get('dvr_cls')
@@ -364,7 +364,7 @@ class ZMQEggDriverProcess(DriverProcess):
         return CACHE_DIR + "/" + egg_name
 
     def _egg_remotepath(self, egg_name):
-        log.debug("_egg_remotepath" + str(egg_name))
+        log.debug("_egg_remotepath: %s", egg_name)
         if not REPO_BASE:
             raise ServerError("REPO_BASE is %s'%s'" % (type(REPO_BASE), REPO_BASE))
         elif not egg_name:
@@ -377,7 +377,7 @@ class ZMQEggDriverProcess(DriverProcess):
         Check if the egg is already cached, if so, return the path.
         @return: egg path if cached, else None
         """
-        log.debug("_check_cache_for_egg" + str(egg_name))
+        log.debug("_check_cache_for_egg: %s", egg_name)
         path = self._egg_path(egg_name)
         if os.path.exists(path):
             log.debug("_check_cache_for_egg cache hit PATH = " + str(path))
@@ -391,7 +391,7 @@ class ZMQEggDriverProcess(DriverProcess):
         pull the egg from a remote server if present to the local cache dir.
         @return: returns the path, throws exception if not found.
         """
-        log.debug("_get_remote_egg1" + str(egg_name))
+        log.debug("_get_remote_egg %s", egg_name)
         try:
             if egg_name.startswith("http://"):
                 response = urlopen(egg_name)
@@ -400,13 +400,13 @@ class ZMQEggDriverProcess(DriverProcess):
             egg_yolk = response.read()
             log.debug("_fetch_egg GOT YOLK")
         except HTTPError, e:
-            raise DriverLaunchException(e.code)
+            raise DriverLaunchException('failed to download egg: ' + str(e))
         except URLError, e:
-            raise DriverLaunchException(e.reason)
+            raise DriverLaunchException('bad egg URL ' + egg_name + ': ' + e.reason)
         
         filename = get_filename_from_uri(egg_name)
         path = self._egg_path(filename)
-        log.debug("PATH = " + str(path))
+        log.debug("PATH = %s", path)
         try:
             egg_file = open(path, "wb")
             egg_file.write(egg_yolk)
@@ -415,12 +415,11 @@ class ZMQEggDriverProcess(DriverProcess):
         else:
             egg_file.close()
 
-        log.debug("_fetch_egg GOT EGG, PATH = " + str(path))
         return path
 
     def _get_egg(self, egg_uri):
         filename = get_filename_from_uri(egg_uri)
-        log.debug("_get_egg" + str(filename))
+        log.debug("_get_egg: %s",filename)
         path = self._check_cache_for_egg(filename)
         if None == path:
             path = self._get_remote_egg(filename) # Will exception out if problem.
@@ -437,7 +436,7 @@ class ZMQEggDriverProcess(DriverProcess):
         3. construct call command
         """
 
-        log.debug("cwd: %s" % os.getcwd())
+        log.debug("cwd: %s", os.getcwd())
         driver_package = self.config.get('dvr_egg')
         ppid = os.getpid() if self.test_mode else None
 
@@ -449,7 +448,7 @@ class ZMQEggDriverProcess(DriverProcess):
             raise DriverLaunchException("could not find python executable: %s" % python)
 
         path = self._get_egg(self.config.get('dvr_egg'))
-        log.debug("_process_command" + str(path))
+        log.debug("_process_command: %s", path)
 
         cmd_port_fname = self._driver_command_port_file()
         evt_port_fname = self._driver_event_port_file()

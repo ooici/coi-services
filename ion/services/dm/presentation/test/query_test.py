@@ -176,6 +176,11 @@ class QueryLanguageUnitTest(PyonTestCase):
         test_string = "search 'description' like 'products' from 'index'"
         retval = self.parser.parse(test_string)
         self.assertEquals(retval, {'and':[], 'or':[], 'query':{'field':'description', 'fuzzy':'products', 'index':'index'}})
+    
+    def test_match_search(self):
+        test_string = "search 'description' match 'products' from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertEquals(retval, {'and':[], 'or':[], 'query':{'field':'description', 'match':'products', 'index':'index'}})
 
     def test_owner_search(self):
         test_string = "search 'description' like 'products' from 'index' and has 'abc123'"

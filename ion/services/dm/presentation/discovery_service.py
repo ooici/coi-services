@@ -375,6 +375,30 @@ class DiscoveryService(BaseDiscoveryService):
             return self.query_term(**kwargs)
         
         #---------------------------------------------
+        # Match searching (phrases and such)
+        #---------------------------------------------
+        elif QueryLanguage.query_is_match_search(query):
+            source_id = self._match_query_sources(query['index']) or query['index']
+            kwargs = dict(
+                source_id= source_id,
+                match    = True,
+                field    = query['field'],
+                value    = query['match'],
+                limit    = limit,
+                id_only  = id_only
+            )
+            
+            if query.get('limit'):
+                kwargs['limit'] = query['limit']
+            if query.get('order'):
+                kwargs['order'] = query['order']
+            if query.get('offset'):
+                kwargs['offset'] = query['offset']
+
+            return self.query_term(**kwargs)
+        
+        
+        #---------------------------------------------
         # Association Search
         #---------------------------------------------
         elif QueryLanguage.query_is_association_search(query):
@@ -573,7 +597,7 @@ class DiscoveryService(BaseDiscoveryService):
             return result_queue
         return None
 
-    def query_term(self, source_id='', field='', value='', fuzzy=False, order=None, limit=0, offset=0, id_only=False):
+    def query_term(self, source_id='', field='', value='', fuzzy=False, match=False, order=None, limit=0, offset=0, id_only=False):
         '''
         Elasticsearch Query against an index
         > discovery.query_index('indexID', 'name', '*', order={'name':'asc'}, limit=20, id_only=False)
@@ -615,6 +639,10 @@ class DiscoveryService(BaseDiscoveryService):
 
         if fuzzy:
             query = ep.ElasticQuery.fuzzy_like_this(value, fields=[field])
+        elif match:
+            match_query = ep.ElasticQuery.match(field=field,query=value)
+            query = {"match_phrase_prefix":match_query['match']}
+            
         elif '*' in value:
             query = ep.ElasticQuery.wildcard(field=field, value=value)
         else:

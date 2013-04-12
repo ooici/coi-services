@@ -330,9 +330,9 @@ class ResourceManagementService(BaseResourceManagementService):
             getter = get_safe(res_interface, "params.%s.get" % param, None)
             if getter:
                 get_res = self._call_getter(getter, resource_id, res_type)
-                get_result['param'] = get_res
+                get_result[param] = get_res
             else:
-                get_result['param'] = None
+                get_result[param] = None
 
         return get_result
 
