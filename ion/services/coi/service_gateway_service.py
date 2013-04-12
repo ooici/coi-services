@@ -631,15 +631,23 @@ def get_attachment(attachment_id):
 def create_attachment():
 
     try:
-        resource_id        = str(request.form.get('resource_id', ''))
-        fil                = request.files['file']
-        content            = fil.read()
+        resource_id = str(request.form.get('resource_id', ''))
+        fil         = request.files['file']
+        content     = fil.read()
+        actor_id    = str(request.form.get('requester', ''))
+
+        keywords = []
+        keywords_str = request.form.get('keywords', '')
+        if keywords_str.strip():
+            keywords = [str(x.strip()) for x in keywords_str.split(',')]
 
         # build attachment
         attachment         = Attachment(name=str(request.form['attachment_name']),
                                         description=str(request.form['attachment_description']),
                                         attachment_type=int(request.form['attachment_type']),
                                         content_type=str(request.form['attachment_content_type']),
+                                        keywords=keywords,
+                                        created_by=actor_id,
                                         content=content)
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
