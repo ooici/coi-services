@@ -58,10 +58,42 @@ from interface.objects import StreamAlertType
 from interface.objects import AgentCommand, StatusType, DeviceStatusType, AggregateStatusType
 
 class InstrumentAgentState():
-    UNINITIALIZED='xxx'
+    POWERED_DOWN = ResourceAgentState.POWERED_DOWN
+    UNINITIALIZED = ResourceAgentState.UNINITIALIZED
+    INACTIVE = ResourceAgentState.INACTIVE
+    IDLE = ResourceAgentState.IDLE
+    STOPPED = ResourceAgentState.STOPPED
+    COMMAND = ResourceAgentState.COMMAND
+    STREAMING = ResourceAgentState.STREAMING
+    TEST = ResourceAgentState.TEST
+    CALIBRATE = ResourceAgentState.CALIBRATE
+    BUSY = ResourceAgentState.BUSY
+    LOST_CONNECTION = ResourceAgentState.LOST_CONNECTION
+    ACTIVE_UNKNOWN = ResourceAgentState.ACTIVE_UNKNOWN
 
 class InstrumentAgentEvent():
-    pass
+    ENTER = ResourceAgentEvent.ENTER
+    EXIT = ResourceAgentEvent.EXIT
+    POWER_UP = ResourceAgentEvent.POWER_UP
+    POWER_DOWN = ResourceAgentEvent.POWER_DOWN
+    INITIALIZE = ResourceAgentEvent.INITIALIZE
+    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
+    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
+    RUN = ResourceAgentEvent.RUN
+    CLEAR = ResourceAgentEvent.CLEAR
+    PAUSE = ResourceAgentEvent.PAUSE
+    RESUME = ResourceAgentEvent.RESUME
+    GO_COMMAND = ResourceAgentEvent.GO_COMMAND
+    GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
+    GET_RESOURCE = ResourceAgentEvent.GET_RESOURCE
+    SET_RESOURCE = ResourceAgentEvent.SET_RESOURCE
+    EXECUTE_RESOURCE = ResourceAgentEvent.EXECUTE_RESOURCE
+    GET_RESOURCE_STATE = ResourceAgentEvent.GET_RESOURCE_STATE
+    GET_RESOURCE_CAPABILITIES = ResourceAgentEvent.GET_RESOURCE_CAPABILITIES
+    DONE = ResourceAgentEvent.DONE
+    PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
+    LOST_CONNECTION = ResourceAgentEvent.LOST_CONNECTION
+    AUTORECONNECT = ResourceAgentEvent.AUTORECONNECT
 
 class InstrumentAgentCapability(BaseEnum):
     INITIALIZE = ResourceAgentEvent.INITIALIZE
@@ -1069,7 +1101,7 @@ class InstrumentAgent(ResourceAgent):
         @raises InstDriverError If the driver or client failed to start properly.
         """
 
-        self._dvr_proc = DriverProcess.get_process(dvr_config, True)
+        self._dvr_proc = DriverProcess.get_process(dvr_config, self._test_mode)
         self._dvr_proc.launch()
 
         # Verify the driver has started.
