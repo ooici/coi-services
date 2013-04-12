@@ -1894,12 +1894,23 @@ Reason: %s
 
                 self._load_InstrumentAgent(newrow)
 
+    def _load_ExternalDatasetAgentInstance_OOI(self, row): pass
+    def _load_ExternalDatasetAgent_OOI(self, row): pass
+    def _load_ExternalDataset_OOI(self, row): pass
+    def _load_ExternalDatasetModel_OOI(self, row): pass
+    def _load_ExternalDataProvider_OOI(self, row): pass
+
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
         if len(contacts) > 1:
             raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
         contact = contacts[0] if len(contacts)==1 else None
         institution = self._create_object_from_row("Institution", row, "i/")
+
+        self._basic_resource_create(row, "ExternalDataProvider", "",
+            "data_acquisition_management", "create_external_data_provider",
+            set_attributes=dict(institution=institution, contact=contact))
+
         provider = IonObject(RT.ExternalDataProvider, name=row["name"], description=row["description"], lcstate=row["lcstate"],
             institution=institution, contact=contact, alt_ids=['PRE:'+row[COL_ID]])
         id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
