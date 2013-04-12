@@ -197,7 +197,9 @@ class Test(BaseIntTestPlatform):
         all_origins = [p_obj.platform_device_id for p_obj in p_objs.values()]
         all_origins.remove(p_root.platform_device_id)
         child_agg_status = self._pa_client.get_agent(['child_agg_status'])['child_agg_status']
-        self.assertItemsEqual(all_origins, child_agg_status.keys())
+        all_origins = sorted(all_origins)
+        child_agg_status_keys = sorted(child_agg_status.keys())
+        self.assertEquals(all_origins, child_agg_status_keys)
 
         #####################################################################
         # do the actual stuff and verifications: we "set" a particular status
@@ -357,7 +359,9 @@ class Test(BaseIntTestPlatform):
         all_origins = [p_obj.platform_device_id for p_obj in p_objs.values()]
         all_origins.remove(p_root.platform_device_id)
         child_agg_status = self._pa_client.get_agent(['child_agg_status'])['child_agg_status']
-        self.assertItemsEqual(all_origins, child_agg_status.keys())
+        all_origins = sorted(all_origins)
+        child_agg_status_keys = sorted(child_agg_status.keys())
+        self.assertEquals(all_origins, child_agg_status_keys)
 
         #####################################################################
         # trigger status updates
@@ -455,7 +459,9 @@ class Test(BaseIntTestPlatform):
         all_origins.remove(p_root.platform_device_id)
         all_origins.append(i_obj.instrument_device_id)
         child_agg_status = self._pa_client.get_agent(['child_agg_status'])['child_agg_status']
-        self.assertItemsEqual(all_origins, child_agg_status.keys())
+        all_origins = sorted(all_origins)
+        child_agg_status_keys = sorted(child_agg_status.keys())
+        self.assertEquals(all_origins, child_agg_status_keys)
 
         #####################################################################
         # trigger status updates from the instrument
