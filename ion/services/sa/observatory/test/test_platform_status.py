@@ -17,6 +17,7 @@ __license__ = 'Apache 2.0'
 
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_3
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5_1
 
 from pyon.public import log
 
@@ -71,8 +72,8 @@ class Test(BaseIntTestPlatform):
 
     def _expect_from_root(self, number_of_events):
         """
-        Sets the number of expected events for the subscriber,
-        to be called right before any publication in the test.
+        Sets the number of expected events for the subscriber. To be called
+        before any action that triggers publications from the root platform.
         """
         self._expected_events = number_of_events
         self._received_events = []
@@ -107,6 +108,9 @@ class Test(BaseIntTestPlatform):
         self._event_publisher.publish_event(**evt)
 
     def _wait_root_event(self):
+        """
+        waits for the expected number of events.
+        """
         root_evt = self._async_result.get(timeout=CFG.endpoint.receive.timeout)
         return root_evt
 
@@ -170,6 +174,11 @@ class Test(BaseIntTestPlatform):
         #   LV01B
         #       LJ01B
         #       MJ01B
+        #
+        # The updates are triggered from:
+        #  - direct event publications done on behalf of the leaf platforms;
+        #  - via set_agent on a leaf platform to set its "aggstatus",
+        #    which will trigger update at the publication from the root.
 
         # create the network:
         p_objs = {}
@@ -294,6 +303,41 @@ class Test(BaseIntTestPlatform):
         # root), so confirm root gets updated to STATUS_UNKNOWN;
         self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
                                          DeviceStatusType.STATUS_UNKNOWN)
+
+        #####################################################################
+        # trigger some status updates from a leaf platform using set_agent
+        # on its aggstatus:
+
+        # the aggstatus to set on on the leaf:
+        # note that, since everything is in STATUS_UNKNOWN, each new value here
+        # will cause an update of the rollup status on the root ...
+        aggstatus = {
+            AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_OK,
+            AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_CRITICAL,
+            AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_WARNING,
+            AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_OK,
+        }
+
+        # ... so we should get len(aggstatus) publications from the root:
+        self._expect_from_root(len(aggstatus))
+
+        # get client to leaf and set aggstatus:
+        client_MJ01B = self._create_resource_agent_client(p_MJ01B.platform_device_id)
+        client_MJ01B.set_agent({'aggstatus': aggstatus})
+
+        # verify that the aggstatus itself was set on the leaf platform:
+        retval = client_MJ01B.get_agent(['aggstatus'])['aggstatus']
+        for k in aggstatus:
+            self.assertIn(k, retval)
+            self.assertEquals(aggstatus[k], retval[k])
+
+        # verify the propagation to root's rollup status:
+        self._wait_root_event()
+
+        rollup_status = self._pa_client.get_agent(['rollup_status'])['rollup_status']
+        for k in aggstatus:
+            self.assertIn(k, rollup_status)
+            self.assertEquals(aggstatus[k], rollup_status[k])
 
         #####################################################################
         # done
@@ -437,10 +481,11 @@ class Test(BaseIntTestPlatform):
         for platform_id in ["LV01A", "LJ01A", "PC01A", "SC01A", "SF01A"]:
             self.assertIn(platform_id, p_objs)
 
-        # the leaf that is 3 levels below the root:
+        # the leaf platform that is 3 levels below the root:
         p_SF01A = p_objs["SF01A"]
 
         # create and assign an instrument to SF01A
+        # (the instrument will be 4 levels below the root).
         i_obj = self._create_instrument("SBE37_SIM_01")
         self._assign_instrument_to_platform(i_obj, p_SF01A)
 
@@ -493,7 +538,6 @@ class Test(BaseIntTestPlatform):
         self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
                                          DeviceStatusType.STATUS_OK)
 
-        # -------------------------------------------------------------------
         # -------------------------------------------------------------------
         # instrument publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
         self._expect_from_root(1)
