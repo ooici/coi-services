@@ -98,19 +98,18 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         precisions = {}
         fill_values = {}
-        for field in rdt._pdict:
-            _precision_str = rdt._pdict.get_context(field).precision
-            if _precision_str == None or _precision_str == '':
+        for field in rdt.fields:
+            precision_str = rdt.context(field).precision
+            if not precision_str:
                 precisions[field] = default_precision
             else:
-                precisions[field] = int(_precision_str)
+                try:
+                    precisions[field] = int(precision_str)
+                except ValueError:
+                    precisions[field] = default_precision
 
-            _fv_str = rdt._pdict.get_context(field).fill_value
-            if _fv_str == None or _fv_str == '':
-                fill_values[field] = None
-            else:
-                fill_values[field] = int(_fv_str)
 
+            fill_values[field] = rdt.fill_value(field)
 
         if stream_definition_id == None:
             log.error("GoogleDT transform: Need a output stream definition to process graphs")
