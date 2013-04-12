@@ -53,7 +53,7 @@ import csv
 import re
 import requests
 import time
-from udunitspy.udunits2 import Unit, UdunitsError
+from udunitspy.udunits2 import UdunitsError
 
 from pyon.core.bootstrap import get_service_registry
 from pyon.core.exception import NotFound
