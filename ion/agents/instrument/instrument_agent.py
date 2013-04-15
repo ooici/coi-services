@@ -1173,6 +1173,7 @@ class InstrumentAgent(ResourceAgent):
         aparam_alert_config = self.CFG.get('aparam_alert_config', None)
         if aparam_alert_config and 'alerts' in aparams:
             for alert_def in aparam_alert_config:
+                log.info('Configuring alert: %s', str(alert_def))
                 alert_def = copy.deepcopy(alert_def)
                 try:
                     stream_name = alert_def.get('stream_name', 'undefined')
