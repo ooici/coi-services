@@ -841,25 +841,27 @@ class InstrumentAgent(ResourceAgent):
 
         for a in self.aparam_alerts:
             log.debug('_process_aggregate_alerts a: %s', a)
-            curr_state = a.get_status()
 
-            #get the current value for this aggregate status
-            current_agg_state = updated_status[ a._aggregate_type ]
-            if a._status:
-                # this alert is not 'tripped' so the status is OK
-                #check behavior here. if there are any unknowns then set to agg satus to unknown?
-                log.debug('_process_aggregate_alerts Clear')
-                if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
-                    updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
+            #if this alert contributes to the aggregate status
+            if a._aggregate_type:
+                #get the current value for this aggregate status
+                current_agg_state = updated_status[ a._aggregate_type ]
+                if a._status:
+                    # this alert is not 'tripped' so the status is OK
+                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                    current_agg_state = updated_status[ a._aggregate_type ]
+                    log.debug('_process_aggregate_alerts Clear')
+                    if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
+                        updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
 
-            else:
-                #the alert is active, either a warning or an alarm
-                if a._alert_type is StreamAlertType.ALARM:
-                    log.debug('_process_aggregate_alerts Critical')
-                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
-                elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
-                    log.debug('_process_aggregate_alerts Warn')
-                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
+                else:
+                    #the alert is active, either a warning or an alarm
+                    if a._alert_type is StreamAlertType.ALARM:
+                        log.debug('_process_aggregate_alerts Critical')
+                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
+                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
+                        log.debug('_process_aggregate_alerts Warn')
+                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
 
         #compare old state with new state and publish alerts for any agg status that has changed.
         for aggregate_type in AggregateStatusType._str_map.keys():
@@ -1171,9 +1173,11 @@ class InstrumentAgent(ResourceAgent):
         aparam_alert_config = self.CFG.get('aparam_alert_config', None)
         if aparam_alert_config and 'alerts' in aparams:
             for alert_def in aparam_alert_config:
+                log.info('Configuring alert: %s', str(alert_def))
                 alert_def = copy.deepcopy(alert_def)
                 try:
-                    if not alert_def['stream_name'] in self.aparam_streams.keys():
+                    stream_name = alert_def.get('stream_name', 'undefined')
+                    if not stream_name in self.aparam_streams.keys():
                         raise Exception()
                     cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
