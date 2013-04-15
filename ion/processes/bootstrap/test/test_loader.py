@@ -139,7 +139,6 @@ class TestLoader(IonIntegrationTestCase):
 
         return filtered_objs[0]
 
-
     @attr('INT', group='loader')
     @attr('SMOKE', group='loader')
     def test_row_values(self):

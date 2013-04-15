@@ -590,7 +590,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             for producer_id, dataprodlist in value['inputs'].iteritems():
                 for dataprod in dataprodlist:
                     dp_list.append( self.clients.resource_registry.read(dataprod) )
-        extended_product.provenance_product_list = set(dp_list)  #remove dups in list
+        extended_product.provenance_product_list = list ( set(dp_list) ) #remove dups in list
 
         #set the data_ingestion_datetime from get_data_datetime
         if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
@@ -1160,3 +1160,36 @@ class DataProductManagementService(BaseDataProductManagementService):
         ion_time_obj = IonTime.from_string(ion_time)
         #todo: fix this and return str( ion_time_obj)
         return str(ion_time_obj)
+
+    ############################
+    #
+    #  PREPARE UPDATE RESOURCES
+    #
+    ############################
+
+
+    def prepare_update_data_product(self, data_product_id=''):
+        """
+        Returns the object containing the data to update an instrument device resource
+        """
+
+        if not data_product_id:
+            raise BadRequest("The data_product_id parameter is empty")
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_update_resource(data_product_id, OT.DataProductPrepareUpdate)
+
+        #Fill out service request information for creating a data product
+        resource_data.create_data_product_request.service_name = 'data_product_management'
+        resource_data.create_data_product_request.service_operation = 'create_data_product'
+        resource_data.create_data_product_request.request_parameters = {
+            "data_product":  "$(data_product)",
+            "stream_definition_id": "$(stream_definition_id)",
+            "exchange_point": "$(exchange_point)",
+            "dataset_id": "$(dataset_id)"
+
+        }
+
+        return resource_data

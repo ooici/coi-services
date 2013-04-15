@@ -1897,3 +1897,91 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 ret.value[data_product_obj.processing_level_code] = context_dict
             ret.status = ComputedValueAvailability.PROVIDED
         return ret
+
+
+    ############################
+    #
+    #  PREPARE UPDATE RESOURCES
+    #
+    ############################
+
+
+    def prepare_update_instrument_device(self, instrument_device_id=''):
+        """
+        Returns the object containing the data to update an instrument device resource
+        """
+
+        if not instrument_device_id:
+            raise BadRequest("The instrument_device_id parameter is empty")
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_update_resource(instrument_device_id, OT.InstrumentDevicePrepareUpdate)
+
+        #Fill out service request information for creating a instrument device
+        resource_data.create_instrument_device_request.service_name = 'instrument_management'
+        resource_data.create_instrument_device_request.service_operation = 'create_instrument_device'
+        resource_data.create_instrument_device_request.request_parameters = {
+            "instrument_device":  "$(instrument_device)"
+        }
+
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_instrument_model_request.service_name = 'instrument_management'
+        resource_data.assign_instrument_model_request.service_operation = 'assign_instrument_model_to_instrument_device'
+        resource_data.assign_instrument_model_request.request_parameters = {
+            "instrument_model_id":  "$(instrument_model_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.unassign_instrument_model_request.service_name = 'instrument_management'
+        resource_data.unassign_instrument_model_request.service_operation = 'unassign_instrument_model_to_instrument_device'
+        resource_data.unassign_instrument_model_request.request_parameters = {
+            "instrument_model_id":  "$(instrument_model_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+        return resource_data
+
+
+    def prepare_update_platform_device(self, platform_device_id=''):
+        """
+        Returns the object containing the data to update an instrument device resource
+        """
+
+        if not platform_device_id:
+            raise BadRequest("The platform_device_id parameter is empty")
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_update_resource(platform_device_id, OT.PlatformDevicePrepareUpdate)
+
+        #Fill out service request information for creating a platform device
+        resource_data.create_platform_device_request.service_name = 'instrument_management'
+        resource_data.create_platform_device_request.service_operation = 'create_platform_device'
+        resource_data.create_platform_device_request.request_parameters = {
+            "platform_device":  "$(platform_device)"
+        }
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_platform_model_request.service_name = 'instrument_management'
+        resource_data.assign_platform_model_request.service_operation = 'assign_platform_model_to_platform_device'
+        resource_data.assign_platform_model_request.request_parameters = {
+            "platform_model_id":  "$(platform_model_id)",
+            "platform_device_id":  platform_device_id
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.unassign_platform_model_request.service_name = 'instrument_management'
+        resource_data.unassign_platform_model_request.service_operation = 'unassign_platform_model_to_platform_device'
+        resource_data.unassign_platform_model_request.request_parameters = {
+            "platform_model_id":  "$(platform_model_id)",
+            "platform_device_id":  platform_device_id
+        }
+
+        return resource_data

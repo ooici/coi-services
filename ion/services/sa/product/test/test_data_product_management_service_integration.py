@@ -3,6 +3,7 @@
 @file ion/services/sa/product/test/test_data_product_management_service_integration.py
 @brief Data Product Management Service Integration Tests
 '''
+import simplejson
 from mock import patch
 from pyon.core.exception import NotFound
 from pyon.public import  IonObject
@@ -143,6 +144,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         return datastore
 
 
+    @attr('EXT')
+    @attr('PREP')
     def test_create_data_product(self):
 
         #------------------------------------------------------------------------------------------------
@@ -257,6 +260,30 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(ComputedValueAvailability.PROVIDED,
                          extended_product.computed.parameters.status)
         #log.debug("test_create_data_product: parameters %s" % extended_product.computed.parameters.value)
+
+
+        def ion_object_encoder(obj):
+            return obj.__dict__
+
+        #test prepare
+        data_product_data = self.dpsc_cli.prepare_update_data_product(dp_id)
+
+        #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)
+
+        self.assertEqual(data_product_data._id, dp_id)
+        self.assertEqual(data_product_data.type_, OT.DataProductPrepareUpdate)
+        self.assertEqual(len(data_product_data.stream_definitions), 2)
+
+        self.assertEqual(len(data_product_data.datasets), 2)
+
+        self.assertEqual(len(data_product_data.data_product_stream_definition), 1)
+        self.assertEqual(data_product_data.data_product_stream_definition[0].s, dp_id)
+
+        self.assertEqual(len(data_product_data.data_product_dataset), 1)
+        self.assertEqual(data_product_data.data_product_dataset[0].s, dp_id)
+
+
+
 
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
