@@ -862,6 +862,95 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return extended_site
 
 
+    def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not site_id:
+            raise BadRequest("The site_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_site = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.SiteExtension,
+            resource_id=site_id,
+            computed_resource_type=OT.SiteComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        return extended_site
+
+
+    def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not site_id:
+            raise BadRequest("The site_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_site = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.SiteExtension,
+            resource_id=site_id,
+            computed_resource_type=OT.SiteComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        return extended_site
+
+
+    def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not site_id:
+            raise BadRequest("The site_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_site = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.SiteExtension,
+            resource_id=site_id,
+            computed_resource_type=OT.SiteComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        return extended_site
+
+    def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not site_id:
+            raise BadRequest("The site_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_site = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.SiteExtension,
+            resource_id=site_id,
+            computed_resource_type=OT.SiteComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        return extended_site
+
+
+    def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not site_id:
+            raise BadRequest("The site_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_site = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.SiteExtension,
+            resource_id=site_id,
+            computed_resource_type=OT.SiteComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        return extended_site
+
+
         #Bogus functions for computed attributes
     def get_number_data_sets(self, observatory_id):
         return "0"
