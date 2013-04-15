@@ -1175,7 +1175,8 @@ class InstrumentAgent(ResourceAgent):
             for alert_def in aparam_alert_config:
                 alert_def = copy.deepcopy(alert_def)
                 try:
-                    if not alert_def['stream_name'] in self.aparam_streams.keys():
+                    stream_name = alert_def['stream_name']
+                    if not stream_name in self.aparam_streams.keys():
                         raise Exception()
                     cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
