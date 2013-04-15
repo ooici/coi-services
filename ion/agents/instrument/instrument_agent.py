@@ -13,7 +13,6 @@ __license__ = 'Apache 2.0'
 
 # Pyon imports
 from pyon.public import IonObject, log, RT, PRED, LCS, OT, CFG
-from pyon.ion.stream import StreamPublisher
 from pyon.agent.agent import ResourceAgent
 from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
@@ -35,12 +34,9 @@ from pyon.core.exception import ResourceError
 # Standard imports.
 import socket
 import json
-import base64
 import copy
-import uuid
 
 # Packages
-import numpy
 import gevent
 
 # ION imports.
@@ -51,21 +47,53 @@ from ion.agents.instrument.instrument_fsm import FSMCommandUnknownError
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
-from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
+from ion.agents.agent_stream_publisher import AgentStreamPublisher
 
 # Alarms.
 from ion.agents.alerts.alerts import *
 
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
-from interface.objects import StreamRoute, StreamAlertType
+from interface.objects import StreamAlertType
 from interface.objects import AgentCommand, StatusType, DeviceStatusType, AggregateStatusType
 
-class InstrumentAgentState():
-    UNINITIALIZED='xxx'
+class InstrumentAgentState(BaseEnum):
+    POWERED_DOWN = ResourceAgentState.POWERED_DOWN
+    UNINITIALIZED = ResourceAgentState.UNINITIALIZED
+    INACTIVE = ResourceAgentState.INACTIVE
+    IDLE = ResourceAgentState.IDLE
+    STOPPED = ResourceAgentState.STOPPED
+    COMMAND = ResourceAgentState.COMMAND
+    STREAMING = ResourceAgentState.STREAMING
+    TEST = ResourceAgentState.TEST
+    CALIBRATE = ResourceAgentState.CALIBRATE
+    BUSY = ResourceAgentState.BUSY
+    LOST_CONNECTION = ResourceAgentState.LOST_CONNECTION
+    ACTIVE_UNKNOWN = ResourceAgentState.ACTIVE_UNKNOWN
 
-class InstrumentAgentEvent():
-    pass
+class InstrumentAgentEvent(BaseEnum):
+    ENTER = ResourceAgentEvent.ENTER
+    EXIT = ResourceAgentEvent.EXIT
+    POWER_UP = ResourceAgentEvent.POWER_UP
+    POWER_DOWN = ResourceAgentEvent.POWER_DOWN
+    INITIALIZE = ResourceAgentEvent.INITIALIZE
+    GO_ACTIVE = ResourceAgentEvent.GO_ACTIVE
+    GO_INACTIVE = ResourceAgentEvent.GO_INACTIVE
+    RUN = ResourceAgentEvent.RUN
+    CLEAR = ResourceAgentEvent.CLEAR
+    PAUSE = ResourceAgentEvent.PAUSE
+    RESUME = ResourceAgentEvent.RESUME
+    GO_COMMAND = ResourceAgentEvent.GO_COMMAND
+    GO_DIRECT_ACCESS = ResourceAgentEvent.GO_DIRECT_ACCESS
+    GET_RESOURCE = ResourceAgentEvent.GET_RESOURCE
+    SET_RESOURCE = ResourceAgentEvent.SET_RESOURCE
+    EXECUTE_RESOURCE = ResourceAgentEvent.EXECUTE_RESOURCE
+    GET_RESOURCE_STATE = ResourceAgentEvent.GET_RESOURCE_STATE
+    GET_RESOURCE_CAPABILITIES = ResourceAgentEvent.GET_RESOURCE_CAPABILITIES
+    DONE = ResourceAgentEvent.DONE
+    PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
+    LOST_CONNECTION = ResourceAgentEvent.LOST_CONNECTION
+    AUTORECONNECT = ResourceAgentEvent.AUTORECONNECT
 
 class InstrumentAgentCapability(BaseEnum):
     INITIALIZE = ResourceAgentEvent.INITIALIZE
@@ -114,9 +142,6 @@ class InstrumentAgent(ResourceAgent):
         #This is the type of Resource managed by this agent
         self.resource_type = RT.InstrumentDevice
         
-        #This is the id of the resource managed by this agent
-        self.resource_id = None
-        
         # Driver configuration. Passed as part of the spawn configuration
         # or with an initialize command. Sets driver specific
         # context.
@@ -142,23 +167,6 @@ class InstrumentAgent(ResourceAgent):
         # The direct accerss server
         self._da_server = None
 
-        # Dictionary of data stream IDs for data publishing. Constructed
-        # by stream_config agent config member during process on_init.
-        self._data_streams = {}
-                
-        # Dictionary of stream definition objects.
-        self._stream_defs = {}
-        
-        # Data buffers for each stream.
-        self._stream_buffers = {}
-        
-        # Publisher timer greenlets for stream buffering.
-        self._stream_greenlets = {}
-        
-        # Dictionary of data stream publishers. Constructed by
-        # stream_config agent config member during process on_init.
-        self._data_publishers = {}
-
         # List of current alarm objects.
         self.aparam_alerts = []
 
@@ -177,11 +185,8 @@ class InstrumentAgent(ResourceAgent):
         # State when lost.
         self._state_when_lost = None
 
-        # Connection ID.
-        self._connection_ID = None
-        
-        # Connection index.
-        self._connection_index = None
+        # Agent stream publisher.
+        self._asp = None
 
         # Default initial state.
         self._initial_state = ResourceAgentState.UNINITIALIZED
@@ -198,6 +203,10 @@ class InstrumentAgent(ResourceAgent):
         # Set the test mode.
         self._test_mode = self.CFG.get('test_mode', False)        
 
+        # Set up streams.
+        self._asp = AgentStreamPublisher(self)        
+
+        # Superclass on_init attemtps state restore.
         super(InstrumentAgent, self).on_init()        
 
     def on_quit(self):
@@ -355,8 +364,6 @@ class InstrumentAgent(ResourceAgent):
 
         # Start the driver and switch to inactive.
         self._start_driver(self._dvr_config)
-        self._construct_data_publishers()        
-        self._start_publisher_greenlets()        
         
         return (ResourceAgentState.INACTIVE, None)
 
@@ -381,8 +388,7 @@ class InstrumentAgent(ResourceAgent):
         self._dvr_client.cmd_dvr('connect')
         
         # Reset the connection id and index.
-        self._connection_ID = uuid.uuid4()
-        self._connection_index = {key : 0 for key in self.aparam_streams.keys()}
+        self._asp.reset_connection()
 
         max_tries = kwargs.get('max_tries', 5)
         if not isinstance(max_tries, int) or max_tries < 1:
@@ -604,8 +610,7 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_client.cmd_dvr('connect')
 
             # Reset the connection id and index.
-            self._connection_ID = uuid.uuid4()
-            self._connection_index = {key : 0 for key in self.aparam_streams.keys()}
+            self._asp.reset_connection()
 
         except:
             return (None, None)
@@ -699,6 +704,9 @@ class InstrumentAgent(ResourceAgent):
     ##############################################################    
 
     def evt_recv(self, evt):
+        """
+        Route async event received from driver.
+        """
         log.info('Instrument agent %s got async driver event %s', self.id, evt)
         try:
             type = evt['type']
@@ -729,6 +737,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _async_driver_event_state_change(self, val, ts):
         """
+        Publish driver state change event.
         """
         try:
             log.info('Instrument agent %s driver state change: %s',
@@ -745,8 +754,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _async_driver_event_config_change(self, val, ts):
         """
+        Publsih resource config change event and update persisted info.
         """
-        # Publsih resource config change event.
         if self._enable_persistence:
             self._set_state('rparams', val)
         try:
@@ -763,8 +772,9 @@ class InstrumentAgent(ResourceAgent):
 
     def _async_driver_event_sample(self, val, ts):
         """
+        Publish sample on sample data streams.
         """
-        # Publish sample on sample data streams.
+
         """
         quality_flag : ok
         preferred_timestamp : driver_timestamp
@@ -788,25 +798,13 @@ class InstrumentAgent(ResourceAgent):
         # If the sample event is encoded, load it back to a dict.
         if isinstance(val, str):
             val = json.loads(val)
+
+        self._asp.on_sample(val)
+        self._process_alerts(val)
         
-        try:
-            stream_name = val['stream_name']
-            self._stream_buffers[stream_name].insert(0,val)
-
-        except KeyError:
-            log.error('Instrument agent %s received sample with bad stream name %s.',
-                      self._proc_name, stream_name)
-
-        else:
-            self._process_alerts(val)
-            state = self._fsm.get_current_state()
-            pubrate = self.aparam_pubrate.get(stream_name,0)
-
-            if state != ResourceAgentState.STREAMING or pubrate == 0:
-                self._publish_stream_buffer(stream_name)
-
     def _process_alerts(self, val):
         """
+        Test all alerts against a new sample value.
         """
         
         try:
@@ -843,25 +841,27 @@ class InstrumentAgent(ResourceAgent):
 
         for a in self.aparam_alerts:
             log.debug('_process_aggregate_alerts a: %s', a)
-            curr_state = a.get_status()
 
-            #get the current value for this aggregate status
-            current_agg_state = updated_status[ a._aggregate_type ]
-            if a._status:
-                # this alert is not 'tripped' so the status is OK
-                #check behavior here. if there are any unknowns then set to agg satus to unknown?
-                log.debug('_process_aggregate_alerts Clear')
-                if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
-                    updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
+            #if this alert contributes to the aggregate status
+            if a._aggregate_type:
+                #get the current value for this aggregate status
+                current_agg_state = updated_status[ a._aggregate_type ]
+                if a._status:
+                    # this alert is not 'tripped' so the status is OK
+                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                    current_agg_state = updated_status[ a._aggregate_type ]
+                    log.debug('_process_aggregate_alerts Clear')
+                    if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
+                        updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
 
-            else:
-                #the alert is active, either a warning or an alarm
-                if a._alert_type is StreamAlertType.ALARM:
-                    log.debug('_process_aggregate_alerts Critical')
-                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
-                elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
-                    log.debug('_process_aggregate_alerts Warn')
-                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
+                else:
+                    #the alert is active, either a warning or an alarm
+                    if a._alert_type is StreamAlertType.ALARM:
+                        log.debug('_process_aggregate_alerts Critical')
+                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
+                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
+                        log.debug('_process_aggregate_alerts Warn')
+                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
 
         #compare old state with new state and publish alerts for any agg status that has changed.
         for aggregate_type in AggregateStatusType._str_map.keys():
@@ -873,7 +873,9 @@ class InstrumentAgent(ResourceAgent):
         return
 
     def _publish_agg_status_event(self, status_type, new_status, old_status):
-        # Publish resource config change event.
+        """
+        Publish resource config change event.
+        """
         try:
             self._event_publisher.publish_event(
                 event_type='DeviceAggregateStatusEvent',
@@ -887,84 +889,10 @@ class InstrumentAgent(ResourceAgent):
                 self._proc_name, exc.message)
 
         return
-
-
-    def _publish_stream_buffer(self, stream_name):
-        """
-        """
-        
-        """
-        ['quality_flag', 'preferred_timestamp', 'port_timestamp', 'lon', 'raw', 'internal_timestamp', 'time', 'lat', 'driver_timestamp']
-        ['quality_flag', 'preferred_timestamp', 'temp', 'density', 'port_timestamp', 'lon', 'salinity', 'pressure', 'internal_timestamp', 'time', 'lat', 'driver_timestamp', 'conductivit
-        
-        {"driver_timestamp": 3564867147.743795, "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "raw",
-        "values": [{"binary": true, "value": "MzIuMzkxOSw5MS4wOTUxMiwgNzg0Ljg1MywgICA2LjE5OTQsIDE1MDUuMTc5LCAxOSBEZWMgMjAxMiwgMDA6NTI6Mjc=", "value_id": "raw"}]}', 'time': 1355878347.744123}
-        
-        {"driver_timestamp": 3564867147.743795, "pkt_format_id": "JSON_Data", "pkt_version": 1, "preferred_timestamp": "driver_timestamp", "quality_flag": "ok", "stream_name": "parsed",
-        "values": [{"value": 32.3919, "value_id": "temp"}, {"value": 91.09512, "value_id": "conductivity"}, {"value": 784.853, "value_id": "pressure"}]}', 'time': 1355878347.744127}
-        
-        {'quality_flag': [u'ok'], 'preferred_timestamp': [u'driver_timestamp'], 'port_timestamp': [None], 'lon': [None], 'raw': ['-4.9733,16.02390, 539.527,   34.2719, 1506.862, 19 Dec 2012, 01:03:07'],
-        'internal_timestamp': [None], 'time': [3564867788.0627117], 'lat': [None], 'driver_timestamp': [3564867788.0627117]}
-        
-        {'quality_flag': [u'ok'], 'preferred_timestamp': [u'driver_timestamp'], 'temp': [-4.9733], 'density': [None], 'port_timestamp': [None], 'lon': [None], 'salinity': [None], 'pressure': [539.527],
-        'internal_timestamp': [None], 'time': [3564867788.0627117], 'lat': [None], 'driver_timestamp': [3564867788.0627117], 'conductivity': [16.0239]}
-        """
-
-        try:
-            stream_def = self._stream_defs[stream_name]
-            rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-            publisher = self._data_publishers[stream_name]
-    
-            buf_len = len(self._stream_buffers[stream_name])
-            if buf_len == 0:
-                return
-            
-            vals = []
-            for x in range(buf_len):
-                vals.append(self._stream_buffers[stream_name].pop())
-    
-            data_arrays = {}
-            for x in rdt.fields:
-                data_arrays[x] = [None for y in range(buf_len)]
-
-            for i in range(buf_len):
-                tomato = vals[i]
-                for (tk, tv) in tomato.iteritems():
-                    if tk == 'values':
-                        for tval_dict in tv:
-                            tval_id = tval_dict['value_id']
-                            if tval_id in rdt:
-                                tval_val = tval_dict['value']
-                                if tval_dict.get('binary', None):
-                                    tval_val = base64.b64decode(tval_val)
-                                data_arrays[tval_id][i] = tval_val
-                                                               
-                    elif tk in rdt:
-                        data_arrays[tk][i] = tv
-                        if tk == 'driver_timestamp':
-                            data_arrays['time'][i] = tv    
-            
-            for (k,v) in data_arrays.iteritems():
-                rdt[k] = numpy.array(v)
-            
-            log.info('Outgoing granule: %s' % ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
-            g = rdt.to_granule(data_producer_id=self.resource_id)
-            g.connection_id = self._connection_ID.hex
-            g.connection_index = self._connection_index[stream_name]
-            self._connection_index[stream_name] += 1
-            
-            publisher.publish(g)
-            log.info('Instrument agent %s published data granule on stream %s.',
-                self._proc_name, stream_name)
-            log.info('Connection id: %s, connection index: %i.',
-                     self._connection_ID.hex, self._connection_index[stream_name]-1)
-            
-        except:
-            log.exception('Instrument agent %s could not publish data on stream %s.',
-                self._proc_name, stream_name)
                          
     def _async_driver_event_error(self, val, ts):
         """
+        Publish async driver error.
         """
         try:
             # Publish resource error event.
@@ -996,6 +924,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _async_driver_event_result(self, val, ts):
         """
+        Publish async driver result.
         """
         try:
             # Publsih async result event.
@@ -1016,6 +945,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _async_driver_event_direct_access(self, val, ts):
         """
+        Send async DA event.
         """
         try:
             evt = "Unknown"
@@ -1034,8 +964,8 @@ class InstrumentAgent(ResourceAgent):
 
     def _async_driver_event_agent_event(self, val, ts):
         """
+        Driver initiated agent FSM event.
         """
-        # File instrument agent FSM event (e.g. to switch agent state).
         try:
             self._fsm.on_event(val)
             
@@ -1049,6 +979,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _construct_fsm(self):
         """
+        Setup instrument agent FSM.
         """
         # Here we could define subsets of states and events to specialize fsm.
         
@@ -1162,15 +1093,6 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
 
     ##############################################################
-    # Common state enter, exit extenders.
-    ##############################################################    
-
-    def _on_state_enter(self, state):
-        """
-        """
-        pass
-
-    ##############################################################
     # Start and stop driver.
     ##############################################################    
 
@@ -1181,7 +1103,7 @@ class InstrumentAgent(ResourceAgent):
         @raises InstDriverError If the driver or client failed to start properly.
         """
 
-        self._dvr_proc = DriverProcess.get_process(dvr_config, True)
+        self._dvr_proc = DriverProcess.get_process(dvr_config, self._test_mode)
         self._dvr_proc.launch()
 
         # Verify the driver has started.
@@ -1209,7 +1131,6 @@ class InstrumentAgent(ResourceAgent):
         """
         Stop the driver process and driver client.
         """
-        self._stop_publisher_greenlets()
             
         if self._dvr_proc:
             self._dvr_proc.stop()
@@ -1234,118 +1155,29 @@ class InstrumentAgent(ResourceAgent):
             return False
         
         return True
-
-    ##############################################################
-    # Publishing helpers.
-    ##############################################################    
-
-    def _construct_data_publishers(self):
-        """
-        Construct the stream publishers from the stream_config agent
-        config variable.
-        @retval None
-        """
-        # The registrar to create publishers.
-        agent_info = self.CFG.get('agent', None)
-        if not agent_info:
-            log.warning('No agent config found in agent config -- publishers \
-                        not constructed.')
-        else:
-            self.resource_id = agent_info['resource_id']
-
-        stream_info = self.CFG.get('stream_config', None)
-        if not stream_info:
-            log.warning('No stream config found in agent config -- publishers \
-                        not constructed.')
-        
-        else:
-            log.info("stream_info = %s" % stream_info)
- 
-            for (stream_name, stream_config) in stream_info.iteritems():
-                
-                try:
-                    stream_def = stream_config['stream_definition_ref']
-                    self._stream_defs[stream_name] = stream_def                
-                    exchange_point = stream_config['exchange_point']
-                    routing_key = stream_config['routing_key']
-                    route = StreamRoute(exchange_point=exchange_point, routing_key=routing_key)
-                    stream_id = stream_config['stream_id']
-                    publisher = StreamPublisher(process=self, stream_id=stream_id, stream_route=route)
-                    self._data_publishers[stream_name] = publisher
-                    log.info("Instrument agent '%s' created publisher for stream_name "
-                         "%s" % (self._proc_name, stream_name))
-                    
-                    stream_def
-                    
-                except:
-                    log.error('Instrument agent %s failed to create publisher for stream %s.',
-                              self._proc_name, stream_name)
-                
-                else:
-                    self._stream_greenlets[stream_name] = None
-                    self._stream_buffers[stream_name] = []
-                                        
-    def _start_publisher_greenlets(self):
-        """
-        """
-        for stream in self._stream_greenlets.keys():
-            self._stream_greenlets[stream] = gevent.spawn(self._pub_loop, stream)
-            
-    def _stop_publisher_greenlets(self):
-        """
-        """
-        streams = self._stream_greenlets.keys()
-        greenlets = self._stream_greenlets.values()
-        gevent.killall(greenlets)
-        gevent.joinall(greenlets)
-        for stream in streams:
-            self._stream_greenlets[stream] = None
-            self._publish_stream_buffer(stream)
-            
-    def _pub_loop(self, stream):
-        """
-        """
-        while True:
-            pubrate = self.aparam_pubrate[stream]
-            if pubrate == 0:
-                gevent.sleep(1)
-            else:
-                gevent.sleep(pubrate)
-                self._publish_stream_buffer(stream)
     
     ##############################################################
     # Agent parameter functions.
     ##############################################################    
     
     def _configure_aparams(self, aparams=[]):
-
-        # Always build the stream from the driver config.        
-        stream_config = self.CFG.get('stream_config', None)
-        if stream_config:
-            for (stream_name, config) in stream_config.iteritems():
-                stream_def = config['stream_definition_ref']
-                rdt = RecordDictionaryTool(stream_definition_id=stream_def)
-                self.aparam_streams[stream_name] = rdt.fields
-                if 'pubrate' in aparams:
-                    self.aparam_pubrate[stream_name] = 0                
-
+        """
+        Configure aparams from agent config values.
+        """
         # If specified and configed, build the pubrate aparam.
         aparam_pubrate_config = self.CFG.get('aparam_pubrate_config', None)
         if aparam_pubrate_config and 'pubrate' in aparams:
-            for (stream_name, pubrate) in aparam_pubrate_config:
-                if self.aparam_pubrate.has_key(stream_name) and \
-                    isinstance(pubrate, (float, int)) and pubrate >= 0:
-                    self.aparam_pubrate[stream_name] = pubrate
-                else:
-                    log.error('Instrument agent %s could not configure stream %s, pubrate %s',
-                              self._proc_name, str(stream_name), str(pubrate))
+            self.aparam_set_pubrate(aparam_pubrate_config)
+
         # If specified and configed, build the alerts aparam.                
         aparam_alert_config = self.CFG.get('aparam_alert_config', None)
         if aparam_alert_config and 'alerts' in aparams:
             for alert_def in aparam_alert_config:
+                log.info('Configuring alert: %s', str(alert_def))
                 alert_def = copy.deepcopy(alert_def)
                 try:
-                    if not alert_def['stream_name'] in self.aparam_streams.keys():
+                    stream_name = alert_def.get('stream_name', 'undefined')
+                    if not stream_name in self.aparam_streams.keys():
                         raise Exception()
                     cls = alert_def.pop('alert_class')
                     alert_def['resource_id'] = self.resource_id
@@ -1364,6 +1196,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _restore_resource(self):
         """
+        Restore agent/resource configuration and state.
         """
         if not self._dvr_config:
             log.error('Instrument agent %s error no driver config on launch, cannot restore state.',
@@ -1500,26 +1333,15 @@ class InstrumentAgent(ResourceAgent):
         
     def aparam_set_streams(self, params):
         """
+        Streams aparam is read only.
         """
         return -1
     
-    def aparam_set_pubrate(self, params):
-        """
-        """
-        if not isinstance(params, dict):
-            return -1
-        
-        retval = 0
-        for (k,v) in params.iteritems():
-            if isinstance(k, str) and isinstance(v, int) and v >= 0:
-                self.aparam_pubrate[k] = v
-            else:
-                retval = -1
-                
-        return retval
-
+    # Note aparam_set_pubrate is set by the stream publisher.
+    
     def aparam_set_alerts(self, params):
         """
+        Construct alert objects from kwarg dicts.
         """
         
         if not isinstance(params, (list,tuple)) or len(params)==0:
@@ -1564,6 +1386,7 @@ class InstrumentAgent(ResourceAgent):
                        
     def aparam_get_alerts(self):
         """
+        Return kwarg representationn of all alerts.
         """
         result = [x.get_status() for x in self.aparam_alerts]
         return result
@@ -1573,7 +1396,9 @@ class InstrumentAgent(ResourceAgent):
     ###############################################################################
     
     def _da_server_input_processor(self, data):
-        # callback passed to DA Server for receiving input from server       
+        """
+        Callback passed to DA Server for receiving input from server.
+        """
         if isinstance(data, int):
             # not character data, so check for lost connection
             if data == SessionCloseReasons.client_closed:

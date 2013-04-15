@@ -19,8 +19,6 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 
-from pyon.event.event import EventSubscriber
-
 from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
@@ -51,9 +49,7 @@ from ion.agents.platform.platform_resource_monitor import PlatformResourceMonito
 from coverage_model.parameter import ParameterDictionary
 from interface.objects import StreamRoute
 
-from ion.agents.platform.status_util import StatusUtil
-from interface.objects import AggregateStatusType
-from interface.objects import DeviceStatusType
+from ion.agents.platform.status_manager import StatusManager
 
 import logging
 import time
@@ -200,6 +196,8 @@ class PlatformAgent(ResourceAgent):
         self._network_definition = None  # NetworkDefinition object
         self._pnode = None  # PlatformNode object corresponding to this platform
 
+        self._children_resource_ids = None
+
         # </platform configuration>
         #########################################
 
@@ -251,11 +249,10 @@ class PlatformAgent(ResourceAgent):
         # Dict with consolidation of both aggregate statuses above
         self.aparam_rollup_status = {}
 
-        # All EventSubscribers created: {origin: EventSubscriber, ...}
-        self._event_subscribers = {}
-
-        # StatusUtil created in _children_launch
-        self._status_util = None
+        # StatusManager created on_start after the configuration has been
+        # verified. This object does all main status management including
+        # event subscribers, and helps with related publications.
+        self._status_manager = None
 
         log.info("PlatformAgent constructor complete.")
 
@@ -294,7 +291,8 @@ class PlatformAgent(ResourceAgent):
 
         self._validate_configuration()
 
-        self._start_event_subscribers()
+        # create StatusManager now that we have all needed elements:
+        self._status_manager = StatusManager(self)
 
         self._async_children_launched = AsyncResult()
 
@@ -358,6 +356,8 @@ class PlatformAgent(ResourceAgent):
         self._pnode = self._network_definition.pnodes[self._platform_id]
         assert self._pnode.platform_id == self._platform_id
 
+        self._children_resource_ids = self._get_children_resource_ids()
+
         #
         # set platform attributes:
         #
@@ -416,72 +416,32 @@ class PlatformAgent(ResourceAgent):
         self._async_children_launched.set()
         log.debug("%r: _children_launch completed", self._platform_id)
 
-    def _start_event_subscribers(self):
+    def _get_children_resource_ids(self):
         """
-        Initializes all status parameters and starts all related
-        subscribers for this agent.
-        """
+        Gets the resource IDs of the immediate children (platforms and
+        instruments) of this agent.
 
-        all_children = self._get_descendent_resource_ids()
-
-        # initialize aparam_child_agg_status for each child:
-        for origin in all_children:
-            self.aparam_child_agg_status[origin] = dct = {}
-            for aggregate_type in AggregateStatusType._str_map.keys():
-                dct[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
-
-        # initialize my own statuses: Note that these must be consistent with
-        # the initial values for the children above, which is the case: all
-        # UNKNOWN consolidates to UNKNOWN:
-        for aggregate_type in AggregateStatusType._str_map.keys():
-            self.aparam_aggstatus[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
-            self.aparam_rollup_status[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
-
-        # start event subscribers for each child:
-        for origin in all_children:
-            self._status_util = StatusUtil(self)
-            self._start_subscriber_device_status_event(origin)
-            self._start_subscriber_device_aggregate_status_event(origin)
-
-    def _get_descendent_resource_ids(self, immediate_children=False):
-        """
-        Gathers the resource IDs of descendents (platforms and instruments)
-        of this agent.
-
-        @param immediate_children  True to only consider immediate children.
-                                   False to include all descendants.
         @return list of resouce_ids
         """
         resource_ids = []
+        pnode = self._pnode
 
-        def gather(pnode):
-            """
-            helper routine to gather the descendant resource ids.
-            """
+        # get resource_ids of immediate sub-platforms:
+        for subplatform_id in pnode.subplatforms:
+            sub_pnode = pnode.subplatforms[subplatform_id]
+            sub_agent_config = sub_pnode.CFG
+            sub_resource_id = sub_agent_config.get("agent", {}).get("resource_id", None)
+            assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
+            resource_ids.append(sub_resource_id)
 
-            # gather resource_ids of immediate sub-platforms:
-            for subplatform_id in pnode.subplatforms:
-                sub_pnode = pnode.subplatforms[subplatform_id]
-                sub_agent_config = sub_pnode.CFG
-                sub_resource_id = sub_agent_config.get("agent", {}).get("resource_id", None)
-                assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
-                resource_ids.append(sub_resource_id)
+        # get resource_ids of instruments:
+        for instrument_id in pnode.instruments:
+            inode = pnode.instruments[instrument_id]
+            agent_config = inode.CFG
+            resource_id = agent_config.get("agent", {}).get("resource_id", None)
+            assert resource_id, "agent.resource_id must be present for child %r" % instrument_id
+            resource_ids.append(resource_id)
 
-            # gather resource_ids of instruments:
-            for instrument_id in pnode.instruments:
-                inode = pnode.instruments[instrument_id]
-                agent_config = inode.CFG
-                resource_id = agent_config.get("agent", {}).get("resource_id", None)
-                assert resource_id, "agent.resource_id must be present for child %r" % instrument_id
-                resource_ids.append(resource_id)
-
-            if not immediate_children:
-                # call recursively on sub-platforms:
-                for subplatform_id in pnode.subplatforms:
-                    sub_pnode = pnode.subplatforms[subplatform_id]
-                    gather(sub_pnode)
-
-        gather(self._pnode)
         return resource_ids
 
     def on_quit(self):
@@ -496,14 +456,14 @@ class PlatformAgent(ResourceAgent):
 
     def _do_quit(self):
         """
-        - terminates all event subscribers
+        - terminates status handling
         - brings this agent to the UNINITIALIZED state
         - terminates sub-platforms and instrument processes if they were
           launched on_start.
         """
         log.info("%r: PlatformAgent: executing quit secuence", self._platform_id)
 
-        self._terminate_event_subscribers()
+        self._status_manager.destroy()
 
         self._bring_to_uninitialized_state()
 
@@ -553,34 +513,15 @@ class PlatformAgent(ResourceAgent):
                   "attempts=%d;  final state=%s",
                   self._platform_id, attempts, curr_state)
 
-    def _terminate_event_subscribers(self):
-        """
-        Terminates event subscribers and clears self._event_subscribers,
-        self.aparam_rollup_status, self.aparam_child_agg_status.
-        """
-        for origin, es in self._event_subscribers.iteritems():
-            try:
-                es.stop()
-
-            except Exception as ex:
-                log.warn("%r: error stopping event subscriber: origin=%r: %s",
-                         self._platform_id, origin, ex)
-
-        self._event_subscribers.clear()
-        self.aparam_child_agg_status.clear()
-        self.aparam_rollup_status.clear()
-        self.aparam_aggstatus.clear()
-
     def _terminate_subplatform_agent_processes(self):
         """
         Terminates sub-platforms processes and clears self._pa_clients.
         """
 
         def terminate_process(subplatform_id):
-            pid = self._pa_clients[subplatform_id].pid
-
-            sub_pnode = self._pnode.subplatforms[subplatform_id]
-            sub_resource_id = sub_pnode.CFG['agent']['resource_id']
+            dd = self._pa_clients[subplatform_id]
+            pid = dd.pid
+            sub_resource_id = dd.resource_id
 
             log.debug(
                 "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
@@ -593,9 +534,6 @@ class PlatformAgent(ResourceAgent):
                     "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
                     self._platform_id, subplatform_id, pid)
 
-                self._publish_subplatform_event(subplatform_id, sub_resource_id,
-                                                "device_removed")
-
             except:
                 if log.isEnabledFor(logging.TRACE):
                     log.exception(
@@ -606,6 +544,8 @@ class PlatformAgent(ResourceAgent):
                         "%r: Exception in cancel_process for subplatform_id=%r, pid=%r"
                         ". Perhaps already dead.",
                         self._platform_id, subplatform_id, pid)  # , exc_Info=True)
+
+            self._status_manager.publish_device_removed_event(sub_resource_id)
 
         if len(self._pa_clients):
             subplatform_ids = self._pa_clients.keys()
@@ -624,12 +564,18 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: terminating instrument agent processes (%d): %s",
                       self._platform_id, len(self._ia_clients), self._ia_clients.keys())
             for instrument_id in self._ia_clients:
-                pid = self._ia_clients[instrument_id].pid
+                dd = self._ia_clients[instrument_id]
+                pid = dd.pid
+                i_resource_id = dd.resource_id
+
                 try:
                     self._launcher.cancel_process(pid)
+
                 except:
                     log.exception("%r: exception in cancel_process for instrument_id=%r, pid=%r",
                                   self._platform_id, instrument_id, pid)  # , exc_Info=True)
+
+                self._status_manager.publish_device_removed_event(i_resource_id)
 
             self._ia_clients.clear()
 
@@ -1096,80 +1042,6 @@ class PlatformAgent(ResourceAgent):
             log.exception("Error while publishing platform event")
 
     ##############################################################
-    # coordination with children agents: subscribers and event dispatch
-    ##############################################################
-
-    #----------------------------------
-    # DeviceStatusEvent
-    #----------------------------------
-
-    def _start_subscriber_device_status_event(self, origin):
-        """
-        @param origin    the resource_id associated with child
-        """
-        event_type = "DeviceStatusEvent"
-        sub = EventSubscriber(event_type=event_type,
-                              origin=origin,
-                              callback=self._status_util.got_device_status_event)
-
-        self._event_subscribers[origin] = sub
-        sub.start()
-
-        log.debug("%r: registered event subscriber for event_type=%r"
-                  "coming from origin=%r",
-                  self._platform_id, event_type, origin)
-
-    def _publish_subplatform_event(self, subplatform_id, sub_resource_id, sub_type):
-        """
-        Publishes a DeviceStatusEvent indicating that the given sub-platform
-        has been launched ("device_added") or stopped ("device_removed").
-
-        @param subplatform_id
-        @param sub_type    "device_added" or "device_removed"
-        """
-
-        assert sub_type in ("device_added", "device_removed")
-
-        description = "subplatform_id=%r" % subplatform_id
-        values = [sub_resource_id]
-        evt = dict(event_type='DeviceStatusEvent',
-                   sub_type=sub_type,
-                   origin_type=self.ORIGIN_TYPE,
-                   origin=self.resource_id,
-                   description=description,
-                   values=values)
-        try:
-            log.debug('%r: _publish_subplatform_event for %r: %s',
-                      self._platform_id, subplatform_id, evt)
-
-            self._event_publisher.publish_event(**evt)
-
-        except:
-            log.exception('%r: platform agent could not publish event: %s',
-                          self._platform_id, evt)
-
-    #----------------------------------
-    # DeviceAggregateStatusEvent
-    #----------------------------------
-
-    def _start_subscriber_device_aggregate_status_event(self, origin):
-        """
-        Starts an event subscriber for aggregate status events from the given
-        child (origin).
-
-        @param origin    the resource_id associated with child
-        """
-        event_type = "DeviceAggregateStatusEvent"
-        sub = EventSubscriber(event_type=event_type,
-                              origin=origin,
-                              callback=self._status_util.got_device_aggregate_status_event)
-
-        self._event_subscribers[origin] = sub
-        sub.start()
-        log.debug("%r: registered event subscriber for event_type=%r",
-                  self._platform_id, event_type)
-
-    ##############################################################
     # misc supporting routines
     ##############################################################
 
@@ -1220,7 +1092,8 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_platform_agent(self, subplatform_id):
         """
-        Launches a sub-platform agent, creates ResourceAgentClient.
+        Launches a sub-platform agent, creates ResourceAgentClient,
+        and publishes device_added event.
 
         @param subplatform_id Platform ID
         """
@@ -1244,14 +1117,13 @@ class PlatformAgent(ResourceAgent):
         pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
 
         state = pa_client.get_agent_state()
-        # TODO: handle properly in case not UNINITIALIZED
         assert PlatformAgentState.UNINITIALIZED == state
 
         self._pa_clients[subplatform_id] = DotDict(pa_client=pa_client,
-                                                   pid=pid)
+                                                   pid=pid,
+                                                   resource_id=sub_resource_id)
 
-        self._publish_subplatform_event(subplatform_id, sub_resource_id,
-                                        "device_added")
+        self._status_manager.publish_device_added_event(sub_resource_id)
 
     def _execute_platform_agent(self, a_client, cmd, sub_id):
         return self._execute_agent("platform", a_client, cmd, sub_id)
@@ -1462,7 +1334,8 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_instrument_agent(self, instrument_id):
         """
-        Launches an instrument agent, and creates ResourceAgentClient.
+        Launches an instrument agent, creates ResourceAgentClient,
+        and publishes a device_added event.
 
         @param instrument_id
         """
@@ -1485,11 +1358,13 @@ class PlatformAgent(ResourceAgent):
         ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
 
         state = ia_client.get_agent_state()
-        # TODO: handle properly in case not UNINITIALIZED
         assert ResourceAgentState.UNINITIALIZED == state
 
         self._ia_clients[instrument_id] = DotDict(ia_client=ia_client,
-                                                  pid=pid)
+                                                  pid=pid,
+                                                  resource_id=i_resource_id)
+
+        self._status_manager.publish_device_added_event(i_resource_id)
 
     def _instruments_launch(self):
         """
@@ -2145,6 +2020,34 @@ class PlatformAgent(ResourceAgent):
         result = self._check_sync()
 
         return next_state, result
+
+    ##############################################################
+    # Agent parameter functions.
+    ##############################################################
+
+    def aparam_set_aggstatus(self, params):
+        """
+        Sets the "aggstatus" for a particular status name.
+
+        @params a dict indicating the status value for each desired status type
+        """
+
+        # TODO align the return codes with the expected API for
+        # aparam_set_xxx  (which is not very clear from looking at
+        # InstrumentAgent or ResourceAgent at this moment).
+
+        if not isinstance(params, dict):
+            return -1
+
+        log.debug("%r: aparam_set_aggstatus: params=%s",
+                  self._platform_id, params)
+
+        for status_name, status in params.iteritems():
+            retval = self._status_manager.set_aggstatus(status_name, status)
+            if retval != 0:
+                return retval
+
+        return 0
 
     ##############################################################
     # FSM setup.

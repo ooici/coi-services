@@ -521,7 +521,7 @@ class VisualizationService(BaseVisualizationService):
             if 'stride_time' in visualization_parameters:
                 query['stride_time'] = int(visualization_parameters['stride_time'])
             else:
-                query['stride_time'] == 1
+                query['stride_time'] = 1
 
             # direct access parameter
             if 'use_direct_access' in visualization_parameters:
