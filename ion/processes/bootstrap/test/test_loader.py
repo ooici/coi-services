@@ -207,9 +207,9 @@ class TestLoader(IonIntegrationTestCase):
         parsed = agent.stream_configurations[1]
 #        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
         self.assertEquals('ctd_parsed_param_dict', parsed.parameter_dictionary_name)
-        # check that alarm was added to StreamConfig
-        self.assertEquals(1, len(parsed.alarms), msg='alarms: %r'%parsed.alarms)
-        self.assertEquals('temp', parsed.alarms[0]['kwargs']['value_id'])
+        # OBSOLETE: check that alarm was added to StreamConfig
+#        self.assertEquals(1, len(parsed.alarms), msg='alarms: %r'%parsed.alarms)
+#        self.assertEquals('temp', parsed.alarms[0]['kwargs']['value_id'])
 
         # check for platform agents
         self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
@@ -226,7 +226,8 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEqual({'SCHEDULER': {'VERSION': {'number': 3.0}, 'CLOCK_SYNC': 48.2, 'ACQUIRE_STATUS': {}},
                           'PARAMETERS': {"TXWAVESTATS": False, 'TXWAVEBURST': 'false', 'TXREALTIME': True}},
                         iai.startup_config)
-        self.assertEqual({'entry': 'foo'}, iai.alerts['complex'])
+        self.assertEqual(2, len(iai.alerts))
+#        self.assertEqual({'entry': 'foo'}, iai.alerts['complex'])
 
         pai = self.find_object_by_name("Unit Test Platform Agent Instance", RT.PlatformAgentInstance)
         self.assertEqual({'entry': 'foo'}, pai.alerts['complex'])
