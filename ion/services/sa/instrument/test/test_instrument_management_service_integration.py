@@ -26,10 +26,10 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType, StreamConfiguration
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 
-from pyon.public import RT, PRED, CFG
+from pyon.public import RT, PRED, CFG, OT
 from nose.plugins.attrib import attr
 from ooi.logging import log
-import unittest
+import unittest, simplejson
 
 
 from ion.services.sa.test.helpers import any_old
@@ -690,3 +690,158 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #self.fail(parent_config)
         #plauncher.prepare(will_launch=False)
+
+
+    @attr('PREP')
+    def test_prepare_update_resources(self):
+        """
+        create one of each resource and association used by IMS
+        to guard against problems in ion-definitions
+        """
+
+        #stuff we control
+        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
+        instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
+        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
+        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
+        platform_agent_instance_id, _ =    self.RR.create(any_old(RT.PlatformAgentInstance))
+        platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
+        platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
+        platform_model_id, _ =             self.RR.create(any_old(RT.PlatformModel))
+        sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
+        sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
+
+        #stuff we associate to
+        data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
+        org_id, _ =                self.RR.create(any_old(RT.Org))
+
+        #instrument_agent_instance_id #is only a target
+
+        #instrument_agent
+        self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
+
+        #instrument_device
+        self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
+        self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
+        self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
+        self.RR.create_association(org_id, PRED.hasResource, instrument_device_id)
+
+
+        instrument_model_id #is only a target
+
+        platform_agent_instance_id #is only a target
+
+        #platform_agent
+        self.RR.create_association(platform_agent_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_agent_instance_id, PRED.hasAgentDefinition, platform_agent_id)
+
+        #platform_device
+        self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
+        self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
+
+        platform_model_id #is only a target
+
+        #sensor_device
+        self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
+        self.RR.create_association(sensor_device_id, PRED.hasDevice, instrument_device_id)
+
+        sensor_model_id #is only a target
+
+        #create a parsed product for this instrument output
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = IonObject(RT.DataProduct,
+            name='the parsed data',
+            description='ctd stream test',
+            processing_level_code='Parsed_Canonical',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+        pdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
+        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
+        log.debug( 'new dp_id = %s', data_product_id1)
+
+        self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=data_product_id1)
+
+
+        def addInstOwner(inst_id, subject):
+
+            actor_identity_obj = any_old(RT.ActorIdentity, {"name": subject})
+            user_id = self.IDS.create_actor_identity(actor_identity_obj)
+            user_info_obj = any_old(RT.UserInfo)
+            user_info_id = self.IDS.create_user_info(user_id, user_info_obj)
+
+            self.RR.create_association(inst_id, PRED.hasOwner, user_id)
+
+
+        #Testing multiple instrument owners
+        addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254")
+        addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256")
+
+        def ion_object_encoder(obj):
+            return obj.__dict__
+
+        instrument_data = self.IMS.prepare_update_instrument_device(instrument_device_id)
+
+        self.assertEqual(instrument_data._id, instrument_device_id)
+        self.assertEqual(instrument_data.type_, OT.InstrumentDevicePrepareUpdate)
+        self.assertEqual(len(instrument_data.instrument_models), 1)
+        self.assertEqual(instrument_data.instrument_models[0]._id, instrument_model_id)
+        self.assertEqual(len(instrument_data.instrument_agents), 1)
+        self.assertEqual(instrument_data.instrument_agents[0]._id, instrument_agent_id)
+        self.assertEqual(len(instrument_data.instrument_device_model), 1)
+        self.assertEqual(instrument_data.instrument_device_model[0].s, instrument_device_id)
+        self.assertEqual(instrument_data.instrument_device_model[0].o, instrument_model_id)
+        self.assertEqual(len(instrument_data.instrument_agent_models), 1)
+        self.assertEqual(instrument_data.instrument_agent_models[0].o, instrument_model_id)
+        self.assertEqual(instrument_data.instrument_agent_models[0].s, instrument_agent_id)
+        self.assertEqual(len(instrument_data.sensor_devices), 1)
+        self.assertEqual(instrument_data.sensor_devices[0]._id, sensor_device_id)
+        self.assertEqual(instrument_data.assign_instrument_model_request.request_parameters['instrument_device_id'], instrument_device_id)
+
+        platform_data = self.IMS.prepare_update_platform_device(platform_device_id)
+
+        #print simplejson.dumps(platform_data, default=ion_object_encoder, indent= 2)
+
+
+        self.assertEqual(platform_data._id, platform_device_id)
+        self.assertEqual(platform_data.type_, OT.PlatformDevicePrepareUpdate)
+        self.assertEqual(len(platform_data.platform_models), 1)
+        self.assertEqual(platform_data.platform_models[0]._id, platform_model_id)
+        self.assertEqual(len(platform_data.platform_agents), 1)
+        self.assertEqual(platform_data.platform_agents[0]._id, platform_agent_id)
+        self.assertEqual(len(platform_data.platform_device_model), 1)
+        self.assertEqual(platform_data.platform_device_model[0].s, platform_device_id)
+        self.assertEqual(platform_data.platform_device_model[0].o, platform_model_id)
+        self.assertEqual(len(platform_data.platform_agent_models), 1)
+        self.assertEqual(platform_data.platform_agent_models[0].o, platform_model_id)
+        self.assertEqual(platform_data.platform_agent_models[0].s, platform_agent_id)
+        self.assertEqual(len(platform_data.instrument_devices), 1)
+        self.assertEqual(platform_data.instrument_devices[0]._id, instrument_device_id)
+        self.assertEqual(platform_data.assign_platform_model_request.request_parameters['platform_device_id'], platform_device_id)
+
+        # cleanup
+        c = DotDict()
+        c.resource_registry = self.RR
+        self.RR2.pluck(instrument_agent_id)
+        self.RR2.pluck(instrument_model_id)
+        self.RR2.pluck(instrument_device_id)
+        self.RR2.pluck(platform_agent_id)
+        self.RR2.pluck(sensor_device_id)
+        self.IMS.force_delete_instrument_agent(instrument_agent_id)
+        self.IMS.force_delete_instrument_model(instrument_model_id)
+        self.IMS.force_delete_instrument_device(instrument_device_id)
+        self.IMS.force_delete_platform_agent_instance(platform_agent_instance_id)
+        self.IMS.force_delete_platform_agent(platform_agent_id)
+        self.IMS.force_delete_platform_device(platform_device_id)
+        self.IMS.force_delete_platform_model(platform_model_id)
+        self.IMS.force_delete_sensor_device(sensor_device_id)
+        self.IMS.force_delete_sensor_model(sensor_model_id)
+
+        #stuff we associate to
+        self.RR.delete(data_producer_id)
+        self.RR.delete(org_id)
