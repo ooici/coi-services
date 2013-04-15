@@ -590,7 +590,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             for producer_id, dataprodlist in value['inputs'].iteritems():
                 for dataprod in dataprodlist:
                     dp_list.append( self.clients.resource_registry.read(dataprod) )
-        extended_product.provenance_product_list = set(dp_list)  #remove dups in list
+        extended_product.provenance_product_list = list ( set(dp_list) ) #remove dups in list
 
         #set the data_ingestion_datetime from get_data_datetime
         if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
