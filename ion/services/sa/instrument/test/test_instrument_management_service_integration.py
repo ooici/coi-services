@@ -449,6 +449,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DP.delete_data_product(data_product_id2)
 
 
+    def test_data_producer(self):
+        idevice_id = self.IMS.create_instrument_device(any_old(RT.InstrumentDevice))
+        self.assertEqual(1, len(self.RR2.find_data_producer_ids_of_instrument_device_using_has_data_producer(idevice_id)))
+
+        pdevice_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
+        self.assertEqual(1, len(self.RR2.find_data_producer_ids_of_platform_device_using_has_data_producer(pdevice_id)))
+
 
     def test_agent_instance_config(self):
         """
