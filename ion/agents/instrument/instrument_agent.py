@@ -176,9 +176,8 @@ class InstrumentAgent(ResourceAgent):
         #list of the aggreate status states for this device
         self.aparam_aggstatus = {}
         
-        # The get/set helpers are set by the manager class.
-        # Set is read only.
-        self.aparam_get_aggstatus = None
+        # The set helpers are set by the manager class.
+        # Set is read only. Use base class get function.
         self.aparam_set_aggstatus = None
 
         # Dictionary of stream fields.
@@ -1083,7 +1082,6 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_client = None
             log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
-            
     def _validate_driver_config(self):
         """
         Test the driver config for validity.

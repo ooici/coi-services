@@ -33,7 +33,7 @@ class AgentAlertManager(object):
         # Always default the aggstatus to unknown.
         for aggregate_type in AggregateStatusType._str_map.keys():
             agent.aparam_aggstatus[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
-    
+        agent.aparam_set_aggstatus = self.aparam_set_aggstatus
     
     def process_alerts(self, **kwargs):
         
@@ -155,4 +155,7 @@ class AgentAlertManager(object):
         """
         """
         [a.stop for a in self._agent.aparam_alerts]
+        
+    def aparam_set_aggstatus(self, params):
+        return -1
         
