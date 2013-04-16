@@ -1,44 +1,42 @@
 #!/usr/bin/env python
 
 """Process that loads ION resources via service calls based on definitions in spreadsheets using loader functions.
-
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=R2_DEMO
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc/R2PreloadedResources.xlsx scenario=R2_DEMO
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls" scenario=R2_DEMO
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
+    Examples:
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=R2_DEMO
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc/R2PreloadedResources.xlsx scenario=R2_DEMO
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls" scenario=R2_DEMO
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=res/preload/r2_ioc
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui path=https://userexperience.oceanobservatories.org/database-exports/
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master assets=res/preload/r2_ioc/ooi_assets scenario=R2_DEMO loadooi=True
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True assets=res/preload/r2_ioc/ooi_assets
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master assets=res/preload/r2_ioc/ooi_assets scenario=R2_DEMO loadooi=True
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadooi=True assets=res/preload/r2_ioc/ooi_assets
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc scenario=R2_DEMO loadui=True
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=parseooi assets=res/preload/r2_ioc/ooi_assets
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
 
-    bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=parseooi assets=res/preload/r2_ioc/ooi_assets
+      bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
 
-    ui_path= override location to get UI preload files (default is path + '/ui_assets')
-    assets= override location to get OOI asset file (default is path + '/ooi_assets')
-    attachments= override location to get file attachments (default is path)
-    ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
-    ooiexclude= one or more categories to NOT import in the OOI import
-    ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
-    bulk= if True, uses RR bulk insert operations to load, not service calls
-    debug= if True, allows a few shortcuts to perform faster loads
-    exportui= if True, writes interface/ui_specs.json with UI object
+    Options:
+      ui_path= override location to get UI preload files (default is path + '/ui_assets')
+      assets= override location to get OOI asset file (default is path + '/ooi_assets')
+      attachments= override location to get file attachments (default is path)
+      ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
+      ooiexclude= one or more categories to NOT import in the OOI import
+      ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
+      bulk= if True, uses RR bulk insert operations to load, not service calls
+      debug= if True, allows a few shortcuts to perform faster loads
+      exportui= if True, writes interface/ui_specs.json with UI object
+      cfg= Path to a preload config file that allows scripted preload runs with defined params
 
-    TODO: constraints defined in multiple tables as list of IDs, but not used
-    TODO: support attachments using HTTP URL
-    TODO: Owner, Events with bulk
-
-    Note: For quick debugging without restarting the services container:
-    - Once after starting r2deploy:
-    bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=dump path=res/preload/local/my_dump
-    - Before each test of the ion_loader:
-    bin/pycc -fc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=load path=res/preload/local/my_dump
+    TODO:
+      support attachments using HTTP URL
+      Owner, Events with bulk
+      Set lifecycle state through appropriate service operations
 """
 
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
@@ -49,6 +47,7 @@ import simplejson as json
 import datetime
 import ast
 import calendar
+import copy
 import csv
 import re
 import requests
@@ -61,7 +60,8 @@ from pyon.datastore.datastore import DatastoreManager, DataStore
 from pyon.ion.identifier import create_unique_resource_id, create_unique_association_id
 from pyon.ion.resource import get_restype_lcsm
 from pyon.public import log, ImmediateProcess, iex, IonObject, RT, PRED, OT, LCS, AS
-from pyon.util.containers import get_ion_ts, named_any
+from pyon.util.containers import get_ion_ts, named_any, dict_merge
+from pyon.util.config import Config
 
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.core.ooiref import OOIReferenceDesignator
@@ -106,7 +106,7 @@ DEFAULT_CATEGORIES = [
     'Contact',                          # in memory only - all scenarios loaded
     'User',
     'Org',
-    'UserRole',                         # association only
+    'UserRole',                         # no resource - association only
     'CoordinateSystem',                 # in memory only - all scenarios loaded
     'ParameterFunctions',
     'ParameterDefs',
@@ -137,7 +137,7 @@ DEFAULT_CATEGORIES = [
     'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
-    'DataProductLink',                  # association only
+    'DataProductLink',                  # no resource but complex service call
     'Attachment',
     'WorkflowDefinition',
     'Workflow',
@@ -193,38 +193,59 @@ class IONLoader(ImmediateProcess):
         self.rpc_sender = self
 
     def on_start(self):
+        cfg = self.CFG.get("cfg", None)
+        if cfg:
+            log.warn("ION loader scripted mode using config file: %s", cfg)
+            self.preload_cfg = Config([cfg]).data
+            load_sequence = self.preload_cfg["load_sequence"]
+            for num, step_cfg in enumerate(load_sequence):
+                log.info("Executing preload step %s '%s'", num, step_cfg['name'])
+                docstr = step_cfg.get("docstring", None)
+                if docstr:
+                    log.debug("Explanation: "+ docstr)
+                step_config_override = step_cfg.get("config", {})
+                log.debug("Step config override: %s", step_config_override)
+                step_config = copy.deepcopy(self.CFG)
+                dict_merge(step_config, step_config_override, inplace=True)
+                self._do_preload(step_config)
+                log.info("-------------------------- Completed step '%s' --------------------------", step_cfg['name'])
+        else:
+            self.preload_cfg = None
+            self._do_preload(self.CFG)
+
+    def _do_preload(self, config):
         # Main operation to perform
-        op = self.CFG.get("op", None)
+        op = config.get("op", None)
 
         # Additional parameters
-        self.path = self.CFG.get("path", TESTED_DOC)
+        self.path = config.get("path", TESTED_DOC)
         if self.path=='master':
             self.path = MASTER_DOC
-        self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
-        self.asset_path = self.CFG.get("assets", self.path + "/ooi_assets")
+        self.attachment_path = config.get("attachments", self.path + '/attachments')
+        self.asset_path = config.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
 
-        self.ui_path = self.CFG.get("ui_path", default_ui_path)
+        self.ui_path = config.get("ui_path", default_ui_path)
         if self.ui_path=='default':
             self.ui_path = TESTED_UI_ASSETS
         elif self.ui_path=='candidate':
             self.ui_path = CANDIDATE_UI_ASSETS
 
-        scenarios = self.CFG.get("scenario", None)
-        category_csv = self.CFG.get("categories", None)
+        scenarios = config.get("scenario", None)
+        category_csv = config.get("categories", None)
         self.categories = category_csv.split(",") if category_csv else DEFAULT_CATEGORIES
 
-        self.debug = self.CFG.get("debug", False)        # Debug mode with certain shorthands
-        self.loadooi = self.CFG.get("loadooi", False)    # Import OOI asset data
-        self.loadui = self.CFG.get("loadui", False)      # Import UI asset data
-        self.exportui = self.CFG.get("exportui", False)  # Save UI JSON file
-        self.update = self.CFG.get("update", False)      # Support update to existing resources
-        self.bulk = self.CFG.get("bulk", False)          # Use bulk insert where available
-        self.ooifilter = self.CFG.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
-        self.ooiexclude = self.CFG.get("ooiexclude", '') # Don't import the listed categories
+        self.debug = config.get("debug", False)        # Debug mode with certain shorthands
+        self.loadooi = config.get("loadooi", False)    # Import OOI asset data
+        self.loadui = config.get("loadui", False)      # Import UI asset data
+        self.exportui = config.get("exportui", False)  # Save UI JSON file
+        self.update = config.get("update", False)      # Support update to existing resources
+        self.bulk = config.get("bulk", False)          # Use bulk insert where available
+        self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
+        self.ooiexclude = config.get("ooiexclude", '') # Don't import the listed categories
         if self.ooiexclude:
             self.ooiexclude = self.ooiexclude.split(',')
-        self.ooiuntil = self.CFG.get("ooiuntil", None) # Don't import stuff later than given date
+        self.ooiuntil = config.get("ooiuntil", None) # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
 
