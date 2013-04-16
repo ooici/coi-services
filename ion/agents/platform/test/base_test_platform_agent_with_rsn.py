@@ -1094,6 +1094,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # misc convenience methods
     #################################################################
 
+    def _create_resource_agent_client(self, resource_id):
+        client = ResourceAgentClient(resource_id, process=FakeProcess())
+        return client
+
     def _get_state(self):
         state = self._pa_client.get_agent_state()
         return state

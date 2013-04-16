@@ -159,8 +159,13 @@ class IntervalAlert(BaseAlert):
         status['upper_rel_op'] = self._upper_rel_op
         return status
 
-    def eval_alert(self, x):
-        self._current_value = x
+    def eval_alert(self, stream_name=None, value=None, value_id=None):
+
+        if stream_name != self._stream_name or value_id != self._value_id \
+                          or not value:
+            return
+
+        self._current_value = value
         self._prev_status = self._status
         
         if self._lower_bound and self._upper_bound:
@@ -242,30 +247,28 @@ class RSNEventAlert(BaseAlert):
 
         return status
 
-    def eval_alert(self, x):
+    def eval_alert(self, rsn_alert=None):
 
         # x is an RSN event struct TBD
-        assert isinstance(x, dict)
+        assert isinstance(rsn_alert, dict)
 
         #print 'x: %s',x.keys()
         #print 'x: %s',x
 
-        self._current_value = x['value']
+        self._current_value = rsn_alert['value']
         self._prev_status = self._status
 
-        self._message = x['message']
+        self._message = rsn_alert['message']
 
-        if x['alert_type'] is "warning":
+        if rsn_alert['alert_type'] is "warning":
             self._alert_type = StreamAlertType.WARNING
             self._status = False
-        elif x['alert_type'] is "error":
+        elif rsn_alert['alert_type'] is "error":
             self._alert_type = StreamAlertType.ALERT
             self._status = False
         else:
             self._alert_type = StreamAlertType.ALL_CLEAR
             self._status = True
-
-        self._resource_id = x['platform_id']
 
         if self._prev_status != self._status:
             self.publish_alert()
@@ -306,17 +309,10 @@ class LateDataAlert(BaseAlert):
         status['time_delta'] = self._time_delta
         return status
 
-    def eval_alert(self):
-        """
-        if self._get_state() == ResourceAgentState.STREAMING:
-            prev_value = self._current_value
-            self._current_value = time.time()
-            if prev_value:
-                self._cur_timestep = self._current_value - prev_value
-        else:
-            self._current_value = None
-            self._cur_timestep = 0.0
-        """
+    def eval_alert(self, stream_name=None):
+        if stream_name != self._stream_name:
+            return
+        
         self._current_value = time.time()
         if not self._status:
             self._status = True
@@ -324,27 +320,6 @@ class LateDataAlert(BaseAlert):
         
     def _check_data(self):
         """
-        start = time.time()
-        while True:
-            if self._get_state() == ResourceAgentState.STREAMING:
-                last_data_arrived = self._current_value
-                gevent.sleep(self._time_delta)
-                if self._get_state() == ResourceAgentState.STREAMING:
-                    self._prev_status = self._status
-                    if last_data_arrived == self._current_value:
-                        #print '########## TIMER %f:    %f  %f  %f:     NO NEW DATA' % ((time.time() - start), last_data_arrived, self._current_value, self._cur_timestep)
-                        self._status = False
-                    elif self._cur_timestep > self._time_delta:
-                        #print '########## TIMER %f:    %f  %f  %f:     TIMESTEP TO LARGE' % ((time.time() - start), last_data_arrived, self._current_value, self._cur_timestep)
-                        self._status = False
-                    else:
-                        #print '########## TIMER %f:    %f  %f  %f:     DATA OK' % ((time.time() - start), last_data_arrived, self._current_value, self._cur_timestep)
-                        self._status = True
-                    if self._prev_status != self._status:
-                        self.publish_alert()
-                        
-            else:
-                gevent.sleep(self._time_delta)
         """
         while True:
             prev_value = self._current_value

@@ -1601,38 +1601,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
-        #retrieve the aggregate status for the platform
-        rac = ResourceAgentClient(process=self, resource_id=instrument_device_id)
-        aggstatus = rac.get_agent(['aggstatus'])['aggstatus']
-        log.debug('get_platform_device_extension consume_event aggStatus: %s', aggstatus)
-
-        if aggstatus:
-            extended_instrument.computed.communications_status_roll_up = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_COMMS] )
-            extended_instrument.computed.power_status_roll_up          = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_POWER] )
-            extended_instrument.computed.data_status_roll_up           = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_DATA] )
-            extended_instrument.computed.location_status_roll_up       = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_LOCATION] )
-            extended_instrument.computed.aggregated_status             = self._compute_aggregated_status_overall(aggstatus)
-
-        else:
-            extended_instrument.computed.communications_status_roll_up = \
-            extended_instrument.computed.power_status_roll_up = \
-            extended_instrument.computed.data_status_roll_up = \
-            extended_instrument.computed.location_status_roll_up = \
-            extended_instrument.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN)
-
-
-        # Status computation
-#        status_rollups = self.outil.get_status_roll_ups(instrument_device_id, RT.InstrumentDevice)
-#
-#        def short_status_rollup(key):
-#            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-#                                    value=status_rollups[instrument_device_id].get(key, StatusType.STATUS_UNKNOWN))
-#
-#        extended_instrument.computed.communications_status_roll_up = short_status_rollup("comms")
-#        extended_instrument.computed.power_status_roll_up          = short_status_rollup("power")
-#        extended_instrument.computed.data_status_roll_up           = short_status_rollup("data")
-#        extended_instrument.computed.location_status_roll_up       = short_status_rollup("loc")
-#        extended_instrument.computed.aggregated_status             = short_status_rollup("agg")
+        #retrieve the aggregate status for the instrument
+        self._set_device_aggregate_status(instrument_device_id, 'aggstatus', extended_instrument)
+        log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
 
         return extended_instrument
 
@@ -1803,72 +1774,61 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                   RT.PlatformDevice)
 
 
-
-        log.debug('get_platform_device_extension  extended_platform 2: %s', extended_platform)
         #retrieve the aggreate and rollup status from the platform agent
+        self._set_device_aggregate_status(platform_device_id, 'rollup_status', extended_platform)
+        log.debug('get_platform_device_extension  extended_platform.computed: %s', extended_platform.computed)
 
-        #retrieve the aggregate status for the platform
-        rac = ResourceAgentClient(process=self, resource_id=platform_device_id)
-        rollupstatus = rac.get_agent(['rollup_status'])['rollup_status']
-        log.debug('get_platform_device_extension platform rollupstatus: %s', rollupstatus)
+        #retrieve the list of aggreate status for all children of this platform agent
+        try:
+            pa_client = self.obtain_agent_handle(platform_device_id)
 
-        if rollupstatus:
-            extended_platform.computed.communications_status_roll_up = self._create_computed_status ( rollupstatus[AggregateStatusType.AGGREGATE_COMMS] )
-            extended_platform.computed.power_status_roll_up          = self._create_computed_status ( rollupstatus[AggregateStatusType.AGGREGATE_POWER] )
-            extended_platform.computed.data_status_roll_up           = self._create_computed_status ( rollupstatus[AggregateStatusType.AGGREGATE_DATA] )
-            extended_platform.computed.location_status_roll_up       = self._create_computed_status ( rollupstatus[AggregateStatusType.AGGREGATE_LOCATION] )
-            extended_platform.computed.aggregated_status             = self._compute_aggregated_status_overall(rollupstatus)
-        else:
-            extended_platform.computed.communications_status_roll_up = \
-            extended_platform.computed.power_status_roll_up = \
-            extended_platform.computed.data_status_roll_up = \
-            extended_platform.computed.location_status_roll_up = \
-            extended_platform.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN)
+            child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
+            log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
 
-        rac = ResourceAgentClient(process=self, resource_id=platform_device_id)
-        child_agg_status = rac.get_agent(['child_agg_status'])['child_agg_status']
-        log.debug('get_platform_device_extension  child_agg_status: %s', child_agg_status)
-        extended_platform.computed.child_device_status = child_agg_status
+            if child_agg_status:
+                extended_platform.computed.child_device_status = child_agg_status
 
-
-
-#        s_unknown = StatusType.STATUS_UNKNOWN
-#
-#        # Status computation
-#        extended_platform.computed.instrument_status = [s_unknown] * len(extended_platform.instrument_devices)
-#        extended_platform.computed.platform_status   = [s_unknown] * len(extended_platform.platforms)
-#
-#        def status_unknown():
-#            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
-#
-#        extended_platform.computed.communications_status_roll_up = status_unknown()
-#        extended_platform.computed.power_status_roll_up          = status_unknown()
-#        extended_platform.computed.data_status_roll_up           = status_unknown()
-#        extended_platform.computed.location_status_roll_up       = status_unknown()
-#        extended_platform.computed.aggregated_status             = status_unknown()
-#
-#        try:
-#            status_rollups = self.outil.get_status_roll_ups(platform_device_id, RT.PlatformDevice)
-#
-#            extended_platform.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg", s_unknown)
-#                                                            for idev in extended_platform.instrument_devices]
-#            extended_platform.computed.platform_status = [status_rollups(pdev._id,{}).get("agg", s_unknown)
-#                                                          for pdev in extended_platform.platforms]
-#
-#            def short_status_rollup(key):
-#                return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-#                                        value=status_rollups[platform_device_id].get(key, StatusType.STATUS_UNKNOWN))
-#
-#            extended_platform.computed.communications_status_roll_up = short_status_rollup("comms")
-#            extended_platform.computed.power_status_roll_up          = short_status_rollup("power")
-#            extended_platform.computed.data_status_roll_up           = short_status_rollup("data")
-#            extended_platform.computed.location_status_roll_up       = short_status_rollup("loc")
-#            extended_platform.computed.aggregated_status             = short_status_rollup("agg")
-#
-#        except Exception as ex:
-#            log.exception("Computed attribute failed for %s" % platform_device_id)
+        except NotFound:
+            reason = "Could not connect to platform agent instance -- may not be running"
+            extended_platform.computed.child_device_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+        except Exception as e:
+            raise e
 
         return extended_platform
+
+
+
+    def _set_device_aggregate_status(self, device_id='', status_name='', extended_device_resource=None):
+
+        ia_client = None
+
+        if not device_id or not status_name or not extended_device_resource :
+            raise BadRequest("The device or extended resource parameter is empty")
+
+        try:
+            ia_client = self.obtain_agent_handle(device_id)
+
+            aggstatus = ia_client.get_agent([status_name])[status_name]
+            log.debug('_set_device_aggregate_status status: %s', aggstatus)
+
+            if aggstatus:
+                extended_device_resource.computed.communications_status_roll_up = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_COMMS] )
+                extended_device_resource.computed.power_status_roll_up          = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_POWER] )
+                extended_device_resource.computed.data_status_roll_up           = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_DATA] )
+                extended_device_resource.computed.location_status_roll_up       = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_LOCATION] )
+                extended_device_resource.computed.aggregated_status             = self._compute_aggregated_status_overall(aggstatus)
+
+        except NotFound:
+            reason = "Could not connect to instrument agent instance -- may not be running"
+            extended_device_resource.computed.communications_status_roll_up = \
+            extended_device_resource.computed.power_status_roll_up = \
+            extended_device_resource.computed.data_status_roll_up = \
+            extended_device_resource.computed.location_status_roll_up = \
+            extended_device_resource.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+        except Exception as e:
+            raise e
+
+        return
 
     def _create_computed_status(self, status=DeviceStatusType.STATUS_UNKNOWN):
             return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status)
@@ -1937,3 +1897,91 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 ret.value[data_product_obj.processing_level_code] = context_dict
             ret.status = ComputedValueAvailability.PROVIDED
         return ret
+
+
+    ############################
+    #
+    #  PREPARE UPDATE RESOURCES
+    #
+    ############################
+
+
+    def prepare_update_instrument_device(self, instrument_device_id=''):
+        """
+        Returns the object containing the data to update an instrument device resource
+        """
+
+        if not instrument_device_id:
+            raise BadRequest("The instrument_device_id parameter is empty")
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_update_resource(instrument_device_id, OT.InstrumentDevicePrepareUpdate)
+
+        #Fill out service request information for creating a instrument device
+        resource_data.create_instrument_device_request.service_name = 'instrument_management'
+        resource_data.create_instrument_device_request.service_operation = 'create_instrument_device'
+        resource_data.create_instrument_device_request.request_parameters = {
+            "instrument_device":  "$(instrument_device)"
+        }
+
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_instrument_model_request.service_name = 'instrument_management'
+        resource_data.assign_instrument_model_request.service_operation = 'assign_instrument_model_to_instrument_device'
+        resource_data.assign_instrument_model_request.request_parameters = {
+            "instrument_model_id":  "$(instrument_model_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.unassign_instrument_model_request.service_name = 'instrument_management'
+        resource_data.unassign_instrument_model_request.service_operation = 'unassign_instrument_model_to_instrument_device'
+        resource_data.unassign_instrument_model_request.request_parameters = {
+            "instrument_model_id":  "$(instrument_model_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+        return resource_data
+
+
+    def prepare_update_platform_device(self, platform_device_id=''):
+        """
+        Returns the object containing the data to update an instrument device resource
+        """
+
+        if not platform_device_id:
+            raise BadRequest("The platform_device_id parameter is empty")
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_update_resource(platform_device_id, OT.PlatformDevicePrepareUpdate)
+
+        #Fill out service request information for creating a platform device
+        resource_data.create_platform_device_request.service_name = 'instrument_management'
+        resource_data.create_platform_device_request.service_operation = 'create_platform_device'
+        resource_data.create_platform_device_request.request_parameters = {
+            "platform_device":  "$(platform_device)"
+        }
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_platform_model_request.service_name = 'instrument_management'
+        resource_data.assign_platform_model_request.service_operation = 'assign_platform_model_to_platform_device'
+        resource_data.assign_platform_model_request.request_parameters = {
+            "platform_model_id":  "$(platform_model_id)",
+            "platform_device_id":  platform_device_id
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.unassign_platform_model_request.service_name = 'instrument_management'
+        resource_data.unassign_platform_model_request.service_operation = 'unassign_platform_model_to_platform_device'
+        resource_data.unassign_platform_model_request.request_parameters = {
+            "platform_model_id":  "$(platform_model_id)",
+            "platform_device_id":  platform_device_id
+        }
+
+        return resource_data

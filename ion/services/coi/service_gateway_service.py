@@ -631,27 +631,34 @@ def get_attachment(attachment_id):
 def create_attachment():
 
     try:
-        resource_id = str(request.form.get('resource_id', ''))
-        fil         = request.files['file']
-        content     = fil.read()
-        actor_id    = str(request.form.get('requester', ''))
+        payload              = request.form['payload']
+        json_params          = simplejson.loads(str(payload))
 
-        keywords = []
-        keywords_str = request.form.get('keywords', '')
+        ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+        headers              = build_message_headers(ion_actor_id, expiry)
+
+        data_params          = json_params['serviceRequest']['params']
+        resource_id          = str(data_params.get('resource_id', ''))
+        fil                  = request.files['file']
+        content              = fil.read()
+
+        keywords             = []
+        keywords_str         = data_params.get('keywords', '')
         if keywords_str.strip():
             keywords = [str(x.strip()) for x in keywords_str.split(',')]
 
         # build attachment
-        attachment         = Attachment(name=str(request.form['attachment_name']),
-                                        description=str(request.form['attachment_description']),
-                                        attachment_type=int(request.form['attachment_type']),
-                                        content_type=str(request.form['attachment_content_type']),
+        attachment         = Attachment(name=str(data_params['attachment_name']),
+                                        description=str(data_params['attachment_description']),
+                                        attachment_type=int(data_params['attachment_type']),
+                                        content_type=str(data_params['attachment_content_type']),
                                         keywords=keywords,
-                                        created_by=actor_id,
+                                        created_by=ion_actor_id,
                                         content=content)
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment)
+        ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment, headers=headers)
 
         return gateway_json_response(ret)
 

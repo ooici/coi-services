@@ -378,6 +378,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @attr('BASIC')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_basic_policy_operations(self):
 
