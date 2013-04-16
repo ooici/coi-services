@@ -64,12 +64,13 @@ from pyon.ion.stream import StandaloneStreamPublisher
 
 
 from subprocess import call
+import re
 not_have_h5stat = call('which h5stat'.split(), stdout=open('/dev/null','w'))
 if not not_have_h5stat:
     from subprocess import check_output
     from distutils.version import StrictVersion
     output = check_output('h5stat -V'.split())
-    version_str = output.split('Version')[1].strip()
+    version_str = re.match(r'.*(\d+\.\d+\.\d+).*', output).groups()[0]
     h5stat_correct_version = StrictVersion(version_str) >= StrictVersion('1.8.9')
 
 @attr('INT', group='dm')
