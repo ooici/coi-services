@@ -1827,7 +1827,7 @@ Reason: %s
         alert = {
             'name': row['name'],
             'message': row['message'],
-            'type': getattr(StreamAlarmType, row['type'])
+            'alert_type': getattr(StreamAlarmType, row['type'])
         }
         # add 5 parameters representing the value and range
         alert.update( self._parse_alert_range(row['range']) )
