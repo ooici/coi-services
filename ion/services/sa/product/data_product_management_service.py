@@ -292,7 +292,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product_obj, 'Should not have been empty')
         validate_is_instance(data_product_obj, DataProduct)
 
-        if data_product_obj.dataset_configuration_id is None:
+        if not data_product_obj.dataset_configuration_id:
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
         #--------------------------------------------------------------------------------
@@ -542,15 +542,23 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
+        dataset_id = ''
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
-        if not dataset_ids:
+        if dataset_ids:
+            dataset_id = dataset_ids[0]
+        else:
             raise NotFound('No Dataset is associated with DataProduct %s' % data_product_id)
-        return dataset_ids[0]
+        return dataset_id
 
     def _get_stream_id(self, data_product_id=''):
         # find datasets for the data product
+        stream_id = ''
         stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-        return stream_ids[0]
+        if stream_ids:
+            stream_id =  stream_ids[0]
+        else:
+            raise NotFound('No Stream is associated with DataProduct %s' % data_product_id)
+        return stream_id
 
     ############################
     #

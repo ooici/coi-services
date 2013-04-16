@@ -137,7 +137,8 @@ class TestAlerts(IonIntegrationTestCase):
                      15.3, 3.3, 3.4, 15.0, 15.5]
 
         for x in test_vals:
-            alert.eval_alert(x)
+            alert.eval_alert(stream_name='fakestreamname',
+                             value=x, value_id='port_current')
 
         self._async_event_result.get(timeout=30)
 
@@ -182,7 +183,8 @@ class TestAlerts(IonIntegrationTestCase):
         test_vals = [5.5, 5.5, 5.4, 4.6, 4.5, 3.3, 3.3, 4.5, 4.5, 3.3, 3.3, 4.8]
 
         for x in test_vals:
-            alert.eval_alert(x)
+            alert.eval_alert(stream_name='fakestreamname',
+                             value=x, value_id='port_current')
 
         self._async_event_result.get(timeout=30)
         """
@@ -227,7 +229,8 @@ class TestAlerts(IonIntegrationTestCase):
                      23.3, 23.3, 24.8, 17.5, 16.5, 12.5, 8.8, 7.7]
 
         for x in test_vals:
-            event_data = alert.eval_alert(x)
+            event_data = alert.eval_alert(stream_name='fakestreamname',
+                                          value=x, value_id='port_current')
 
         self._async_event_result.get(timeout=30)
         """
@@ -276,7 +279,7 @@ class TestAlerts(IonIntegrationTestCase):
                       1, 1, 1, 1, 1, 1, 1, 10, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                       1, 1, 1, 1, 1, 1, 1, 10]
         for x in sleep_vals:
-            event_data = alert.eval_alert()
+            event_data = alert.eval_alert(stream_name='fakestreamname')
             gevent.sleep(x)
 
         self._async_event_result.get(timeout=30)
@@ -346,7 +349,7 @@ class TestAlerts(IonIntegrationTestCase):
         "message": "low battery (synthetic event generated from simulator)"
         }
 
-        alert.eval_alert(test_val)
+        alert.eval_alert(rsn_alert=test_val)
 
         status = alert.get_status()
         log.debug('test_rsn_event_alert status: %s', alert)
