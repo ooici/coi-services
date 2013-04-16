@@ -235,6 +235,7 @@ class IONLoader(ImmediateProcess):
 
             if self.loadooi:
                 self.ooi_loader.extract_ooi_assets()
+                self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
             if self.loadui:
                 specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
@@ -247,7 +248,8 @@ class IONLoader(ImmediateProcess):
 
         elif op == "parseooi":
             self.ooi_loader.extract_ooi_assets()
-            self.ooi_loader._analyze_ooi_assets(self.ooiuntil)
+            self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
+            self.ooi_loader.report_ooi_assets()
         elif op == "loadui":
             specs_path = 'interface/ui_specs.json' if self.exportui else None
             self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)

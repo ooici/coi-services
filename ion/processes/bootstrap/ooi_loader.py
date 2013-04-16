@@ -63,6 +63,7 @@ class OOILoader(object):
                        'PlatformAgents',
                        'Series',
                        'InstAgents',
+                       'InstAvail',
         ]
 
         # Holds the object representations of parsed OOI assets by type
@@ -512,6 +513,20 @@ class OOILoader(object):
         self._add_object_attribute('instagent',
                                    agent_code, None, None, active=row['Active'] == "Yes")
 
+    def _parse_InstAvail(self, row):
+        node_code = row['Node Code']
+        inst_class = row['Instrument Class']
+        inst_series = row['Instrument Series']
+        inst_deploy = row['First Deployment Date']
+
+        code = node_code + "-" + inst_class + inst_series
+        deploy_value = (inst_class + inst_series, inst_deploy)
+
+        if deploy_value and re.match(r'\d+-\d+-\d+', inst_deploy):
+            self._add_object_attribute('node',
+                                   node_code, 'model_deploy_list', deploy_value, value_is_list=True, list_dup_ok=True)
+
+
     # ---- Post-processing and validation ----
 
     def _perform_ooi_checks(self):
@@ -613,7 +628,6 @@ class OOILoader(object):
                 pass
 
 
-
     def get_marine_io(self, ooi_rd_str):
         ooi_rd = OOIReferenceDesignator(ooi_rd_str)
         if ooi_rd.error:
@@ -686,7 +700,7 @@ class OOILoader(object):
 
         log.info("Deleted %s OOI resources and %s associations", len(del_objs), len(del_assocs))
 
-    def _analyze_ooi_assets(self, end_date):
+    def analyze_ooi_assets(self, end_date):
         report_lines = []
         node_objs = self.get_type_assets("node")
         inst_objs = self.get_type_assets("instrument")
@@ -743,21 +757,35 @@ class OOILoader(object):
             if node_id not in isite_by_node:
                 isite_by_node[node_id] = []
             isite_by_node[node_id].append(inst_id)
-            inst_deploy = inst_obj.get("First Deployment Date", None)
+
+            # Find possible override instrument deploy date from InstAvail tab
+            node_obj = node_objs[node_id]
+            node_model_dates = node_obj.get("model_deploy_list", None)
+            inst_deploy = None
+            if node_model_dates:
+                for iseries, idate in node_model_dates:
+                    if iseries ==ooi_rd.series_rd:
+                        inst_deploy = idate
+                        break
+            #if not inst_deploy:
+            #    inst_deploy = inst_obj.get("First Deployment Date", None)
             node_deploy = node_objs[ooi_rd.node_rd].get("deploy_date", None)
             deploy_date = None
             if inst_deploy:
                 try:
-                    deploy_date = datetime.datetime.strptime(inst_deploy, "%Y-%m")
+                    deploy_date = datetime.datetime.strptime(inst_deploy, "%Y-%m-%d")
                 except Exception as ex:
                     try:
-                        deploy_date = datetime.datetime.strptime(inst_deploy, "%Y")
+                        deploy_date = datetime.datetime.strptime(inst_deploy, "%Y-%m")
                     except Exception as ex:
-                        pass
+                        try:
+                            deploy_date = datetime.datetime.strptime(inst_deploy, "%Y")
+                        except Exception as ex:
+                            pass
                 if deploy_date and node_deploy:
                     deploy_date = max(deploy_date, node_deploy)
-            elif node_deploy:
-                deploy_date = node_deploy
+            #elif node_deploy:
+            #    deploy_date = node_deploy
             inst_obj['deploy_date'] = deploy_date or datetime.datetime(2020, 1, 1)
 
         # Set recovery mode etc in nodes and instruments
@@ -778,11 +806,25 @@ class OOILoader(object):
                     inst_obj['data_agent_rt'] = data_agent_rt
                     inst_obj['data_agent_recovery'] = data_agent_recovery
 
-        print "OOI ASSET REPORT - DEPLOYMENT UNTIL", end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"
-        print "Platforms by deployment date:"
+        report_lines.append((0, "OOI ASSET REPORT - DEPLOYMENT UNTIL %s" % end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"))
+        report_lines.append((0, "Platforms by deployment date:"))
         inst_class_all = set()
         for ooi_obj in deploy_platform_list:
             inst_class_top = set()
+            platform_deploy_date = ooi_obj['deploy_date']
+
+            def follow_node_inst(node_id, level):
+                inst_lines = []
+                for inst_id in isite_by_node.get(node_id, []):
+                    inst_obj = inst_objs[inst_id]
+                    deploy_date = inst_obj.get('deploy_date', datetime.datetime(2020, 1, 1))
+                    time_delta = platform_deploy_date - deploy_date
+                    if abs(time_delta.days) < 40:
+                        inst_lines.append((2, "%s               +-%s %s %s" % (
+                            "  " * level, inst_id, "IA" if inst_obj['instrument_agent_rt'] else "", "DA" if inst_obj['data_agent_rt'] else "")))
+                    else:
+                        inst_lines.append((2, "%s               +-%s IGNORED" % ("  " * level, inst_id)))
+                return sorted(inst_lines)
 
             def follow_child_nodes(level, child_nodes=None):
                 if not child_nodes:
@@ -791,25 +833,37 @@ class OOILoader(object):
                     ch_obj = node_objs[ch_id]
                     inst_class_node = set((inst, ch_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ch_id, []))
                     inst_class_top.update(inst_class_node)
-                    print "  "*level, "            +-"+ch_obj['id'], ch_obj['name'], ch_obj.get('platform_agent_type', ""), ":", ", ".join([i for i,p in sorted(list(inst_class_node))])
+                    report_lines.append((1, "%s             +-%s %s %s: %s" % ("  "*level, ch_obj['id'], ch_obj['name'], ch_obj.get('platform_agent_type', ""), ", ".join([i for i,p in sorted(list(inst_class_node))]))))
+                    inst_lines = follow_node_inst(ch_id, level)
+                    report_lines.extend(inst_lines)
                     follow_child_nodes(level+1, platform_children.get(ch_id,None))
 
             inst_class_node = set((inst, ooi_obj.get('platform_agent_type', "")) for inst in inst_by_node.get(ooi_obj['id'], []))
             inst_class_top.update(inst_class_node)
-            print " ", ooi_obj['deployment_start'], ooi_obj['id'], ooi_obj['name'], ooi_obj.get('platform_agent_type', ""), ":", ", ".join([i for i,p in sorted(list(inst_class_node))])
+            report_lines.append((0, "  %s %s %s %s: %s" % (ooi_obj['deployment_start'], ooi_obj['id'], ooi_obj['name'], ooi_obj.get('platform_agent_type', ""), ", ".join([i for i,p in sorted(list(inst_class_node))]))))
+
+            inst_lines = follow_node_inst(ooi_obj['id'], 0)
+            report_lines.extend(inst_lines)
 
             follow_child_nodes(0, platform_children.get(ooi_obj['id'], None))
             inst_class_all.update(inst_class_top)
 
-        print "Instrument Models:"
+        report_lines.append((0, "Instrument Models:"))
         inst_by_conn = {}
         for clss, conn in inst_class_all:
             if conn not in inst_by_conn:
                 inst_by_conn[conn] = []
             inst_by_conn[conn].append(clss)
         for conn, inst in inst_by_conn.iteritems():
-            print " ", conn, ":", ",".join(sorted(inst))
+            report_lines.append((0, "  %s: %s" % (conn, ",".join(sorted(inst)))))
 
-        from ion.util.datastore.resources import ResourceRegistryHelper
-        rrh = ResourceRegistryHelper()
-        rrh.dump_dicts_as_xlsx(self.ooi_objects)
+        self.asset_report = report_lines
+
+    def report_ooi_assets(self, report_level=5, dump_assets=True, print_report=True):
+        if print_report:
+            print "\n".join(line for level, line in self.asset_report if level < report_level)
+
+        if dump_assets:
+            from ion.util.datastore.resources import ResourceRegistryHelper
+            rrh = ResourceRegistryHelper()
+            rrh.dump_dicts_as_xlsx(self.ooi_objects)
