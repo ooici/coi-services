@@ -798,10 +798,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##
     ##
 
-    def check_direct_access_policy(self, msg, headers):
+    def check_direct_access_policy(self, process, message, headers):
 
         try:
-            gov_values = GovernanceHeaderValues(headers)
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
         except Inconsistent, ex:
             return False, ex.message
 
@@ -815,10 +815,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return True, ''
 
-    def check_device_lifecycle_policy(self, msg, headers):
+    def check_device_lifecycle_policy(self, process, message, headers):
 
         try:
-            gov_values = GovernanceHeaderValues(headers)
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
         except Inconsistent, ex:
             return False, ex.message
 
@@ -826,14 +826,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
 
-        if msg.has_key('lifecycle_event'):
-            lifecycle_event = msg['lifecycle_event']
+        if message.has_key('lifecycle_event'):
+            lifecycle_event = message['lifecycle_event']
         else:
-            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (self.name, gov_values.op))
+            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (process.name, gov_values.op))
 
-        orgs,_ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasResource, gov_values.resource_id)
+        orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=gov_values.resource_id, id_only=False)
+
         if not orgs:
-            return False, '%s(%s) has been denied since the resource id %s has not been shared with any Orgs' % (self.name, gov_values.op, gov_values.resource_id)
+            return False, '%s(%s) has been denied since the resource id %s has not been shared with any Org' % (process.name, gov_values.op, gov_values.resource_id)
 
         #Handle these lifecycle transitions first
         if lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE:
@@ -858,7 +859,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
                     return True, ''
 
-        return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, gov_values.op, gov_values.actor_id, lifecycle_event)
+        return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (process.name, gov_values.op, gov_values.actor_id, lifecycle_event)
 
 
     ##
