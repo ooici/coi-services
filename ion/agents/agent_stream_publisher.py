@@ -50,6 +50,7 @@ class AgentStreamPublisher(object):
 
         self._construct_streams(stream_info)
         self._construct_publishers(stream_info)
+        agent.aparam_get_set_streams = self.aparam_set_streams
         
     def _construct_streams(self, stream_info):
         for (stream_name, config) in stream_info.iteritems():
@@ -97,6 +98,9 @@ class AgentStreamPublisher(object):
         except KeyError:
             log.error('Instrument agent %s received sample with bad stream name %s.',
                       self._agent._proc_name, stream_name)
+    
+    def aparam_set_streams(self, params):
+        return -1
     
     def aparam_set_pubrate(self, params):
         if not isinstance(params, dict):

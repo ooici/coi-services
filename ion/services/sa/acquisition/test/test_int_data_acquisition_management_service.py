@@ -130,14 +130,21 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("non-existing data source was found during delete")
 
 
-    #@unittest.skip('Not done yet.')
     def test_register_instrument(self):
-        # Register an instrument as a data producer in coordination with DM PubSub: create stream, register and create producer object
-
-
         # set up initial instrument to register
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
         instrument_id, rev = self.rrclient.create(instrument_obj)
+
+        self.base_register_instrument(instrument_id)
+
+    def test_register_platform(self):
+        # set up initial instrument to register
+        platform_obj = IonObject(RT.PlatformDevice, name='Plat1',description='a platform that is creating the data product')
+        platform_id, rev = self.rrclient.create(platform_obj)
+
+    #@unittest.skip('Not done yet.')
+    def base_register_instrument(self, instrument_id):
+        # Register an instrument as a data producer in coordination with DM PubSub: create stream, register and create producer object
 
         dataproduct_obj = IonObject(RT.DataProduct, name='DataProduct1',description='sample data product')
         dataproduct_id, rev = self.rrclient.create(dataproduct_obj)

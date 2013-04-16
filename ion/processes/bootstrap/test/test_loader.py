@@ -5,10 +5,69 @@ __author__ = 'Michael Meisinger'
 from nose.plugins.attrib import attr
 from pyon.public import RT, PRED
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
 import math
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 import unittest
 from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
+
+class TestLoaderAlgo(PyonTestCase):
+
+    @attr('UNIT', group='loader')
+    def test_parse_alert_ranges(self):
+        loader = IONLoader()
+        out = loader._parse_alert_range('5<temp<10')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<=temp<10')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<temp<=10')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<=temp<=10')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<temp')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual(3, len(out), msg='value: %r'%out)
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<=temp')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
+        out = loader._parse_alert_range('temp<10')
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
+        out = loader._parse_alert_range('temp<=10')
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
 
 class TestLoader(IonIntegrationTestCase):
 
@@ -79,62 +138,6 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals(len(filtered_objs), 1)
 
         return filtered_objs[0]
-
-
-    @attr('UNIT', group='loader')
-    def test_parse_alarms(self):
-        loader = IONLoader()
-        out = loader._parse_alarm('5<temp<10')
-        self.assertEqual('<', out['lower_rel_op'])
-        self.assertEqual(5, out['lower_bound'])
-        self.assertEqual('<', out['upper_rel_op'])
-        self.assertEqual(10, out['upper_bound'])
-        self.assertEqual('temp', out['value_id'])
-
-        out = loader._parse_alarm('5<=temp<10')
-        self.assertEqual('<=', out['lower_rel_op'])
-        self.assertEqual(5, out['lower_bound'])
-        self.assertEqual('<', out['upper_rel_op'])
-        self.assertEqual(10, out['upper_bound'])
-        self.assertEqual('temp', out['value_id'])
-
-        out = loader._parse_alarm('5<temp<=10')
-        self.assertEqual('<', out['lower_rel_op'])
-        self.assertEqual(5, out['lower_bound'])
-        self.assertEqual('<=', out['upper_rel_op'])
-        self.assertEqual(10, out['upper_bound'])
-        self.assertEqual('temp', out['value_id'])
-
-        out = loader._parse_alarm('5<=temp<=10')
-        self.assertEqual('<=', out['lower_rel_op'])
-        self.assertEqual(5, out['lower_bound'])
-        self.assertEqual('<=', out['upper_rel_op'])
-        self.assertEqual(10, out['upper_bound'])
-        self.assertEqual('temp', out['value_id'])
-
-        out = loader._parse_alarm('5<temp')
-        self.assertEqual('<', out['lower_rel_op'])
-        self.assertEqual(5, out['lower_bound'])
-        self.assertEqual(3, len(out), msg='value: %r'%out)
-        self.assertEqual('temp', out['value_id'])
-
-        out = loader._parse_alarm('5<=temp')
-        self.assertEqual('<=', out['lower_rel_op'])
-        self.assertEqual(5, out['lower_bound'])
-        self.assertEqual('temp', out['value_id'])
-        self.assertEqual(3, len(out))
-
-        out = loader._parse_alarm('temp<10')
-        self.assertEqual('<', out['upper_rel_op'])
-        self.assertEqual(10, out['upper_bound'])
-        self.assertEqual('temp', out['value_id'])
-        self.assertEqual(3, len(out))
-
-        out = loader._parse_alarm('temp<=10')
-        self.assertEqual('<=', out['upper_rel_op'])
-        self.assertEqual(10, out['upper_bound'])
-        self.assertEqual('temp', out['value_id'])
-        self.assertEqual(3, len(out))
 
     @attr('INT', group='loader')
     @attr('SMOKE', group='loader')
@@ -207,9 +210,9 @@ class TestLoader(IonIntegrationTestCase):
         parsed = agent.stream_configurations[1]
 #        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
         self.assertEquals('ctd_parsed_param_dict', parsed.parameter_dictionary_name)
-        # check that alarm was added to StreamConfig
-        self.assertEquals(1, len(parsed.alarms), msg='alarms: %r'%parsed.alarms)
-        self.assertEquals('temp', parsed.alarms[0]['kwargs']['value_id'])
+        # OBSOLETE: check that alarm was added to StreamConfig
+#        self.assertEquals(1, len(parsed.alarms), msg='alarms: %r'%parsed.alarms)
+#        self.assertEquals('temp', parsed.alarms[0]['kwargs']['value_id'])
 
         # check for platform agents
         self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
@@ -226,7 +229,8 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEqual({'SCHEDULER': {'VERSION': {'number': 3.0}, 'CLOCK_SYNC': 48.2, 'ACQUIRE_STATUS': {}},
                           'PARAMETERS': {"TXWAVESTATS": False, 'TXWAVEBURST': 'false', 'TXREALTIME': True}},
                         iai.startup_config)
-        self.assertEqual({'entry': 'foo'}, iai.alerts['complex'])
+        self.assertEqual(2, len(iai.alerts))
+#        self.assertEqual({'entry': 'foo'}, iai.alerts['complex'])
 
         pai = self.find_object_by_name("Unit Test Platform Agent Instance", RT.PlatformAgentInstance)
         self.assertEqual({'entry': 'foo'}, pai.alerts['complex'])

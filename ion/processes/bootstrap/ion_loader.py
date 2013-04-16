@@ -95,7 +95,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDVqLTlUcXZtTHVIS2o1QXp2OF9FR3c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE0wcFVUYndJcVljVHBtY1J6YzE4ckE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -111,7 +111,7 @@ DEFAULT_CATEGORIES = [
     'ParameterFunctions',
     'ParameterDefs',
     'ParameterDictionary',
-    "Alarms",                           # in memory only
+    "Alerts",                           # in memory only
     'StreamConfiguration',              # in memory only
     'SensorModel',
     'PlatformModel',
@@ -173,7 +173,7 @@ class IONLoader(ImmediateProcess):
         self.constraint_defs = {} # alias -> value for refs, since not stored in DB
         self.contact_defs = {} # alias -> value for refs, since not stored in DB
         self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
-        self.alarms = {} # id -> alarm definition dict
+        self.alerts = {} # id -> alert definition dict
         self.external_dataset_producer_id = {} # keep producer ID for later use by AgentInstance
         self.object_definitions = None
 
@@ -1790,14 +1790,17 @@ Reason: %s
                     headers=headers)
         self._resource_advance_lcs(row, res_id, "SensorDevice")
 
-    def _parse_alarm(self, expression):
+    def _parse_alert_range(self, expression):
 #        lower_bound	lower_rel_op	value_id	upper_rel_op	upper_bound
         out = {}
+        if not expression:
+            return out
+
         # split string expression into one of 3 possible arrays:
         # 5<temp or 5<=temp        --> lower bound only: number, [=]field
         # temp<5 or temp<=5        --> upper bound only: field, [=]number
         # 5<temp<10 or 5<=temp<=10 --> upper and lower: number, [=]field, [=]number
-        parts = expression.split('<')
+        parts = [ s.strip() for s in expression.split('<') ]
         try:
             # if first part is a number, expression begins with: number <[=] field ...
             # evaluate lower bound
@@ -1819,26 +1822,30 @@ Reason: %s
         out['upper_bound'] = float(upper_value)
         return out
 
-    def _load_Alarms(self, row):
-        # ID	alarm_type	name	stream_name	message	type	range
-        args = self._parse_alarm(row['range'])
-        for key in 'name', 'message':
-            args[key] = row[key]
-        # type StreamAlarmType
-        args['type'] = getattr(StreamAlarmType, row['type'])
-        alarm = {'type': row['alarm_type'], 'kwargs': args}
-        self.alarms[row[COL_ID]] = alarm
+    def _load_Alerts(self, row):
+        # alert is just a dict
+        alert = {
+            'name': row['name'],
+            'message': row['message'],
+            'type': getattr(StreamAlarmType, row['type'])
+        }
+        # add 5 parameters representing the value and range
+        alert.update( self._parse_alert_range(row['range']) )
+        # add additional freeform entries
+        alert.update( parse_dict(row['config']) )
+        # save for use in resources
+        self.alerts[row[COL_ID]] = alert
 
     def _load_StreamConfiguration(self, row):
         """ parse and save for use in *AgentInstance objects """
-        alarms = []
-        if row['alarms']:
-            for id in row['alarms'].split(','):
-                copy = dict(self.alarms[id])
-                copy['kwargs']['stream_name'] = row['cfg/stream_name']
-                alarms.append(copy)
-            row['cfg/alarms'] = repr(alarms)  # _create_object_from_row won't take list directly, tries to eval(str) or raise ValueException
-            log.trace('adding alarms to StreamConfiguration %s: %r', row[COL_ID], alarms)
+#        alerts = []
+#        if row['alerts']:
+#            for id in row['alerts'].split(','):
+#                copy = dict(self.alerts[id.strip()])
+#                copy['kwargs']['stream_name'] = row['cfg/stream_name']
+#                alerts.append(copy)
+#            row['cfg/alarms'] = repr(alarms)  # _create_object_from_row won't take list directly, tries to eval(str) or raise ValueException
+#            log.trace('adding alarms to StreamConfiguration %s: %r', row[COL_ID], alarms)
         obj = self._create_object_from_row("StreamConfiguration", row, "cfg/")
         self.stream_config[row['ID']] = obj
 
@@ -1920,8 +1927,6 @@ Reason: %s
         model = self._get_resource_id(row['model'])
         params = parse_dict(row['parameters'])
         sampling = getattr(objects.DatasetDescriptionDataSamplingEnum, row['data_sampling'])
-        print 'params is %r, sampling is %r' % (params, sampling)
-        print 'TYPES: params is %s, sampling is %s' % (params.__class__.__name__, sampling.__class__.__name__)
         descriptor = objects.DatasetDescription(data_sampling=sampling, parameters=params)
         dataset = IonObject(RT.ExternalDataset, name=row['name'], description=row['description'], dataset_description=descriptor,
             contact=contact, alt_ids=['PRE:'+row[COL_ID]], lcstate=row[COL_LCSTATE])
@@ -1991,7 +1996,15 @@ Reason: %s
 
     def _load_InstrumentAgentInstance(self, row):
         startup_config = parse_dict(row['startup_config'])
-        alerts_config  = parse_dict(row['alerts'])
+
+        alerts = [ self.alerts[id.strip()] for id in row['alerts'].split(',') ] if row['alerts'].strip() else []
+#        if row['alerts']:
+#            for id in row['alerts'].split(','):
+#                copy = dict(self.alerts[id.strip()])
+#                copy['kwargs']['stream_name'] = row['cfg/stream_name']
+#                alerts.append(copy)
+
+        #        alerts_config  = parse_dict(row['alerts'])
 
         # define complicated attributes
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
@@ -2013,7 +2026,7 @@ Reason: %s
             set_attributes=dict(driver_config=driver_config,
                                 port_agent_config=port_agent_config,
                                 startup_config=startup_config,
-                                alerts=alerts_config),
+                                alerts=alerts),
             )
 
         agent_id = self.resource_ids[row["instrument_agent_id"]]
