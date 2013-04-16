@@ -48,9 +48,8 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessServer
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 from ion.agents.agent_stream_publisher import AgentStreamPublisher
+from ion.agents.agent_alert_manager import AgentAlertManager
 
-# Alarms.
-from ion.agents.alerts.alerts import *
 
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
@@ -170,14 +169,31 @@ class InstrumentAgent(ResourceAgent):
         # List of current alarm objects.
         self.aparam_alerts = []
 
+        # The get/set helpers are set by the manager class.
+        self.aparam_get_alerts = None
+        self.aparam_set_alerts = None
+
         #list of the aggreate status states for this device
         self.aparam_aggstatus = {}
         
+        # The get/set helpers are set by the manager class.
+        # Set is read only.
+        self.aparam_get_aggstatus = None
+        self.aparam_set_aggstatus = None
+
         # Dictionary of stream fields.
         self.aparam_streams = {}
         
+        # The set helper are set by the manager class (read only).
+        # We use the default base class get function.
+        self.aparam_set_streams = None
+
         # Dictionary of stream publication rates.
         self.aparam_pubrate = {}
+
+        # The set helper is set by the manager class.
+        # Use default base class get function.
+        self.aparam_set_pubrate = None
 
         # Autoreconnect thread.
         self._autoreconnect_greenlet = None
@@ -187,6 +203,9 @@ class InstrumentAgent(ResourceAgent):
 
         # Agent stream publisher.
         self._asp = None
+
+        # Agent alert manager.
+        self._aam = None
 
         # Default initial state.
         self._initial_state = ResourceAgentState.UNINITIALIZED
@@ -206,6 +225,9 @@ class InstrumentAgent(ResourceAgent):
         # Set up streams.
         self._asp = AgentStreamPublisher(self)        
 
+        # Set up alert manager.
+        self._aam = AgentAlertManager(self)
+
         # Superclass on_init attemtps state restore.
         super(InstrumentAgent, self).on_init()        
 
@@ -213,9 +235,9 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         super(InstrumentAgent, self).on_quit()
-        
-        [a.stop for a in self.aparam_alerts]
-        
+
+        self._aam.stop_all()
+                
         state = self._fsm.get_current_state()
         if state == ResourceAgentState.UNINITIALIZED:
             pass
@@ -800,95 +822,18 @@ class InstrumentAgent(ResourceAgent):
             val = json.loads(val)
 
         self._asp.on_sample(val)
-        self._process_alerts(val)
-        
-    def _process_alerts(self, val):
-        """
-        Test all alerts against a new sample value.
-        """
-        
         try:
             stream_name = val['stream_name']
             values = val['values']
-        
-        except KeyError:
-            log.error('Instrument agent %s: tomato missing stream_name or values keys. Could not process alerts.',
-                      self._proc_name)
-            return
-
-        for a in self.aparam_alerts:
-            if stream_name == a._stream_name:
-                if a._value_id:
-                    for v in values:
-                        value = v['value']
-                        value_id = v['value_id']
-                        if value_id == a._value_id:
-                            a.eval_alert(value)
-                else:
-                    a.eval_alert()
-
-        # update the aggreate status for this device
-        self._process_aggregate_alerts()
-
-    def _process_aggregate_alerts(self):
-        """
-        loop thru alerts list and retrieve status of any alert that contributes to the aggregate status and update the state
-        """
-        #init working status
-        updated_status = {}
-        for aggregate_type in AggregateStatusType._str_map.keys():
-            updated_status[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
-
-        for a in self.aparam_alerts:
-            log.debug('_process_aggregate_alerts a: %s', a)
-
-            #if this alert contributes to the aggregate status
-            if a._aggregate_type:
-                #get the current value for this aggregate status
-                current_agg_state = updated_status[ a._aggregate_type ]
-                if a._status:
-                    # this alert is not 'tripped' so the status is OK
-                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
-                    current_agg_state = updated_status[ a._aggregate_type ]
-                    log.debug('_process_aggregate_alerts Clear')
-                    if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
-                        updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
-
-                else:
-                    #the alert is active, either a warning or an alarm
-                    if a._alert_type is StreamAlertType.ALARM:
-                        log.debug('_process_aggregate_alerts Critical')
-                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
-                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
-                        log.debug('_process_aggregate_alerts Warn')
-                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
-
-        #compare old state with new state and publish alerts for any agg status that has changed.
-        for aggregate_type in AggregateStatusType._str_map.keys():
-            if updated_status[aggregate_type] != self.aparam_aggstatus[aggregate_type]:
-                log.debug('_process_aggregate_alerts pubevent')
-                self._publish_agg_status_event(aggregate_type, updated_status[aggregate_type],self.aparam_aggstatus[aggregate_type])
-                self.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
-
-        return
-
-    def _publish_agg_status_event(self, status_type, new_status, old_status):
-        """
-        Publish resource config change event.
-        """
-        try:
-            self._event_publisher.publish_event(
-                event_type='DeviceAggregateStatusEvent',
-                origin_type=self.ORIGIN_TYPE,
-                origin=self.resource_id,
-                status_name=status_type,
-                status=new_status,
-                prev_status=old_status)
-        except Exception as exc:
-            log.error('Instrument agent %s could not publish aggregate status change event. Exception message: %s',
-                self._proc_name, exc.message)
-
-        return
+            for v in values:
+                value = v['value']
+                value_id = v['value_id']
+                self._aam.process_alerts(stream_name=stream_name,
+                                         value=value, value_id=value_id)
+        except Exception as ex:
+            log.error('Insturment agent %s could not process alerts for driver tomato %s',
+                      self._proc_name, str(val))
+                         
                          
     def _async_driver_event_error(self, val, ts):
         """
@@ -1172,28 +1117,8 @@ class InstrumentAgent(ResourceAgent):
         # If specified and configed, build the alerts aparam.                
         aparam_alert_config = self.CFG.get('aparam_alert_config', None)
         if aparam_alert_config and 'alerts' in aparams:
-            for alert_def in aparam_alert_config:
-                log.info('Configuring alert: %s', str(alert_def))
-                alert_def = copy.deepcopy(alert_def)
-                try:
-                    stream_name = alert_def.get('stream_name', 'undefined')
-                    if not stream_name in self.aparam_streams.keys():
-                        raise Exception()
-                    cls = alert_def.pop('alert_class')
-                    alert_def['resource_id'] = self.resource_id
-                    alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
-                    if cls == 'LateDataAlert':
-                        alert_def['get_state'] = self._fsm.get_current_state
-                    alert = eval('%s(**alert_def)' % cls)
-                    self.aparam_alerts.append(alert)
-                except:
-                    log.error('Instrument agent %s could not construct alert %s, for stream %s',
-                              self._proc_name, str(alert_def), stream_name)
-
-        # Always default the aggstatus to unknown.
-        for aggregate_type in AggregateStatusType._str_map.keys():
-            self.aparam_aggstatus[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
-
+            self.aparam_set_alerts(aparam_alert_config)
+                
     def _restore_resource(self):
         """
         Restore agent/resource configuration and state.
@@ -1330,67 +1255,7 @@ class InstrumentAgent(ResourceAgent):
         else:
             log.info('Instrument agent %s restored state %s = %s.',
                      self.id, state, cur_state)
-        
-    def aparam_set_streams(self, params):
-        """
-        Streams aparam is read only.
-        """
-        return -1
     
-    # Note aparam_set_pubrate is set by the stream publisher.
-    
-    def aparam_set_alerts(self, params):
-        """
-        Construct alert objects from kwarg dicts.
-        """
-        
-        if not isinstance(params, (list,tuple)) or len(params)==0:
-            return -1
-        
-        if isinstance(params[0], str):
-            action = params[0]
-            params = params[1:]
-        else:
-            action = 'set'
-        
-        if action not in ('set','add','remove','clear'):
-            return -1
-        
-        if action in ('set', 'clear'):
-            [x.stop() for x in self.aparam_alerts]
-            self.aparam_alerts = []
-                
-        if action in ('set', 'add'):
-            for alert_def in params:
-                try:
-                    cls = alert_def.pop('alert_class')
-                    alert_def['resource_id'] = self.resource_id
-                    alert_def['origin_type'] = InstrumentAgent.ORIGIN_TYPE
-                    if cls == 'LateDataAlert':
-                        alert_def['get_state'] = self._fsm.get_current_state                    
-                    alert = eval('%s(**alert_def)' % cls)
-                    self.aparam_alerts.append(alert)
-                except Exception as ex:
-                    log.error('Instrument agent %s error constructing alert %s. Exception: %s.',
-                              self._proc_name, str(alert_def), str(ex))
-                    
-        elif action == 'remove':
-            new_alerts = copy.deepcopy(self.aparam_alerts)
-            new_alerts = [x for x in new_alerts if x.name not in params]
-            old_alerts = [x for x in new_alerts if x.name in params]
-            [x.stop() for x in old_alerts]
-            self.aparam_alerts = new_alerts
-
-        for a in self.aparam_alerts:
-            log.info('Instrument agent alert: %s', str(a))
-                       
-    def aparam_get_alerts(self):
-        """
-        Return kwarg representationn of all alerts.
-        """
-        result = [x.get_status() for x in self.aparam_alerts]
-        return result
-        
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################
