@@ -102,17 +102,17 @@ TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE0wcFVUY
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
-    'Constraint',                       # in memory only
-    'Contact',                          # in memory only
+    'Constraint',                       # in memory only - all scenarios loaded
+    'Contact',                          # in memory only - all scenarios loaded
     'User',
     'Org',
     'UserRole',                         # association only
-    'CoordinateSystem',                 # in memory only
+    'CoordinateSystem',                 # in memory only - all scenarios loaded
     'ParameterFunctions',
     'ParameterDefs',
     'ParameterDictionary',
-    "Alerts",                           # in memory only
-    'StreamConfiguration',              # in memory only
+    'Alerts',                           # in memory only - all scenarios loaded
+    'StreamConfiguration',              # in memory only - all scenarios loaded
     'SensorModel',
     'PlatformModel',
     'InstrumentModel',
@@ -145,13 +145,18 @@ DEFAULT_CATEGORIES = [
     'Parser',
     ]
 
+# The following lists all categories that define information used by other categories.
+# A definition in these categories has no persistent side effect on the system.
 DEFINITION_CATEGORIES = [
-    'Constraint',                       # in memory only
-    'Contact',                          # in memory only
-    'CoordinateSystem',                 # in memory only
-    "Alerts",                           # in memory only
-    'StreamConfiguration',              # in memory only
+    'Constraint',
+    'Contact',
+    'CoordinateSystem',
+    'Alerts',
+    'StreamConfiguration',
 ]
+
+# The following lists the scenarios that are always ignored
+IGNORE_SCENARIOS = ["", "DOC", "DOC:README", "STOP!", "X"]
 
 COL_SCENARIO = "Scenario"
 COL_ID = "ID"
@@ -166,7 +171,6 @@ ID_WEB_AUTH_ACTOR = "USER_WEB_AUTH"
 UUID_RE = '^[0-9a-fA-F]{32}$'
 
 class IONLoader(ImmediateProcess):
-
 
     def __init__(self,*a, **b):
         super(IONLoader,self).__init__(*a,**b)
@@ -341,7 +345,8 @@ class IONLoader(ImmediateProcess):
         row_skip = row_do = 0
         rows = []
         for row in reader:
-            if any(sc in scenarios for sc in row[COL_SCENARIO].split(",")):
+            if (category in DEFINITION_CATEGORIES and any(sc not in IGNORE_SCENARIOS for sc in row[COL_SCENARIO].split(","))) \
+                or any(sc in scenarios for sc in row[COL_SCENARIO].split(",")):
                 row_do += 1
                 rows.append(row)
             else:
@@ -813,8 +818,10 @@ class IONLoader(ImmediateProcess):
     # Add specific types of resources below
 
     def _load_Contact(self, row):
-        """ create constraint IonObject but do not insert into DB,
-            cache in dictionary for inclusion in other preload objects """
+        """
+        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
+        Keeps contact information objects.
+        """
         cont_id = row[COL_ID]
         log.trace('creating contact: ' + cont_id)
         if cont_id in self.contact_defs:
@@ -845,8 +852,10 @@ class IONLoader(ImmediateProcess):
             self._load_Contact(controw)
 
     def _load_Constraint(self, row):
-        """ create constraint IonObject but do not insert into DB,
-            cache in dictionary for inclusion in other preload objects """
+        """
+        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
+        Keeps geospatial/temporal constraints
+        """
         const_id = row[COL_ID]
         if const_id in self.constraint_defs:
             raise iex.BadRequest('constraint with ID already exists: ' + const_id)
@@ -859,6 +868,10 @@ class IONLoader(ImmediateProcess):
             raise iex.BadRequest('constraint type must be either geospatial or temporal, not ' + const_type)
 
     def _load_CoordinateSystem(self, row):
+        """
+        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
+        Keeps coordinate system definition objects.
+        """
         gcrs = self._create_object_from_row("GeospatialCoordinateReferenceSystem", row, "m/")
         cs_id = row[COL_ID]
         self.resource_ids[cs_id] = gcrs
@@ -1845,6 +1858,10 @@ Reason: %s
         return out
 
     def _load_Alerts(self, row):
+        """
+        DEFINITION category. Load and keep object for reference by other categories. No side effects.
+        Keeps alert definition dicts.
+        """
         # alert is just a dict
         alert = {
             'name': row['name'],
@@ -1859,7 +1876,11 @@ Reason: %s
         self.alerts[row[COL_ID]] = alert
 
     def _load_StreamConfiguration(self, row):
-        """ parse and save for use in *AgentInstance objects """
+        """
+        DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
+        Keeps stream configuration object for use in *AgentInstance categories.
+        """
+
 #        alerts = []
 #        if row['alerts']:
 #            for id in row['alerts'].split(','):
