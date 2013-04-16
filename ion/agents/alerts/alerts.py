@@ -159,7 +159,7 @@ class IntervalAlert(BaseAlert):
         status['upper_rel_op'] = self._upper_rel_op
         return status
 
-    def eval_alert(self, stream_name=None, value=None, value_id=None):
+    def eval_alert(self, stream_name=None, value=None, value_id=None, **kwargs):
 
         if stream_name != self._stream_name or value_id != self._value_id \
                           or not value:
@@ -309,7 +309,7 @@ class LateDataAlert(BaseAlert):
         status['time_delta'] = self._time_delta
         return status
 
-    def eval_alert(self, stream_name=None):
+    def eval_alert(self, stream_name=None, **kwargs):
         if stream_name != self._stream_name:
             return
         
