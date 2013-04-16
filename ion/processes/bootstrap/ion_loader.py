@@ -145,6 +145,14 @@ DEFAULT_CATEGORIES = [
     'Parser',
     ]
 
+DEFINITION_CATEGORIES = [
+    'Constraint',                       # in memory only
+    'Contact',                          # in memory only
+    'CoordinateSystem',                 # in memory only
+    "Alerts",                           # in memory only
+    'StreamConfiguration',              # in memory only
+]
+
 COL_SCENARIO = "Scenario"
 COL_ID = "ID"
 COL_OWNER = "owner_id"
