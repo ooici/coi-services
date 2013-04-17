@@ -540,6 +540,18 @@ class DataProductManagementService(BaseDataProductManagementService):
                 continue
         return retval
 
+    def get_data_product_group_list(self, org_id=''):
+        group_names = set()
+
+        # TODO: the return volume of this can be reduced by making a reduce query.
+        res_ids, keys = self.clients.resource_registry.find_resources_ext(RT.DataProduct, attr_name="ooi_product_name", id_only=True)
+        for key in keys:
+            group_name = key.get('attr_value', None)
+            if group_name:
+                group_names.add(group_name)
+
+        return sorted(list(group_names))
+
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
         dataset_id = ''
