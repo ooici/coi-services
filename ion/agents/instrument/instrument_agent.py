@@ -814,6 +814,20 @@ class InstrumentAgent(ResourceAgent):
         values : [{u'value_id': u'temp', u'value': 19.0612},
             {u'value_id': u'conductivity', u'value': 3.33791},
             {u'value_id': u'pressure', u'value': 449.005}]
+            
+        u'quality_flag': u'ok',
+        u'preferred_timestamp': u'port_timestamp',
+        u'stream_name': u'raw',
+        u'port_timestamp': 3575139438.357514,
+        u'pkt_format_id': u'JSON_Data',
+        u'pkt_version': 1,
+        u'values': [
+            {u'binary': True, u'value_id': u'raw', u'value': u'aABlAGEAcgB0AGIAZQBhAHQAXwBpAG4AdABlAHIAdgBhAGwAIAAwAA=='},
+            {u'value_id': u'length', u'value': 40},
+            {u'value_id': u'type', u'value': 1},
+            {u'value_id': u'checksum', u'value': None}
+            ],
+        u'driver_timestamp': 3575139438.206242       
         """
         
         # If the sample event is encoded, load it back to a dict.

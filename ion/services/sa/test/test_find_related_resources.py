@@ -36,29 +36,7 @@ RT_SITE = "Site"
 RT_SUBPLATFORMSITE = "SubPlatformSite"
 
 
-@attr('INT', group='sa')
-class TestFindRelatedResources(IonIntegrationTestCase):
-    """
-    assembly integration tests at the service level
-    """
-
-    def setUp(self):
-        # Start container
-        self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-
-        self.IMS  = InstrumentManagementServiceClient(node=self.container.node)
-        self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
-
-        self.RR   = ResourceRegistryServiceClient(node=self.container.node)
-
-        self.care = {}
-        self.dontcare = {}
-        self.realtype = {}
-
-#    @unittest.skip('this test just for debugging setup')
-#    def test_just_the_setup(self):
-#        return
+class ResourceHelper(object):
 
 
     def create_any(self, resourcetype, first, label=None):
@@ -185,6 +163,35 @@ class TestFindRelatedResources(IonIntegrationTestCase):
         return instrumentdevice_id
 
 
+
+
+@attr('INT', group='sa')
+class TestFindRelatedResources(IonIntegrationTestCase, ResourceHelper):
+    """
+    assembly integration tests at the service level
+    """
+
+    def setUp(self):
+        # Start container
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+
+        self.IMS  = InstrumentManagementServiceClient(node=self.container.node)
+        self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
+
+        self.RR   = ResourceRegistryServiceClient(node=self.container.node)
+
+
+        self.care = {}
+        self.dontcare = {}
+        self.realtype = {}
+
+
+#    @unittest.skip('this test just for debugging setup')
+#    def test_just_the_setup(self):
+#        return
+
+
     def create_dummy_structure(self):
         """
         Create two observatories.
@@ -210,7 +217,7 @@ class TestFindRelatedResources(IonIntegrationTestCase):
         for rt in [RT.Observatory, RT_SITE, RT.Subsite,
                    RT.PlatformSite, RT_SUBPLATFORMSITE, RT.PlatformDevice, RT.PlatformModel,
                    RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel
-                   ]:
+        ]:
             self.assertIn(rt, self.care)
 
         self.expected_associations = [
@@ -265,7 +272,6 @@ class TestFindRelatedResources(IonIntegrationTestCase):
 
     def describe_assn_graph(self, assn_list):
         return [("%s %s -> %s -> %s %s" % (a.st, a.s, a.p, a.ot, a.o)) for a in assn_list]
-
 
     #@unittest.skip('refactoring')
     def test_related_resource_crawler(self):

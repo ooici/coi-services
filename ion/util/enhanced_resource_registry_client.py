@@ -90,6 +90,7 @@ class EnhancedResourceRegistryClient(object):
         #raise BadRequest(str(mults))
         #
 
+        # TODO: s/_cached_/_fetched_/g
         self._cached_predicates = {}
         self._cached_resources  = {}
 
@@ -472,6 +473,9 @@ class EnhancedResourceRegistryClient(object):
     def cache_predicate(self, predicate):
         """
         Save all associations of a given predicate type to memory, for in-memory find_subjects/objects ops
+
+        This is a PREFETCH operation, and EnhancedResourceRegistryClient objects that use the cache functionality
+        should NOT be persisted across service calls.
         """
         log.info("Caching predicates: %s", predicate)
         log.debug("This cache is %s", self)
@@ -485,6 +489,12 @@ class EnhancedResourceRegistryClient(object):
         self._cached_predicates[predicate] = preds
 
 
+    def filter_cached_associations(self, predicate, is_match_fn):
+        if not self.has_cached_prediate(predicate):
+            raise BadRequest("Attempted to filter cached associations of uncached predicate '%s'" % predicate)
+
+        return [a for a in self._cached_predicates[predicate] if is_match_fn(a)]
+
 
     def _add_resource_to_cache(self, resource_type, resource_obj):
         self._cached_resources[resource_type].by_id[resource_obj._id] = resource_obj
@@ -497,6 +507,9 @@ class EnhancedResourceRegistryClient(object):
     def cache_resources(self, resource_type, specific_ids=None):
         """
         Save all resources of a given type to memory, for in-memory lookup ops
+
+        This is a PREFETCH operation, and EnhancedResourceRegistryClient objects that use the cache functionality
+        should NOT be persisted across service calls.
         """
         log.info("Caching resources: %s", resource_type)
         log.debug("This cache is %s", self)
