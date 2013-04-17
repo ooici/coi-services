@@ -35,9 +35,7 @@ from pyon.core.governance import get_actor_header, get_web_authentication_actor
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 
-from ion.services.sa.test.test_find_related_resources import TestFindRelatedResources
-from ion.util.related_resources_crawler import RelatedResourcesCrawler
-
+from ion.services.sa.test.test_find_related_resources import ResourceHelper
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
@@ -2037,7 +2035,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
 @attr('INT', group='coi')
-class TestResourcePolicyInt(TestFindRelatedResources):
+class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
 
     def __init__(self, *args, **kwargs):
@@ -2050,6 +2048,10 @@ class TestResourcePolicyInt(TestFindRelatedResources):
             log.info('Not running on a Mac')
         else:
             log.info('Running on a Mac)')
+
+        self.care = {}
+        self.dontcare = {}
+        self.realtype = {}
 
         IonIntegrationTestCase.__init__(self, *args, **kwargs)
 
@@ -2130,9 +2132,6 @@ class TestResourcePolicyInt(TestFindRelatedResources):
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
 
-    @unittest.skip('Overriding to skip')
-    def test_related_resource_crawler(self):
-        pass   # overriding to not test here
 
     def test_related_resource_policies(self):
         """
@@ -2143,6 +2142,7 @@ class TestResourcePolicyInt(TestFindRelatedResources):
         self.create_observatory(True, create_with_marine_facility=True)
         self.create_observatory(False, create_with_marine_facility=True)
 
+        from ion.util.related_resources_crawler import RelatedResourcesCrawler
         r = RelatedResourcesCrawler()
 
         inst_devices,_ = self.rr_client.find_resources(restype=RT.InstrumentDevice)
