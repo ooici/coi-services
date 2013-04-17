@@ -11,12 +11,12 @@ class GeoUtils(object):
     @classmethod
     def calc_geospatial_point_center(cls, geospatial_bounds=None, distance=None):
         if not geospatial_bounds:
-            raise BadRequest ("Geospatial bounds data is not set correctly")
+            raise BadRequest("Geospatial bounds data is not set correctly")
         if (geospatial_bounds.geospatial_latitude_limit_north < -90 or geospatial_bounds.geospatial_latitude_limit_north > 90 or
             geospatial_bounds.geospatial_latitude_limit_south < -90 or geospatial_bounds.geospatial_latitude_limit_south > 90 or
             geospatial_bounds.geospatial_longitude_limit_east < -180 or geospatial_bounds.geospatial_longitude_limit_east > 180 or
             geospatial_bounds.geospatial_longitude_limit_west < -180 or geospatial_bounds.geospatial_longitude_limit_west > 180):
-            raise BadRequest ("Geospatial bounds data out of range")
+            raise BadRequest("Geospatial bounds data out of range")
         geo_index_obj = IonObject(OT.GeospatialIndex)
 
         west_lon = geospatial_bounds.geospatial_longitude_limit_west
@@ -25,7 +25,7 @@ class GeoUtils(object):
         south_lat = geospatial_bounds.geospatial_latitude_limit_south
         if not distance:
             if (west_lon >= 0 and east_lon >= 0) or (west_lon <= 0 and east_lon <= 0):  # Same hemisphere
-                if west_lon < east_lon:  # West is "to the left" of East
+                if west_lon <= east_lon:  # West is "to the left" of East
                     distance = GeoUtils.DISTANCE_SHORTEST
                 else:  # West is "to the right" of East
                     distance = GeoUtils.DISTANCE_LONGEST
@@ -42,9 +42,9 @@ class GeoUtils(object):
             else:
                 distance = GeoUtils.DISTANCE_SHORTEST
         if distance == GeoUtils.DISTANCE_SHORTEST:
-            geo_index_obj.lat, geo_index_obj.lon = GeoUtils.midpoint_shortest( north_lat=north_lat, west_lon=west_lon, south_lat=south_lat, east_lon=east_lon)
+            geo_index_obj.lat, geo_index_obj.lon = GeoUtils.midpoint_shortest(north_lat=north_lat, west_lon=west_lon, south_lat=south_lat, east_lon=east_lon)
         elif distance == GeoUtils.DISTANCE_LONGEST:
-            geo_index_obj.lat,  geo_index_obj.lon = GeoUtils.midpoint_longest( north_lat=north_lat, west_lon=west_lon, south_lat=south_lat, east_lon=east_lon)
+            geo_index_obj.lat,  geo_index_obj.lon = GeoUtils.midpoint_longest(north_lat=north_lat, west_lon=west_lon, south_lat=south_lat, east_lon=east_lon)
         else:
             raise BadRequest("Distance type not specified")
         return geo_index_obj
@@ -101,8 +101,8 @@ class GeoUtils(object):
         res_bb['lat_north'] = max(lat_north_list) if lat_north_list else 0.0
         res_bb['lat_south'] = min(lat_south_list) if lat_south_list else 0.0
 
-        res_bb['lon_east'] = max(lon_east_list) if lon_east_list else 0.0
         res_bb['lon_west'] = min(lon_west_list) if lon_west_list else 0.0
+        res_bb['lon_east'] = max(lon_east_list) if lon_east_list else 0.0
 
         res_bb['depth_max'] = max(depth_min_list) if depth_min_list else 0.0
         res_bb['depth_min'] = min(depth_max_list) if depth_max_list else 0.0
