@@ -940,33 +940,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return extended_site
 
 
-
-        #Bogus functions for computed attributes
-    def get_number_data_sets(self, observatory_id):
-        return "0"
-
-    def get_number_instruments_deployed(self, observatory_id):
-        return "0"
-
-
-    def get_number_instruments_operational(self, observatory_id):
-        return "0"
-
-
-    def get_number_instruments_inoperational(self, observatory_id):
-        return "0"
-
-
-    def get_number_instruments(self, observatory_id):
-        return "0"
-
-
-    def get_number_platforms(self, observatory_id):
-        return "0"
-
-    def get_number_platforms_deployed(self, observatory_id):
-        return "0"
-
     def _get_instrument_states(self, instrument_device_obj_list=None):
 
         op = []
