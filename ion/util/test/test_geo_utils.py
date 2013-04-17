@@ -66,7 +66,9 @@ class TestGeoUtils(PyonTestCase):
         geospatial_bounds.geospatial_longitude_limit_west = 0
         mid_point = GeoUtils.calc_geospatial_point_center(geospatial_bounds)
         self.assertAlmostEqual(mid_point.lat, 0.0)
-        self.assertAlmostEqual(mid_point.lon, -180.0)
+        self.assertAlmostEqual(mid_point.lon, 0.0)
+        # MM: changed this: if the same values are given, we expect a point not the full globe
+        #self.assertAlmostEqual(mid_point.lon, -180.0)
 
         geospatial_bounds.geospatial_latitude_limit_north = 40
         geospatial_bounds.geospatial_latitude_limit_south = 50
