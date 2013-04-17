@@ -68,7 +68,8 @@ from ion.core.ooiref import OOIReferenceDesignator
 from ion.processes.bootstrap.ooi_loader import OOILoader
 from ion.processes.bootstrap.ui_loader import UILoader
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.services.dm.utility.types import TypesManager 
+from ion.services.dm.utility.types import TypesManager
+from ion.util.geo_utils import GeoUtils
 from ion.util.parse_utils import parse_dict, parse_phones, get_typed_value
 from ion.util.xlsparser import XLSParser
 
@@ -172,8 +173,8 @@ UUID_RE = '^[0-9a-fA-F]{32}$'
 
 class IONLoader(ImmediateProcess):
 
-    def __init__(self,*a, **b):
-        super(IONLoader,self).__init__(*a,**b)
+    def __init__(self, *a, **b):
+        super(IONLoader, self).__init__(*a,**b)
 
         # initialize these here instead of on_start
         # to support using IONLoader as a utility -- not just as a process
@@ -214,7 +215,11 @@ class IONLoader(ImmediateProcess):
             self._do_preload(self.CFG)
 
     def _do_preload(self, config):
-        # Main operation to perform
+        """
+        One "run" of preload with one set of config arguments.
+        """
+
+        # Main operation to perform this run.
         op = config.get("op", None)
 
         # Additional parameters
@@ -231,20 +236,7 @@ class IONLoader(ImmediateProcess):
         elif self.ui_path=='candidate':
             self.ui_path = CANDIDATE_UI_ASSETS
 
-        scenarios = config.get("scenario", None)
-        category_csv = config.get("categories", None)
-        self.categories = category_csv.split(",") if category_csv else DEFAULT_CATEGORIES
-
         self.debug = config.get("debug", False)        # Debug mode with certain shorthands
-        self.loadooi = config.get("loadooi", False)    # Import OOI asset data
-        self.loadui = config.get("loadui", False)      # Import UI asset data
-        self.exportui = config.get("exportui", False)  # Save UI JSON file
-        self.update = config.get("update", False)      # Support update to existing resources
-        self.bulk = config.get("bulk", False)          # Use bulk insert where available
-        self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
-        self.ooiexclude = config.get("ooiexclude", '') # Don't import the listed categories
-        if self.ooiexclude:
-            self.ooiexclude = self.ooiexclude.split(',')
         self.ooiuntil = config.get("ooiuntil", None) # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
@@ -254,17 +246,31 @@ class IONLoader(ImmediateProcess):
         self.ooi_loader = OOILoader(self, asset_path=self.asset_path)
         self.resource_ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
 
-        # Loads internal bootstrapped resource ids that will be referenced during preload
-        self._load_system_ids()
-
-        log.info("IONLoader: {op=%s, path=%s, scenario=%s}" % (op, self.path, scenarios))
+        log.info("IONLoader: {op=%s, path=%s}", op, self.path)
         if not op:
             raise iex.BadRequest("No operation specified")
 
         # Perform operations
         if op == "load":
+            scenarios = config.get("scenario", None)
             if not scenarios:
                 raise iex.BadRequest("Must provide scenarios to load: scenario=sc1,sc2,...")
+            log.debug("Scenarios: %s", scenarios)
+
+            category_csv = config.get("categories", None)
+            self.categories = category_csv.split(",") if category_csv else DEFAULT_CATEGORIES
+
+            self.loadooi = config.get("loadooi", False)    # Import OOI asset data
+            self.loadui = config.get("loadui", False)      # Import UI asset data
+            self.exportui = config.get("exportui", False)  # Save UI JSON file
+            self.update = config.get("update", False)      # Support update to existing resources
+            self.bulk = config.get("bulk", False)          # Use bulk insert where available
+            self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
+            self.ooiexclude = config.get("ooiexclude", '') # Don't import the listed categories
+            if self.ooiexclude:
+                self.ooiexclude = self.ooiexclude.split(',')
+
+
 
             if self.loadooi:
                 self.ooi_loader.extract_ooi_assets()
@@ -272,6 +278,9 @@ class IONLoader(ImmediateProcess):
             if self.loadui:
                 specs_path = 'interface/ui_specs.json' if self.exportui else None
                 self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
+
+            # Loads internal bootstrapped resource ids that will be referenced during preload
+            self._load_system_ids()
 
             # Load existing resources by preload ID
             self._prepare_incremental()
@@ -283,15 +292,22 @@ class IONLoader(ImmediateProcess):
             self.ooi_loader.extract_ooi_assets()
             self.ooi_loader.analyze_ooi_assets(self.ooiuntil)
             self.ooi_loader.report_ooi_assets()
+
+        elif op == "deleteooi":
+            if self.debug:
+                self.ooi_loader.delete_ooi_assets()
+            else:
+                raise iex.BadRequest("deleteooi not allowed if debug==False")
+
         elif op == "loadui":
             specs_path = 'interface/ui_specs.json' if self.exportui else None
             self.ui_loader.load_ui(self.ui_path, specs_path=specs_path)
-        elif op == "deleteooi":
-            self.ooi_loader.delete_ooi_assets()
+
         elif op == "deleteui":
             self.ui_loader.delete_ui()
+
         else:
-            raise iex.BadRequest("Operation unknown")
+            raise iex.BadRequest("Operation unknown: %s" % op)
 
     def on_quit(self):
         pass
@@ -1153,6 +1169,14 @@ class IONLoader(ImmediateProcess):
 
             self._load_InstrumentModel(newrow)
 
+    def _calc_geospatial_point_center(self, site):
+        siteTypes = [RT.Site, RT.Subsite, RT.Observatory, RT.PlatformSite, RT.InstrumentSite, RT.Deployment]
+        if site and site.type_ in siteTypes:
+            # if the geospatial_bounds is set then calculate the geospatial_point_center
+            for constraint in site.constraint_list:
+                if constraint.type_ == OT.GeospatialBounds:
+                    site.geospatial_point_center = GeoUtils.calc_geospatial_point_center(constraint)
+
     def _load_Observatory(self, row):
         constraints = self._get_constraints(row, type='Observatory')
         coordinate_name = row['coordinate_system']
@@ -1162,6 +1186,10 @@ class IONLoader(ImmediateProcess):
             constraints=constraints, constraint_field='constraint_list',
             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None,
             support_bulk=True)
+
+        if self.bulk:
+            fofr_obj = self._get_resource_obj(res_id)
+            self._calc_geospatial_point_center(fofr_obj)
 
     def _load_Observatory_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("ssite")
@@ -1207,6 +1235,10 @@ class IONLoader(ImmediateProcess):
             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None,
             support_bulk=True)
 
+        if self.bulk:
+            fofr_obj = self._get_resource_obj(res_id)
+            self._calc_geospatial_point_center(fofr_obj)
+
         headers = self._get_op_headers(row)
         psite_id = row.get("parent_site_id", None)
         if psite_id:
@@ -1232,6 +1264,10 @@ class IONLoader(ImmediateProcess):
             constraints=constraints, constraint_field='constraint_list',
             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None,
             support_bulk=True)
+
+        if self.bulk:
+            fofr_obj = self._get_resource_obj(res_id)
+            self._calc_geospatial_point_center(fofr_obj)
 
         svc_client = self._get_service_client("observatory_management")
 
@@ -1267,7 +1303,7 @@ class IONLoader(ImmediateProcess):
         def _load_platform(ooi_id, ooi_obj):
             ooi_rd = OOIReferenceDesignator(ooi_id)
             const_id1 = ''
-            if ooi_obj.get('latitude',None) or ooi_obj.get('longitude',None) or ooi_obj.get('depth_subsite',None):
+            if ooi_obj.get('latitude', None) or ooi_obj.get('longitude', None) or ooi_obj.get('depth_subsite', None):
                 const_id1 = ooi_id + "_const1"
                 constrow = {}
                 constrow[COL_ID] = const_id1
@@ -1346,6 +1382,10 @@ class IONLoader(ImmediateProcess):
             constraints=constraints, constraint_field='constraint_list',
             set_attributes=dict(coordinate_reference_system=self.resource_ids[coordinate_name]) if coordinate_name else None,
             support_bulk=True)
+
+        if self.bulk:
+            fofr_obj = self._get_resource_obj(res_id)
+            self._calc_geospatial_point_center(fofr_obj)
 
         svc_client = self._get_service_client("observatory_management")
 
@@ -2266,6 +2306,10 @@ Reason: %s
             # This is a non-functional, diminished version of a DataProduct, just to show up in lists
             res_id = self._create_bulk_resource(res_obj, row[COL_ID])
             self._resource_assign_owner(headers, res_obj)
+
+            if res_obj.geospatial_bounds:
+                res_obj.geospatial_point_center = GeoUtils.calc_geospatial_point_center(res_obj.geospatial_bounds)
+
             # Create and associate Stream
             # Create and associate Dataset
         else:
@@ -2304,6 +2348,7 @@ Reason: %s
             newrow[COL_ID] = ooi_id + "_DPIDP"
             newrow['dp/name'] = "Data Product parsed for device " + ooi_id
             newrow['dp/description'] = "Data Product (device, parsed) for: " + ooi_id
+            newrow['dp/ooi_product_name'] = "Raw"
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
             newrow['contact_ids'] = ''
             newrow['geo_constraint_id'] = const_id1
@@ -2317,6 +2362,7 @@ Reason: %s
             newrow[COL_ID] = ooi_id + "_DPIDR"
             newrow['dp/name'] = "Data Product raw for device " + ooi_id
             newrow['dp/description'] = "Data Product (device, raw) for: " + ooi_id
+            newrow['dp/ooi_product_name'] = "Parsed"
             newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
             newrow['contact_ids'] = ''
             newrow['geo_constraint_id'] = const_id1
@@ -2325,18 +2371,35 @@ Reason: %s
             newrow['stream_def_id'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-            # (3) Site Data Product - parsed
             data_product_list = ooi_obj.get('data_product_list', [])
             for dp_id in data_product_list:
                 dp_obj = data_products[dp_id]
 
-                # (4*) Site Data Product DPS - Level
+                # (3*) Site Data Product DPS - Level
                 newrow = {}
                 newrow[COL_ID] = ooi_id + "_" + dp_id + "_DPID"
                 newrow['dp/name'] = "%s %s at %s" % (dp_obj['name'], dp_obj['level'], ooi_id)
-
-                #"Data Product for site " + ooi_id + " DPS " + dp_id
                 newrow['dp/description'] = "Data Product DPS %s level %s for site %s: " % (dp_id,  dp_obj['level'], ooi_id)
+                newrow['dp/ooi_short_name'] = dp_obj['code']
+                newrow['dp/ooi_product_name'] = dp_obj['name']
+                newrow['dp/processing_level_code'] = dp_obj['level']
+                newrow['dp/regime'] = dp_obj.get('regime', "")
+                newrow['dp/qc_cmbnflg'] = dp_obj.get('Combine QC Flags (CMBNFLG) QC', "")
+                newrow['dp/qc_condcmp'] = dp_obj.get('Conductivity Compressibility Compensation (CONDCMP) QC', "")
+                newrow['dp/qc_glblrng'] = dp_obj.get('Global Range Test (GLBLRNG) QC', "")
+                newrow['dp/qc_gradtst'] = dp_obj.get('Gradient Test (GRADTST) QC', "")
+                newrow['dp/qc_interp1'] = dp_obj.get('1-D Interpolation (INTERP1) QC', "")
+                newrow['dp/qc_loclrng'] = dp_obj.get('Local Range Test (LOCLRNG) QC', "")
+                newrow['dp/qc_modulus'] = dp_obj.get('Modulus (MODULUS) QC', "")
+                newrow['dp/qc_polyval'] = dp_obj.get('Evaluate Polynomial (POLYVAL) QC', "")
+                newrow['dp/qc_solarel'] = dp_obj.get('Solar Elevation (SOLAREL) QC', "")
+                newrow['dp/qc_spketest'] = dp_obj.get('Spike Test (SPKETST) QC', "")
+                newrow['dp/qc_stuckvl'] = dp_obj.get('Stuck Value Test (STUCKVL) QC', "")
+                newrow['dp/qc_trndtst'] = dp_obj.get('Trend Test (TRNDTST) QC', "")
+                newrow['dp/dps_dcn'] = dp_obj.get('DPS DCN(s)', "")
+                newrow['dp/flow_diagram_dcn'] = dp_obj.get('Processing Flow Diagram DCN(s)', "")
+                newrow['dp/doors_l2_requirement_num'] = dp_obj.get('DOORS L2 Science Requirement #(s)', "")
+                newrow['dp/doors_l2_requirement_text'] = dp_obj.get('DOORS L2 Science Requirement Text', "")
                 newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
@@ -2495,7 +2558,6 @@ Reason: %s
                                              constraints=constraints, constraint_field='constraint_list',
                                              set_attributes={"coordinate_reference_system": self.resource_ids[coordinate_name] if coordinate_name else None,
                                                              "context": context})
-
 
         device_id = self.resource_ids[row['device_id']]
         site_id = self.resource_ids[row['site_id']]

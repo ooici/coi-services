@@ -20,12 +20,16 @@ class OOILoader(object):
         self.process = process
         self.container = container or self.process.container
         self.asset_path = asset_path
+        self._extracted = False
 
     def extract_ooi_assets(self):
         """
         Parses SAF Instrument Application export CSV files into intermediate memory structures.
         This information can later be loaded in to actual load_ion() function.
         """
+        if self._extracted:
+            return
+
         if not self.asset_path:
             raise iex.BadRequest("Must provide path for assets: path=dir or assets=dir")
         if self.asset_path.startswith('http'):
@@ -125,6 +129,8 @@ class OOILoader(object):
             #print ot
             #print "\n".join(sorted(list(self.ooi_obj_attrs[ot])))
 
+        self._extracted = True
+
     def get_type_assets(self, objtype):
         return self.ooi_objects.get(objtype, None)
 
@@ -205,7 +211,7 @@ class OOILoader(object):
             return
         self._add_object_attribute('data_product_type',
             row['Data_Product_Identifier'], row['Attribute'], row['AttributeValue'],
-            mapping={},
+            mapping={'Regime(s)':'regime'},
             Data_Product_Name=row['Data_Product_Name'], Data_Product_Level=row['Data_Product_Level'])
 
     def _parse_AttributeReportFamilies(self, row):
@@ -370,6 +376,7 @@ class OOILoader(object):
         entry.pop("id", None)
         entry.update(dict(
             name=row['Data_Product_Name'].strip(),
+            code=dp_type,
             level=row['Data_Product_Level1'].strip(),
             units=row['Units'].strip(),
             dps=row['DPS_DCN_s_'].strip(),
