@@ -2330,7 +2330,6 @@ Reason: %s
             newrow['contact_ids'] = ''
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            newrow['available_formats'] = ''
             newrow['stream_def_id'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
@@ -2344,7 +2343,6 @@ Reason: %s
             newrow['contact_ids'] = ''
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            newrow['available_formats'] = ''
             newrow['stream_def_id'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
@@ -2381,7 +2379,6 @@ Reason: %s
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['available_formats'] = ''
                 newrow['stream_def_id'] = ''
 
                 self._load_DataProduct(newrow, do_bulk=self.bulk)
