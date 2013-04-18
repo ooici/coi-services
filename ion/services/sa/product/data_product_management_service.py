@@ -1231,7 +1231,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         resource_data.assign_stream_definition_request.service_name = 'instrument_management'
         resource_data.assign_stream_definition_request.service_operation = 'assign_stream_definition_to_data_product'
         resource_data.assign_stream_definition_request.request_parameters = {
-            "data_product_id":  "$(data_product_id)",
+            "data_product_id": data_product_id,
             "stream_definition_id": "$(stream_definition_id)",
             "exchange_point": "$(exchange_point)"
         }
@@ -1241,7 +1241,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         resource_data.assign_dataset_request.service_name = 'instrument_management'
         resource_data.assign_dataset_request.service_operation = 'assign_dataset_to_data_product'
         resource_data.assign_dataset_request.request_parameters = {
-            "data_product_id":  "$(data_product_id)",
+            "data_product_id": data_product_id,
             "dataset_id": "$(dataset_id)"
         }
 
