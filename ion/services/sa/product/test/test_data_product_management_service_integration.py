@@ -257,12 +257,12 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             return obj.__dict__
 
         #test prepare
-        data_product_data = self.dpsc_cli.prepare_update_data_product(dp_id)
+        data_product_data = self.dpsc_cli.prepare_data_product_support(dp_id)
 
         #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)
 
         self.assertEqual(data_product_data._id, dp_id)
-        self.assertEqual(data_product_data.type_, OT.DataProductPrepareUpdate)
+        self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
         self.assertEqual(len(data_product_data.stream_definitions), 2)
 
         self.assertEqual(len(data_product_data.datasets), 2)
