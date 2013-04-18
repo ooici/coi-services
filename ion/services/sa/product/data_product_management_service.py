@@ -37,6 +37,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
 
+
     def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id=''):
         """
         @param      data_product IonObject which defines the general data product resource
@@ -44,15 +45,20 @@ class DataProductManagementService(BaseDataProductManagementService):
         @retval     data_product_id
         """
 
+        data_product_id = self.create_data_product_(data_product)
 
-        # Create will validate and register a new data product within the system
-        # If the stream definition has a parameter dictionary, use that
-        validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to register a data product')
-        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
-        parameter_dictionary = stream_def_obj.parameter_dictionary 
-        validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
+        self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
+            stream_definition_id=stream_definition_id, exchange_point=exchange_point)
+
+        if dataset_id:
+            self.assign_dataset_to_data_product(data_product_id=data_product_id, dataset_id=dataset_id)
+
+      # Return the id of the new data product
+        return data_product_id
+
+    def create_data_product_(self, data_product=None):
+
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
-        exchange_point = exchange_point or 'science_data'
 
         # if the geospatial_bounds is set then calculate the geospatial_point_center
         if data_product and data_product.type_ == RT.DataProduct:
@@ -64,10 +70,18 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         data_product_id = self.RR2.create(data_product, RT.DataProduct)
 
+        return data_product_id
 
-        #-----------------------------------------------------------------------------------------------
-        #Create the stream and a dataset if a stream definition is provided
-        #-----------------------------------------------------------------------------------------------
+    def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
+
+        validate_is_not_none(data_product_id, 'A data product id must be passed to register a data product')
+        validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to assign to a data product')
+        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
+        parameter_dictionary = stream_def_obj.parameter_dictionary
+        validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
+        exchange_point = exchange_point or 'science_data'
+
+        data_product = self.RR2.read(data_product_id)
 
         #if stream_definition_id:
         #@todo: What about topics?
@@ -76,20 +90,20 @@ class DataProductManagementService(BaseDataProductManagementService):
         self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id, data_product_id)
 
         stream_id,route = self.clients.pubsub_management.create_stream(name=data_product.name,
-                                                                exchange_point=exchange_point,
-                                                                description=data_product.description,
-                                                                stream_definition_id=stream_definition_id)
+            exchange_point=exchange_point,
+            description=data_product.description,
+            stream_definition_id=stream_definition_id)
 
         # Associate the Stream with the main Data Product and with the default data product version
         self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
 
 
-        if dataset_id:
-            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+    def assign_dataset_to_data_product(self, data_product_id='', dataset_id=''):
+        validate_is_not_none(data_product_id, 'A data product id must be passed to assign a dataset to a data product')
+        validate_is_not_none(dataset_id, 'A dataset id must be passed to assign a dataset to a data product')
 
+        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
 
-        # Return the id of the new data product
-        return data_product_id
 
     def read_data_product(self, data_product_id=''):
         """
@@ -1188,28 +1202,48 @@ class DataProductManagementService(BaseDataProductManagementService):
     ############################
 
 
-    def prepare_update_data_product(self, data_product_id=''):
+    def prepare_data_product_support(self, data_product_id=''):
         """
         Returns the object containing the data to update an instrument device resource
         """
 
-        if not data_product_id:
-            raise BadRequest("The data_product_id parameter is empty")
-
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        resource_data = extended_resource_handler.create_prepare_update_resource(data_product_id, OT.DataProductPrepareUpdate)
+        resource_data = extended_resource_handler.create_prepare_resource_support(data_product_id, OT.DataProductPrepareSupport)
 
         #Fill out service request information for creating a data product
         resource_data.create_data_product_request.service_name = 'data_product_management'
-        resource_data.create_data_product_request.service_operation = 'create_data_product'
+        resource_data.create_data_product_request.service_operation = 'create_data_product_'
         resource_data.create_data_product_request.request_parameters = {
-            "data_product":  "$(data_product)",
-            "stream_definition_id": "$(stream_definition_id)",
-            "exchange_point": "$(exchange_point)",
-            "dataset_id": "$(dataset_id)"
-
+            "data_product":  "$(data_product)"
         }
+
+
+        #Fill out service request information for updating a platform device
+        resource_data.update_data_product_request.service_name = 'data_product_management'
+        resource_data.update_data_product_request.service_operation = 'update_data_product'
+        resource_data.update_data_product_request.request_parameters = {
+            "data_product":  "$(data_product)"
+        }
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_stream_definition_request.service_name = 'instrument_management'
+        resource_data.assign_stream_definition_request.service_operation = 'assign_stream_definition_to_data_product'
+        resource_data.assign_stream_definition_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "stream_definition_id": "$(stream_definition_id)",
+            "exchange_point": "$(exchange_point)"
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.assign_dataset_request.service_name = 'instrument_management'
+        resource_data.assign_dataset_request.service_operation = 'assign_dataset_to_data_product'
+        resource_data.assign_dataset_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "dataset_id": "$(dataset_id)"
+        }
+
 
         return resource_data

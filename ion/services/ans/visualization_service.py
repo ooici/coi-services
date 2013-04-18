@@ -579,7 +579,11 @@ class VisualizationService(BaseVisualizationService):
         for idx in range(1,len(temp_gdt_description)):
             temp_arr = temp_gdt_description[idx]
             if temp_arr != None and temp_arr[0] != 'time':
-                gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2]))
+                if len(temp_arr) == 3:
+                    gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2]))
+                if len(temp_arr) == 4:
+                    gdt_description.append((temp_arr[0], temp_arr[1], temp_arr[2], temp_arr[3]))
+
 
         for tempTuple in temp_gdt_content:
             # sometimes there are inexplicable empty tuples in the content. Drop them
@@ -650,7 +654,6 @@ class VisualizationService(BaseVisualizationService):
         else:
             retrieved_granule = self.clients.data_retriever.retrieve(ds_ids[0], query=query)
 
-        #print " >>>>>>>>>>>> RETRIEVED GRANULE : " , retrieved_granule
         if retrieved_granule is None:
             return None
 

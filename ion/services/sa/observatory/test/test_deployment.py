@@ -461,4 +461,12 @@ class TestDeployment(IonIntegrationTestCase):
             for i, d in enumerate(instrument_device_id):
                 self.assertEqual(d, self.RR2.find_instrument_device_id_of_instrument_site_using_has_device(instrument_site_id[i]))
 
+        extended_deployment = self.omsclient.get_deployment_extension(deployment_id)
+        log.debug('base_3x3_matchups extended_deployment:  %s', extended_deployment)
+        self.assertTrue(len(extended_deployment.platform_sites) == len(extended_deployment.platform_devices))
+        self.assertTrue(len(extended_deployment.instrument_sites) == len(extended_deployment.instrument_devices))
+        self.assertTrue(len(extended_deployment.instrument_devices) == len(extended_deployment.instrument_models))
+        self.assertTrue(len(extended_deployment.platform_devices) == len(extended_deployment.platform_models))
+
+
 
