@@ -1909,23 +1909,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     ############################
     #
-    #  PREPARE UPDATE RESOURCES
+    #  PREPARE RESOURCES
     #
     ############################
 
 
-    def prepare_update_instrument_device(self, instrument_device_id=''):
+    def prepare_instrument_device_support(self, instrument_device_id=''):
         """
         Returns the object containing the data to update an instrument device resource
         """
 
-        if not instrument_device_id:
-            raise BadRequest("The instrument_device_id parameter is empty")
-
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        resource_data = extended_resource_handler.create_prepare_update_resource(instrument_device_id, OT.InstrumentDevicePrepareUpdate)
+        resource_data = extended_resource_handler.create_prepare_resource_support(instrument_device_id, OT.InstrumentDevicePrepareSupport)
 
         #Fill out service request information for creating a instrument device
         resource_data.create_instrument_device_request.service_name = 'instrument_management'
@@ -1934,6 +1931,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             "instrument_device":  "$(instrument_device)"
         }
 
+        #Fill out service request information for updating a instrument device
+        resource_data.create_instrument_device_request.service_name = 'instrument_management'
+        resource_data.create_instrument_device_request.service_operation = 'update_instrument_device'
+        resource_data.create_instrument_device_request.request_parameters = {
+            "instrument_device":  "$(instrument_device)"
+        }
 
         #Fill out service request information for assigning a model
         resource_data.assign_instrument_model_request.service_name = 'instrument_management'
@@ -1955,22 +1958,26 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         return resource_data
 
 
-    def prepare_update_platform_device(self, platform_device_id=''):
+    def prepare_platform_device_support(self, platform_device_id=''):
         """
         Returns the object containing the data to update an instrument device resource
         """
 
-        if not platform_device_id:
-            raise BadRequest("The platform_device_id parameter is empty")
-
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        resource_data = extended_resource_handler.create_prepare_update_resource(platform_device_id, OT.PlatformDevicePrepareUpdate)
+        resource_data = extended_resource_handler.create_prepare_resource_support(platform_device_id, OT.PlatformDevicePrepareSupport)
 
         #Fill out service request information for creating a platform device
         resource_data.create_platform_device_request.service_name = 'instrument_management'
         resource_data.create_platform_device_request.service_operation = 'create_platform_device'
+        resource_data.create_platform_device_request.request_parameters = {
+            "platform_device":  "$(platform_device)"
+        }
+
+        #Fill out service request information for updating a platform device
+        resource_data.create_platform_device_request.service_name = 'instrument_management'
+        resource_data.create_platform_device_request.service_operation = 'update_platform_device'
         resource_data.create_platform_device_request.request_parameters = {
             "platform_device":  "$(platform_device)"
         }

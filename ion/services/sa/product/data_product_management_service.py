@@ -1188,18 +1188,15 @@ class DataProductManagementService(BaseDataProductManagementService):
     ############################
 
 
-    def prepare_update_data_product(self, data_product_id=''):
+    def prepare_data_product_support(self, data_product_id=''):
         """
         Returns the object containing the data to update an instrument device resource
         """
 
-        if not data_product_id:
-            raise BadRequest("The data_product_id parameter is empty")
-
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        resource_data = extended_resource_handler.create_prepare_update_resource(data_product_id, OT.DataProductPrepareUpdate)
+        resource_data = extended_resource_handler.create_prepare_resource_support(data_product_id, OT.DataProductPrepareSupport)
 
         #Fill out service request information for creating a data product
         resource_data.create_data_product_request.service_name = 'data_product_management'
