@@ -36,7 +36,7 @@ import shutil
 class TestTypes(PyonTestCase):
     def setUp(self):
         PyonTestCase.setUp(self)
-        self.types_manager = TypesManager(None)
+        self.types_manager = TypesManager(None,None,None)
     
     def get_context(self, ptype, encoding, fill_value, codeset=None):
         ptype = self.types_manager.get_parameter_type(ptype, encoding, codeset)
@@ -358,14 +358,14 @@ class TestTypes(PyonTestCase):
         func.lookup_values = ['LV_coeff_a']
         test_context = ParameterContext('test', param_type=ParameterFunctionType(func))
 
-        tm = TypesManager(None)
+        tm = TypesManager(None,None,None)
         self.assertTrue(tm.has_lookup_value(test_context))
         tm.parameter_lookups['LV_coeff_a'] = 'abc123'
         self.assertEquals(tm.get_lookup_value_ids(test_context), ['abc123'])
 
 
     def test_bad_units(self):
-        tm = TypesManager(None)
+        tm = TypesManager(None,None,None)
         self.assertRaises(UdunitsError,tm.get_unit, 'something')
     
 
