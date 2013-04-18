@@ -1485,7 +1485,7 @@ Reason: %s
 
     def _load_ParameterDictionary(self, row):
         dataset_management = self._get_service_client('dataset_management')
-        types_manager = TypesManager(dataset_management)
+        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
         if row['SKIP']:
             self._conflict_report(row['ID'], row['name'], row['SKIP'])
             return
@@ -1509,8 +1509,9 @@ Reason: %s
                 else:
                     log.warning('Duplicate: %s (%s)', name, i)
                 context_ids[self.resource_ids[i]] = 0
-                res_obj = self.resource_objs[i]
-                lookup_values = types_manager.get_lookup_value_ids(res_obj)
+                res = self.resource_objs[i]
+                context = ParameterContext.load(res.parameter_context)
+                lookup_values = types_manager.get_lookup_value_ids(context)
                 for val in lookup_values:
                     context_ids[val] = 0
             except KeyError:
@@ -1565,8 +1566,10 @@ Reason: %s
 
         func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(),
                                                                description=descr, headers=self._get_system_actor_headers())
-        self._register_id(row[COL_ID], func_id)
-        TypesManager.function_lookups[row[COL_ID]] = func_id
+        func_obj = self.container.resource_registry.read(func_id)
+        func_obj.alt_ids=['PRE:'+row[COL_ID]]
+        self.container.resource_registry.update(func_obj)
+        self._register_id(row[COL_ID], func_id, func_obj)
 
     def _load_ParameterDefs(self, row):
         if row['SKIP']:
@@ -1597,7 +1600,7 @@ Reason: %s
 
         #validate parameter type
         try:
-            tm = TypesManager(dataset_management)
+            tm = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
             param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
@@ -1642,34 +1645,6 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         try:
-#--------------------------------------------------------------------------------
-#   confluence ->
-#   reference_urls
-#   Parameter Type
-#   -> parameter_type
-#   Name
-#   -> internal_name (new attribute)
-#   Value Encoding 
-#   -> value_encoding (new attribute)
-#   Code Set
-#   -> code_report
-#   Unit of Measure 
-#   -> units
-#   Fill Value
-#   -> fill_value
-#   Display Name 
-#   -> display_name (renamed from ion_name)
-#   Parameter Function ID
-#   -> parameter_function_id (new attribute)
-#   Parameter Function Map
-#   -> parameter_function_map (new attribute)
-#   Standard Name 
-#   -> standard_name
-#   Data Product Identifier
-#   -> ooi_short_name
-#   Description
-#   -> description
-#--------------------------------------------------------------------------------
             creation_args = dict(
                 name=name, parameter_context=context_dump,
                 description=description,
@@ -1692,6 +1667,9 @@ Reason: %s
                 except KeyError:
                     pass
             context_id = dataset_management.create_parameter_context(**creation_args)
+            context_obj = self.container.resource_registry.read(context_id)
+            context_obj.alt_ids = ['PRE:'+row[COL_ID]]
+            self.container.resource_registry.update(context_obj)
         except AttributeError as e:
             if e.message == "'dict' object has no attribute 'read'":
                 self._conflict_report(row['ID'], row['Name'], 'Something is not JSON compatible.')
@@ -1699,9 +1677,7 @@ Reason: %s
             else:
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
-        self._register_id(row[COL_ID], context_id, context)
-        TypesManager.parameter_lookups[row[COL_ID]] = name
-
+        self._register_id(row[COL_ID], context_id, context_obj)
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='PlatformDevice')

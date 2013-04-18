@@ -12,6 +12,7 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 from coverage_model.parameter_types import QuantityType, ArrayType 
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType
+from coverage_model.parameter_functions import AbstractFunction
 from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
 from copy import deepcopy
@@ -24,12 +25,12 @@ from uuid import uuid4
 
 
 class TypesManager(object):
-    function_lookups = {}
-    parameter_lookups = {}
     system = System(path=CFG.get_safe('units', 'res/config/units/udunits2.xml'))
 
-    def __init__(self, dataset_management_client):
+    def __init__(self, dataset_management_client, resource_ids, resource_objs):
         self.dataset_management = dataset_management_client
+        self.resource_ids = resource_ids
+        self.resource_objs = resource_objs
 
     def get_array_type(self,parameter_type=None):
         return ArrayType()
@@ -126,25 +127,17 @@ class TypesManager(object):
 
     def get_param_name(self, pdid):
         try:
-            param_name = self.parameter_lookups[pdid]
+            param_name = self.resource_objs[pdid].name
         except KeyError:
             raise KeyError('Parameter %s was not loaded' % pdid)
         return param_name
 
     def get_pfunc(self,pfid):
-        try:
-            resource_id = self.function_lookups[pfid]
-        except KeyError:
-            raise KeyError('Function %s was not loaded' % pfid) 
-        try:
-            pfunc = DatasetManagementService.get_parameter_function(resource_id)
-        except NotFound:
-            raise TypeError('Unable to locate functionf or PFID: %s' % pfid)
-        except BadRequest:
-            raise ValueError('Processing error trying to get PFID: %s' % pfid)
-        except:
-            raise ValueError('Error making service request')
+        if pfid not in self.resource_objs: 
+            raise KeyError('Function %s was not loaded' % pfid)
 
+        func_dump = self.resource_objs[pfid].parameter_function
+        pfunc = AbstractFunction.load(func_dump)
         return pfunc
 
     def get_lookup_value(self,value):
@@ -158,8 +151,7 @@ class TypesManager(object):
         pc.lookup_value = document_val
         pc.document_key = document_key
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
-        self.parameter_lookups[placeholder] = ctxt_id
-        return value, placeholder
+        return ctxt_id, placeholder
 
     def has_lookup_value(self, context):
         if isinstance(context.param_type, ParameterFunctionType):
@@ -172,7 +164,7 @@ class TypesManager(object):
         if isinstance(context.param_type, ParameterFunctionType):
             if hasattr(context.function,'lookup_values'):
                 lookup_values = context.function.lookup_values
-                return [self.parameter_lookups[i] for i in lookup_values]
+                return lookup_values
         return []
 
     def evaluate_pmap(self,pfid, pmap):
@@ -184,9 +176,9 @@ class TypesManager(object):
             if isinstance(v, basestring) and 'PD' in v:
                 pmap[k] = self.get_param_name(v)
             if isinstance(v, basestring) and 'LV' in v:
-                value, placeholder = self.get_lookup_value(v)
+                ctxt_id, placeholder = self.get_lookup_value(v)
                 pmap[k] = placeholder
-                lookup_values.append(placeholder)
+                lookup_values.append(ctxt_id)
         func = deepcopy(self.get_pfunc(pfid))
         func.param_map = pmap
         if lookup_values:
