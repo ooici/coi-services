@@ -118,9 +118,8 @@ class RecordDictionaryTool(object):
             context = self.context(lv)
             if context.document_key:
                 document_key = context.document_key
-                if '%designator' in context.document_key and 'reference_designator' in self._stream_config:
-                    document_key = document_key.replace('%designator',self._stream_config['reference_designator'])
-
+                if '$designator' in context.document_key and 'reference_designator' in self._stream_config:
+                    document_key = document_key.replace('$designator',self._stream_config['reference_designator'])
                 svm = StoredValueManager(Container.instance)
                 try:
                     doc = svm.read_value(document_key)

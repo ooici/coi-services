@@ -1514,6 +1514,8 @@ Reason: %s
                 lookup_values = types_manager.get_lookup_value_ids(context)
                 for val in lookup_values:
                     context_ids[val] = 0
+                if hasattr(context,'qc_contexts'):
+                    definitions.extend(context.qc_contexts)
             except KeyError:
                 pass
 
@@ -1593,6 +1595,7 @@ Reason: %s
         precision    = row['Precision']
         param_id     = row['ID']
         lookup_value = row['Lookup Value']
+        qc           = row['QC Functions']
 
         dataset_management = self._get_service_client('dataset_management')
         
@@ -1626,6 +1629,12 @@ Reason: %s
                     else:
                         context.lookup_value = name
                         context.document_key = lookup_value
+
+            if qc:
+                try:
+                    context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id)
+                except KeyError:
+                    pass
 
 
         except TypeError as e:
