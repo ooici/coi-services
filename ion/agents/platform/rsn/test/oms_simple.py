@@ -156,9 +156,6 @@ if __name__ == "__main__":  # pragma: no cover
     run("config", 'turn_on_platform_port', platform_id, port_id)
     run("config", 'turn_off_platform_port', platform_id, port_id)
 
-    run("config", 'describe_event_types', [])
-    run("config", 'get_events_by_platform_type', [])
-
     url = "dummy_url_listener"
     run("config", 'register_event_listener', url, [])
     run("config", 'unregister_event_listener', url, [])
@@ -175,7 +172,7 @@ if __name__ == "__main__":  # pragma: no cover
 
 """
 $ date && bin/python ion/agents/platform/rsn/test/oms_simple.py
-Tue Apr 16 11:32:25 PDT 2013
+Thu Apr 18 16:13:18 PDT 2013
 
 connecting to 'http://alice:1234@10.180.80.10:9021/' ...
 connection established.
@@ -231,14 +228,6 @@ config.turn_on_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xm
 config.turn_off_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_off_platform_port not found'>
 	 without handler: turn_off_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_off_platform_port not found'>
 
--- describe_event_types --
-config.describe_event_types([]) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function describe_event_types not found'>
-	 without handler: describe_event_types([]) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function describe_event_types not found'>
-
--- get_events_by_platform_type --
-config.get_events_by_platform_type([]) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_events_by_platform_type not found'>
-	 without handler: get_events_by_platform_type([]) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_events_by_platform_type not found'>
-
 -- register_event_listener --
 config.register_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function register_event_listener not found'>
 	 without handler: register_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function register_event_listener not found'>
@@ -257,11 +246,9 @@ config.get_checksum('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 80
 
 Summary of basic verification:
                      connect_instrument                      : <Fault 8001: 'function connect_instrument not found'>
-                     describe_event_types                    : <Fault 8001: 'function describe_event_types not found'>
                      disconnect_instrument                   : <Fault 8001: 'function disconnect_instrument not found'>
                      get_checksum                            : <Fault 8001: 'function get_checksum not found'>
                      get_connected_instruments               : <Fault 8001: 'function get_connected_instruments not found'>
-                     get_events_by_platform_type             : <Fault 8001: 'function get_events_by_platform_type not found'>
                      get_platform_attribute_values           : <Fault 8001: 'function get_platform_attribute_values not found'>
                      get_platform_attributes                 : <Fault 8001: 'function get_platform_attributes not found'>
                      get_platform_map                        : OK
