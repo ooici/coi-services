@@ -3,23 +3,32 @@
 @file ion/services/sa/product/test/test_data_product_management_service_integration.py
 @brief Data Product Management Service Integration Tests
 '''
+
+import unittest, gevent
+import numpy as np
 from mock import patch
+from nose.plugins.attrib import attr
+from gevent.event import Event
+
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound
 from pyon.public import  IonObject
 from pyon.public import RT, PRED, CFG, OT
-from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
 from pyon.datastore.datastore import DataStore
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.event import EventSubscriber, EventPublisher
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
+from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.services.dm.utility.granule import RecordDictionaryTool
-from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+from ion.util.stored_values import StoredValueManager
+
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -29,30 +38,9 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
-
-from ion.util.stored_values import StoredValueManager
 from interface.objects import LastUpdate, ComputedValueAvailability, Granule, DataProduct
-from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
-
-from nose.plugins.attrib import attr
 from interface.objects import ProcessDefinition, DataProducer, DataProcessProducerContext
 
-from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
-from coverage_model.coverage import CRS, GridDomain, GridShape
-from coverage_model import ParameterContext, ParameterFunctionType, NumexprFunction, QuantityType
-
-from gevent.event import Event
-
-import unittest, gevent
-import numpy as np
-
-from ion.services.dm.utility.granule import RecordDictionaryTool
-from pyon.ion.event import EventSubscriber
-from gevent.event import Event
-from pyon.public import OT
-from pyon.ion.stream import StandaloneStreamPublisher
-from ion.services.dm.utility.test.parameter_helper import ParameterHelper
-from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -143,6 +131,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         return datastore
 
 
+    @attr('EXT')
+    @attr('PREP')
     def test_create_data_product(self):
 
         #------------------------------------------------------------------------------------------------
@@ -171,6 +161,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -10.0
         dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 10.0
         dp_obj.geospatial_bounds.geospatial_longitude_limit_west = -10.0
+        dp_obj.ooi_product_name = "PRODNAME"
 
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
@@ -219,6 +210,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                 streamdefs.append(sd)
         self.assertIn(ctd_stream_def_id, streamdefs)
 
+        group_names = self.dpsc_cli.get_data_product_group_list()
+        self.assertIn("PRODNAME", group_names)
+
 
         # test reading a non-existent data product
         log.debug('reading non-existent data product')
@@ -258,6 +252,28 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                          extended_product.computed.parameters.status)
         #log.debug("test_create_data_product: parameters %s" % extended_product.computed.parameters.value)
 
+
+        def ion_object_encoder(obj):
+            return obj.__dict__
+
+        #test prepare
+        data_product_data = self.dpsc_cli.prepare_update_data_product(dp_id)
+
+        #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)
+
+        self.assertEqual(data_product_data._id, dp_id)
+        self.assertEqual(data_product_data.type_, OT.DataProductPrepareUpdate)
+        self.assertEqual(len(data_product_data.stream_definitions), 2)
+
+        self.assertEqual(len(data_product_data.datasets), 2)
+
+        self.assertEqual(len(data_product_data.data_product_stream_definition), 1)
+        self.assertEqual(data_product_data.data_product_stream_definition[0].s, dp_id)
+
+        self.assertEqual(len(data_product_data.data_product_dataset), 1)
+        self.assertEqual(data_product_data.data_product_dataset[0].s, dp_id)
+
+
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
@@ -289,8 +305,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         sdom = sdom.dump()
         tdom = tdom.dump()
-
-
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
@@ -363,8 +377,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEquals(set(rdt.fields), set(['time','temp']))
 
 
-
-
     def test_activate_suspend_data_product(self):
 
         #------------------------------------------------------------------------------------------------
@@ -382,8 +394,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         sdom = sdom.dump()
         tdom = tdom.dump()
-
-
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',

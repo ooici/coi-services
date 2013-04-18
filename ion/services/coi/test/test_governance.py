@@ -35,9 +35,7 @@ from pyon.core.governance import get_actor_header, get_web_authentication_actor
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 
-from ion.services.sa.test.test_find_related_resources import TestFindRelatedResources
-from ion.util.related_resources_crawler import RelatedResourcesCrawler
-
+from ion.services.sa.test.test_find_related_resources import ResourceHelper
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
@@ -378,11 +376,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @attr('BASIC')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_basic_policy_operations(self):
 
         #Make sure that the system policies have been loaded
-        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
+        policy_list,_ = self.rr_client.find_resources(restype=RT.Policy, id_only=True)
         self.assertNotEqual(len(policy_list),0,"The system policies have not been loaded into the Resource Registry")
 
         log.debug('Begin testing with policies')
@@ -1497,6 +1496,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_i), 4)
 
     @attr('LOCOINT')
+    @attr('AGENT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     @patch.dict(CFG, {'system':{'load_policy':True}})
     def test_instrument_agent_policy(self):
@@ -1838,6 +1838,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_i), 2)
 
     @attr('LOCOINT')
+    @attr('LCS')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     @patch.dict(CFG, {'system':{'load_policy':True}})
     def test_instrument_lifecycle_policy(self):
@@ -1934,7 +1935,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR - will fail since resource is not shared by an Org
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=inst_operator_actor_header)
-        self.assertIn( 'has not been shared with any Orgs',cm.exception.message)
+        #self.assertIn( 'has not been shared with any Org',cm.exception.message)
 
         #Ensure the resource is shareable
         self.org_client.share_resource(org2_id, inst_dev_id, headers=self.system_actor_header)
@@ -2034,7 +2035,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
 @attr('INT', group='coi')
-class TestResourcePolicyInt(TestFindRelatedResources):
+class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
 
     def __init__(self, *args, **kwargs):
@@ -2047,6 +2048,10 @@ class TestResourcePolicyInt(TestFindRelatedResources):
             log.info('Not running on a Mac')
         else:
             log.info('Running on a Mac)')
+
+        self.care = {}
+        self.dontcare = {}
+        self.realtype = {}
 
         IonIntegrationTestCase.__init__(self, *args, **kwargs)
 
@@ -2127,9 +2132,6 @@ class TestResourcePolicyInt(TestFindRelatedResources):
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
 
-    @unittest.skip('Overriding to skip')
-    def test_related_resource_crawler(self):
-        pass   # overriding to not test here
 
     def test_related_resource_policies(self):
         """
@@ -2140,6 +2142,7 @@ class TestResourcePolicyInt(TestFindRelatedResources):
         self.create_observatory(True, create_with_marine_facility=True)
         self.create_observatory(False, create_with_marine_facility=True)
 
+        from ion.util.related_resources_crawler import RelatedResourcesCrawler
         r = RelatedResourcesCrawler()
 
         inst_devices,_ = self.rr_client.find_resources(restype=RT.InstrumentDevice)

@@ -64,7 +64,14 @@ from pyon.ion.stream import StandaloneStreamPublisher
 
 
 from subprocess import call
+import re
 not_have_h5stat = call('which h5stat'.split(), stdout=open('/dev/null','w'))
+if not not_have_h5stat:
+    from subprocess import check_output
+    from distutils.version import StrictVersion
+    output = check_output('h5stat -V'.split())
+    version_str = re.match(r'.*(\d+\.\d+\.\d+).*', output).groups()[0]
+    h5stat_correct_version = StrictVersion(version_str) >= StrictVersion('1.8.9')
 
 @attr('INT', group='dm')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
@@ -202,6 +209,7 @@ class TestCoverageModelRecoveryInt(IonIntegrationTestCase):
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
     @unittest.skipIf(not_have_h5stat, 'h5stat is not accessible in current PATH')
+    @unittest.skipIf(not not_have_h5stat and not h5stat_correct_version, 'HDF is the incorrect version: %s' % version_str)
     def test_coverage_recovery(self):
         # Create the coverage
         dp_id, stream_id, route, stream_def_id, dataset_id = self.load_data_product()

@@ -798,12 +798,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     ##
     ##
 
-    def check_direct_access_policy(self, msg, headers):
+    def check_direct_access_policy(self, process, message, headers):
 
         try:
-            gov_values = GovernanceHeaderValues(headers)
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
         except Inconsistent, ex:
             return False, ex.message
+
+        log.debug("check_direct_access_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
 
         #The system actor can to anything
         if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
@@ -815,25 +817,29 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return True, ''
 
-    def check_device_lifecycle_policy(self, msg, headers):
+    def check_device_lifecycle_policy(self, process, message, headers):
 
         try:
-            gov_values = GovernanceHeaderValues(headers)
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
         except Inconsistent, ex:
             return False, ex.message
 
+        log.debug("check_device_lifecycle_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
         #The system actor can to anything
         if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
 
-        if msg.has_key('lifecycle_event'):
-            lifecycle_event = msg['lifecycle_event']
+        if message.has_key('lifecycle_event'):
+            lifecycle_event = message['lifecycle_event']
         else:
-            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (self.name, gov_values.op))
+            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (process.name, gov_values.op))
 
-        orgs,_ = self.clients.resource_registry.find_subjects(RT.Org, PRED.hasResource, gov_values.resource_id)
+        log.debug("check_device_lifecycle_policy: lifecycle_event: %s", lifecycle_event)
+
+        orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=gov_values.resource_id, id_only=False)
+
         if not orgs:
-            return False, '%s(%s) has been denied since the resource id %s has not been shared with any Orgs' % (self.name, gov_values.op, gov_values.resource_id)
+            return False, '%s(%s) has been denied since the resource id %s has not been shared with any Org' % (process.name, gov_values.op, gov_values.resource_id)
 
         #Handle these lifecycle transitions first
         if lifecycle_event == LCE.INTEGRATE or lifecycle_event == LCE.DEPLOY or lifecycle_event == LCE.RETIRE:
@@ -847,18 +853,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #The owner can do any of these other lifecycle transitions
             is_owner = is_resource_owner(gov_values.actor_id, gov_values.resource_id)
+            log.debug("check_device_lifecycle_policy: is_owner: %s", str(is_owner))
             if is_owner:
                 return True, ''
 
             #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
             is_shared = has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
+            log.debug("check_device_lifecycle_policy: is_shared: %s", str(is_shared))
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
                 if has_org_role(gov_values.actor_roles, org.org_governance_name, [INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE,ORG_MANAGER_ROLE] ) and is_shared:
                     return True, ''
 
-        return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (self.name, gov_values.op, gov_values.actor_id, lifecycle_event)
+        return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (process.name, gov_values.op, gov_values.actor_id, lifecycle_event)
 
 
     ##
@@ -1897,3 +1905,91 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 ret.value[data_product_obj.processing_level_code] = context_dict
             ret.status = ComputedValueAvailability.PROVIDED
         return ret
+
+
+    ############################
+    #
+    #  PREPARE UPDATE RESOURCES
+    #
+    ############################
+
+
+    def prepare_update_instrument_device(self, instrument_device_id=''):
+        """
+        Returns the object containing the data to update an instrument device resource
+        """
+
+        if not instrument_device_id:
+            raise BadRequest("The instrument_device_id parameter is empty")
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_update_resource(instrument_device_id, OT.InstrumentDevicePrepareUpdate)
+
+        #Fill out service request information for creating a instrument device
+        resource_data.create_instrument_device_request.service_name = 'instrument_management'
+        resource_data.create_instrument_device_request.service_operation = 'create_instrument_device'
+        resource_data.create_instrument_device_request.request_parameters = {
+            "instrument_device":  "$(instrument_device)"
+        }
+
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_instrument_model_request.service_name = 'instrument_management'
+        resource_data.assign_instrument_model_request.service_operation = 'assign_instrument_model_to_instrument_device'
+        resource_data.assign_instrument_model_request.request_parameters = {
+            "instrument_model_id":  "$(instrument_model_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.unassign_instrument_model_request.service_name = 'instrument_management'
+        resource_data.unassign_instrument_model_request.service_operation = 'unassign_instrument_model_to_instrument_device'
+        resource_data.unassign_instrument_model_request.request_parameters = {
+            "instrument_model_id":  "$(instrument_model_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+        return resource_data
+
+
+    def prepare_update_platform_device(self, platform_device_id=''):
+        """
+        Returns the object containing the data to update an instrument device resource
+        """
+
+        if not platform_device_id:
+            raise BadRequest("The platform_device_id parameter is empty")
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_update_resource(platform_device_id, OT.PlatformDevicePrepareUpdate)
+
+        #Fill out service request information for creating a platform device
+        resource_data.create_platform_device_request.service_name = 'instrument_management'
+        resource_data.create_platform_device_request.service_operation = 'create_platform_device'
+        resource_data.create_platform_device_request.request_parameters = {
+            "platform_device":  "$(platform_device)"
+        }
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_platform_model_request.service_name = 'instrument_management'
+        resource_data.assign_platform_model_request.service_operation = 'assign_platform_model_to_platform_device'
+        resource_data.assign_platform_model_request.request_parameters = {
+            "platform_model_id":  "$(platform_model_id)",
+            "platform_device_id":  platform_device_id
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.unassign_platform_model_request.service_name = 'instrument_management'
+        resource_data.unassign_platform_model_request.service_operation = 'unassign_platform_model_to_platform_device'
+        resource_data.unassign_platform_model_request.request_parameters = {
+            "platform_model_id":  "$(platform_model_id)",
+            "platform_device_id":  platform_device_id
+        }
+
+        return resource_data

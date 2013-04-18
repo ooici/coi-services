@@ -771,7 +771,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ############################
 
 
-    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+    def _get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an InstrumentDeviceExtension object containing additional related information
 
         @param site_id    str
@@ -795,6 +795,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
+        RR2 = EnhancedResourceRegistryClient(self.RR)
+        RR2.cache_predicate(PRED.hasModel)
+
         # Get status of Site instruments.
         a, b =  self._get_instrument_states(extended_site.instrument_devices)
         extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
@@ -802,9 +805,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id
         lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
-        for a in self.RR.find_associations(predicate=PRED.hasModel, id_only=False):
-            if a.st in lookup:
-                lookup[a.st][a.s] = a.o
+        for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
+            lookup[a.st][a.s] = a.o
 
         def retrieve_model_objs(rsrc_list, object_type):
         # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
@@ -859,34 +861,84 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         except Exception as ex:
             log.exception("Computed attribute failed for site %s" % site_id)
 
+        return extended_site, RR2
+
+
+    def _get_site_extension_plus(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        # the "plus" means "plus all sub-site objects"
+
+        extended_site, RR2 = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        # use the related resources crawler
+        finder = RelatedResourcesCrawler()
+        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasSite])
+        full_crawllist = [RT.InstrumentSite, RT.PlatformSite, RT.Subsite]
+        search_down = get_assns({PRED.hasSite: (True, False)}, full_crawllist)
+
+        # the searches return a list of association objects, so compile all the ids by extracting them
+        subsite_ids = set([])
+
+        # we want only those IDs that are not the input resource id
+        for a in search_down(site_id, -1):
+            if a.o != site_id:
+                subsite_ids.add(a.o)
+
+        log.trace("converting retrieved ids to objects = %s" % subsite_ids)
+        subsite_objs = RR2.read_mult(list(subsite_ids))
+
+        # filtered subsites
+        def fs(resource_type, filter_fn):
+            both = lambda s: ((resource_type == s._get_type()) and filter_fn(s))
+            return filter(both, subsite_objs)
+
+        def pfs(filter_fn):
+            return fs(RT.PlatformSite, filter_fn)
+
+        def ifs(filter_fn):
+            return fs(RT.InstrumentSite, filter_fn)
+
+        extended_site.computed.platform_station_sites = pfs(lambda s: "StationSite" == s.alt_resource_type)
+        extended_site.computed.platform_component_sites = pfs(lambda s: "PlatformComponentSite" == s.alt_resource_type)
+        extended_site.computed.platform_assembly_sites = pfs(lambda s: "PlatformAssemblySite" == s.alt_resource_type)
+        extended_site.computed.instrument_sites = ifs(lambda _: True)
+
+        return extended_site, RR2, subsite_objs
+
+    # TODO: will remove this one
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
+
+    def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
         return extended_site
 
 
-        #Bogus functions for computed attributes
-    def get_number_data_sets(self, observatory_id):
-        return "0"
-
-    def get_number_instruments_deployed(self, observatory_id):
-        return "0"
+    def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
 
 
-    def get_number_instruments_operational(self, observatory_id):
-        return "0"
+    def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
+
+    def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
 
 
-    def get_number_instruments_inoperational(self, observatory_id):
-        return "0"
+    def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
 
+        # no subsites of instrument, so shortcut
+        extended_site.computed.platform_station_sites = []
+        extended_site.computed.platform_component_sites = []
+        extended_site.computed.platform_assembly_sites = []
+        extended_site.computed.instrument_sites = []
 
-    def get_number_instruments(self, observatory_id):
-        return "0"
+        return extended_site
 
-
-    def get_number_platforms(self, observatory_id):
-        return "0"
-
-    def get_number_platforms_deployed(self, observatory_id):
-        return "0"
 
     def _get_instrument_states(self, instrument_device_obj_list=None):
 

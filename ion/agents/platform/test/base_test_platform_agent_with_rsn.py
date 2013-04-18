@@ -36,7 +36,7 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 import logging
 from pyon.public import IonObject
-from pyon.core.exception import ServerError
+from pyon.core.exception import ServerError, Conflict
 
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -58,9 +58,12 @@ from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
 
 from pyon.agent.agent import ResourceAgentClient
+from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentEvent
+
 from interface.objects import AgentCommand, ProcessStateEnum
 from interface.objects import StreamConfiguration
-from interface.objects import StreamAlertType
+from interface.objects import StreamAlertType, AggregateStatusType
 
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
@@ -196,8 +199,8 @@ instruments_dict = {
 
 # The value should probably be defined in pyon.yml or some common place so
 # clients don't have to do updates upon new versions of the egg.
-SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg"
-
+#SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg"
+SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg"
 
 class FakeProcess(LocalContextMixin):
     """
@@ -422,12 +425,12 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         configs copied from test_activate_instrument.py
         """
         return [
-            StreamConfiguration(stream_name='ctd_raw',
+            StreamConfiguration(stream_name='raw',
                                 parameter_dictionary_name='ctd_raw_param_dict',
                                 records_per_granule=2,
                                 granule_publish_rate=5),
 
-            StreamConfiguration(stream_name='ctd_parsed',
+            StreamConfiguration(stream_name='parsed',
                                 parameter_dictionary_name='ctd_parsed_param_dict',
                                 records_per_granule=2, granule_publish_rate=5)
         ]
@@ -714,17 +717,29 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("new InstrumentDevice id = %s ", instrument_device_id)
 
         #Create stream alarms
-        alert_def = {
+
+
+        temp_alert_def = {
             'name' : 'temperature_warning_interval',
-            'stream_name' : 'ctd_parsed',
+            'stream_name' : 'parsed',
             'message' : 'Temperature is below the normal range of 50.0 and above.',
             'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
-            'resource_id' : instrument_device_id,
-            'origin_type' : 'device',
             'lower_bound' : 50.0,
             'lower_rel_op' : '<',
             'alert_class' : 'IntervalAlert'
+        }
+
+        late_data_alert_def = {
+            'name' : 'late_data_warning',
+            'stream_name' : 'parsed',
+            'message' : 'Expected data has not arrived.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
+            'value_id' : None,
+            'time_delta' : 2,
+            'alert_class' : 'LateDataAlert'
         }
 
         instrument_driver_config = self._set_up_pre_environment_for_instrument(instr_info)
@@ -747,7 +762,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                                   description="SBE37IMAgentInstance_%s" % instr_key,
                                                   driver_config=instrument_driver_config,
                                                   port_agent_config=port_agent_config,
-                                                  alerts=[alert_def])
+                                                  alerts=[temp_alert_def, late_data_alert_def])
 
         instrument_agent_instance_obj.agent_config = agent_config
 
@@ -1223,3 +1238,39 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertEquals(retval.result[0:3], "OK:")
         return retval.result
 
+    def _stream_instruments(self):
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+
+        for instrument in  self._setup_instruments.itervalues():
+            # instruments that have been set up: instr_key: i_obj
+
+            # Start a resource agent client to talk with the instrument agent.
+            _ia_client = self._create_resource_agent_client(instrument.instrument_device_id)
+
+            cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+            retval = _ia_client.execute_resource(cmd)
+            log.debug('_stream_instruments retval: %s', retval)
+
+        return
+
+    def _idle_instruments(self):
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+
+        for instrument in  self._setup_instruments.itervalues():
+            # instruments that have been set up: instr_key: i_obj
+
+            # Start a resource agent client to talk with the instrument agent.
+            _ia_client = self._create_resource_agent_client(instrument.instrument_device_id)
+
+            cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+            with self.assertRaises(Conflict):
+                retval = _ia_client.execute_resource(cmd)
+
+            cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+            retval = _ia_client.execute_agent(cmd)
+            state = _ia_client.get_agent_state()
+            self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        return
