@@ -55,6 +55,7 @@ class RecordDictionaryTool(object):
     _dirty_shape        = False
     _available_fields   = None
     _creation_timestamp = None
+    _stream_config      = {}
     connection_id       = ''
     connection_index    = ''
 
@@ -72,6 +73,7 @@ class RecordDictionaryTool(object):
             stream_def_obj = RecordDictionaryTool.read_stream_def(stream_definition_id)
             pdict = stream_def_obj.parameter_dictionary
             self._available_fields = stream_def_obj.available_fields or None
+            self._stream_config = stream_def_obj.stream_configuration
             self._pdict = ParameterDictionary.load(pdict)
             self._stream_def = stream_definition_id
         
@@ -115,9 +117,13 @@ class RecordDictionaryTool(object):
         for lv in self._lookup_values():
             context = self.context(lv)
             if context.document_key:
+                document_key = context.document_key
+                if '%designator' in context.document_key and 'reference_designator' in self._stream_config:
+                    document_key = document_key.replace('%designator',self._stream_config['reference_designator'])
+
                 svm = StoredValueManager(Container.instance)
                 try:
-                    doc = svm.read_value(context.document_key)
+                    doc = svm.read_value(document_key)
                 except NotFound:
                     continue
                 if context.lookup_value in doc:

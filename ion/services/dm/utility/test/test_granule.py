@@ -85,7 +85,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
     def test_granule(self):
         
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id, stream_configuration={'reference_designator':"GA03FLMA-RI001-13-CTDMOG999"})
         pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
         self.addCleanup(self.pubsub_management.delete_stream_definition,stream_def_id)
 
@@ -107,6 +107,8 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         self.assertEquals(set(pdict.keys()), set(rdt.fields))
         self.assertEquals(pdict.temporal_parameter_name, rdt.temporal_parameter)
+
+        self.assertEquals(rdt._stream_config['reference_designator'],"GA03FLMA-RI001-13-CTDMOG999")
 
         self.rdt = rdt
         self.data_producer_id = 'data_producer'
@@ -172,9 +174,11 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         svm = StoredValueManager(self.container)
         svm.stored_value_cas('coefficient_document', {'offset_b':2.0})
+        svm.stored_value_cas("GA03FLMA-RI001-13-CTDMOG999_OFFSETC", {'offset_c':3.0})
         rdt.fetch_lookup_values()
         np.testing.assert_array_equal(rdt['offset_b'], np.array([2.0]))
         np.testing.assert_array_equal(rdt['calibrated_b'], np.array([14.0]))
+        np.testing.assert_array_equal(rdt['offset_c'], np.array([3.0]))
 
 
     def create_rdt(self):
@@ -192,7 +196,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_lookups()
 
-        stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id, stream_configuration={'reference_designator':"GA03FLMA-RI001-13-CTDMOG999"})
         self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         return rdt

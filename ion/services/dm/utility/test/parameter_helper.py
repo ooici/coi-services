@@ -401,6 +401,14 @@ class ParameterHelper(object):
         offsetb_ctxt_id = self.dataset_management.create_parameter_context(name='offset_b', parameter_context=offsetb_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, offsetb_ctxt_id)
         contexts['offset_b'] = offsetb_ctxt, offsetb_ctxt_id
+        
+        offsetc_ctxt = ParameterContext('offset_c', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999))
+        offsetc_ctxt.uom = ''
+        offsetc_ctxt.lookup_value = 'offset_c'
+        offsetc_ctxt.document_key = '%designator_OFFSETC'
+        offsetc_ctxt_id = self.dataset_management.create_parameter_context(name='offset_c', parameter_context=offsetc_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, offsetc_ctxt_id)
+        contexts['offset_c'] = offsetc_ctxt, offsetc_ctxt_id
 
         func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
         func.lookup_values = ['LV_offset']
