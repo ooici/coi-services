@@ -1593,8 +1593,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #This agent operation should not be allowed for a user that is not an Instrument Operator
         with self.assertRaises(Unauthorized) as cm:
             retval = ia_client.get_agent_state(headers=actor_header)
-            self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
         self.assertIn('(get_agent_state) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia_client.get_agent(headers=actor_header)
+        self.assertIn('(get_agent) has been denied',cm.exception.message)
 
         #Grant the role of Instrument Operator to the user
         self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
@@ -1616,6 +1619,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.get_agent_state(headers=actor_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
 
+        #This agent operation should now be allowed for a user that is an Instrument Operator
+        with self.assertRaises(BadRequest) as cm:
+            retval = ia_client.get_agent(params=[123], headers=actor_header)
 
         #The execute commnand should fail if the user has not acquired the resource
         with self.assertRaises(Unauthorized) as cm:
@@ -1743,17 +1749,23 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn('(set_resource) has been denied',cm.exception.message)
 
 
+        #Revoke the role of Inst Operator to the user
+        self.org_client.revoke_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+
         #Grant the role of Org Manager to the user
         self.org_client.grant_role(org2_id,actor_id, ORG_MANAGER_ROLE, headers=self.system_actor_header)
 
         #Refresh header with updated roles
         actor_header = get_actor_header(actor_id)
 
-
         #Try again with user with also Org Manager role and should pass even with out acquiring a resource
         with self.assertRaises(Conflict) as cm:
             ia_client.set_resource(new_params, headers=actor_header)
 
+        #This agent operation should now be allowed for a user that is an Org Manager
+        with self.assertRaises(BadRequest) as cm:
+            retval = ia_client.get_agent(params=[123], headers=actor_header)
 
         #Now reset the agent for checking operation based policy
         #The reset command should now be allowed for the Org Manager
