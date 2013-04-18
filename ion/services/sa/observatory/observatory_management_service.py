@@ -966,3 +966,59 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return op, non_op
 
+    def get_deployment_extension(self, deployment_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not deployment_id:
+            raise BadRequest("The deployment_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_deployment = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.DeploymentExtension,
+            resource_id=deployment_id,
+            computed_resource_type=OT.DeploymentComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        devices = set()
+        instrument_device_ids = []
+        iplatform_device_ids = []
+        subjs, _ = self.RR.find_subjects( predicate=PRED.hasDeployment, object=deployment_id, id_only=False)
+        for subj in subjs:
+            log.debug('get_deployment_extension  obj:   %s', subj)
+            if subj.type_ == "InstrumentDevice":
+                extended_deployment.instrument_devices.append(subj)
+                devices.add((subj._id, PRED.hasModel))
+            elif subj.type_ == "InstrumentSite":
+                extended_deployment.instrument_sites.append(subj)
+            elif subj.type_ == "PlatformDevice":
+                extended_deployment.platform_devices.append(subj)
+                devices.add((subj._id, PRED.hasModel))
+            elif subj.type_ == "PlatformSite":
+                extended_deployment.platform_sites.append(subj)
+            else:
+                log.warning("get_deployment_extension found invalid type connected to deployment %s. Object details: %s ", deployment_id, subj)
+
+        all_models = set()
+        device_to_model_map = {}
+        model_map = {}
+        assocs = self.RR.find_associations(anyside=list(devices), id_only=False)
+        for assoc in assocs:
+            log.debug('get_deployment_extension  assoc subj:   %s  pred: %s    obj:   %s', assoc.s, assoc.p, assoc.o)
+            all_models.add(assoc.o)
+            device_to_model_map[assoc.s] = assoc.o
+
+        model_objs = self.RR.read_mult( list(all_models) )
+        for model_obj in model_objs:
+            model_map[model_obj._id] = model_obj
+
+        for instrument in extended_deployment.instrument_devices:
+            model_id = device_to_model_map[instrument._id]
+            extended_deployment.instrument_models.append( model_map[model_id] )
+
+        for platform in extended_deployment.platform_devices:
+            model_id = device_to_model_map[platform._id]
+            extended_deployment.platform_models.append( model_map[model_id] )
+
+        return extended_deployment
