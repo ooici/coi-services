@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 
 from ion.util.agent_launcher import AgentLauncher
 from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
@@ -1610,70 +1611,44 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             user_id=user_id)
 
         #retrieve the aggregate status for the instrument
-        self._set_device_aggregate_status(instrument_device_id, 'aggstatus', extended_instrument)
+        AgentStatusBuilder.add_device_aggregate_status_to_resource_extension(instrument_device_id,
+                                                                             'aggstatus',
+                                                                             extended_instrument)
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
 
         return extended_instrument
 
 
-    # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
-    def obtain_agent_handle(self, device_id):
-        ia_client = ResourceAgentClient(device_id,  process=self)
-        log.debug("got the instrument agent client here: %s for the device id: %s and process: %s", ia_client, device_id, self)
-
-#       #todo: any validation?
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-#
-
-        return ia_client
-
-    def obtain_agent_calculation(self, device_id, result_container):
-        ret = IonObject(result_container)
-        a_client = None
-        try:
-            a_client = self.obtain_agent_handle(device_id)
-            ret.status = ComputedValueAvailability.PROVIDED
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "Could not connect to instrument agent instance -- may not be running"
-        except Exception as e:
-            raise e
-
-        return a_client, ret
-
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
     def get_firmware_version(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0.0 #todo: use ia_client
         return ret
 
 
     def get_last_data_received_datetime(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0.0 #todo: use ia_client
         return ret
 
 
     def get_operational_state(self, taskable_resource_id):   # from Device
-        ia_client, ret = self.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
+        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
         if ia_client:
             ret.value = "" #todo: use ia_client
         return ret
 
     def get_last_calibration_datetime(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0 #todo: use ia_client
         return ret
 
     def get_uptime(self, device_id):
-        ia_client, ret = self.obtain_agent_calculation(device_id, OT.ComputedStringValue)
+        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(device_id, OT.ComputedStringValue)
 
         if ia_client:
             # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
@@ -1783,12 +1758,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the aggreate and rollup status from the platform agent
-        self._set_device_aggregate_status(platform_device_id, 'rollup_status', extended_platform)
+        AgentStatusBuilder._set_device_aggregate_status(platform_device_id, 'rollup_status', extended_platform)
         log.debug('get_platform_device_extension  extended_platform.computed: %s', extended_platform.computed)
 
         #retrieve the list of aggreate status for all children of this platform agent
         try:
-            pa_client = self.obtain_agent_handle(platform_device_id)
+            pa_client = AgentStatusBuilder.obtain_agent_handle(platform_device_id, process=self)
 
             child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
             log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
@@ -1804,56 +1779,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return extended_platform
 
-
-
-    def _set_device_aggregate_status(self, device_id='', status_name='', extended_device_resource=None):
-
-        ia_client = None
-
-        if not device_id or not status_name or not extended_device_resource :
-            raise BadRequest("The device or extended resource parameter is empty")
-
-        try:
-            ia_client = self.obtain_agent_handle(device_id)
-
-            aggstatus = ia_client.get_agent([status_name])[status_name]
-            log.debug('_set_device_aggregate_status status: %s', aggstatus)
-
-            if aggstatus:
-                extended_device_resource.computed.communications_status_roll_up = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_COMMS] )
-                extended_device_resource.computed.power_status_roll_up          = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_POWER] )
-                extended_device_resource.computed.data_status_roll_up           = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_DATA] )
-                extended_device_resource.computed.location_status_roll_up       = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_LOCATION] )
-                extended_device_resource.computed.aggregated_status             = self._compute_aggregated_status_overall(aggstatus)
-
-        except NotFound:
-            reason = "Could not connect to instrument agent instance -- may not be running"
-            extended_device_resource.computed.communications_status_roll_up = \
-            extended_device_resource.computed.power_status_roll_up = \
-            extended_device_resource.computed.data_status_roll_up = \
-            extended_device_resource.computed.location_status_roll_up = \
-            extended_device_resource.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
-        except Exception as e:
-            raise e
-
-        return
-
-    def _create_computed_status(self, status=DeviceStatusType.STATUS_UNKNOWN):
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status)
-
-    def _compute_aggregated_status_overall (self, agg_status_dict={}):
-
-        status = DeviceStatusType.STATUS_UNKNOWN
-
-        values_list = agg_status_dict.values()
-        if DeviceStatusType.STATUS_CRITICAL in values_list:
-            status = DeviceStatusType.STATUS_CRITICAL
-        elif DeviceStatusType.STATUS_WARNING in values_list:
-            status = DeviceStatusType.STATUS_WARNING
-        elif DeviceStatusType.STATUS_OK  in values_list:
-            status = DeviceStatusType.STATUS_OK
-
-        return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status)
 
 
     def get_data_product_parameters_set(self, resource_id=''):
