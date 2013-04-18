@@ -1758,7 +1758,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the aggreate and rollup status from the platform agent
-        AgentStatusBuilder._set_device_aggregate_status(platform_device_id, 'rollup_status', extended_platform)
+        AgentStatusBuilder.add_device_aggregate_status_to_resource_extension(platform_device_id, 'rollup_status', extended_platform)
         log.debug('get_platform_device_extension  extended_platform.computed: %s', extended_platform.computed)
 
         #retrieve the list of aggreate status for all children of this platform agent
