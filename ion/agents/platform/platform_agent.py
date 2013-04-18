@@ -471,6 +471,8 @@ class PlatformAgent(ResourceAgent):
             self._terminate_subplatform_agent_processes()
             self._terminate_instrument_agent_processes()
 
+        self._launcher.destroy()
+
         log.info("%r: PlatformAgent: quit secuence complete.", self._platform_id)
 
     def _bring_to_uninitialized_state(self):
