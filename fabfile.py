@@ -114,7 +114,7 @@ def _gitTag(version):
 
     print versionTag, versionMsg, commit
 
-@_cloneDir(gitUrl='git@github.com:jamie-cyber1/coi-services.git',
+@_cloneDir(gitUrl='git@github.com:ooici/coi-services.git',
     project='coi-services',
     default_branch='master')
 def release(branch, remote='fab'):
