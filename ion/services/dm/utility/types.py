@@ -121,6 +121,8 @@ class TypesManager(object):
             return self.get_record_type()
         elif parameter_type == 'function':
             return self.get_function_type(parameter_type, encoding, pfid, pmap)
+        elif parameter_type == 'special':
+            return self.get_special_type()
         else:
             raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
@@ -184,6 +186,10 @@ class TypesManager(object):
         if lookup_values:
             func.lookup_values = lookup_values
         return func
+
+    def get_special_type():
+        param_type = ArrayType()
+        return param_type
 
     def get_function_type(self, parameter_type, encoding, pfid, pmap):
         if pfid is None or pmap is None:

@@ -1987,8 +1987,10 @@ Reason: %s
             raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
         contact = contacts[0] if len(contacts)==1 else None
         institution = self._create_object_from_row("Institution", row, "i/")
-        provider = IonObject(RT.ExternalDataProvider, name=row["name"], description=row["description"], lcstate=row["lcstate"],
-            institution=institution, contact=contact, alt_ids=['PRE:'+row[COL_ID]])
+        provider = self._create_object_from_row(RT.ExternalDataProvider, row, prefix='p/')
+        provider.alt_ids = ['PRE:'+row[COL_ID]]
+        provider.contact = contact
+        provider.institution = institution
         id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
         provider._id = id
         self._register_id(row['ID'], id, provider)
@@ -2274,7 +2276,6 @@ Reason: %s
         res_obj.temporal_domain = tdom.dump()
         # HACK: cannot parse CSV value directly when field defined as "list"
         # need to evaluate as simplelist instead and add to object explicitly
-        res_obj.available_formats = get_typed_value(row['available_formats'], targettype="simplelist")
 
         headers = self._get_op_headers(row)
 
