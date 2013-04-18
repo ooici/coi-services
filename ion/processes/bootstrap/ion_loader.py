@@ -96,7 +96,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE0wcFVUYndJcVljVHBtY1J6YzE4ckE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydFgxZUxWWV8wLTY5Ykp4NjBIWUhqeGc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1485,7 +1485,7 @@ Reason: %s
 
     def _load_ParameterDictionary(self, row):
         dataset_management = self._get_service_client('dataset_management')
-        types_manager = TypesManager(dataset_management)
+        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
         if row['SKIP']:
             self._conflict_report(row['ID'], row['name'], row['SKIP'])
             return
@@ -1509,8 +1509,9 @@ Reason: %s
                 else:
                     log.warning('Duplicate: %s (%s)', name, i)
                 context_ids[self.resource_ids[i]] = 0
-                res_obj = self.resource_objs[i]
-                lookup_values = types_manager.get_lookup_value_ids(res_obj)
+                res = self.resource_objs[i]
+                context = ParameterContext.load(res.parameter_context)
+                lookup_values = types_manager.get_lookup_value_ids(context)
                 for val in lookup_values:
                     context_ids[val] = 0
             except KeyError:
@@ -1565,8 +1566,10 @@ Reason: %s
 
         func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(),
                                                                description=descr, headers=self._get_system_actor_headers())
-        self._register_id(row[COL_ID], func_id)
-        TypesManager.function_lookups[row[COL_ID]] = func_id
+        func_obj = self.container.resource_registry.read(func_id)
+        func_obj.alt_ids=['PRE:'+row[COL_ID]]
+        self.container.resource_registry.update(func_obj)
+        self._register_id(row[COL_ID], func_id, func_obj)
 
     def _load_ParameterDefs(self, row):
         if row['SKIP']:
@@ -1597,7 +1600,7 @@ Reason: %s
 
         #validate parameter type
         try:
-            tm = TypesManager(dataset_management)
+            tm = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
             param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
             context = ParameterContext(name=name, param_type=param_type)
             context.uom = uom
@@ -1642,34 +1645,6 @@ Reason: %s
             self._conflict_report(row['ID'], row['Name'], e.message)
             return
         try:
-#--------------------------------------------------------------------------------
-#   confluence ->
-#   reference_urls
-#   Parameter Type
-#   -> parameter_type
-#   Name
-#   -> internal_name (new attribute)
-#   Value Encoding 
-#   -> value_encoding (new attribute)
-#   Code Set
-#   -> code_report
-#   Unit of Measure 
-#   -> units
-#   Fill Value
-#   -> fill_value
-#   Display Name 
-#   -> display_name (renamed from ion_name)
-#   Parameter Function ID
-#   -> parameter_function_id (new attribute)
-#   Parameter Function Map
-#   -> parameter_function_map (new attribute)
-#   Standard Name 
-#   -> standard_name
-#   Data Product Identifier
-#   -> ooi_short_name
-#   Description
-#   -> description
-#--------------------------------------------------------------------------------
             creation_args = dict(
                 name=name, parameter_context=context_dump,
                 description=description,
@@ -1692,6 +1667,9 @@ Reason: %s
                 except KeyError:
                     pass
             context_id = dataset_management.create_parameter_context(**creation_args)
+            context_obj = self.container.resource_registry.read(context_id)
+            context_obj.alt_ids = ['PRE:'+row[COL_ID]]
+            self.container.resource_registry.update(context_obj)
         except AttributeError as e:
             if e.message == "'dict' object has no attribute 'read'":
                 self._conflict_report(row['ID'], row['Name'], 'Something is not JSON compatible.')
@@ -1699,9 +1677,7 @@ Reason: %s
             else:
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
-        self._register_id(row[COL_ID], context_id, context)
-        TypesManager.parameter_lookups[row[COL_ID]] = name
-
+        self._register_id(row[COL_ID], context_id, context_obj)
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='PlatformDevice')
@@ -2011,8 +1987,10 @@ Reason: %s
             raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
         contact = contacts[0] if len(contacts)==1 else None
         institution = self._create_object_from_row("Institution", row, "i/")
-        provider = IonObject(RT.ExternalDataProvider, name=row["name"], description=row["description"], lcstate=row["lcstate"],
-            institution=institution, contact=contact, alt_ids=['PRE:'+row[COL_ID]])
+        provider = self._create_object_from_row(RT.ExternalDataProvider, row, prefix='p/')
+        provider.alt_ids = ['PRE:'+row[COL_ID]]
+        provider.contact = contact
+        provider.institution = institution
         id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
         provider._id = id
         self._register_id(row['ID'], id, provider)
@@ -2298,7 +2276,6 @@ Reason: %s
         res_obj.temporal_domain = tdom.dump()
         # HACK: cannot parse CSV value directly when field defined as "list"
         # need to evaluate as simplelist instead and add to object explicitly
-        res_obj.available_formats = get_typed_value(row['available_formats'], targettype="simplelist")
 
         headers = self._get_op_headers(row)
 
@@ -2353,7 +2330,6 @@ Reason: %s
             newrow['contact_ids'] = ''
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            newrow['available_formats'] = ''
             newrow['stream_def_id'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
@@ -2367,7 +2343,6 @@ Reason: %s
             newrow['contact_ids'] = ''
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-            newrow['available_formats'] = ''
             newrow['stream_def_id'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
@@ -2404,7 +2379,6 @@ Reason: %s
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['available_formats'] = ''
                 newrow['stream_def_id'] = ''
 
                 self._load_DataProduct(newrow, do_bulk=self.bulk)
