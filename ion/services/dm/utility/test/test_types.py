@@ -355,14 +355,12 @@ class TestTypes(PyonTestCase):
     
     def test_lookup_value_check(self):
         func = NumexprFunction('f', 'coeff_a * x', ['coeff_a','x'], param_map={'x':'x', 'coeff_a':'coeff_a'})
-        func.lookup_values = ['LV_coeff_a']
+        func.lookup_values = ['abc123']
         test_context = ParameterContext('test', param_type=ParameterFunctionType(func))
 
         tm = TypesManager(None,None,None)
         self.assertTrue(tm.has_lookup_value(test_context))
-        tm.parameter_lookups['LV_coeff_a'] = 'abc123'
         self.assertEquals(tm.get_lookup_value_ids(test_context), ['abc123'])
-
 
     def test_bad_units(self):
         tm = TypesManager(None,None,None)
