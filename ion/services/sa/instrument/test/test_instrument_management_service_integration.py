@@ -795,24 +795,20 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         #First call to create
         instrument_data = self.IMS.prepare_instrument_device_support()
-        '''
+
         self.assertEqual(instrument_data._id, '')
         self.assertEqual(instrument_data.type_, OT.InstrumentDevicePrepareSupport)
         self.assertEqual(len(instrument_data.instrument_models), 1)
         self.assertEqual(instrument_data.instrument_models[0]._id, instrument_model_id)
         self.assertEqual(len(instrument_data.instrument_agents), 1)
         self.assertEqual(instrument_data.instrument_agents[0]._id, instrument_agent_id)
-        self.assertEqual(len(instrument_data.instrument_device_model), 1)
-        self.assertEqual(instrument_data.instrument_device_model[0].s, instrument_device_id)
-        self.assertEqual(instrument_data.instrument_device_model[0].o, instrument_model_id)
+        self.assertEqual(len(instrument_data.instrument_device_model), 0)
         self.assertEqual(len(instrument_data.instrument_agent_models), 1)
         self.assertEqual(instrument_data.instrument_agent_models[0].o, instrument_model_id)
         self.assertEqual(instrument_data.instrument_agent_models[0].s, instrument_agent_id)
         self.assertEqual(len(instrument_data.sensor_devices), 1)
         self.assertEqual(instrument_data.sensor_devices[0]._id, sensor_device_id)
-        self.assertEqual(instrument_data.assign_instrument_model_request.request_parameters['instrument_device_id'], instrument_device_id)
 
-        '''
 
         #Next call to update
         instrument_data = self.IMS.prepare_instrument_device_support(instrument_device_id)
@@ -832,6 +828,23 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(instrument_data.sensor_devices), 1)
         self.assertEqual(instrument_data.sensor_devices[0]._id, sensor_device_id)
         self.assertEqual(instrument_data.assign_instrument_model_request.request_parameters['instrument_device_id'], instrument_device_id)
+
+
+        platform_data = self.IMS.prepare_platform_device_support()
+
+        self.assertEqual(platform_data._id, '')
+        self.assertEqual(platform_data.type_, OT.PlatformDevicePrepareSupport)
+        self.assertEqual(len(platform_data.platform_models), 1)
+        self.assertEqual(platform_data.platform_models[0]._id, platform_model_id)
+        self.assertEqual(len(platform_data.platform_agents), 1)
+        self.assertEqual(platform_data.platform_agents[0]._id, platform_agent_id)
+        self.assertEqual(len(platform_data.platform_device_model), 0)
+        self.assertEqual(len(platform_data.platform_agent_models), 1)
+        self.assertEqual(platform_data.platform_agent_models[0].o, platform_model_id)
+        self.assertEqual(platform_data.platform_agent_models[0].s, platform_agent_id)
+        self.assertEqual(len(platform_data.instrument_devices), 1)
+        self.assertEqual(platform_data.instrument_devices[0]._id, instrument_device_id)
+
 
         platform_data = self.IMS.prepare_platform_device_support(platform_device_id)
 
