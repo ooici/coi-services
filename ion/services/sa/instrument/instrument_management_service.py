@@ -18,7 +18,6 @@ import time
 
 from ooi.logging import log
 
-from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
@@ -63,7 +62,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.extended_resource_handler = ExtendedResourceContainer(self)
 
         self.init_module_uploader()
-
+        self.agent_status_builder = AgentStatusBuilder(process=self)
 
         # set up all of the policy interceptions
         if self.container and self.container.governance_controller:
@@ -1611,7 +1610,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             user_id=user_id)
 
         #retrieve the aggregate status for the instrument
-        AgentStatusBuilder.add_device_aggregate_status_to_resource_extension(instrument_device_id,
+        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(instrument_device_id,
                                                                              'aggstatus',
                                                                              extended_instrument)
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
@@ -1622,33 +1621,33 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
     def get_firmware_version(self, instrument_device_id):
-        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0.0 #todo: use ia_client
         return ret
 
 
     def get_last_data_received_datetime(self, instrument_device_id):
-        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0.0 #todo: use ia_client
         return ret
 
 
     def get_operational_state(self, taskable_resource_id):   # from Device
-        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
         if ia_client:
             ret.value = "" #todo: use ia_client
         return ret
 
     def get_last_calibration_datetime(self, instrument_device_id):
-        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0 #todo: use ia_client
         return ret
 
     def get_uptime(self, device_id):
-        ia_client, ret = AgentStatusBuilder.obtain_agent_calculation(device_id, OT.ComputedStringValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(device_id, OT.ComputedStringValue)
 
         if ia_client:
             # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
@@ -1758,12 +1757,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the aggreate and rollup status from the platform agent
-        AgentStatusBuilder._set_device_aggregate_status(platform_device_id, 'rollup_status', extended_platform)
+        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(platform_device_id, 'rollup_status', extended_platform)
         log.debug('get_platform_device_extension  extended_platform.computed: %s', extended_platform.computed)
 
         #retrieve the list of aggreate status for all children of this platform agent
         try:
-            pa_client = AgentStatusBuilder.obtain_agent_handle(platform_device_id, process=self)
+            pa_client = self.agent_status_builder.obtain_agent_handle(platform_device_id)
 
             child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
             log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)

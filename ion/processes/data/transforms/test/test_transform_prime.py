@@ -72,7 +72,7 @@ class TestTransformPrime(IonIntegrationTestCase):
     def preload(self):
         config = DotDict()
         config.op = 'load'
-        config.scenario = 'BASE,LC_TEST'
+        config.scenario = 'LC_TEST'
         config.categories = 'ParameterFunctions,ParameterDefs,ParameterDictionary'
         config.path = 'res/preload/r2_ioc'
         

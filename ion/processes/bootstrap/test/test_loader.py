@@ -94,41 +94,41 @@ class TestLoader(IonIntegrationTestCase):
     @attr('PRELOAD')
     def test_ui_valid(self):
         """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/' """
-        self.assert_can_load("BASE,BETA", loadui=True, ui_path='default')
+        self.assert_can_load("BETA", loadui=True, ui_path='default')
 
     @attr('PRELOAD')
     def test_ui_candidates_valid(self):
         """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates' """
-        self.assert_can_load("BASE,BETA", loadui=True, ui_path='candidate')
+        self.assert_can_load("BETA", loadui=True, ui_path='candidate')
 
     @attr('PRELOAD')
     def test_assets_valid(self):
         """ make sure can load asset DB """
-        self.assert_can_load("BASE,BETA,DEVS", path='master', loadooi=True)
+        self.assert_can_load("BETA,DEVS", path='master', loadooi=True)
 
     @attr('PRELOAD')
     def test_alpha_valid(self):
         """ make sure R2_DEMO scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,ALPHA_SYS", path='master')
+        self.assert_can_load("BETA,ALPHA_SYS", path='master')
 
     @attr('PRELOAD')
     def test_beta_valid(self):
         """ make sure R2_DEMO scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,BETA_SYS", path='master')
+        self.assert_can_load("BETA,BETA_SYS", path='master')
 
     @attr('PRELOAD')
     def test_devs_valid(self):
         """ make sure DEVS scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,DEVS", path='master')
+        self.assert_can_load("BETA,DEVS", path='master')
 
     def find_object_by_name(self, name, resource_type):
         objects,_ = self.container.resource_registry.find_resources(resource_type, id_only=False)
@@ -143,12 +143,12 @@ class TestLoader(IonIntegrationTestCase):
     @attr('SMOKE', group='loader')
     def test_row_values(self):
         """ use only rows from NOSE scenario for specific names and details included in this test.
-            rows in NOSE may rely on entries in BASE and BETA scenarios,
+            rows in NOSE may rely on entries in BETA scenarios,
             but should not specifically test values from those scenarios.
         """
 
         # first make sure this scenario loads successfully
-        self.assert_can_load("BASE,BETA,NOSE")
+        self.assert_can_load("BETA,NOSE")
 
         # check for ExternalDataset
         eds = self.find_object_by_name('Test External Dataset', RT.ExternalDataset)
@@ -167,9 +167,6 @@ class TestLoader(IonIntegrationTestCase):
 
         # check data product
         dp = self.find_object_by_name('Test DP L0 CTD', RT.DataProduct)
-        formats = dp.available_formats
-        self.assertEquals(2, len(formats))
-        self.assertEquals('csv', formats[0])
         # should be persisted
         streams, _ = self.container.resource_registry.find_objects(dp._id, PRED.hasStream, RT.Stream, True)
         self.assertTrue(streams)
