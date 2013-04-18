@@ -4,7 +4,7 @@
 @brief Data Product Management Service Integration Tests
 '''
 
-import unittest, gevent
+import unittest, gevent, simplejson
 import numpy as np
 from mock import patch
 from nose.plugins.attrib import attr
@@ -256,7 +256,21 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         def ion_object_encoder(obj):
             return obj.__dict__
 
-        #test prepare
+
+        #test prepare for create
+        data_product_data = self.dpsc_cli.prepare_data_product_support()
+
+        #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)
+
+        self.assertEqual(data_product_data._id, '')
+        self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
+        self.assertEqual(len(data_product_data.stream_definitions), 2)
+        self.assertEqual(len(data_product_data.datasets), 2)
+        self.assertEqual(len(data_product_data.data_product_stream_definition), 0)
+        self.assertEqual(len(data_product_data.data_product_dataset), 0)
+
+
+        #test prepare for update
         data_product_data = self.dpsc_cli.prepare_data_product_support(dp_id)
 
         #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)

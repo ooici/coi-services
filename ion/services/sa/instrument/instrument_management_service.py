@@ -1932,9 +1932,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         }
 
         #Fill out service request information for updating a instrument device
-        resource_data.create_instrument_device_request.service_name = 'instrument_management'
-        resource_data.create_instrument_device_request.service_operation = 'update_instrument_device'
-        resource_data.create_instrument_device_request.request_parameters = {
+        resource_data.update_instrument_device_request.service_name = 'instrument_management'
+        resource_data.update_instrument_device_request.service_operation = 'update_instrument_device'
+        resource_data.update_instrument_device_request.request_parameters = {
             "instrument_device":  "$(instrument_device)"
         }
 
@@ -1976,9 +1976,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         }
 
         #Fill out service request information for updating a platform device
-        resource_data.create_platform_device_request.service_name = 'instrument_management'
-        resource_data.create_platform_device_request.service_operation = 'update_platform_device'
-        resource_data.create_platform_device_request.request_parameters = {
+        resource_data.update_platform_device_request.service_name = 'instrument_management'
+        resource_data.update_platform_device_request.service_operation = 'update_platform_device'
+        resource_data.update_platform_device_request.request_parameters = {
             "platform_device":  "$(platform_device)"
         }
 
