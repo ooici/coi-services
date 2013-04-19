@@ -2413,6 +2413,9 @@ Reason: %s
 
         # Create data product assignment
         if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
+            if input_res_id not in self.resource_ids:
+                log.error('Input resource %s does not exist', input_res_id)
+                return
             input_res_id = self.resource_ids.get(input_res_id)
             if self.bulk and do_bulk:
                 id_obj = self._get_resource_obj(row["input_resource_id"])
