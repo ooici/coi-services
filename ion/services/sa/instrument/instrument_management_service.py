@@ -19,7 +19,7 @@ import time
 from ooi.logging import log
 
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError
+from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError, Unauthorized
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
@@ -1773,6 +1773,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         except NotFound:
             reason = "Could not connect to platform agent instance -- may not be running"
             extended_platform.computed.child_device_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+
+        except Unauthorized:
+            reason = "The requester does not have the proper role to access the status of this platform agent"
+            extended_platform.computed.child_device_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+
         except Exception as e:
             raise e
 

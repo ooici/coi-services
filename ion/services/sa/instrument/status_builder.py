@@ -7,7 +7,7 @@
 from ooi.logging import log
 from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import BadRequest, NotFound
+from pyon.core.exception import BadRequest, NotFound, Unauthorized
 
 
 from interface.objects import ComputedValueAvailability, ComputedIntValue
@@ -33,6 +33,7 @@ class AgentStatusBuilder(object):
 
             aggstatus = ia_client.get_agent([status_name])[status_name]
             log.debug('add_device_aggregate_status_to_resource_extension status: %s', aggstatus)
+            print 'add_device_aggregate_status_to_resource_extension status: %s', aggstatus
 
             if aggstatus:
                 extended_device_resource.computed.communications_status_roll_up = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_COMMS] )
@@ -49,6 +50,16 @@ class AgentStatusBuilder(object):
             extended_device_resource.computed.location_status_roll_up =\
             extended_device_resource.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE,
                                                                                    value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+
+        except Unauthorized:
+            reason = "The requester does not have the proper role to access the status of this instrument agent"
+            extended_device_resource.computed.communications_status_roll_up =\
+            extended_device_resource.computed.power_status_roll_up =\
+            extended_device_resource.computed.data_status_roll_up =\
+            extended_device_resource.computed.location_status_roll_up =\
+            extended_device_resource.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+
         except Exception as e:
             raise e
 
