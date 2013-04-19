@@ -94,6 +94,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
         p_root = self._set_up_single_platform_with_some_instruments([instr_key])
 
         self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
 
         # get everything in command mode:
         self._ping_agent()
@@ -252,5 +253,4 @@ error: [Errno 61] Connection refused
         # then shutdown the network:
         self._go_inactive()
         self._reset()
-
-        self._stop_platform(p_root)
+        self._shutdown()

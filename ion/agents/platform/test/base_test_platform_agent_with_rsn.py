@@ -1230,6 +1230,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
+    def _shutdown(self):
+        cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+
     def _check_sync(self):
         cmd = AgentCommand(command=PlatformAgentEvent.CHECK_SYNC)
         retval = self._execute_agent(cmd)
