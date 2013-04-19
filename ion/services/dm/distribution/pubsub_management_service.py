@@ -29,8 +29,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
 
-    def create_stream_definition(self, name='', parameter_dictionary=None, parameter_dictionary_id='', stream_type='', description='', available_fields=None):
+    def create_stream_definition(self, name='', parameter_dictionary=None, parameter_dictionary_id='', stream_type='', description='', available_fields=None, stream_configuration=None):
         parameter_dictionary = parameter_dictionary or {}
+        stream_configuration = stream_configuration or {}
         existing = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition, name=name, id_only=True)[0]
         if name and existing:
             if parameter_dictionary_id:
@@ -47,7 +48,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         name = name or create_unique_identifier()
 
-        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description, available_fields=available_fields)
+        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description, available_fields=available_fields, stream_configuration=stream_configuration)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
         if parameter_dictionary_id:
             self._associate_pdict_with_definition(parameter_dictionary_id, stream_definition_id)

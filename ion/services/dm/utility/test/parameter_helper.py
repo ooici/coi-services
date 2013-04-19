@@ -5,6 +5,7 @@
 @brief Helpers for Parameters
 '''
 from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ArrayType, CategoryType, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction, SparseConstantType
+from ion.services.dm.utility.types import TypesManager
 from ion.services.dm.utility.granule import RecordDictionaryTool
 from pyon.container.cc import Container
 from pyon.ion.stream import StandaloneStreamPublisher
@@ -373,6 +374,44 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_dictionary,lookup_pdict_id)
         return lookup_pdict_id
 
+    def create_global_range_function(self):
+        func = PythonFunction('global_range_test','ion_functions.qc.qc_functions','dataqc_globalrangetest_minmax',['dat','dat_min','dat_max'])
+        func_id = self.dataset_management.create_parameter_function(name='global_range_test', parameter_function=func.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
+        return func
+
+    def create_simple_qc(self):
+        contexts = {}
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 1900-01-01'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+        
+        temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        types_manager = TypesManager(self.dataset_management,None,None)
+        ctxt_id, pc = types_manager.make_grt_qc('temp', 'TEMPWAT')
+        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
+        contexts['temp_qc'] = pc, ctxt_id
+
+        return contexts
+
+    def create_simple_qc_pdict(self):
+        types_manager = TypesManager(self.dataset_management,None,None)
+        self.create_global_range_function()
+        contexts = self.create_simple_qc()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_qc'][0]))
+        pdict_id = self.dataset_management.create_parameter_dictionary('simple_qc', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+
+        return pdict_id
+
 
     def create_lookup_contexts(self):
         contexts = {}
@@ -401,6 +440,14 @@ class ParameterHelper(object):
         offsetb_ctxt_id = self.dataset_management.create_parameter_context(name='offset_b', parameter_context=offsetb_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, offsetb_ctxt_id)
         contexts['offset_b'] = offsetb_ctxt, offsetb_ctxt_id
+        
+        offsetc_ctxt = ParameterContext('offset_c', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999))
+        offsetc_ctxt.uom = ''
+        offsetc_ctxt.lookup_value = 'offset_c'
+        offsetc_ctxt.document_key = '$designator_OFFSETC'
+        offsetc_ctxt_id = self.dataset_management.create_parameter_context(name='offset_c', parameter_context=offsetc_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, offsetc_ctxt_id)
+        contexts['offset_c'] = offsetc_ctxt, offsetc_ctxt_id
 
         func = NumexprFunction('calibrated', 'temp + offset', ['temp','offset'], param_map={'temp':'temp', 'offset':'offset_a'})
         func.lookup_values = ['LV_offset']
