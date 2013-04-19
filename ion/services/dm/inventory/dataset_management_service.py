@@ -27,7 +27,7 @@ from coverage_model.parameter_functions import AbstractFunction
 from uuid import uuid4
 
 import os
-
+import numpy as np
 
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
@@ -146,6 +146,23 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
+    @classmethod
+    def numpy_walk(cls,obj):
+        if isinstance(obj, np.number):
+            return np.asscalar(obj)
+        if isinstance(obj, np.dtype):
+            return {'__np__':obj.str}
+        if isinstance(obj,dict):
+            if '__np__' in obj and len(obj)==1:
+                return np.dtype(obj['__np__'])
+            return {k:cls.numpy_walk(v) for k,v in obj.iteritems()}
+        if isinstance(obj,list):
+            return [i for i in obj]
+        if isinstance(obj, tuple):
+            return tuple((i for i in obj))
+        return obj
+
+
     def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name='', precision=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
@@ -155,6 +172,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
+        parameter_context = self.numpy_walk(parameter_context)
         pc_res = ParameterContextResource(name=name, parameter_context=parameter_context, description=description)
         pc_res.reference_urls = reference_urls or []
         pc_res.parameter_type = parameter_type
@@ -180,6 +198,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_parameter_context(self, parameter_context_id=''):
         res = self.clients.resource_registry.read(parameter_context_id)
         validate_is_instance(res,ParameterContextResource)
+        res.parameter_context = self.numpy_walk(res.parameter_context)
         return res
 
     def delete_parameter_context(self, parameter_context_id=''):
@@ -193,13 +212,16 @@ class DatasetManagementService(BaseDatasetManagementService):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
-        return res[0]
+        retval = res[0]
+        retval.parameter_context = self.numpy_walk(retval.parameter_context)
+        return retval
 
 #--------
 
     def create_parameter_function(self, name='', parameter_function=None, description=''):
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_function, dict, 'parameter_function field is not dictable.')
+        parameter_function = self.numpy_walk(parameter_function)
         pf_res = ParameterFunctionResource(name=name, parameter_function=parameter_function, description=description)
         pf_id, ver = self.clients.resource_registry.create(pf_res)
         return pf_id
@@ -207,6 +229,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_parameter_function(self, parameter_function_id=''):
         res = self.clients.resource_registry.read(parameter_function_id)
         validate_is_instance(res, ParameterFunctionResource)
+        res.parameter_function = self.numpy_walk(res.parameter_function)
         return res
 
     def delete_parameter_function(self, parameter_function_id=''):
@@ -220,9 +243,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterFunction,name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate parameter function with name: %s' % name)
-        return res[0]
-
-
+        retval = res[0]
+        retval.parameter_function = self.numpy_walk(retval.parameter_function)
+        return retval
 
 #--------
 
@@ -259,6 +282,9 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def read_parameter_contexts(self, parameter_dictionary_id='', id_only=False):
         pcs, assocs = self.clients.resource_registry.find_objects(subject=parameter_dictionary_id, predicate=PRED.hasParameterContext, id_only=id_only)
+        if not id_only:
+            for pc in pcs:
+                pc.parameter_context = self.numpy_walk(pc.parameter_context)
         return pcs
 
     def read_parameter_dictionary_by_name(self, name='', id_only=False):
