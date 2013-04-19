@@ -4,18 +4,22 @@
 @file ion/services/dm/utility/types.py
 @date Thu Jan 17 15:51:16 EST 2013
 '''
+from pyon.container.cc import Container
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import CFG
+from pyon.public import CFG, RT
+from pyon.util.memoize import memoize_lru
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
 from coverage_model.parameter_types import QuantityType, ArrayType 
 from coverage_model.parameter_types import RecordType, CategoryType 
 from coverage_model.parameter_types import ConstantType, ConstantRangeType
+from coverage_model.parameter_functions import AbstractFunction
 from coverage_model import ParameterFunctionType, ParameterContext, SparseConstantType, ConstantType
 
 from copy import deepcopy
 from udunitspy.udunits2 import Unit, System
+from interface.objects import ParameterContext as ParameterContextResource
 
 import ast
 import numpy as np
@@ -24,12 +28,12 @@ from uuid import uuid4
 
 
 class TypesManager(object):
-    function_lookups = {}
-    parameter_lookups = {}
     system = System(path=CFG.get_safe('units', 'res/config/units/udunits2.xml'))
 
-    def __init__(self, dataset_management_client):
+    def __init__(self, dataset_management_client, resource_ids, resource_objs):
         self.dataset_management = dataset_management_client
+        self.resource_ids = resource_ids
+        self.resource_objs = resource_objs
 
     def get_array_type(self,parameter_type=None):
         return ArrayType()
@@ -126,25 +130,17 @@ class TypesManager(object):
 
     def get_param_name(self, pdid):
         try:
-            param_name = self.parameter_lookups[pdid]
+            param_name = self.resource_objs[pdid].name
         except KeyError:
             raise KeyError('Parameter %s was not loaded' % pdid)
         return param_name
 
     def get_pfunc(self,pfid):
-        try:
-            resource_id = self.function_lookups[pfid]
-        except KeyError:
-            raise KeyError('Function %s was not loaded' % pfid) 
-        try:
-            pfunc = DatasetManagementService.get_parameter_function(resource_id)
-        except NotFound:
-            raise TypeError('Unable to locate functionf or PFID: %s' % pfid)
-        except BadRequest:
-            raise ValueError('Processing error trying to get PFID: %s' % pfid)
-        except:
-            raise ValueError('Error making service request')
+        if pfid not in self.resource_objs: 
+            raise KeyError('Function %s was not loaded' % pfid)
 
+        func_dump = self.resource_objs[pfid].parameter_function
+        pfunc = AbstractFunction.load(func_dump)
         return pfunc
 
     def get_lookup_value(self,value):
@@ -158,8 +154,7 @@ class TypesManager(object):
         pc.lookup_value = document_val
         pc.document_key = document_key
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
-        self.parameter_lookups[placeholder] = ctxt_id
-        return value, placeholder
+        return ctxt_id, placeholder
 
     def has_lookup_value(self, context):
         if isinstance(context.param_type, ParameterFunctionType):
@@ -172,7 +167,7 @@ class TypesManager(object):
         if isinstance(context.param_type, ParameterFunctionType):
             if hasattr(context.function,'lookup_values'):
                 lookup_values = context.function.lookup_values
-                return [self.parameter_lookups[i] for i in lookup_values]
+                return lookup_values
         return []
 
     def evaluate_pmap(self,pfid, pmap):
@@ -184,14 +179,50 @@ class TypesManager(object):
             if isinstance(v, basestring) and 'PD' in v:
                 pmap[k] = self.get_param_name(v)
             if isinstance(v, basestring) and 'LV' in v:
-                value, placeholder = self.get_lookup_value(v)
+                ctxt_id, placeholder = self.get_lookup_value(v)
                 pmap[k] = placeholder
-                lookup_values.append(placeholder)
+                lookup_values.append(ctxt_id)
         func = deepcopy(self.get_pfunc(pfid))
         func.param_map = pmap
         if lookup_values:
             func.lookup_values = lookup_values
         return func
+
+    def evaluate_qc(self):
+        pass
+
+    @memoize_lru(maxsize=100)
+    def find_grt(self):
+        res_obj, _ = Container.instance.resource_registry.find_resources(name='global_range_test', restype=RT.ParameterFunction, id_only=False)
+        if res_obj:
+            return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
+        else:
+            raise KeyError('global_range_test was never loaded')
+
+    def make_qc_functions(self, name, data_product, registration_function):
+        contexts = []
+        ctxt_id, pc = self.make_grt_qc(name,data_product)
+        contexts.append(ctxt_id)
+        registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
+
+        return contexts
+
+
+    def make_grt_qc(self, name, data_product):
+        pfunc_id, pfunc = self.find_grt() 
+        grt_min_id, grt_min_name = self.get_lookup_value('LV_grt_$designator_%s||grt_min_value' % data_product)
+        grt_max_id, grt_max_name = self.get_lookup_value('LV_grt_$designator_%s||grt_max_value' % data_product)
+
+        pmap = {'dat':name, 'dat_min':grt_min_name,'dat_max':grt_max_name}
+        pfunc.param_map = pmap
+        pfunc.lookup_values = [grt_min_id, grt_max_id]
+
+        pc = ParameterContext(name='%s_glblrng_qc' % name, param_type=ParameterFunctionType(pfunc))
+        pc.uom = '1'
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % name, parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id)
+        return ctxt_id, pc
+
+
 
     def get_function_type(self, parameter_type, encoding, pfid, pmap):
         if pfid is None or pmap is None:

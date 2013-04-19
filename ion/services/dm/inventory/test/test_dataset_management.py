@@ -42,8 +42,6 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         ds_obj2 = self.dataset_management.read_dataset(dataset_id)
         self.assertEquals(ds_obj.name, ds_obj2.name)
         self.assertTrue(ds_obj2.registered)
-
-   
     
     def test_context_crud(self):
         context_ids = self.create_contexts()
@@ -58,6 +56,8 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.dataset_management.read_parameter_context(context_id)
 
+
+
     def test_pfunc_crud(self):
         contexts, funcs = self.create_pfuncs()
         context_ids = [context_id for ctxt,context_id in contexts.itervalues()]
@@ -68,9 +68,6 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         expr, expr_id = funcs['CONDWAT_L1']
         func_class = DatasetManagementService.get_parameter_function(expr_id)
         self.assertIsInstance(func_class, NumexprFunction)
-
-
-
 
     def test_pdict_crud(self):
         context_ids = self.create_contexts()

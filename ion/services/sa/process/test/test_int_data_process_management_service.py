@@ -604,7 +604,7 @@ class TestDataProcessManagementPrime(IonIntegrationTestCase):
     def lc_preload(self):
         config = DotDict()
         config.op = 'load'
-        config.scenario = 'BASE,LC_TEST'
+        config.scenario = 'LC_TEST'
         config.categories = 'ParameterFunctions,ParameterDefs,ParameterDictionary,Parser'
         config.path = 'res/preload/r2_ioc'
         

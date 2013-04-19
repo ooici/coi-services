@@ -21,7 +21,7 @@ from ion.util.stored_values import StoredValueManager
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
 
-from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType
+from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType, Span, SparseConstantType
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
 
@@ -55,6 +55,7 @@ class RecordDictionaryTool(object):
     _dirty_shape        = False
     _available_fields   = None
     _creation_timestamp = None
+    _stream_config      = {}
     connection_id       = ''
     connection_index    = ''
 
@@ -72,6 +73,7 @@ class RecordDictionaryTool(object):
             stream_def_obj = RecordDictionaryTool.read_stream_def(stream_definition_id)
             pdict = stream_def_obj.parameter_dictionary
             self._available_fields = stream_def_obj.available_fields or None
+            self._stream_config = stream_def_obj.stream_configuration
             self._pdict = ParameterDictionary.load(pdict)
             self._stream_def = stream_definition_id
         
@@ -96,6 +98,10 @@ class RecordDictionaryTool(object):
         paramval = get_value_class(ptype, domain_set=domain)
         if isinstance(ptype,ParameterFunctionType):
             paramval.memoized_values = values
+        if isinstance(ptype,SparseConstantType):
+            values = np.atleast_1d(values)
+            spans = cls.spanify(values)
+            paramval.storage._storage = np.array([spans],dtype='object')
         else:
             paramval[:] = values
         paramval.storage._storage.flags.writeable = False
@@ -110,14 +116,35 @@ class RecordDictionaryTool(object):
             if hasattr(self.context(field), 'lookup_value'):
                 lookup_values.append(field)
         return lookup_values
+    
+    @classmethod
+    def spanify(cls,arr):
+        spans = []
+        lastval = None
+        for i,val in enumerate(arr):
+            if i == 0:
+                span = Span(None,None,0,val)
+                spans.append(span)
+                lastval = val
+                continue
+            if lastval == val:
+                continue
+            spans[-1].upper_bound = i
+            span = Span(i,None,-i,val)
+            spans.append(span)
+        return spans
+
 
     def fetch_lookup_values(self):
         for lv in self._lookup_values():
             context = self.context(lv)
             if context.document_key:
+                document_key = context.document_key
+                if '$designator' in context.document_key and 'reference_designator' in self._stream_config:
+                    document_key = document_key.replace('$designator',self._stream_config['reference_designator'])
                 svm = StoredValueManager(Container.instance)
                 try:
-                    doc = svm.read_value(context.document_key)
+                    doc = svm.read_value(document_key)
                 except NotFound:
                     continue
                 if context.lookup_value in doc:

@@ -283,7 +283,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
     def insert_sparse_values(self, coverage, rdt, stream_id):
 
         self.fill_lookup_values(rdt)
-        for field in rdt._lookup_values():
+        for field in rdt.fields:
             if rdt[field] is None:
                 continue
             if not isinstance(rdt.context(field).param_type, SparseConstantType):
@@ -292,6 +292,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
             value = rdt[field]
             try:
                 coverage.set_parameter_values(param_name=field, value=value)
+            except ValueError as e:
+                if "'lower_bound' cannot be >= 'upper_bound'" in e.message:
+                    continue
+                else:
+                    raise
             except IOError as e:
                 log.error("Couldn't insert values for coverage: %s",
                           coverage.persistence_dir, exc_info=True)
@@ -372,6 +377,8 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         #--------------------------------------------------------------------------------
 
         elements = len(rdt)
+        if rdt[rdt.temporal_parameter] is None:
+            elements = 0 
 
         self.insert_sparse_values(coverage,rdt,stream_id)
         

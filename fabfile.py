@@ -51,13 +51,18 @@ class _cloneDir(object):
         def wrapped_f(*args, **kwargs):
             local('rm -rf ../tmpfab')
             local('mkdir ../tmpfab')
-            local('git clone %s ../tmpfab/%s' % (self.gitUrl, self.project))
+            local('git clone . ../tmpfab/%s' % self.project)
 
+            remote = 'fab'
             with lcd(os.path.join('..', 'tmpfab', self.project)):
                 branch = prompt('Please enter release branch:',
                     default=self.default_branch)
-                local('git checkout %s' % branch)
+                local('git remote add %s %s' % (remote, self.gitUrl))
+                local('git fetch %s' % remote)
+
+                local('git checkout -b fab_%s %s/%s' % (branch, remote, branch))
                 kwargs['branch'] = branch
+                kwargs['remote'] = remote
                 f(*args, **kwargs)
             local('rm -rf ../tmpfab')
         return wrapped_f
@@ -96,7 +101,7 @@ def _replaceVersionInFile(filename, matchRe, template, versionCb):
     with open(filename, 'w') as wfile:
         wfile.writelines(lines)
 
-def _gitTag(version, branch='develop'):
+def _gitTag(version):
     versionTag = versionTemplates['git-tag'] % version
     versionMsg = versionTemplates['git-message'] % version
 
@@ -112,7 +117,7 @@ def _gitTag(version, branch='develop'):
 @_cloneDir(gitUrl='git@github.com:ooici/coi-services.git',
     project='coi-services',
     default_branch='master')
-def release(branch):
+def release(branch, remote='fab'):
 
     # Deduce release version
     nextVersionD = _getReleaseVersion()
@@ -122,7 +127,7 @@ def release(branch):
     _replaceVersionInFile('setup.py', version_re,
             versionTemplates['release'], lambda old: nextVersionD)
     # Tag at release version
-    _gitTag(nextVersionD, branch=branch)
+    _gitTag(nextVersionD)
 
     # Immediately go to next dev version to ensure release version is tied
     # to one commit only
@@ -133,8 +138,6 @@ def release(branch):
     devMsg = versionTemplates['dev-message'] % nextVersionD
     local('git commit -am "%s"' % devMsg)
 
-    remote = 'origin'
-
     # Push commits and tags
     local('git push %s --tags' % (remote))
-    local('git push %s %s' % (remote, branch))
+    local('git push %s HEAD:%s' % (remote, branch))
