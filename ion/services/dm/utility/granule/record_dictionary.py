@@ -21,7 +21,7 @@ from ion.util.stored_values import StoredValueManager
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
 
-from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType
+from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType, Span, SparseConstantType
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
 
@@ -98,6 +98,10 @@ class RecordDictionaryTool(object):
         paramval = get_value_class(ptype, domain_set=domain)
         if isinstance(ptype,ParameterFunctionType):
             paramval.memoized_values = values
+        if isinstance(ptype,SparseConstantType):
+            values = np.atleast_1d(values)
+            spans = cls.spanify(values)
+            paramval.storage._storage = np.array([spans],dtype='object')
         else:
             paramval[:] = values
         paramval.storage._storage.flags.writeable = False
@@ -112,6 +116,24 @@ class RecordDictionaryTool(object):
             if hasattr(self.context(field), 'lookup_value'):
                 lookup_values.append(field)
         return lookup_values
+    
+    @classmethod
+    def spanify(cls,arr):
+        spans = []
+        lastval = None
+        for i,val in enumerate(arr):
+            if i == 0:
+                span = Span(None,None,0,val)
+                spans.append(span)
+                lastval = val
+                continue
+            if lastval == val:
+                continue
+            spans[-1].upper_bound = i
+            span = Span(i,None,-i,val)
+            spans.append(span)
+        return spans
+
 
     def fetch_lookup_values(self):
         for lv in self._lookup_values():
