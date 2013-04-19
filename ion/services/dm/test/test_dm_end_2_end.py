@@ -851,6 +851,89 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_equal(rdt['temp'], np.arange(6))
         return dataset_id
 
+    def test_sparse_values(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_sparse()
+        stream_def_id = self.pubsub_management.create_stream_definition('sparse', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        stream_id, route = self.pubsub_management.create_stream('example', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+        dataset_id = self.create_dataset(pdict_id)
+        self.start_ingestion(stream_id,dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
+
+        ntp_now = time.time() + 2208988800
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['time'] = [ntp_now]
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [300000]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['lat'] = [45]
+        rdt['conductivity'] = [4341400]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['lon'] = [-71]
+        rdt['pressure'] = [256.8]
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], rdt['time'])
+        np.testing.assert_array_almost_equal(rdt_out['temp'], rdt['temp'])
+        np.testing.assert_array_almost_equal(rdt_out['lat'], np.array([45]))
+        np.testing.assert_array_almost_equal(rdt_out['lon'], np.array([-71]))
+
+        np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
+        np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
+        np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+
+
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['lat'] = [46]
+        rdt['lon'] = [-73]
+        
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+        
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['lat'] = [1000]
+        rdt['lon'] = [3]
+        
+        publisher.publish(rdt.to_granule())
+
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['time'] = [ntp_now]
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [300000]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['conductivity'] = [4341400]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['pressure'] = [256.8]
+        
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+        np.testing.assert_array_almost_equal(rdt_out['lat'], np.array([45, 46]))
+        np.testing.assert_array_almost_equal(rdt_out['lon'], np.array([-71,-73]))
+
+
 
     @unittest.skip('Outdated due to ingestion retry')
     @attr('LOCOINT')
