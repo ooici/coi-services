@@ -8,10 +8,9 @@ from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
-from pyon.core.exception import NotFound, BadRequest, Inconsistent
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.containers import create_unique_identifier
 from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
@@ -44,6 +43,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.override_clients(self.clients)
         self.outil = ObservatoryUtil(self)
+        self.agent_status_builder = AgentStatusBuilder(process=self)
+
 
         self.HIERARCHY_DEPTH = {RT.InstrumentSite: 3,
                                 RT.PlatformSite: 2,
@@ -824,12 +825,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
         # Status computation
-        extended_site.computed.instrument_status = [AgentStatusBuilder.get_aggregate_status_of_device(idev._id, "aggstatus")
+        extended_site.computed.instrument_status = [self.agent_status_builder.get_aggregate_status_of_device(idev._id, "aggstatus")
                                                     for idev in extended_site.instrument_devices]
-        extended_site.computed.platform_status   = [AgentStatusBuilder.get_aggregate_status_of_device(pdev._id, "aggstatus")
+        extended_site.computed.platform_status   = [self.agent_status_builder.get_aggregate_status_of_device(pdev._id, "aggstatus")
                                                     for pdev in extended_site.platform_devices]
 
-#            AgentStatusBuilder.add_device_aggregate_status_to_resource_extension(device_id,
+#            self.agent_status_builder.add_device_aggregate_status_to_resource_extension(device_id,
 #                                                                                    'aggstatus',
 #                                                                                    extended_site)
         def status_unknown():
