@@ -45,28 +45,31 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self._go_active()
         self._run()
 
+        #####################
+        # done
         self._go_inactive()
         self._reset()
+        self._shutdown()
 
     def test_single_platform(self):
         #
         # Tests the launch and shutdown of a single platform (no instruments).
         #
         p_root = self._create_single_platform()
-
         self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+
         self._run_commands()
-        self._stop_platform(p_root)
 
     def test_hierarchy(self):
         #
         # Tests the launch and shutdown of a small platform topology (no instruments).
         #
         p_root = self._create_small_hierarchy()
-
         self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+
         self._run_commands()
-        self._stop_platform(p_root)
 
     def test_single_platform_with_an_instrument(self):
         #
@@ -74,10 +77,10 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         #
 
         p_root = self._set_up_single_platform_with_some_instruments(['SBE37_SIM_01'])
-
         self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+
         self._run_commands()
-        self._stop_platform(p_root)
 
     def test_platform_hierarchy_with_some_instruments(self):
         #
@@ -108,7 +111,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         instr_keys = ["SBE37_SIM_01", "SBE37_SIM_02", ]
 
         p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
-
         self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+
         self._run_commands()
-        self._stop_platform(p_root)

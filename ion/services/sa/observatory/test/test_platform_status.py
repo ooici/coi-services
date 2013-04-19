@@ -343,6 +343,7 @@ class Test(BaseIntTestPlatform):
         # done
         self._go_inactive()
         self._reset()
+        self._shutdown()
 
     def test_platform_status_small_network_5(self):
         #
@@ -455,6 +456,7 @@ class Test(BaseIntTestPlatform):
         # done
         self._go_inactive()
         self._reset()
+        self._shutdown()
 
     def test_platform_status_small_network_5_1(self):
         #
@@ -555,3 +557,4 @@ class Test(BaseIntTestPlatform):
         # done
         self._go_inactive()
         self._reset()
+        self._shutdown()
