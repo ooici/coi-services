@@ -642,6 +642,8 @@ class PlatformAgent(ResourceAgent):
         @param recursion   True to "shutdown" children.
         """
 
+        log.debug("%r: _shutdown: recursion=%s", self._platform_id, recursion)
+
         if recursion:
             # shutdown sub-platforms and then terminate the processes:
             # TODO: do the shutdown/terminate child by child
@@ -2243,6 +2245,7 @@ class PlatformAgent(ResourceAgent):
 
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
+        self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
 
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
