@@ -1022,10 +1022,6 @@ class PlatformAgent(ResourceAgent):
             self._async_driver_event_state_change(driver_event.state)
             return
 
-        #
-        # TODO handle other possible events.
-        #
-
         else:
             log.warn('%r: driver_event not handled: %s',
                      self._platform_id, str(type(driver_event)))
