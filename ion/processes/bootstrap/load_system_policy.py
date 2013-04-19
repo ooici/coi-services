@@ -834,6 +834,12 @@ class LoadSystemPolicy(ImmediateProcess):
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">get_agent</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
                 </Actions>
 
                 <Subjects>
