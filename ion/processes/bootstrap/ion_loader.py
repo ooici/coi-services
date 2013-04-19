@@ -98,7 +98,7 @@ MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfS
 TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidE0wcFVUYndJcVljVHBtY1J6YzE4ckE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
-#TESTED_DOC=MASTER_DOC
+TESTED_DOC=MASTER_DOC
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
@@ -185,7 +185,7 @@ class IONLoader(ImmediateProcess):
         op = self.CFG.get("op", None)
 
         # Additional parameters
-        self.path = self.CFG.get("path", TESTED_DOC)
+        self.path = self.CFG.get("path", None) or TESTED_DOC # handle case where path is explicitly set to None
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = self.CFG.get("attachments", self.path + '/attachments')
@@ -417,8 +417,6 @@ class IONLoader(ImmediateProcess):
             # Now load entries from preload spreadsheet top to bottom where scenario matches
             if category not in self.object_definitions or not self.object_definitions[category]:
                 log.debug('no rows for category: %s', category)
-            else:
-                log.info("Loading category %d/%d: %s", index, count, category)
 
             for row in self.object_definitions.get(category, []):
                 if COL_ID in row:
@@ -441,7 +439,7 @@ class IONLoader(ImmediateProcess):
                 # should we assert that num_bulk==row_count??
                 log.info("bulk loaded category %s: %d rows, %s bulk", category, row_count, num_bulk)
             else:
-                log.info("loaded category %s: %d rows", category, row_count)
+                log.info("loaded category %s (%d/%d): %d rows", category, index, count, row_count)
 
     def load_row(self, type, row):
         """ expose for use by utility function """
@@ -1827,7 +1825,7 @@ Reason: %s
         alert = {
             'name': row['name'],
             'message': row['message'],
-            'type': getattr(StreamAlarmType, row['type'])
+            'alert_type': getattr(StreamAlarmType, row['type'])
         }
         # add 5 parameters representing the value and range
         alert.update( self._parse_alert_range(row['range']) )
@@ -1914,15 +1912,15 @@ Reason: %s
         contact = contacts[0] if len(contacts)==1 else None
         institution = self._create_object_from_row("Institution", row, "i/")
 
-        self._basic_resource_create(row, "ExternalDataProvider", "",
+        self._basic_resource_create(row, "ExternalDataProvider", "p/",
             "data_acquisition_management", "create_external_data_provider",
             set_attributes=dict(institution=institution, contact=contact))
 
-        provider = IonObject(RT.ExternalDataProvider, name=row["name"], description=row["description"], lcstate=row["lcstate"],
-            institution=institution, contact=contact, alt_ids=['PRE:'+row[COL_ID]])
-        id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
-        provider._id = id
-        self._register_id(row['ID'], id, provider)
+#        provider = IonObject(RT.ExternalDataProvider, name=row["name"], description=row["description"], lcstate=row["lcstate"],
+#            institution=institution, contact=contact, alt_ids=['PRE:'+row[COL_ID]])
+#        id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
+#        provider._id = id
+#        self._register_id(row['ID'], id, provider)
 
     def _load_ExternalDatasetModel(self, row):
         # ID, lcstate, name, description, dataset_type
@@ -1977,11 +1975,11 @@ Reason: %s
         # but some are handler-specific, others seem just for testing
         # TODO: come back and look again when trying to start this process
         driver_config.update( {
-            'dvr_mod' : agent.handler_module,
-            'dvr_cls' : agent.handler_class,
+            'dvr_mod' : row['handler_module'],
+            'dvr_cls' : row['handler_class'],
             'dh_cfg': {
-#                'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
-#                'parser_cls': 'HYPM_01_WFP_CTDParser',
+                'parser_mod': row['parser_module'],
+                'parser_cls': row['parser_class'],
                 #'TESTING':True,
                 'stream_def': streamdef_id,
 #                'stream_id':stream_id,
@@ -1992,7 +1990,7 @@ Reason: %s
             } )
         agent_config.update( {
             'driver_config' : driver_config,
-            'stream_config' : {},
+            'stream_config' : { }, #'a': 'ion_loader:1933'},
             'agent'         : {'resource_id': dataset._id},
             #'test_mode' : True
         } )
@@ -2205,7 +2203,7 @@ Reason: %s
         res_obj.temporal_domain = tdom.dump()
         # HACK: cannot parse CSV value directly when field defined as "list"
         # need to evaluate as simplelist instead and add to object explicitly
-        res_obj.available_formats = get_typed_value(row['available_formats'], targettype="simplelist")
+#        res_obj.available_formats = get_typed_value(row['available_formats'], targettype="simplelist")
 
         headers = self._get_op_headers(row)
 
