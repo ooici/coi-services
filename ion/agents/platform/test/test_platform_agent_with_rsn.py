@@ -581,6 +581,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._run()          # -> COMMAND
         self._pause()        # -> STOPPED
         self._resume()       # -> COMMAND
+        self._clear()        # -> IDLE
         self._reset()        # -> UNINITIALIZED
         self._shutdown()     # -> UNINITIALIZED
 
