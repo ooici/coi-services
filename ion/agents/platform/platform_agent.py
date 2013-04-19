@@ -669,6 +669,84 @@ class PlatformAgent(ResourceAgent):
         """
         self._bring_to_uninitialized_state(recursion=False)
 
+    def _pause(self, recursion=True):
+        """
+        Dispatches the PAUSE command.
+
+        PAUSE is dispatched in a bottom-up fashion:
+        - if recursion is True, pause the children
+        - then pause this platform itself.
+
+        @param recursion  If True, children are sent the PAUSE command
+                          (with corresponding recursion parameter set to True).
+        """
+        if recursion:
+            # first sub-platforms, then my own instruments:
+            self._subplatforms_pause()
+            self._instruments_pause()
+
+        # then myself
+        self._pause_this_platform()
+
+    def _pause_this_platform(self):
+        """
+        Pauses this platform agent. Actually, nothing is done here; we only
+        need the state transition (which is done by the handler).
+        """
+        pass
+
+    def _resume(self, recursion=True):
+        """
+        Dispatches the RESUME command.
+
+        RESUME is dispatched in a bottom-up fashion:
+        - if recursion is True, resume the children
+        - then resume this platform itself.
+
+        @param recursion  If True, children are sent the RESUME command
+                          (with corresponding recursion parameter set to True).
+        """
+        if recursion:
+            # first sub-platforms, then my own instruments:
+            self._subplatforms_resume()
+            self._instruments_resume()
+
+        # then myself
+        self._resume_this_platform()
+
+    def _resume_this_platform(self):
+        """
+        Resumes this platform agent. Actually, nothing is done here; we only
+        need the state transition (which is done by the handler).
+        """
+        pass
+
+    def _clear(self, recursion=True):
+        """
+        Dispatches the CLEAR command.
+
+        CLEAR is dispatched in a bottom-up fashion:
+        - if recursion is True, "clear" the children
+        - then "clear" this platform itself.
+
+        @param recursion  If True, children are sent the CLEAR command
+                          (with corresponding recursion parameter set to True).
+        """
+        if recursion:
+            # first sub-platforms, then my own instruments:
+            self._subplatforms_clear()
+            self._instruments_clear()
+
+        # then myself
+        self._clear_this_platform()
+
+    def _clear_this_platform(self):
+        """
+        "Clears" this platform agent. Actually, nothing is done here; we only
+        need the state transition (which is done by the handler).
+        """
+        pass
+
     ##############################################################
     # Governance interfaces
     ##############################################################
@@ -1404,6 +1482,36 @@ class PlatformAgent(ResourceAgent):
         self._subplatforms_execute_agent(command=cmd,
                                          expected_state=PlatformAgentState.UNINITIALIZED)
 
+    def _subplatforms_pause(self):
+        """
+        Executes PAUSE with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.PAUSE, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
+                                         expected_state=PlatformAgentState.STOPPED)
+
+    def _subplatforms_resume(self):
+        """
+        Executes RESUME with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.RESUME, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
+                                         expected_state=PlatformAgentState.COMMAND)
+
+    def _subplatforms_clear(self):
+        """
+        Executes CLEAR with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.CLEAR, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
+                                         expected_state=PlatformAgentState.IDLE)
+
     ##############################################################
     # supporting routines dealing with instruments
     ##############################################################
@@ -1609,6 +1717,27 @@ class PlatformAgent(ResourceAgent):
         self._instruments_execute_agent(command=ResourceAgentEvent.RESET,
                                         expected_state=ResourceAgentState.UNINITIALIZED)
 
+    def _instruments_pause(self):
+        """
+        Executes PAUSE on all my instruments.
+        """
+        self._instruments_execute_agent(command=ResourceAgentEvent.PAUSE,
+                                        expected_state=ResourceAgentState.STOPPED)
+
+    def _instruments_resume(self):
+        """
+        Executes RESUME on all my instruments.
+        """
+        self._instruments_execute_agent(command=ResourceAgentEvent.RESUME,
+                                        expected_state=ResourceAgentState.COMMAND)
+
+    def _instruments_clear(self):
+        """
+        Executes CLEAR on all my instruments.
+        """
+        self._instruments_execute_agent(command=ResourceAgentEvent.CLEAR,
+                                        expected_state=ResourceAgentState.IDLE)
+
     ##############################################################
     # major operations
     ##############################################################
@@ -1783,10 +1912,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.COMMAND
-        result = None
+        recursion = self._get_recursion_parameter("_handler_stopped_resume", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.COMMAND
+        result = self._resume(recursion)
+
+        return next_state, result
 
     def _handler_stopped_clear(self, *args, **kwargs):
         """
@@ -1796,10 +1927,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.IDLE
-        result = None
+        recursion = self._get_recursion_parameter("_handler_stopped_clear", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.IDLE
+        result = self._clear(recursion)
+
+        return next_state, result
 
     ##############################################################
     # COMMAND event handlers.
@@ -1827,10 +1960,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.IDLE
-        result = None
+        recursion = self._get_recursion_parameter("_handler_command_clear", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.IDLE
+        result = self._clear(recursion)
+
+        return next_state, result
 
     def _handler_command_pause(self, *args, **kwargs):
         """
@@ -1840,10 +1975,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.STOPPED
-        result = None
+        recursion = self._get_recursion_parameter("_handler_command_pause", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.STOPPED
+        result = self._pause(recursion)
+
+        return next_state, result
 
     ##############################################################
     # Capabilities interface and event handlers.
