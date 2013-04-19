@@ -238,9 +238,11 @@ class TestPlatformAgent(BaseIntTestPlatform):
         agt_cmds_all = [
             PlatformAgentEvent.INITIALIZE,
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.SHUTDOWN,
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RUN,
+
             PlatformAgentEvent.CLEAR,
             PlatformAgentEvent.PAUSE,
             PlatformAgentEvent.RESUME,
@@ -352,6 +354,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         agt_cmds_inactive = [
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.SHUTDOWN,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
             PlatformAgentEvent.GET_SUBPLATFORM_IDS,
@@ -390,6 +393,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         agt_cmds_idle = [
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.SHUTDOWN,
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RUN,
             PlatformAgentEvent.PING_RESOURCE,
@@ -428,6 +432,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         agt_cmds_command = [
             PlatformAgentEvent.GO_INACTIVE,
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.SHUTDOWN,
             PlatformAgentEvent.PAUSE,
             PlatformAgentEvent.CLEAR,
             PlatformAgentEvent.GET_METADATA,
@@ -499,6 +504,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         agt_cmds_monitoring = [
             PlatformAgentEvent.RESET,
+            PlatformAgentEvent.SHUTDOWN,
             PlatformAgentEvent.GET_METADATA,
             PlatformAgentEvent.GET_PORTS,
 
