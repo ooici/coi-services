@@ -148,7 +148,7 @@ class StreamValueAlert(StreamAlert):
         self._value_id = value_id
 
     def get_status(self):
-        status = super(StreamAlert, self).get_status()
+        status = super(StreamValueAlert, self).get_status()
         status['value_id'] = self._value_id
         return status
 
