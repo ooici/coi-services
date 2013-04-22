@@ -477,7 +477,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.base_agent_instance_config(assign_fn, find_fn)
 
-    def base_agent_instance_config(self, assign_child_device_to_parent_device_fn, find_child_device_ids_of_parent_device_fn):
+    def base_agent_instance_config(self, 
+                                   assign_child_platform_to_parent_platform_fn, 
+                                   find_child_platform_ids_of_parent_platform_fn):
         """
         Verify that agent configurations are being built properly
         """
@@ -681,9 +683,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         verify_child_config(parent_config, platform_device_parent_id)
 
         log.debug("assigning child platform to parent")
-        assign_child_device_to_parent_device_fn(platform_device_child_id, platform_device_parent_id)
+        assign_child_platform_to_parent_platform_fn(platform_device_child_id, platform_device_parent_id)
 
-        child_device_ids = find_child_device_ids_of_parent_device_fn(platform_device_parent_id)
+        child_device_ids = find_child_platform_ids_of_parent_platform_fn(platform_device_parent_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing parent + child as parent config")
@@ -704,9 +706,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         verify_instrument_config(instrument_config, instrument_device_id)
 
         log.debug("assigning instrument to platform")
-        assign_child_device_to_parent_device_fn(instrument_device_id, platform_device_child_id)
+        self.RR2.assign_instrument_device_to_platform_device_with_has_device(instrument_device_id, platform_device_child_id)
 
-        child_device_ids = find_child_device_ids_of_parent_device_fn(platform_device_child_id)
+        child_device_ids = self.RR2.find_instrument_device_ids_of_platform_device_using_has_device(platform_device_child_id)
         self.assertNotEqual(0, len(child_device_ids))
 
         log.debug("Testing entire config")

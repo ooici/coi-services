@@ -579,25 +579,27 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         """
         Generate the configuration for child devices
         """
+        log.debug("_generate_children for %s", self.agent_instance_obj.name)
 
         dev_id = self._get_device()._id
 
+        log.debug("Getting child platform device ids")
         if self._use_network_parent():
+            log.debug("Using hasNetworkParnet")
             assocs = self.RR2.filter_cached_associations(PRED.hasNetworkParent, lambda a: dev_id == a.o)
-            child_device_ids = [a.s for a in assocs]
+            child_pdevice_ids = [a.s for a in assocs]
         else:
-            log.debug("_generate_children for %s", self.agent_instance_obj.name)
-            log.debug("Getting child platform device ids")
+            log.debug("Using hasDevice")
             child_pdevice_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(self._get_device()._id)
-            log.debug("found platform device ids: %s", child_pdevice_ids)
+        log.debug("found platform device ids: %s", child_pdevice_ids)
 
-            log.debug("Getting child instrument device ids")
-            child_idevice_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(self._get_device()._id)
-            log.debug("found instrument device ids: %s", child_idevice_ids)
+        log.debug("Getting child instrument device ids")
+        child_idevice_ids = self.RR2.find_instrument_device_ids_of_device_using_has_device(self._get_device()._id)
+        log.debug("found instrument device ids: %s", child_idevice_ids)
 
-            child_device_ids = child_idevice_ids + child_pdevice_ids
+        child_device_ids = child_idevice_ids + child_pdevice_ids
 
-            log.debug("combined device ids: %s", child_device_ids)
+        log.debug("combined device ids: %s", child_device_ids)
 
         ConfigurationBuilder_factory = AgentConfigurationBuilderFactory(self.clients, self.RR2)
 
