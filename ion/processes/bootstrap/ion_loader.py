@@ -240,6 +240,7 @@ class IONLoader(ImmediateProcess):
         self.ooiuntil = config.get("ooiuntil", None) # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
+        self.exportui = config.get("exportui", False)  # Save UI JSON file
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -262,15 +263,12 @@ class IONLoader(ImmediateProcess):
 
             self.loadooi = config.get("loadooi", False)    # Import OOI asset data
             self.loadui = config.get("loadui", False)      # Import UI asset data
-            self.exportui = config.get("exportui", False)  # Save UI JSON file
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
             self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
             self.ooiexclude = config.get("ooiexclude", '') # Don't import the listed categories
             if self.ooiexclude:
                 self.ooiexclude = self.ooiexclude.split(',')
-
-
 
             if self.loadooi:
                 self.ooi_loader.extract_ooi_assets()
