@@ -213,6 +213,77 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
 
 
 @attr('INT', group='eoi')
+class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
+
+    def setup_resources(self):
+        self.name = 'hypm_01_wpf_ctd'
+        self.description = 'ctd instrument test'
+        self.EDA_NAME = 'ExampleEDA'
+        self.EDA_MOD = 'ion.agents.data.external_dataset_agent'
+        self.EDA_CLS = 'ExternalDatasetAgent'
+
+    def build_param_contexts(self):
+        context_ids = []
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
+
+        t_ctxt = ParameterContext('upload_time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        t_ctxt.uom = 'seconds since 01-01-1970'
+        context_ids.append(self.dataset_management.create_parameter_context(name='upload_time', parameter_context=t_ctxt.dump()))
+
+        cnd_ctxt = ParameterContext('conductivity', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
+        cnd_ctxt.uom = 'mmho/cm'
+        context_ids.append(self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cnd_ctxt.dump()))
+
+        temp_ctxt = ParameterContext('temperature', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
+        temp_ctxt.uom = 'degC'
+        context_ids.append(self.dataset_management.create_parameter_context(name='temperature', parameter_context=temp_ctxt.dump()))
+
+        press_ctxt = ParameterContext('pressure', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
+        press_ctxt.uom = 'decibars'
+        context_ids.append(self.dataset_management.create_parameter_context(name='pressure', parameter_context=press_ctxt.dump()))
+
+        oxy_ctxt = ParameterContext('oxygen', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
+        oxy_ctxt.uom = 'Hz'
+        context_ids.append(self.dataset_management.create_parameter_context(name='oxygen', parameter_context=oxy_ctxt.dump()))
+
+        return context_ids
+
+    def create_external_dataset(self):
+        ds_name = 'hypm_01_wfp_ctd_dataset'
+        dset = ExternalDataset(name=ds_name, dataset_description=DatasetDescription(), update_description=UpdateDescription(), contact=ContactInformation())
+
+        dset.dataset_description.parameters['base_url'] = 'test_data'
+        dset.dataset_description.parameters['list_pattern'] = 'C*.DAT'
+
+        return self.data_acquisition_management.create_external_dataset(external_dataset=dset)
+
+    def get_dvr_config(self):
+        DVR_CONFIG = {
+            'dvr_mod': 'ion.agents.data.handlers.sbe52_binary_parser',
+            'dvr_cls': 'SBE52BinaryDataHandler',
+            'dh_cfg': {
+                'parser_mod': 'ion.agents.data.handlers.sbe52_binary_parser',
+                'parser_cls': 'SBE52BinaryCTDParser',
+                'stream_id': self.stream_id,
+                'stream_route': self.route,
+                'stream_def': self.stream_def_id,
+                'data_producer_id': 'hypm_ctd_data_producer_id',
+                'max_records': 4,
+                'TESTING': True,
+                }
+        }
+        return DVR_CONFIG
+
+    def get_retrieve_client(self, dataset_id=''):
+        replay_data = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(replay_data)
+        self.assertIsNotNone(rdt['temperature'])
+
+
+
+@attr('INT', group='eoi')
 class TestHypm_WPF_CTD(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):

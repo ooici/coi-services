@@ -99,7 +99,7 @@ MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfS
 TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEtGVFhmOU1TXzlxSWNzTWd2dXBKTmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
-TESTED_DOC=MASTER_DOC
+#TESTED_DOC=MASTER_DOC
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
