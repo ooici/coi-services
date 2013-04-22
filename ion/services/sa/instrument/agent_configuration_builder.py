@@ -65,6 +65,7 @@ class AgentConfigurationBuilder(object):
                 PRED.hasAgentDefinition,
                 PRED.hasDataset,
                 PRED.hasDevice,
+                PRED.hasNetworkParent,
                 #PRED.hasParameterContext,
                 ]
 
@@ -557,13 +558,39 @@ class PlatformAgentConfigurationBuilder(AgentConfigurationBuilder):
         return platform_agent_lookup_means
 
 
+    def _use_network_parent(self):
+        """
+        return True if there are any hasNewtorkParent links involved
+        """
+        dev_id = self._get_device()._id
+
+        network_parents = self.RR2.find_objects(dev_id, PRED.hasNetworkParent, RT.PlatformDevice)
+        if 0 < len(network_parents):
+            return True
+
+        network_children = self.RR2.find_subjects(RT.PlatformDevice, PRED.hasNetworkParent, dev_id)
+        if 0 < len(network_children):
+            return True
+
+        return False
+
+
     def _generate_children(self):
         """
         Generate the configuration for child devices
         """
         log.debug("_generate_children for %s", self.agent_instance_obj.name)
+
+        dev_id = self._get_device()._id
+
         log.debug("Getting child platform device ids")
-        child_pdevice_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(self._get_device()._id)
+        if self._use_network_parent():
+            log.debug("Using hasNetworkParnet")
+            assocs = self.RR2.filter_cached_associations(PRED.hasNetworkParent, lambda a: dev_id == a.o)
+            child_pdevice_ids = [a.s for a in assocs]
+        else:
+            log.debug("Using hasDevice")
+            child_pdevice_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(self._get_device()._id)
         log.debug("found platform device ids: %s", child_pdevice_ids)
 
         log.debug("Getting child instrument device ids")
