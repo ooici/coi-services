@@ -183,6 +183,34 @@ class StatusManager(object):
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
+    def publish_device_failed_command_event(self, sub_resource_id, cmd, err_msg):
+        """
+        PlatformAgent calls this method to publish a DeviceStatusEvent
+        indicating that the given child failed to complete the given command.
+
+        @param sub_resource_id   resource id of child (included in values)
+        @param cmd               command (included in description)
+        @param err_msg           error message (included in description)
+        """
+
+        values = [sub_resource_id]
+        description = "cmd=%r; err_msg=%r" % (str(cmd), err_msg)
+        evt = dict(event_type='DeviceStatusEvent',
+                   sub_type="device_failed_command",
+                   origin_type="PlatformDevice",
+                   origin=self.resource_id,
+                   values=values,
+                   description=description)
+        try:
+            log.debug('%r: publish_device_failed_command_event for %r: %s',
+                      self._platform_id, sub_resource_id, evt)
+
+            self._event_publisher.publish_event(**evt)
+
+        except:
+            log.exception('%r: platform agent could not publish event: %s',
+                          self._platform_id, evt)
+
     def set_aggstatus(self, status_name, status):
         """
         Sets a particular "agg_status" for the platform itself.

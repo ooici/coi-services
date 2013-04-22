@@ -518,72 +518,6 @@ class PlatformAgent(ResourceAgent):
                   "attempts=%d;  final state=%s",
                   self._platform_id, attempts, curr_state)
 
-    def _terminate_subplatform_agent_processes(self):
-        """
-        Terminates sub-platforms processes and clears self._pa_clients.
-        """
-
-        def terminate_process(subplatform_id):
-            dd = self._pa_clients[subplatform_id]
-            pid = dd.pid
-            sub_resource_id = dd.resource_id
-
-            log.debug(
-                "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
-                self._platform_id, subplatform_id, pid)
-            try:
-
-                self._launcher.cancel_process(pid)
-
-                log.debug(
-                    "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
-                    self._platform_id, subplatform_id, pid)
-
-            except:
-                if log.isEnabledFor(logging.TRACE):
-                    log.exception(
-                        "%r: Exception in cancel_process for subplatform_id=%r, pid=%r",
-                        self._platform_id, subplatform_id, pid)  # , exc_Info=True)
-                else:
-                    log.warn(
-                        "%r: Exception in cancel_process for subplatform_id=%r, pid=%r"
-                        ". Perhaps already dead.",
-                        self._platform_id, subplatform_id, pid)  # , exc_Info=True)
-
-            self._status_manager.publish_device_removed_event(sub_resource_id)
-
-        if len(self._pa_clients):
-            subplatform_ids = self._pa_clients.keys()
-            log.debug("%r: terminating sub-platform agent processes (%d): %s",
-                      self._platform_id, len(subplatform_ids), subplatform_ids)
-            for subplatform_id in subplatform_ids:
-                terminate_process(subplatform_id)
-
-            self._pa_clients.clear()
-
-    def _terminate_instrument_agent_processes(self):
-        """
-        Terminates instrument processes and clears self._ia_clients.
-        """
-        if len(self._ia_clients):
-            log.debug("%r: terminating instrument agent processes (%d): %s",
-                      self._platform_id, len(self._ia_clients), self._ia_clients.keys())
-            for instrument_id in self._ia_clients:
-                dd = self._ia_clients[instrument_id]
-                pid = dd.pid
-                i_resource_id = dd.resource_id
-
-                try:
-                    self._launcher.cancel_process(pid)
-
-                except:
-                    log.exception("%r: exception in cancel_process for instrument_id=%r, pid=%r",
-                                  self._platform_id, instrument_id, pid)  # , exc_Info=True)
-
-                self._status_manager.publish_device_removed_event(i_resource_id)
-
-            self._ia_clients.clear()
-
     def _reset(self, recursion=True):
         """
         Dispatches the RESET command.
@@ -635,9 +569,13 @@ class PlatformAgent(ResourceAgent):
         Dispatches a SHUTDOWN request.
 
         SHUTDOWN is dispatched in a bottom-up fashion:
-        - if recursion is True, shuts down the sub-platforms and resets the instruments
+        - if recursion is True, shuts down and terminates the sub-platforms
+          and the instruments
         - then brings this platform agent to the uninitialized state.
           Note that the platform can not actually "shutdown" itself.
+
+        If recursion==True and any sub-platform or instrument fails to shutdown
+        or terminate, then this agent does NOT perform any actions on itself.
 
         @param recursion   True to "shutdown" children.
         """
@@ -645,15 +583,26 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _shutdown: recursion=%s", self._platform_id, recursion)
 
         if recursion:
-            # shutdown sub-platforms and then terminate the processes:
-            # TODO: do the shutdown/terminate child by child
-            self._subplatforms_shutdown()
-            self._terminate_subplatform_agent_processes()
+            # shutdown and terminate sub-platforms:
+            subplatforms_with_errors = self._subplatforms_shutdown_and_terminate()
 
-            # shutdown instruments and then terminate the processes:
-            # TODO: do the shutdown/terminate child by child
-            self._instruments_shutdown()
-            self._terminate_instrument_agent_processes()
+            # note: we proceed with shutting down/terminating instruments even
+            # if some sub-platforms failed.
+
+            # shutdown and terminate instruments:
+            instruments_with_errors = self._instruments_shutdown_and_terminate()
+
+            if len(subplatforms_with_errors) or len(instruments_with_errors):
+                #
+                # Do not proceed further. Note that events with the errors
+                # should have already been published.
+                #
+                log.debug("%r: some sub-platforms or instruments failed to shutdown "
+                          "or terminate. Not proceeding with my own shutdown. "
+                          "subplatforms_with_errors=%s "
+                          "instruments_with_errors=%s",
+                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                return
 
         # "shutdown" myself
         self._shutdown_this_platform()
@@ -1468,15 +1417,108 @@ class PlatformAgent(ResourceAgent):
         self._subplatforms_execute_agent(command=cmd,
                                          expected_state=PlatformAgentState.COMMAND)
 
-    def _subplatforms_shutdown(self):
+    def _shutdown_and_terminate_subplatform(self, subplatform_id):
         """
-        Executes SHUTDOWN with recursion=True on all my sub-platforms.
+        Executes SHUTDOWN with recursion=True on the given sub-platform and
+        then terminates that sub-platform process.
+
+        @return None if the shutdown and termination completed without errors.
+                Otherwise a string with an error message.
         """
-        # pass recursion=True to each sub-platform
-        kwargs = dict(recursion=True)
-        cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.UNINITIALIZED)
+
+        dd = self._pa_clients[subplatform_id]
+        cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=dict(recursion=True))
+
+        def shutdown():
+            log.debug("%r: shutting down %r", self._platform_id, subplatform_id)
+
+            # execute command:
+            try:
+                retval = self._execute_platform_agent(dd.pa_client, cmd, subplatform_id)
+            except:
+                err_msg = "%r: exception executing command %r in subplatform %r" % (
+                          self._platform_id, cmd, subplatform_id)
+                log.exception(err_msg)
+                return err_msg
+
+            # verify state:
+            try:
+                expected_state = PlatformAgentState.UNINITIALIZED
+                state = dd.pa_client.get_agent_state()
+                if expected_state and expected_state != state:
+                    err_msg = "%r: expected subplatform state %r but got %r" % (
+                              self._platform_id, expected_state, state)
+                    log.error(err_msg)
+                    return err_msg
+            except:
+                err_msg = "%r: exception while calling get_agent_state to subplatform %r" % (
+                          self._platform_id, subplatform_id)
+                log.exception(err_msg)
+                return err_msg
+
+            return None  # OK
+
+        def terminate():
+            pid = dd.pid
+
+            log.debug("%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
+                      self._platform_id, subplatform_id, pid)
+            try:
+                self._launcher.cancel_process(pid)
+
+                self._status_manager.publish_device_removed_event(dd.resource_id)
+
+                log.debug(
+                    "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
+                    self._platform_id, subplatform_id, pid)
+
+                return None
+
+            except:
+                if log.isEnabledFor(logging.TRACE):
+                    err_msg = "%r: Exception in cancel_process for subplatform_id=%r, pid=%r" % (
+                              self._platform_id, subplatform_id, pid)
+                    log.exception(err_msg)  # , exc_Info=True)
+                    return err_msg
+                else:
+                    err_msg = "%r: Exception in cancel_process for subplatform_id=%r, pid=%r" \
+                              ". Perhaps already dead." % (
+                              self._platform_id, subplatform_id, pid)
+                    log.warn(err_msg)  # , exc_Info=True)
+                    return err_msg
+
+        err_msg = shutdown()
+        if err_msg is None:
+            # shutdown ok; now terminate:
+            err_msg = terminate()
+
+        if err_msg is not None:
+            # some error happened; publish event:
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     cmd,
+                                                                     err_msg)
+
+        return err_msg
+
+    def _subplatforms_shutdown_and_terminate(self):
+        """
+        Executes SHUTDOWN with recursion=True on all sub-platform and then
+        terminates those sub-platform process.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
+        """
+        subplatform_ids = self._get_subplatform_ids()
+        assert subplatform_ids == self._pa_clients.keys()
+
+        children_with_errors = {}
+        if len(subplatform_ids):
+            for subplatform_id in subplatform_ids:
+                err_msg = self._shutdown_and_terminate_subplatform(subplatform_id)
+                if err_msg is not None:
+                    children_with_errors[subplatform_id] = err_msg
+
+        return children_with_errors
 
     def _subplatforms_pause(self):
         """
@@ -1705,13 +1747,106 @@ class PlatformAgent(ResourceAgent):
         self._instruments_execute_agent(command=ResourceAgentEvent.RUN,
                                         expected_state=ResourceAgentState.COMMAND)
 
-    def _instruments_shutdown(self):
+    def _shutdown_and_terminate_instrument(self, instrument_id):
         """
-        Executes RESET on all my instruments.
+        Executes RESET on the instrument and then terminates it.
+        ("shutting down" an instrument is just resetting it if not already in
+         UNINITIALIZED state)
+        """
+
+        dd = self._ia_clients[instrument_id]
+        cmd = AgentCommand(ResourceAgentEvent.RESET)
+
+        def reset():
+            log.debug("%r: resetting %r", self._platform_id, instrument_id)
+
+            ia_client = self._ia_clients[instrument_id].ia_client
+
+            # do not reset if instrument already in UNINITIALIZED:
+            if ResourceAgentState.UNINITIALIZED == ia_client.get_agent_state():
+                return
+
+            try:
+                retval = self._execute_instrument_agent(ia_client, cmd,
+                                                        instrument_id)
+            except:
+                err_msg = "%r: exception executing command %r in instrument %r" % (
+                          self._platform_id, cmd, instrument_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+            # verify state:
+            try:
+                expected_state = ResourceAgentState.UNINITIALIZED
+                state = ia_client.get_agent_state()
+                if expected_state != state:
+                    err_msg = "%r: expected instrument state %r but got %r" % (
+                              self._platform_id, expected_state, state)
+                    log.error(err_msg)
+                    return err_msg
+
+                return None
+
+            except:
+                err_msg = "%r: exception while calling get_agent_state to instrument %r" % (
+                          self._platform_id, instrument_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+        def terminate():
+            pid = dd.pid
+            i_resource_id = dd.resource_id
+
+            log.debug("%r: canceling instrument process: instrument_id=%r, pid=%r",
+                      self._platform_id, instrument_id, pid)
+
+            try:
+                self._launcher.cancel_process(pid)
+
+                self._status_manager.publish_device_removed_event(i_resource_id)
+
+                log.debug(
+                    "%r: canceled instrument process: instrument_id=%r, pid=%r",
+                    self._platform_id, instrument_id, pid)
+
+                return None
+
+            except:
+                log.exception("%r: exception in cancel_process for instrument_id=%r, pid=%r",
+                              self._platform_id, instrument_id, pid)  # , exc_Info=True)
+
+        err_msg = reset()
+        if err_msg is None:
+            # reset ok; now terminate:
+            err_msg = terminate()
+
+        if err_msg is not None:
+            # some error happened; publish event:
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     cmd,
+                                                                     err_msg)
+
+        return err_msg
+
+    def _instruments_shutdown_and_terminate(self):
+        """
+        Executes RESET and terminates all my instruments.
         ("shutting down" the instruments is just resetting them.)
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        self._instruments_execute_agent(command=ResourceAgentEvent.RESET,
-                                        expected_state=ResourceAgentState.UNINITIALIZED)
+        instrument_ids = self._get_instrument_ids()
+        assert instrument_ids == self._ia_clients.keys()
+
+        instruments_with_errors = {}
+        if len(instrument_ids):
+            for instrument_id in instrument_ids:
+                err_msg = self._shutdown_and_terminate_instrument(instrument_id)
+                if err_msg is not None:
+                    instruments_with_errors[instrument_id] = err_msg
+
+        return instruments_with_errors
 
     def _instruments_pause(self):
         """
