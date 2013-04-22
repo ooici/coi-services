@@ -469,7 +469,7 @@ class PlatformAgent(ResourceAgent):
 
         self._status_manager.destroy()
 
-        self._bring_to_uninitialized_state()
+        self._bring_to_uninitialized_state(recursion=False)
 
         self._launcher.destroy()
 
