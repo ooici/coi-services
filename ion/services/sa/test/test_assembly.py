@@ -32,8 +32,6 @@ from ion.agents.port.port_agent_process import PortAgentType
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 
-from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
-
 import string
 
 # some stuff for logging info to the console
@@ -73,15 +71,6 @@ class TestAssembly(GenericIntHelperTestCase):
         self.RR2 = EnhancedResourceRegistryClient(self.client.RR)
         self.dataset_management = DatasetManagementServiceClient()
 
-
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
-                            description="normally in preload",
-                            module='ion.processes.data.transforms.logical_transform',
-                            class_name='logical_transform')
-
-
-        self.client.DPRS.create_data_process_definition(dpd_obj)
 
         # deactivate all data processes when tests are complete
         def killAllDataProcesses():
