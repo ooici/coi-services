@@ -1,5 +1,5 @@
 from ion.services.sa.acquisition.test.test_bulk_data_ingestion import BulkIngestBase
-from interface.objects import ExternalDataset
+from interface.objects import ExternalDataset, AgentCommand
 from interface.objects import ContactInformation, UpdateDescription, DatasetDescription
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.event.event import EventSubscriber
@@ -7,11 +7,209 @@ from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import QuantityType, ArrayType
 from pyon.public import RT, log, PRED, OT
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentEvent
+from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from pyon.util.context import LocalContextMixin
 import numpy as np
 from nose.plugins.attrib import attr
 from gevent.event import Event
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.ion.stream import StandaloneStreamSubscriber
+from ion.services.sa.acquisition.test.test_bulk_data_ingestion import FakeProcess
+from ion.core.includes.mi import DriverEvent
+
+@attr('INT', group='eoi')
+class TestPreloadThenLoadDataset(IonIntegrationTestCase):
+    """ replicates the TestHypm_WPF_CTD test (same handler/parser/data file)
+        but uses the preload system to define the ExternalDataset and related resources,
+        then invokes services to perform the load
+    """
+
+    def setUp(self):
+        # Start container
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
+        config = dict(op="load", scenario="BASE,BETA,NOSE", attachments="res/preload/r2_ioc/attachments")
+        self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
+        self.pubsub = PubsubManagementServiceClient()
+
+    def find_object_by_name(self, name, resource_type):
+        objects,_ = self.container.resource_registry.find_resources(resource_type)
+        self.assertGreaterEqual(len(objects), 1)
+        filtered_objs = [obj for obj in objects if obj.name == name]
+        self.assertEquals(len(filtered_objs), 1)
+        return filtered_objs[0]
+
+    def test_use_case(self):
+        # setUp() has already started the container and performed the preload
+        self.assert_dataset_loaded('Test External ACM Dataset')     # make sure we have the ExternalDataset resources
+        self.do_configure()                                     # update agent configuration with runtime parameters TODO: should be done by services?
+        self.do_listen_for_incoming()                           # listen for any data being received from the dataset
+        self.do_read_dataset()                                  # call services to load dataset
+        self.assert_data_received()                             # check that data was received as expected
+        self.do_shutdown()
+
+    def assert_dataset_loaded(self, name):
+        self.external_dataset = self.find_object_by_name(name, RT.ExternalDataset)
+        rr = self.container.resource_registry
+        obj,_ = rr.find_objects(subject=self.external_dataset._id, predicate=PRED.hasAgentInstance, object_type=RT.ExternalDatasetAgentInstance)
+        self.agent_instance = obj[0]
+        obj,_ = rr.find_objects(object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=self.agent_instance._id)
+        self.agent = obj[0]
+        stream_definition_id = self.agent_instance.dataset_driver_config['dh_cfg']['stream_def']
+        self.stream_definition = rr.read(stream_definition_id)
+        data_producer_id = self.agent_instance.dataset_driver_config['dh_cfg']['data_producer_id']
+        self.data_producer = rr.read(data_producer_id) #subject="", predicate="", object_type="", assoc="", id_only=False)
+        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.external_dataset._id)
+        ids,_ = rr.find_objects(self.data_product._id, PRED.hasStream, RT.Stream, id_only=True)
+        self.stream_id = ids[0]
+        self.route = self.pubsub.read_stream_route(self.stream_id)
+
+        ## don't have these yet...
+#        self.pdict_id = self.create_parameter_dict(self.name)
+#        self.stream_def_id = self.create_stream_def(self.name, self.pdict_id)
+##        self.data_product_id = self.create_data_product(self.name, self.description, self.stream_def_id)
+#        self.dataset_id = self.get_dataset_id(self.data_product_id)
+#        self.stream_id, self.route = self.get_stream_id_and_route(self.data_product_id)
+#        #self.data_producer_id = self.register_external_dataset(self.external_dataset._id)
+#        #self.data_producer_id = have to get from agent instance config
+
+    def do_configure(self):
+        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = self.stream_id
+        self.agent_instance.dataset_agent_config['driver_config']['stream_id'] = self.stream_id
+        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = self.route
+
+    def do_listen_for_incoming(self):
+        subscription_id = self.pubsub.create_subscription('validator', data_product_ids=[self.data_product._id])
+        self.addCleanup(self.pubsub.delete_subscription, subscription_id)
+
+        self.granule_count = 0
+        def on_granule(msg, route, stream_id):
+            self.granule_count += 1
+        validator = StandaloneStreamSubscriber('validator', callback=on_granule)
+        validator.start()
+        self.addCleanup(validator.stop)
+
+        self.pubsub.activate_subscription(subscription_id)
+        self.addCleanup(self.pubsub.deactivate_subscription, subscription_id)
+
+    def do_read_dataset(self):
+        # WORKING TEST:
+        #current config {'dh_cfg': {'TESTING': True,
+        #                           'data_producer_id': 'hypm_ctd_data_producer_id',
+        #                           'max_records': 4,
+        #                           'parser_cls': 'HYPM_01_WFP_CTDParser',
+        #                           'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
+        #                           'stream_def': '76d86451011c4bc1b62975301ff2f6e6',
+        #                           'stream_id': '85da7a7f7322467f96b67cc9e0cd4f2a',
+        #                           'stream_route': <interface.objects.StreamRoute object at 0x108e0b050>},
+        #               'dvr_cls': 'HYPMDataHandler',
+        #               'dvr_mod': 'ion.agents.data.handlers.hypm_data_handler'}
+
+        # MY CONFIG:
+        #'driver_config': {'dh_cfg': {'data_producer_id': 'b455e2648f8f48c3987d73369b5f1e61',
+        #                             'stream_def': 'f1f20512cd6e4bbc926e3c7e1b13e735'},
+        #                  'dvr_cls': 'ExternalDatasetAgent',
+        #                  'dvr_mod': 'ion.agents.data.external_dataset_agent',
+        #                  'key2': 'value2',
+        #                  'key3': 'value3'},
+
+        import pprint
+        log.info('launching agent with config: %s', pprint.pformat(self.agent_instance.dataset_agent_config))
+        self.container.spawn_process(name=self.agent_instance.name,
+            module=self.agent.handler_module,
+            cls=self.agent.handler_class,
+            config=self.agent_instance.dataset_agent_config)
+        #
+        # should i wait for process (above) to start
+        # before launching client (below)?
+        #
+        self.client = ResourceAgentClient(self.external_dataset._id, process=FakeProcess())
+        self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE))
+        self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE))
+        self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN))
+        self.client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE))
+
+    def assert_data_received(self):
+        dataset_modified = Event()
+        def cb2(*args, **kwargs):
+            dataset_modified.set()
+        es = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb2, origin='BaseDataHandler._acquire_sample')
+        es.start()
+        self.addCleanup(es.stop)
+
+        #let it go for up to 120 seconds, then stop the agent and reset it
+        dataset_modified.wait(120)
+        self.assertTrue(self.granule_count>2)
+
+    def do_shutdown(self):
+        pass # might be nice to stop the driver...
+
+    def _(self):
+        """ calls made in from test below, copied here for reference
+        """
+        self.pdict_id = self.create_parameter_dict(self.name)
+        self.stream_def_id = self.create_stream_def(self.name, self.pdict_id)
+        self.data_product_id = self.create_data_product(self.name, self.description, self.stream_def_id)
+        self.dataset_id = self.get_dataset_id(self.data_product_id)
+        self.stream_id, self.route = self.get_stream_id_and_route(self.data_product_id)
+        stream_ids, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
+#        stream_id = stream_ids[0]
+#        route = self.pubsub_management.read_stream_route(stream_id)
+
+        self.external_dataset_id = self.create_external_dataset()
+        self.data_producer_id = self.register_external_dataset(self.external_dataset_id)
+
+        #self.start_agent()
+        #def start_agent
+
+        agent_config = {
+            'driver_config': self.get_dvr_config(),
+            'stream_config': {},
+            'agent': {'resource_id': self.external_dataset_id},
+            'test_mode': True
+        }
+
+        _ia_pid = self.container.spawn_process(
+            name=self.EDA_NAME,
+            module=self.EDA_MOD,
+            cls=self.EDA_CLS,
+            config=agent_config)
+
+        self._ia_client = ResourceAgentClient(self.external_dataset_id, process=FakeProcess())
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        self._ia_client.execute_agent(cmd)
+        cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
+        self._ia_client.execute_resource(command=cmd)
+
+        #self.start_listener(self.dataset_id)
+        #def start_listener
+
+        dataset_modified = Event()
+        #callback to use retrieve to get data from the coverage
+        def cb(*args, **kwargs):
+            self.get_retrieve_client(dataset_id=dataset_id)
+
+        #callback to keep execution going once dataset has been fully ingested
+        def cb2(*args, **kwargs):
+            dataset_modified.set()
+
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
+        es.start()
+
+        es2 = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb2, origin='BaseDataHandler._acquire_sample')
+        es2.start()
+
+        self.addCleanup(es.stop)
+        self.addCleanup(es2.stop)
+
+        #let it go for up to 120 seconds, then stop the agent and reset it
+        dataset_modified.wait(120)
+        self.stop_agent()
 
 
 @attr('INT', group='eoi')
@@ -94,6 +292,10 @@ class TestHypm_WPF_ACM(BulkIngestBase, IonIntegrationTestCase):
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
         t_ctxt.uom = 'seconds since 01-01-1970'
         context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
+
+        ut_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        ut_ctxt.uom = 'seconds since 01-01-1970'
+        context_ids.append(self.dataset_management.create_parameter_context(name='upload_time', parameter_context=ut_ctxt.dump()))
 
         vela_ctxt = ParameterContext('VelA', param_type=ArrayType())
         vela_ctxt.uom = 'unknown'
