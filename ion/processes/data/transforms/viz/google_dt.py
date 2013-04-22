@@ -143,12 +143,13 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if rdt[field] == None:
                 continue
             if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
+                print ">>>>>>>>>>>>>> DONT KNOW HOW TO HANDLE : ", rdt[field].dtype
                 continue
 
             if (rdt[field].dtype == 'string'):
-                data_description.append((field, 'string', field))
+                data_description.append((field, 'string', field ))
             else:
-                data_description.append((field, 'number', field))
+                data_description.append((field, 'number', field, {'precision':str(precisions[field])} ))
 
         for i in xrange(len(rdt)):
             varTuple = []

@@ -35,9 +35,7 @@ from pyon.core.governance import get_actor_header, get_web_authentication_actor
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 
-from ion.services.sa.test.test_find_related_resources import TestFindRelatedResources
-from ion.util.related_resources_crawler import RelatedResourcesCrawler
-
+from ion.services.sa.test.test_find_related_resources import ResourceHelper
 
 # This import will dynamically load the driver egg.  It is needed for the MI includes below
 import ion.agents.instrument.test.test_instrument_agent
@@ -1595,8 +1593,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #This agent operation should not be allowed for a user that is not an Instrument Operator
         with self.assertRaises(Unauthorized) as cm:
             retval = ia_client.get_agent_state(headers=actor_header)
-            self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
         self.assertIn('(get_agent_state) has been denied',cm.exception.message)
+
+        with self.assertRaises(Unauthorized) as cm:
+            retval = ia_client.get_agent(headers=actor_header)
+        self.assertIn('(get_agent) has been denied',cm.exception.message)
 
         #Grant the role of Instrument Operator to the user
         self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
@@ -1618,6 +1619,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
         retval = ia_client.get_agent_state(headers=actor_header)
         self.assertEqual(retval, ResourceAgentState.UNINITIALIZED)
 
+        #This agent operation should now be allowed for a user that is an Instrument Operator
+        with self.assertRaises(BadRequest) as cm:
+            retval = ia_client.get_agent(params=[123], headers=actor_header)
 
         #The execute commnand should fail if the user has not acquired the resource
         with self.assertRaises(Unauthorized) as cm:
@@ -1745,17 +1749,23 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertIn('(set_resource) has been denied',cm.exception.message)
 
 
+        #Revoke the role of Inst Operator to the user
+        self.org_client.revoke_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+
         #Grant the role of Org Manager to the user
         self.org_client.grant_role(org2_id,actor_id, ORG_MANAGER_ROLE, headers=self.system_actor_header)
 
         #Refresh header with updated roles
         actor_header = get_actor_header(actor_id)
 
-
         #Try again with user with also Org Manager role and should pass even with out acquiring a resource
         with self.assertRaises(Conflict) as cm:
             ia_client.set_resource(new_params, headers=actor_header)
 
+        #This agent operation should now be allowed for a user that is an Org Manager
+        with self.assertRaises(BadRequest) as cm:
+            retval = ia_client.get_agent(params=[123], headers=actor_header)
 
         #Now reset the agent for checking operation based policy
         #The reset command should now be allowed for the Org Manager
@@ -2037,7 +2047,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
 @attr('INT', group='coi')
-class TestResourcePolicyInt(TestFindRelatedResources):
+class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
 
     def __init__(self, *args, **kwargs):
@@ -2050,6 +2060,10 @@ class TestResourcePolicyInt(TestFindRelatedResources):
             log.info('Not running on a Mac')
         else:
             log.info('Running on a Mac)')
+
+        self.care = {}
+        self.dontcare = {}
+        self.realtype = {}
 
         IonIntegrationTestCase.__init__(self, *args, **kwargs)
 
@@ -2130,9 +2144,6 @@ class TestResourcePolicyInt(TestFindRelatedResources):
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
 
-    @unittest.skip('Overriding to skip')
-    def test_related_resource_crawler(self):
-        pass   # overriding to not test here
 
     def test_related_resource_policies(self):
         """
@@ -2143,6 +2154,7 @@ class TestResourcePolicyInt(TestFindRelatedResources):
         self.create_observatory(True, create_with_marine_facility=True)
         self.create_observatory(False, create_with_marine_facility=True)
 
+        from ion.util.related_resources_crawler import RelatedResourcesCrawler
         r = RelatedResourcesCrawler()
 
         inst_devices,_ = self.rr_client.find_resources(restype=RT.InstrumentDevice)

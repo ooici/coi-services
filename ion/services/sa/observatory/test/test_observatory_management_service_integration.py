@@ -2,6 +2,7 @@
 #from pyon.ion.endpoint import ProcessRPCClient
 import string
 import unittest
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
@@ -57,6 +58,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
+        self.RR2 = EnhancedResourceRegistryClient(self.RR)
         self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
         self.org_management_service = OrgManagementServiceClient(node=self.container.node)
         self.IMS =  InstrumentManagementServiceClient(node=self.container.node)
@@ -311,8 +313,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         org_id = self.OMS.create_marine_facility(any_old(RT.Org))
 
-        def create_under_org(resource_type):
-            obj = any_old(resource_type)
+        def create_under_org(resource_type, extra_fields=None):
+            obj = any_old(resource_type, extra_fields)
 
             if RT.InstrumentDevice == resource_type:
                 resource_id = self.IMS.create_instrument_device(obj)
@@ -570,6 +572,47 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_subsite(subsite_id)
         self.OMS.force_delete_platform_site(platform_site_id)
         self.OMS.force_delete_instrument_site(instrument_site_id)
+
+
+    @attr('EXT')
+    def test_observatory_extensions(self):
+
+
+
+        obs_id = self.RR2.create(any_old(RT.Observatory))
+        pss_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="StationSite")))
+        pas_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="PlatformAssemblySite")))
+        pcs_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="PlatformComponentSite")))
+        ins_id = self.RR2.create(any_old(RT.InstrumentSite))
+
+        obs_obj = self.RR2.read(obs_id)
+        pss_obj = self.RR2.read(pss_id)
+        pas_obj = self.RR2.read(pas_id)
+        pcs_obj = self.RR2.read(pcs_id)
+        ins_obj = self.RR2.read(ins_id)
+
+        self.RR2.create_association(obs_id, PRED.hasSite, pss_id)
+        self.RR2.create_association(pss_id, PRED.hasSite, pas_id)
+        self.RR2.create_association(pas_id, PRED.hasSite, pcs_id)
+        self.RR2.create_association(pcs_id, PRED.hasSite, ins_id)
+
+        extended_obs = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
+        self.assertEqual([pss_obj], extended_obs.computed.platform_station_sites)
+        self.assertEqual([pas_obj], extended_obs.computed.platform_assembly_sites)
+        self.assertEqual([pcs_obj], extended_obs.computed.platform_component_sites)
+        self.assertEqual([ins_obj], extended_obs.computed.instrument_sites)
+
+        extended_pss = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
+        self.assertEqual([pas_obj], extended_pss.computed.platform_assembly_sites)
+        self.assertEqual([pcs_obj], extended_pss.computed.platform_component_sites)
+        self.assertEqual([ins_obj], extended_pss.computed.instrument_sites)
+
+        extended_pas = self.OMS.get_observatory_site_extension(pas_id, user_id=12345)
+        self.assertEqual([pcs_obj], extended_pas.computed.platform_component_sites)
+        self.assertEqual([ins_obj], extended_pas.computed.instrument_sites)
+
+        extended_pcs = self.OMS.get_platform_component_site_extension(pcs_id, user_id=12345)
+        self.assertEqual([ins_obj], extended_pcs.computed.instrument_sites)
 
 
     #@unittest.skip("in development...")

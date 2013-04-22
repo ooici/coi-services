@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 
 from ion.util.agent_launcher import AgentLauncher
 from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
@@ -17,7 +18,6 @@ import time
 
 from ooi.logging import log
 
-from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
@@ -62,7 +62,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         self.extended_resource_handler = ExtendedResourceContainer(self)
 
         self.init_module_uploader()
-
+        self.agent_status_builder = AgentStatusBuilder(process=self)
 
         # set up all of the policy interceptions
         if self.container and self.container.governance_controller:
@@ -805,6 +805,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         except Inconsistent, ex:
             return False, ex.message
 
+        log.debug("check_direct_access_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
+
         #The system actor can to anything
         if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
@@ -822,6 +824,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         except Inconsistent, ex:
             return False, ex.message
 
+        log.debug("check_device_lifecycle_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
         #The system actor can to anything
         if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
             return True, ''
@@ -830,6 +833,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             lifecycle_event = message['lifecycle_event']
         else:
             raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (process.name, gov_values.op))
+
+        log.debug("check_device_lifecycle_policy: lifecycle_event: %s", lifecycle_event)
 
         orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=gov_values.resource_id, id_only=False)
 
@@ -848,11 +853,13 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #The owner can do any of these other lifecycle transitions
             is_owner = is_resource_owner(gov_values.actor_id, gov_values.resource_id)
+            log.debug("check_device_lifecycle_policy: is_owner: %s", str(is_owner))
             if is_owner:
                 return True, ''
 
             #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
             is_shared = has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
+            log.debug("check_device_lifecycle_policy: is_shared: %s", str(is_shared))
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
@@ -1603,70 +1610,44 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             user_id=user_id)
 
         #retrieve the aggregate status for the instrument
-        self._set_device_aggregate_status(instrument_device_id, 'aggstatus', extended_instrument)
+        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(instrument_device_id,
+                                                                             'aggstatus',
+                                                                             extended_instrument)
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
 
         return extended_instrument
 
 
-    # TODO: this causes a problem because an instrument agent must be running in order to look up extended attributes.
-    def obtain_agent_handle(self, device_id):
-        ia_client = ResourceAgentClient(device_id,  process=self)
-        log.debug("got the instrument agent client here: %s for the device id: %s and process: %s", ia_client, device_id, self)
-
-#       #todo: any validation?
-#        cmd = AgentCommand(command='get_current_state')
-#        retval = self._ia_client.execute_agent(cmd)
-#        state = retval.result
-#        self.assertEqual(state, InstrumentAgentState.UNINITIALIZED)
-#
-
-        return ia_client
-
-    def obtain_agent_calculation(self, device_id, result_container):
-        ret = IonObject(result_container)
-        a_client = None
-        try:
-            a_client = self.obtain_agent_handle(device_id)
-            ret.status = ComputedValueAvailability.PROVIDED
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "Could not connect to instrument agent instance -- may not be running"
-        except Exception as e:
-            raise e
-
-        return a_client, ret
-
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
     def get_firmware_version(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0.0 #todo: use ia_client
         return ret
 
 
     def get_last_data_received_datetime(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0.0 #todo: use ia_client
         return ret
 
 
     def get_operational_state(self, taskable_resource_id):   # from Device
-        ia_client, ret = self.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
         if ia_client:
             ret.value = "" #todo: use ia_client
         return ret
 
     def get_last_calibration_datetime(self, instrument_device_id):
-        ia_client, ret = self.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
         if ia_client:
             ret.value = 0 #todo: use ia_client
         return ret
 
     def get_uptime(self, device_id):
-        ia_client, ret = self.obtain_agent_calculation(device_id, OT.ComputedStringValue)
+        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(device_id, OT.ComputedStringValue)
 
         if ia_client:
             # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
@@ -1776,12 +1757,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
         #retrieve the aggreate and rollup status from the platform agent
-        self._set_device_aggregate_status(platform_device_id, 'rollup_status', extended_platform)
+        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(platform_device_id, 'rollup_status', extended_platform)
         log.debug('get_platform_device_extension  extended_platform.computed: %s', extended_platform.computed)
 
         #retrieve the list of aggreate status for all children of this platform agent
         try:
-            pa_client = self.obtain_agent_handle(platform_device_id)
+            pa_client = self.agent_status_builder.obtain_agent_handle(platform_device_id)
 
             child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
             log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
@@ -1797,56 +1778,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return extended_platform
 
-
-
-    def _set_device_aggregate_status(self, device_id='', status_name='', extended_device_resource=None):
-
-        ia_client = None
-
-        if not device_id or not status_name or not extended_device_resource :
-            raise BadRequest("The device or extended resource parameter is empty")
-
-        try:
-            ia_client = self.obtain_agent_handle(device_id)
-
-            aggstatus = ia_client.get_agent([status_name])[status_name]
-            log.debug('_set_device_aggregate_status status: %s', aggstatus)
-
-            if aggstatus:
-                extended_device_resource.computed.communications_status_roll_up = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_COMMS] )
-                extended_device_resource.computed.power_status_roll_up          = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_POWER] )
-                extended_device_resource.computed.data_status_roll_up           = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_DATA] )
-                extended_device_resource.computed.location_status_roll_up       = self._create_computed_status ( aggstatus[AggregateStatusType.AGGREGATE_LOCATION] )
-                extended_device_resource.computed.aggregated_status             = self._compute_aggregated_status_overall(aggstatus)
-
-        except NotFound:
-            reason = "Could not connect to instrument agent instance -- may not be running"
-            extended_device_resource.computed.communications_status_roll_up = \
-            extended_device_resource.computed.power_status_roll_up = \
-            extended_device_resource.computed.data_status_roll_up = \
-            extended_device_resource.computed.location_status_roll_up = \
-            extended_device_resource.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
-        except Exception as e:
-            raise e
-
-        return
-
-    def _create_computed_status(self, status=DeviceStatusType.STATUS_UNKNOWN):
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status)
-
-    def _compute_aggregated_status_overall (self, agg_status_dict={}):
-
-        status = DeviceStatusType.STATUS_UNKNOWN
-
-        values_list = agg_status_dict.values()
-        if DeviceStatusType.STATUS_CRITICAL in values_list:
-            status = DeviceStatusType.STATUS_CRITICAL
-        elif DeviceStatusType.STATUS_WARNING in values_list:
-            status = DeviceStatusType.STATUS_WARNING
-        elif DeviceStatusType.STATUS_OK  in values_list:
-            status = DeviceStatusType.STATUS_OK
-
-        return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status)
 
 
     def get_data_product_parameters_set(self, resource_id=''):
@@ -1902,31 +1833,34 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     ############################
     #
-    #  PREPARE UPDATE RESOURCES
+    #  PREPARE RESOURCES
     #
     ############################
 
 
-    def prepare_update_instrument_device(self, instrument_device_id=''):
+    def prepare_instrument_device_support(self, instrument_device_id=''):
         """
         Returns the object containing the data to update an instrument device resource
         """
 
-        if not instrument_device_id:
-            raise BadRequest("The instrument_device_id parameter is empty")
-
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        resource_data = extended_resource_handler.create_prepare_update_resource(instrument_device_id, OT.InstrumentDevicePrepareUpdate)
+        resource_data = extended_resource_handler.create_prepare_resource_support(instrument_device_id, OT.InstrumentDevicePrepareSupport)
 
         #Fill out service request information for creating a instrument device
-        resource_data.create_instrument_device_request.service_name = 'instrument_management'
-        resource_data.create_instrument_device_request.service_operation = 'create_instrument_device'
-        resource_data.create_instrument_device_request.request_parameters = {
+        resource_data.create_request.service_name = 'instrument_management'
+        resource_data.create_request.service_operation = 'create_instrument_device'
+        resource_data.create_request.request_parameters = {
             "instrument_device":  "$(instrument_device)"
         }
 
+        #Fill out service request information for updating a instrument device
+        resource_data.update_request.service_name = 'instrument_management'
+        resource_data.update_request.service_operation = 'update_instrument_device'
+        resource_data.update_request.request_parameters = {
+            "instrument_device":  "$(instrument_device)"
+        }
 
         #Fill out service request information for assigning a model
         resource_data.assign_instrument_model_request.service_name = 'instrument_management'
@@ -1945,26 +1879,50 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             "instrument_device_id":  instrument_device_id
         }
 
+
+        #Fill out service request information for assigning a sensor
+        resource_data.assign_sensor_device_request.service_name = 'instrument_management'
+        resource_data.assign_sensor_device_request.service_operation = 'assign_sensor_device_to_instrument_device'
+        resource_data.assign_sensor_device_request.request_parameters = {
+            "sensor_device_id":  "$(sensor_device_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+
+        #Fill out service request information for unassigning a sensor
+        resource_data.unassign_sensor_device_request.service_name = 'instrument_management'
+        resource_data.unassign_sensor_device_request.service_operation = 'unassign_sensor_device_to_instrument_device'
+        resource_data.unassign_sensor_device_request.request_parameters = {
+            "sensor_device_id":  "$(sensor_device_id)",
+            "instrument_device_id":  instrument_device_id
+        }
+
+
+
         return resource_data
 
 
-    def prepare_update_platform_device(self, platform_device_id=''):
+    def prepare_platform_device_support(self, platform_device_id=''):
         """
         Returns the object containing the data to update an instrument device resource
         """
 
-        if not platform_device_id:
-            raise BadRequest("The platform_device_id parameter is empty")
-
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
         extended_resource_handler = ExtendedResourceContainer(self)
 
-        resource_data = extended_resource_handler.create_prepare_update_resource(platform_device_id, OT.PlatformDevicePrepareUpdate)
+        resource_data = extended_resource_handler.create_prepare_resource_support(platform_device_id, OT.PlatformDevicePrepareSupport)
 
         #Fill out service request information for creating a platform device
-        resource_data.create_platform_device_request.service_name = 'instrument_management'
-        resource_data.create_platform_device_request.service_operation = 'create_platform_device'
-        resource_data.create_platform_device_request.request_parameters = {
+        resource_data.create_request.service_name = 'instrument_management'
+        resource_data.create_request.service_operation = 'create_platform_device'
+        resource_data.create_request.request_parameters = {
+            "platform_device":  "$(platform_device)"
+        }
+
+        #Fill out service request information for updating a platform device
+        resource_data.update_request.service_name = 'instrument_management'
+        resource_data.update_request.service_operation = 'update_platform_device'
+        resource_data.update_request.request_parameters = {
             "platform_device":  "$(platform_device)"
         }
 
@@ -1985,4 +1943,22 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             "platform_device_id":  platform_device_id
         }
 
+        #Fill out service request information for assigning an instrument
+        resource_data.assign_instrument_device_request.service_name = 'instrument_management'
+        resource_data.assign_instrument_device_request.service_operation = 'assign_instrument_device_to_platform_device'
+        resource_data.assign_instrument_device_request.request_parameters = {
+            "instrument_device_id":  "$(instrument_device_id)",
+            "platform_device_id":  platform_device_id
+        }
+
+
+        #Fill out service request information for unassigning an instrument
+        resource_data.unassign_instrument_device_request.service_name = 'instrument_management'
+        resource_data.unassign_instrument_device_request.service_operation = 'unassign_instrument_device_to_platform_device'
+        resource_data.unassign_instrument_device_request.request_parameters = {
+            "instrument_device_id":  "$(instrument_device_id)",
+            "platform_device_id":  platform_device_id
+        }
+
         return resource_data
+

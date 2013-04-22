@@ -4,6 +4,7 @@
 and the relationships between them"""
 
 import time
+from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
@@ -771,7 +772,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ############################
 
 
-    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+    def _get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an InstrumentDeviceExtension object containing additional related information
 
         @param site_id    str
@@ -795,6 +796,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
+        RR2 = EnhancedResourceRegistryClient(self.RR)
+        RR2.cache_predicate(PRED.hasModel)
+
         # Get status of Site instruments.
         a, b =  self._get_instrument_states(extended_site.instrument_devices)
         extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
@@ -802,9 +806,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id
         lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
-        for a in self.RR.find_associations(predicate=PRED.hasModel, id_only=False):
-            if a.st in lookup:
-                lookup[a.st][a.s] = a.o
+        for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
+            lookup[a.st][a.s] = a.o
 
         def retrieve_model_objs(rsrc_list, object_type):
         # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
@@ -820,162 +823,105 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
 
-        s_unknown = StatusType.STATUS_UNKNOWN
-
         # Status computation
-        extended_site.computed.instrument_status = [s_unknown] * len(extended_site.instrument_devices)
-        extended_site.computed.platform_status   = [s_unknown] * len(extended_site.platform_devices)
-        extended_site.computed.site_status       = [s_unknown] * len(extended_site.sites)
+        extended_site.computed.instrument_status = [AgentStatusBuilder.get_aggregate_status_of_device(idev._id, "aggstatus")
+                                                    for idev in extended_site.instrument_devices]
+        extended_site.computed.platform_status   = [AgentStatusBuilder.get_aggregate_status_of_device(pdev._id, "aggstatus")
+                                                    for pdev in extended_site.platform_devices]
 
+#            AgentStatusBuilder.add_device_aggregate_status_to_resource_extension(device_id,
+#                                                                                    'aggstatus',
+#                                                                                    extended_site)
         def status_unknown():
             return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
-
         extended_site.computed.communications_status_roll_up = status_unknown()
         extended_site.computed.power_status_roll_up          = status_unknown()
         extended_site.computed.data_status_roll_up           = status_unknown()
         extended_site.computed.location_status_roll_up       = status_unknown()
         extended_site.computed.aggregated_status             = status_unknown()
 
-        try:
-            status_rollups = self.outil.get_status_roll_ups(site_id, extended_site.resource._get_type())
-
-            extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg", s_unknown)
-                                                        for idev in extended_site.instrument_devices]
-            extended_site.computed.platform_status   = [status_rollups.get(pdev._id,{}).get("agg", s_unknown)
-                                                        for pdev in extended_site.platform_devices]
-            extended_site.computed.site_status       = [status_rollups.get(site._id,{}).get("agg", s_unknown)
-                                                        for site in extended_site.sites]
+        extended_site.computed.site_status = [StatusType.STATUS_UNKNOWN] * len(extended_site.sites)
 
 
-            def short_status_rollup(key):
-                return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                                        value=status_rollups[site_id].get(key, s_unknown))
 
-            extended_site.computed.communications_status_roll_up = short_status_rollup("comms")
-            extended_site.computed.power_status_roll_up          = short_status_rollup("power")
-            extended_site.computed.data_status_roll_up           = short_status_rollup("data")
-            extended_site.computed.location_status_roll_up       = short_status_rollup("loc")
-            extended_site.computed.aggregated_status             = short_status_rollup("agg")
-        except Exception as ex:
-            log.exception("Computed attribute failed for site %s" % site_id)
+        return extended_site, RR2
 
+
+    def _get_site_extension_plus(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        # the "plus" means "plus all sub-site objects"
+
+        extended_site, RR2 = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        # use the related resources crawler
+        finder = RelatedResourcesCrawler()
+        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasSite])
+        full_crawllist = [RT.InstrumentSite, RT.PlatformSite, RT.Subsite]
+        search_down = get_assns({PRED.hasSite: (True, False)}, full_crawllist)
+
+        # the searches return a list of association objects, so compile all the ids by extracting them
+        subsite_ids = set([])
+
+        # we want only those IDs that are not the input resource id
+        for a in search_down(site_id, -1):
+            if a.o != site_id:
+                subsite_ids.add(a.o)
+
+        log.trace("converting retrieved ids to objects = %s" % subsite_ids)
+        subsite_objs = RR2.read_mult(list(subsite_ids))
+
+        # filtered subsites
+        def fs(resource_type, filter_fn):
+            both = lambda s: ((resource_type == s._get_type()) and filter_fn(s))
+            return filter(both, subsite_objs)
+
+        def pfs(filter_fn):
+            return fs(RT.PlatformSite, filter_fn)
+
+        def ifs(filter_fn):
+            return fs(RT.InstrumentSite, filter_fn)
+
+        extended_site.computed.platform_station_sites = pfs(lambda s: "StationSite" == s.alt_resource_type)
+        extended_site.computed.platform_component_sites = pfs(lambda s: "PlatformComponentSite" == s.alt_resource_type)
+        extended_site.computed.platform_assembly_sites = pfs(lambda s: "PlatformAssemblySite" == s.alt_resource_type)
+        extended_site.computed.instrument_sites = ifs(lambda _: True)
+
+        return extended_site, RR2, subsite_objs
+
+    # TODO: will remove this one
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
         return extended_site
 
-
     def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-
-        if not site_id:
-            raise BadRequest("The site_id parameter is empty")
-
-        extended_resource_handler = ExtendedResourceContainer(self)
-
-        extended_site = extended_resource_handler.create_extended_resource_container(
-            extended_resource_type=OT.SiteExtension,
-            resource_id=site_id,
-            computed_resource_type=OT.SiteComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id)
-
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
         return extended_site
 
 
     def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-
-        if not site_id:
-            raise BadRequest("The site_id parameter is empty")
-
-        extended_resource_handler = ExtendedResourceContainer(self)
-
-        extended_site = extended_resource_handler.create_extended_resource_container(
-            extended_resource_type=OT.SiteExtension,
-            resource_id=site_id,
-            computed_resource_type=OT.SiteComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id)
-
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
         return extended_site
 
 
     def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-
-        if not site_id:
-            raise BadRequest("The site_id parameter is empty")
-
-        extended_resource_handler = ExtendedResourceContainer(self)
-
-        extended_site = extended_resource_handler.create_extended_resource_container(
-            extended_resource_type=OT.SiteExtension,
-            resource_id=site_id,
-            computed_resource_type=OT.SiteComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id)
-
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
         return extended_site
 
     def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-
-        if not site_id:
-            raise BadRequest("The site_id parameter is empty")
-
-        extended_resource_handler = ExtendedResourceContainer(self)
-
-        extended_site = extended_resource_handler.create_extended_resource_container(
-            extended_resource_type=OT.SiteExtension,
-            resource_id=site_id,
-            computed_resource_type=OT.SiteComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id)
-
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
         return extended_site
 
 
     def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
 
-        if not site_id:
-            raise BadRequest("The site_id parameter is empty")
-
-        extended_resource_handler = ExtendedResourceContainer(self)
-
-        extended_site = extended_resource_handler.create_extended_resource_container(
-            extended_resource_type=OT.SiteExtension,
-            resource_id=site_id,
-            computed_resource_type=OT.SiteComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id)
+        # no subsites of instrument, so shortcut
+        extended_site.computed.platform_station_sites = []
+        extended_site.computed.platform_component_sites = []
+        extended_site.computed.platform_assembly_sites = []
+        extended_site.computed.instrument_sites = []
 
         return extended_site
 
-
-        #Bogus functions for computed attributes
-    def get_number_data_sets(self, observatory_id):
-        return "0"
-
-    def get_number_instruments_deployed(self, observatory_id):
-        return "0"
-
-
-    def get_number_instruments_operational(self, observatory_id):
-        return "0"
-
-
-    def get_number_instruments_inoperational(self, observatory_id):
-        return "0"
-
-
-    def get_number_instruments(self, observatory_id):
-        return "0"
-
-
-    def get_number_platforms(self, observatory_id):
-        return "0"
-
-    def get_number_platforms_deployed(self, observatory_id):
-        return "0"
 
     def _get_instrument_states(self, instrument_device_obj_list=None):
 
@@ -1020,3 +966,59 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return op, non_op
 
+    def get_deployment_extension(self, deployment_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not deployment_id:
+            raise BadRequest("The deployment_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_deployment = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.DeploymentExtension,
+            resource_id=deployment_id,
+            computed_resource_type=OT.DeploymentComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        devices = set()
+        instrument_device_ids = []
+        iplatform_device_ids = []
+        subjs, _ = self.RR.find_subjects( predicate=PRED.hasDeployment, object=deployment_id, id_only=False)
+        for subj in subjs:
+            log.debug('get_deployment_extension  obj:   %s', subj)
+            if subj.type_ == "InstrumentDevice":
+                extended_deployment.instrument_devices.append(subj)
+                devices.add((subj._id, PRED.hasModel))
+            elif subj.type_ == "InstrumentSite":
+                extended_deployment.instrument_sites.append(subj)
+            elif subj.type_ == "PlatformDevice":
+                extended_deployment.platform_devices.append(subj)
+                devices.add((subj._id, PRED.hasModel))
+            elif subj.type_ == "PlatformSite":
+                extended_deployment.platform_sites.append(subj)
+            else:
+                log.warning("get_deployment_extension found invalid type connected to deployment %s. Object details: %s ", deployment_id, subj)
+
+        all_models = set()
+        device_to_model_map = {}
+        model_map = {}
+        assocs = self.RR.find_associations(anyside=list(devices), id_only=False)
+        for assoc in assocs:
+            log.debug('get_deployment_extension  assoc subj:   %s  pred: %s    obj:   %s', assoc.s, assoc.p, assoc.o)
+            all_models.add(assoc.o)
+            device_to_model_map[assoc.s] = assoc.o
+
+        model_objs = self.RR.read_mult( list(all_models) )
+        for model_obj in model_objs:
+            model_map[model_obj._id] = model_obj
+
+        for instrument in extended_deployment.instrument_devices:
+            model_id = device_to_model_map[instrument._id]
+            extended_deployment.instrument_models.append( model_map[model_id] )
+
+        for platform in extended_deployment.platform_devices:
+            model_id = device_to_model_map[platform._id]
+            extended_deployment.platform_models.append( model_map[model_id] )
+
+        return extended_deployment
