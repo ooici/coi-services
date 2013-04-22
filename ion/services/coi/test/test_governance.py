@@ -3,7 +3,7 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import unittest, os, gevent, platform
+import unittest, os, gevent, platform, simplejson
 from mock import Mock, patch
 from pyon.util.containers import get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
@@ -26,7 +26,7 @@ from interface.services.coi.ipolicy_management_service import PolicyManagementSe
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.services.coi.isystem_management_service import SystemManagementServiceProcessClient
 
-from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum
+from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum, ComputedValueAvailability
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
 from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
@@ -1599,6 +1599,22 @@ class TestGovernanceInt(IonIntegrationTestCase):
             retval = ia_client.get_agent(headers=actor_header)
         self.assertIn('(get_agent) has been denied',cm.exception.message)
 
+        #Check the availability of the get_instrument_device_extension operation for various user types - some of the
+        #agent related status should not be allowed for users without the proper role
+
+        #Anonymous get extended is allowed, but internal agent status should be unavailable
+        extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=self.anonymous_actor_headers)
+        self.assertEqual(extended_inst._id, inst_obj_id)
+        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.NOTAVAILABLE)
+        self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
+
+        #Org member get extended is allowed, but internal agent status should be unavailable
+        extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
+        self.assertEqual(extended_inst._id, inst_obj_id)
+        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.NOTAVAILABLE)
+        self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
+
+
         #Grant the role of Instrument Operator to the user
         self.org_client.grant_role(org2_id,actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
 
@@ -1613,6 +1629,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Conflict) as cm:
             params = SBE37Parameter.ALL
             retval = ia_client.get_resource(params, headers=actor_header)
+
+        #Instrument Operator role get extended is allowed and contain agent status information
+        extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
+        self.assertEqual(extended_inst._id, inst_obj_id)
+        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.PROVIDED)
+        self.assertNotEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
 
 
         #This agent operation should now be allowed for a user that is an Instrument Operator
@@ -1766,6 +1788,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #This agent operation should now be allowed for a user that is an Org Manager
         with self.assertRaises(BadRequest) as cm:
             retval = ia_client.get_agent(params=[123], headers=actor_header)
+
+
+        #Org Manager role get extended is allowed and contain agent status information
+        extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
+        self.assertEqual(extended_inst._id, inst_obj_id)
+        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.PROVIDED)
+        self.assertNotEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
+
 
         #Now reset the agent for checking operation based policy
         #The reset command should now be allowed for the Org Manager

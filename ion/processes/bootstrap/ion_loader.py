@@ -96,7 +96,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydFgxZUxWWV8wLTY5Ykp4NjBIWUhqeGc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEtGVFhmOU1TXzlxSWNzTWd2dXBKTmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 TESTED_DOC=MASTER_DOC
@@ -1512,6 +1512,8 @@ Reason: %s
                 lookup_values = types_manager.get_lookup_value_ids(context)
                 for val in lookup_values:
                     context_ids[val] = 0
+                if hasattr(context,'qc_contexts'):
+                    definitions.extend(context.qc_contexts)
             except KeyError:
                 pass
 
@@ -1591,6 +1593,7 @@ Reason: %s
         precision    = row['Precision']
         param_id     = row['ID']
         lookup_value = row['Lookup Value']
+        qc           = row['QC Functions']
 
         dataset_management = self._get_service_client('dataset_management')
         
@@ -1624,6 +1627,12 @@ Reason: %s
                     else:
                         context.lookup_value = name
                         context.document_key = lookup_value
+
+            if qc:
+                try:
+                    context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id)
+                except KeyError:
+                    pass
 
 
         except TypeError as e:
@@ -2403,6 +2412,9 @@ Reason: %s
 
         # Create data product assignment
         if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
+            if input_res_id not in self.resource_ids:
+                log.error('Input resource %s does not exist', input_res_id)
+                return
             input_res_id = self.resource_ids.get(input_res_id)
             if self.bulk and do_bulk:
                 id_obj = self._get_resource_obj(row["input_resource_id"])

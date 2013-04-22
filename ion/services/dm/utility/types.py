@@ -4,8 +4,10 @@
 @file ion/services/dm/utility/types.py
 @date Thu Jan 17 15:51:16 EST 2013
 '''
+from pyon.container.cc import Container
 from pyon.core.exception import BadRequest, NotFound
-from pyon.public import CFG
+from pyon.public import CFG, RT
+from pyon.util.memoize import memoize_lru
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
@@ -17,6 +19,7 @@ from coverage_model import ParameterFunctionType, ParameterContext, SparseConsta
 
 from copy import deepcopy
 from udunitspy.udunits2 import Unit, System
+from interface.objects import ParameterContext as ParameterContextResource
 
 import ast
 import numpy as np
@@ -121,8 +124,6 @@ class TypesManager(object):
             return self.get_record_type()
         elif parameter_type == 'function':
             return self.get_function_type(parameter_type, encoding, pfid, pmap)
-        elif parameter_type == 'special':
-            return self.get_special_type()
         else:
             raise TypeError( 'Invalid Parameter Type: %s' % parameter_type)
 
@@ -187,9 +188,41 @@ class TypesManager(object):
             func.lookup_values = lookup_values
         return func
 
-    def get_special_type():
-        param_type = ArrayType()
-        return param_type
+    def evaluate_qc(self):
+        pass
+
+    @memoize_lru(maxsize=100)
+    def find_grt(self):
+        res_obj, _ = Container.instance.resource_registry.find_resources(name='global_range_test', restype=RT.ParameterFunction, id_only=False)
+        if res_obj:
+            return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
+        else:
+            raise KeyError('global_range_test was never loaded')
+
+    def make_qc_functions(self, name, data_product, registration_function):
+        contexts = []
+        ctxt_id, pc = self.make_grt_qc(name,data_product)
+        contexts.append(ctxt_id)
+        registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
+
+        return contexts
+
+
+    def make_grt_qc(self, name, data_product):
+        pfunc_id, pfunc = self.find_grt() 
+        grt_min_id, grt_min_name = self.get_lookup_value('LV_grt_$designator_%s||grt_min_value' % data_product)
+        grt_max_id, grt_max_name = self.get_lookup_value('LV_grt_$designator_%s||grt_max_value' % data_product)
+
+        pmap = {'dat':name, 'dat_min':grt_min_name,'dat_max':grt_max_name}
+        pfunc.param_map = pmap
+        pfunc.lookup_values = [grt_min_id, grt_max_id]
+
+        pc = ParameterContext(name='%s_glblrng_qc' % name, param_type=ParameterFunctionType(pfunc))
+        pc.uom = '1'
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % name, parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id)
+        return ctxt_id, pc
+
+
 
     def get_function_type(self, parameter_type, encoding, pfid, pmap):
         if pfid is None or pmap is None:

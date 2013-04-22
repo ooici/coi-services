@@ -105,6 +105,8 @@ class PlatformAgentEvent(BaseEnum):
     GO_ACTIVE                 = ResourceAgentEvent.GO_ACTIVE
     GO_INACTIVE               = ResourceAgentEvent.GO_INACTIVE
     RUN                       = ResourceAgentEvent.RUN
+    SHUTDOWN                  = 'PLATFORM_AGENT_SHUTDOWN'
+
     CLEAR                     = ResourceAgentEvent.CLEAR
     PAUSE                     = ResourceAgentEvent.PAUSE
     RESUME                    = ResourceAgentEvent.RESUME
@@ -135,6 +137,8 @@ class PlatformAgentCapability(BaseEnum):
     GO_ACTIVE                 = PlatformAgentEvent.GO_ACTIVE
     GO_INACTIVE               = PlatformAgentEvent.GO_INACTIVE
     RUN                       = PlatformAgentEvent.RUN
+    SHUTDOWN                  = PlatformAgentEvent.SHUTDOWN
+
     CLEAR                     = PlatformAgentEvent.CLEAR
     PAUSE                     = PlatformAgentEvent.PAUSE
     RESUME                    = PlatformAgentEvent.RESUME
@@ -207,7 +211,7 @@ class PlatformAgent(ResourceAgent):
         # PlatformResourceMonitor
         self._platform_resource_monitor = None
 
-        # Dictionaries used for data publishing. Constructed in _do_initialize
+        # Dictionaries used for data publishing. Constructed in _initialize_this_platform
         self._data_streams = {}
         self._param_dicts = {}
         self._stream_defs = {}
@@ -457,9 +461,9 @@ class PlatformAgent(ResourceAgent):
     def _do_quit(self):
         """
         - terminates status handling
-        - brings this agent to the UNINITIALIZED state
-        - terminates sub-platforms and instrument processes if they were
-          launched on_start.
+        - brings this agent to the UNINITIALIZED state (with no interation
+          with children at all)
+        - destroys launcher helper
         """
         log.info("%r: PlatformAgent: executing quit secuence", self._platform_id)
 
@@ -467,18 +471,17 @@ class PlatformAgent(ResourceAgent):
 
         self._bring_to_uninitialized_state()
 
-        if LAUNCH_CHILDREN_ON_START:
-            self._terminate_subplatform_agent_processes()
-            self._terminate_instrument_agent_processes()
-
         self._launcher.destroy()
 
         log.info("%r: PlatformAgent: quit secuence complete.", self._platform_id)
 
-    def _bring_to_uninitialized_state(self):
+    def _bring_to_uninitialized_state(self, recursion=True):
         """
         Performs steps to transition this agent to the UNINITIALIZED state
         (if not already there).
+
+        @param recursion    Passed as argument to the RESET command to this
+                            platform.
         """
         curr_state = self._fsm.get_current_state()
 
@@ -498,9 +501,9 @@ class PlatformAgent(ResourceAgent):
                     continue
 
                 # RESET is accepted in any other state:
-                self._fsm.on_event(PlatformAgentEvent.RESET)
+                self._fsm.on_event(PlatformAgentEvent.RESET, recursion=recursion)
 
-            except FSMStateError:
+            except FSMStateError:  # pragma: no cover
                 # Should not happen.
                 log.warn("For the quit sequence, a RESET event was tried "
                          "in a state (%s) that does not handle it; please "
@@ -581,22 +584,36 @@ class PlatformAgent(ResourceAgent):
 
             self._ia_clients.clear()
 
-    def _reset(self):
+    def _reset(self, recursion=True):
         """
-        Resets this platform agent (stops resource monitoring,
-        destroys driver).
+        Dispatches the RESET command.
 
-        Basic configuration is retained: The "platform_config" configuration
-        object provided via self.CFG (see on_init) is kept. This allows
-        to issue the INITIALIZE command again with the already configured agent.
+        RESET is dispatched in a bottom-up fashion:
+        - if recursion is True, reset the children
+        - then reset this platform itself.
 
-        The overall "reset" operation happens bottom-up, so this method is
-        called after sending the RESET command to the sub-platforms (if any).
-
-        If the children agents were launched as part of INITIALIZE (and not
-        on-start), then this method also terminates those agent processes.
+        @param recursion  If True, sub-platform are sent the RESET command
+                          (with corresponding recursion parameter set to True),
+                          and intruments are also sent RESET (no recursion
+                          parameter is applicable to instruments).
         """
-        log.debug("%r: resetting", self._platform_id)
+        if recursion:
+            # first sub-platforms, then my own instruments:
+            self._subplatforms_reset()
+            self._instruments_reset()
+
+        # then myself
+        self._reset_this_platform()
+
+    def _reset_this_platform(self):
+        """
+        Resets this platform agent (stops resource monitoring, destroys driver).
+
+        The "platform_config" configuration object provided via self.CFG
+        (see on_init) is kept. This allows to issue the INITIALIZE command
+        again with the already configured agent.
+        """
+        log.debug("%r: resetting this platform", self._platform_id)
 
         if self._platform_resource_monitor:
             self._stop_resource_monitoring()
@@ -604,7 +621,7 @@ class PlatformAgent(ResourceAgent):
         if self._plat_driver:
             # disconnect driver if connected:
             driver_state = self._plat_driver._fsm.get_current_state()
-            log.debug("_reset: driver_state = %s", driver_state)
+            log.debug("_reset_this_platform: driver_state = %s", driver_state)
             if driver_state == PlatformDriverState.CONNECTED:
                 self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
             # destroy driver:
@@ -613,9 +630,122 @@ class PlatformAgent(ResourceAgent):
 
         self._unconfigured_params.clear()
 
-        if not LAUNCH_CHILDREN_ON_START:
+    def _shutdown(self, recursion=True):
+        """
+        Dispatches a SHUTDOWN request.
+
+        SHUTDOWN is dispatched in a bottom-up fashion:
+        - if recursion is True, shuts down the sub-platforms and resets the instruments
+        - then brings this platform agent to the uninitialized state.
+          Note that the platform can not actually "shutdown" itself.
+
+        @param recursion   True to "shutdown" children.
+        """
+
+        log.debug("%r: _shutdown: recursion=%s", self._platform_id, recursion)
+
+        if recursion:
+            # shutdown sub-platforms and then terminate the processes:
+            # TODO: do the shutdown/terminate child by child
+            self._subplatforms_shutdown()
             self._terminate_subplatform_agent_processes()
+
+            # shutdown instruments and then terminate the processes:
+            # TODO: do the shutdown/terminate child by child
+            self._instruments_shutdown()
             self._terminate_instrument_agent_processes()
+
+        # "shutdown" myself
+        self._shutdown_this_platform()
+
+    def _shutdown_this_platform(self):
+        """
+        The name of this method is to keep consistency with the naming scheme
+        for related operations involving children and the platform itself.
+        The platform can not actually "shutdown" itself. What this method does
+        is to bring this platform agent to the uninitialized state (with no
+        interaction with children at all because _shutdown should have
+        taken care of the children as instructed).
+        """
+        self._bring_to_uninitialized_state(recursion=False)
+
+    def _pause(self, recursion=True):
+        """
+        Dispatches the PAUSE command.
+
+        PAUSE is dispatched in a bottom-up fashion:
+        - if recursion is True, pause the children
+        - then pause this platform itself.
+
+        @param recursion  If True, children are sent the PAUSE command
+                          (with corresponding recursion parameter set to True).
+        """
+        if recursion:
+            # first sub-platforms, then my own instruments:
+            self._subplatforms_pause()
+            self._instruments_pause()
+
+        # then myself
+        self._pause_this_platform()
+
+    def _pause_this_platform(self):
+        """
+        Pauses this platform agent. Actually, nothing is done here; we only
+        need the state transition (which is done by the handler).
+        """
+        pass
+
+    def _resume(self, recursion=True):
+        """
+        Dispatches the RESUME command.
+
+        RESUME is dispatched in a bottom-up fashion:
+        - if recursion is True, resume the children
+        - then resume this platform itself.
+
+        @param recursion  If True, children are sent the RESUME command
+                          (with corresponding recursion parameter set to True).
+        """
+        if recursion:
+            # first sub-platforms, then my own instruments:
+            self._subplatforms_resume()
+            self._instruments_resume()
+
+        # then myself
+        self._resume_this_platform()
+
+    def _resume_this_platform(self):
+        """
+        Resumes this platform agent. Actually, nothing is done here; we only
+        need the state transition (which is done by the handler).
+        """
+        pass
+
+    def _clear(self, recursion=True):
+        """
+        Dispatches the CLEAR command.
+
+        CLEAR is dispatched in a bottom-up fashion:
+        - if recursion is True, "clear" the children
+        - then "clear" this platform itself.
+
+        @param recursion  If True, children are sent the CLEAR command
+                          (with corresponding recursion parameter set to True).
+        """
+        if recursion:
+            # first sub-platforms, then my own instruments:
+            self._subplatforms_clear()
+            self._instruments_clear()
+
+        # then myself
+        self._clear_this_platform()
+
+    def _clear_this_platform(self):
+        """
+        "Clears" this platform agent. Actually, nothing is done here; we only
+        need the state transition (which is done by the handler).
+        """
+        pass
 
     ##############################################################
     # Governance interfaces
@@ -771,58 +901,70 @@ class PlatformAgent(ResourceAgent):
     def _assert_driver(self):
         assert self._plat_driver is not None, "_create_driver must have been called first"
 
-    def _do_initialize(self):
+    def _initialize_this_platform(self):
         """
-        Does the main initialize sequence, which includes creation of publishers
-        and creation/configuration of the driver, but excludes the launch
-        of the sub-platforms.
+        Does the main initialize sequence for this platform: creation of
+        publishers and creation/configuration of the driver.
         """
         self._construct_data_publishers()
         self._create_driver()
         self._configure_driver()
-        log.debug("%r: _do_initialize completed.", self._platform_id)
+        log.debug("%r: _initialize_this_platform completed.", self._platform_id)
 
-    def _do_go_active(self):
+    def _go_active_this_platform(self):
         """
-        Does activation actions at this platform (excluding sub-platforms).
-        This base class connects the driver.
+        Connects the driver.
         """
         self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
-    def _do_go_inactive(self):
+    def _go_inactive_this_platform(self):
         """
-        Does desactivation actions at this platform (excluding sub-platforms).
-        This base class disconnects the driver.
+        Disconnects the driver.
         """
         self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
 
-    def _go_inactive(self):
+    def _go_inactive(self, recursion):
         """
-        Issues GO_INACTIVE to sub-platforms, then to my instruments, and then
-        processes the command at this platform.
+        Dispatches the GO_INACTIVE command.
+
+        GO_INACTIVE is dispatched in a bottom-up fashion:
+         - issues GO_INACTIVE to sub-platforms
+         - issues GO_INACTIVE to instruments
+         - processes the command at this platform.
         """
-        self._subplatforms_go_inactive()
-        self._instruments_go_inactive()
-        self._do_go_inactive()
-        result = None
+
+        if recursion:
+            self._subplatforms_go_inactive()
+            self._instruments_go_inactive()
+
+        result = self._go_inactive_this_platform()
         return result
 
-    def _do_run(self):
+    def _run_this_platform(self):
         """
-        Any actions at this platform (excluding sub-platforms) for the
-        COMMAND state.
-        Nothing done at the moment.
+        Nothing is done here. The method exists for consistency.
+        Basically the RUN command is just to move the FSM to the COMMAND state,
+        which is done by the handler.
         """
         pass
 
-    def _run(self):
+    def _run(self, recursion):
         """
-        Prepares this particular platform agent for the COMMAND state.
+        Dispatches the RUN command.
+
+        RUN is dispatched in a top-down fashion:
+         - processes the command at this platform (which does nothing, actually)
+         - issues RUN to instruments
+         - issues RUN to sub-platforms
         """
-        # first myself, then my instruments, then sub-platforms
-        self._do_run()
-        self._instruments_run()
-        self._subplatforms_run()
+        # first myself
+        self._run_this_platform()
+
+        # then my instruments and sub-platforms
+        if recursion:
+            self._instruments_run()
+            self._subplatforms_run()
+
         result = None
         return result
 
@@ -1088,6 +1230,23 @@ class PlatformAgent(ResourceAgent):
 
         return retval
 
+    def _get_recursion_parameter(self, method_name, *args, **kwargs):
+        """
+        Utility to extract the 'recursion' parameter.
+        """
+        recursion = kwargs.get('recursion', None)
+        if recursion is None:
+            log.info("%r: %s called with no recursion parameter. "
+                     "Using recursion=True by default.",
+                     self._platform_id, method_name)
+            recursion = True
+        else:
+            log.info("%r: %s called with recursion parameter: %r",
+                     self._platform_id, method_name, recursion)
+            recursion = bool(recursion)
+
+        return recursion
+
     ##############################################################
     # supporting routines dealing with sub-platforms
     ##############################################################
@@ -1220,8 +1379,12 @@ class PlatformAgent(ResourceAgent):
         """
         Supporting routine for the ones below.
 
-        @param create_command invoked as create_command(subplatform_id) for
-               each sub-platform to create the command to be executed.
+        @param command        Can be a AgentCommand, and string, or None.
+
+        @param create_command If command is None, create_command is invoked as
+                              create_command(subplatform_id) for each
+                              sub-platform to create the command to be executed.
+
         @param expected_state
         """
         subplatform_ids = self._get_subplatform_ids()
@@ -1243,7 +1406,13 @@ class PlatformAgent(ResourceAgent):
         #
         for subplatform_id in self._pa_clients:
             pa_client = self._pa_clients[subplatform_id].pa_client
-            cmd = AgentCommand(command=command) if command else create_command(subplatform_id)
+
+            if isinstance(command, AgentCommand):
+                cmd = command
+            elif command is not None:
+                cmd = AgentCommand(command=command)
+            else:
+                cmd = create_command(subplatform_id)
 
             # execute command:
             try:
@@ -1264,20 +1433,84 @@ class PlatformAgent(ResourceAgent):
                               self._platform_id, subplatform_id) #, exc_Info=True)
 
     def _subplatforms_reset(self):
-        self._subplatforms_execute_agent(command=PlatformAgentEvent.RESET,
+        """
+        Executes RESET with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.RESET, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
                                          expected_state=PlatformAgentState.UNINITIALIZED)
 
     def _subplatforms_go_active(self):
-        self._subplatforms_execute_agent(command=PlatformAgentEvent.GO_ACTIVE,
+        """
+        Executes GO_ACTIVE with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
                                          expected_state=PlatformAgentState.IDLE)
 
     def _subplatforms_go_inactive(self):
-        self._subplatforms_execute_agent(command=PlatformAgentEvent.GO_INACTIVE,
+        """
+        Executes GO_INACTIVE with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
                                          expected_state=PlatformAgentState.INACTIVE)
 
     def _subplatforms_run(self):
-        self._subplatforms_execute_agent(command=PlatformAgentEvent.RUN,
+        """
+        Executes RUN with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
                                          expected_state=PlatformAgentState.COMMAND)
+
+    def _subplatforms_shutdown(self):
+        """
+        Executes SHUTDOWN with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
+                                         expected_state=PlatformAgentState.UNINITIALIZED)
+
+    def _subplatforms_pause(self):
+        """
+        Executes PAUSE with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.PAUSE, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
+                                         expected_state=PlatformAgentState.STOPPED)
+
+    def _subplatforms_resume(self):
+        """
+        Executes RESUME with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.RESUME, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
+                                         expected_state=PlatformAgentState.COMMAND)
+
+    def _subplatforms_clear(self):
+        """
+        Executes CLEAR with recursion=True on all my sub-platforms.
+        """
+        # pass recursion=True to each sub-platform
+        kwargs = dict(recursion=True)
+        cmd = AgentCommand(command=PlatformAgentEvent.CLEAR, kwargs=kwargs)
+        self._subplatforms_execute_agent(command=cmd,
+                                         expected_state=PlatformAgentState.IDLE)
 
     ##############################################################
     # supporting routines dealing with instruments
@@ -1446,10 +1679,16 @@ class PlatformAgent(ResourceAgent):
                               self._platform_id, instrument_id) #, exc_Info=True)
 
     def _instruments_reset(self):
+        """
+        Executes RESET on all my instruments.
+        """
         self._instruments_execute_agent(command=ResourceAgentEvent.RESET,
                                         expected_state=ResourceAgentState.UNINITIALIZED)
 
     def _instruments_go_active(self):
+        """
+        Executes GO_ACTIVE on all my instruments.
+        """
         # TODO determine what the expected state should be. For now,
         # not checking for any particular instrument agent state.
         expected_state = None
@@ -1457,54 +1696,111 @@ class PlatformAgent(ResourceAgent):
                                         expected_state=expected_state)
 
     def _instruments_go_inactive(self):
+        """
+        Executes GO_INACTIVE on all my instruments.
+        """
         self._instruments_execute_agent(command=ResourceAgentEvent.GO_INACTIVE,
                                         expected_state=ResourceAgentState.INACTIVE)
 
     def _instruments_run(self):
+        """
+        Executes RUN on all my instruments.
+        """
         self._instruments_execute_agent(command=ResourceAgentEvent.RUN,
                                         expected_state=ResourceAgentState.COMMAND)
+
+    def _instruments_shutdown(self):
+        """
+        Executes RESET on all my instruments.
+        ("shutting down" the instruments is just resetting them.)
+        """
+        self._instruments_execute_agent(command=ResourceAgentEvent.RESET,
+                                        expected_state=ResourceAgentState.UNINITIALIZED)
+
+    def _instruments_pause(self):
+        """
+        Executes PAUSE on all my instruments.
+        """
+        self._instruments_execute_agent(command=ResourceAgentEvent.PAUSE,
+                                        expected_state=ResourceAgentState.STOPPED)
+
+    def _instruments_resume(self):
+        """
+        Executes RESUME on all my instruments.
+        """
+        self._instruments_execute_agent(command=ResourceAgentEvent.RESUME,
+                                        expected_state=ResourceAgentState.COMMAND)
+
+    def _instruments_clear(self):
+        """
+        Executes CLEAR on all my instruments.
+        """
+        self._instruments_execute_agent(command=ResourceAgentEvent.CLEAR,
+                                        expected_state=ResourceAgentState.IDLE)
 
     ##############################################################
     # major operations
     ##############################################################
 
-    def _initialize(self):
+    def _initialize(self, recursion):
         """
-        Processes the overall INITIALIZE command: does proper initialization
-        and initializes instruments and sub-platforms, so,
-        the whole network rooted here gets initialized recursively.
+        Dispatches the INITIALIZE command.
+
+        INITIALIZE is dispatched in a top-down fashion:
+        - does proper initialization
+        - initializes instruments and sub-platforms
+
+        @param recursion   True to initialize children.
+
         """
         assert self._plat_config, "platform_config must have been provided"
 
         log.info("%r: _initializing with provided platform_config...",
                  self._plat_config['platform_id'])
 
-        self._do_initialize()
-        # done with the initialization for this particular agent.
+        # first, my own initialization:
+        self._initialize_this_platform()
 
-        if LAUNCH_CHILDREN_ON_START:
-            # children launched in on_start; make sure they are all launched:
-            self._async_children_launched.get(timeout=self._timeout)
-            log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
-                      self._platform_id)
+        # then, children initialization
+        if recursion:
+            # first, handle the launch of the children:
+            if LAUNCH_CHILDREN_ON_START:
+                # children launched in on_start; make sure they are all launched:
+                self._async_children_launched.get(timeout=self._timeout)
+                log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
+                          self._platform_id)
 
-        else:
-            self._children_launch()
+            else:
+                self._children_launch()
 
-        # initialize sub-platforms
-        self._subplatforms_initialize()
+            # initialize sub-platforms
+            self._subplatforms_initialize()
 
-        # initialize instruments
-        self._instruments_initialize()
+            # initialize instruments
+            self._instruments_initialize()
 
         result = None
         return result
 
-    def _go_active(self):
-        # first myself, then sub-platforms
-        self._do_go_active()
-        self._instruments_go_active()
-        self._subplatforms_go_active()
+    def _go_active(self, recursion):
+        """
+        Dispatches the GO_ACTIVE command.
+
+        GO_ACTIVE is dispatched in a top-down fashion:
+        - activates this platform (connects the driver)
+        - if recursion is True, sends GO_ACTIVE to instruments and sub-platforms
+
+        @param recursion   True to activate children.
+        """
+
+        # first myself
+        self._go_active_this_platform()
+
+        # then instruments and sub-platforms
+        if recursion:
+            self._instruments_go_active()
+            self._subplatforms_go_active()
+
         result = None
         return result
 
@@ -1519,10 +1815,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = self._initialize()
-        next_state = PlatformAgentState.INACTIVE
+        recursion = self._get_recursion_parameter("_handler_uninitialized_initialize", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.INACTIVE
+        result = self._initialize(recursion)
+
+        return next_state, result
 
     ##############################################################
     # INACTIVE event handlers.
@@ -1535,15 +1833,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = None
+        recursion = self._get_recursion_parameter("_handler_inactive_reset", args, kwargs)
+
         next_state = PlatformAgentState.UNINITIALIZED
+        result = self._reset(recursion)
 
-        # first sub-platforms, then instruments, then myself
-        self._subplatforms_reset()
-        self._instruments_reset()
-        self._reset()
-
-        return (next_state, result)
+        return next_state, result
 
     def _handler_inactive_go_active(self, *args, **kwargs):
         """
@@ -1552,11 +1847,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
+        recursion = self._get_recursion_parameter("_handler_inactive_reset", args, kwargs)
+
         next_state = PlatformAgentState.IDLE
+        result = self._go_active(recursion)
 
-        result = self._go_active()
-
-        return (next_state, result)
+        return next_state, result
 
     ##############################################################
     # IDLE event handlers.
@@ -1569,15 +1865,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = None
+        recursion = self._get_recursion_parameter("_handler_idle_reset", args, kwargs)
+
         next_state = PlatformAgentState.UNINITIALIZED
+        result = self._reset(recursion)
 
-        # first sub-platforms, then instruments, then myself
-        self._subplatforms_reset()
-        self._instruments_reset()
-        self._reset()
-
-        return (next_state, result)
+        return next_state, result
 
     def _handler_idle_go_inactive(self, *args, **kwargs):
         """
@@ -1586,11 +1879,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
+        recursion = self._get_recursion_parameter("_handler_idle_go_inactive", args, kwargs)
+
         next_state = PlatformAgentState.INACTIVE
+        result = self._go_inactive(recursion)
 
-        result = self._go_inactive()
-
-        return (next_state, result)
+        return next_state, result
 
     def _handler_idle_run(self, *args, **kwargs):
         """
@@ -1599,11 +1893,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
+        recursion = self._get_recursion_parameter("_handler_idle_run", args, kwargs)
+
         next_state = PlatformAgentState.COMMAND
+        result = self._run(recursion)
 
-        result = self._run()
-
-        return (next_state, result)
+        return next_state, result
 
     ##############################################################
     # STOPPED event handlers.
@@ -1617,10 +1912,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.COMMAND
-        result = None
+        recursion = self._get_recursion_parameter("_handler_stopped_resume", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.COMMAND
+        result = self._resume(recursion)
+
+        return next_state, result
 
     def _handler_stopped_clear(self, *args, **kwargs):
         """
@@ -1630,10 +1927,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.IDLE
-        result = None
+        recursion = self._get_recursion_parameter("_handler_stopped_clear", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.IDLE
+        result = self._clear(recursion)
+
+        return next_state, result
 
     ##############################################################
     # COMMAND event handlers.
@@ -1646,16 +1945,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        result = None
+        recursion = self._get_recursion_parameter("_handler_command_reset", args, kwargs)
+
         next_state = PlatformAgentState.UNINITIALIZED
+        result = self._reset(recursion)
 
-        # first sub-platforms, then instruments, then myself
-        self._subplatforms_reset()
-        self._instruments_reset()
-        self._reset()
-
-        return (next_state, result)
-
+        return next_state, result
 
     def _handler_command_clear(self, *args, **kwargs):
         """
@@ -1665,10 +1960,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.IDLE
-        result = None
+        recursion = self._get_recursion_parameter("_handler_command_clear", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.IDLE
+        result = self._clear(recursion)
+
+        return next_state, result
 
     def _handler_command_pause(self, *args, **kwargs):
         """
@@ -1678,10 +1975,12 @@ class PlatformAgent(ResourceAgent):
             log.trace("%r/%s args=%s kwargs=%s",
                 self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        next_state = PlatformAgentState.STOPPED
-        result = None
+        recursion = self._get_recursion_parameter("_handler_command_pause", args, kwargs)
 
-        return (next_state, result)
+        next_state = PlatformAgentState.STOPPED
+        result = self._pause(recursion)
+
+        return next_state, result
 
     ##############################################################
     # Capabilities interface and event handlers.
@@ -2024,6 +2323,24 @@ class PlatformAgent(ResourceAgent):
         return next_state, result
 
     ##############################################################
+    # some common event handlers.
+    ##############################################################
+
+    def _handler_shutdown(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        recursion = self._get_recursion_parameter("_handler_shutdown", args, kwargs)
+
+        next_state = PlatformAgentState.UNINITIALIZED
+        result = self._shutdown(recursion)
+
+        return next_state, result
+
+    ##############################################################
     # Agent parameter functions.
     ##############################################################
 
@@ -2065,9 +2382,11 @@ class PlatformAgent(ResourceAgent):
 
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
+        self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
 
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
+        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
@@ -2078,6 +2397,7 @@ class PlatformAgent(ResourceAgent):
 
         # IDLE state event handlers.
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RESET, self._handler_idle_reset)
+        self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.RUN, self._handler_idle_run)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
@@ -2095,6 +2415,7 @@ class PlatformAgent(ResourceAgent):
         # TODO revisit this when introducing the BUSY state
         for state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             self._fsm.add_handler(state, PlatformAgentEvent.RESET, self._handler_command_reset)
+            self._fsm.add_handler(state, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
             self._fsm.add_handler(state, PlatformAgentEvent.CONNECT_INSTRUMENT, self._handler_connect_instrument)

@@ -1165,19 +1165,22 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         # TODO verify possible subset of required entries in the dict.
         log.info("GET_PORTS = %s", md)
 
-    def _initialize(self):
+    def _initialize(self, recursion=True):
+        kwargs = dict(recursion=recursion)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
-        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
+        cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.INACTIVE)
 
-    def _go_active(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE)
+    def _go_active(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.IDLE)
 
-    def _run(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.RUN)
+    def _run(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
@@ -1205,28 +1208,39 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
-    def _pause(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.PAUSE)
+    def _pause(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.PAUSE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.STOPPED)
 
-    def _resume(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.RESUME)
+    def _resume(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.RESUME, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.COMMAND)
 
-    def _clear(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.CLEAR)
+    def _clear(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.CLEAR, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.IDLE)
 
-    def _go_inactive(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE)
+    def _go_inactive(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.INACTIVE)
 
-    def _reset(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.RESET)
+    def _reset(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.RESET, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+
+    def _shutdown(self, recursion=True):
+        kwargs = dict(recursion=recursion)
+        cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
