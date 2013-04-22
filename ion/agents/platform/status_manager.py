@@ -92,6 +92,9 @@ class StatusManager(object):
         # All EventSubscribers created: {origin: EventSubscriber, ...}
         self._event_subscribers = {}
 
+        # set to False by a call to destroy
+        self._active = True
+
         # RLock to synchronize access to the various mutable variables here.
         self._lock = RLock()
 
@@ -112,6 +115,9 @@ class StatusManager(object):
         Stops all event subscribers and clears self._event_subscribers,
         self.aparam_rollup_status, self.aparam_child_agg_status.
         """
+
+        with self._lock:
+            self._active = False
 
         with self._lock:
             ess = self._event_subscribers.copy()
@@ -245,6 +251,13 @@ class StatusManager(object):
         """
         Handles "device_added" and "device_removed" DeviceStatusEvents.
         """
+
+        with self._lock:
+            if not self._active:
+                log.warn("%r: _got_device_status_event called but "
+                         "manager has been destroyed",
+                         self._platform_id)
+                return
 
         # we are only interested in DeviceStatusEvent directly:
         # (note that also subclasses of DeviceStatusEvent will be notified here)
@@ -436,6 +449,14 @@ class StatusManager(object):
 
         @param evt    DeviceAggregateStatusEvent from child.
         """
+
+        with self._lock:
+            if not self._active:
+                log.warn("%r: _got_device_aggregate_status_event called but "
+                         "manager has been destroyed",
+                         self._platform_id)
+                return
+
         log.debug("%r: _got_device_aggregate_status_event: %s",
                   self._platform_id, evt)
 
