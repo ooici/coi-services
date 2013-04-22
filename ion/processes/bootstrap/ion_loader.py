@@ -77,7 +77,7 @@ from coverage_model.parameter import ParameterContext
 from coverage_model import NumexprFunction, PythonFunction
 
 from interface import objects
-from interface.objects import StreamAlarmType
+from interface.objects import StreamAlertType
 
 
 # format for time values within the preload data
@@ -1906,11 +1906,14 @@ Reason: %s
         DEFINITION category. Load and keep object for reference by other categories. No side effects.
         Keeps alert definition dicts.
         """
+        # Hack so we don't break load work already done.
+        if row['type'] == 'ALERT':
+            row['type'] = 'ALARM'
         # alert is just a dict
         alert = {
             'name': row['name'],
-            'message': row['message'],
-            'alert_type': getattr(StreamAlarmType, row['type'])
+            'description': row['message'],
+            'alert_type': getattr(StreamAlertType, row['type'])
         }
         # add 5 parameters representing the value and range
         alert.update( self._parse_alert_range(row['range']) )
