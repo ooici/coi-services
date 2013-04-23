@@ -28,7 +28,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         # Start container
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        config = dict(op="load", scenario="BETA,NOSE", attachments="res/preload/r2_ioc/attachments", path='master')
+        config = dict(op="load", scenario="BETA,NOSE", attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
         self.pubsub = PubsubManagementServiceClient()
 
