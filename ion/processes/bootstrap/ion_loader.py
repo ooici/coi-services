@@ -77,7 +77,7 @@ from coverage_model.parameter import ParameterContext
 from coverage_model import NumexprFunction, PythonFunction
 
 from interface import objects
-from interface.objects import StreamAlarmType
+from interface.objects import StreamAlertType
 
 
 # format for time values within the preload data
@@ -240,6 +240,7 @@ class IONLoader(ImmediateProcess):
         self.ooiuntil = config.get("ooiuntil", None) # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
+        self.exportui = config.get("exportui", False)  # Save UI JSON file
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -262,15 +263,12 @@ class IONLoader(ImmediateProcess):
 
             self.loadooi = config.get("loadooi", False)    # Import OOI asset data
             self.loadui = config.get("loadui", False)      # Import UI asset data
-            self.exportui = config.get("exportui", False)  # Save UI JSON file
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
             self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
             self.ooiexclude = config.get("ooiexclude", '') # Don't import the listed categories
             if self.ooiexclude:
                 self.ooiexclude = self.ooiexclude.split(',')
-
-
 
             if self.loadooi:
                 self.ooi_loader.extract_ooi_assets()
@@ -1908,11 +1906,14 @@ Reason: %s
         DEFINITION category. Load and keep object for reference by other categories. No side effects.
         Keeps alert definition dicts.
         """
+        # Hack so we don't break load work already done.
+        if row['type'] == 'ALERT':
+            row['type'] = 'ALARM'
         # alert is just a dict
         alert = {
             'name': row['name'],
-            'message': row['message'],
-            'alert_type': getattr(StreamAlarmType, row['type'])
+            'description': row['message'],
+            'alert_type': getattr(StreamAlertType, row['type'])
         }
         # add 5 parameters representing the value and range
         alert.update( self._parse_alert_range(row['range']) )

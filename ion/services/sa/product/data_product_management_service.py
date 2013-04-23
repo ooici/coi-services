@@ -143,9 +143,10 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
-        #self.remove_streams(data_product_id)
-        stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
-        self.clients.pubsub_management.delete_stream(stream_ids[0])
+        stream_ids, assoc_ids = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
+        for stream, assoc in zip(stream_ids,assoc_ids):
+            self.clients.resource_registry.delete_association(assoc)
+            self.clients.pubsub_management.delete_stream(stream_ids[0])
 
         #--------------------------------------------------------------------------------
         # retire the data product

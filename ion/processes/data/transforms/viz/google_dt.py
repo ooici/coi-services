@@ -142,11 +142,15 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             # only consider fields which are allowed.
             if rdt[field] == None:
                 continue
-            if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
-                print ">>>>>>>>>>>>>> DONT KNOW HOW TO HANDLE : ", rdt[field].dtype
-                continue
 
-            if (rdt[field].dtype == 'string'):
+            """
+            if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
+                print ">>>>>>>>>>>>>> DONT KNOW HOW TO HANDLE : ", field, " , Type : ", rdt[field].dtype
+                continue
+            """
+
+            # Handle string type or if its an unknown type, convert to string
+            if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):
                 data_description.append((field, 'string', field ))
             else:
                 data_description.append((field, 'number', field, {'precision':str(precisions[field])} ))
@@ -179,8 +183,11 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                                 varTuple.append(float(rdt[field][i]))
                             else:
                                 varTuple.append(round(float(rdt[field][i]), precisions[field]))
-                    else:
-                        varTuple.append(rdt[field][i])
+
+                    # if field type is string, there are two possibilities. Either it really is a string or
+                    # its an object that needs to be converted to string.
+                    if(field_type == 'string'):
+                        varTuple.append(str(rdt[field][i]))
 
             # Append the tuples to the data table
             if len(varTuple) > 0:

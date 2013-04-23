@@ -50,36 +50,35 @@ class AgentAlertManager(object):
         #init working status
         updated_status = {}
         for aggregate_type in AggregateStatusType._str_map.keys():
-            updated_status[aggregate_type] = DeviceStatusType.STATUS_UNKNOWN
+            updated_status[aggregate_type] = DeviceStatusType.STATUS_OK
 
         for a in self._agent.aparam_alerts:
-            log.debug('_process_aggregate_alerts a: %s', a)
             curr_state = a.get_status()
 
-            #get the current value for this aggregate status
-            current_agg_state = updated_status[ a._aggregate_type ]
-            if a._status:
-                # this alert is not 'tripped' so the status is OK
-                #check behavior here. if there are any unknowns then set to agg satus to unknown?
-                log.debug('_process_aggregate_alerts Clear')
-                if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
-                    updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
+            #if this alert does not contribue to an aggregate type then pass
+            if a._aggregate_type:
 
-            else:
-                #the alert is active, either a warning or an alarm
-                if a._alert_type is StreamAlertType.ALARM:
-                    log.debug('_process_aggregate_alerts Critical')
-                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
-                elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
-                    log.debug('_process_aggregate_alerts Warn')
-                    updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
+                #get the current value for this aggregate status
+                current_agg_state = updated_status[ a._aggregate_type ]
+                if a._status:
+                    # this alert is not 'tripped' so the status is OK
+                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                    if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
+                        updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
+
+                else:
+                    #the alert is active, either a warning or an alarm
+                    if a._alert_type is StreamAlertType.ALARM:
+                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
+                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
+                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
 
         #compare old state with new state and publish alerts for any agg status that has changed.
         for aggregate_type in AggregateStatusType._str_map.keys():
             if updated_status[aggregate_type] != self._agent.aparam_aggstatus[aggregate_type]:
-                log.debug('_process_aggregate_alerts pubevent')
-                self._publish_agg_status_event(aggregate_type, updated_status[aggregate_type],self._agent.aparam_aggstatus[aggregate_type])
+                old_status = self._agent.aparam_aggstatus[aggregate_type]
                 self._agent.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
+                self._publish_agg_status_event(aggregate_type, self._agent.aparam_aggstatus[aggregate_type], old_status)
 
         return
 
