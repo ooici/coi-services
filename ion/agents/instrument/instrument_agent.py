@@ -1268,6 +1268,13 @@ class InstrumentAgent(ResourceAgent):
             log.info('Instrument agent %s restored state %s = %s.',
                      self.id, state, cur_state)
     
+    ##############################################################
+    # On state enter, on command, on command error handlers.
+    ##############################################################    
+
+    def _on_state_enter(self, state):
+        self._aam.process_alerts(state=state)
+
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################
