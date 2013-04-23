@@ -280,6 +280,8 @@ class StatusManager(object):
         Handles "device_added" and "device_removed" DeviceStatusEvents.
         """
 
+        expected_subtypes = ("device_added", "device_removed", "device_failed_command")
+
         with self._lock:
             if not self._active:
                 log.warn("%r: _got_device_status_event called but "
@@ -299,13 +301,16 @@ class StatusManager(object):
         log.debug("%r: _got_device_status_event: %s\n sub_type=%r",
                   self._platform_id, evt, evt.sub_type)
 
-        assert sub_type in ("device_added", "device_removed")
+        assert sub_type in expected_subtypes, \
+            "Unexpected sub_type=%r. Expecting one of %r" % (sub_type, expected_subtypes)
 
         with self._lock:
             if sub_type == "device_added":
                 self._device_added_event(evt)
-            else:
+            elif sub_type == "device_removed":
                 self._device_removed_event(evt)
+            else:
+                self.device_failed_command_event(evt)
 
     def _device_added_event(self, evt):
         """
@@ -441,6 +446,14 @@ class StatusManager(object):
 
         finally:
             del self._event_subscribers[origin]
+
+    def device_failed_command_event(self, evt):
+        """
+        @todo Handles the device_failed_command event
+        """
+        # TODO what should be done?
+        log.debug("%r: device_failed_command_event: evt=%s",
+                  self._platform_id, str(evt))
 
     #-------------------------------------------------------------------
     # supporting methods related with aggregate and rollup status
