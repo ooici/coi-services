@@ -457,3 +457,23 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
             assertions(b.all())
 
         return
+
+    def create_google_dt_workflow_def(self):
+        # Check to see if the workflow defnition already exist
+        workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition, name='Realtime_Google_DT', id_only=True)
+
+        if len(workflow_def_ids) > 0:
+            workflow_def_id = workflow_def_ids[0]
+        else:
+            # Build the workflow definition
+            workflow_def_obj = IonObject(RT.WorkflowDefinition, name='Realtime_Google_DT',description='Convert stream data to Google Datatable')
+
+            #Add a transformation process definition
+            google_dt_procdef_id = self.create_google_dt_data_process_definition()
+            workflow_step_obj = IonObject('DataProcessWorkflowStep', data_process_definition_id=google_dt_procdef_id)
+            workflow_def_obj.workflow_steps.append(workflow_step_obj)
+
+            #Create it in the resource registry
+            workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
+
+        return workflow_def_id
