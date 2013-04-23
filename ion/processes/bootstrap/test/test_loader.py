@@ -219,9 +219,6 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals(True, model.shore_networked)
         self.assertNotEqual('str', model.shore_networked.__class__.__name__)
 
-        # check for data process definition
-        self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)
-
         iai = self.find_object_by_name("Test InstrumentAgentInstance", RT.InstrumentAgentInstance)
         self.assertEqual({'SCHEDULER': {'VERSION': {'number': 3.0}, 'CLOCK_SYNC': 48.2, 'ACQUIRE_STATUS': {}},
                           'PARAMETERS': {"TXWAVESTATS": False, 'TXWAVEBURST': 'false', 'TXREALTIME': True}},

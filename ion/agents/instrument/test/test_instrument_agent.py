@@ -255,7 +255,7 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
     return ia_client
 
-@attr('HARDWARE', group='mi')
+@attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
@@ -1070,7 +1070,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         alert_def1 = {
             'name' : 'temp_warning_interval',
             'stream_name' : 'parsed',
-            'message' : 'Temperature is above normal range.',
+            'description' : 'Temperature is above normal range.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
@@ -1084,7 +1084,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         alert_def2 = {
             'name' : 'temp_alarm_interval',
             'stream_name' : 'parsed',
-            'message' : 'Temperature is way above normal range.',
+            'description' : 'Temperature is way above normal range.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
@@ -2218,7 +2218,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         alert_def1 = {
             'name' : 'temp_warning_interval',
             'stream_name' : 'parsed',
-            'message' : 'Temperature is above normal range.',
+            'description' : 'Temperature is above normal range.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
@@ -2232,7 +2232,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         alert_def2 = {
             'name' : 'temp_alarm_interval',
             'stream_name' : 'parsed',
-            'message' : 'Temperature is way above normal range.',
+            'description' : 'Temperature is way above normal range.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
@@ -2250,7 +2250,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         {
         'name': 'temp_warning_interval',
         'stream_name': 'parsed',
-        'message': 'Temperature is above normal range.',
+        'description': 'Temperature is above normal range.',
         'alert_type': 1,
         'aggregate_type': 2,
         'value_id': 'temp',
@@ -2268,10 +2268,9 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         alert_def3 = {
             'name' : 'late_data_warning',
             'stream_name' : 'parsed',
-            'message' : 'Expected data has not arrived.',
+            'description' : 'Expected data has not arrived.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
-            'value_id' : None,
             'time_delta' : 180,
             'alert_class' : 'LateDataAlert'
         }
@@ -2282,7 +2281,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         {
         'name': 'late_data_warning',
         'stream_name': 'parsed',
-        'message': 'Expected data has not arrived.',
+        'description': 'Expected data has not arrived.',
         'alert_type': 1,
         'aggregate_type': 1,
         'value_id': None,
@@ -2293,10 +2292,48 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         'value': None
         }
         """
-
+        
+        """
+        [
+            {'status': None,
+            'alert_type': 1,
+            'name': 'temp_warning_interval',
+            'upper_bound': 10.5,
+            'lower_bound': None,
+            'aggregate_type': 2,
+            'alert_class': 'IntervalAlert',
+            'value': None,
+            'value_id': 'temp',
+            'lower_rel_op': None,
+            'upper_rel_op': '<',
+            'description': 'Temperature is above normal range.'},
+            {'status': None,
+            'alert_type': 1,
+            'name': 'temp_alarm_interval',
+            'upper_bound': 15.5,
+            'lower_bound': None,
+            'aggregate_type': 2,
+            'alert_class': 'IntervalAlert',
+            'value': None,
+            'value_id': 'temp',
+            'lower_rel_op': None,
+            'upper_rel_op': '<',
+            'description': 'Temperature is way above normal range.'},
+            {'status': None,
+             'stream_name': 'parsed',
+             'alert_type': 1,
+             'name': 'late_data_warning',
+             'aggregate_type': 1,
+             'alert_class': 'LateDataAlert',
+             'value': None,
+             'time_delta': 180,
+             'description': 'Expected data has not arrived.'}
+        ]
+        """
+        
         orig_alerts = [alert_def1, alert_def2, alert_def3]
         self._ia_client.set_agent({'alerts' : orig_alerts})
-        
+    
         retval = self._ia_client.get_agent(['alerts'])['alerts']
         self.assertTrue(len(retval)==3)
         alerts = retval
@@ -2323,4 +2360,4 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-
+        

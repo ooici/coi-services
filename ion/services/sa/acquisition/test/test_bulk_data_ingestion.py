@@ -378,7 +378,17 @@ class TestBulkIngest(IonIntegrationTestCase):
         self.EDA_NAME = ds_name
 
 class BulkIngestBase(object):
+    """
+    awkward, non-obvious test class!  subclasses will implement data-specific methods and
+    this test class will parse sample file and assert data was read.
 
+    test_data_ingest: create resources and call...
+        start_agent: starts agent and then call...
+            start_listener: starts listeners for data, including one that when granule is received calls...
+                get_retrieve_client: asserts that callback had some data
+
+    See replacement TestPreloadThenLoadDataset.  A little more declarative and straight-forward, but much slower (requires preload).
+    """
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')

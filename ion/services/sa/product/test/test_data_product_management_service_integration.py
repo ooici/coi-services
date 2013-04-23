@@ -293,8 +293,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.dpsc_cli.delete_data_product(dp_id)
 
         # Assert that there are no associated streams leftover after deleting the data product
-        stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, RT.Stream, True)
+        stream_ids, assoc_ids = self.rrclient.find_objects(dp_id, PRED.hasStream, RT.Stream, True)
         self.assertEquals(len(stream_ids), 0)
+        self.assertEquals(len(assoc_ids), 0)
 
         self.dpsc_cli.force_delete_data_product(dp_id)
 

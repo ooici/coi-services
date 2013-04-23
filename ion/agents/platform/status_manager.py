@@ -92,6 +92,9 @@ class StatusManager(object):
         # All EventSubscribers created: {origin: EventSubscriber, ...}
         self._event_subscribers = {}
 
+        # set to False by a call to destroy
+        self._active = True
+
         # RLock to synchronize access to the various mutable variables here.
         self._lock = RLock()
 
@@ -112,6 +115,9 @@ class StatusManager(object):
         Stops all event subscribers and clears self._event_subscribers,
         self.aparam_rollup_status, self.aparam_child_agg_status.
         """
+
+        with self._lock:
+            self._active = False
 
         with self._lock:
             ess = self._event_subscribers.copy()
@@ -169,6 +175,34 @@ class StatusManager(object):
                    values=values)
         try:
             log.debug('%r: publish_device_removed_event for %r: %s',
+                      self._platform_id, sub_resource_id, evt)
+
+            self._event_publisher.publish_event(**evt)
+
+        except:
+            log.exception('%r: platform agent could not publish event: %s',
+                          self._platform_id, evt)
+
+    def publish_device_failed_command_event(self, sub_resource_id, cmd, err_msg):
+        """
+        PlatformAgent calls this method to publish a DeviceStatusEvent
+        indicating that the given child failed to complete the given command.
+
+        @param sub_resource_id   resource id of child (included in values)
+        @param cmd               command (included in description)
+        @param err_msg           error message (included in description)
+        """
+
+        values = [sub_resource_id]
+        description = "cmd=%r; err_msg=%r" % (str(cmd), err_msg)
+        evt = dict(event_type='DeviceStatusEvent',
+                   sub_type="device_failed_command",
+                   origin_type="PlatformDevice",
+                   origin=self.resource_id,
+                   values=values,
+                   description=description)
+        try:
+            log.debug('%r: publish_device_failed_command_event for %r: %s',
                       self._platform_id, sub_resource_id, evt)
 
             self._event_publisher.publish_event(**evt)
@@ -246,6 +280,15 @@ class StatusManager(object):
         Handles "device_added" and "device_removed" DeviceStatusEvents.
         """
 
+        expected_subtypes = ("device_added", "device_removed", "device_failed_command")
+
+        with self._lock:
+            if not self._active:
+                log.warn("%r: _got_device_status_event called but "
+                         "manager has been destroyed",
+                         self._platform_id)
+                return
+
         # we are only interested in DeviceStatusEvent directly:
         # (note that also subclasses of DeviceStatusEvent will be notified here)
         if evt.type_ != "DeviceStatusEvent":
@@ -258,13 +301,16 @@ class StatusManager(object):
         log.debug("%r: _got_device_status_event: %s\n sub_type=%r",
                   self._platform_id, evt, evt.sub_type)
 
-        assert sub_type in ("device_added", "device_removed")
+        assert sub_type in expected_subtypes, \
+            "Unexpected sub_type=%r. Expecting one of %r" % (sub_type, expected_subtypes)
 
         with self._lock:
             if sub_type == "device_added":
                 self._device_added_event(evt)
-            else:
+            elif sub_type == "device_removed":
                 self._device_removed_event(evt)
+            else:
+                self.device_failed_command_event(evt)
 
     def _device_added_event(self, evt):
         """
@@ -401,6 +447,14 @@ class StatusManager(object):
         finally:
             del self._event_subscribers[origin]
 
+    def device_failed_command_event(self, evt):
+        """
+        @todo Handles the device_failed_command event
+        """
+        # TODO what should be done?
+        log.debug("%r: device_failed_command_event: evt=%s",
+                  self._platform_id, str(evt))
+
     #-------------------------------------------------------------------
     # supporting methods related with aggregate and rollup status
     #-------------------------------------------------------------------
@@ -436,6 +490,14 @@ class StatusManager(object):
 
         @param evt    DeviceAggregateStatusEvent from child.
         """
+
+        with self._lock:
+            if not self._active:
+                log.warn("%r: _got_device_aggregate_status_event called but "
+                         "manager has been destroyed",
+                         self._platform_id)
+                return
+
         log.debug("%r: _got_device_aggregate_status_event: %s",
                   self._platform_id, evt)
 

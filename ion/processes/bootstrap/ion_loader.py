@@ -42,7 +42,6 @@
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
 
 
-import logging
 import simplejson as json
 import datetime
 import ast
@@ -77,8 +76,10 @@ from coverage_model.parameter import ParameterContext
 from coverage_model import NumexprFunction, PythonFunction
 
 from interface import objects
-from interface.objects import StreamAlarmType
+from interface.objects import StreamAlertType
 
+from ooi.timer import Accumulator, Timer
+stats = Accumulator(persist=False)
 
 # format for time values within the preload data
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
@@ -96,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEtGVFhmOU1TXzlxSWNzTWd2dXBKTmc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidGg4dVRoS2NBdUxQeXhtb0VrZEp6eXc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -223,7 +224,7 @@ class IONLoader(ImmediateProcess):
         op = config.get("op", None)
 
         # Additional parameters
-        self.path = config.get("path", TESTED_DOC)
+        self.path = config.get("path", None) or TESTED_DOC # handle case where path is explicitly set to None
         if self.path=='master':
             self.path = MASTER_DOC
         self.attachment_path = config.get("attachments", self.path + '/attachments')
@@ -240,6 +241,7 @@ class IONLoader(ImmediateProcess):
         self.ooiuntil = config.get("ooiuntil", None) # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
+        self.exportui = config.get("exportui", False)  # Save UI JSON file
 
         # External loader tools
         self.ui_loader = UILoader(self)
@@ -262,15 +264,12 @@ class IONLoader(ImmediateProcess):
 
             self.loadooi = config.get("loadooi", False)    # Import OOI asset data
             self.loadui = config.get("loadui", False)      # Import UI asset data
-            self.exportui = config.get("exportui", False)  # Save UI JSON file
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
             self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
             self.ooiexclude = config.get("ooiexclude", '') # Don't import the listed categories
             if self.ooiexclude:
                 self.ooiexclude = self.ooiexclude.split(',')
-
-
 
             if self.loadooi:
                 self.ooi_loader.extract_ooi_assets()
@@ -456,6 +455,7 @@ class IONLoader(ImmediateProcess):
         count = len(self.categories)
         index = 0
         for category in self.categories:
+            t = Timer() if stats.is_log_enabled() else None
             index += 1
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
@@ -465,12 +465,11 @@ class IONLoader(ImmediateProcess):
                 if catfunc_ooi:
                     log.debug('Loading OOI assets for %s', category)
                     catfunc_ooi()
-
+                if t:
+                    t.complete_step('preload.%s.catfunc'%category)
             # Now load entries from preload spreadsheet top to bottom where scenario matches
             if category not in self.object_definitions or not self.object_definitions[category]:
                 log.debug('no rows for category: %s', category)
-            else:
-                log.info("Loading category %d/%d: %s", index, count, category)
 
             for row in self.object_definitions.get(category, []):
                 if COL_ID in row:
@@ -485,6 +484,8 @@ class IONLoader(ImmediateProcess):
                     raise
 
             row_count = len(self.object_definitions.get(category,[]))
+            if t:
+                t.complete_step('preload.%s.load_row'%category)
             if self.bulk:
                 num_bulk = self._finalize_bulk(category)
                 # Update resource and associations views
@@ -492,8 +493,13 @@ class IONLoader(ImmediateProcess):
                 self.container.resource_registry.find_associations(predicate="X", id_only=True)
                 # should we assert that num_bulk==row_count??
                 log.info("bulk loaded category %s: %d rows, %s bulk", category, row_count, num_bulk)
+                if t:
+                    t.complete_step('preload.%s.bulk_load'%category)
             else:
-                log.info("loaded category %s: %d rows", category, row_count)
+                log.info("loaded category %s (%d/%d): %d rows", category, index, count, row_count)
+            if t:
+                stats.add(t)
+                stats.add_value('preload.%s.row_count'%category, row_count)
 
     def load_row(self, type, row):
         """ expose for use by utility function """
@@ -1908,11 +1914,14 @@ Reason: %s
         DEFINITION category. Load and keep object for reference by other categories. No side effects.
         Keeps alert definition dicts.
         """
+        # Hack so we don't break load work already done.
+        if row['type'] == 'ALERT':
+            row['type'] = 'ALARM'
         # alert is just a dict
         alert = {
             'name': row['name'],
-            'message': row['message'],
-            'alert_type': getattr(StreamAlarmType, row['type'])
+            'description': row['message'],
+            'alert_type': getattr(StreamAlertType, row['type'])
         }
         # add 5 parameters representing the value and range
         alert.update( self._parse_alert_range(row['range']) )
@@ -1990,19 +1999,22 @@ Reason: %s
 
                 self._load_InstrumentAgent(newrow)
 
+    def _load_ExternalDatasetAgentInstance_OOI(self, row): pass
+    def _load_ExternalDatasetAgent_OOI(self, row): pass
+    def _load_ExternalDataset_OOI(self, row): pass
+    def _load_ExternalDatasetModel_OOI(self, row): pass
+    def _load_ExternalDataProvider_OOI(self, row): pass
+
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
         if len(contacts) > 1:
             raise iex.BadRequest('External dataset %s has too many contacts (should be 1)' % row[COL_ID])
         contact = contacts[0] if len(contacts)==1 else None
         institution = self._create_object_from_row("Institution", row, "i/")
-        provider = self._create_object_from_row(RT.ExternalDataProvider, row, prefix='p/')
-        provider.alt_ids = ['PRE:'+row[COL_ID]]
-        provider.contact = contact
-        provider.institution = institution
-        id = self._get_service_client('data_acquisition_management').create_external_data_provider(external_data_provider=provider)
-        provider._id = id
-        self._register_id(row['ID'], id, provider)
+
+        self._basic_resource_create(row, "ExternalDataProvider", "p/",
+            "data_acquisition_management", "create_external_data_provider",
+            set_attributes=dict(institution=institution, contact=contact))
 
     def _load_ExternalDatasetModel(self, row):
         # ID, lcstate, name, description, dataset_type
@@ -2057,11 +2069,11 @@ Reason: %s
         # but some are handler-specific, others seem just for testing
         # TODO: come back and look again when trying to start this process
         driver_config.update( {
-            'dvr_mod' : agent.handler_module,
-            'dvr_cls' : agent.handler_class,
+            'dvr_mod' : row['handler_module'],
+            'dvr_cls' : row['handler_class'],
             'dh_cfg': {
-#                'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
-#                'parser_cls': 'HYPM_01_WFP_CTDParser',
+                'parser_mod': row['parser_module'],
+                'parser_cls': row['parser_class'],
                 #'TESTING':True,
                 'stream_def': streamdef_id,
 #                'stream_id':stream_id,
@@ -2072,7 +2084,7 @@ Reason: %s
             } )
         agent_config.update( {
             'driver_config' : driver_config,
-            'stream_config' : {},
+            'stream_config' : { }, #'a': 'ion_loader:1933'},
             'agent'         : {'resource_id': dataset._id},
             #'test_mode' : True
         } )
@@ -2283,8 +2295,6 @@ Reason: %s
             res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
-        # HACK: cannot parse CSV value directly when field defined as "list"
-        # need to evaluate as simplelist instead and add to object explicitly
 
         headers = self._get_op_headers(row)
 

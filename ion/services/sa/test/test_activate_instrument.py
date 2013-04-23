@@ -392,60 +392,9 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         gevent.joinall([gevent.spawn(start_instrument_agent)])
 
 
-        #setup a subscriber to alarm events from the device
-        self._events_received= []
-        self._async_sample_result = AsyncResult()
-        self._agg_event_recieved = False
-        self._alert_event_recieved = False
-
-        def consume_event(*args, **kwargs):
-            log.debug('TestActivateInstrument recieved ION event: args=%s, kwargs=%s, event=%s.',
-                str(args), str(kwargs), str(args[0]))
-            self._events_received.append(args[0])
-
-            event = args[0]
-            log.debug('TestActivateInstrument consume_event event: %s', event)
-
-            if event.type_ is 'StreamAlertEvent':
-                self._alert_event_recieved = True
-            elif event.type_ is 'DeviceAggregateStatusEvent':
-                self._agg_event_recieved = True
-
-            #check that the current agg status matches the event sub_type
-            retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
-            log.debug('TestActivateInstrument consume_event aggStatus: %s', retval)
-            if event.sub_type == 'WARNING':
-                self.assertEqual(DeviceStatusType.STATUS_WARNING, retval[AggregateStatusType.AGGREGATE_DATA])
-            elif event.sub_type == 'ALL_CLEAR':
-                self.assertEqual(DeviceStatusType.STATUS_OK, retval[AggregateStatusType.AGGREGATE_DATA])
-
-            #once the alert is recived and the aggregate status is also received then finish
-            if self._agg_event_recieved and self._alert_event_recieved:
-                self._async_sample_result.set()
-
-
-        self._event_subscriber = EventSubscriber(
-            event_type= 'StreamAlertEvent',
-            callback=consume_event,
-            origin=instDevice_id)
-        self._event_subscriber.start()
-
-        self._event_subscriber = EventSubscriber(
-            event_type= 'DeviceAggregateStatusEvent',
-            callback=consume_event,
-            origin=instDevice_id)
-        self._event_subscriber.start()
-
-
         #cleanup
         self.addCleanup(self.imsclient.stop_instrument_agent_instance,
                         instrument_agent_instance_id=instAgentInstance_id)
-
-        def stop_subscriber():
-            self._event_subscriber.stop()
-            self._event_subscriber = None
-
-        self.addCleanup(stop_subscriber)
 
 
         #wait for start

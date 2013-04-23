@@ -163,6 +163,7 @@ class OmsTestMixin(HelperTestMixin):
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
             self.assertTrue('network' in info)
+            self.assertTrue('is_on' in info)
 
     def test_ak_get_platform_ports_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID

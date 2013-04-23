@@ -32,7 +32,6 @@ INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
 AGENT_STATUS_EVENT_DELTA_DAYS = 5
-LOGICAL_TRANSFORM_DEFINITION_NAME = "Logical Transform Definition" # defined in preload
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
 

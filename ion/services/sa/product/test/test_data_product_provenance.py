@@ -1,4 +1,3 @@
-from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 from pyon.public import  log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -60,13 +59,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         self.dataset_management = DatasetManagementServiceClient()
 
-        # create missing data process definition
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
-                            description="normally in preload",
-                            module='ion.processes.data.transforms.logical_transform',
-                            class_name='logical_transform')
-        self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         # deactivate all data processes when tests are complete
         def killAllDataProcesses():
@@ -243,7 +235,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         log_data_product_id = self.dpmsclient.create_data_product(dp_obj, parsed_stream_def_id)
-        self.omsclient.create_site_data_product(instrument_site_id, log_data_product_id)
 
 
         #-------------------------------

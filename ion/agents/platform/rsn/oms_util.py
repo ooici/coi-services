@@ -103,6 +103,7 @@ class RsnOmsUtil(object):
             ports = port_infos[platform_id]
             for port_id, dic in ports.iteritems():
                 port = PortNode(port_id, dic['network'])
+                port.set_on(dic['is_on'])
                 pnode.add_port(port)
 
                 # add connected instruments:

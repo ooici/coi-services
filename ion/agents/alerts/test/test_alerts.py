@@ -25,19 +25,20 @@ import gevent
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
+import unittest
 
 # Event pubsub support.
 from pyon.event.event import EventSubscriber
 
 # Alarm types and events.
-from interface.objects import StreamAlertType
+from interface.objects import StreamAlertType, AggregateStatusType
 
 # Alarm objects.
 from pyon.public import IonObject
 from ion.agents.alerts.alerts import *
 
 # Resource agent.
-from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentState, ResourceAgentEvent
 
 """
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts
@@ -45,6 +46,8 @@ bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAle
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_less_than_interval
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_two_sided_interval
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_late_data
+bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_state_alert
+bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_command_error_alert
 """
 
 @attr('INT', group='sa')
@@ -81,7 +84,7 @@ class TestAlerts(IonIntegrationTestCase):
             
             
         self._event_subscriber = EventSubscriber(
-            event_type='StreamAlertEvent', callback=consume_event,
+            event_type='DeviceStatusAlertEvent', callback=consume_event,
             origin=self._resource_id)
         
         self._event_subscriber.start()
@@ -102,12 +105,13 @@ class TestAlerts(IonIntegrationTestCase):
         """
         alert_def = {
             'name' : 'current_warning_interval',
-            'stream_name' : 'fakestreamname',
-            'message' : 'Current is above normal range.',
+            'description' : 'Current is above normal range.',
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'alert_type' : StreamAlertType.WARNING,
-            'value_id' : 'port_current',
             'resource_id' : self._resource_id,
             'origin_type' : self._origin_type,
+            'stream_name' : 'fakestreamname',
+            'value_id' : 'port_current',
             'lower_bound' : 10.5,
             'lower_rel_op' : '<',
             'upper_bound' : None,
@@ -140,14 +144,13 @@ class TestAlerts(IonIntegrationTestCase):
             alert.eval_alert(stream_name='fakestreamname',
                              value=x, value_id='port_current')
 
-        self._async_event_result.get(timeout=30)
-
+        self._async_event_result.get(timeout=30)        
         """
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 30, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': '513d65cddb1d4947ab4179b047f2c8ed', 'ts_created': '1363389051198', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 5.5, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': '4812fdb9403c4a929d9d4506404b9379', 'ts_created': '1363389051204', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 15.1, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': '3b8fba21abb14bcebdaa4882ced2edcb', 'ts_created': '1363389051213', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 3.3, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': '44506d0c78964d69911f7f81d2e7a9f1', 'ts_created': '1363389051220', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 15.0, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is above normal range.', '_id': '142c64e105244e0581fe4c9e8b08f8e3', 'ts_created': '1363389051226', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '04ccd20d67574b2ea3df869f2b6d4123', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [30], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659152082', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '050d2c66eb47435888ecab9d58399922', 'description': 'Current is above normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [5.5], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659152089', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '3294c5f7e2be413c806604e93b69e973', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [15.1], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659152095', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '99a98e19a1454740a8464dab8de4dc0e', 'description': 'Current is above normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [3.3], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659152101', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '93a214ee727e424e8b6a7e024a4d89be', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [15.0], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659152108', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
         """
 
     def test_less_than_interval(self):
@@ -156,7 +159,7 @@ class TestAlerts(IonIntegrationTestCase):
         alert_def = {
             'name' : 'current_warning_interval',
             'stream_name' : 'fakestreamname',
-            'message' : 'Current is below normal range.',
+            'description' : 'Current is below normal range.',
             'alert_type' : StreamAlertType.WARNING,
             'value_id' : 'port_current',
             'resource_id' : self._resource_id,
@@ -186,13 +189,13 @@ class TestAlerts(IonIntegrationTestCase):
             alert.eval_alert(stream_name='fakestreamname',
                              value=x, value_id='port_current')
 
-        self._async_event_result.get(timeout=30)
+        self._async_event_result.get(timeout=30)        
         """
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 5.5, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': 'e672da7a7f1f4d24b06eb4547d3f9f3f', 'ts_created': '1363389965362', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 3.3, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': '298c0d904a9c497dae9e8dad6c6d128d', 'ts_created': '1363389965367', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 4.5, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': '945d5c194dcb4293aa6df24fb3694642', 'ts_created': '1363389965374', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 3.3, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': 'b7e96a949d3a46d5bce420c96642c53c', 'ts_created': '1363389965380', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 4.8, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': '28cc193567f341e58fcb27d519f96c65', 'ts_created': '1363389965386', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '43c83af591a84fa3adc3a77a5d97ed2b', 'description': 'Current is below normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [5.5], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659238728', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '36c45d09286d4ff38f5003ff97bef6a1', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [3.3], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659238735', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': 'd004b9c2d50f4b9899d6fbdd3c8c50d2', 'description': 'Current is below normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [4.5], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659238741', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': 'cb0cbaf1be0b4aa387e1a5ba4f1adb2c', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [3.3], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659238747', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': 'd4f6e4b4105e494083a0f8e34362f275', 'description': 'Current is below normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [4.8], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659238754', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
         """
         
     def test_two_sided_interval(self):
@@ -201,7 +204,7 @@ class TestAlerts(IonIntegrationTestCase):
         alert_def = {
             'name' : 'current_warning_interval',
             'stream_name' : 'fakestreamname',
-            'message' : 'Current is below normal range.',
+            'description' : 'Current is outside normal range.',
             'alert_type' : StreamAlertType.WARNING,
             'value_id' : 'port_current',
             'resource_id' : self._resource_id,
@@ -232,13 +235,13 @@ class TestAlerts(IonIntegrationTestCase):
             event_data = alert.eval_alert(stream_name='fakestreamname',
                                           value=x, value_id='port_current')
 
-        self._async_event_result.get(timeout=30)
+        self._async_event_result.get(timeout=30)        
         """
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 5.5, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': '631f52d6c22d4861b93255d4bbd41f3a', 'ts_created': '1363389925804', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 10.2, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': 'dd0d081e70404babafaa5da2ac602505', 'ts_created': '1363389925809', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 23.3, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': 'd1848f80e8494ce7b8c3db585a326ad3', 'ts_created': '1363389925815', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.ALL_CLEAR', 'value': 17.5, 'type_': 'StreamAllClearAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': '9d461495cc9642648284c7c261f396b3', 'ts_created': '1363389925821', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
-        {'origin': 'abc123', 'stream_name': 'fakestreamname', 'description': '', 'type': 'StreamAlertType.WARNING', 'value': 8.8, 'type_': 'StreamWarningAlertEvent', 'value_id': '', 'base_types': ['StreamAlertEvent', 'ResourceEvent', 'Event'], 'message': 'Current is below normal range.', '_id': 'fabe8864598b41e3ae538817ca5c9300', 'ts_created': '1363389925828', 'sub_type': '', 'origin_type': '', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '45296cc01f3d42c59e1aeded4fafb33d', 'description': 'Current is outside normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [5.5], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659411921', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': 'd1a87a248f6640ceafdf8d09b66f4c6f', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [10.2], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659411927', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': 'e9945ff47b79436096f67ba9d373a889', 'description': 'Current is outside normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [23.3], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659411934', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': '649f5297997740dc83b39d23b6fbc5b9', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [17.5], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659411940', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
+        {'origin': 'abc123', 'status': 1, '_id': 'c766e52fda05497f9e4a18024e4eb0d6', 'description': 'Current is outside normal range.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [8.8], 'value_id': 'port_current', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659411947', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'current_warning_interval'}
         """
         
     def test_late_data(self):
@@ -251,7 +254,7 @@ class TestAlerts(IonIntegrationTestCase):
         alert_def = {
             'name' : 'late_data_warning',
             'stream_name' : 'fakestreamname',
-            'message' : 'Expected data has not arrived.',
+            'description' : 'Expected data has not arrived.',
             'alert_type' : StreamAlertType.WARNING,
             'value_id' : None,
             'resource_id' : self._resource_id,
@@ -283,16 +286,23 @@ class TestAlerts(IonIntegrationTestCase):
             gevent.sleep(x)
 
         self._async_event_result.get(timeout=30)
-        
+        """
+        {'origin': 'abc123', 'status': 1, '_id': '455f5916fbf845acb0f71da229fa46a4', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [1366659773.60301], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659773603', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'late_data_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '01b74790959d40c99da09fd1e52b447f', 'description': 'Expected data has not arrived.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [1366659785.624983], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659791612', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'late_data_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'db73d083bddc4ebbb4dd4e6541d70bf3', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [1366659795.625946], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659795626', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'late_data_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'ddd501a1599f47a49886ff89cda2f980', 'description': 'Expected data has not arrived.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [1366659806.649514], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659812631', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'late_data_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '0c1dda72a53c47908c2755dfdcf87d15', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [1366659816.650299], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659816651', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'late_data_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '6b0f2fb6eedd4cc39ab3e6dc6c2c2d69', 'description': 'Expected data has not arrived.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [1366659832.673774], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': 'fakestreamname', 'ts_created': '1366659836651', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'late_data_warning'}
+        """        
         alert.stop()
 
-
+    @unittest.skip('Waiting to be finished and verified.')
     def test_rsn_event_alert(self):
         """
         """
         alert_def = {
             'name' : 'input_voltage',
-            'message' : 'input_voltage is not in range range.',
+            'description' : 'input_voltage is not in range range.',
             'alert_type' : StreamAlertType.WARNING,
             'value_id' : 'input_voltage',
             'resource_id' : self._resource_id,
@@ -346,7 +356,7 @@ class TestAlerts(IonIntegrationTestCase):
         "url": "http://localhost:8000",
         "ref_id": "44.78",
         "platform_id": "e88f8b325b274dafabcc7d7d1e85bc5d",
-        "message": "low battery (synthetic event generated from simulator)"
+        "description": "low battery (synthetic event generated from simulator)"
         }
 
         alert.eval_alert(rsn_alert=test_val)
@@ -356,3 +366,128 @@ class TestAlerts(IonIntegrationTestCase):
 
         #self._async_event_result.get(timeout=30)
 
+    def test_state_alert(self):
+        """
+        """
+        alert_def = {
+            'name' : 'comms_warning',
+            'description' : 'Detected comms failure.',
+            'alert_type' : StreamAlertType.WARNING,
+            'resource_id' : self._resource_id,
+            'origin_type' : self._origin_type,
+            'alert_states' : [
+                ResourceAgentState.LOST_CONNECTION,
+                ResourceAgentState.ACTIVE_UNKNOWN
+                              ],
+            'clear_states' : [
+                ResourceAgentState.IDLE,
+                ResourceAgentState.COMMAND,
+                ResourceAgentState.STREAMING
+                ],
+            'alert_class' : 'StateAlert'
+        }
+
+        cls = alert_def.pop('alert_class')
+        alert = eval('%s(**alert_def)' % cls)
+
+        status = alert.get_status()
+
+        # This sequence will produce 5 alerts:
+        # All clear on uninitialized (prev value None)
+        # Warning on lost connection,
+        # All clear on streaming,
+        # Warning on lost connection,
+        # All clear on idle.
+        self._event_count = 5
+        test_vals = [
+            ResourceAgentState.UNINITIALIZED,
+            ResourceAgentState.INACTIVE,
+            ResourceAgentState.IDLE,
+            ResourceAgentState.COMMAND,
+            ResourceAgentState.STREAMING,
+            ResourceAgentState.LOST_CONNECTION,
+            ResourceAgentState.STREAMING,
+            ResourceAgentState.LOST_CONNECTION,
+            ResourceAgentState.UNINITIALIZED,
+            ResourceAgentState.INACTIVE,
+            ResourceAgentState.IDLE,
+            ResourceAgentState.COMMAND,
+            ResourceAgentState.STREAMING
+            ]
+
+
+        for x in test_vals:
+            alert.eval_alert(state=x)
+
+        self._async_event_result.get(timeout=30)        
+        """
+        {'origin': 'abc123', 'status': 1, '_id': '36e733662e674388ba2cfb8165315b86', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_UNINITIALIZED'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366659466203', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'ee9578bd37ed45c088479131f4b71509', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_LOST_CONNECTION'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366659466210', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '237db9d3bb8e455a98e58429df6c08ea', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_STREAMING'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366659466216', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'bef0987444254adb9db8fa752b2e1c81', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_LOST_CONNECTION'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366659466222', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '4d78cede6e01419a881eac288cf1dbd3', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_IDLE'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366659466229', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        """
+        
+    def test_command_error_alert(self):
+        """
+        """
+        alert_def = {
+            'name' : 'comms_warning',
+            'description' : 'Detected comms failure.',
+            'alert_type' : StreamAlertType.WARNING,
+            'resource_id' : self._resource_id,
+            'origin_type' : self._origin_type,
+            'command' : ResourceAgentEvent.GO_ACTIVE,
+            'clear_states' : [
+                ResourceAgentState.IDLE,
+                ResourceAgentState.COMMAND,
+                ResourceAgentState.STREAMING
+                ],
+            'alert_class' : 'CommandErrorAlert'
+        }
+
+        cls = alert_def.pop('alert_class')
+        alert = eval('%s(**alert_def)' % cls)
+
+        status = alert.get_status()
+
+        # This sequence will produce 5 alerts:
+        # All clear on initialize success (prev value None)
+        # Warning on go active failure,
+        # All clear on go active success,
+        # Warning on go active failure
+        # All clear on transition to idle (reconnect)
+        self._event_count = 5
+        test_vals = [
+            {'state': ResourceAgentState.UNINITIALIZED },
+            {'command': ResourceAgentEvent.INITIALIZE, 'command_success': True},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.GO_ACTIVE, 'command_success': False},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.RESET, 'command_success': True},
+            {'state': ResourceAgentState.UNINITIALIZED },
+            {'command': ResourceAgentEvent.INITIALIZE, 'command_success': True},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.GO_ACTIVE, 'command_success': True},
+            {'state': ResourceAgentState.IDLE },
+            {'command': ResourceAgentEvent.RESET, 'command_success': True},
+            {'state': ResourceAgentState.UNINITIALIZED },
+            {'command': ResourceAgentEvent.INITIALIZE, 'command_success': True},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.GO_ACTIVE, 'command_success': False},
+            {'state': ResourceAgentState.INACTIVE },
+            {'state': ResourceAgentState.IDLE }
+        ]
+
+        for x in test_vals:
+            alert.eval_alert(**x)
+
+        self._async_event_result.get(timeout=30)            
+        """
+        {'origin': 'abc123', 'status': 1, '_id': '44ec7f5452004cceb3d8dbaa941f08ef', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538561', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'ae33b508a3d845feacd05d9d25992924', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538571', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'f9eb2f3c477c46f1af0076fd4eab58f1', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538579', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '23153a1c48de4f25bce6f84cfab8444a', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538586', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '18b85d52ac1a438a9f5f8e69e5f4f6e8', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538592', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        """
+        

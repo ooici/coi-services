@@ -31,31 +31,22 @@ from pyon.agent.agent import ResourceAgentState
 
 class BaseAlert(object):
     """
+    Base class for all alert types.
     """
-    def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
-                 value_id=None, resource_id=None, origin_type=None, aggregate_type=None):
+    def __init__(self, name=None, description=None, alert_type=None,
+                 resource_id=None, origin_type=None, aggregate_type=None):
         assert isinstance(name, str)
-        assert isinstance(stream_name, str)
         assert alert_type in StreamAlertType._str_map.keys()
-        
-        if alert_type == StreamAlertType.ALL_CLEAR:
-            message == 'Alert is cleared.'
-        else:
-            assert isinstance(message, str)
-
-        if aggregate_type:
+        assert isinstance(description, str)
+        if aggregate_type != None:
             assert aggregate_type in AggregateStatusType._str_map.keys()
-
-        if value_id: assert isinstance(value_id, str)
         assert isinstance(resource_id, str)
         assert isinstance(origin_type, str)
         
         self._name = name
-        self._stream_name = stream_name
-        self._message = message
+        self._description = description
         self._alert_type = alert_type
         self._aggregate_type = aggregate_type
-        self._value_id = value_id        
         self._resource_id = resource_id
         self._origin_type = origin_type
         
@@ -65,14 +56,13 @@ class BaseAlert(object):
 
     def get_status(self):
         """
+        Base get_status returns the common members.
         """        
         status = {
             'name' : self._name,
-            'stream_name' : self._stream_name,
-            'message' : self._message,
+            'description' : self._description,
             'alert_type' : self._alert_type,
             'aggregate_type' : self._aggregate_type,
-            'value_id' : self._value_id,
             'alert_class' : self.__class__.__name__,
             'value' : self._current_value,
             'status' : self._status
@@ -82,53 +72,105 @@ class BaseAlert(object):
 
     def make_event_data(self):
         """
+        Make data event creates an event dict for publishing.
         """
         event_data = {
             'name' : self._name,
-            'stream_name' : self._stream_name,
-            'message' : self._message,
-            'value' : self._current_value,
-            'event_type' : 'StreamAlertEvent',
+            'description' : self._description,
+            'values' : [self._current_value],
+            'event_type' : 'DeviceStatusAlertEvent',
             'origin' : self._resource_id,
             'origin_type' : self._origin_type
         }
         
         if self._status:
-            event_data['sub_type'] = 'ALL_CLEAR'
+            event_data['sub_type'] = StreamAlertType.ALL_CLEAR
+            event_data['description'] = 'The alert is cleared.'
             
         elif self._alert_type == StreamAlertType.WARNING:
-            event_data['sub_type'] = 'WARNING'
+            event_data['sub_type'] = StreamAlertType.WARNING
         
         elif self._alert_type == StreamAlertType.ALERT:
-            event_data['sub_type'] = 'ALERT'    
+            event_data['sub_type'] = StreamAlertType.ALERT
 
         return event_data
 
     def publish_alert(self):
         """
+        Publishes the alert to ION.
         """
         event_data = self.make_event_data()
-        #print '########## publishing: ' + event_data['sub_type']
-        #print '########## publishing etc: ' + str(event_data)
         pub = EventPublisher()
         pub.publish_event(**event_data)
 
     def stop(self):
+        """
+        Some alerts have greenlets that need to be stopped. Override where
+        necessary.
+        """
         pass
 
-class IntervalAlert(BaseAlert):
+    def eval_alert(**kwargs):
+        """
+        Override in derived classes to perform alert logic when triggered
+        by appropriate events.
+        """
+        pass
+
+class StreamAlert(BaseAlert):
+    def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
+                    origin_type=None, aggregate_type=None, stream_name=None):
+        
+        super(StreamAlert, self).__init__(name, description, alert_type, resource_id,
+                                          origin_type, aggregate_type)
+        
+        assert isinstance(stream_name, str)
+        self._stream_name = stream_name
+
+    def get_status(self):
+        status = super(StreamAlert, self).get_status()
+        status['stream_name'] = self._stream_name
+        return status
+
+    def make_event_data(self):
+        event_data = super(StreamAlert, self).make_event_data()
+        event_data['stream_name'] = self._stream_name
+        return event_data
+    
+class StreamValueAlert(StreamAlert):
+    def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
+                    origin_type=None, aggregate_type=None, stream_name=None, value_id=None):
+        
+        super(StreamValueAlert, self).__init__(name, description, alert_type, resource_id,
+                                          origin_type, aggregate_type, stream_name)
+        
+        assert isinstance(value_id, str)
+        self._value_id = value_id
+
+    def get_status(self):
+        status = super(StreamValueAlert, self).get_status()
+        status['value_id'] = self._value_id
+        return status
+
+    def make_event_data(self):
+        event_data = super(StreamValueAlert, self).make_event_data()
+        event_data['value_id'] = self._value_id
+        return event_data
+
+class IntervalAlert(StreamValueAlert):
     """
+    An alert that triggers when values leave a defined range.
     """
     
     rel_ops = ['<', '<=']
     
-    def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
+    def __init__(self, name=None, stream_name=None, description=None, alert_type=None,
                  value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
                  lower_bound=None, lower_rel_op=None, upper_bound=None,
                  upper_rel_op=None, **kwargs):
 
-        super(IntervalAlert, self).__init__(name, stream_name, message,
-                alert_type, value_id, resource_id, origin_type, aggregate_type)
+        super(IntervalAlert, self).__init__(name, description, alert_type, resource_id,
+                        origin_type, aggregate_type, stream_name, value_id)
         
         assert isinstance(value_id, str)
         self._value_id = value_id
@@ -201,16 +243,17 @@ class IntervalAlert(BaseAlert):
 
 class RSNEventAlert(BaseAlert):
     """
+    An alert that represents an RSN push alert notification.
     """
 
     # value_id represents the name of the monitorable in an RSNAlert
     #
 
-    def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
+    def __init__(self, name=None, stream_name=None, description=None, alert_type=None,
                  value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
                  **kwargs):
 
-        super(RSNEventAlert, self).__init__(name, '', message,
+        super(RSNEventAlert, self).__init__(name, '', description,
                 alert_type, value_id, resource_id, origin_type, aggregate_type)
 
         assert isinstance(value_id, str)
@@ -276,25 +319,29 @@ class RSNEventAlert(BaseAlert):
         return
 
 
-class UserExpressionAlert(BaseAlert):
+class UserExpressionAlert(StreamValueAlert):
     """
-    """
-    pass
-
-class DeltaAlert(BaseAlert):
-    """
+    An alert that represents a user defined python expression.
+    (Caution this can be dangerous!)
     """
     pass
 
-class LateDataAlert(BaseAlert):
+class DeltaAlert(StreamValueAlert):
     """
+    An alert that triggers when a large jump is seen in data streams.
     """
-    def __init__(self, name=None, stream_name=None, message=None, alert_type=None,
+    pass
+
+class LateDataAlert(StreamAlert):
+    """
+    An alert that triggers when data is late in streaming mode.
+    """
+    def __init__(self, name=None, stream_name=None, description=None, alert_type=None,
                  value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
                  time_delta=None, get_state=None, **kwargs):
 
-        super(LateDataAlert, self).__init__(name, stream_name, message,
-                alert_type, value_id, resource_id, origin_type, aggregate_type)
+        super(LateDataAlert, self).__init__(name, description, alert_type, resource_id,
+                        origin_type, aggregate_type, stream_name)
 
         assert isinstance(time_delta, (int, float))
         assert get_state
@@ -335,3 +382,115 @@ class LateDataAlert(BaseAlert):
             self._gl.kill()
             self._gl.join()
             self._gl = None
+            
+class StateAlert(BaseAlert):
+    """
+    An alert that triggers for specified state changes.
+    Useful for detecting spontaneous disconnects.
+    """
+    def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
+                 origin_type=None, aggregate_type=None, alert_states=None,
+                 clear_states=None, **kwargs):
+
+        super(StateAlert, self).__init__(name, description, alert_type, resource_id,
+                                         origin_type, aggregate_type)
+
+        assert isinstance(alert_states, (list, tuple))
+        assert isinstance(clear_states, (list, tuple))
+        assert all([isinstance(x, str) for x in alert_states])
+        assert all([isinstance(x, str) for x in clear_states])
+        
+        self._alert_states = alert_states
+        self._clear_states = clear_states
+        
+    def get_status(self):
+        status = super(StateAlert, self).get_status()
+        status['alert_states'] = self._alert_states
+        status['clear_states'] = self._clear_states
+        return status
+
+    def eval_alert(self, state=None, **kwargs):
+        if state == None or not isinstance(state,str):
+            return
+        
+        self._current_value = state
+        self._prev_status = self._status
+        
+        if self._prev_status == None:
+            # No previous status, set to alert only if in alert states.
+            if state in self._alert_states:
+                self._status = False
+
+            else:
+                self._status = True
+                
+        elif self._prev_status == False:
+            # Previous status false, set to clear if state in clear states.
+            if state in self._clear_states:
+                self._status = True
+            
+        else:
+            # Previuos status true, set to alert if state in alert states.
+            if state in self._alert_states:
+                self._status = False
+
+        if self._prev_status != self._status:
+            self.publish_alert()
+
+class CommandErrorAlert(BaseAlert):
+    """
+    An alert that triggers for specified command errors.
+    Useful for detecting failed connection attmepts.
+    """
+    def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
+                 origin_type=None, aggregate_type=None, command=None,
+                 clear_states=None, **kwargs):
+
+        super(CommandErrorAlert, self).__init__(name, description, alert_type, resource_id,
+                                         origin_type, aggregate_type)
+
+        assert isinstance(command, str)
+        assert isinstance(clear_states, (list, tuple))
+        assert all([isinstance(x, str) for x in clear_states])
+        
+        self._command = command
+        self._clear_states = clear_states
+        
+    def get_status(self):
+        status = super(CommandErrorAlert, self).get_status()
+        status['command'] = self._command
+        status['clear_states'] = self._clear_states
+        return status
+
+    def eval_alert(self, command=None, command_success=None, state=None, **kwargs):        
+        if (not isinstance(command, str) or not isinstance(command_success, bool)) and \
+            not isinstance(state, str):
+            return
+        
+        self._prev_status = self._status
+
+        if self._prev_status == None:
+            if command != None:
+                if command == self._command:
+                    self._status = command_success
+                else:
+                    self._status = True
+            
+            elif state != None:
+                self._status = True
+        
+        else:
+            if command != None:
+                if command == self._command:
+                    self._status = command_success
+                else:
+                    self._status = self._prev_status
+                    
+            elif state != None:
+                if self._prev_status == False:
+                    self._status = (state in self._clear_states)
+                else:
+                    self._status = self._prev_status
+
+        if self._prev_status != self._status:
+            self.publish_alert()
