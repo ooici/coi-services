@@ -217,8 +217,8 @@ error: [Errno 61] Connection refused
 
             self.catch_alert.put(event)
 
-        #create a subscriber for the StreamAlertEvent from the instrument
-        self.event_subscriber = EventSubscriber(event_type='StreamAlertEvent',
+        #create a subscriber for the DeviceStatusAlertEvent from the instrument
+        self.event_subscriber = EventSubscriber(event_type='DeviceStatusAlertEvent',
             origin=i_obj.instrument_device_id,
             callback=callback_for_alert)
         self.event_subscriber.start()

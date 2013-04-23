@@ -16,6 +16,8 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
 
+import time
+
 from interface.objects import StreamAlertType, AggregateStatusType
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -161,7 +163,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             temp_alert_def = {
                 'name' : 'temperature_warning_interval',
                 'stream_name' : 'parsed',
-                'message' : 'Temperature is below the normal range of 50.0 and above.',
+                'description' : 'Temperature is below the normal range of 50.0 and above.',
                 'alert_type' : StreamAlertType.WARNING,
                 'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
                 'value_id' : 'temp',
@@ -175,7 +177,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             late_data_alert_def = {
                 'name' : 'late_data_warning',
                 'stream_name' : 'parsed',
-                'message' : 'Expected data has not arrived.',
+                'description' : 'Expected data has not arrived.',
                 'alert_type' : StreamAlertType.WARNING,
                 'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
                 'value_id' : None,
@@ -322,7 +324,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             log.debug("caught an alert: %s", event)
             self.catch_alert.put(event)
 
-        self.event_subscriber = EventSubscriber(event_type='StreamAlertEvent',
+        self.event_subscriber = EventSubscriber(event_type='DeviceStatusAlertEvent',
             origin=instDevice_id,
             callback=callback_for_alert)
 
@@ -354,20 +356,37 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        caught_events = [self.catch_alert.get(timeout=45)]
-        caught_events.append(self.catch_alert.get(timeout=45))
+        got_bad_temp = False
+        got_late_data = False
+        runtime = 0
+        starttime = time.time()
+        caught_events = []
+        while (got_bad_temp == False or got_late_data == False) and \
+            runtime < 120:            
+            a = self.catch_alert.get(timeout=45)
+            caught_events.append(a)
+            if a.name == 'temperature_warning_interval' and \
+                a.description == 'Temperature is below the normal range of 50.0 and above.':
+                    got_bad_temp = True
+            if a.name == 'late_data_warning' and \
+                a.description == 'Expected data has not arrived.':
+                    got_late_data = True
+            runtime = time.time() - starttime            
         log.debug("caught_events: %s", [c.name for c in caught_events])
 
         for c in caught_events:
             self.assertIn(c.name, ['temperature_warning_interval', 'late_data_warning'])
             self.assertEqual(c.origin, instDevice_id)
-            self.assertEqual(c.type_, 'StreamAlertEvent')
+            self.assertEqual(c.type_, 'DeviceStatusAlertEvent')
             self.assertEqual(c.origin_type, 'InstrumentDevice')
 
-            if c.name == 'temperature_warning_interval':
-                self.assertEqual(c.message, 'Temperature is below the normal range of 50.0 and above.')
-            elif c.name == 'late_data_warning':
-                self.assertEqual(c.message, 'Expected data has not arrived.')
+        self.assertTrue(got_bad_temp)
+        self.assertTrue(got_late_data)
+
+            #if c.name == 'temperature_warning_interval':
+            #    self.assertEqual(c.description, 'Temperature is below the normal range of 50.0 and above.')
+            #elif c.name == 'late_data_warning':
+            #    self.assertEqual(c.description, 'Expected data has not arrived.')
 
 
 

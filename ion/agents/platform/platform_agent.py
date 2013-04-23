@@ -469,7 +469,7 @@ class PlatformAgent(ResourceAgent):
 
         self._status_manager.destroy()
 
-        self._bring_to_uninitialized_state()
+        self._bring_to_uninitialized_state(recursion=False)
 
         self._launcher.destroy()
 
@@ -518,92 +518,41 @@ class PlatformAgent(ResourceAgent):
                   "attempts=%d;  final state=%s",
                   self._platform_id, attempts, curr_state)
 
-    def _terminate_subplatform_agent_processes(self):
+    ##############################################################
+    # Operations on "this platform," that is, operations that act on the
+    # platform itself (and that are called by operations that also dispatch
+    # the associated command on the children)
+    ##############################################################
+
+    def _initialize_this_platform(self):
         """
-        Terminates sub-platforms processes and clears self._pa_clients.
+        Does the main initialize sequence for this platform: creation of
+        publishers and creation/configuration of the driver.
         """
+        self._construct_data_publishers()
+        self._create_driver()
+        self._configure_driver()
+        log.debug("%r: _initialize_this_platform completed.", self._platform_id)
 
-        def terminate_process(subplatform_id):
-            dd = self._pa_clients[subplatform_id]
-            pid = dd.pid
-            sub_resource_id = dd.resource_id
-
-            log.debug(
-                "%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
-                self._platform_id, subplatform_id, pid)
-            try:
-
-                self._launcher.cancel_process(pid)
-
-                log.debug(
-                    "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
-                    self._platform_id, subplatform_id, pid)
-
-            except:
-                if log.isEnabledFor(logging.TRACE):
-                    log.exception(
-                        "%r: Exception in cancel_process for subplatform_id=%r, pid=%r",
-                        self._platform_id, subplatform_id, pid)  # , exc_Info=True)
-                else:
-                    log.warn(
-                        "%r: Exception in cancel_process for subplatform_id=%r, pid=%r"
-                        ". Perhaps already dead.",
-                        self._platform_id, subplatform_id, pid)  # , exc_Info=True)
-
-            self._status_manager.publish_device_removed_event(sub_resource_id)
-
-        if len(self._pa_clients):
-            subplatform_ids = self._pa_clients.keys()
-            log.debug("%r: terminating sub-platform agent processes (%d): %s",
-                      self._platform_id, len(subplatform_ids), subplatform_ids)
-            for subplatform_id in subplatform_ids:
-                terminate_process(subplatform_id)
-
-            self._pa_clients.clear()
-
-    def _terminate_instrument_agent_processes(self):
+    def _go_active_this_platform(self):
         """
-        Terminates instrument processes and clears self._ia_clients.
+        Connects the driver.
         """
-        if len(self._ia_clients):
-            log.debug("%r: terminating instrument agent processes (%d): %s",
-                      self._platform_id, len(self._ia_clients), self._ia_clients.keys())
-            for instrument_id in self._ia_clients:
-                dd = self._ia_clients[instrument_id]
-                pid = dd.pid
-                i_resource_id = dd.resource_id
+        self._trigger_driver_event(PlatformDriverEvent.CONNECT)
 
-                try:
-                    self._launcher.cancel_process(pid)
-
-                except:
-                    log.exception("%r: exception in cancel_process for instrument_id=%r, pid=%r",
-                                  self._platform_id, instrument_id, pid)  # , exc_Info=True)
-
-                self._status_manager.publish_device_removed_event(i_resource_id)
-
-            self._ia_clients.clear()
-
-    def _reset(self, recursion=True):
+    def _go_inactive_this_platform(self):
         """
-        Dispatches the RESET command.
-
-        RESET is dispatched in a bottom-up fashion:
-        - if recursion is True, reset the children
-        - then reset this platform itself.
-
-        @param recursion  If True, sub-platform are sent the RESET command
-                          (with corresponding recursion parameter set to True),
-                          and intruments are also sent RESET (no recursion
-                          parameter is applicable to instruments).
+        Disconnects the driver.
         """
-        if recursion:
-            # first sub-platforms, then my own instruments:
-            self._subplatforms_reset()
-            self._instruments_reset()
+        self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
 
-        # then myself
-        self._reset_this_platform()
+    def _run_this_platform(self):
+        """
+        Nothing is done here. The method exists for consistency.
+        Basically the RUN command is just to move the FSM to the COMMAND state,
+        which is done by the handler.
+        """
+        pass
 
     def _reset_this_platform(self):
         """
@@ -630,34 +579,6 @@ class PlatformAgent(ResourceAgent):
 
         self._unconfigured_params.clear()
 
-    def _shutdown(self, recursion=True):
-        """
-        Dispatches a SHUTDOWN request.
-
-        SHUTDOWN is dispatched in a bottom-up fashion:
-        - if recursion is True, shuts down the sub-platforms and resets the instruments
-        - then brings this platform agent to the uninitialized state.
-          Note that the platform can not actually "shutdown" itself.
-
-        @param recursion   True to "shutdown" children.
-        """
-
-        log.debug("%r: _shutdown: recursion=%s", self._platform_id, recursion)
-
-        if recursion:
-            # shutdown sub-platforms and then terminate the processes:
-            # TODO: do the shutdown/terminate child by child
-            self._subplatforms_shutdown()
-            self._terminate_subplatform_agent_processes()
-
-            # shutdown instruments and then terminate the processes:
-            # TODO: do the shutdown/terminate child by child
-            self._instruments_shutdown()
-            self._terminate_instrument_agent_processes()
-
-        # "shutdown" myself
-        self._shutdown_this_platform()
-
     def _shutdown_this_platform(self):
         """
         The name of this method is to keep consistency with the naming scheme
@@ -669,25 +590,6 @@ class PlatformAgent(ResourceAgent):
         """
         self._bring_to_uninitialized_state(recursion=False)
 
-    def _pause(self, recursion=True):
-        """
-        Dispatches the PAUSE command.
-
-        PAUSE is dispatched in a bottom-up fashion:
-        - if recursion is True, pause the children
-        - then pause this platform itself.
-
-        @param recursion  If True, children are sent the PAUSE command
-                          (with corresponding recursion parameter set to True).
-        """
-        if recursion:
-            # first sub-platforms, then my own instruments:
-            self._subplatforms_pause()
-            self._instruments_pause()
-
-        # then myself
-        self._pause_this_platform()
-
     def _pause_this_platform(self):
         """
         Pauses this platform agent. Actually, nothing is done here; we only
@@ -695,50 +597,12 @@ class PlatformAgent(ResourceAgent):
         """
         pass
 
-    def _resume(self, recursion=True):
-        """
-        Dispatches the RESUME command.
-
-        RESUME is dispatched in a bottom-up fashion:
-        - if recursion is True, resume the children
-        - then resume this platform itself.
-
-        @param recursion  If True, children are sent the RESUME command
-                          (with corresponding recursion parameter set to True).
-        """
-        if recursion:
-            # first sub-platforms, then my own instruments:
-            self._subplatforms_resume()
-            self._instruments_resume()
-
-        # then myself
-        self._resume_this_platform()
-
     def _resume_this_platform(self):
         """
         Resumes this platform agent. Actually, nothing is done here; we only
         need the state transition (which is done by the handler).
         """
         pass
-
-    def _clear(self, recursion=True):
-        """
-        Dispatches the CLEAR command.
-
-        CLEAR is dispatched in a bottom-up fashion:
-        - if recursion is True, "clear" the children
-        - then "clear" this platform itself.
-
-        @param recursion  If True, children are sent the CLEAR command
-                          (with corresponding recursion parameter set to True).
-        """
-        if recursion:
-            # first sub-platforms, then my own instruments:
-            self._subplatforms_clear()
-            self._instruments_clear()
-
-        # then myself
-        self._clear_this_platform()
 
     def _clear_this_platform(self):
         """
@@ -784,6 +648,10 @@ class PlatformAgent(ResourceAgent):
 
         return True, ''
 
+    ##############################################################
+
+    ##############################################################
+    # misc supporting routines
     ##############################################################
 
     def _create_publisher(self, stream_id=None, stream_route=None):
@@ -901,85 +769,6 @@ class PlatformAgent(ResourceAgent):
     def _assert_driver(self):
         assert self._plat_driver is not None, "_create_driver must have been called first"
 
-    def _initialize_this_platform(self):
-        """
-        Does the main initialize sequence for this platform: creation of
-        publishers and creation/configuration of the driver.
-        """
-        self._construct_data_publishers()
-        self._create_driver()
-        self._configure_driver()
-        log.debug("%r: _initialize_this_platform completed.", self._platform_id)
-
-    def _go_active_this_platform(self):
-        """
-        Connects the driver.
-        """
-        self._trigger_driver_event(PlatformDriverEvent.CONNECT)
-
-    def _go_inactive_this_platform(self):
-        """
-        Disconnects the driver.
-        """
-        self._trigger_driver_event(PlatformDriverEvent.DISCONNECT)
-
-    def _go_inactive(self, recursion):
-        """
-        Dispatches the GO_INACTIVE command.
-
-        GO_INACTIVE is dispatched in a bottom-up fashion:
-         - issues GO_INACTIVE to sub-platforms
-         - issues GO_INACTIVE to instruments
-         - processes the command at this platform.
-        """
-
-        if recursion:
-            self._subplatforms_go_inactive()
-            self._instruments_go_inactive()
-
-        result = self._go_inactive_this_platform()
-        return result
-
-    def _run_this_platform(self):
-        """
-        Nothing is done here. The method exists for consistency.
-        Basically the RUN command is just to move the FSM to the COMMAND state,
-        which is done by the handler.
-        """
-        pass
-
-    def _run(self, recursion):
-        """
-        Dispatches the RUN command.
-
-        RUN is dispatched in a top-down fashion:
-         - processes the command at this platform (which does nothing, actually)
-         - issues RUN to instruments
-         - issues RUN to sub-platforms
-        """
-        # first myself
-        self._run_this_platform()
-
-        # then my instruments and sub-platforms
-        if recursion:
-            self._instruments_run()
-            self._subplatforms_run()
-
-        result = None
-        return result
-
-    def _start_resource_monitoring(self):
-        """
-        Starts resource monitoring.
-        """
-        self._assert_driver()
-
-        self._platform_resource_monitor = PlatformResourceMonitor(
-            self._platform_id, self._platform_attributes,
-            self._get_attribute_values, self.evt_recv)
-
-        self._platform_resource_monitor.start_resource_monitoring()
-
     def _get_attribute_values(self, attrs):
         self._assert_driver()
         kwargs = dict(attrs=attrs)
@@ -991,16 +780,6 @@ class PlatformAgent(ResourceAgent):
         kwargs = dict(attrs=attrs)
         result = self._plat_driver.set_resource(**kwargs)
         return result
-
-    def _stop_resource_monitoring(self):
-        """
-        Stops resource monitoring.
-        """
-        assert self._platform_resource_monitor is not None, \
-        "_start_resource_monitoring must have been called first"
-
-        self._platform_resource_monitor.destroy()
-        self._platform_resource_monitor = None
 
     def evt_recv(self, driver_event):
         """
@@ -1021,10 +800,6 @@ class PlatformAgent(ResourceAgent):
         if isinstance(driver_event, StateChangeDriverEvent):
             self._async_driver_event_state_change(driver_event.state)
             return
-
-        #
-        # TODO handle other possible events.
-        #
 
         else:
             log.warn('%r: driver_event not handled: %s',
@@ -1185,10 +960,6 @@ class PlatformAgent(ResourceAgent):
         except:
             log.exception("Error while publishing platform event")
 
-    ##############################################################
-    # misc supporting routines
-    ##############################################################
-
     def _create_resource_agent_client(self, sub_id, sub_resource_id):
         """
         Creates and returns a ResourceAgentClient instance.
@@ -1290,45 +1061,80 @@ class PlatformAgent(ResourceAgent):
         return self._execute_agent("platform", a_client, cmd, sub_id)
 
     def _ping_subplatform(self, subplatform_id):
+        """
+        Pings the given sub-platform, publishing a "device_failed_command"
+        event is some error occurs.
+
+        @return None if completed OK, otherwise an error message.
+        """
         log.debug("%r: _ping_subplatform -> %r,  _pa_clients=%s",
                   self._platform_id, subplatform_id, self._pa_clients)
 
-        pa_client = self._pa_clients[subplatform_id].pa_client
+        dd = self._pa_clients[subplatform_id]
 
-        retval = pa_client.ping_agent(timeout=self._timeout)
-        log.debug("%r: _ping_subplatform %r  retval = %s",
-                  self._platform_id, subplatform_id, retval)
+        err_msg = None
+        try:
+            retval = dd.pa_client.ping_agent(timeout=self._timeout)
+            log.debug("%r: _ping_subplatform %r  retval = %s",
+                      self._platform_id, subplatform_id, retval)
 
-        if retval is None:
-            msg = "%r: unexpected None ping response from sub-platform agent: %r" % (
-                  self._platform_id, subplatform_id)
-            log.error(msg)
-            raise PlatformException(msg)
+            if retval is None:
+                err_msg = "%r: unexpected None ping response from sub-platform agent: %r" % (
+                          self._platform_id, subplatform_id)
+
+        except Exception as ex:
+            err_msg = str(ex)
+
+        if err_msg is not None:
+            log.error(err_msg)
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     "ping_agent",
+                                                                     err_msg)
+        return err_msg
 
     def _initialize_subplatform(self, subplatform_id):
         """
         Issues INITIALIZE command to the given (sub-)platform agent so the
         agent network gets initialized recursively.
+
+        @return None if completed OK, otherwise an error message.
         """
         log.debug("%r: _initialize_subplatform -> %r",
                   self._platform_id, subplatform_id)
 
         # first, ping sub-platform
-        try:
-            self._ping_subplatform(subplatform_id)
-        except:
-            msg = "%r: unexpected exception _ping_subplatform: %r" % (
-                  self._platform_id, subplatform_id)
-            log.exception(msg)
-            raise PlatformException(msg)
+        err_msg = self._ping_subplatform(subplatform_id)
+        if err_msg is not None:
+            # event already published. Do not proceed with initialize.
+            return err_msg
 
-        pa_client = self._pa_clients[subplatform_id].pa_client
+        # now, do initialize:
+        err_msg = None
+        dd = self._pa_clients[subplatform_id]
+
+        sub_state = dd.pa_client.get_agent_state()
+        if PlatformAgentState.INACTIVE == sub_state:
+            # already initialized.
+            log.trace("%r: _initialize_subplatform: already initialized: %r",
+                      self._platform_id, subplatform_id)
+            return
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
-        retval = self._execute_platform_agent(pa_client, cmd, subplatform_id)
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _initialize_subplatform %r  retval = %s",
-                      self._platform_id, subplatform_id, str(retval))
+
+        try:
+            retval = self._execute_platform_agent(dd.pa_client, cmd, subplatform_id)
+            if log.isEnabledFor(logging.DEBUG):
+                log.debug("%r: _initialize_subplatform %r  retval = %s",
+                          self._platform_id, subplatform_id, str(retval))
+        except Exception as ex:
+            err_msg = str(ex)
+
+        if err_msg is not None:
+            log.error(err_msg)
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     cmd,
+                                                                     err_msg)
+        return err_msg
 
     def _get_subplatform_ids(self):
         """
@@ -1339,9 +1145,9 @@ class PlatformAgent(ResourceAgent):
     def _get_ports(self):
         ports = {}
         for port_id, port in self._pnode.ports.iteritems():
-            ports[port_id] = {'network': port.network}
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _get_ports: %s", self._platform_id, ports)
+            ports[port_id] = {'network': port.network,
+                              'is_on':   port.is_on}
+        log.debug("%r: _get_ports: %s", self._platform_id, ports)
         return ports
 
     def _subplatforms_launch(self):
@@ -1362,22 +1168,30 @@ class PlatformAgent(ResourceAgent):
     def _subplatforms_initialize(self):
         """
         Initializes all my sub-platforms.
+
+        @return dict with failing children. Empty if all ok.
         """
         log.debug("%r: _subplatforms_initialize. _pa_clients=%s",
                   self._platform_id, self._pa_clients)
 
         subplatform_ids = self._get_subplatform_ids()
+        children_with_errors = {}
         if len(subplatform_ids):
             log.debug("%r: initializing subplatforms %s", self._platform_id, subplatform_ids)
             for subplatform_id in subplatform_ids:
-                self._initialize_subplatform(subplatform_id)
+                err_msg = self._initialize_subplatform(subplatform_id)
+                if err_msg is not None:
+                    children_with_errors[subplatform_id] = err_msg
 
-            log.debug("%r: _subplatforms_initialize completed.", self._platform_id)
+            log.debug("%r: _subplatforms_initialize completed. children_with_errors=%s",
+                      self._platform_id, children_with_errors)
+
+        return children_with_errors
 
     def _subplatforms_execute_agent(self, command=None, create_command=None,
                                     expected_state=None):
         """
-        Supporting routine for the ones below.
+        Supporting routine for various commands sent to sub-platforms.
 
         @param command        Can be a AgentCommand, and string, or None.
 
@@ -1385,27 +1199,65 @@ class PlatformAgent(ResourceAgent):
                               create_command(subplatform_id) for each
                               sub-platform to create the command to be executed.
 
-        @param expected_state
+        @param expected_state  If given, it is checked that the child gets to
+                               this state.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         subplatform_ids = self._get_subplatform_ids()
         assert subplatform_ids == self._pa_clients.keys()
 
+        children_with_errors = {}
+
         if not len(subplatform_ids):
-            # I'm a leaf.
-            return
+            return children_with_errors
+
+        def execute_cmd(subplatform_id, cmd):
+            pa_client = self._pa_clients[subplatform_id].pa_client
+
+            try:
+                self._execute_platform_agent(pa_client, cmd, subplatform_id)
+            except:
+                err_msg = "%r: exception executing command %r in subplatform %r" % (
+                          self._platform_id, command, subplatform_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+            # verify expected_state if given:
+            try:
+                state = pa_client.get_agent_state()
+                if expected_state and expected_state != state:
+                    err_msg = "%r: expected subplatform state %r but got %r" % (
+                              self._platform_id, expected_state, state)
+                    log.error(err_msg)
+                    return err_msg
+            except:
+                err_msg = "%r: exception while calling get_agent_state to subplatform %r" % (
+                          self._platform_id, subplatform_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+            return None  # OK
 
         if command:
             log.debug("%r: executing command %r on my sub-platforms: %s",
-                        self._platform_id, command, str(subplatform_ids))
+                      self._platform_id, command, str(subplatform_ids))
         else:
             log.debug("%r: executing command on my sub-platforms: %s",
-                        self._platform_id, str(subplatform_ids))
+                      self._platform_id, str(subplatform_ids))
 
-        #
-        # TODO what to do if a sub-platform fails in some way?
-        #
         for subplatform_id in self._pa_clients:
-            pa_client = self._pa_clients[subplatform_id].pa_client
+            if expected_state:
+                pa_client = self._pa_clients[subplatform_id].pa_client
+                sub_state = pa_client.get_agent_state()
+                if expected_state == sub_state:
+                    #
+                    # already in the desired state; do nothing for this child:
+                    #
+                    log.trace("%r: sub-platform %r already in state: %r",
+                              self._platform_id, subplatform_id, expected_state)
+                    continue
 
             if isinstance(command, AgentCommand):
                 cmd = command
@@ -1414,103 +1266,231 @@ class PlatformAgent(ResourceAgent):
             else:
                 cmd = create_command(subplatform_id)
 
-            # execute command:
-            try:
-                retval = self._execute_platform_agent(pa_client, cmd, subplatform_id)
-            except:
-                log.exception("%r: exception executing command %r in subplatform %r",
-                              self._platform_id, command, subplatform_id) #, exc_Info=True)
-                continue
+            err_msg = execute_cmd(subplatform_id, cmd)
 
-            # verify state:
-            try:
-                state = pa_client.get_agent_state()
-                if expected_state and expected_state != state:
-                    log.error("%r: expected subplatform state %r but got %r",
-                              self._platform_id, expected_state, state)
-            except:
-                log.exception("%r: exception while calling get_agent_state to subplatform %r",
-                              self._platform_id, subplatform_id) #, exc_Info=True)
+            if err_msg is not None:
+                # some error happened; publish event:
+                children_with_errors[subplatform_id] = err_msg
+                dd = self._pa_clients[subplatform_id]
+                self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                         cmd,
+                                                                         err_msg)
+        return children_with_errors
 
     def _subplatforms_reset(self):
         """
         Executes RESET with recursion=True on all my sub-platforms.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         # pass recursion=True to each sub-platform
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.RESET, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.UNINITIALIZED)
+        children_with_errors = self._subplatforms_execute_agent(
+            command=cmd,
+            expected_state=PlatformAgentState.UNINITIALIZED)
+
+        return children_with_errors
 
     def _subplatforms_go_active(self):
         """
         Executes GO_ACTIVE with recursion=True on all my sub-platforms.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         # pass recursion=True to each sub-platform
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.GO_ACTIVE, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.IDLE)
+        children_with_errors = self._subplatforms_execute_agent(
+            command=cmd,
+            expected_state=PlatformAgentState.IDLE)
+
+        return children_with_errors
 
     def _subplatforms_go_inactive(self):
         """
         Executes GO_INACTIVE with recursion=True on all my sub-platforms.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         # pass recursion=True to each sub-platform
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.GO_INACTIVE, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.INACTIVE)
+        children_with_errors = self._subplatforms_execute_agent(
+            command=cmd,
+            expected_state=PlatformAgentState.INACTIVE)
+
+        return children_with_errors
 
     def _subplatforms_run(self):
         """
         Executes RUN with recursion=True on all my sub-platforms.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         # pass recursion=True to each sub-platform
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.RUN, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.COMMAND)
+        children_with_errors = self._subplatforms_execute_agent(
+            command=cmd,
+            expected_state=PlatformAgentState.COMMAND)
 
-    def _subplatforms_shutdown(self):
+        return children_with_errors
+
+    def _shutdown_and_terminate_subplatform(self, subplatform_id):
         """
-        Executes SHUTDOWN with recursion=True on all my sub-platforms.
+        Executes SHUTDOWN with recursion=True on the given sub-platform and
+        then terminates that sub-platform process.
+
+        @return None if the shutdown and termination completed without errors.
+                Otherwise a string with an error message.
         """
-        # pass recursion=True to each sub-platform
-        kwargs = dict(recursion=True)
-        cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.UNINITIALIZED)
+
+        dd = self._pa_clients[subplatform_id]
+        cmd = AgentCommand(command=PlatformAgentEvent.SHUTDOWN, kwargs=dict(recursion=True))
+
+        def shutdown():
+            log.debug("%r: shutting down %r", self._platform_id, subplatform_id)
+
+            # execute command:
+            try:
+                retval = self._execute_platform_agent(dd.pa_client, cmd, subplatform_id)
+            except:
+                err_msg = "%r: exception executing command %r in subplatform %r" % (
+                          self._platform_id, cmd, subplatform_id)
+                log.exception(err_msg)
+                return err_msg
+
+            # verify state:
+            try:
+                expected_state = PlatformAgentState.UNINITIALIZED
+                state = dd.pa_client.get_agent_state()
+                if expected_state and expected_state != state:
+                    err_msg = "%r: expected subplatform state %r but got %r" % (
+                              self._platform_id, expected_state, state)
+                    log.error(err_msg)
+                    return err_msg
+            except:
+                err_msg = "%r: exception while calling get_agent_state to subplatform %r" % (
+                          self._platform_id, subplatform_id)
+                log.exception(err_msg)
+                return err_msg
+
+            return None  # OK
+
+        def terminate():
+            pid = dd.pid
+
+            log.debug("%r: canceling sub-platform process: subplatform_id=%r, pid=%r",
+                      self._platform_id, subplatform_id, pid)
+            try:
+                self._launcher.cancel_process(pid)
+
+                self._status_manager.publish_device_removed_event(dd.resource_id)
+
+                log.debug(
+                    "%r: canceled sub-platform process: subplatform_id=%r, pid=%r",
+                    self._platform_id, subplatform_id, pid)
+
+                return None
+
+            except:
+                if log.isEnabledFor(logging.TRACE):
+                    err_msg = "%r: Exception in cancel_process for subplatform_id=%r, pid=%r" % (
+                              self._platform_id, subplatform_id, pid)
+                    log.exception(err_msg)  # , exc_Info=True)
+                    return err_msg
+                else:
+                    err_msg = "%r: Exception in cancel_process for subplatform_id=%r, pid=%r" \
+                              ". Perhaps already dead." % (
+                              self._platform_id, subplatform_id, pid)
+                    log.warn(err_msg)  # , exc_Info=True)
+                    return err_msg
+
+        err_msg = shutdown()
+        if err_msg is None:
+            # shutdown ok; now terminate:
+            err_msg = terminate()
+
+        if err_msg is not None:
+            # some error happened; publish event:
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     cmd,
+                                                                     err_msg)
+
+        return err_msg
+
+    def _subplatforms_shutdown_and_terminate(self):
+        """
+        Executes SHUTDOWN with recursion=True on all sub-platform and then
+        terminates those sub-platform process.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
+        """
+        subplatform_ids = self._get_subplatform_ids()
+        assert subplatform_ids == self._pa_clients.keys()
+
+        children_with_errors = {}
+        if len(subplatform_ids):
+            for subplatform_id in subplatform_ids:
+                err_msg = self._shutdown_and_terminate_subplatform(subplatform_id)
+                if err_msg is not None:
+                    children_with_errors[subplatform_id] = err_msg
+
+        return children_with_errors
 
     def _subplatforms_pause(self):
         """
         Executes PAUSE with recursion=True on all my sub-platforms.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         # pass recursion=True to each sub-platform
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.PAUSE, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.STOPPED)
+        children_with_errors = self._subplatforms_execute_agent(
+            command=cmd,
+            expected_state=PlatformAgentState.STOPPED)
+
+        return children_with_errors
 
     def _subplatforms_resume(self):
         """
         Executes RESUME with recursion=True on all my sub-platforms.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         # pass recursion=True to each sub-platform
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.RESUME, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.COMMAND)
+        children_with_errors = self._subplatforms_execute_agent(
+            command=cmd,
+            expected_state=PlatformAgentState.COMMAND)
+
+        return children_with_errors
 
     def _subplatforms_clear(self):
         """
         Executes CLEAR with recursion=True on all my sub-platforms.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         # pass recursion=True to each sub-platform
         kwargs = dict(recursion=True)
         cmd = AgentCommand(command=PlatformAgentEvent.CLEAR, kwargs=kwargs)
-        self._subplatforms_execute_agent(command=cmd,
-                                         expected_state=PlatformAgentState.IDLE)
+        children_with_errors = self._subplatforms_execute_agent(
+            command=cmd,
+            expected_state=PlatformAgentState.IDLE)
+
+        return children_with_errors
 
     ##############################################################
     # supporting routines dealing with instruments
@@ -1529,43 +1509,69 @@ class PlatformAgent(ResourceAgent):
         log.debug("%r: _ping_instrument -> %r",
                   self._platform_id, instrument_id)
 
-        ia_client = self._ia_clients[instrument_id].ia_client
+        dd = self._ia_clients[instrument_id]
 
-        retval = ia_client.ping_agent(timeout=self._timeout)
-        log.debug("%r: _ping_instrument %r  retval = %s",
-                  self._platform_id, instrument_id, str(retval))
+        err_msg = None
+        try:
+            retval = dd.ia_client.ping_agent(timeout=self._timeout)
+            log.debug("%r: _ping_instrument %r  retval = %s",
+                      self._platform_id, instrument_id, str(retval))
 
-        if retval is None:
-            msg = "%r: unexpected None ping response from instrument agent: %r" % (
-                  self._platform_id, instrument_id)
-            log.error(msg)
-            raise PlatformException(msg)
+            if retval is None:
+                err_msg = "%r: unexpected None ping response from instrument agent: %r" % (
+                          self._platform_id, instrument_id)
+
+        except Exception as ex:
+            err_msg = str(ex)
+
+        if err_msg is not None:
+            log.error(err_msg)
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     "ping_agent",
+                                                                     err_msg)
+        return err_msg
 
     def _initialize_instrument(self, instrument_id):
         """
         Issues INITIALIZE command to the given instrument agent.
+
+        @return None if completed OK, otherwise an error message.
         """
         log.debug("%r: _initialize_instrument -> %r",
                   self._platform_id, instrument_id)
 
         # first, ping:
-        self._ping_instrument(instrument_id)
+        err_msg = self._ping_instrument(instrument_id)
+        if err_msg is not None:
+            # event already published. Do not proceed with initialize.
+            return err_msg
 
-        ia_client = self._ia_clients[instrument_id].ia_client
+        # now, do initialize:
+        err_msg = None
+        dd = self._ia_clients[instrument_id]
+
+        sub_state = dd.ia_client.get_agent_state()
+        if PlatformAgentState.INACTIVE == sub_state:
+            # already initialized.
+            log.trace("%r: _initialize_subplatform: already initialized: %r",
+                      self._platform_id, instrument_id)
+            return
 
         cmd = AgentCommand(command=PlatformAgentEvent.INITIALIZE)
         try:
-            retval = self._execute_instrument_agent(ia_client, cmd, instrument_id)
+            retval = self._execute_instrument_agent(dd.ia_client, cmd, instrument_id)
             log.debug("%r: _initialize_instrument %r  retval = %s",
                       self._platform_id, instrument_id, retval)
 
-        except Exception as e:
-            #
-            # TODO proper handling. For the moment, allowing to continue if
-            # the execution fails for some reason.
-            #
-            log.exception("%r: Error while initializing instrument: %r: %s",
-                          self._platform_id, instrument_id, cmd, e)
+        except Exception as ex:
+            err_msg = str(ex)
+
+        if err_msg is not None:
+            log.error(err_msg)
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     cmd,
+                                                                     err_msg)
+        return err_msg
 
     def _launch_instrument_agent(self, instrument_id):
         """
@@ -1618,30 +1624,73 @@ class PlatformAgent(ResourceAgent):
     def _instruments_initialize(self):
         """
         Initializes all my instruments.
+
+        @return dict with failing children. Empty if all ok.
         """
         instrument_ids = self._get_instrument_ids()
+        children_with_errors = {}
         if len(instrument_ids):
             log.debug("%r: initializing instruments %s", self._platform_id, instrument_ids)
             for instrument_id in instrument_ids:
-                self._initialize_instrument(instrument_id)
+                err_msg = self._initialize_instrument(instrument_id)
+                if err_msg is not None:
+                    children_with_errors[instrument_id] = err_msg
 
-            log.debug("%r: _instruments_initialize completed.", self._platform_id)
+            log.debug("%r: _instruments_initialize completed. children_with_errors=%s",
+                      self._platform_id, children_with_errors)
+
+        return children_with_errors
 
     def _instruments_execute_agent(self, command=None, create_command=None,
                                    expected_state=None):
         """
-        Supporting routine for the ones below.
+        Supporting routine for various commands sent to instruments.
 
         @param create_command invoked as create_command(instrument_id) for each
                               instrument to create the command to be executed.
-        @param expected_state
+
+        @param expected_state  If given, it is checked that the child gets to
+                               this state.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
         instrument_ids = self._get_instrument_ids()
         assert instrument_ids == self._ia_clients.keys()
 
+        children_with_errors = {}
+
         if not len(instrument_ids):
-            # No instruments, nothing to do.
-            return
+            return children_with_errors
+
+        def execute_cmd(instrument_id, cmd):
+            ia_client = self._ia_clients[instrument_id].ia_client
+
+            try:
+                retval = self._execute_instrument_agent(ia_client, cmd,
+                                                        instrument_id)
+            except:
+                err_msg = "%r: exception executing command %r in instrument %r" % (
+                          self._platform_id, command, instrument_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+            # verify state:
+            try:
+                state = ia_client.get_agent_state()
+                if expected_state and expected_state != state:
+                    err_msg = "%r: expected instrument state %r but got %r" % (
+                              self._platform_id, expected_state, state)
+                    log.error(err_msg)
+                    return err_msg
+
+            except:
+                err_msg = "%r: exception while calling get_agent_state to instrument %r" % (
+                          self._platform_id, instrument_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+            return None
 
         if command:
             log.debug("%r: executing command %r on my instruments: %s",
@@ -1650,96 +1699,228 @@ class PlatformAgent(ResourceAgent):
             log.debug("%r: executing command on my instruments: %s",
                       self._platform_id, str(instrument_ids))
 
-        #
-        # TODO proper handling if an instrument fails to complete the command
-        # successfully
-        #
         for instrument_id in self._ia_clients:
-            ia_client = self._ia_clients[instrument_id].ia_client
+            if expected_state:
+                ia_client = self._ia_clients[instrument_id].ia_client
+                sub_state = ia_client.get_agent_state()
+                if expected_state == sub_state:
+                    #
+                    # already in the desired state; do nothing for this child:
+                    #
+                    log.trace("%r: instrument %r already in state: %r",
+                              self._platform_id, instrument_id, expected_state)
+                    continue
+
             cmd = AgentCommand(command=command) if command else create_command(instrument_id)
+            err_msg = execute_cmd(instrument_id, cmd)
 
-            # execute command:
-            try:
-                retval = self._execute_instrument_agent(ia_client, cmd,
-                                                        instrument_id)
-            except:
-                log.exception("%r: exception executing command %r in instrument %r",
-                              self._platform_id, command, instrument_id) #, exc_Info=True)
-                continue
-
-            # verify state:
-            try:
-                state = ia_client.get_agent_state()
-                if expected_state and expected_state != state:
-                    log.error("%r: expected instrument state %r but got %r",
-                              self._platform_id, expected_state, state)
-
-            except:
-                log.exception("%r: exception while calling get_agent_state to instrument %r",
-                              self._platform_id, instrument_id) #, exc_Info=True)
+            if err_msg is not None:
+                # some error happened; publish event:
+                children_with_errors[instrument_id] = err_msg
+                dd = self._ia_clients[instrument_id]
+                self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                         cmd,
+                                                                         err_msg)
+        return children_with_errors
 
     def _instruments_reset(self):
         """
         Executes RESET on all my instruments.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        self._instruments_execute_agent(command=ResourceAgentEvent.RESET,
-                                        expected_state=ResourceAgentState.UNINITIALIZED)
+        children_with_errors = self._instruments_execute_agent(
+            command=ResourceAgentEvent.RESET,
+            expected_state=ResourceAgentState.UNINITIALIZED)
+
+        return children_with_errors
 
     def _instruments_go_active(self):
         """
         Executes GO_ACTIVE on all my instruments.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        # TODO determine what the expected state should be. For now,
-        # not checking for any particular instrument agent state.
+        # NOTE: the instrument performs a "state discovery" as part of GO_ACTIVE;
+        # so we do not check for any particular expected instrument state here:
         expected_state = None
-        self._instruments_execute_agent(command=ResourceAgentEvent.GO_ACTIVE,
-                                        expected_state=expected_state)
+        children_with_errors = self._instruments_execute_agent(
+            command=ResourceAgentEvent.GO_ACTIVE,
+            expected_state=expected_state)
+
+        return children_with_errors
 
     def _instruments_go_inactive(self):
         """
         Executes GO_INACTIVE on all my instruments.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        self._instruments_execute_agent(command=ResourceAgentEvent.GO_INACTIVE,
-                                        expected_state=ResourceAgentState.INACTIVE)
+        children_with_errors = self._instruments_execute_agent(
+            command=ResourceAgentEvent.GO_INACTIVE,
+            expected_state=ResourceAgentState.INACTIVE)
+
+        return children_with_errors
 
     def _instruments_run(self):
         """
         Executes RUN on all my instruments.
-        """
-        self._instruments_execute_agent(command=ResourceAgentEvent.RUN,
-                                        expected_state=ResourceAgentState.COMMAND)
 
-    def _instruments_shutdown(self):
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        Executes RESET on all my instruments.
+        children_with_errors = self._instruments_execute_agent(
+            command=ResourceAgentEvent.RUN,
+            expected_state=ResourceAgentState.COMMAND)
+
+        return children_with_errors
+
+    def _shutdown_and_terminate_instrument(self, instrument_id):
+        """
+        Executes RESET on the instrument and then terminates it.
+        ("shutting down" an instrument is just resetting it if not already in
+         UNINITIALIZED state)
+        """
+
+        dd = self._ia_clients[instrument_id]
+        cmd = AgentCommand(ResourceAgentEvent.RESET)
+
+        def reset():
+            log.debug("%r: resetting %r", self._platform_id, instrument_id)
+
+            ia_client = self._ia_clients[instrument_id].ia_client
+
+            # do not reset if instrument already in UNINITIALIZED:
+            if ResourceAgentState.UNINITIALIZED == ia_client.get_agent_state():
+                return
+
+            try:
+                retval = self._execute_instrument_agent(ia_client, cmd,
+                                                        instrument_id)
+            except:
+                err_msg = "%r: exception executing command %r in instrument %r" % (
+                          self._platform_id, cmd, instrument_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+            # verify state:
+            try:
+                expected_state = ResourceAgentState.UNINITIALIZED
+                state = ia_client.get_agent_state()
+                if expected_state != state:
+                    err_msg = "%r: expected instrument state %r but got %r" % (
+                              self._platform_id, expected_state, state)
+                    log.error(err_msg)
+                    return err_msg
+
+                return None
+
+            except:
+                err_msg = "%r: exception while calling get_agent_state to instrument %r" % (
+                          self._platform_id, instrument_id)
+                log.exception(err_msg) #, exc_Info=True)
+                return err_msg
+
+        def terminate():
+            pid = dd.pid
+            i_resource_id = dd.resource_id
+
+            log.debug("%r: canceling instrument process: instrument_id=%r, pid=%r",
+                      self._platform_id, instrument_id, pid)
+
+            try:
+                self._launcher.cancel_process(pid)
+
+                self._status_manager.publish_device_removed_event(i_resource_id)
+
+                log.debug(
+                    "%r: canceled instrument process: instrument_id=%r, pid=%r",
+                    self._platform_id, instrument_id, pid)
+
+                return None
+
+            except:
+                log.exception("%r: exception in cancel_process for instrument_id=%r, pid=%r",
+                              self._platform_id, instrument_id, pid)  # , exc_Info=True)
+
+        err_msg = reset()
+        if err_msg is None:
+            # reset ok; now terminate:
+            err_msg = terminate()
+
+        if err_msg is not None:
+            # some error happened; publish event:
+            self._status_manager.publish_device_failed_command_event(dd.resource_id,
+                                                                     cmd,
+                                                                     err_msg)
+
+        return err_msg
+
+    def _instruments_shutdown_and_terminate(self):
+        """
+        Executes RESET and terminates all my instruments.
         ("shutting down" the instruments is just resetting them.)
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        self._instruments_execute_agent(command=ResourceAgentEvent.RESET,
-                                        expected_state=ResourceAgentState.UNINITIALIZED)
+        instrument_ids = self._get_instrument_ids()
+        assert instrument_ids == self._ia_clients.keys()
+
+        instruments_with_errors = {}
+        if len(instrument_ids):
+            for instrument_id in instrument_ids:
+                err_msg = self._shutdown_and_terminate_instrument(instrument_id)
+                if err_msg is not None:
+                    instruments_with_errors[instrument_id] = err_msg
+
+        return instruments_with_errors
 
     def _instruments_pause(self):
         """
         Executes PAUSE on all my instruments.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        self._instruments_execute_agent(command=ResourceAgentEvent.PAUSE,
-                                        expected_state=ResourceAgentState.STOPPED)
+        children_with_errors = self._instruments_execute_agent(
+            command=ResourceAgentEvent.PAUSE,
+            expected_state=ResourceAgentState.STOPPED)
+
+        return children_with_errors
 
     def _instruments_resume(self):
         """
         Executes RESUME on all my instruments.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        self._instruments_execute_agent(command=ResourceAgentEvent.RESUME,
-                                        expected_state=ResourceAgentState.COMMAND)
+        children_with_errors = self._instruments_execute_agent(
+            command=ResourceAgentEvent.RESUME,
+            expected_state=ResourceAgentState.COMMAND)
+
+        return children_with_errors
 
     def _instruments_clear(self):
         """
         Executes CLEAR on all my instruments.
+
+        @return dict with children having caused some error. Empty if all
+                children were processed OK.
         """
-        self._instruments_execute_agent(command=ResourceAgentEvent.CLEAR,
-                                        expected_state=ResourceAgentState.IDLE)
+        children_with_errors = self._instruments_execute_agent(
+            command=ResourceAgentEvent.CLEAR,
+            expected_state=ResourceAgentState.IDLE)
+
+        return children_with_errors
 
     ##############################################################
-    # major operations
+    # major operations dealing with orchestration and state
+    # transitions involving child agents
     ##############################################################
 
     def _initialize(self, recursion):
@@ -1748,7 +1929,7 @@ class PlatformAgent(ResourceAgent):
 
         INITIALIZE is dispatched in a top-down fashion:
         - does proper initialization
-        - initializes instruments and sub-platforms
+        - if recursion is True, initializes instruments and sub-platforms
 
         @param recursion   True to initialize children.
 
@@ -1761,23 +1942,56 @@ class PlatformAgent(ResourceAgent):
         # first, my own initialization:
         self._initialize_this_platform()
 
+        # here, no errors occurred during initialization above. So, this agent
+        # will transition to INACTIVE (see _handler_uninitialized_initialize)
+        # regardless of the outcome of initializing the children below.
+
         # then, children initialization
         if recursion:
-            # first, handle the launch of the children:
+            # first, make sure the children are launched:
             if LAUNCH_CHILDREN_ON_START:
-                # children launched in on_start; make sure they are all launched:
-                self._async_children_launched.get(timeout=self._timeout)
-                log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
-                          self._platform_id)
+                # children were launched in on_start; wait here until all
+                # of them are launched:
+                try:
+                    self._async_children_launched.get(timeout=self._timeout)
+                    log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
+                              self._platform_id)
+                except:
+                    #
+                    # Do not proceed further with initialization of children.
+                    #
+                    log.exception("%r: exception while waiting children "
+                                  "to be launched. "
+                                  "Not proceeding with initialization of children.",
+                                  self._platform_id)
+                    return
 
             else:
-                self._children_launch()
+                # launch children here (which is synchronous here)
+                try:
+                    self._children_launch()
 
-            # initialize sub-platforms
-            self._subplatforms_initialize()
+                except:
+                    #
+                    # Do not proceed further with initialization of children.
+                    #
+                    log.exception("%r: exception while launching children processes. "
+                                  "Not proceeding with initialization of children.",
+                                  self._platform_id)
+                    return
 
-            # initialize instruments
-            self._instruments_initialize()
+            # All is OK here. Proceed with initializing children:
+            try:
+                # initialize sub-platforms
+                self._subplatforms_initialize()
+
+                # initialize instruments
+                self._instruments_initialize()
+
+            except:
+                log.exception("%r: unexpected exception while initializing children: "
+                              "any errors during this initialization should have "
+                              "been handled with event notifications.", self._platform_id)
 
         result = None
         return result
@@ -1798,10 +2012,346 @@ class PlatformAgent(ResourceAgent):
 
         # then instruments and sub-platforms
         if recursion:
-            self._instruments_go_active()
-            self._subplatforms_go_active()
+            try:
+                self._instruments_go_active()
+                self._subplatforms_go_active()
+
+            except:
+                log.exception("%r: unexpected exception while sending go_active to children: "
+                              "any errors during this sequence should have "
+                              "been handled with event notifications.", self._platform_id)
+        result = None
+        return result
+
+    def _go_inactive(self, recursion):
+        """
+        Dispatches the GO_INACTIVE command.
+
+        GO_INACTIVE is dispatched in a bottom-up fashion:
+         - if recursion is True, issues GO_INACTIVE to sub-platforms
+         - if recursion is True, issues GO_INACTIVE to instruments
+         - processes the command at this platform.
+
+        If recursion==True and any sub-platform or instrument fails the command,
+        then this agent does NOT perform any actions on itself.
+
+        @param recursion  If True, children are sent the GO_INACTIVE command
+                          (with corresponding recursion parameter set to True
+                           in the case of platforms).
+        """
+
+        if recursion:
+            # first sub-platforms:
+            subplatforms_with_errors = self._subplatforms_go_inactive()
+
+            # we proceed with instruments even if some sub-platforms failed.
+
+            # then my own instruments:
+            instruments_with_errors = self._instruments_go_inactive()
+
+            if len(subplatforms_with_errors) or len(instruments_with_errors):
+                #
+                # Do not proceed further. Note that events with the errors
+                # should have already been published.
+                #
+                log.debug("%r: some sub-platforms or instruments failed to go_inactive. "
+                          "Not proceeding with my own go_inactive. "
+                          "subplatforms_with_errors=%s "
+                          "instruments_with_errors=%s",
+                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                return
+
+        # then myself:
+        result = self._go_inactive_this_platform()
+        return result
+
+    def _run(self, recursion):
+        """
+        Dispatches the RUN command.
+
+        RUN is dispatched in a top-down fashion:
+         - processes the command at this platform (which does nothing, actually)
+         - if recursion is True, issues RUN to instruments
+         - if recursion is True, issues RUN to sub-platforms
+        """
+        # first myself
+        self._run_this_platform()
+
+        if recursion:
+            # first sub-platforms:
+            self._instruments_run()
+
+            # we proceed with instruments even if some sub-platforms failed.
+
+            # then my own instruments:
+            self._subplatforms_run()
 
         result = None
+        return result
+
+    def _reset(self, recursion):
+        """
+        Dispatches the RESET command.
+
+        RESET is dispatched in a bottom-up fashion:
+        - if recursion is True, reset the children
+        - then reset this platform itself.
+
+        @param recursion  If True, sub-platform are sent the RESET command
+                          (with corresponding recursion parameter set to True),
+                          and intruments are also sent RESET (no recursion
+                          parameter is applicable to instruments).
+        """
+
+        log.debug("%r: _reset: recursion=%s", self._platform_id, recursion)
+
+        if recursion:
+            # first sub-platforms:
+            subplatforms_with_errors = self._subplatforms_reset()
+
+            # we proceed with instruments even if some sub-platforms failed.
+
+            # then my own instruments:
+            instruments_with_errors = self._instruments_reset()
+
+            if len(subplatforms_with_errors) or len(instruments_with_errors):
+                #
+                # Do not proceed further. Note that events with the errors
+                # should have already been published.
+                #
+                log.debug("%r: some sub-platforms or instruments failed to reset. "
+                          "Not proceeding with my own reset. "
+                          "subplatforms_with_errors=%s "
+                          "instruments_with_errors=%s",
+                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                return
+
+        # then myself
+        self._reset_this_platform()
+
+    def _shutdown(self, recursion):
+        """
+        Dispatches a SHUTDOWN request.
+
+        SHUTDOWN is dispatched in a bottom-up fashion:
+        - if recursion is True, shuts down and terminates the sub-platforms
+          and the instruments
+        - then brings this platform agent to the uninitialized state.
+          Note that the platform can not actually "shutdown" itself.
+
+        If recursion==True and any sub-platform or instrument fails to shutdown
+        or terminate, then this agent does NOT perform any actions on itself.
+
+        @param recursion   True to "shutdown" children.
+        """
+
+        log.debug("%r: _shutdown: recursion=%s", self._platform_id, recursion)
+
+        if recursion:
+            # shutdown and terminate sub-platforms:
+            subplatforms_with_errors = self._subplatforms_shutdown_and_terminate()
+
+            # we proceed with instruments even if some sub-platforms failed.
+
+            # shutdown and terminate instruments:
+            instruments_with_errors = self._instruments_shutdown_and_terminate()
+
+            if len(subplatforms_with_errors) or len(instruments_with_errors):
+                #
+                # Do not proceed further. Note that events with the errors
+                # should have already been published.
+                #
+                log.debug("%r: some sub-platforms or instruments failed to shutdown "
+                          "or terminate. Not proceeding with my own shutdown. "
+                          "subplatforms_with_errors=%s "
+                          "instruments_with_errors=%s",
+                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                return
+
+        # "shutdown" myself
+        self._shutdown_this_platform()
+
+    def _pause(self, recursion):
+        """
+        Dispatches the PAUSE command.
+
+        PAUSE is dispatched in a bottom-up fashion:
+        - if recursion is True, pause the children
+        - then pause this platform itself.
+
+        If recursion==True and any sub-platform or instrument fails the command,
+        then this agent does NOT perform any actions on itself.
+
+        @param recursion  If True, children are sent the PAUSE command
+                          (with corresponding recursion parameter set to True
+                           in the case of platforms).
+        """
+        if recursion:
+            # first sub-platforms:
+            subplatforms_with_errors = self._subplatforms_pause()
+
+            # we proceed with instruments even if some sub-platforms failed.
+
+            # then my own instruments:
+            instruments_with_errors = self._instruments_pause()
+
+            if len(subplatforms_with_errors) or len(instruments_with_errors):
+                #
+                # Do not proceed further. Note that events with the errors
+                # should have already been published.
+                #
+                log.debug("%r: some sub-platforms or instruments failed to pause. "
+                          "Not proceeding with my own pause. "
+                          "subplatforms_with_errors=%s "
+                          "instruments_with_errors=%s",
+                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                return
+
+        # then myself
+        self._pause_this_platform()
+
+    def _resume(self, recursion):
+        """
+        Dispatches the RESUME command.
+
+        RESUME is dispatched in a bottom-up fashion:
+        - if recursion is True, resume the children
+        - then resume this platform itself.
+
+        If recursion==True and any sub-platform or instrument fails the command,
+        then this agent does NOT perform any actions on itself.
+
+        @param recursion  If True, children are sent the RESUME command
+                          (with corresponding recursion parameter set to True
+                           in the case of platforms).
+        """
+        if recursion:
+            # first sub-platforms:
+            subplatforms_with_errors = self._subplatforms_resume()
+
+            # we proceed with instruments even if some sub-platforms failed.
+
+            # then my own instruments:
+            instruments_with_errors = self._instruments_resume()
+
+            if len(subplatforms_with_errors) or len(instruments_with_errors):
+                #
+                # Do not proceed further. Note that events with the errors
+                # should have already been published.
+                #
+                log.debug("%r: some sub-platforms or instruments failed to resume. "
+                          "Not proceeding with my own resume. "
+                          "subplatforms_with_errors=%s "
+                          "instruments_with_errors=%s",
+                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                return
+
+        # then myself
+        self._resume_this_platform()
+
+    def _clear(self, recursion):
+        """
+        Dispatches the CLEAR command.
+
+        CLEAR is dispatched in a bottom-up fashion:
+        - if recursion is True, "clear" the children
+        - then "clear" this platform itself.
+
+        If recursion==True and any sub-platform or instrument fails the command,
+        then this agent does NOT perform any actions on itself.
+
+        @param recursion  If True, children are sent the CLEAR command
+                          (with corresponding recursion parameter set to True
+                           in the case of platforms).
+        """
+        if recursion:
+            # first sub-platforms:
+            subplatforms_with_errors = self._subplatforms_clear()
+
+            # we proceed with instruments even if some sub-platforms failed.
+
+            # then my own instruments:
+            instruments_with_errors = self._instruments_clear()
+
+            if len(subplatforms_with_errors) or len(instruments_with_errors):
+                #
+                # Do not proceed further. Note that events with the errors
+                # should have already been published.
+                #
+                log.debug("%r: some sub-platforms or instruments failed to clear. "
+                          "Not proceeding with my own clear. "
+                          "subplatforms_with_errors=%s "
+                          "instruments_with_errors=%s",
+                          self._platform_id, subplatforms_with_errors, instruments_with_errors)
+                return
+
+        # then myself:
+        self._clear_this_platform()
+
+    ##############################################################
+    # main operations *not* involving commands to child agents
+    ##############################################################
+
+    def _start_resource_monitoring(self):
+        """
+        Starts resource monitoring.
+        """
+        self._assert_driver()
+
+        self._platform_resource_monitor = PlatformResourceMonitor(
+            self._platform_id, self._platform_attributes,
+            self._get_attribute_values, self.evt_recv)
+
+        self._platform_resource_monitor.start_resource_monitoring()
+
+    def _stop_resource_monitoring(self):
+        """
+        Stops resource monitoring.
+        """
+        assert self._platform_resource_monitor is not None, \
+            "_start_resource_monitoring must have been called first"
+
+        self._platform_resource_monitor.destroy()
+        self._platform_resource_monitor = None
+
+    def _check_sync(self):
+        """
+        This will be the main operation related with checking that the
+        information on this platform agent (and sub-platforms) is consistent
+        with the information in the external network rooted at the
+        corresponding platform, then publishing relevant notification events.
+
+        For the moment, it only tries to do the following:
+        - gets the checksum reported by the external platform
+        - compares it with the local checksum
+        - if equal ...
+        - if different ...
+
+        @todo complete implementation
+
+        @return TODO
+        """
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _check_sync: getting external checksum..." % self._platform_id)
+
+        external_checksum = self._trigger_driver_event(PlatformDriverEvent.GET_CHECKSUM)
+        local_checksum = self._pnode.compute_checksum()
+
+        if external_checksum == local_checksum:
+            result = "OK: checksum for platform_id=%r: %s" % (
+                self._platform_id, local_checksum)
+        else:
+            result = "ERROR: different external and local checksums for " \
+                     "platform_id=%r: %s != %s" % (self._platform_id,
+                     external_checksum, local_checksum)
+
+            # TODO - determine what sub-components are in disagreement
+            # TODO - publish relevant event(s)
+
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: _check_sync: result: %s" % (self._platform_id, result))
+
         return result
 
     ##############################################################
@@ -2268,47 +2818,6 @@ class PlatformAgent(ResourceAgent):
     # sync/checksum
     ##############################################################
 
-    def _check_sync(self):
-        """
-        This will be the main operation related with checking that the
-        information on this platform agent (and sub-platforms) is consistent
-        with the information in the external network rooted at the
-        corresponding platform, then publishing relevant notification events.
-
-        For the moment, it only tries to do the following:
-        - gets the checksum reported by the external platform
-        - compares it with the local checksum
-        - if equal ...
-        - if different ...
-
-        @todo complete implementation
-
-        @return TODO
-        """
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _check_sync: getting external checksum..." % self._platform_id)
-
-        external_checksum = self._trigger_driver_event(PlatformDriverEvent.GET_CHECKSUM)
-        local_checksum = self._pnode.compute_checksum()
-
-        if external_checksum == local_checksum:
-            result = "OK: checksum for platform_id=%r: %s" % (
-                self._platform_id, local_checksum)
-        else:
-            result = "ERROR: different external and local checksums for " \
-                     "platform_id=%r: %s != %s" % (self._platform_id,
-                     external_checksum, local_checksum)
-
-            # TODO
-            # - determine what sub-components are in disagreement
-            # - publish relevant event(s)
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _check_sync: result: %s" % (self._platform_id, result))
-
-        return result
-
     def _handler_check_sync(self, *args, **kwargs):
         """
         """
@@ -2372,13 +2881,13 @@ class PlatformAgent(ResourceAgent):
     # FSM setup.
     ##############################################################
 
-    def _construct_fsm(self):
+    def _construct_fsm(self, states=PlatformAgentState, events=PlatformAgentEvent):
         """
         """
         log.debug("constructing fsm")
 
-        super(PlatformAgent, self)._construct_fsm(states=PlatformAgentState,
-                                                  events=PlatformAgentEvent)
+        super(PlatformAgent, self)._construct_fsm(states=states,
+                                                  events=events)
 
         # UNINITIALIZED state event handlers.
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
@@ -2411,7 +2920,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
 
-        # COMMAND/MONITORING common state event handlers.
+        # COMMAND and MONITORING common state event handlers.
         # TODO revisit this when introducing the BUSY state
         for state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             self._fsm.add_handler(state, PlatformAgentEvent.RESET, self._handler_command_reset)
@@ -2432,11 +2941,11 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.CHECK_SYNC, self._handler_check_sync)
 
-        # COMMAND state event handlers.
+        # additional COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.PAUSE, self._handler_command_pause)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.CLEAR, self._handler_command_clear)
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.START_MONITORING, self._handler_start_resource_monitoring)
 
-        # MONITORING state event handlers.
+        # additional MONITORING state event handlers.
         self._fsm.add_handler(PlatformAgentState.MONITORING, PlatformAgentEvent.STOP_MONITORING, self._handler_stop_resource_monitoring)
