@@ -148,7 +148,11 @@ class HYPMDataHandler(BaseDataHandler):
                                 all_data[name].append(data_map[name]) #[x * max_rec:(x + 1) * max_rec]
 
                     for name in parser.sensor_names:
-                        rdt[name] = all_data[name]
+                        try:
+                            rdt[name] = all_data[name]
+                        except Exception:
+                            log.error('failed to set rdt[%s], all_data=%r', name, all_data)
+                            raise
 
                     g = rdt.to_granule()
 
@@ -232,6 +236,7 @@ class HYPM_01_WFP_CTDParser(object):
         self.f.seek(old_pos)
         return lines.count(self.termination_string + '\n')
 
+
 class HYPM_01_WFP_ACMParser(object):
 
     termination_string = 'ffffffffffffffffffffffffffffffffffff'
@@ -245,7 +250,7 @@ class HYPM_01_WFP_ACMParser(object):
         if not url:
             raise HYPMException('Must provide a filename')
 
-        self.sensor_names = ['time', 'VelA', 'VelB', 'VelC', 'VelD', 'Mx', 'My', 'Mz', 'Pitch', 'Roll']
+        self.sensor_names = ['time', 'upload_time', 'VelA', 'VelB', 'VelC', 'VelD', 'Mx', 'My', 'Mz', 'Pitch', 'Roll']
 
         self.f = open(url, 'r')
         self.record_count = self.get_record_count()
