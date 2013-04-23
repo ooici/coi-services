@@ -1160,10 +1160,13 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     def _get_ports(self):
         cmd = AgentCommand(command=PlatformAgentEvent.GET_PORTS)
         retval = self._execute_agent(cmd)
-        md = retval.result
-        self.assertIsInstance(md, dict)
-        # TODO verify possible subset of required entries in the dict.
-        log.info("GET_PORTS = %s", md)
+        ports = retval.result
+        log.info("GET_PORTS = %s", ports)
+        self.assertIsInstance(ports, dict)
+        for port_id, info in ports.iteritems():
+            self.assertIsInstance(info, dict)
+            self.assertTrue('network' in info)
+            self.assertTrue('is_on' in info)
 
     def _initialize(self, recursion=True):
         kwargs = dict(recursion=recursion)

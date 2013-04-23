@@ -1145,9 +1145,9 @@ class PlatformAgent(ResourceAgent):
     def _get_ports(self):
         ports = {}
         for port_id, port in self._pnode.ports.iteritems():
-            ports[port_id] = {'network': port.network}
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _get_ports: %s", self._platform_id, ports)
+            ports[port_id] = {'network': port.network,
+                              'is_on':   port.is_on}
+        log.debug("%r: _get_ports: %s", self._platform_id, ports)
         return ports
 
     def _subplatforms_launch(self):
