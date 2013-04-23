@@ -54,5 +54,5 @@ class TestSBE52BinaryParser(PyonTestCase):
         self.assertAlmostEqual(0, record['oxygen'], delta=0.01)
         self.assertAlmostEqual(309.77, record['pressure'], delta=0.01)
         self.assertAlmostEqual(37.9848, record['conductivity'], delta=0.01)
-        self.assertAlmostEqual(9.5163, record['temperature'], delta=0.01)
+        self.assertAlmostEqual(9.5163, record['temp'], delta=0.01)
         self.assertAlmostEqual(1500353102, record['time'], delta=0.01)

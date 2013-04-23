@@ -652,95 +652,50 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #todo:  if instance running, then return or throw
         #todo: if instance exists and dataset_agent_instance_obj.dataset_agent_config is completd then just schedule_process
 
-
         dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
+        ext_dataset_id = self.clients.resource_registry.read_subject(RT.ExternalDataset, PRED.hasAgentInstance, external_dataset_agent_instance_id, True)
+        ext_dataset_model_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasModel, RT.ExternalDatasetModel, True)
+        ext_dataset_agent_id = self.clients.resource_registry.read_subject(RT.ExternalDatasetAgent, PRED.hasAgentDefinition, ext_dataset_model_id, True)
+        process_definition_id = self.clients.resource_registry.read_object(ext_dataset_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
 
-        #retrieve the associated external dataset device
-        ext_dataset_ids, _ = self.clients.resource_registry.find_subjects(RT.ExternalDataset, PRED.hasAgentInstance, external_dataset_agent_instance_id, True)
-        if not ext_dataset_ids:
-            raise NotFound("No External Dataset attached to this Dataset Agent Instance " + str(external_dataset_agent_instance_id))
-        if len(ext_dataset_ids) > 1:
-            raise BadRequest("Dataset Agent Instance should only have ONE External Dataset" + str(external_dataset_agent_instance_id))
-        ext_dataset_id = ext_dataset_ids[0]
-        log.debug("start_external_dataset_agent_instance: external dataset is %s connected to dataset agent instance %s ", str(ext_dataset_id),  str(external_dataset_agent_instance_id))
+        # THIS CODE DOESN'T MAKE SENSE -- GETS MULTIPLE DATA PRODUCTS BUT ONLY SETS 'parsed' IN OUTPUT
+        #out_streams = {}
+        ##retrieve the output products
+        #data_product_ids, _ = self.clients.resource_registry.find_objects(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        #if not data_product_ids:
+        #    raise NotFound("No output Data Products attached to this External Dataset " + ext_dataset_id)
+        #
+        #for product_id in data_product_ids:
+        #    out_streams['parsed'] = self.clients.resource_registry.read_object(product_id, PRED.hasStream, RT.Stream, True)
 
+        # INSTEAD FOR NOW ENFORCE ONLY ONE DATA PRODUCT
+        data_product_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, True)
+        stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, True)
 
-        #retrieve the external dataset model
-        model_ids, _ = self.clients.resource_registry.find_objects(ext_dataset_id, PRED.hasModel, RT.ExternalDatasetModel, True)
-        if not model_ids:
-            raise NotFound("No External Dataset Model  attached to this External Dataset " + str(ext_dataset_id))
+        # REPLACE CONFIGURATION WITH TESTED ENTRIES
+        ## Create agent config.
+        #dataset_agent_instance_obj.dataset_agent_config = {
+        #    'driver_config' : dataset_agent_instance_obj.dataset_driver_config,
+        #    'stream_config' : {'parsed': stream_id },
+        #    'agent'         : {'resource_id': ext_dataset_id},
+        #}
 
-        ext_dataset_model_id = model_ids[0]
-        log.debug("start_external_dataset_agent_instance:External Dataset Model %s"  +  str(ext_dataset_model_id))
+        route = self.clients.pubsub_management.read_stream_route(stream_id)
 
-
-        #retrieve the associated instrument agent
-        agent_ids, _ = self.clients.resource_registry.find_subjects(RT.ExternalDatasetAgent, PRED.hasModel, ext_dataset_model_id, True)
-        if not agent_ids:
-            raise NotFound("No External Dataset Agent  attached to this External Dataset Model " + str(ext_dataset_model_id))
-
-        ext_dataset_agent_id = agent_ids[0]
-        log.debug("start_external_dataset_agent_instance: external dataset agent '%s'" % ext_dataset_agent_id)
-
-        #retrieve the associated process definition
-        process_def_ids, _ = self.clients.resource_registry.find_objects(ext_dataset_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
-        if not process_def_ids:
-            raise NotFound("No Process Definition  attached to this ExtDataset Agent " + str(ext_dataset_agent_id))
-        if len(process_def_ids) > 1:
-            raise BadRequest("ExtDataset Agent should only have ONE Process Definition" + str(ext_dataset_agent_id))
-
-        process_definition_id = process_def_ids[0]
-        log.debug("activate_instrument: agent process definition %s"  +  str(process_definition_id))
-
-        # retrieve the process definition information
-        process_def_obj = self.clients.resource_registry.read(process_definition_id)
-
-        out_streams = {}
-        #retrieve the output products
-        data_product_ids, _ = self.clients.resource_registry.find_objects(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        if not data_product_ids:
-            raise NotFound("No output Data Products attached to this External Dataset " + str(ext_dataset_id))
-
-        for product_id in data_product_ids:
-            stream_ids, _ = self.clients.resource_registry.find_objects(product_id, PRED.hasStream, RT.Stream, True)
-
-            log.debug("start_external_dataset_agent_instance:output stream ids: %s"  +  str(stream_ids))
-            #One stream per product ...for now.
-            if not stream_ids:
-                raise NotFound("No Stream  attached to this Data Product " + str(product_id))
-            if len(stream_ids) > 1:
-                raise BadRequest("Data Product should only have ONE Stream" + str(product_id))
-
-            # retrieve the stream
-            stream_obj = self.clients.resource_registry.read(stream_ids[0])
-
-            out_streams['parsed'] = stream_ids[0]
-
-
-        # Create agent config.
-        dataset_agent_instance_obj.dataset_agent_config = {
-            'driver_config' : dataset_agent_instance_obj.dataset_driver_config,
-            'stream_config' : out_streams,
-            'agent'         : {'resource_id': ext_dataset_id},
-            'test_mode' : True
-        }
-
-        log.debug("start_external_dataset_agent_instance: agent_config %s ", str(dataset_agent_instance_obj.dataset_agent_config))
+        dataset_agent_instance_obj.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = stream_id
+        dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
+        dataset_agent_instance_obj.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = route
+        log.debug("start_external_dataset_agent_instance: agent_config %r", dataset_agent_instance_obj.dataset_agent_config)
 
         # Setting the restart mode
         schedule = ProcessSchedule()
         schedule.restart_mode = ProcessRestartMode.ABNORMAL
-
-        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id,
-                                                               schedule=schedule,
+        pid = self.clients.process_dispatcher.schedule_process(process_definition_id=process_definition_id, schedule=schedule,
                                                                configuration=dataset_agent_instance_obj.dataset_agent_config)
-        log.debug("start_external_dataset_agent_instance: schedule_process %s", pid)
-
 
         # add the process id and update the resource
         dataset_agent_instance_obj.agent_process_id = pid
         self.update_external_dataset_agent_instance(dataset_agent_instance_obj)
-
         return pid
 
     def stop_external_dataset_agent_instance(self, external_dataset_agent_instance_id=''):
