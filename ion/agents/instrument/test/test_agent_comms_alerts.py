@@ -142,7 +142,7 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@attr('HARDWARE', group='mi')
+@attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
 class TestAgentCommsAlerts(IonIntegrationTestCase):
     """
