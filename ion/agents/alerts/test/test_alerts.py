@@ -38,7 +38,7 @@ from pyon.public import IonObject
 from ion.agents.alerts.alerts import *
 
 # Resource agent.
-from pyon.agent.agent import ResourceAgentState
+from pyon.agent.agent import ResourceAgentState, ResourceAgentEvent
 
 """
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts
@@ -47,6 +47,7 @@ bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAle
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_two_sided_interval
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_late_data
 bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_state_alert
+bin/nosetests -s -v --nologcapture ion/agents/alerts/test/test_alerts.py:TestAlerts.test_command_error_alert
 """
 
 @attr('INT', group='sa')
@@ -426,3 +427,67 @@ class TestAlerts(IonIntegrationTestCase):
         {'origin': 'abc123', 'status': 1, '_id': 'bef0987444254adb9db8fa752b2e1c81', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_LOST_CONNECTION'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366659466222', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
         {'origin': 'abc123', 'status': 1, '_id': '4d78cede6e01419a881eac288cf1dbd3', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_IDLE'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366659466229', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
         """
+        
+    def test_command_error_alert(self):
+        """
+        """
+        alert_def = {
+            'name' : 'comms_warning',
+            'description' : 'Detected comms failure.',
+            'alert_type' : StreamAlertType.WARNING,
+            'resource_id' : self._resource_id,
+            'origin_type' : self._origin_type,
+            'command' : ResourceAgentEvent.GO_ACTIVE,
+            'clear_states' : [
+                ResourceAgentState.IDLE,
+                ResourceAgentState.COMMAND,
+                ResourceAgentState.STREAMING
+                ],
+            'alert_class' : 'CommandErrorAlert'
+        }
+
+        cls = alert_def.pop('alert_class')
+        alert = eval('%s(**alert_def)' % cls)
+
+        status = alert.get_status()
+
+        # This sequence will produce 5 alerts:
+        # All clear on initialize success (prev value None)
+        # Warning on go active failure,
+        # All clear on go active success,
+        # Warning on go active failure
+        # All clear on transition to idle (reconnect)
+        self._event_count = 5
+        test_vals = [
+            {'state': ResourceAgentState.UNINITIALIZED },
+            {'command': ResourceAgentEvent.INITIALIZE, 'command_success': True},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.GO_ACTIVE, 'command_success': False},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.RESET, 'command_success': True},
+            {'state': ResourceAgentState.UNINITIALIZED },
+            {'command': ResourceAgentEvent.INITIALIZE, 'command_success': True},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.GO_ACTIVE, 'command_success': True},
+            {'state': ResourceAgentState.IDLE },
+            {'command': ResourceAgentEvent.RESET, 'command_success': True},
+            {'state': ResourceAgentState.UNINITIALIZED },
+            {'command': ResourceAgentEvent.INITIALIZE, 'command_success': True},
+            {'state': ResourceAgentState.INACTIVE },
+            {'command': ResourceAgentEvent.GO_ACTIVE, 'command_success': False},
+            {'state': ResourceAgentState.INACTIVE },
+            {'state': ResourceAgentState.IDLE }
+        ]
+
+        for x in test_vals:
+            alert.eval_alert(**x)
+
+        self._async_event_result.get(timeout=30)            
+        """
+        {'origin': 'abc123', 'status': 1, '_id': '44ec7f5452004cceb3d8dbaa941f08ef', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538561', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'ae33b508a3d845feacd05d9d25992924', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538571', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': 'f9eb2f3c477c46f1af0076fd4eab58f1', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538579', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '23153a1c48de4f25bce6f84cfab8444a', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538586', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': 'abc123', 'status': 1, '_id': '18b85d52ac1a438a9f5f8e69e5f4f6e8', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366740538592', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        """
+        

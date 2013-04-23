@@ -437,5 +437,60 @@ class StateAlert(BaseAlert):
         if self._prev_status != self._status:
             self.publish_alert()
 
-    
-    
+class CommandErrorAlert(BaseAlert):
+    """
+    An alert that triggers for specified command errors.
+    Useful for detecting failed connection attmepts.
+    """
+    def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
+                 origin_type=None, aggregate_type=None, command=None,
+                 clear_states=None, **kwargs):
+
+        super(CommandErrorAlert, self).__init__(name, description, alert_type, resource_id,
+                                         origin_type, aggregate_type)
+
+        assert isinstance(command, str)
+        assert isinstance(clear_states, (list, tuple))
+        assert all([isinstance(x, str) for x in clear_states])
+        
+        self._command = command
+        self._clear_states = clear_states
+        
+    def get_status(self):
+        status = super(CommandErrorAlert, self).get_status()
+        status['command'] = self._command
+        status['clear_states'] = self._clear_states
+        return status
+
+    def eval_alert(self, command=None, command_success=None, state=None, **kwargs):        
+        if (not isinstance(command, str) or not isinstance(command_success, bool)) and \
+            not isinstance(state, str):
+            return
+        
+        self._prev_status = self._status
+
+        if self._prev_status == None:
+            if command != None:
+                if command == self._command:
+                    self._status = command_success
+                else:
+                    self._status = True
+            
+            elif state != None:
+                self._status = True
+        
+        else:
+            if command != None:
+                if command == self._command:
+                    self._status = command_success
+                else:
+                    self._status = self._prev_status
+                    
+            elif state != None:
+                if self._prev_status == False:
+                    self._status = (state in self._clear_states)
+                else:
+                    self._status = self._prev_status
+
+        if self._prev_status != self._status:
+            self.publish_alert()
