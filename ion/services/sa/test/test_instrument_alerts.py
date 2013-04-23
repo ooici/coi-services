@@ -372,20 +372,16 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
                 a.description == 'Expected data has not arrived.':
                     got_late_data = True
             runtime = time.time() - starttime            
-        #caught_events.append(self.catch_alert.get(timeout=45))
-        #caught_events.append(self.catch_alert.get(timeout=45))
-        #caught_events.append(self.catch_alert.get(timeout=45))
         log.debug("caught_events: %s", [c.name for c in caught_events])
-
-        print '###########'
-        for c in caught_events:
-            print '%s  %s' % (c.name, c.description)
 
         for c in caught_events:
             self.assertIn(c.name, ['temperature_warning_interval', 'late_data_warning'])
             self.assertEqual(c.origin, instDevice_id)
             self.assertEqual(c.type_, 'DeviceStatusAlertEvent')
             self.assertEqual(c.origin_type, 'InstrumentDevice')
+
+        self.assertTrue(got_bad_temp)
+        self.assertTrue(got_late_data)
 
             #if c.name == 'temperature_warning_interval':
             #    self.assertEqual(c.description, 'Temperature is below the normal range of 50.0 and above.')
