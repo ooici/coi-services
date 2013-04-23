@@ -215,10 +215,11 @@ class TypesManager(object):
         pmap = {'dat':name, 'dat_min':grt_min_name,'dat_max':grt_max_name}
         pfunc.param_map = pmap
         pfunc.lookup_values = [grt_min_id, grt_max_id]
-
-        pc = ParameterContext(name='%s_glblrng_qc' % name, param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
+        dp_name = re.sub(r'_L[0-9]+','',data_product)
+        pc = ParameterContext(name='%s_glblrng_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
         pc.uom = '1'
-        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % name, parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id)
+        pc.ooi_short_name = '%s_GLBLRNG_QC' % dp_name
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % dp_name, parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name)
         return ctxt_id, pc
 
 

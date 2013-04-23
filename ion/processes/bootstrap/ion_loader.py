@@ -1468,10 +1468,19 @@ class IONLoader(ImmediateProcess):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
         svc_client = self._get_service_client("dataset_management")
         reference_designator = row['reference_designator']
+        available_fields = row['available_fields']
+        if available_fields:
+            available_fields = available_fields.split(',')
+            available_fields = [i.strip() for i in available_fields]
+            for i,field in enumerate(available_fields):
+                if field.startswith('PD') and field in self.resource_objs:
+                    available_fields[i] = self.resource_objs[field].name
+        
         parameter_dictionary_id = self.resource_ids[row['parameter_dictionary']]
         svc_client = self._get_service_client("pubsub_management")
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
                 stream_configuration={'reference_designator' : reference_designator} if reference_designator else None,
+                available_fields = available_fields or None,
             headers=self._get_system_actor_headers())
         self._register_id(row[COL_ID], res_id, res_obj)
 
@@ -2293,6 +2302,11 @@ Reason: %s
         gcrs_id = row['coordinate_system_id']
         if gcrs_id:
             res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
+        parent_dataset_id=None
+        if row['parent'] and row['parent'] in self.resource_ids:
+            parent_id = self.resource_ids[row['parent']]
+            parent_dataset_ids, _ = self.container.resource_registry.find_objects(parent_id,PRED.hasDataset, id_only=True)
+            parent_dataset_id = parent_dataset_ids[0] if len(parent_dataset_ids) else None
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
 
@@ -2312,6 +2326,7 @@ Reason: %s
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]
             res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
+                    dataset_id=parent_dataset_id or None,
                 headers=headers)
             self._register_id(row[COL_ID], res_id, res_obj)
 
