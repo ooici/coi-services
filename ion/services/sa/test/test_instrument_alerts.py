@@ -16,6 +16,8 @@ from pyon.agent.agent import ResourceAgentClient
 from pyon.util.context import LocalContextMixin
 from pyon.event.event import EventSubscriber
 
+import time
+
 from interface.objects import StreamAlertType, AggregateStatusType
 from interface.services.sa.iinstrument_management_service import InstrumentManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
@@ -354,10 +356,25 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        caught_events = [self.catch_alert.get(timeout=45)]
-        caught_events.append(self.catch_alert.get(timeout=45))
-        caught_events.append(self.catch_alert.get(timeout=45))
-        caught_events.append(self.catch_alert.get(timeout=45))
+        got_bad_temp = False
+        got_late_data = False
+        runtime = 0
+        starttime = time.time()
+        caught_events = []
+        while (got_bad_temp == False or got_late_data == False) and \
+            runtime < 120:            
+            a = self.catch_alert.get(timeout=45)
+            caught_events.append(a)
+            if a.name == 'temperature_warning_interval' and \
+                a.description == 'Temperature is below the normal range of 50.0 and above.':
+                    got_bad_temp = True
+            if a.name == 'late_data_warning' and \
+                a.description == 'Expected data has not arrived.':
+                    got_late_data = True
+            runtime = time.time() - starttime            
+        #caught_events.append(self.catch_alert.get(timeout=45))
+        #caught_events.append(self.catch_alert.get(timeout=45))
+        #caught_events.append(self.catch_alert.get(timeout=45))
         log.debug("caught_events: %s", [c.name for c in caught_events])
 
         print '###########'
