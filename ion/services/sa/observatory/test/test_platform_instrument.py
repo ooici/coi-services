@@ -82,7 +82,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
 
 
-    @unittest.skip('This test takes too long and gets Connect Refused errors.')
+    #@unittest.skip('This test takes too long and gets Connect Refused errors.')
     def test_platform_with_instrument_streaming(self):
         #
         # The following is with just a single platform and the single
@@ -217,8 +217,8 @@ error: [Errno 61] Connection refused
 
             self.catch_alert.put(event)
 
-        #create a subscriber for the StreamAlertEvent from the instrument
-        self.event_subscriber = EventSubscriber(event_type='StreamAlertEvent',
+        #create a subscriber for the DeviceStatusAlertEvent from the instrument
+        self.event_subscriber = EventSubscriber(event_type='DeviceStatusAlertEvent',
             origin=i_obj.instrument_device_id,
             callback=callback_for_alert)
         self.event_subscriber.start()

@@ -161,7 +161,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             temp_alert_def = {
                 'name' : 'temperature_warning_interval',
                 'stream_name' : 'parsed',
-                'message' : 'Temperature is below the normal range of 50.0 and above.',
+                'description' : 'Temperature is below the normal range of 50.0 and above.',
                 'alert_type' : StreamAlertType.WARNING,
                 'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
                 'value_id' : 'temp',
@@ -175,7 +175,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             late_data_alert_def = {
                 'name' : 'late_data_warning',
                 'stream_name' : 'parsed',
-                'message' : 'Expected data has not arrived.',
+                'description' : 'Expected data has not arrived.',
                 'alert_type' : StreamAlertType.WARNING,
                 'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
                 'value_id' : None,
@@ -322,7 +322,7 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
             log.debug("caught an alert: %s", event)
             self.catch_alert.put(event)
 
-        self.event_subscriber = EventSubscriber(event_type='StreamAlertEvent',
+        self.event_subscriber = EventSubscriber(event_type='DeviceStatusAlertEvent',
             origin=instDevice_id,
             callback=callback_for_alert)
 
@@ -361,13 +361,19 @@ class TestInstrumentAlerts(IonIntegrationTestCase):
         for c in caught_events:
             self.assertIn(c.name, ['temperature_warning_interval', 'late_data_warning'])
             self.assertEqual(c.origin, instDevice_id)
-            self.assertEqual(c.type_, 'StreamAlertEvent')
+            self.assertEqual(c.type_, 'DeviceStatusAlertEvent')
             self.assertEqual(c.origin_type, 'InstrumentDevice')
 
             if c.name == 'temperature_warning_interval':
-                self.assertEqual(c.message, 'Temperature is below the normal range of 50.0 and above.')
+                if c.status:
+                    self.assertEqual(c.description, 'The alert is cleared.')
+                else:
+                    self.assertEqual(c.description, 'Temperature is below the normal range of 50.0 and above.')
             elif c.name == 'late_data_warning':
-                self.assertEqual(c.message, 'Expected data has not arrived.')
+                if c.status:
+                    self.assertEqual(c.description, 'The alert is cleared.')
+                else:
+                    self.assertEqual(c.description, 'Expected data has not arrived.')
 
 
 

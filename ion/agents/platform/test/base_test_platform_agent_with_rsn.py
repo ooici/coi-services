@@ -722,7 +722,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         temp_alert_def = {
             'name' : 'temperature_warning_interval',
             'stream_name' : 'parsed',
-            'message' : 'Temperature is below the normal range of 50.0 and above.',
+            'description' : 'Temperature is below the normal range of 50.0 and above.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
@@ -734,7 +734,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         late_data_alert_def = {
             'name' : 'late_data_warning',
             'stream_name' : 'parsed',
-            'message' : 'Expected data has not arrived.',
+            'description' : 'Expected data has not arrived.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
             'value_id' : None,
@@ -1279,8 +1279,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             _ia_client = self._create_resource_agent_client(instrument.instrument_device_id)
 
             cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
-            with self.assertRaises(Conflict):
-                retval = _ia_client.execute_resource(cmd)
+            retval = _ia_client.execute_resource(cmd)
 
             cmd = AgentCommand(command=ResourceAgentEvent.RESET)
             retval = _ia_client.execute_agent(cmd)
