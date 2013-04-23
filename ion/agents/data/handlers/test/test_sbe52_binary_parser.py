@@ -8,7 +8,7 @@
 """
 
 from ooi.logging import log
-from ion.agents.data.handlers.sbe52_binary_parser import SBE52BinaryCTDParser
+from ion.agents.data.handlers.sbe52_binary_handler import SBE52BinaryCTDParser
 from nose.plugins.attrib import attr
 from pyon.util.unit_test import PyonTestCase
 
@@ -51,8 +51,8 @@ class TestSBE52BinaryParser(PyonTestCase):
         records = parser.get_records(1)
         record = records[0]
 
-        self.assertEquals(0, record['oxygen'])
-        self.assertEquals(309.77, record['pressure'])
-        self.assertEquals(37.9848, record['conductivity'])
-        self.assertEquals(9.5163, record['temperature'])
-        self.assertEquals(1500353102, record['time'])
+        self.assertAlmostEqual(0, record['oxygen'], delta=0.01)
+        self.assertAlmostEqual(309.77, record['pressure'], delta=0.01)
+        self.assertAlmostEqual(37.9848, record['conductivity'], delta=0.01)
+        self.assertAlmostEqual(9.5163, record['temperature'], delta=0.01)
+        self.assertAlmostEqual(1500353102, record['time'], delta=0.01)

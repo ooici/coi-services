@@ -28,7 +28,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         # Start container
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
-        config = dict(op="load", scenario="BASE,BETA,NOSE", attachments="res/preload/r2_ioc/attachments")
+        config = dict(op="load", scenario="BETA,NOSE", attachments="res/preload/r2_ioc/attachments", path='master')
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
         self.pubsub = PubsubManagementServiceClient()
 
@@ -41,7 +41,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
 
     def test_use_case(self):
         # setUp() has already started the container and performed the preload
-        self.assert_dataset_loaded('Test External ACM Dataset')     # make sure we have the ExternalDataset resources
+        self.assert_dataset_loaded('Test External CTD Dataset') # make sure we have the ExternalDataset resources
         self.do_configure()                                     # update agent configuration with runtime parameters TODO: should be done by services?
         self.do_listen_for_incoming()                           # listen for any data being received from the dataset
         self.do_read_dataset()                                  # call services to load dataset
@@ -64,15 +64,6 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.stream_id = ids[0]
         self.route = self.pubsub.read_stream_route(self.stream_id)
 
-        ## don't have these yet...
-#        self.pdict_id = self.create_parameter_dict(self.name)
-#        self.stream_def_id = self.create_stream_def(self.name, self.pdict_id)
-##        self.data_product_id = self.create_data_product(self.name, self.description, self.stream_def_id)
-#        self.dataset_id = self.get_dataset_id(self.data_product_id)
-#        self.stream_id, self.route = self.get_stream_id_and_route(self.data_product_id)
-#        #self.data_producer_id = self.register_external_dataset(self.external_dataset._id)
-#        #self.data_producer_id = have to get from agent instance config
-
     def do_configure(self):
         self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = self.stream_id
         self.agent_instance.dataset_agent_config['driver_config']['stream_id'] = self.stream_id
@@ -82,9 +73,12 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         subscription_id = self.pubsub.create_subscription('validator', data_product_ids=[self.data_product._id])
         self.addCleanup(self.pubsub.delete_subscription, subscription_id)
 
+        self.granule_capture = []
         self.granule_count = 0
         def on_granule(msg, route, stream_id):
             self.granule_count += 1
+            if self.granule_count<5:
+                self.granule_capture.append(msg)
         validator = StandaloneStreamSubscriber('validator', callback=on_granule)
         validator.start()
         self.addCleanup(validator.stop)
@@ -141,80 +135,24 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         dataset_modified.wait(120)
         self.assertTrue(self.granule_count>2)
 
+        rdt = RecordDictionaryTool.load_from_granule(self.granule_capture[0])
+        self.assertAlmostEqual(0, rdt['oxygen'][0], delta=0.01)
+        self.assertAlmostEqual(309.77, rdt['pressure'][0], delta=0.01)
+        self.assertAlmostEqual(37.9848, rdt['conductivity'][0], delta=0.01)
+        self.assertAlmostEqual(9.5163, rdt['temp'][0], delta=0.01)
+        self.assertAlmostEqual(1500353102, rdt['time'][0], delta=1)
+
+
     def do_shutdown(self):
         pass # might be nice to stop the driver...
-
-    def _(self):
-        """ calls made in from test below, copied here for reference
-        """
-        self.pdict_id = self.create_parameter_dict(self.name)
-        self.stream_def_id = self.create_stream_def(self.name, self.pdict_id)
-        self.data_product_id = self.create_data_product(self.name, self.description, self.stream_def_id)
-        self.dataset_id = self.get_dataset_id(self.data_product_id)
-        self.stream_id, self.route = self.get_stream_id_and_route(self.data_product_id)
-        stream_ids, _ = self.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-#        stream_id = stream_ids[0]
-#        route = self.pubsub_management.read_stream_route(stream_id)
-
-        self.external_dataset_id = self.create_external_dataset()
-        self.data_producer_id = self.register_external_dataset(self.external_dataset_id)
-
-        #self.start_agent()
-        #def start_agent
-
-        agent_config = {
-            'driver_config': self.get_dvr_config(),
-            'stream_config': {},
-            'agent': {'resource_id': self.external_dataset_id},
-            'test_mode': True
-        }
-
-        _ia_pid = self.container.spawn_process(
-            name=self.EDA_NAME,
-            module=self.EDA_MOD,
-            cls=self.EDA_CLS,
-            config=agent_config)
-
-        self._ia_client = ResourceAgentClient(self.external_dataset_id, process=FakeProcess())
-
-        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-        self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
-        self._ia_client.execute_agent(cmd)
-        cmd = AgentCommand(command=DriverEvent.START_AUTOSAMPLE)
-        self._ia_client.execute_resource(command=cmd)
-
-        #self.start_listener(self.dataset_id)
-        #def start_listener
-
-        dataset_modified = Event()
-        #callback to use retrieve to get data from the coverage
-        def cb(*args, **kwargs):
-            self.get_retrieve_client(dataset_id=dataset_id)
-
-        #callback to keep execution going once dataset has been fully ingested
-        def cb2(*args, **kwargs):
-            dataset_modified.set()
-
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
-        es.start()
-
-        es2 = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb2, origin='BaseDataHandler._acquire_sample')
-        es2.start()
-
-        self.addCleanup(es.stop)
-        self.addCleanup(es2.stop)
-
-        #let it go for up to 120 seconds, then stop the agent and reset it
-        dataset_modified.wait(120)
-        self.stop_agent()
 
 
 @attr('INT', group='eoi')
 class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
-
+    """
+    use the existing, awkward framework for testing the binary parser.
+    avoids preload but the test "flow" is not obvious.  See BulkIngestCase comments for hints.
+    """
     def setup_resources(self):
         self.name = 'hypm_01_wpf_ctd'
         self.description = 'ctd instrument test'

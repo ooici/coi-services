@@ -79,13 +79,6 @@ class SBE52BinaryDataHandler(BaseDataHandler):
 
         config['ds_params'] = ext_dset_res.dataset_description.parameters
 
-    #        base_url = ext_dset_res.dataset_description.parameters['base_url']
-    #        hdr_cnt = get_safe(ext_dset_res.dataset_description.parameters, 'header_count', 17)
-    #        pattern = get_safe(ext_dset_res.dataset_description.parameters, 'pattern')
-    #        config['header_count'] = hdr_cnt
-    #        config['base_url'] = base_url
-    #        config['pattern'] = pattern
-
     @classmethod
     def _constraints_for_new_request(cls, config):
         old_list = get_safe(config, 'new_data_check') or []
@@ -170,13 +163,7 @@ class SBE52BinaryDataHandler(BaseDataHandler):
                 parser = classobj(f[0], f[3])
 
                 max_rec = get_safe(config, 'max_records', 1)
-#                dprod_id = get_safe(config, 'data_producer_id', 'unknown data producer')
-
                 stream_def = get_safe(config, 'stream_def')
-
-#                cnt = calculate_iteration_count(parser.record_count, max_rec)
-#                file_pos = -1
-#                for x in xrange(cnt):
                 while True:
                     records = parser.get_records(max_count=max_rec)
                     if not records:
@@ -185,24 +172,6 @@ class SBE52BinaryDataHandler(BaseDataHandler):
                     rdt = RecordDictionaryTool(stream_definition_id=stream_def)
                     for key in records[0]:
                         rdt[key] = [ record[key] for record in records ]
-
-#                    all_data = {}
-#                    all_data.clear()
-#                    for name in parser.sensor_names:
-#                        all_data[name] = []
-#
-#                    for y in xrange(max_rec):
-#                        data_map, file_pos = parser.read_next_data()
-#                        if len(data_map.items()):
-#                            for name in parser.sensor_names:
-#                                all_data[name].append(data_map[name]) #[x * max_rec:(x + 1) * max_rec]
-#
-#                    for name in parser.sensor_names:
-#                        try:
-#                            rdt[name] = all_data[name]
-#                        except Exception:
-#                            log.error('failed to set rdt[%s], all_data=%r', name, all_data)
-#                            raise
 
                     g = rdt.to_granule()
 
@@ -234,7 +203,7 @@ class SBE52BinaryCTDParser(object):
     _record_index = 0
     _upload_time = time.time()
 
-    def __init__(self, url):
+    def __init__(self, url, *a, **b):
         """ raise exception if file does not meet spec, or is too large to read into memory """
         self._profiles = []
         with open(url, 'rb') as f:
@@ -288,7 +257,7 @@ class SBE52BinaryCTDParser(object):
                 'upload_time': self._upload_time,
                 'time': self._interpolate_time(self._record_index,start,end,len(records)),
                 'conductivity': self._get_conductivity(data),
-                'temperature': self._get_temperature(data),
+                'temp': self._get_temperature(data),
                 'pressure': self._get_pressure(data),
                 'oxygen': self._get_oxygen(data)
             }

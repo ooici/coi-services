@@ -42,7 +42,6 @@
 __author__ = 'Michael Meisinger, Ian Katz, Thomas Lennan, Jonathan Newbrough'
 
 
-import logging
 import simplejson as json
 import datetime
 import ast
@@ -79,6 +78,8 @@ from coverage_model import NumexprFunction, PythonFunction
 from interface import objects
 from interface.objects import StreamAlertType
 
+from ooi.timer import Accumulator, Timer
+stats = Accumulator(persist=False)
 
 # format for time values within the preload data
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
@@ -454,6 +455,7 @@ class IONLoader(ImmediateProcess):
         count = len(self.categories)
         index = 0
         for category in self.categories:
+            t = Timer() if stats.is_log_enabled() else None
             index += 1
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
@@ -463,7 +465,8 @@ class IONLoader(ImmediateProcess):
                 if catfunc_ooi:
                     log.debug('Loading OOI assets for %s', category)
                     catfunc_ooi()
-
+                if t:
+                    t.complete_step('preload.%s.catfunc'%category)
             # Now load entries from preload spreadsheet top to bottom where scenario matches
             if category not in self.object_definitions or not self.object_definitions[category]:
                 log.debug('no rows for category: %s', category)
@@ -481,6 +484,8 @@ class IONLoader(ImmediateProcess):
                     raise
 
             row_count = len(self.object_definitions.get(category,[]))
+            if t:
+                t.complete_step('preload.%s.load_row'%category)
             if self.bulk:
                 num_bulk = self._finalize_bulk(category)
                 # Update resource and associations views
@@ -488,8 +493,13 @@ class IONLoader(ImmediateProcess):
                 self.container.resource_registry.find_associations(predicate="X", id_only=True)
                 # should we assert that num_bulk==row_count??
                 log.info("bulk loaded category %s: %d rows, %s bulk", category, row_count, num_bulk)
+                if t:
+                    t.complete_step('preload.%s.bulk_load'%category)
             else:
                 log.info("loaded category %s (%d/%d): %d rows", category, index, count, row_count)
+            if t:
+                stats.add(t)
+                stats.add_value('preload.%s.row_count'%category, row_count)
 
     def load_row(self, type, row):
         """ expose for use by utility function """
