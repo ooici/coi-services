@@ -620,6 +620,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                                                                                                         external_dataset_id)
 
         self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
+        log.info('created dataset agent instance %s, agent id=%s', external_dataset_agent_instance_id, external_dataset_agent_id)
         return external_dataset_agent_instance_id
 
     def update_external_dataset_agent_instance(self, external_dataset_agent_instance=None):
@@ -794,7 +795,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(data_source_id,  PRED.hasProvider,  external_data_provider_id, id_only=True)
-        if associations is None:
+        if not associations:
             self.clients.resource_registry.create_association(data_source_id,  PRED.hasProvider,  external_data_provider_id)
 
     def unassign_data_source_from_external_data_provider(self, data_source_id='', external_data_provider_id=''):
@@ -816,7 +817,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(data_source_id,  PRED.hasModel,  data_source_model_id, id_only=True)
-        if associations is None:
+        if not associations:
             self.clients.resource_registry.create_association(data_source_id,  PRED.hasModel,  data_source_model_id)
 
     def unassign_data_source_from_data_model(self, data_source_id='', data_source_model_id=''):
@@ -836,10 +837,10 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #Connect the agent instance with an external data set
         data_source = self.clients.resource_registry.read(external_dataset_id)
         agent_instance = self.clients.resource_registry.read(agent_instance_id)
-
+        log.info("associating: external dataset %s hasAgentInstance %s", external_dataset_id, agent_instance_id)
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, id_only=True)
-        if associations is None:
+        if not associations:
             self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id)
 
     def unassign_external_dataset_from_agent_instance(self, external_dataset_id='', agent_instance_id=''):
@@ -858,10 +859,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #Connect the agent with an agent instance
         data_source = self.clients.resource_registry.read(external_data_agent_id)
         agent_instance = self.clients.resource_registry.read(agent_instance_id)
+        log.info("associating: external dataset agent instance %s hasAgentDefinition %s", agent_instance_id, external_data_agent_id)
 
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id, id_only=True)
-        if associations is None:
+        log.info('found associations: %r', associations)
+        if not associations:
+            log.info('creating')
             self.clients.resource_registry.create_association(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id)
 
     def unassign_external_data_agent_from_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
@@ -882,7 +886,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id, id_only=True)
-        if associations is None:
+        if not associations:
             self.clients.resource_registry.create_association(dataset_agent_id,  PRED.hasModel,  external_dataset_model_id)
 
     def unassign_dataset_agent_from_external_dataset_model(self, dataset_agent_id='', external_dataset_model_id=''):
@@ -904,7 +908,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasSource,  data_source_id, id_only=True)
-        if associations is None:
+        if not associations:
             self.clients.resource_registry.create_association(external_dataset_id,  PRED.hasDataSource,  data_source_id)
 
 
