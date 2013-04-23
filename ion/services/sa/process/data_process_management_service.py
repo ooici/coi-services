@@ -16,7 +16,7 @@ from pyon.util.containers import create_unique_identifier
 from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_not_none, validate_true
 from pyon.ion.resource import ExtendedResourceContainer
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, TransformFunction, DataProcess
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, TransformFunction, DataProcess, ProcessQueueingMode
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -345,6 +345,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
         # Setting the restart mode
         schedule = ProcessSchedule()
         schedule.restart_mode = ProcessRestartMode.ABNORMAL
+        schedule.queueing_mode = ProcessQueueingMode.ALWAYS
 
         # ------------------------------------------------------------------------------------
         # Process Spawning
