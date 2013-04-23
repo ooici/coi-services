@@ -151,6 +151,7 @@ class TypesManager(object):
         pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         pc.lookup_value = document_val
         pc.document_key = document_key
+        pc.visible = False
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         return ctxt_id, placeholder
 

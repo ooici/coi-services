@@ -867,10 +867,12 @@ class DataProductManagementService(BaseDataProductManagementService):
             rdt = RecordDictionaryTool.load_from_granule(replay_granule)
             retval = {}
             for k,v in rdt.iteritems():
+                if hasattr(rdt.context(k),'visible') and not rdt.context(k).visible:
+                    continue
                 element = np.atleast_1d(rdt[k]).flatten()[0]
                 if element == rdt._pdict.get_context(k).fill_value:
                     retval[k] = '%s: Empty' % k
-                elif 'seconds' in rdt._pdict.get_context(k).uom:
+                elif rdt._pdict.get_context(k).uom and 'seconds' in rdt._pdict.get_context(k).uom:
                     units = rdt._pdict.get_context(k).uom
                     element = np.atleast_1d(rdt[k]).flatten()[0]
                     unix_ts = TimeUtils.units_to_ts(units, element)

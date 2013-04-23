@@ -130,7 +130,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         data_description.append(('time','number','time'))
 
         for field in fields:
-            if field == 'time':
+            if field == rdt.temporal_parameter:
                 continue
 
             # If a config block was passed, consider only the params listed in it
@@ -140,6 +140,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # only consider fields which are allowed.
             if rdt[field] == None:
+                continue
+
+            # Check if visibility is false (system generated params)
+            if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
                 continue
 
             """
