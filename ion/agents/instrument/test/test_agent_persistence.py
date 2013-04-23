@@ -352,7 +352,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         alert_def_1 = {
             'name' : 'current_warning_interval',
             'stream_name' : 'parsed',
-            'message' : 'Current is below normal range.',
+            'description' : 'Current is below normal range.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
@@ -366,7 +366,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         alert_def_2 = {
             'name' : 'temp_alarm_interval',
             'stream_name' : 'parsed',
-            'message' : 'Temperatoure is critical.',
+            'description' : 'Temperatoure is critical.',
             'alert_type' : StreamAlertType.ALARM,
             'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
@@ -380,10 +380,9 @@ class TestAgentPersistence(IonIntegrationTestCase):
         alert_def3 = {
             'name' : 'late_data_warning',
             'stream_name' : 'parsed',
-            'message' : 'Expected data has not arrived.',
+            'description' : 'Expected data has not arrived.',
             'alert_type' : StreamAlertType.WARNING,
             'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
-            'value_id' : None,
             'time_delta' : 180,
             'alert_class' : 'LateDataAlert'
         }
