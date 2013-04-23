@@ -82,7 +82,7 @@ class TestPlatformInstrument(BaseIntTestPlatform):
 
 
 
-    #@unittest.skip('This test takes too long and gets Connect Refused errors.')
+    @unittest.skip('This test takes too long and gets Connect Refused errors.')
     def test_platform_with_instrument_streaming(self):
         #
         # The following is with just a single platform and the single
