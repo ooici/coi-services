@@ -68,6 +68,7 @@ from interface.objects import StreamAlertType, AggregateStatusType
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
 from ion.agents.platform.platform_agent import PlatformAgentEvent
+from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.services.dm.utility.granule_utils import time_series_domain
 
@@ -1149,24 +1150,46 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             retval = self._execute_agent(cmd)
             self.assertEquals("PONG", retval.result)
 
+    def _execute_resource(self, cmd, *args, **kwargs):
+        cmd = AgentCommand(command=cmd, args=args, kwargs=kwargs)
+        retval = self._pa_client.execute_resource(cmd)
+        log.debug("_execute_resource: cmd=%s: retval=%s", cmd, retval)
+        self.assertTrue(retval.result)
+        return retval.result
+
     def _get_metadata(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GET_METADATA)
+        kwargs = dict(metadata=None)
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         md = retval.result
         self.assertIsInstance(md, dict)
         # TODO verify possible subset of required entries in the dict.
-        log.info("GET_METADATA = %s", md)
+        log.info("_get_metadata = %s", md)
+        return md
 
     def _get_ports(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GET_PORTS)
+        kwargs = dict(ports=None)
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
         ports = retval.result
-        log.info("GET_PORTS = %s", ports)
+        log.info("_get_ports = %s", ports)
         self.assertIsInstance(ports, dict)
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
-            self.assertTrue('network' in info)
-            self.assertTrue('is_on' in info)
+            self.assertIn('network', info)
+            self.assertIn('is_on', info)
+        return ports
+
+    def _get_connected_instruments(self, port_id):
+        kwargs = dict(connected_instruments=port_id)
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
+        retval = self._execute_agent(cmd)
+        connected_instruments = retval.result
+        log.info("_get_connected_instruments = %s", connected_instruments)
+        self.assertIsInstance(connected_instruments, dict)
+        self.assertIn(port_id, connected_instruments)
+        self.assertIsInstance(connected_instruments[port_id], dict)
+        return connected_instruments
 
     def _initialize(self, recursion=True):
         kwargs = dict(recursion=recursion)
@@ -1248,12 +1271,11 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self._assert_state(PlatformAgentState.UNINITIALIZED)
 
     def _check_sync(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.CHECK_SYNC)
-        retval = self._execute_agent(cmd)
-        log.info("CHECK_SYNC result: %s", retval.result)
-        self.assertTrue(retval.result is not None)
-        self.assertEquals(retval.result[0:3], "OK:")
-        return retval.result
+        result = self._execute_resource(RSNPlatformDriverEvent.CHECK_SYNC)
+        log.info("CHECK_SYNC result: %s", result)
+        self.assertTrue(result is not None)
+        self.assertEquals(result[0:3], "OK:")
+        return result
 
     def _stream_instruments(self):
         from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent

@@ -110,6 +110,7 @@ class PlatformAgentEvent(BaseEnum):
     CLEAR                     = ResourceAgentEvent.CLEAR
     PAUSE                     = ResourceAgentEvent.PAUSE
     RESUME                    = ResourceAgentEvent.RESUME
+
     GET_RESOURCE_CAPABILITIES = ResourceAgentEvent.GET_RESOURCE_CAPABILITIES
     PING_RESOURCE             = ResourceAgentEvent.PING_RESOURCE
     GET_RESOURCE              = ResourceAgentEvent.GET_RESOURCE
@@ -117,18 +118,8 @@ class PlatformAgentEvent(BaseEnum):
     EXECUTE_RESOURCE          = ResourceAgentEvent.EXECUTE_RESOURCE
     GET_RESOURCE_STATE        = ResourceAgentEvent.GET_RESOURCE_STATE
 
-    GET_METADATA              = 'PLATFORM_AGENT_GET_METADATA'
-    GET_PORTS                 = 'PLATFORM_AGENT_GET_PORTS'
-    CONNECT_INSTRUMENT        = 'PLATFORM_AGENT_CONNECT_INSTRUMENT'
-    DISCONNECT_INSTRUMENT     = 'PLATFORM_AGENT_DISCONNECT_INSTRUMENT'
-    GET_CONNECTED_INSTRUMENTS = 'PLATFORM_AGENT_GET_CONNECTED_INSTRUMENTS'
-    TURN_ON_PORT              = 'PLATFORM_AGENT_TURN_ON_PORT'
-    TURN_OFF_PORT             = 'PLATFORM_AGENT_TURN_OFF_PORT'
-    GET_SUBPLATFORM_IDS       = 'PLATFORM_AGENT_GET_SUBPLATFORM_IDS'
     START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
     STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
-
-    CHECK_SYNC                = 'PLATFORM_AGENT_CHECK_SYNC'
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -142,29 +133,16 @@ class PlatformAgentCapability(BaseEnum):
     CLEAR                     = PlatformAgentEvent.CLEAR
     PAUSE                     = PlatformAgentEvent.PAUSE
     RESUME                    = PlatformAgentEvent.RESUME
+
     GET_RESOURCE_CAPABILITIES = PlatformAgentEvent.GET_RESOURCE_CAPABILITIES
     PING_RESOURCE             = PlatformAgentEvent.PING_RESOURCE
     GET_RESOURCE              = PlatformAgentEvent.GET_RESOURCE
     SET_RESOURCE              = PlatformAgentEvent.SET_RESOURCE
-
     EXECUTE_RESOURCE          = PlatformAgentEvent.EXECUTE_RESOURCE
     GET_RESOURCE_STATE        = PlatformAgentEvent.GET_RESOURCE_STATE
 
-    GET_METADATA              = PlatformAgentEvent.GET_METADATA
-    GET_PORTS                 = PlatformAgentEvent.GET_PORTS
-
-    CONNECT_INSTRUMENT        = PlatformAgentEvent.CONNECT_INSTRUMENT
-    DISCONNECT_INSTRUMENT     = PlatformAgentEvent.DISCONNECT_INSTRUMENT
-    GET_CONNECTED_INSTRUMENTS = PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS
-
-    TURN_ON_PORT              = PlatformAgentEvent.TURN_ON_PORT
-    TURN_OFF_PORT             = PlatformAgentEvent.TURN_OFF_PORT
-    GET_SUBPLATFORM_IDS       = PlatformAgentEvent.GET_SUBPLATFORM_IDS
-
     START_MONITORING          = PlatformAgentEvent.START_MONITORING
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
-
-    CHECK_SYNC                = PlatformAgentEvent.CHECK_SYNC
 
 
 class PlatformAgent(ResourceAgent):
@@ -1141,14 +1119,6 @@ class PlatformAgent(ResourceAgent):
         Gets the IDs of my sub-platforms.
         """
         return self._pnode.subplatforms.keys()
-
-    def _get_ports(self):
-        ports = {}
-        for port_id, port in self._pnode.ports.iteritems():
-            ports[port_id] = {'network': port.network,
-                              'is_on':   port.is_on}
-        log.debug("%r: _get_ports: %s", self._platform_id, ports)
-        return ports
 
     def _subplatforms_launch(self):
         """
@@ -2314,46 +2284,6 @@ class PlatformAgent(ResourceAgent):
         self._platform_resource_monitor.destroy()
         self._platform_resource_monitor = None
 
-    def _check_sync(self):
-        """
-        This will be the main operation related with checking that the
-        information on this platform agent (and sub-platforms) is consistent
-        with the information in the external network rooted at the
-        corresponding platform, then publishing relevant notification events.
-
-        For the moment, it only tries to do the following:
-        - gets the checksum reported by the external platform
-        - compares it with the local checksum
-        - if equal ...
-        - if different ...
-
-        @todo complete implementation
-
-        @return TODO
-        """
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _check_sync: getting external checksum..." % self._platform_id)
-
-        external_checksum = self._trigger_driver_event(PlatformDriverEvent.GET_CHECKSUM)
-        local_checksum = self._pnode.compute_checksum()
-
-        if external_checksum == local_checksum:
-            result = "OK: checksum for platform_id=%r: %s" % (
-                self._platform_id, local_checksum)
-        else:
-            result = "ERROR: different external and local checksums for " \
-                     "platform_id=%r: %s != %s" % (self._platform_id,
-                     external_checksum, local_checksum)
-
-            # TODO - determine what sub-components are in disagreement
-            # TODO - publish relevant event(s)
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: _check_sync: result: %s" % (self._platform_id, result))
-
-        return result
-
     ##############################################################
     # UNINITIALIZED event handlers.
     ##############################################################
@@ -2561,43 +2491,20 @@ class PlatformAgent(ResourceAgent):
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        attrs = kwargs.get('attrs', None)
-        if attrs is None:
-            raise BadRequest('get_resource missing attrs argument.')
-
-        try:
-            result = self._get_attribute_values(attrs)
-
-            next_state = self.get_agent_state()
-
-        except:
-            log.exception("error in _get_attribute_values") #, exc_Info=True)
-            raise
-
-        return (next_state, result)
+        result = self._plat_driver.get_resource(*args, **kwargs)
+        return None, result
 
     def _handler_set_resource(self, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
-        attrs = kwargs.get('attrs', None)
-        if attrs is None:
-            raise BadRequest('set_resource missing attrs argument.')
-
-        try:
-            result = self._set_attribute_values(attrs)
-            next_state = self.get_agent_state()
-
-        except:
-            log.exception("error in set_attribute_values") #, exc_Info=True)
-            raise
-
-        return (next_state, result)
+        result = self._plat_driver.set_resource(*args, **kwargs)
+        return None, result
 
     def _handler_execute_resource(self, *args, **kwargs):
         """
@@ -2624,153 +2531,6 @@ class PlatformAgent(ResourceAgent):
         result = self._trigger_driver_event(PlatformDriverEvent.PING)
 
         return None, result
-
-    def _handler_get_metadata(self, *args, **kwargs):
-        """
-        Gets platform's metadata
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        result = self._trigger_driver_event(PlatformDriverEvent.GET_METADATA)
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
-    def _handler_get_ports(self, *args, **kwargs):
-        """
-        Gets info about platform's ports
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        result = self._get_ports()
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
-    def _handler_connect_instrument(self, *args, **kwargs):
-        """
-        Connects an instrument to a given port in this platform.
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise BadRequest('connect_instrument: missing port_id argument.')
-
-        instrument_id = kwargs.get('instrument_id', None)
-        if instrument_id is None:
-            raise BadRequest('connect_instrument: missing instrument_id argument.')
-
-        attributes = kwargs.get('attributes', None)
-        if attributes is None:
-            raise BadRequest('connect_instrument: missing attributes argument.')
-
-        result = self._trigger_driver_event(PlatformDriverEvent.CONNECT_INSTRUMENT,
-                                            **kwargs)
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
-    def _handler_disconnect_instrument(self, *args, **kwargs):
-        """
-        Disconnects an instrument from a given port in this platform.
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise BadRequest('disconnect_instrument: missing port_id argument.')
-
-        instrument_id = kwargs.get('instrument_id', None)
-        if instrument_id is None:
-            raise BadRequest('disconnect_instrument: missing instrument_id argument.')
-
-        result = self._trigger_driver_event(PlatformDriverEvent.DISCONNECT_INSTRUMENT,
-                                            **kwargs)
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
-    def _handler_get_connected_instruments(self, *args, **kwargs):
-        """
-        Gets the connected instruments to a given port in this platform.
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise BadRequest('get_connected_instruments: missing port_id argument.')
-
-        result = self._trigger_driver_event(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
-                                            **kwargs)
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
-    def _handler_turn_on_port(self, *args, **kwargs):
-        """
-        Turns on a given port in this platform.
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise BadRequest('turn_on_port missing port_id argument.')
-
-        result = self._trigger_driver_event(PlatformDriverEvent.TURN_ON_PORT, **kwargs)
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
-    def _handler_turn_off_port(self, *args, **kwargs):
-        """
-        Turns off a given port in this platform.
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        port_id = kwargs.get('port_id', None)
-        if port_id is None:
-            raise BadRequest('turn_off_port missing port_id argument.')
-
-        result = self._trigger_driver_event(PlatformDriverEvent.TURN_OFF_PORT, **kwargs)
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
-
-    def _handler_get_subplatform_ids(self, *args, **kwargs):
-        """
-        Gets the IDs of my direct subplatforms.
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        result = self._get_subplatform_ids()
-
-        next_state = self.get_agent_state()
-
-        return (next_state, result)
 
     ##############################################################
     # Resource monitoring
@@ -2813,23 +2573,6 @@ class PlatformAgent(ResourceAgent):
             raise
 
         return (next_state, result)
-
-    ##############################################################
-    # sync/checksum
-    ##############################################################
-
-    def _handler_check_sync(self, *args, **kwargs):
-        """
-        """
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        next_state = None
-
-        result = self._check_sync()
-
-        return next_state, result
 
     ##############################################################
     # some common event handlers.
@@ -2896,9 +2639,6 @@ class PlatformAgent(ResourceAgent):
         # INACTIVE state event handlers.
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.RESET, self._handler_inactive_reset)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
-        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
-        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
-        self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.INACTIVE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
@@ -2925,21 +2665,12 @@ class PlatformAgent(ResourceAgent):
         for state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             self._fsm.add_handler(state, PlatformAgentEvent.RESET, self._handler_command_reset)
             self._fsm.add_handler(state, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
-            self._fsm.add_handler(state, PlatformAgentEvent.GET_METADATA, self._handler_get_metadata)
-            self._fsm.add_handler(state, PlatformAgentEvent.GET_PORTS, self._handler_get_ports)
-            self._fsm.add_handler(state, PlatformAgentEvent.CONNECT_INSTRUMENT, self._handler_connect_instrument)
-            self._fsm.add_handler(state, PlatformAgentEvent.DISCONNECT_INSTRUMENT, self._handler_disconnect_instrument)
-            self._fsm.add_handler(state, PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS, self._handler_get_connected_instruments)
-            self._fsm.add_handler(state, PlatformAgentEvent.TURN_ON_PORT, self._handler_turn_on_port)
-            self._fsm.add_handler(state, PlatformAgentEvent.TURN_OFF_PORT, self._handler_turn_off_port)
-            self._fsm.add_handler(state, PlatformAgentEvent.GET_SUBPLATFORM_IDS, self._handler_get_subplatform_ids)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
             self._fsm.add_handler(state, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
-            self._fsm.add_handler(state, PlatformAgentEvent.CHECK_SYNC, self._handler_check_sync)
 
         # additional COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
