@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydG00QzB2cWRybTNTX1V4a1hMQ2RmalE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydDQ0OTduYUZFUUVDb3FYbEM4U1FaLWc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1596,7 +1596,7 @@ Reason: %s
         name         = row['Name']
         ptype        = row['Parameter Type']
         encoding     = row['Value Encoding']
-        uom          = row['Unit of Measure']
+        uom          = row['Unit of Measure'] or 'undefined'
         code_set     = row['Code Set']
         fill_value   = row['Fill Value']
         display_name = row['Display Name']

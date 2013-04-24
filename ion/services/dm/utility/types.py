@@ -151,6 +151,7 @@ class TypesManager(object):
         pc = ParameterContext(name=placeholder, param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.))
         pc.lookup_value = document_val
         pc.document_key = document_key
+        pc.uom = '1'
         pc.visible = False
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
         return ctxt_id, placeholder
@@ -219,7 +220,7 @@ class TypesManager(object):
         pc = ParameterContext(name='%s_glblrng_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
         pc.uom = '1'
         pc.ooi_short_name = '%s_GLBLRNG_QC' % dp_name
-        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % dp_name, parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name)
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1')
         return ctxt_id, pc
 
 

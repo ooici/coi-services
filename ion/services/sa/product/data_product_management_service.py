@@ -751,6 +751,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                     retval = [i for i in self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0]) if i.name in stream_def.available_fields]
                 else:
                     retval = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                retval = filter(lambda x : 'visible' not in x.parameter_context or x.parameter_context['visible'], retval)
                 ret.value = retval
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
