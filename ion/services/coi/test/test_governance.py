@@ -1176,6 +1176,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_i), 3)
 
     @attr('LOCOINT')
+    @attr('RESOURCE')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_org_acquire_resource_negotiation(self):
 
