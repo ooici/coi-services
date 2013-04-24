@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidGg4dVRoS2NBdUxQeXhtb0VrZEp6eXc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydHJJc3NqM29JZXl4QXRtMHdqb3FPMUE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -139,12 +139,12 @@ DEFAULT_CATEGORIES = [
     'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
-    'DataProductLink',                  # no resource but complex service call
+    'Parser',
     'Attachment',
+    'DataProductLink',                  # no resource but complex service call
     'WorkflowDefinition',
     'Workflow',
     'Deployment',
-    'Parser',
     ]
 
 # The following lists all categories that define information used by other categories.
@@ -1466,12 +1466,12 @@ class IONLoader(ImmediateProcess):
 
     def _load_StreamDefinition(self, row):
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-        pname = row["param_dict_name"]
         svc_client = self._get_service_client("dataset_management")
-        parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True,
-            headers=self._get_system_actor_headers())
+        reference_designator = row['reference_designator']
+        parameter_dictionary_id = self.resource_ids[row['parameter_dictionary']]
         svc_client = self._get_service_client("pubsub_management")
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
+                stream_configuration={'reference_designator' : reference_designator} if reference_designator else None,
             headers=self._get_system_actor_headers())
         self._register_id(row[COL_ID], res_id, res_obj)
 
@@ -2483,6 +2483,8 @@ Reason: %s
 
         res_id = self.resource_ids[row["resource_id"]]
         att_obj = self._create_object_from_row("Attachment", row, "att/")
+        if row['parser'] and row['parser'] in self.resource_ids:
+            att_obj.context = objects.ReferenceAttachmentContext(parser_id=self.resource_ids[row['parser']])
         filename = row["file_path"]
         if not filename:
             raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])

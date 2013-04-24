@@ -82,8 +82,6 @@ class TypesManager(object):
                 if retval is not None:
                     raise TypeError('Invalid range fill value: %s' % val)
 
-
-
         if val == '':
             return None
         if val.lower() == 'none':
@@ -217,7 +215,7 @@ class TypesManager(object):
         pfunc.param_map = pmap
         pfunc.lookup_values = [grt_min_id, grt_max_id]
 
-        pc = ParameterContext(name='%s_glblrng_qc' % name, param_type=ParameterFunctionType(pfunc))
+        pc = ParameterContext(name='%s_glblrng_qc' % name, param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
         pc.uom = '1'
         ctxt_id = self.dataset_management.create_parameter_context(name='%s_glblrng_qc' % name, parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id)
         return ctxt_id, pc
