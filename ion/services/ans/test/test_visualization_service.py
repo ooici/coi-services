@@ -361,6 +361,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
             log.warn('Unable to get queue information from broker management plugin: ' + e.message)
             pass
 
+        # Create the google_dt workflow definition since there is no preload for the test
+        workflow_def_id = self.create_google_dt_workflow_def()
+
         #Create the input data product
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
         ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
