@@ -45,7 +45,7 @@ from interface.objects import AggregateStatusType, DeviceStatusType
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, has_exclusive_resource_commitment
-from pyon.core.governance import has_shared_resource_commitment, is_resource_owner, ION_MANAGER
+from pyon.core.governance import has_shared_resource_commitment, is_resource_owner, ION_MANAGER, get_resource_commitments
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -807,15 +807,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         log.debug("check_direct_access_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
 
-        #The system actor can to anything
-        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
-            return True, ''
+        coms = get_resource_commitments(gov_values.resource_id)
+        if coms is None:
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (process.name, gov_values.op, gov_values.actor_id)
 
-        #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
-        if not has_exclusive_resource_commitment(gov_values.actor_id, gov_values.resource_id):
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (self.name, gov_values.op, gov_values.actor_id)
+        #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working in R3.
+        #Iterrate over commitments and look to see if actor or others have an exclusive access
+        for com in coms:
+            if com.commitment.exclusive and com.consumer == gov_values.actor_id:
+                return True, ''
 
-        return True, ''
+            if com.commitment.exclusive and com.consumer != gov_values.actor_id:
+                return False, '%s(%s) has been denied since another user %s has acquired the resource exclusively' % (process.name, gov_values.op, com.consumer)
+
+
+        return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (process.name, gov_values.op, gov_values.actor_id)
+
+
 
     def check_device_lifecycle_policy(self, process, message, headers):
 
@@ -825,16 +833,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             return False, ex.message
 
         log.debug("check_device_lifecycle_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
-        #The system actor can to anything
-        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
-            return True, ''
 
         if message.has_key('lifecycle_event'):
             lifecycle_event = message['lifecycle_event']
         else:
-            raise Inconsistent('%s(%s) has been denied since the lifecycle_event can not be found in the message'% (process.name, gov_values.op))
-
-        log.debug("check_device_lifecycle_policy: lifecycle_event: %s", lifecycle_event)
+            return False, '%s(%s) has been denied since the lifecycle_event can not be found in the message'% (process.name, gov_values.op)
 
         orgs,_ = self.clients.resource_registry.find_subjects(subject_type=RT.Org, predicate=PRED.hasResource, object=gov_values.resource_id, id_only=False)
 
@@ -853,13 +856,11 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             #The owner can do any of these other lifecycle transitions
             is_owner = is_resource_owner(gov_values.actor_id, gov_values.resource_id)
-            log.debug("check_device_lifecycle_policy: is_owner: %s", str(is_owner))
             if is_owner:
                 return True, ''
 
             #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
             is_shared = has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
-            log.debug("check_device_lifecycle_policy: is_shared: %s", str(is_shared))
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:

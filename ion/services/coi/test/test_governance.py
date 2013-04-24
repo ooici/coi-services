@@ -1518,6 +1518,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         actor_header = get_actor_header(actor_id)
 
+        #Create a third user to be used as observatory operator
+        obs_operator_actor_obj = IonObject(RT.ActorIdentity, name='observatory operator actor')
+        obs_operator_actor_id,_ = self.rr_client.create(obs_operator_actor_obj)
+        assert(obs_operator_actor_id)
+
         #Create a second Org
         org2 = IonObject(RT.Org, name=ORG2, description='A second Org')
         org2_id = self.org_client.create_org(org2, headers=self.system_actor_header)
@@ -1533,10 +1538,18 @@ class TestGovernanceInt(IonIntegrationTestCase):
         operator_role = IonObject(RT.UserRole, governance_name=INSTRUMENT_OPERATOR_ROLE, name='Instrument Operator', description='Instrument Operator')
         self.org_client.add_user_role(org2_id, operator_role, headers=self.system_actor_header)
 
-        roles = self.org_client.find_org_roles(org2_id)
-        self.assertEqual(len(roles),3)
-        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE])
+        #Create Instrument Operator Role and add it to the second Org
+        obs_operator_role = IonObject(RT.UserRole, governance_name=OBSERVATORY_OPERATOR_ROLE, name='Observatory Operator', description='Observatory Operator')
+        self.org_client.add_user_role(org2_id, obs_operator_role, headers=self.system_actor_header)
 
+        roles = self.org_client.find_org_roles(org2_id)
+        self.assertEqual(len(roles),4)
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
+
+        #Grant the role of Observatory Operator to the user
+        self.org_client.enroll_member(org2_id,obs_operator_actor_id, headers=self.system_actor_header)
+        self.org_client.grant_role(org2_id, obs_operator_actor_id, OBSERVATORY_OPERATOR_ROLE, headers=self.system_actor_header)
+        obs_operator_actor_header = get_actor_header(obs_operator_actor_id)
 
         #Create Test InstrumentDevice - use the system admin for now
         inst_obj = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')
@@ -1707,6 +1720,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(resource_commitment),1)
         self.assertNotEqual(resource_commitment[0].lcstate, LCS.RETIRED)
 
+        #Request for the instrument to be put into Direct Access mode - should be denied for anonymous users
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.request_direct_access(inst_obj_id, headers=self.anonymous_actor_headers)
+        self.assertIn('instrument_management(request_direct_access) has been denied',cm.exception.message)
+
 
         #Request for the instrument to be put into Direct Access mode - should be denied since user does not have exclusive  access
         with self.assertRaises(Unauthorized) as cm:
@@ -1721,11 +1739,21 @@ class TestGovernanceInt(IonIntegrationTestCase):
                     expiration=two_hour_expiration)
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
-        #Request Direct Access again
+        #Request Direct Access again - with a different user and it should fail
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.request_direct_access(inst_obj_id, headers=obs_operator_actor_header)
+        self.assertIn('instrument_management(request_direct_access) has been denied since another user',cm.exception.message)
+
+        #Request Direct Access again with user that has exclusive access - and it should pass this time.
         with self.assertRaises(Exception) as cm:
             self.ims_client.request_direct_access(inst_obj_id, headers=actor_header)
 
-        #Stop DA
+        #Try stopping the direct access by other user - should fail
+        with self.assertRaises(Unauthorized) as cm:
+            self.ims_client.stop_direct_access(inst_obj_id, headers=obs_operator_actor_header)
+        self.assertIn('instrument_management(stop_direct_access) has been denied since another user',cm.exception.message)
+
+        #Stop Direct Access by user with exclusive access - and it should pass this time.
         with self.assertRaises(Exception) as cm:
             self.ims_client.stop_direct_access(inst_obj_id, headers=actor_header)
 
@@ -1969,7 +1997,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=self.anonymous_actor_headers)
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)
 
-        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so anonymous user should fail
+        #Advance the Life cycle to planned. Must be INSTRUMENT_OPERATOR so member user should fail
         with self.assertRaises(Unauthorized) as cm:
             self.ims_client.execute_instrument_device_lifecycle(inst_dev_id, LCE.PLAN, headers=member_actor_header)
         self.assertIn( 'instrument_management(execute_instrument_device_lifecycle) has been denied',cm.exception.message)

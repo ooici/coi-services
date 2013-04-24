@@ -642,7 +642,7 @@ class PlatformAgent(ResourceAgent):
                           % (self.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
                              self._get_process_org_governance_name())
 
-        com = get_resource_commitments(gov_values.actor_id, gov_values.resource_id)
+        com = get_resource_commitments(gov_values.resource_id, gov_values.actor_id)
         if com is None:
             return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (self.name, gov_values.op, gov_values.actor_id, self.resource_id)
 
