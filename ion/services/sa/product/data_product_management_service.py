@@ -751,6 +751,7 @@ class DataProductManagementService(BaseDataProductManagementService):
                     retval = [i for i in self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0]) if i.name in stream_def.available_fields]
                 else:
                     retval = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                retval = filter(lambda x : 'visible' not in x.parameter_context or x.parameter_context['visible'], retval)
                 ret.value = retval
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
@@ -867,10 +868,12 @@ class DataProductManagementService(BaseDataProductManagementService):
             rdt = RecordDictionaryTool.load_from_granule(replay_granule)
             retval = {}
             for k,v in rdt.iteritems():
+                if hasattr(rdt.context(k),'visible') and not rdt.context(k).visible:
+                    continue
                 element = np.atleast_1d(rdt[k]).flatten()[0]
                 if element == rdt._pdict.get_context(k).fill_value:
                     retval[k] = '%s: Empty' % k
-                elif 'seconds' in rdt._pdict.get_context(k).uom:
+                elif rdt._pdict.get_context(k).uom and 'seconds' in rdt._pdict.get_context(k).uom:
                     units = rdt._pdict.get_context(k).uom
                     element = np.atleast_1d(rdt[k]).flatten()[0]
                     unix_ts = TimeUtils.units_to_ts(units, element)
@@ -879,9 +882,15 @@ class DataProductManagementService(BaseDataProductManagementService):
                         retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
                     except:
                         retval[k] = '%s: %s' %(k, element)
-
+                elif isinstance(element, float) or (isinstance(element,np.number) and element.dtype.char in 'edfg'):
+                    try:
+                        precision = int(rdt.context(k).precision)
+                    except ValueError:
+                        precision = 5
+                    formatted = ("{0:.%df}" % precision).format(round(element,precision))
+                    retval[k] = '%s: %s' %(k, formatted)
                 else:
-                    retval[k] = '%s: %s' %(k, element)
+                    retval[k] = '%s: %s' % (k,element)
             ret.value = retval
 #                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
             ret.status = ComputedValueAvailability.PROVIDED
