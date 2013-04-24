@@ -652,11 +652,14 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #todo:  if instance running, then return or throw
         #todo: if instance exists and dataset_agent_instance_obj.dataset_agent_config is completd then just schedule_process
 
+        #def read_object(self, subject="", predicate="", object_type="", assoc="", id_only=False):
+        #def read_subject(self, subject_type="", predicate="", object="", assoc="", id_only=False):
+
         dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
-        ext_dataset_id = self.clients.resource_registry.read_subject(RT.ExternalDataset, PRED.hasAgentInstance, external_dataset_agent_instance_id, True)
-        ext_dataset_model_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasModel, RT.ExternalDatasetModel, True)
-        ext_dataset_agent_id = self.clients.resource_registry.read_subject(RT.ExternalDatasetAgent, PRED.hasAgentDefinition, ext_dataset_model_id, True)
-        process_definition_id = self.clients.resource_registry.read_object(ext_dataset_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
+        ext_dataset_id = self.clients.resource_registry.read_subject(RT.ExternalDataset, PRED.hasAgentInstance, external_dataset_agent_instance_id, id_only=True)
+        ext_dataset_model_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasModel, RT.ExternalDatasetModel, id_only=True)
+        ext_dataset_agent_id = self.clients.resource_registry.read_object(RT.ExternalDatasetAgent, PRED.hasAgentDefinition, external_dataset_agent_instance_id, id_only=True)
+        process_definition_id = self.clients.resource_registry.read_object(ext_dataset_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, id_only=True)
 
         # THIS CODE DOESN'T MAKE SENSE -- GETS MULTIPLE DATA PRODUCTS BUT ONLY SETS 'parsed' IN OUTPUT
         #out_streams = {}
@@ -669,8 +672,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #    out_streams['parsed'] = self.clients.resource_registry.read_object(product_id, PRED.hasStream, RT.Stream, True)
 
         # INSTEAD FOR NOW ENFORCE ONLY ONE DATA PRODUCT
-        data_product_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, True)
+        data_product_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
+        stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
 
         # REPLACE CONFIGURATION WITH TESTED ENTRIES
         ## Create agent config.
