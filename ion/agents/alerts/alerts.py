@@ -84,14 +84,14 @@ class BaseAlert(object):
         }
         
         if self._status:
-            event_data['sub_type'] = StreamAlertType.ALL_CLEAR
+            event_data['sub_type'] = 'ALL_CLEAR'
             event_data['description'] = 'The alert is cleared.'
             
         elif self._alert_type == StreamAlertType.WARNING:
-            event_data['sub_type'] = StreamAlertType.WARNING
+            event_data['sub_type'] = 'WARNING'
         
         elif self._alert_type == StreamAlertType.ALERT:
-            event_data['sub_type'] = StreamAlertType.ALERT
+            event_data['sub_type'] = 'ALERT'
 
         return event_data
 

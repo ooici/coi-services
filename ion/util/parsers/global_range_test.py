@@ -11,7 +11,7 @@ def grt_parser(document):
     '''
     This parser YIELDS a document per call or until it's done
     The format for the document is CSV in this table format
-    Array,Instrument Class,Reference Designator,Data Product In,Units,Data Product Flagged,Min Value (lim(1)),Max Value (lim(2))
+    Array,Instrument Class,Reference Designator,Data Products,Units,Data Product Flagged,Minimum Range (lim(1)),Maximum Range (lim(2))
     
     Document Schema:
         array: 
@@ -47,16 +47,19 @@ def grt_parser(document):
 
     dr = DictReader(sio)
     for row in dr:
-        key = '_'.join(['grt',row['Reference Designator'], row['Data Product In'], row['Data Product Flagged']])
+        key = '_'.join(['grt',row['Reference Designator'], row['Data Products']])
         document = {}
         document['array']                = row['Array']
         document['instrument_class']     = row['Instrument Class']
         document['reference_designator'] = row['Reference Designator']
-        document['data_product_in']      = row['Data Product In']
+        document['data_product_in']      = row['Data Products']
         document['units']                = row['Units']
         document['data_product_flagged'] = row['Data Product Flagged']
-        document['grt_min_value']        = float(row['Min Value (lim(1))'])
-        document['grt_max_value']        = float(row['Max Value (lim(2))'])
+        try:
+            document['grt_min_value']        = float(row['Minimum Range (lim(1))'])
+            document['grt_max_value']        = float(row['Maximum Range (lim(2))'])
+        except ValueError:
+            continue
         yield key,document
     return
 

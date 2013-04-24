@@ -127,7 +127,7 @@ class FakeProcess(LocalContextMixin):
     process_type = ''
 
 @attr('HARDWARE', group='mi')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 360}}})
 class TestAgentPersistence(IonIntegrationTestCase):
     """
     """

@@ -147,8 +147,7 @@ class VisualizationService(BaseVisualizationService):
             if len(workflow_def_ids) > 0:
                 workflow_def_id = workflow_def_ids[0]
             else:
-                #workflow_def_id = self._create_google_dt_workflow_def()
-                raise NotFound("Google_dt Workflow definition does not exist")
+                raise NotFound(" Workflow definition named 'Realtime_Google_DT' does not exist")
 
             #Create and start the workflow. Take about 4 secs .. wtf
             workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
