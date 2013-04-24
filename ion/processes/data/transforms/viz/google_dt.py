@@ -48,37 +48,25 @@ class VizTransformGoogleDT(TransformDataProcess):
         super(VizTransformGoogleDT, self).__init__()
 
     def on_start(self):
-        self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
 
         self.stream_info  = self.CFG.get_safe('process.publish_streams', {})
         self.stream_names = self.stream_info.keys()
         self.stream_ids   = self.stream_info.values()
-        if not self.stream_names:
+        if not self.stream_names or not self.stream_ids:
             raise BadRequest('Google DT Transform has no output streams.')
 
+        self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
+        self.stream_def = self.pubsub_management.read_stream_definition(stream_id=self.stream_ids[0])
         super(VizTransformGoogleDT,self).on_start()
 
 
 
     def recv_packet(self, packet, in_stream_route, in_stream_id):
         log.info('Received packet')
-        outgoing = VizTransformGoogleDTAlgorithm.execute(packet, params=self.get_stream_definition())
+        outgoing = VizTransformGoogleDTAlgorithm.execute(packet, params=self.stream_def._id)
         for stream_name in self.stream_names:
             publisher = getattr(self, stream_name)
             publisher.publish(outgoing)
-
-
-    def get_stream_definition(self):
-        stream_id = self.stream_ids[0]
-
-        if not self.stream_def:
-            try:
-                self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
-            except Timeout:
-                log.error('Timed out attempting to read_stream_definition')
-                return None
-
-        return self.stream_def._id
 
 
 class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
