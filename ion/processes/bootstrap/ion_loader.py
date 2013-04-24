@@ -1465,6 +1465,9 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentSite(newrow)
 
     def _load_StreamDefinition(self, row):
+        if not row['parameter_dictionary'] and row['parameter_dictionary'] not in self.resource_ids:
+            log.error('Stream Definition defined for undefined parameter dictionary: %s', row['parameter_dictionary'])
+            return
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
         svc_client = self._get_service_client("dataset_management")
         reference_designator = row['reference_designator']
@@ -1541,11 +1544,14 @@ Reason: %s
             pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
                                                                       temporal_context=temporal_parameter_name,
                                                                       headers=self._get_system_actor_headers())
+            pdict = self.container.resource_registry.read(pdict_id)
+            pdict.alt_ids = ['PRE:'+row[COL_ID]]
+            self.container.resource_registry.update(pdict)
         except Exception:
             log.exception('%s has a problem', row['name'])
             return
 
-        self._register_id(row[COL_ID], pdict_id)
+        self._register_id(row[COL_ID], pdict_id, pdict)
 
     def _load_Parser(self, row):
         name        = row['name']
