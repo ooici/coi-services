@@ -200,7 +200,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt[min_field], [-2.])
         np.testing.assert_array_almost_equal(rdt[max_field], [40.])
 
-        np.testing.assert_array_almost_equal(rdt['temp_glblrng_qc'],[1])
+        np.testing.assert_array_almost_equal(rdt['tempwat_glblrng_qc'],[1])
 
 
 

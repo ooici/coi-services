@@ -93,6 +93,8 @@ class RegistrationProcess(StandaloneProcess):
         datasets = {}
         for key in cov.list_parameters():
             pc = cov.get_parameter_context(key)
+            if hasattr(pc,'visible') and not pc.visible:
+                continue
             
             #if not isinstance(pc.param_type, QuantityType):
             #    continue
