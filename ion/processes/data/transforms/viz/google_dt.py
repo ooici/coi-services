@@ -70,11 +70,13 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def get_stream_definition(self):
         stream_id = self.stream_ids[0]
-        try:
-            self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
-        except Timeout:
-            log.error('Timed out attempting to read_stream_definition')
-            return None
+
+        if not self.stream_def:
+            try:
+                self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+            except Timeout:
+                log.error('Timed out attempting to read_stream_definition')
+                return None
 
         return self.stream_def._id
 
