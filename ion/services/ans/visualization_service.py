@@ -147,7 +147,8 @@ class VisualizationService(BaseVisualizationService):
             if len(workflow_def_ids) > 0:
                 workflow_def_id = workflow_def_ids[0]
             else:
-                workflow_def_id = self._create_google_dt_workflow_def()
+                #workflow_def_id = self._create_google_dt_workflow_def()
+                raise NotFound("Google_dt Workflow definition does not exist")
 
             #Create and start the workflow. Take about 4 secs .. wtf
             workflow_id, workflow_product_id = self.clients.workflow_management.create_data_process_workflow(workflow_definition_id=workflow_def_id,
@@ -413,6 +414,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
+    """
     #THese definition creation functions should really only be used for tests and should be moved to the test helper and created
     # as part of test setup. The definitions should be in the preload data
 
@@ -463,7 +465,7 @@ class VisualizationService(BaseVisualizationService):
 
         return workflow_def_id
 
-
+    """
 
     def get_visualization_data(self, data_product_id='', visualization_parameters=None, callback='', tqx=""):
         """Retrieves the data for the specified DP
@@ -682,112 +684,6 @@ class VisualizationService(BaseVisualizationService):
         else:
             return callback + "(" + simplejson.dumps(ret_dict) + ")"
 
-
-
-    def get_data_product_kml(self, visualization_parameters = None):
-
-        kml_content = ""
-        ui_server = "http://localhost:3000" # This server hosts the UI and is used for creating all embedded links within KML
-        #observatory_icon_file = "/static/img/r2/li.observatories.png"
-        starting_altitude = "20000"
-        observatory_icon_file = "/static/img/Observatory-icon1.png"
-
-        if visualization_parameters:
-            if "ui_server" in visualization_parameters:
-                ui_server = visualization_parameters["ui_server"]
-
-        # First step. Discover all Data products in the system
-        dps,_ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
-
-        # Start creating the kml in memory
-        # Common KML tags
-        kml_content += "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-        kml_content += "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n"
-        kml_content += "<Document>\n"
-        kml_content += "<name>DataProduct geo-reference information, ID: " + str(create_unique_identifier('google_flush_key')) + "</name>\n"
-        # define line styles. Used for polygons
-        kml_content += "<Style id=\"yellowLine\">\n<LineStyle>\n<color>ff61f2f2</color>\n<width>4</width>\n</LineStyle>\n</Style>"
-
-        # Embed the icon images. Each as a separate style
-        kml_content += "<Style id=\"observatory-icon\">\n<IconStyle>\n<Icon>\n<href>"
-        kml_content += ui_server + observatory_icon_file
-        kml_content += "</href>\n</Icon>\n</IconStyle>\n</Style>\n"
-
-        dp_cluster = {}
-        # Several Dataproducts are basically coming from the same geo-location. Start clustering them
-        for dp in dps:
-            _lat_center = _lon_center = 0.0
-            bounds = dp.geospatial_bounds
-            if bounds == None:
-                continue
-
-            # approximate placemark position in the middle of the geo spatial bounds
-            _lon_center = bounds.geospatial_longitude_limit_west + (bounds.geospatial_longitude_limit_east - bounds.geospatial_longitude_limit_west) / 2.0
-            _lat_center = bounds.geospatial_latitude_limit_south + (bounds.geospatial_latitude_limit_north - bounds.geospatial_latitude_limit_south) / 2.0
-
-            # generate a key from lon-lat info. Truncate floats to one digit after decimal to keep things sane
-            key = ("%.1f"%_lon_center) + "," + ("%.1f"%_lat_center)
-
-            # All co-located data products are put in a list
-            if not key in dp_cluster:
-                dp_cluster[key] = []
-            dp_cluster[key].append(dp)
-
-
-        # Enter all DP in to KML placemarks
-        for set_key in dp_cluster:
-            # create only one placemark per set but populate information from all entries within the set
-            _lat_center = _lon_center = 0.0
-            bounds = dp_cluster[set_key][0].geospatial_bounds
-            if bounds == None:
-                continue
-
-            # approximate placemark position in the middle of the geo spatial bounds
-            _lon_center = bounds.geospatial_longitude_limit_west + (bounds.geospatial_longitude_limit_east - bounds.geospatial_longitude_limit_west) / 2.0
-            _lat_center = bounds.geospatial_latitude_limit_south + (bounds.geospatial_latitude_limit_north - bounds.geospatial_latitude_limit_south) / 2.0
-
-            # Start Placemark tag for point
-            kml_content += "<Placemark>\n"
-
-            # name of placemark
-            kml_content += "<name>"
-            kml_content += "Data Products at : " + str(_lat_center) + "," + str(_lon_center)
-            kml_content += "</name>\n"
-
-            # style /icon for placemark
-            kml_content += "<styleUrl>#observatory-icon</styleUrl>\n"
-
-            # Description
-            kml_content += "<description>\n<![CDATA[\n"
-            # insert HTML here as a table containing info about the data products
-            html_description = "<table border='1' align='center'>\n"
-            html_description += "<tr> <td><b>Data Product</b></td> <td> <b>ID</b> </b> <td> <b>Preview</b> </td> </tr>\n"
-            for dp in dp_cluster[set_key]:
-                html_description += "<tr>"
-                html_description += "<td>" + dp.name + "</td>"
-                html_description += "<td><a class=\"external\" href=\"" + ui_server + "/DataProduct/face/" + str(dp._id) + "/\">" + str(dp._id) + "</a> </td> "
-                html_description += "<td> </td>"
-
-                html_description += "</tr>"
-
-            # Close the table
-            html_description += "</table>"
-
-            kml_content += html_description
-            kml_content += "\n]]>\n</description>\n"
-
-            # Point information
-            #_lat_center = _lon_center = 0 ############# REMOVE THIS *************
-            kml_content += "<Point>\n<coordinates>" + str(_lon_center) + "," + str(_lat_center) + "," + starting_altitude + "</coordinates>\n</Point>\n"
-
-            # Close Placemark
-            kml_content += "</Placemark>\n"
-
-        # ------
-        kml_content += "</Document>\n"
-        kml_content += "</kml>\n"
-
-        return kml_content
 
 
 

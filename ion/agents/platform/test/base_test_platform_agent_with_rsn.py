@@ -602,10 +602,14 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         log.debug("assigning child platform %r to parent %r",
                   p_child.platform_id, p_parent.platform_id)
 
-        self.RR2.assign_platform_device_to_platform_device_with_has_device(p_child.platform_device_id,
-                                                                           p_parent.platform_device_id)
-        child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(p_parent.platform_device_id)
-        self.assertNotEqual(0, len(child_device_ids))
+        #create geospatial (hasDevice) link btwn child and parent
+#        self.RR2.assign_platform_device_to_platform_device_with_has_device(p_child.platform_device_id,
+#                                                                           p_parent.platform_device_id)
+#        child_device_ids = self.RR2.find_platform_device_ids_of_device_using_has_device(p_parent.platform_device_id)
+#        self.assertNotEqual(0, len(child_device_ids))
+
+        #create hasNetworkLink between child and parent
+        self.RR.create_association(subject=p_child.platform_device_id, predicate=PRED.hasNetworkParent, object=p_parent.platform_device_id)
 
     #################################################################
     # instrument

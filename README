@@ -52,7 +52,9 @@ For Mac, use homebrew
     > brew install libgswteos-10
     > brew test -v libgswteos-10
     
-
+- Install swig and gfortran (Needed by udunits and scipy)
+    > brew install swig (Make sure brew installed swig is used. `which swig`)
+    > brew install gfortran
 
 installation
 - Install
@@ -230,10 +232,11 @@ If your tests still fail, you might have some incorrect values in
 pyon.local.yml or logging.local.yml.  Check with other developers.
 
 If your tests fail unexpectedly when you have tried everything else, your build
-might be corrupted.  Do an ant clean buildout and try again with a new
-virtualenv and build from scratch.
-
-    > ant clean-buildout
+might be corrupted.
+    > deactivate from your existing virtualenv
+    > rm and create the virtualenv again
+    > re-run bootstrap.py and buildout
+    > If you suspect an egg is bad, Remove the suspected egg from the eggs/ dir. Re-reun buildout.
 
 DEBUG
 =====

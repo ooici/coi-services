@@ -65,9 +65,9 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.objects import StreamAlertType, AggregateStatusType
 
 """
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_config_persistence
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_state_persistence
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_comms_alerts.py:TestAgentCommsAlerts
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_comms_alerts.py:TestAgentCommsAlerts.test_lost_connection_alert
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_comms_alerts.py:TestAgentCommsAlerts.xx
 """
 
 ###############################################################################
@@ -118,6 +118,22 @@ from mi.core.exceptions import InstrumentParameterException
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
+state_alert_def = {
+    'name' : 'comms_warning',
+    'description' : 'Detected comms failure.',
+    'alert_type' : StreamAlertType.WARNING,
+    'alert_states' : [
+        ResourceAgentState.LOST_CONNECTION,
+        ResourceAgentState.ACTIVE_UNKNOWN
+                      ],
+    'clear_states' : [
+        ResourceAgentState.IDLE,
+        ResourceAgentState.COMMAND,
+        ResourceAgentState.STREAMING
+        ],
+    'alert_class' : 'StateAlert'
+}
+
 class FakeProcess(LocalContextMixin):
     """
     A fake process used because the test case is not an ion process.
@@ -126,9 +142,9 @@ class FakeProcess(LocalContextMixin):
     id=''
     process_type = ''
 
-@attr('HARDWARE', group='mi')
+@attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
-class TestAgentPersistence(IonIntegrationTestCase):
+class TestAgentCommsAlerts(IonIntegrationTestCase):
     """
     """
     
@@ -161,7 +177,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                                                      PA_BINARY,
                                                      DELIM,
                                                      WORK_DIR)
-        
+                
         # Start port agent, add stop to cleanup.
         self._start_pagent()
         self.addCleanup(self._support.stop_pagent)    
@@ -174,6 +190,29 @@ class TestAgentPersistence(IonIntegrationTestCase):
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        self._event_count = 0
+        self._events_received = []
+        self._async_event_result = AsyncResult()
+
+        def consume_event(*args, **kwargs):
+            log.debug('Test recieved ION event: args=%s, kwargs=%s, event=%s.',
+                     str(args), str(kwargs), str(args[0]))
+            self._events_received.append(args[0])
+            if self._event_count > 0 and \
+                self._event_count == len(self._events_received):
+                self._async_event_result.set()
+                        
+        self._event_subscriber = EventSubscriber(
+            event_type='DeviceStatusAlertEvent', callback=consume_event,
+            origin=IA_RESOURCE_ID)
+        
+        self._event_subscriber.start()
+
+        def stop_subscriber():
+            self._event_subscriber.stop()
+            self._event_subscriber = None
+        self.addCleanup(stop_subscriber)
+
         log.info('building stream configuration')
         # Setup stream config.
         self._build_stream_config()
@@ -185,7 +224,8 @@ class TestAgentPersistence(IonIntegrationTestCase):
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True,
             'forget_past' : False,
-            'enable_persistence' : True
+            'enable_persistence' : True,
+            'aparam_alert_config' : [state_alert_def]
         }
 
         self._ia_client = None
@@ -269,13 +309,13 @@ class TestAgentPersistence(IonIntegrationTestCase):
         """
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-            
+        
         pid = container_client.spawn_process(name=IA_NAME,
             module=IA_MOD,
             cls=IA_CLS,
             config=self._agent_config,
             process_id=self._ia_pid)
-        log.info('Started instrument agent pid=%s.', str(self._ia_pid))
+        log.info('Started instrument agent pid=%s.', str(pid))
         
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
@@ -311,158 +351,13 @@ class TestAgentPersistence(IonIntegrationTestCase):
     # Tests.
     ###############################################################################
 
-    def test_agent_config_persistence(self):
+    def test_lost_connection_alert(self):
         """
-        test_agent_config_persistence
-        Test that agent parameter configuration is persisted between running
-        instances.
+        test_lost_connection_alert
+        Verify that agents detect lost connection state and issue alert.
         """
-        
-        # Start the agent.
-        self._start_agent()
 
-        # We start in uninitialized state.
-        # In this state there is no driver process.
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
-        # Ping the agent.
-        retval = self._ia_client.ping_agent()
-        log.info(retval)
-
-        # Confirm the default agent parameters.
-        #{'streams': {'raw': ['quality_flag', 'ingestion_timestamp', 'port_timestamp', 'raw', 'lat', 'driver_timestamp', 'preferred_timestamp', 'lon', 'internal_timestamp', 'time'], 'parsed': ['quality_flag', 'ingestion_timestamp', 'port_timestamp', 'pressure', 'lat', 'driver_timestamp', 'conductivity', 'preferred_timestamp', 'temp', 'density', 'salinity', 'lon', 'internal_timestamp', 'time']}}
-        retval = self._ia_client.get_agent(['streams'])['streams']
-        self.assertIn('raw', retval.keys())
-        self.assertIn('parsed', retval.keys())
-
-        #{'pubrate': {'raw': 0, 'parsed': 0}}
-        retval = self._ia_client.get_agent(['pubrate'])['pubrate']
-        self.assertIn('raw', retval.keys())
-        self.assertIn('parsed', retval.keys())
-        self.assertEqual(retval['raw'], 0)
-        self.assertEqual(retval['parsed'], 0)
-        
-        #{'alerts': []}
-        retval = self._ia_client.get_agent(['alerts'])['alerts']
-        self.assertEqual(retval, [])
-
-        # Define a few new parameters and set them.
-        # Confirm they are set.
-        alert_def_1 = {
-            'name' : 'current_warning_interval',
-            'stream_name' : 'parsed',
-            'description' : 'Current is below normal range.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'temp',
-            'lower_bound' : None,
-            'lower_rel_op' : None,
-            'upper_bound' : 10.0,
-            'upper_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-
-        alert_def_2 = {
-            'name' : 'temp_alarm_interval',
-            'stream_name' : 'parsed',
-            'description' : 'Temperatoure is critical.',
-            'alert_type' : StreamAlertType.ALARM,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'temp',
-            'lower_bound' : None,
-            'lower_rel_op' : None,
-            'upper_bound' : 20.0,
-            'upper_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-
-        alert_def3 = {
-            'name' : 'late_data_warning',
-            'stream_name' : 'parsed',
-            'description' : 'Expected data has not arrived.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
-            'time_delta' : 180,
-            'alert_class' : 'LateDataAlert'
-        }
-
-        orig_alerts = [alert_def_1,alert_def_2, alert_def3]
-        pubrate = {
-            'parsed' : 10,
-            'raw' : 20
-        }
-        params = {
-            'alerts' : orig_alerts,
-            'pubrate' : pubrate
-        }
-        
-        # Set the new agent params and confirm.
-        self._ia_client.set_agent(params)
-        
-        params = [
-            'alerts',
-            'pubrate'
-        ]
-        retval = self._ia_client.get_agent(params)
-        pubrate = retval['pubrate']
-        alerts = retval['alerts']
-        self.assertIn('raw', pubrate.keys())
-        self.assertIn('parsed', pubrate.keys())
-        self.assertEqual(pubrate['parsed'], 10)
-        self.assertEqual(pubrate['raw'], 20)
-        count = 0
-        for x in alerts:
-            x.pop('status')
-            x.pop('value')
-            for y in orig_alerts:
-                if x['name'] == y['name']:
-                    count += 1
-                    self.assertItemsEqual(x.keys(), y.keys())
-        self.assertEqual(count, 3)
-
-        # Now stop and restart the agent.
-        self._stop_agent()
-        gevent.sleep(5)
-        self._start_agent()
-
-        # We start in uninitialized state.
-        # In this state there is no driver process.
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
-        # Ping the agent.
-        retval = self._ia_client.ping_agent()
-        log.info(retval)
-
-        # Confirm the persisted parameters.
-        params = [
-            'alerts',
-            'pubrate'
-        ]
-        retval = self._ia_client.get_agent(params)
-        
-        pubrate = retval['pubrate']
-        alerts = retval['alerts']
-        self.assertIn('raw', pubrate.keys())
-        self.assertIn('parsed', pubrate.keys())
-        self.assertEqual(pubrate['parsed'], 10)
-        self.assertEqual(pubrate['raw'], 20)
-        count = 0
-        for x in alerts:
-            x.pop('status')
-            x.pop('value')
-            for y in orig_alerts:
-                if x['name'] == y['name']:
-                    count += 1
-                    self.assertItemsEqual(x.keys(), y.keys())
-        self.assertEqual(count, 3)
-       
-    def test_agent_state_persistence(self):
-        """
-        test_agent_state_persistence
-        Verify that agents can be restored to their prior running state.
-        """
+        self._event_count = 3
 
         self._start_agent()
 
@@ -499,31 +394,47 @@ class TestAgentPersistence(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
+        # Confirm the persisted parameters.
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        """
+        {'origin': '123xyz', 'status': 1, '_id': 'da03b90d2e064b25bf51ed90b729e82e',
+        'description': 'The alert is cleared.', 'time_stamps': [],
+        'type_': 'DeviceStatusAlertEvent', 'valid_values': [],
+        'values': ['RESOURCE_AGENT_STATE_INACTIVE'], 'value_id': '',
+        'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'],
+        'stream_name': '', 'ts_created': '1366749987069', 'sub_type': 3,
+        'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        """
+
         # Acquire sample returns a string, not a particle.  The particle
         # is created by the data handler though.
         cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        # Now stop and restart the agent.
-        self._stop_agent()
-        gevent.sleep(3)
-        self._start_agent()
+        # Blow the port agent out from under the agent.
+        self._support.stop_pagent()
 
+        # Wait for a while, the supervisor is restarting the port agent.
+        gevent.sleep(5)
+        self._support.start_pagent()
+
+        timeout = gevent.Timeout(120)
+        timeout.start()
+
+        try:
+            
+            while True:
+                state = self._ia_client.get_agent_state()
+                if state == ResourceAgentState.COMMAND:
+                    break
+                else:
+                    gevent.sleep(2)
+            
+        except Timeout as t:
+            self.fail('Could not reconnect to device.')
+        
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.COMMAND)
-
-        cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.STOPPED)
-
-        # Now stop and restart the agent.
-        self._stop_agent()
-        gevent.sleep(3)
-        self._start_agent()
-
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.STOPPED)
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.
@@ -532,3 +443,10 @@ class TestAgentPersistence(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+        self._async_event_result.get(timeout=30) 
+        """
+        {'origin': '123xyz', 'status': 1, '_id': '256d4a46fe9e4d088b3ef7aff8d65b7e', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_INACTIVE'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366751524053', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': '79222723d3cb4b6ab404e3b01e9f4c9d', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_LOST_CONNECTION'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366751557845', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': 'bcd9b32c387c46529077759842758faf', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_COMMAND'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366751596426', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        """
+        
