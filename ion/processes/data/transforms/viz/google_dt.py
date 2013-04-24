@@ -6,9 +6,8 @@
 '''
 
 
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, Timeout
 from pyon.public import log
-
 
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -71,7 +70,12 @@ class VizTransformGoogleDT(TransformDataProcess):
 
     def get_stream_definition(self):
         stream_id = self.stream_ids[0]
-        self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        try:
+            self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
+        except Timeout:
+            log.error('Timed out attempting to read_stream_definition')
+            return None
+
         return self.stream_def._id
 
 
@@ -142,12 +146,6 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             # only consider fields which are allowed.
             if rdt[field] == None:
                 continue
-
-            """
-            if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
-                print ">>>>>>>>>>>>>> DONT KNOW HOW TO HANDLE : ", field, " , Type : ", rdt[field].dtype
-                continue
-            """
 
             # Handle string type or if its an unknown type, convert to string
             if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):
