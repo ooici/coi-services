@@ -881,9 +881,15 @@ class DataProductManagementService(BaseDataProductManagementService):
                         retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
                     except:
                         retval[k] = '%s: %s' %(k, element)
-
+                elif isinstance(element, float) or (isinstance(element,np.number) and element.dtype.char in 'edfg'):
+                    try:
+                        precision = int(rdt.context(k).precision)
+                    except ValueError:
+                        precision = 5
+                    formatted = ("{0:.%df}" % precision).format(round(element,precision))
+                    retval[k] = '%s: %s' %(k, formatted)
                 else:
-                    retval[k] = '%s: %s' %(k, element)
+                    retval[k] = '%s: %s' % (k,element)
             ret.value = retval
 #                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
             ret.status = ComputedValueAvailability.PROVIDED
