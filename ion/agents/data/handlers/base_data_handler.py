@@ -10,7 +10,7 @@
 """
 import msgpack
 
-from pyon.public import log
+from pyon.public import log, OT
 from pyon.util.async import spawn
 from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
@@ -59,7 +59,7 @@ class BaseDataHandler(object):
         self._terminate_polling = None
         self._acquiring_data = None
         self._params = {
-            'POLLING_INTERVAL': 3600,
+            'POLLING_INTERVAL': 30,
             'PATCHABLE_CONFIG_KEYS': ['stream_id', 'constraints', 'stream_route']
         }
 
@@ -93,8 +93,9 @@ class BaseDataHandler(object):
         interval = get_safe(self._params, 'POLLING_INTERVAL', 3600)
         log.debug('Polling interval: {0}'.format(interval))
 
-        while not self._terminate_polling.wait(timeout=interval):
+        while not self._terminate_polling.is_set():
             self.execute_acquire_sample()
+            self._terminate_polling.wait(timeout=interval)
 
     def cmd_dvr(self, cmd, *args, **kwargs):
         """
@@ -464,7 +465,7 @@ class BaseDataHandler(object):
         """
         rr_cli = ResourceRegistryServiceClient()
         try:
-            attachment_objs = rr_cli.find_attachments(resource_id=res_id, include_content=False, id_only=False)
+            attachment_objs = rr_cli.find_attachments(resource_id=res_id, include_content=True, id_only=False)
             for attachment_obj in attachment_objs:
                 kwds = set(attachment_obj.keywords)
                 if 'NewDataCheck' in kwds:
@@ -546,15 +547,12 @@ class BaseDataHandler(object):
         else:
             raise InstrumentParameterException('Data constraints must be of type \'dict\':  {0}'.format(constraints))
 
-        cls._publish_data(publisher, cls._get_data(config))
-
-        if 'set_new_data_check' in config:
-            update_new_data_check_attachment(config['external_dataset_res_id'], config['set_new_data_check'])
+        cls._publish_data(publisher, cls._get_data(config), config, update_new_data_check_attachment)
 
         # Publish a 'TestFinished' event
         if get_safe(config, 'TESTING'):
             #log.debug('Publish TestingFinished event')
-            pub = EventPublisher('DeviceCommonLifecycleEvent')
+            pub = EventPublisher(OT.DeviceCommonLifecycleEvent)
             pub.publish_event(origin='BaseDataHandler._acquire_sample', description='TestingFinished')
 
     @classmethod
@@ -600,7 +598,7 @@ class BaseDataHandler(object):
         raise NotImplementedException('{0}.{1} must implement \'_get_data\''.format(cls.__module__, cls.__name__))
 
     @classmethod
-    def _publish_data(cls, publisher, data_generator):
+    def _publish_data(cls, publisher, data_generator, config=None, update_new_data_check_attachment=None):
         """
         Iterates over the data_generator and publishes granules to the stream indicated in stream_id
         @param publisher to publish the data with
@@ -614,6 +612,8 @@ class BaseDataHandler(object):
             if isinstance(gran, Granule):
                 #log.warn('_publish_data: {0}\n{1}'.format(count, gran))
                 publisher.publish(gran)
+                if config and 'set_new_data_check' in config:
+                    update_new_data_check_attachment(config['external_dataset_res_id'], config['set_new_data_check'])
             else:
                 log.warn('Could not publish object of {0} returned by _get_data: {1}'.format(type(gran), gran))
 

@@ -29,8 +29,9 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
 
-    def create_stream_definition(self, name='', parameter_dictionary=None, parameter_dictionary_id='', stream_type='', description='', available_fields=None):
+    def create_stream_definition(self, name='', parameter_dictionary=None, parameter_dictionary_id='', stream_type='', description='', available_fields=None, stream_configuration=None):
         parameter_dictionary = parameter_dictionary or {}
+        stream_configuration = stream_configuration or {}
         existing = self.clients.resource_registry.find_resources(restype=RT.StreamDefinition, name=name, id_only=True)[0]
         if name and existing:
             if parameter_dictionary_id:
@@ -47,7 +48,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         name = name or create_unique_identifier()
 
-        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description, available_fields=available_fields)
+        stream_definition = StreamDefinition(parameter_dictionary=parameter_dictionary, stream_type=stream_type, name=name, description=description, available_fields=available_fields, stream_configuration=stream_configuration)
         stream_definition_id,_  = self.clients.resource_registry.create(stream_definition)
         if parameter_dictionary_id:
             self._associate_pdict_with_definition(parameter_dictionary_id, stream_definition_id)
@@ -70,10 +71,18 @@ class PubsubManagementService(BasePubsubManagementService):
         return stream_definition
 
     def delete_stream_definition(self, stream_definition_id=''):
-        self.read_stream_definition(stream_definition_id) # Ensures the object is a stream definition
+        obj = self.clients.resource_registry.read(stream_definition_id)
+        validate_is_instance(obj,StreamDefinition)
         self._deassociate_definition(stream_definition_id)
         self.clients.resource_registry.delete(stream_definition_id)
         return True
+
+    @classmethod
+    def compare_stream_definition_objects(cls, def1, def2):
+        if def1._id == def2._id:
+            return True
+        pdict_compare = cls._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
+        return pdict_compare and sorted(def1.available_fields) == sorted(def2.available_fields)
 
     def compare_stream_definition(self, stream_definition1_id='', stream_definition2_id=''):
         # returns True if the 2 stream definitions are equivalent
@@ -81,15 +90,12 @@ class PubsubManagementService(BasePubsubManagementService):
             return True
         def1 = self.read_stream_definition(stream_definition1_id)
         def2 = self.read_stream_definition(stream_definition2_id)
-        pdict_compare = self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary) 
-        return pdict_compare and sorted(def1.available_fields) == sorted(def2.available_fields)
+        return self.compare_stream_definition_objects(def1, def2)
 
     def compatible_stream_definitions(self, in_stream_definition_id, out_stream_definition_id):
         if in_stream_definition_id == out_stream_definition_id and self.read_stream_definition(in_stream_definition_id):
             return True
-        def1 = self.read_stream_definition(in_stream_definition_id)
-        def2 = self.read_stream_definition(out_stream_definition_id)
-        return self._compare_pdicts(def1.parameter_dictionary, def2.parameter_dictionary)
+        return self.validate_stream_defs(in_stream_definition_id, out_stream_definition_id)
         
     def validate_stream_defs(self, in_stream_definition_id, out_stream_definition_id):
         stream_def_in = self.read_stream_definition(in_stream_definition_id)
@@ -219,10 +225,11 @@ class PubsubManagementService(BasePubsubManagementService):
 
     #--------------------------------------------------------------------------------
     
-    def create_subscription(self, name='', stream_ids=None, exchange_points=None, topic_ids=None, exchange_name='', credentials=None, description=''):
-        stream_ids      = stream_ids or []
-        exchange_points = exchange_points or []
-        topic_ids       = topic_ids or []
+    def create_subscription(self, name='', stream_ids=None, exchange_points=None, topic_ids=None, exchange_name='', credentials=None, description='', data_product_ids=[]):
+        stream_ids       = stream_ids or []
+        exchange_points  = exchange_points or []
+        topic_ids        = topic_ids or []
+        data_product_ids = data_product_ids or []
 
         exchange_name = exchange_name or name
         validate_true(exchange_name, 'Clients must provide an exchange name')
@@ -260,6 +267,9 @@ class PubsubManagementService(BasePubsubManagementService):
         
         for topic_id in topic_ids:
             self._associate_topic_with_subscription(topic_id, subscription_id)
+
+        for data_product_id in data_product_ids:
+            self._associate_data_product_with_subscription(data_product_id, subscription_id)
         
         return subscription_id
 
@@ -276,6 +286,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         streams, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, object_type=RT.Stream, predicate=PRED.hasStream,id_only=False)
         topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
+        data_product_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasDataProduct, id_only=True)
 
         topic_topology = set()
         topics = []
@@ -292,7 +303,7 @@ class PubsubManagementService(BasePubsubManagementService):
             if dot.isEnabledFor(logging.INFO):
                 import re
                 queue_name = re.sub(r'[ -]','_',subscription.exchange_name)
-                dot.info('  %s -> %s' %(stream.stream_route.routing_key.strip('.stream'), queue_name))
+                dot.info('  %s -> %s' %(stream.stream_route.routing_key[:-len('.stream')], queue_name))
 
             self._bind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
 
@@ -304,6 +315,18 @@ class PubsubManagementService(BasePubsubManagementService):
             log.info('Topic %s -> %s', topic.name, subscription.exchange_name)
             self._bind(topic.exchange_point, subscription.exchange_name, '#.%s.#' % self._sanitize(topic.name))
 
+        for data_product_id in data_product_ids:
+            streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=False)
+            for stream in streams:
+                log.info('%s -> %s', stream.name, subscription.exchange_name)
+                if dot.isEnabledFor(logging.INFO):
+                    import re
+                    queue_name = re.sub(r'[ -]','_',subscription.exchange_name)
+                    dot.info('  %s -> %s' %(stream.stream_route.routing_key[:-len('.stream')], queue_name))
+
+                self._bind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
+
+
         subscription.activated = True
         self.clients.resource_registry.update(subscription)
 
@@ -314,6 +337,7 @@ class PubsubManagementService(BasePubsubManagementService):
 
         streams, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, object_type=RT.Stream, predicate=PRED.hasStream,id_only=False)
         topic_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasTopic, id_only=True)
+        data_product_ids, assocs = self.clients.resource_registry.find_objects(subject=subscription_id, predicate=PRED.hasDataProduct, id_only=True)
 
         topic_topology = set()
 
@@ -334,6 +358,12 @@ class PubsubManagementService(BasePubsubManagementService):
         for exchange_point in subscription.exchange_points:
             log.info('Exchange %s -X-> %s', exchange_point, subscription.exchange_name)
             self._unbind(exchange_point, subscription.exchange_name, '*')
+
+        for data_product_id in data_product_ids:
+            streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=False)
+            for stream in streams:
+                log.info('%s -X-> %s', stream.name, subscription.exchange_name)
+                self._unbind(stream.stream_route.exchange_point, subscription.exchange_name, stream.stream_route.routing_key)
 
 
         subscription.activated = False
@@ -510,6 +540,9 @@ class PubsubManagementService(BasePubsubManagementService):
     def _associate_topic_with_subscription(self, topic_id, subscription_id):
         self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasTopic, object=topic_id)
 
+    def _associate_data_product_with_subscription(self, data_product_id, subscription_id):
+        self.clients.resource_registry.create_association(subject=subscription_id, predicate=PRED.hasDataProduct, object=data_product_id)
+
     def _associate_topic_with_topic(self, parent_topic_id, child_topic_id):
         self.clients.resource_registry.create_association(subject=parent_topic_id, predicate=PRED.hasTopic, object=child_topic_id)
 
@@ -580,3 +613,17 @@ class PubsubManagementService(BasePubsubManagementService):
             pdict2 = ParameterDictionary.load(pdict2) or {}
         return bool(pdict1 == pdict2)
 
+    def has_lookup_values(self, stream_definition_id=''):
+        stream_definition = self.read_stream_definition(stream_definition_id)
+        pdict = ParameterDictionary.load(stream_definition.parameter_dictionary)
+
+        ret = []
+        for key in pdict.keys():
+            p_context = pdict.get_context(key)
+            if hasattr(p_context, 'lookup_value'):
+                if stream_definition.available_fields and key in stream_definition.available_fields:
+                    ret.append(p_context.name)
+                elif not stream_definition.available_fields:
+                    ret.append(p_context.name)
+
+        return ret

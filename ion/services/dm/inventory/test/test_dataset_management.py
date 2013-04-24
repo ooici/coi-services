@@ -42,8 +42,6 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         ds_obj2 = self.dataset_management.read_dataset(dataset_id)
         self.assertEquals(ds_obj.name, ds_obj2.name)
         self.assertTrue(ds_obj2.registered)
-
-   
     
     def test_context_crud(self):
         context_ids = self.create_contexts()
@@ -58,14 +56,18 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         with self.assertRaises(NotFound):
             self.dataset_management.read_parameter_context(context_id)
 
+
+
     def test_pfunc_crud(self):
         contexts, funcs = self.create_pfuncs()
         context_ids = [context_id for ctxt,context_id in contexts.itervalues()]
 
         pdict_id = self.dataset_management.create_parameter_dictionary(name='functional_pdict', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
-
-
+        expr, expr_id = funcs['CONDWAT_L1']
+        func_class = DatasetManagementService.get_parameter_function(expr_id)
+        self.assertIsInstance(func_class, NumexprFunction)
 
     def test_pdict_crud(self):
         context_ids = self.create_contexts()
@@ -167,7 +169,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         expr.param_map = tl1_pmap
         tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
-        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_id=expr_id)
         contexts['TEMPWAT_L1'] = tempL1_ctxt, tempL1_ctxt_id
 
         # CONDWAT_L1 = (CONDWAT_L0 / 100000) - 0.5
@@ -180,7 +182,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         expr.param_map = cl1_pmap
         condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
-        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_id=expr_id)
         contexts['CONDWAT_L1'] = condL1_ctxt, condL1_ctxt_id
 
         # Equation uses p_range, which is a calibration coefficient - Fixing to 679.34040721
@@ -194,7 +196,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         expr.param_map = pl1_pmap
         presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
-        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_id=expr_id)
         contexts['PRESWAT_L1'] = presL1_ctxt, presL1_ctxt_id
 
         # Density & practical salinity calucluated using the Gibbs Seawater library - available via python-gsw project:
@@ -213,7 +215,7 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         expr.param_map = sal_pmap
         sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
-        sal_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_ids=[expr_id])
+        sal_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_id=expr_id)
         contexts['PRACSAL'] = sal_ctxt, sal_ctxt_id
 
         # absolute_salinity = gsw.SA_from_SP(PRACSAL, PRESWAT_L1, longitude, latitude)
@@ -229,7 +231,17 @@ class DatasetManagementIntTest(IonIntegrationTestCase):
         contexts['DENSITY'] = dens_ctxt, dens_ctxt_id
         return contexts, funcs
 
-
-        
+    def test_verify_contexts(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name(name='ctd_parsed_param_dict', id_only=True)
+        pcontexts = self.dataset_management.read_parameter_contexts(parameter_dictionary_id=pdict_id)
+        for pcontext in pcontexts:
+            self.assertTrue('fill_value' in pcontext)
+            self.assertTrue('reference_urls' in pcontext)
+            self.assertTrue('internal_name' in pcontext)
+            self.assertTrue('display_name' in pcontext)
+            self.assertTrue('standard_name' in pcontext)
+            self.assertTrue('ooi_short_name' in pcontext)
+            self.assertTrue('description' in pcontext)
+            self.assertTrue('precision' in pcontext)
 
 

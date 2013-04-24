@@ -29,13 +29,14 @@ class TestDatastore(IonIntegrationTestCase):
 
     def test_manage_datastore(self):
         db_name_prefix = get_sys_name().lower()
+        self.datastore_service.create_datastore(db_name_prefix + "_foo")
+
         self.datastore_service.delete_datastore(db_name_prefix + "_foo")
 
         self.datastore_service.create_datastore(db_name_prefix + "_foo")
 
         with self.assertRaises(BadRequest) as cm:
             self.datastore_service.create_datastore(db_name_prefix + "_foo")
-        self.assertTrue(cm.exception.message.startswith("Data store with name"))
 
         ds_list = self.datastore_service.list_datastores()
         self.assertTrue(db_name_prefix + "_foo" in ds_list)
@@ -44,6 +45,8 @@ class TestDatastore(IonIntegrationTestCase):
 
         self.assertTrue(self.datastore_service.datastore_exists(db_name_prefix + "_foo"))
         self.assertFalse(self.datastore_service.datastore_exists(db_name_prefix + "_bar"))
+
+        self.datastore_service.delete_datastore(db_name_prefix + "_foo")
 
     def test_create_delete(self):
         # Persist IonObject
@@ -62,7 +65,7 @@ class TestDatastore(IonIntegrationTestCase):
         # Make sure attempt to send object with _id to create fails
         bad_user_info_doc = {"name": "John Smith", "_id": "foo"}
         with self.assertRaises(BadRequest) as cm:
-            self.datastore_service.create_doc(bad_user_info_doc)
+            self.datastore_service.create_doc(bad_user_info_doc, object_id="baz")
         self.assertTrue(cm.exception.message.startswith("Doc must not have '_id'"))
 
         bad_user_info_doc = {"name": "John Smith", "_rev": "1"}

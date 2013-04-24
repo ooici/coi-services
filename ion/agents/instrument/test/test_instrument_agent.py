@@ -34,6 +34,7 @@ from mock import patch
 # Pyon pubsub and event support.
 from pyon.event.event import EventSubscriber, EventPublisher
 from pyon.ion.stream import StandaloneStreamSubscriber
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 
 # Pyon unittest support.
 from pyon.util.int_test import IonIntegrationTestCase
@@ -43,8 +44,7 @@ from pyon.core.bootstrap import get_obj_registry
 from pyon.core.object import IonObjectDeserializer
 
 # Pyon exceptions.
-from pyon.core.exception import BadRequest
-from pyon.core.exception import Conflict
+from pyon.core.exception import BadRequest, Conflict, Timeout, ResourceError
 
 # Agent imports.
 from pyon.util.context import LocalContextMixin
@@ -68,7 +68,9 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 
 # Alarms.
 from pyon.public import IonObject
-from interface.objects import StreamAlarmType
+from interface.objects import StreamAlertType, AggregateStatusType
+
+from ooi.timer import Timer
 
 """
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway
@@ -87,6 +89,10 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_lost_connection
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autoreconnect
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_connect_failed
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_alerts
 """
 
 ###############################################################################
@@ -121,7 +127,7 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.0.4-py2.7.egg'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -211,7 +217,7 @@ class FakeProcess(LocalContextMixin):
 #Refactored as stand alone method for starting an instrument agent for use in other tests, like governance
 #to do policy testing for resource agents
 #shenrie
-def start_instrument_agent_process(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, org_name=None, message_headers=None):
+def start_instrument_agent_process(container, stream_config={}, resource_id=IA_RESOURCE_ID, resource_name=IA_NAME, org_governance_name=None, message_headers=None):
     log.info("foobar")
 
     # Create agent config.
@@ -219,11 +225,13 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
         'driver_config' : DVR_CONFIG,
         'stream_config' : stream_config,
         'agent'         : {'resource_id': resource_id},
-        'test_mode' : True
+        'test_mode' : True,
+        'forget_past' : True,
+        'enable_persistence' : False
     }
 
-    if org_name is not None:
-        agent_config['org_name'] = org_name
+    if org_governance_name is not None:
+        agent_config['org_governance_name'] = org_governance_name
 
 
     # Start instrument agent.
@@ -247,7 +255,7 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
     return ia_client
 
-@attr('HARDWARE', group='mi')
+@attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
 class TestInstrumentAgent(IonIntegrationTestCase):
     """
@@ -387,36 +395,44 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         # Create a pubsub client to create streams.
         pubsub_client = PubsubManagementServiceClient(node=self.container.node)
-        dataset_management = DatasetManagementServiceClient() 
+        dataset_management = DatasetManagementServiceClient()
+        
         # Create streams and subscriptions for each stream named in driver.
         self._stream_config = {}
 
-        streams = {
-            'parsed' : 'ctd_parsed_param_dict',
-            'raw'    : 'ctd_raw_param_dict'
-        }
-
-
-
-        for (stream_name, param_dict_name) in streams.iteritems():
-            pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-
-            stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-            pd            = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
-
-            stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
+        stream_name = 'parsed'
+        param_dict_name = 'ctd_parsed_param_dict'
+        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
+        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-
-            stream_config = dict(stream_route=stream_route,
+        stream_config = dict(stream_route=stream_route,
                                  routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
                                  parameter_dictionary=pd)
-            self._stream_config[stream_name] = stream_config
+        self._stream_config[stream_name] = stream_config
 
-    def _start_data_subscribers(self, count):
+        stream_name = 'raw'
+        param_dict_name = 'ctd_raw_param_dict'
+        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
+        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
+                                                exchange_point='science_data',
+                                                stream_definition_id=stream_def_id)
+        stream_config = dict(stream_route=stream_route,
+                                 routing_key=stream_route.routing_key,
+                                 exchange_point=stream_route.exchange_point,
+                                 stream_id=stream_id,
+                                 stream_definition_ref=stream_def_id,
+                                 parameter_dictionary=pd)
+        self._stream_config[stream_name] = stream_config
+
+    def _start_data_subscribers(self, count, raw_count):
         """
         """        
         # Create a pubsub client to create streams.
@@ -425,33 +441,50 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         # Create streams and subscriptions for each stream named in driver.
         self._data_subscribers = []
         self._samples_received = []
+        self._raw_samples_received = []
         self._async_sample_result = AsyncResult()
+        self._async_raw_sample_result = AsyncResult()
 
         # A callback for processing subscribed-to data.
         def recv_data(message, stream_route, stream_id):
-            log.info('Received message on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
+            log.info('Received parsed data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
             self._samples_received.append(message)
             if len(self._samples_received) == count:
                 self._async_sample_result.set()
 
-        for (stream_name, stream_config) in self._stream_config.iteritems():
-            
-            stream_id = stream_config['stream_id']
-            
-            # Create subscriptions for each stream.
+        def recv_raw_data(message, stream_route, stream_id):
+            log.info('Received raw data on %s (%s,%s)', stream_id, stream_route.exchange_point, stream_route.routing_key)
+            self._raw_samples_received.append(message)
+            if len(self._raw_samples_received) == raw_count:
+                self._async_raw_sample_result.set()
 
-            from pyon.util.containers import create_unique_identifier
-            # exchange_name = '%s_queue' % stream_name
-            exchange_name = create_unique_identifier("%s_queue" %
+        from pyon.util.containers import create_unique_identifier
+
+        stream_name = 'parsed'
+        parsed_config = self._stream_config[stream_name]
+        stream_id = parsed_config['stream_id']
+        exchange_name = create_unique_identifier("%s_queue" %
                     stream_name)
-            self._purge_queue(exchange_name)
-            sub = StandaloneStreamSubscriber(exchange_name, recv_data)
-            sub.start()
-            self._data_subscribers.append(sub)
-            print 'stream_id: %s' % stream_id
-            sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-            pubsub_client.activate_subscription(sub_id)
-            sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
+        self._purge_queue(exchange_name)
+        sub = StandaloneStreamSubscriber(exchange_name, recv_data)
+        sub.start()
+        self._data_subscribers.append(sub)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+        pubsub_client.activate_subscription(sub_id)
+        sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
+        
+        stream_name = 'raw'
+        parsed_config = self._stream_config[stream_name]
+        stream_id = parsed_config['stream_id']
+        exchange_name = create_unique_identifier("%s_queue" %
+                    stream_name)
+        self._purge_queue(exchange_name)
+        sub = StandaloneStreamSubscriber(exchange_name, recv_raw_data)
+        sub.start()
+        self._data_subscribers.append(sub)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
+        pubsub_client.activate_subscription(sub_id)
+        sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
 
     def _purge_queue(self, queue):
         xn = self.container.ex_manager.create_xn_queue(queue)
@@ -626,7 +659,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
     
         with self.assertRaises(Conflict):
             res_state = self._ia_client.get_resource_state()
-    
+            
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
@@ -651,6 +684,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         res_state = self._ia_client.get_resource_state()
         self.assertEqual(res_state, DriverProtocolState.COMMAND)
 
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        with self.assertRaises(Conflict):
+            retval = self._ia_client.execute_resource(cmd)
+
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
@@ -661,7 +698,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertGreaterEqual(len(self._events_received), 6)
-        
+
     def test_states(self):
         """
         test_states
@@ -672,7 +709,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Set up a subscriber to collect error events.
         self._start_event_subscriber('ResourceAgentStateEvent', 8)
-        self.addCleanup(self._stop_event_subscriber)    
+        self.addCleanup(self._stop_event_subscriber)
 
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
@@ -683,7 +720,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         with self.assertRaises(Conflict):
             retval = self._ia_client.ping_resource()
-    
+
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
@@ -727,10 +764,81 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-            
+
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEquals(len(self._events_received), 8)
-            
+
+    def _test_next_state(self, step_tuple, timeout=None, recover=30):
+        # execute command
+        log.info('agent FSM step: %r timeout=%s', step_tuple, timeout)
+
+        if step_tuple[0]:
+            if timeout:
+                with self.assertRaises(Timeout):
+                    try:
+                        self._ia_client.execute_agent(AgentCommand(command=step_tuple[0]), timeout=timeout)
+                    except:
+                        log.error('expecting agent command to timeout: %s', step_tuple[0], exc_info=True)
+                        raise
+                # give some time for the operation in the agent to complete, even RPC timed out
+                time.sleep(recover)
+            else:
+                self._ia_client.execute_agent(AgentCommand(command=step_tuple[0]))
+        # check state
+        if step_tuple[1]:
+            state = self._ia_client.get_agent_state()
+            self.assertEqual(state, step_tuple[1])
+        # ping agent
+        if len(step_tuple)>2:
+            if step_tuple[2]:
+                self._ia_client.ping_agent()
+            else:
+                with self.assertRaises(Conflict):
+                    self._ia_client.ping_agent()
+        # ping resource
+        if len(step_tuple)>3:
+            if step_tuple[3]:
+                self._ia_client.ping_resource()
+            else:
+                with self.assertRaises(Conflict):
+                    self._ia_client.ping_resource()
+
+    def test_states_timeout(self):
+        """
+        get_states test like above,
+        but cause RPC to timeout before instrument completes state transition.
+        """
+        # Set up a subscriber to collect error events.
+        self._start_event_subscriber('ResourceAgentStateEvent', 8)
+        self.addCleanup(self._stop_event_subscriber)
+
+        step_times_out = ResourceAgentEvent.GO_ACTIVE
+
+        steps = [
+            # (cmd, state_after, [ping_agent, ping_resource])
+            (None, ResourceAgentState.UNINITIALIZED, True, False),
+            (ResourceAgentEvent.INITIALIZE, ResourceAgentState.INACTIVE, True, True),
+            (ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE),
+            (ResourceAgentEvent.RUN, ResourceAgentState.COMMAND),
+            (ResourceAgentEvent.PAUSE, ResourceAgentState.STOPPED),
+            (ResourceAgentEvent.RESUME, ResourceAgentState.COMMAND),
+            (ResourceAgentEvent.CLEAR, ResourceAgentState.IDLE),
+            (ResourceAgentEvent.RUN, ResourceAgentState.COMMAND),
+            (ResourceAgentEvent.RESET, ResourceAgentState.UNINITIALIZED),
+        ]
+
+        # not all steps will time out in 5sec
+        step_times_out  = ResourceAgentEvent.GO_ACTIVE
+
+        for step in steps:
+            if step[0]==step_times_out:
+                self._test_next_state(step, timeout=5)
+            else:
+                self._test_next_state(step)
+
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertEquals(len(self._events_received), 8)
+
     def test_get_set(self):
         """
         test_get_set
@@ -857,8 +965,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    self._ia_client.get_resource()
+        with self.assertRaises(BadRequest):
+            self._ia_client.get_resource()
                 
         # Attempt to get with bogus parameters.
         params = [
@@ -868,15 +976,15 @@ class TestInstrumentAgent(IonIntegrationTestCase):
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    retval = self._ia_client.get_resource(params)
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.get_resource(params)
 
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
         # Attempt to set with no parameters.
         # Set without parameters.
-        #with self.assertRaises(BadRequest):
-        #    retval = self._ia_client.set_resource()
+        with self.assertRaises(BadRequest):
+            retval = self._ia_client.set_resource()
         
         # Attempt to set with bogus parameters.
         params = {
@@ -885,8 +993,8 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         }
         # Returning an InstrumentParameterException, not BadRequest
         # agent not mapping correctly?
-        #with self.assertRaises(BadRequest):
-        #    self._ia_client.set_resource(params)
+        with self.assertRaises(BadRequest):
+            self._ia_client.set_resource(params)
 
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
@@ -900,6 +1008,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
 
         # Test with a bad parameter name.
         with self.assertRaises(BadRequest):
@@ -928,11 +1041,11 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         
         raw_fields = ['quality_flag', 'preferred_timestamp', 'port_timestamp',
             'lon', 'raw', 'internal_timestamp', 'time',
-            'lat', 'driver_timestamp']
+            'lat', 'driver_timestamp','ingestion_timestamp']
         parsed_fields = ['quality_flag', 'preferred_timestamp', 'temp',
             'density', 'port_timestamp', 'lon', 'salinity', 'pressure',
             'internal_timestamp', 'time', 'lat', 'driver_timestamp',
-            'conductivity']
+            'conductivity','ingestion_timestamp']
 
         retval = self._ia_client.get_agent(['streams'])['streams']
         self.assertIn('raw', retval)
@@ -940,111 +1053,78 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertItemsEqual(retval['raw'], raw_fields)
         self.assertItemsEqual(retval['parsed'], parsed_fields)
         
-        retval = self._ia_client.get_agent(['pubfreq'])
-        expected_pubfreq_result = {'pubfreq': {'raw': 0, 'parsed': 0}}
-        self.assertEqual(retval, expected_pubfreq_result)
+        retval = self._ia_client.get_agent(['pubrate'])
+        expected_pubrate_result = {'pubrate': {'raw': 0, 'parsed': 0}}
+        self.assertEqual(retval, expected_pubrate_result)
         
-        new_pubfreq = {'raw' : 30, 'parsed' : 30}
-        self._ia_client.set_agent({'pubfreq' : new_pubfreq})
-        retval = self._ia_client.get_agent(['pubfreq'])['pubfreq']
-        self.assertEqual(retval, new_pubfreq)
+        new_pubrate = {'raw' : 30, 'parsed' : 30}
+        self._ia_client.set_agent({'pubrate' : new_pubrate})
+        retval = self._ia_client.get_agent(['pubrate'])['pubrate']
+        self.assertEqual(retval, new_pubrate)
 
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
+    
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
         self.assertItemsEqual(retval, [])
 
-        alarms = []
         
-        kwargs1 = {
-            'name' : 'lower_current_warning_interval',
+        alert_def1 = {
+            'name' : 'temp_warning_interval',
             'stream_name' : 'parsed',
-            'value_id' : 'port_current',
-            'message' : 'Current is below normal range.',
-            'type' : StreamAlarmType.WARNING,
-            'lower_bound' : 10.5,
-            'lower_rel_op' : '<'
-        }
-        alarm1 = IonObject('IntervalAlarmDef', **kwargs1)
-        alarms.append(alarm1)
-        
-        kwargs2 = {
-            'name' : 'upper_current_warning_interval',
-            'stream_name' : 'parsed',
-            'value_id' : 'port_current',
-            'message' : 'Current is above normal range.',
-            'type' : StreamAlarmType.WARNING,
-            'upper_bound' : 30.5,
-            'upper_rel_op' : '<'
-        }
-        alarm2 = IonObject('IntervalAlarmDef', **kwargs2)
-        alarms.append(alarm2)
-
-
-        decoder = IonObjectDeserializer(obj_registry=get_obj_registry())
-
-
-        self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
-            [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
-
-        kwargs3 = {
-            'name' : 'high_temperature_alert',
-            'stream_name' : 'parsed',
+            'description' : 'Temperature is above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
             'value_id' : 'temp',
-            'message' : 'Temp is above operating range.',
-            'type' : StreamAlarmType.ALERT,
-            'lower_bound' : 30.0,
-            'lower_rel_op' : '<'
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 10.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
         }
-        alarm3 = IonObject('IntervalAlarmDef', **kwargs3)
-        alarms.append(alarm3)
         
-        kwargs4 = {
-            'name' : 'invalid_salinity_alert',
+        alert_def2 = {
+            'name' : 'temp_alarm_interval',
             'stream_name' : 'parsed',
-            'value_id' : 'salinity',
-            'message' : 'Salinity value not valid.',
-            'type' : StreamAlarmType.ALERT,
-            'upper_bound' : 0.0,
-            'upper_rel_op' : '<'
+            'description' : 'Temperature is way above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+            'value_id' : 'temp',
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 15.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
         }
-        alarm4 = IonObject('IntervalAlarmDef', **kwargs4)
-        alarms.append(alarm4)
+        
+        
+        self._ia_client.set_agent({'alerts' : [alert_def1, alert_def2]})
+        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==2)
 
-        params = ['add']
-        params.extend(alarms)
+        log.debug('test_get_set_agent updated alerts: %s', retval)
 
-        self._ia_client.set_agent({'alarms' : ['add', alarm3, alarm4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
-            alarm4]], [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+        retval = self._ia_client.get_agent(['aggstatus'])['aggstatus']
+        self.assertTrue(len(retval)==4)
+        log.debug('test_get_set_agent updated aggstatus: %s', retval)
 
-        self._ia_client.set_agent({'alarms' : ['remove', alarm3, alarm4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2]],
-            [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+        """
+        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_warning_interval', 'upper_bound': 10.5, 'lower_bound': None, 'aggregate_type': 2, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is above normal range.', 'upper_rel_op': None}
+        {'status': None, 'stream_name': 'parsed', 'alert_type': 1, 'name': 'temp_alarm_interval', 'upper_bound': 15.5, 'lower_bound': None, 'aggregate_type': 2, 'alert_class': 'IntervalAlert', 'value': None, 'value_id': 'temp', 'lower_rel_op': '<', 'message': 'Temperature is way above normal range.', 'upper_rel_op': None}
+        """
 
-        self._ia_client.set_agent({'alarms' : ['set', alarm1, alarm2,
-                alarm3, alarm4]})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm1, alarm2, alarm3,
-            alarm4]], [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+        self._ia_client.set_agent({'alerts' : ['clear']})        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertItemsEqual(retval, [])
 
-        self._ia_client.set_agent({'alarms' : ['remove',
-                'lower_current_warning_interval',
-                'upper_current_warning_interval']})
-        retval = decoder.deserialize(self._ia_client.get_agent(['alarms'])['alarms'])
-        self.assertItemsEqual([x.name for x in [alarm3, alarm4]],
-            [x.name for x in retval])
-        self.assertTrue(all([len(x.expr)>0 for x in retval]))
+        self._ia_client.set_agent({'alerts' : ['set', alert_def1, alert_def2]})
+        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==2)
 
-        self._ia_client.set_agent({'alarms' : ['clear']})
-        retval = self._ia_client.get_agent(['alarms'])['alarms']
-        self.assertEqual(retval,[])
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
     def test_poll(self):
         """
@@ -1056,7 +1136,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         #--------------------------------------------------------------------------------
 
         # Start data subscribers.
-        self._start_data_subscribers(6)
+        self._start_data_subscribers(3, 10)
         self.addCleanup(self._stop_data_subscribers)
         
         # Set up a subscriber to collect command events.
@@ -1094,9 +1174,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        
-        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)        
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)        
         
         """
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_INITIALIZE', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373063952', 'sub_type': '', 'origin_type': ''}
@@ -1108,13 +1186,21 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         {'origin': '123xyz', 'description': '', 'kwargs': {}, 'args': [], 'execute_command': 'RESOURCE_AGENT_EVENT_RESET', 'type_': 'ResourceAgentCommandEvent', 'command': 'execute_agent', 'result': None, 'base_types': ['ResourceAgentEvent', 'Event'], 'ts_created': '1349373076321', 'sub_type': '', 'origin_type': ''}        
         """
         
-        log.warning('******************* Checking events in test_poll:')
-        for x in self._events_received:
-            log.warning(str(x))
+        # Check that the events were received.
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)        
         self.assertGreaterEqual(len(self._events_received), 7)
         
+        """
+        {'domain': [1], 'data_producer_id': '123xyz', 'connection_index': 0, 'record_dictionary': {1: None, 2: [3573842031.2744761], 3: [3573842031.2744761], 4: None, 5: ['ok'], 6: ['port_timestamp'], 7: None, 8: [3573842030.3573842], 9: None, 10: [693.64899], 11: [57.46814], 12: None, 13: [36.3759], 14: None}, 'connection_id': 'ac8085c1572b4ac78e080d397cfa5d88', 'locator': None, 'type_': 'Granule', 'param_dictionary': '5907708894714910a80410f475709d69', 'creation_timestamp': 1364853231.735014, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'connection_index': 1, 'record_dictionary': {1: None, 2: [3573842032.6812067], 3: [3573842032.6812067], 4: None, 5: ['ok'], 6: ['port_timestamp'], 7: None, 8: [3573842032.3573842], 9: None, 10: [941.828], 11: [92.264343], 12: None, 13: [55.146198], 14: None}, 'connection_id': 'ac8085c1572b4ac78e080d397cfa5d88', 'locator': None, 'type_': 'Granule', 'param_dictionary': '5907708894714910a80410f475709d69', 'creation_timestamp': 1364853232.80932, 'provider_metadata_update': {}}
+        {'domain': [1], 'data_producer_id': '123xyz', 'connection_index': 2, 'record_dictionary': {1: None, 2: [3573842034.287919], 3: [3573842034.287919], 4: None, 5: ['ok'], 6: ['port_timestamp'], 7: None, 8: [3573842034.3573842], 9: None, 10: [132.754], 11: [59.86327], 12: None, 13: [83.803398], 14: None}, 'connection_id': 'ac8085c1572b4ac78e080d397cfa5d88', 'locator': None, 'type_': 'Granule', 'param_dictionary': '5907708894714910a80410f475709d69', 'creation_timestamp': 1364853234.387937, 'provider_metadata_update': {}}
+        """
+        
+        # Await the published samples and veirfy parsed and raw streams.        
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertGreater(len(self._samples_received), 6)
+        self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertEqual(len(self._samples_received), 3)
+        self.assertGreater(len(self._raw_samples_received), 10)
         
     def test_autosample(self):
         """
@@ -1124,7 +1210,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         
         # Start data subscribers.
-        self._start_data_subscribers(6)
+        self._start_data_subscribers(3, 10)
         self.addCleanup(self._stop_data_subscribers)    
         
         # Set up a subscriber to collect error events.
@@ -1163,10 +1249,13 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
         self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertGreaterEqual(len(self._events_received), 6)
+        self.assertGreaterEqual(len(self._events_received), 7)
 
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
-        self.assertGreaterEqual(len(self._samples_received), 6)
+        self.assertGreaterEqual(len(self._samples_received), 3)
+
+        self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertGreaterEqual(len(self._raw_samples_received), 10)
 
     def test_capabilities(self):
         """
@@ -1189,9 +1278,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         ]
         
         agt_pars_all = ['example',
-                        'alarms',
+                        'alerts',
                         'streams',
-                        'pubfreq'
+                        'pubrate',
+                        'aggstatus'
                         ]
         
         res_cmds_all =[
@@ -1882,7 +1972,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         """
         
         # Start data subscribers.
-        self._start_data_subscribers(1)
+        self._start_data_subscribers(1, 1)
         self.addCleanup(self._stop_data_subscribers)    
         
         state = self._ia_client.get_agent_state()
@@ -1904,18 +1994,17 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.COMMAND)
 
         # Set buffering parameters.
-        pubfreq = {
+        pubrate = {
             'parsed':15,
             'raw':15
         }
-        self._ia_client.set_agent({'pubfreq':pubfreq})
-        retval = self._ia_client.get_agent(['pubfreq'])
+        self._ia_client.set_agent({'pubrate':pubrate})
+        retval = self._ia_client.get_agent(['pubrate'])
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
         
-        #gevent.sleep(60)
-        gevent.sleep(10)
+        gevent.sleep(35)
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
@@ -1926,10 +2015,349 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
         self._async_sample_result.get(timeout=CFG.endpoint.receive.timeout)
+        self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
 
-        # This includes raw parameters now as well so the number is higher
-        # We could be surgical here and check for parsed granules only
-        self.assertGreaterEqual(len(self._samples_received), 16)
+        # Add check here to assure parsed granules are buffered.
+        for x in self._samples_received:
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            self.assertGreater(rdt['temp'].size, 1)
+            self.assertGreater(rdt['conductivity'].size, 1)
+            self.assertGreater(rdt['pressure'].size, 1)
+        
+        # Check that some of the raw granules are buffered.
+        raw_sizes = []
+        for x in self._raw_samples_received:
+            rdt = RecordDictionaryTool.load_from_granule(x)
+            raw_sizes.append(rdt['raw'].size)
+        raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
+        self.assertTrue(any(raw_sizes_greater_than_one))
+                
+    def test_lost_connection(self):
+        """
+        test_lost_connection
+        """
+        
+        # Set up a subscriber to collect command events.
+        self._start_event_subscriber('ResourceAgentConnectionLostErrorEvent', 1)
+        self.addCleanup(self._stop_event_subscriber)    
+        
+        # Start in uninitialized.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        # Initialize the agent.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Activate.
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        # Go into command mode.
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        # Start streaming.
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        # Wait for a while, collect some samples.
+        gevent.sleep(10)
+        
+        # Blow the port agent out from under the agent.
+        self._support.stop_pagent()
+        
+        # Loop until we resyncronize to LOST_CONNECTION/DISCONNECTED.
+        # Test will timeout if this dosn't occur.
+        while True:
+            state = self._ia_client.get_agent_state()
+            if state == ResourceAgentState.LOST_CONNECTION:
+                break
+            else:
+                gevent.sleep(1)
+        
+        # Verify the driver has transitioned to disconnected
+        while True:
+            state = self._ia_client.get_resource_state()
+            if state == DriverConnectionState.DISCONNECTED:
+                break
+            else:
+                gevent.sleep(1)
+
+        # Make sure the lost connection error event arrives.
+        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)                        
+        self.assertEqual(len(self._events_received), 1)        
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+    def test_autoreconnect(self):
+        """
+        test_autoreconnect
+        """
+        # Set up a subscriber to collect command events.
+        self._start_event_subscriber('ResourceAgentConnectionLostErrorEvent', 1)
+        self.addCleanup(self._stop_event_subscriber)    
+        
+        # Start in uninitialized.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        # Initialize the agent.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Activate.
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        # Go into command mode.
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
 
 
+        def poll_func(test):
+            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+            while True:
+                try:
+                    gevent.sleep(.5)
+                    test._ia_client.execute_resource(cmd)
+                except:
+                    break
+                
+            while True:
+                try:
+                    gevent.sleep(.5)
+                    test._ia_client.execute_resource(cmd)
+                    break
+                except:
+                    pass
 
+        timeout = gevent.Timeout(120)
+        timeout.start()
+        try:
+
+            # Start the command greenlet and let poll for a bit.
+            gl = gevent.spawn(poll_func, self)        
+            gevent.sleep(20)
+        
+            # Blow the port agent out from under the agent.
+            self._support.stop_pagent()
+
+            # Wait for a while, the supervisor is restarting the port agent.
+            gevent.sleep(5)
+            self._support.start_pagent()
+            
+            # Wait for the device to connect and start sampling again.
+            gl.join()
+            timeout.cancel()
+            
+        except Timeout as t:
+            gl.kill()
+            self.fail('Could not reconnect to device.')
+
+    def test_connect_failed(self):
+        """
+        test_connect_failed
+        """
+        # Stop the port agent.
+        self._support.stop_pagent()
+        
+        # Sleep a bit.
+        gevent.sleep(3)
+        
+        # Start in uninitialized.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        # Initialize the agent.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Activate. This should fail because there is no port agent to connect to.
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        with self.assertRaises(ResourceError):
+            retval = self._ia_client.execute_agent(cmd)
+            
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+    def test_get_set_alerts(self):
+        """
+        test_get_set_alerts
+        Test specific of get/set alerts, including using result of get to
+        set later.
+        """
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertItemsEqual(retval, [])
+
+        alert_def1 = {
+            'name' : 'temp_warning_interval',
+            'stream_name' : 'parsed',
+            'description' : 'Temperature is above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+            'value_id' : 'temp',
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 10.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
+        }
+        
+        alert_def2 = {
+            'name' : 'temp_alarm_interval',
+            'stream_name' : 'parsed',
+            'description' : 'Temperature is way above normal range.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+            'value_id' : 'temp',
+            'lower_bound' : None,
+            'lower_rel_op' : None,
+            'upper_bound' : 15.5,
+            'upper_rel_op' : '<',
+            'alert_class' : 'IntervalAlert'
+        }
+
+
+        """
+        Interval alerts are returned from get like this:
+        (value and status fields describe state of the alert)
+        {
+        'name': 'temp_warning_interval',
+        'stream_name': 'parsed',
+        'description': 'Temperature is above normal range.',
+        'alert_type': 1,
+        'aggregate_type': 2,
+        'value_id': 'temp',
+        'lower_bound': None,
+        'lower_rel_op': None,
+        'upper_bound': 10.5,
+        'upper_rel_op': '<',
+        'alert_class': 'IntervalAlert',
+
+        'status': None,
+        'value': None
+        }
+        """
+        
+        alert_def3 = {
+            'name' : 'late_data_warning',
+            'stream_name' : 'parsed',
+            'description' : 'Expected data has not arrived.',
+            'alert_type' : StreamAlertType.WARNING,
+            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
+            'time_delta' : 180,
+            'alert_class' : 'LateDataAlert'
+        }
+
+        """
+        Late data alerts are returned from get like this:
+        (value and status fields describe state of the alert)
+        {
+        'name': 'late_data_warning',
+        'stream_name': 'parsed',
+        'description': 'Expected data has not arrived.',
+        'alert_type': 1,
+        'aggregate_type': 1,
+        'value_id': None,
+        'time_delta': 180,
+        'alert_class': 'LateDataAlert',
+        
+        'status': None,
+        'value': None
+        }
+        """
+        
+        """
+        [
+            {'status': None,
+            'alert_type': 1,
+            'name': 'temp_warning_interval',
+            'upper_bound': 10.5,
+            'lower_bound': None,
+            'aggregate_type': 2,
+            'alert_class': 'IntervalAlert',
+            'value': None,
+            'value_id': 'temp',
+            'lower_rel_op': None,
+            'upper_rel_op': '<',
+            'description': 'Temperature is above normal range.'},
+            {'status': None,
+            'alert_type': 1,
+            'name': 'temp_alarm_interval',
+            'upper_bound': 15.5,
+            'lower_bound': None,
+            'aggregate_type': 2,
+            'alert_class': 'IntervalAlert',
+            'value': None,
+            'value_id': 'temp',
+            'lower_rel_op': None,
+            'upper_rel_op': '<',
+            'description': 'Temperature is way above normal range.'},
+            {'status': None,
+             'stream_name': 'parsed',
+             'alert_type': 1,
+             'name': 'late_data_warning',
+             'aggregate_type': 1,
+             'alert_class': 'LateDataAlert',
+             'value': None,
+             'time_delta': 180,
+             'description': 'Expected data has not arrived.'}
+        ]
+        """
+        
+        orig_alerts = [alert_def1, alert_def2, alert_def3]
+        self._ia_client.set_agent({'alerts' : orig_alerts})
+    
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==3)
+        alerts = retval
+
+        self._ia_client.set_agent({'alerts' : ['clear']})        
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertItemsEqual(retval, [])
+
+        self._ia_client.set_agent({'alerts' : alerts})
+        retval = self._ia_client.get_agent(['alerts'])['alerts']
+        self.assertTrue(len(retval)==3)
+        
+        count = 0
+        for x in retval:
+            x.pop('status')
+            x.pop('value')
+            for y in orig_alerts:
+                if x['name'] == y['name']:
+                    count += 1
+                    self.assertItemsEqual(x.keys(), y.keys())
+        self.assertEquals(count, 3)
+        
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        

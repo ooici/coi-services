@@ -8,11 +8,11 @@ __license__ = 'Apache 2.0'
 from interface.services.coi.ipolicy_management_service import BasePolicyManagementService
 from pyon.core.exception import NotFound, BadRequest, Inconsistent
 from pyon.public import PRED, RT, Container, CFG, OT, IonObject
-from pyon.util.containers import is_basic_identifier
+from pyon.util.containers import is_basic_identifier, create_basic_identifier
 from pyon.util.log import log
 from pyon.event.event import EventPublisher
 from pyon.ion.endpoint import ProcessEventSubscriber
-
+from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
 class PolicyManagementService(BasePolicyManagementService):
 
@@ -467,17 +467,57 @@ class PolicyManagementService(BasePolicyManagementService):
 
         #TODO - extend to handle Org specific service policies at some point.
 
-        rules = ""
-        policy_set = self.find_resource_policies(resource_id)
+        resource = self.clients.resource_registry.read(resource_id)
+        if not resource:
+            raise NotFound("Resource %s does not exist" % resource_id)
 
-        for p in policy_set:
-            if p.enabled and p.policy_type.type_ == OT.ResourceAccessPolicy :
-                rules += p.policy_type.policy_rule
+        resource_id_list = [resource_id]
+        rules = ""
+
+        #Include related resource policies for specific resource types
+        #TODO - this is the first attempt at this... may have to iterate on this
+        if resource.type_ == RT.InstrumentDevice:
+            resource_types = [RT.InstrumentModel, RT.InstrumentSite, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True), PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
+            resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
+
+        elif resource.type_ == RT.PlatformDevice:
+            resource_types = [RT.PlatformModel, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
+            resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
+        else:
+            #For anything else attempt to add Observatory by default
+            resource_types = [ RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
+            resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
+
+        for res_id in resource_id_list:
+            policy_set = self._find_resource_policies(res_id)
+
+            for p in policy_set:
+                if p.enabled and p.policy_type.type_ == OT.ResourceAccessPolicy :
+                    rules += p.policy_type.policy_rule
 
 
         return rules
 
+    def _get_related_resource_ids(self, resource_id, resource_types=None, predicate_set=None):
+        """
+        An internal helper function to generate a unique list of related resources
+        @return:
+        """
+        resource_types = resource_types if resource_types is not None else []
+        predicate_set = predicate_set if predicate_set is not None else {}
+        r = RelatedResourcesCrawler()
+        test_real_fn = r.generate_get_related_resources_fn(self.clients.resource_registry, resource_whitelist=resource_types, predicate_dictionary=predicate_set)
+        related_objs = test_real_fn(resource_id)
 
+        unique_ids = []
+        for i in related_objs:
+            if i.o not in unique_ids: unique_ids.append(i.o)
+            if i.s not in unique_ids: unique_ids.append(i.s)
+
+        return unique_ids
 
     def get_active_service_access_policy_rules(self, service_name='', org_name=''):
         """Generates the set of all enabled access policies for the specified service within the specified Org. If the org_name
@@ -560,8 +600,12 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws BadRequest    if object passed has _id or _rev attribute
         """
 
-        if not is_basic_identifier(user_role.name):
-            raise BadRequest("The role name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+        #If this governance identifier is not set, then set to a safe version of the policy name.
+        if not user_role.governance_name:
+            user_role.governance_name = create_basic_identifier(user_role.name)
+
+        if not is_basic_identifier(user_role.governance_name):
+            raise BadRequest("The governance_name field '%s' can only contain alphanumeric and underscore characters" % user_role.governance_name)
 
         user_role_id, version = self.clients.resource_registry.create(user_role)
         return user_role_id
@@ -580,8 +624,12 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws Conflict    object not based on latest persisted object version
         """
 
-        if not is_basic_identifier(user_role.name):
-            raise BadRequest("The role name '%s' can only contain alphanumeric and underscore characters" % user_role.name)
+        #If this governance identifier is not set, then set to a safe version of the policy name.
+        if not user_role.governance_name:
+            user_role.governance_name = create_basic_identifier(user_role.name)
+
+        if not is_basic_identifier(user_role.governance_name):
+            raise BadRequest("The governance_name field '%s' can only contain alphanumeric and underscore characters" % user_role.governance_name)
 
         self.clients.resource_registry.update(user_role)
 

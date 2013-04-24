@@ -19,18 +19,27 @@ class PlatformException(ApplicationException):
     Base class for platform related exceptions.
     """
 
-    def __init__ (self, msg=None, error_code=None, reason=None):
+    def __init__(self, msg=None, error_code=None, reason=None):
         super(PlatformException, self).__init__()
         self.msg = msg if msg else str(reason) if reason else None
         self.args = (error_code, self.msg)
         self.error_code = error_code
         self.reason = reason
 
+
 class PlatformConnectionException(PlatformException):
     """
     Exception related to connection with a physical platform
     """
     pass
+
+
+class PlatformConfigurationException(PlatformException):
+    """
+    Exception related with the configuration of a platform agent.
+    """
+    pass
+
 
 class PlatformDefinitionException(PlatformException):
     """
@@ -39,11 +48,13 @@ class PlatformDefinitionException(PlatformException):
     """
     pass
 
+
 class PlatformDriverException(PlatformException):
     """
     Exception related to basic PlatformDriver functionality or configuration.
     """
     pass
+
 
 class CannotInstantiateDriverException(PlatformDriverException):
     """

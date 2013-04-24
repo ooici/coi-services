@@ -5,10 +5,69 @@ __author__ = 'Michael Meisinger'
 from nose.plugins.attrib import attr
 from pyon.public import RT, PRED
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.unit_test import PyonTestCase
 import math
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 import unittest
-from ion.processes.bootstrap.ion_loader import TESTED_DOC
+from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
+
+class TestLoaderAlgo(PyonTestCase):
+
+    @attr('UNIT', group='loader')
+    def test_parse_alert_ranges(self):
+        loader = IONLoader()
+        out = loader._parse_alert_range('5<temp<10')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<=temp<10')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<temp<=10')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<=temp<=10')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<temp')
+        self.assertEqual('<', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual(3, len(out), msg='value: %r'%out)
+        self.assertEqual('temp', out['value_id'])
+
+        out = loader._parse_alert_range('5<=temp')
+        self.assertEqual('<=', out['lower_rel_op'])
+        self.assertEqual(5, out['lower_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
+        out = loader._parse_alert_range('temp<10')
+        self.assertEqual('<', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
+        out = loader._parse_alert_range('temp<=10')
+        self.assertEqual('<=', out['upper_rel_op'])
+        self.assertEqual(10, out['upper_bound'])
+        self.assertEqual('temp', out['value_id'])
+        self.assertEqual(3, len(out))
+
 
 class TestLoader(IonIntegrationTestCase):
 
@@ -35,64 +94,70 @@ class TestLoader(IonIntegrationTestCase):
     @attr('PRELOAD')
     def test_ui_valid(self):
         """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/' """
-        self.assert_can_load("BASE,BETA", loadui=True, ui_path='default')
+        self.assert_can_load("BETA", loadui=True, ui_path='default')
 
     @attr('PRELOAD')
     def test_ui_candidates_valid(self):
         """ make sure UI assets are valid using DEFAULT_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-exports/Candidates' """
-        self.assert_can_load("BASE,BETA", loadui=True, ui_path='candidate')
+        self.assert_can_load("BETA", loadui=True, ui_path='candidate')
 
     @attr('PRELOAD')
     def test_assets_valid(self):
         """ make sure can load asset DB """
-        self.assert_can_load("BASE,BETA,DEVS", path='master', loadooi=True)
+        self.assert_can_load("BETA,DEVS", path='master', loadooi=True)
 
     @attr('PRELOAD')
     def test_alpha_valid(self):
         """ make sure R2_DEMO scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,ALPHA_SYS", path='master')
+        self.assert_can_load("BETA,ALPHA_SYS", path='master')
 
     @attr('PRELOAD')
     def test_beta_valid(self):
         """ make sure R2_DEMO scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,BETA_SYS", path='master')
+        self.assert_can_load("BETA,BETA_SYS", path='master')
 
     @attr('PRELOAD')
     def test_devs_valid(self):
         """ make sure DEVS scenario in master google doc
-            is valid and self-contained (doesn't rely on rows from other scenarios except BASE and BETA)
+            is valid and self-contained (doesn't rely on rows from other scenarios except BETA)
             NOTE: test will pass/fail based on current google doc, not just code changes.
         """
-        self.assert_can_load("BASE,BETA,DEVS", path='master')
+        self.assert_can_load("BETA,DEVS", path='master')
 
-    def find_object_by_name(self, name, type):
-        objects,_ = self.container.resource_registry.find_resources(type, id_only=False)
-        self.assertTrue(len(objects)>=1)
-        found = None
-        for object in objects:
-            print object.name
-            if object.name==name:
-                self.assertFalse(found, msg='Found more than one %s "%s" (was expecting just one)'%(type,name))
-                found = object
-        self.assertTrue(found, msg='Did not find %s "%s"'%(type,name))
-        return found
+    def find_object_by_name(self, name, resource_type):
+        objects,_ = self.container.resource_registry.find_resources(resource_type, id_only=False)
+        self.assertGreaterEqual(len(objects), 1)
+
+        filtered_objs = [obj for obj in objects if obj.name == name]
+        self.assertEquals(len(filtered_objs), 1)
+
+        return filtered_objs[0]
 
     @attr('INT', group='loader')
     @attr('SMOKE', group='loader')
     def test_row_values(self):
         """ use only rows from NOSE scenario for specific names and details included in this test.
-            rows in NOSE may rely on entries in BASE and BETA scenarios,
+            rows in NOSE may rely on entries in BETA scenarios,
             but should not specifically test values from those scenarios.
         """
 
         # first make sure this scenario loads successfully
-        self.assert_can_load("BASE,BETA,NOSE")
+        self.assert_can_load("BETA,NOSE")
+
+        # check for ExternalDataset
+        eds = self.find_object_by_name('Test External CTD Dataset', RT.ExternalDataset)
+        edm1 = self.find_object_by_name('Test External CTD Dataset Model', RT.ExternalDatasetModel)
+        edm2,_ = self.container.resource_registry.find_objects(eds._id, PRED.hasModel, RT.ExternalDatasetModel, True)
+        self.assertEquals(edm1._id, edm2[0])
+
+        inst = self.find_object_by_name('Test External CTD Agent Instance', RT.ExternalDatasetAgentInstance)
+        self.assertEquals('value1', inst.dataset_agent_config['key1'], msg='dataset_agent_config[key1] is not value1:\n%r'%inst.agent_config)
 
         # check for an Org
         org = self.find_object_by_name('CASPER', RT.Org)
@@ -102,9 +167,6 @@ class TestLoader(IonIntegrationTestCase):
 
         # check data product
         dp = self.find_object_by_name('Test DP L0 CTD', RT.DataProduct)
-        formats = dp.available_formats
-        self.assertEquals(2, len(formats))
-        self.assertEquals('csv', formats[0])
         # should be persisted
         streams, _ = self.container.resource_registry.find_objects(dp._id, PRED.hasStream, RT.Stream, True)
         self.assertTrue(streams)
@@ -143,7 +205,11 @@ class TestLoader(IonIntegrationTestCase):
         agent = self.find_object_by_name('Unit Test Platform Agent', RT.PlatformAgent)
         self.assertEquals(2, len(agent.stream_configurations))
         parsed = agent.stream_configurations[1]
-        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
+#        self.assertEquals('platform_eng_parsed', parsed.parameter_dictionary_name)
+        self.assertEquals('ctd_parsed_param_dict', parsed.parameter_dictionary_name)
+        # OBSOLETE: check that alarm was added to StreamConfig
+#        self.assertEquals(1, len(parsed.alarms), msg='alarms: %r'%parsed.alarms)
+#        self.assertEquals('temp', parsed.alarms[0]['kwargs']['value_id'])
 
         # check for platform agents
         self.find_object_by_name('Unit Test Platform Agent Instance', RT.PlatformAgentInstance)
@@ -153,7 +219,16 @@ class TestLoader(IonIntegrationTestCase):
         self.assertEquals(True, model.shore_networked)
         self.assertNotEqual('str', model.shore_networked.__class__.__name__)
 
+        iai = self.find_object_by_name("Test InstrumentAgentInstance", RT.InstrumentAgentInstance)
+        self.assertEqual({'SCHEDULER': {'VERSION': {'number': 3.0}, 'CLOCK_SYNC': 48.2, 'ACQUIRE_STATUS': {}},
+                          'PARAMETERS': {"TXWAVESTATS": False, 'TXWAVEBURST': 'false', 'TXREALTIME': True}},
+                        iai.startup_config)
+        self.assertEqual(2, len(iai.alerts))
+#        self.assertEqual({'entry': 'foo'}, iai.alerts['complex'])
 
-        # check for data process definition
-        self.find_object_by_name("Logical Transform Definition", RT.DataProcessDefinition)
+        pai = self.find_object_by_name("Unit Test Platform Agent Instance", RT.PlatformAgentInstance)
+        self.assertEqual({'entry': 'foo'}, pai.alerts['complex'])
 
+        orgs, _ = self.container.resource_registry.find_subjects(RT.Org, PRED.hasResource, iai._id, True)
+        self.assertEqual(1, len(orgs))
+        self.assertEqual(org._id, orgs[0])

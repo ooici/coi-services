@@ -3,15 +3,17 @@
 __author__ = 'Stephen P. Henrie'
 __license__ = 'Apache 2.0'
 
-import inspect, ast, simplejson, sys, traceback, string
+import inspect, ast, simplejson, sys, traceback, string, copy
 from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, OT
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
-from pyon.core.registry import get_message_class_in_parm_type, getextends, is_ion_object_dict, is_ion_object, isenum
+from pyon.core.registry import getextends, is_ion_object_dict
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
+from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber
+from pyon.ion.resource import get_object_schema
 from interface.services.coi.iservice_gateway_service import BaseServiceGatewayService
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceProcessClient
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceProcessClient
@@ -24,6 +26,7 @@ from pyon.util.containers import current_time_millis
 from pyon.agent.agent import ResourceAgentClient
 from interface.services.iresource_agent import ResourceAgentProcessClient
 from interface.objects import Attachment
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
 
 #Initialize the flask app
 service_gateway_app = Flask(__name__)
@@ -45,8 +48,7 @@ GATEWAY_ERROR_TRACE = 'Trace'
 DEFAULT_EXPIRY = '0'
 
 #Stuff for specifying other return types
-RETURN_FORMAT_PARAM = 'return_format'
-RETURN_FORMAT_RAW_JSON = 'raw_json'
+RETURN_MIMETYPE_PARAM = 'return_mimetype'
 
 
 #This class is used to manage the WSGI/Flask server as an ION process - and as a process endpoint for ION RPC calls
@@ -90,7 +92,7 @@ class ServiceGatewayService(BaseServiceGatewayService):
         #Initialize an LRU Cache to keep user roles cached for performance reasons
         #maxSize = maximum number of elements to keep in cache
         #maxAgeMs = oldest entry to keep
-        self.user_data_cache = LRUCache(self.user_cache_size,0,0)
+        self.user_role_cache = LRUCache(self.user_cache_size,0,0)
 
         #Start the gevent web server unless disabled
         if self.web_server_enabled:
@@ -148,15 +150,15 @@ class ServiceGatewayService(BaseServiceGatewayService):
         log.debug("User Role modified: %s %s %s" % (org_id, actor_id, role_name))
 
         #Evict the user and their roles from the cache so that it gets updated with the next call.
-        if service_gateway_instance.user_data_cache and service_gateway_instance.user_data_cache.has_key(actor_id):
-            log.debug('Evicting user from the user_data_cache: %s' % actor_id)
-            service_gateway_instance.user_data_cache.evict(actor_id)
+        if service_gateway_instance.user_role_cache and service_gateway_instance.user_role_cache.has_key(actor_id):
+            log.debug('Evicting user from the user_role_cache: %s' % actor_id)
+            service_gateway_instance.user_role_cache.evict(actor_id)
 
     def user_role_reset_callback(self, *args, **kwargs):
         '''
         This method is a callback function for when an event is received to clear the user data cache
         '''
-        self.user_data_cache.clear()
+        self.user_role_cache.clear()
 
 @service_gateway_app.errorhandler(403)
 def custom_403(error):
@@ -331,10 +333,9 @@ def json_response(response_data):
 
 def gateway_json_response(response_data):
 
-    if request.args.has_key(RETURN_FORMAT_PARAM):
-        return_format = str(request.args[RETURN_FORMAT_PARAM])
-        if return_format == RETURN_FORMAT_RAW_JSON:
-            return service_gateway_app.response_class(response_data, mimetype='application/json')
+    if request.args.has_key(RETURN_MIMETYPE_PARAM):
+        return_mimetype = str(request.args[RETURN_MIMETYPE_PARAM])
+        return service_gateway_app.response_class(response_data, mimetype=return_mimetype)
 
     return json_response({'data':{ GATEWAY_RESPONSE: response_data} } )
 
@@ -366,10 +367,9 @@ def build_error_response(e):
         GATEWAY_ERROR_TRACE : full_error
     }
 
-    if request.args.has_key(RETURN_FORMAT_PARAM):
-        return_format = str(request.args[RETURN_FORMAT_PARAM])
-        if return_format == RETURN_FORMAT_RAW_JSON:
-            return service_gateway_app.response_class(result, mimetype='application/json')
+    if request.args.has_key(RETURN_MIMETYPE_PARAM):
+        return_mimetype = str(request.args[RETURN_MIMETYPE_PARAM])
+        return service_gateway_app.response_class(result, mimetype=return_mimetype)
 
     return json_response({'data': {GATEWAY_ERROR: result }} )
 
@@ -439,8 +439,8 @@ def build_message_headers( ion_actor_id, expiry):
 
     try:
         #Check to see if the user's roles are cached already - keyed by user id
-        if service_gateway_instance.user_data_cache.has_key(ion_actor_id):
-            role_header = service_gateway_instance.user_data_cache.get(ion_actor_id)
+        if service_gateway_instance.user_role_cache.has_key(ion_actor_id):
+            role_header = service_gateway_instance.user_role_cache.get(ion_actor_id)
             if role_header is not None:
                 headers['ion-actor-roles'] = role_header
                 return headers
@@ -453,7 +453,7 @@ def build_message_headers( ion_actor_id, expiry):
         role_header = get_role_message_headers(org_roles)
 
         #Cache the roles by user id
-        service_gateway_instance.user_data_cache.put(ion_actor_id, role_header)
+        service_gateway_instance.user_role_cache.put(ion_actor_id, role_header)
 
     except Exception, e:
         role_header = dict()  # Default to empty dict if there is a problem finding roles for the user
@@ -466,29 +466,48 @@ def build_message_headers( ion_actor_id, expiry):
 
 #Build parameter list dynamically from
 def create_parameter_list(request_type, service_name, target_client,operation, json_params):
+
+    #This is a bit of a hack - should use decorators to indicate which parameter is the dict that acts like kwargs
+    optional_args = request.args.to_dict(flat=True)
+
     param_list = {}
     method_args = inspect.getargspec(getattr(target_client,operation))
-    for arg in method_args[0]:
-        if arg == 'self' or arg == 'headers': continue # skip self and headers from being set
+    for (arg_index, arg) in enumerate(method_args[0]):
+        if arg == 'self': continue # skip self
 
         if not json_params:
             if request.args.has_key(arg):
-                param_type = get_message_class_in_parm_type(service_name, operation, arg)
-                if param_type == 'str':
-                    param_list[arg] = str(request.args[arg])
+
+                #Keep track of which query_string_parms are left after processing
+                del optional_args[arg]
+
+                #Handle strings differently because of unicode
+                if isinstance(method_args[3][arg_index-1], str):
+                    if isinstance(request.args[arg], unicode):
+                        param_list[arg] = str(request.args[arg].encode('utf8'))
+                    else:
+                        param_list[arg] = str(request.args[arg])
                 else:
                     param_list[arg] = ast.literal_eval(str(request.args[arg]))
         else:
             if json_params[request_type]['params'].has_key(arg):
 
-                #TODO - Potentially remove these conversions whenever ION objects support unicode
-                # UNICODE strings are not supported with ION objects
                 object_params = json_params[request_type]['params'][arg]
                 if is_ion_object_dict(object_params):
                     param_list[arg] = create_ion_object(object_params)
                 else:
                     #Not an ION object so handle as a simple type then.
-                    param_list[arg] = json_params[request_type]['params'][arg]
+                    if isinstance(json_params[request_type]['params'][arg], unicode):
+                        param_list[arg] = str(json_params[request_type]['params'][arg].encode('utf8'))
+                    else:
+                        param_list[arg] = json_params[request_type]['params'][arg]
+
+    #Send any optional_args if there are any and allowed
+    if len(optional_args) > 0 and  'optional_args' in method_args[0]:
+        param_list['optional_args'] = dict()
+        for arg in optional_args:
+            #Only support basic strings for these optional params for now
+            param_list['optional_args'][arg] = str(request.args[arg])
 
     return param_list
 
@@ -507,10 +526,13 @@ def create_ion_object(object_params):
 
 #Use this function internally to recursively set sub object field values
 def set_object_field(obj, field, field_val):
-    if isinstance(field_val,dict) and field != 'kwargs':
-        sub_obj = getattr(obj,field)
-        for sub_field in field_val:
-            set_object_field(sub_obj, sub_field, field_val.get(sub_field))
+    if isinstance(field_val, dict) and field != 'kwargs':
+        sub_obj = getattr(obj, field)
+        if isinstance(sub_obj, dict):
+            setattr(obj, field, field_val)
+        else:
+            for sub_field in field_val:
+                set_object_field(sub_obj, sub_field, field_val.get(sub_field))
     else:
         # type_ already exists in the class.
         if field != "type_":
@@ -576,55 +598,7 @@ def get_resource_schema(resource_type):
         ion_actor_id, expiry = get_governance_info_from_request()
         ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
 
-        schema_info = dict()
-
-        #Prepare the dict entry for schema information including all of the internal object types
-        schema_info['schemas'] = dict()
-
-
-        #ION Objects are not registered as UNICODE names
-        ion_object_name = str(resource_type)
-        ret_obj = IonObject(ion_object_name, {})
-
-        # If it's an op input param or response message object.
-        # Walk param list instantiating any params that were marked None as default.
-        if hasattr(ret_obj, "_svc_name"):
-            schema = ret_obj._schema
-            for field in ret_obj._schema:
-                if schema[field]["default"] is None:
-                    try:
-                        value = IonObject(schema[field]["type"], {})
-                    except NotFound:
-                        # TODO
-                        # Some other non-IonObject type.  Just use None as default for now.
-                        value = None
-                    setattr(ret_obj, field, value)
-
-        #Add schema information for sub object types
-        schema_info['schemas'][ion_object_name] = ret_obj._schema
-        for field in ret_obj._schema:
-            obj_type = ret_obj._schema[field]['type']
-
-            #First look for ION objects
-            if is_ion_object(obj_type):
-
-                try:
-                    value = IonObject(obj_type, {})
-                    schema_info['schemas'][obj_type] = value._schema
-
-                except NotFound:
-                    pass
-
-            #Next look for ION Enums
-            elif ret_obj._schema[field].has_key('enum_type'):
-                if isenum(ret_obj._schema[field]['enum_type']):
-                    value = IonObject(ret_obj._schema[field]['enum_type'], {})
-                    schema_info['schemas'][ret_obj._schema[field]['enum_type']] = value._str_map
-
-
-        #Add an instance of the resource type object
-        schema_info['object'] = ret_obj
-        return gateway_json_response(schema_info)
+        return gateway_json_response(get_object_schema(resource_type))
 
     except Exception, e:
         return build_error_response(e)
@@ -650,26 +624,50 @@ def get_attachment(attachment_id):
 def create_attachment():
 
     try:
-        resource_id        = str(request.form.get('resource_id', ''))
-        fil                = request.files['file']
-        content            = fil.read()
+        payload              = request.form['payload']
+        json_params          = simplejson.loads(str(payload))
+
+        ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+        headers              = build_message_headers(ion_actor_id, expiry)
+
+        data_params          = json_params['serviceRequest']['params']
+        resource_id          = str(data_params.get('resource_id', ''))
+        fil                  = request.files['file']
+        content              = fil.read()
+
+        keywords             = []
+        keywords_str         = data_params.get('keywords', '')
+        if keywords_str.strip():
+            keywords = [str(x.strip()) for x in keywords_str.split(',')]
 
         # build attachment
-        attachment         = Attachment(name=str(request.form['attachment_name']),
-                                        description=str(request.form['attachment_description']),
-                                        attachment_type=int(request.form['attachment_type']),
-                                        content_type=str(request.form['attachment_content_type']),
+        attachment         = Attachment(name=str(data_params['attachment_name']),
+                                        description=str(data_params['attachment_description']),
+                                        attachment_type=int(data_params['attachment_type']),
+                                        content_type=str(data_params['attachment_content_type']),
+                                        keywords=keywords,
+                                        created_by=ion_actor_id,
                                         content=content)
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
-        ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment)
+        ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment, headers=headers)
 
-        ret_obj = {'attachment_id': ret}
-
-        return json_response(ret_obj)
+        return gateway_json_response(ret)
 
     except Exception, e:
         log.exception("Error creating attachment")
+        return build_error_response(e)
+
+@service_gateway_app.route('/ion-service/attachment/<attachment_id>', methods=['DELETE'])
+def delete_attachment(attachment_id):
+    try:
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        ret = rr_client.delete_attachment(attachment_id)
+        return gateway_json_response(ret)
+
+    except Exception, e:
+        log.exception("Error deleting attachment")
         return build_error_response(e)
 
 # Get a visualization image for a specific data product
@@ -695,6 +693,7 @@ def get_version_info():
     pkg_list = ["coi-services",
                 "pyon",
                 "coverage-model",
+                "ion-functions",
                 "eeagent",
                 "epu",
                 "utilities",
@@ -757,5 +756,54 @@ def find_resources_by_type(resource_type):
         return build_error_response(e)
 
 
+#Accept/Reject negotiation
+# special cased here because coi-services offers superior logic to what we can provide in the UI
+@service_gateway_app.route('/ion-service/resolve-org-negotiation', methods=['POST'])
+def resolve_org_negotiation():
+    try:
+        payload              = request.form['payload']
+        json_params          = simplejson.loads(str(payload))
 
+        ion_actor_id, expiry = get_governance_info_from_request('serviceRequest', json_params)
+        ion_actor_id, expiry = validate_request(ion_actor_id, expiry)
+        headers              = build_message_headers(ion_actor_id, expiry)
+
+        # extract negotiation-specific data (convert from unicode just in case - these are machine generated and unicode specific
+        # chars are unexpected)
+        verb                 = str(json_params['verb'])
+        originator           = str(json_params['originator'])
+        negotiation_id       = str(json_params['negotiation_id'])
+        reason               = str(json_params.get('reason', ''))
+
+        proposal_status = None
+        if verb.lower() == "accept":
+            proposal_status = ProposalStatusEnum.ACCEPTED
+        elif verb.lower() == "reject":
+            proposal_status = ProposalStatusEnum.REJECTED
+
+        proposal_originator = None
+        if originator.lower() == "consumer":
+            proposal_originator = ProposalOriginatorEnum.CONSUMER
+        elif originator.lower() == "provider":
+            proposal_originator = ProposalOriginatorEnum.PROVIDER
+
+        rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        negotiation = rr_client.read(negotiation_id, headers=headers)
+
+        new_negotiation_sap = Negotiation.create_counter_proposal(negotiation, proposal_status, proposal_originator)
+
+        org_client = OrgManagementServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
+        resp = org_client.negotiate(new_negotiation_sap, headers=headers)
+
+        # update reason if it exists
+        if reason:
+            # reload negotiation because it has changed
+            negotiation = rr_client.read(negotiation_id, headers=headers)
+            negotiation.reason = reason
+            rr_client.update(negotiation)
+
+        return gateway_json_response(resp)
+
+    except Exception, e:
+        return build_error_response(e)
 

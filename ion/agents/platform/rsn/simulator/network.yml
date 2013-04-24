@@ -48,7 +48,7 @@ network:
   - platform_id: L3-UPS1
     platform_types: []
     attrs:
-    - attr_id: Seconds On Battery
+    - attr_id: seconds_on_battery
       type: int
       units: Seconds
       min_val: 0
@@ -57,7 +57,7 @@ network:
       read_write: read
       group: power
       monitorCycleSeconds: 5
-    - attr_id: Estimated Minutes Remaining
+    - attr_id: estimated_minutes_remaining
       type: int
       units: Minutes
       min_val: 0
@@ -66,7 +66,7 @@ network:
       read_write: read
       group: power
       monitorCycleSeconds: 5
-    - attr_id: Estimated Charge Remaining
+    - attr_id: estimated_charge_remaining
       type: int
       units: Percent
       min_val: 0
@@ -188,8 +188,8 @@ network:
             precision: 1
             read_write: read
             group: power
-            monitorCycleSeconds: 2
-          - attr_id: Input Bus Current
+            monitorCycleSeconds: 5
+          - attr_id: input_bus_current
             type: float
             units: Amps
             min_val: -50
@@ -198,7 +198,7 @@ network:
             read_write: write  # just for testing
             group: power
             monitorCycleSeconds: 5
-          - attr_id: MVPC Temperature
+          - attr_id: MVPC_temperature
             type: float
             units: Degrees C
             min_val: -1.5
@@ -206,8 +206,8 @@ network:
             precision: 0.06
             read_write: read
             group: temperature
-            monitorCycleSeconds: 5
-          - attr_id: MVPC Pressure 1
+            monitorCycleSeconds: 10
+          - attr_id: MVPC_pressure_1
             type: float
             units: PSI
             min_val: -3.8
@@ -215,7 +215,7 @@ network:
             precision: 0.04
             read_write: read
             group: pressure
-            monitorCycleSeconds: 5
+            monitorCycleSeconds: 10
           ports:
           - port_id: Node1D_port_1
             network: Node1D_port_1_IP
@@ -258,8 +258,8 @@ network:
                 precision: 1
                 read_write: read
                 group: power
-                monitorCycleSeconds: 2
-              - attr_id: Input Bus Current
+                monitorCycleSeconds: 2.5
+              - attr_id: input_bus_current
                 type: float
                 units: Amps
                 min_val: -50
@@ -268,6 +268,24 @@ network:
                 read_write: write  # just for testing
                 group: power
                 monitorCycleSeconds: 5
+              - attr_id: MVPC_temperature
+                type: float
+                units: Degrees C
+                min_val: -1.5
+                max_val: 58.5
+                precision: 0.06
+                read_write: read
+                group: temperature
+                monitorCycleSeconds: 4
+              - attr_id: MVPC_pressure_1
+                type: float
+                units: PSI
+                min_val: -3.8
+                max_val: 33.8
+                precision: 0.04
+                read_write: read
+                group: pressure
+                monitorCycleSeconds: 4
               ports:
               - port_id: LJ01D_port_1
                 network: LJ01D_port_1_IP

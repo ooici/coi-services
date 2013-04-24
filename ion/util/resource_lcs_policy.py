@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 """
-@package  ion.services.sa.instrument.policy
+@package  ion.util.resource_lcs_policy
 @author   Ian Katz
 """
-from pyon.core.exception import NotFound
+
 
 from pyon.public import PRED, RT, LCS
-from pyon.ion.resource import get_maturity_visibility
+from pyon.ion.resource import LCE
 from ion.services.sa.instrument.flag import KeywordFlag
 from ooi.logging import log
 
@@ -19,10 +19,134 @@ class ResourceLCSPolicy(object):
         if hasattr(clients, "resource_registry"):
             self.RR = self.clients.resource_registry
 
+        self.lce_precondition = {}
+        self.lce_precondition[LCE.PLAN]       = self.lce_precondition_plan
+        self.lce_precondition[LCE.INTEGRATE]  = self.lce_precondition_integrate
+        self.lce_precondition[LCE.DEVELOP]    = self.lce_precondition_develop
+        self.lce_precondition[LCE.DEPLOY]     = self.lce_precondition_deploy
+        self.lce_precondition[LCE.RETIRE]     = self.lce_precondition_retire
+
+        self.lce_precondition[LCE.ANNOUNCE]   = self.lce_precondition_announce
+        self.lce_precondition[LCE.UNANNOUNCE] = self.lce_precondition_unannounce
+        self.lce_precondition[LCE.ENABLE]     = self.lce_precondition_enable
+        self.lce_precondition[LCE.DISABLE]    = self.lce_precondition_disable
+
         self.on_policy_init()
 
     def on_policy_init(self):
         pass
+
+    # maturity
+    def lce_precondition_plan(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_develop(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_integrate(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_deploy(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_retire(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    # visibility
+    def lce_precondition_announce(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_unannounce(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_enable(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    def lce_precondition_disable(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+    #delete
+    def precondition_delete(self, agent_id):
+        return self._make_warn("ResourceLCSPolicy base class not overridden!")
+
+
+
+    def policy_fn_delete_precondition(self, id_field):
+
+        def freeze():
+            def policy_fn(msg, headers):
+                #The validation interceptor should have already verified that these are in the msg dict
+                resource_id = msg[id_field]
+                log.debug("policy_fn for force_delete got %s=(%s)'%s'",
+                          id_field,
+                          type(resource_id).__name__,
+                          resource_id)
+
+                ret = self.precondition_delete(resource_id)
+                #check_lcs_precondition_satisfied(resource_id, lifecycle_event)
+                isok, msg = ret
+                log.debug("policy_fn for '%s %s' successfully returning %s - %s",
+                          "force_delete",
+                          id_field,
+                          isok,
+                          msg)
+                return ret
+
+            return policy_fn
+
+        return freeze()
+
+    def policy_fn_lcs_precondition(self, id_field):
+
+        def freeze():
+            def policy_fn(msg, headers):
+                #The validation interceptor should have already verified that these are in the msg dict
+                resource_id = msg[id_field]
+                lifecycle_event = msg['lifecycle_event']
+                log.debug("policy_fn got LCE=%s for %s=(%s)'%s'",
+                          lifecycle_event,
+                          id_field,
+                          type(resource_id).__name__,
+                          resource_id)
+
+                ret = self.check_lcs_precondition_satisfied(resource_id, lifecycle_event)
+                isok, msg = ret
+                log.debug("policy_fn for '%s %s' successfully returning %s - %s",
+                          lifecycle_event,
+                          id_field,
+                          isok,
+                          msg)
+                return ret
+
+            return policy_fn
+
+        return freeze()
+
+    def check_lcs_precondition_satisfied(self, resource_id, transition_event):
+        # check that the resource exists
+        resource = self.RR.read(resource_id)
+        resource_type = type(resource).__name__
+
+
+        # check that precondition function exists
+        if not transition_event in self.lce_precondition:
+            self._make_fail("%s lifecycle precondition method for event '%s' not defined! Choices: %s" %
+                            (resource_type, transition_event, str(self.lce_precondition.keys())))
+
+        precondition_fn = self.lce_precondition[transition_event]
+
+        # check that the precondition is met
+        verbose = False
+        if not verbose:
+            return precondition_fn(resource_id)
+        else:
+            isok, errmsg = precondition_fn(resource_id)
+            if isok:
+                return isok, errmsg
+            else:
+                return isok, (("Couldn't apply '%s' LCS transition to %s '%s'; "
+                               + "failed precondition: %s")
+                              % (transition_event, resource_type, resource_id, errmsg))
 
     def _make_result(self, result, message):
         if result:
@@ -31,16 +155,13 @@ class ResourceLCSPolicy(object):
             return False, message
 
     def _make_pass(self):
-        return self._make_result(True, "")
+        return True, ""
 
     def _make_fail(self, message):
-        return self._make_result(False, message)
+        return False, message
 
     def _make_warn(self, message):
-        return self._make_result(True, message)
-
-
-
+        return True, message
 
     def _get_resource_type_by_id(self, resource_id):
         """
@@ -103,12 +224,12 @@ class ResourceLCSPolicy(object):
         if permissible_states is None:
             permissible_states = []
                 
-        parts = get_maturity_visibility(resource_obj.lcstate)
-
-        return self._make_result(parts[0] in permissible_states,
+        return self._make_result(resource_obj.lcstate in permissible_states,
                                  "'%s' resource is in state '%s', wanted [%s]" %
-                                 (resource_obj._get_type(), parts[0], str(permissible_states)))
-                      
+                                 (resource_obj._get_type(), resource_obj.lcstate, str(permissible_states)))
+
+
+
 
 class AgentPolicy(ResourceLCSPolicy):
 
@@ -221,7 +342,9 @@ class ModelPolicy(ResourceLCSPolicy):
         model_type = self._get_resource_type_by_id(model_id)
 
         if RT.SensorModel == model_type:
-            return 0 == len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id))
+            if 0 < len(self._find_having(RT.SensorDevice, PRED.hasModel, model_id)):
+                return self._make_fail("SensorDevice(s) are using this model")
+            return self._make_pass()
 
         if RT.InstrumentModel == model_type:
             if 0 < len(self._find_having(RT.InstrumentDevice, PRED.hasModel, model_id)):

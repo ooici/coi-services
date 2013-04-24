@@ -59,7 +59,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.interval_timer_interval = 3
 
         event_origin = "Interval_Timer_233"
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.interval_timer_callback, origin=event_origin)
         sub.start()
         self.addCleanup(sub.stop)
 
@@ -113,7 +113,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.interval_timer_interval = 3
 
         event_origin = "Interval_Timer_4444"
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.on_restart_callback, origin=event_origin)
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.on_restart_callback, origin=event_origin)
         sub.start()
         self.addCleanup(sub.stop)
 
@@ -184,7 +184,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.interval_timer_interval_2 = 3
 
         event_origin = "Interval_Timer_2"
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback_with_end_time, origin=event_origin)
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.interval_timer_callback_with_end_time, origin=event_origin)
         sub.start()
         self.addCleanup(sub.stop)
 
@@ -242,7 +242,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.single_timer_count = 0
         event_origin = "Time_of_Day"
 
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.single_timer_callback, origin=event_origin)
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.single_timer_callback, origin=event_origin)
         sub.start()
         self.addCleanup(sub.stop)
 
@@ -269,7 +269,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.interval_timer_interval = 3
 
         event_origin = "Interval Timer Forever"
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.interval_timer_callback, origin=event_origin)
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.interval_timer_callback, origin=event_origin)
         sub.start()
         self.addCleanup(sub.stop)
 
@@ -311,7 +311,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         times_of_day =[{'hour': str(expire1.hour),'minute' : str(expire1.minute), 'second':str(expire1.second) },
                        {'hour': str(expire2.hour),'minute' : str(expire2.minute), 'second':str(expire2.second)}]
 
-        sub = EventSubscriber(event_type="ResourceEvent", callback=self.tod_callback, origin=event_origin)
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.tod_callback, origin=event_origin)
         sub.start()
         self.addCleanup(sub.stop)
 
@@ -356,7 +356,7 @@ class TestSchedulerService(IonIntegrationTestCase):
             self.interval_timer_count += 1
 
         event_origin = "test_quitter"
-        sub = EventSubscriber(event_type="ResourceEvent", callback=cb, origin=event_origin)
+        sub = EventSubscriber(event_type="TimerEvent", callback=cb, origin=event_origin)
         sub.start()
         self.addCleanup(sub.stop)
 

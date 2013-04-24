@@ -27,6 +27,7 @@ from interface.objects import StreamRoute, DeviceStatusType, DeviceCommsType
 from interface.services.cei.ischeduler_service import SchedulerServiceClient
 
 @attr('INT', group='dm')
+@unittest.skip("The event alert transform is on its way to be retired.")
 class TransformPrototypeIntTest(IonIntegrationTestCase):
     def setUp(self):
         super(TransformPrototypeIntTest, self).setUp()
@@ -392,7 +393,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             event = queue_bad_data.get(timeout=40)
             self.assertEquals(event.type_, "DeviceStatusEvent")
             self.assertEquals(event.origin, "instrument_1")
-            self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+            self.assertEquals(event.state, DeviceStatusType.STATUS_WARNING)
             self.assertEquals(event.valid_values, self.valid_values)
             self.assertEquals(event.sub_type, 'input_voltage')
             self.assertTrue(set(event.values) ==  set(val))
@@ -468,14 +469,14 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             if event.type_ == 'DeviceStatusEvent':
                 bad_data_events.append(event)
                 self.assertEquals(event.origin, "instrument_1")
-                self.assertEquals(event.state, DeviceStatusType.OUT_OF_RANGE)
+                self.assertEquals(event.status, DeviceStatusType.STATUS_WARNING)
                 self.assertEquals(event.valid_values, self.valid_values)
                 self.assertEquals(event.sub_type, 'input_voltage')
             elif event.type_ == 'DeviceCommsEvent':
                 no_data_events.append(event)
                 self.assertEquals(event.origin, "instrument_1")
                 self.assertEquals(event.origin_type, "PlatformDevice")
-                self.assertEquals(event.state, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
+                self.assertEquals(event.status, DeviceCommsType.DATA_DELIVERY_INTERRUPTION)
                 self.assertEquals(event.sub_type, 'input_voltage')
 
         self.assertTrue(len(bad_data_events) > 0)

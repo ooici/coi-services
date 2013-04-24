@@ -107,7 +107,7 @@ def list_file_info_fs(base, pattern):
     flst = glob.glob(base + '/' + pattern)
     olst = []
     for f in flst:
-        olst.append((f, os.path.getmtime(f), os.path.getsize(f)))
+        olst.append((f, os.path.getmtime(f), os.path.getsize(f), 0))
     return olst
 
 

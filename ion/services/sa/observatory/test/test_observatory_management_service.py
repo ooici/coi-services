@@ -9,19 +9,12 @@
 
 #from mock import Mock , sentinel, patch
 from ion.services.sa.observatory.observatory_management_service import ObservatoryManagementService
+from ion.services.sa.test.helpers import UnitTestGenerator
 from nose.plugins.attrib import attr
-from pyon.public import PRED #, RT
+from pyon.ion.resource import RT
 
 
 from ooi.logging import log
-
-from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
-from ion.services.sa.observatory.subsite_impl import SubsiteImpl
-
 
 
 
@@ -48,13 +41,13 @@ class TestObservatoryManagement(PyonTestCase):
         # must call this manually
         self.observatory_mgmt_service.on_init()
 
+utg = UnitTestGenerator(TestObservatoryManagement,
+                        ObservatoryManagementService)
 
-rim = ResourceImplMetatest(TestObservatoryManagement, ObservatoryManagementService, log)
-rim.test_all_in_one(True)
+utg.test_all_in_one(True)
 
-rim.add_resource_impl_unittests(InstrumentSiteImpl, {})
-rim.add_resource_impl_unittests(PlatformSiteImpl, {})
-rim.add_resource_impl_unittests(ObservatoryImpl, {})
-rim.add_resource_impl_unittests(SubsiteImpl, {})
-
-
+utg.add_resource_unittests(RT.Deployment, "deployment")
+utg.add_resource_unittests(RT.Observatory, "observatory")
+utg.add_resource_unittests(RT.Subsite, "subsite")
+utg.add_resource_unittests(RT.PlatformSite, "platform_site")
+utg.add_resource_unittests(RT.InstrumentSite, "instrument_site")

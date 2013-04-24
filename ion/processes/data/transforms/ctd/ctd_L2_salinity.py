@@ -28,11 +28,7 @@ class SalinityTransform(TransformDataProcess):
     def on_start(self):
         super(SalinityTransform, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('salinity'):
-            raise BadRequest("For CTD transforms, please send the stream_id "
-                                 "using a special keyword (ex: salinity)")
-
-        self.sal_stream = self.CFG.process.publish_streams.salinity
+        self.sal_stream = self.CFG.process.publish_streams.values()[0]
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -52,7 +48,7 @@ class SalinityTransform(TransformDataProcess):
         log.debug("L2 salinity transform publishing granule with record dict: %s", granule.record_dictionary)
 
         granule.data_producer_id=self.id
-        self.salinity.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class CTDL2SalinityTransformAlgorithm(SimpleGranuleTransformFunction):

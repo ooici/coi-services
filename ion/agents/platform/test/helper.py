@@ -28,24 +28,47 @@ class HelperTestMixin:
     @classmethod
     def setUpClass(cls):
         """
-        Sets some various IDs from network.yml, which is used by the OMS
-        simulator, and ad hoc values for testing.
+        Sets some various IDs from network.yml, which is used by our RSN OMS
+        simulator, and other ad hoc values for testing.
 
-        The PLAT_NETWORK environment variable can be used to faciliate
-        testing against a smaller newtork. Possibe values include:
-            PLAT_NETWORK=small  - small network but with children
-            PLAT_NETWORK=single - network with a single platform (no children)
+        By default, the following values are relative to the platform with id
+        'Node1D' taken as the base platform for the topology under under testing.
+        The PLAT_NETWORK environment variable can be used to change this root:
+
+            PLAT_NETWORK=single
+                Use network with a single platform (no children)
+                corresponding to id 'LJ01D'.
         """
-        cls.PLATFORM_ID = 'Node1A'
-        cls.SUBPLATFORM_IDS = ['MJ01A', 'Node1B']
-        cls.ATTR_NAMES = ['input_voltage', 'Node1A_attr_2']
-        cls.WRITABLE_ATTR_NAMES = ['Node1A_attr_2']
-        cls.VALID_ATTR_VALUE = "7"  # within the range
-        cls.INVALID_ATTR_VALUE = "9876"  # out of range
 
-        cls.PORT_ID = 'Node1A_port_1'
-        cls.INSTRUMENT_ID = 'Node1A_port_1_instrument_1'
-        cls.INSTRUMENT_ATTR_NAME = 'maxCurrentDraw'
+        ######################################################################
+        # NOTE: the following values relative to 'Node1A' (which roots a
+        # significantly bigger hierarchy) were previously used as the default.
+        # It is now enabled at the moment (and probably it won't eventually)
+        # pending alignment with the new platform configuration structure.
+        #
+        # cls.PLATFORM_ID          = 'Node1A'
+        # cls.SUBPLATFORM_IDS      = ['MJ01A', 'Node1B']
+        # cls.ATTR_NAMES           = ['input_voltage', 'Node1A_attr_2']
+        # cls.WRITABLE_ATTR_NAMES  = ['Node1A_attr_2']
+        # cls.VALID_ATTR_VALUE     = "7"       # within the range
+        # cls.INVALID_ATTR_VALUE   = "9876"  # out of range
+        #
+        # cls.PORT_ID              = 'Node1A_port_1'
+        # cls.INSTRUMENT_ID        = 'Node1A_port_1_instrument_1'
+        # cls.INSTRUMENT_ATTR_NAME = 'maxCurrentDraw'
+        # cls.VALID_INSTRUMENT_ATTR_VALUE = 12345
+        ######################################################################
+
+        cls.PLATFORM_ID           = 'Node1D'
+        cls.SUBPLATFORM_IDS       = ['MJ01C']
+        cls.ATTR_NAMES            = ['input_voltage', 'input_bus_current']
+        cls.WRITABLE_ATTR_NAMES   = ['input_bus_current']
+        cls.VALID_ATTR_VALUE      = "7"     # within the range
+        cls.INVALID_ATTR_VALUE    = "9876"  # out of range
+
+        cls.PORT_ID               = 'Node1D_port_1'
+        cls.INSTRUMENT_ID         = 'Node1D_port_1_instrument_1'
+        cls.INSTRUMENT_ATTR_NAME  = 'maxCurrentDraw'
         cls.VALID_INSTRUMENT_ATTR_VALUE = 12345
 
         cls.INSTRUMENT_ATTRIBUTES_AND_VALUES = {
@@ -55,30 +78,17 @@ class HelperTestMixin:
             'instrumentType' : "FOO_INSTRUMENT_TYPE"
         }
 
-        # PLAT_NETWORK: This env variable helps use a smaller network locally.
         import os
         plat_network_size = os.getenv('PLAT_NETWORK', None)
-        if "small" == plat_network_size:
-            #
-            # small network but with children.
-            #
-            cls.PLATFORM_ID = 'Node1D'
-            print("PLAT_NETWORK=small -> using base platform: %r" % cls.PLATFORM_ID)
-            cls.SUBPLATFORM_IDS = ['MJ01C']
-            cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
-            cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
-
-            cls.PORT_ID = 'Node1D_port_1'
-            cls.INSTRUMENT_ID = 'Node1D_port_1_instrument_1'
-        elif "single" == plat_network_size:
+        if "single" == plat_network_size:
             #
             # network with just a single platform (no children).
             #
             cls.PLATFORM_ID = 'LJ01D'
             print("PLAT_NETWORK=single -> using base platform: %r" % cls.PLATFORM_ID)
             cls.SUBPLATFORM_IDS = []
-            cls.ATTR_NAMES = ['input_voltage', 'Input Bus Current']
-            cls.WRITABLE_ATTR_NAMES = ['Input Bus Current']
+            cls.ATTR_NAMES = ['input_voltage', 'input_bus_current']
+            cls.WRITABLE_ATTR_NAMES = ['input_bus_current']
 
             cls.PORT_ID = 'LJ01D_port_1'
             cls.INSTRUMENT_ID = 'LJ01D_port_1_instrument_1'

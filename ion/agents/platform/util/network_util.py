@@ -4,7 +4,7 @@
 @package ion.agents.platform.util.network_util
 @file    ion/agents/platform/util/network_util.py
 @author  Carlos Rueda
-@brief   Utilities related with platform network serialization/deserialization.
+@brief   Utilities related with platform network definition
 """
 
 __author__ = 'Carlos Rueda'
@@ -406,3 +406,117 @@ class NetworkUtil(object):
                 result += NetworkUtil._gen_yaml(sub_platform, next_level)
 
         return result
+
+    @staticmethod
+    def create_network_definition_from_ci_config(CFG):
+        """
+        Creates a NetworkDefinition object by traversing the given CI agent
+        configuration dictionary.
+
+        @param CFG CI agent configuration
+        @return A NetworkDefinition object
+
+        @raise PlatformDefinitionException device_type is not 'PlatformDevice'
+        """
+
+        # verify CFG corresponds to PlatformDevice:
+        device_type = CFG.get("device_type", None)
+        if 'PlatformDevice' != device_type:
+            raise PlatformDefinitionException("Expecting device_type to be "
+                                              "'PlatformDevice'. Got %r" % device_type)
+
+        ndef = NetworkDefinition()
+        ndef._pnodes = {}
+
+        def create_platform_node(platform_id, platform_types=None, CFG=None):
+            assert not platform_id in ndef.pnodes
+            pn = PlatformNode(platform_id, platform_types, CFG)
+            ndef.pnodes[platform_id] = pn
+            return pn
+
+        ndef._dummy_root = create_platform_node(platform_id='')
+
+        def _get_platform_types(CFG):
+            """
+            Constructs:
+              - ndef._platform_types, {platform_type : description} dict
+            """
+            ndef._platform_types = {}
+            #
+            # TODO implement once this information is provided in the CI config
+
+        _get_platform_types(CFG)
+
+        def _add_attrs_to_platform_node(attrs, pn):
+            for attr_defn in attrs:
+                assert 'attr_id' in attr_defn
+                assert 'monitorCycleSeconds' in attr_defn
+                assert 'units' in attr_defn
+                attr_id = attr_defn['attr_id']
+                pn.add_attribute(AttrNode(attr_id, attr_defn))
+
+        def _add_ports_to_platform_node(ports, pn):
+            for port_info in ports:
+                assert 'port_id' in port_info
+                assert 'network' in port_info
+                port_id = port_info['port_id']
+                network = port_info['network']
+                port = PortNode(port_id, network)
+                pn.add_port(port)
+
+        def build_platform_node(CFG, parent_node):
+            platform_config = CFG.get('platform_config', {})
+            platform_id     = platform_config.get('platform_id', None)
+            platform_types  = platform_config.get('platform_types', [])
+
+            driver_config  = CFG.get('driver_config', {})
+            attributes     = driver_config.get('attributes', {})
+            ports          = driver_config.get('ports', {})
+
+            if not platform_id:
+                raise PlatformDefinitionException("missing CFG.platform_config.platform_id")
+
+            if not driver_config:
+                raise PlatformDefinitionException("missing CFG.driver_config")
+
+            for platform_type in platform_types:
+                if not platform_type in ndef._platform_types:
+                    raise PlatformDefinitionException(
+                        "%r not in defined platform types: %s" %(
+                        platform_type, ndef._platform_types))
+
+            pn = create_platform_node(platform_id, platform_types, CFG)
+            parent_node.add_subplatform(pn)
+
+            # attributes:
+            _add_attrs_to_platform_node(attributes.itervalues(), pn)
+
+            # ports:
+            _add_ports_to_platform_node(ports.itervalues(), pn)
+
+            # children:
+            for child_CFG in CFG.get("children", {}).itervalues():
+                device_type = child_CFG.get("device_type", None)
+                if device_type == 'PlatformDevice':
+                    build_platform_node(child_CFG, pn)
+
+                elif device_type == 'InstrumentDevice':
+                    build_instrument_node(child_CFG, pn)
+
+            return pn
+
+        def build_instrument_node(CFG, parent_node):
+            # use CFG.agent.resource_id as the instrument_id:
+            agent = CFG.get('agent', {})
+            instrument_id = agent.get('resource_id', None)
+
+            if not instrument_id:
+                raise PlatformDefinitionException("missing CFG.agent.resource_id for instrument")
+
+            inn = InstrumentNode(instrument_id, CFG=CFG)
+            parent_node.add_instrument(inn)
+
+        # Now, build the whole network:
+        build_platform_node(CFG, ndef._dummy_root)
+
+        return ndef

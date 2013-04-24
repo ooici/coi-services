@@ -29,13 +29,15 @@ class MockUtil(object):
     def load_mock_resources(self, res_list):
         for res_entry in res_list:
             name = res_entry.get('name', 'NO_NAME')
-            lcstate = res_entry.get('lcstate', 'DEPLOYED_AVAILABLE')
+            lcstate = res_entry.get('lcstate', 'DEPLOYED')
+            lcav = res_entry.get('availability', 'AVAILABLE')
             attr = res_entry.get('attr', {})
             res_id = create_unique_resource_id()
             res_id = res_entry.get('_id', res_id)
             res_obj = IonObject(res_entry['rt'], name=name, **attr)
             res_obj._id = res_id
             res_obj.lcstate = lcstate
+            res_obj.availability = lcav
             res_obj.ts_created = get_ion_ts()
             res_obj.ts_updated = res_obj.ts_created
 

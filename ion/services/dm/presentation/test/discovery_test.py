@@ -25,14 +25,18 @@ from ion.services.dm.inventory.index_management_service import IndexManagementSe
 from ion.services.dm.utility.granule_utils import time_series_domain
 from ion.processes.bootstrap.index_bootstrap import STD_INDEXES
 from nose.plugins.attrib import attr
-from mock import Mock, patch
+from mock import Mock, patch, sentinel
 from datetime import date, timedelta
+from pyon.util.ion_time import IonTime
+from pyon.util.containers import get_ion_ts
 
+import gevent
 import elasticpy as ep
 import dateutil.parser
 import time
 import os
 import unittest
+import calendar
 
 
 
@@ -134,7 +138,7 @@ class DiscoveryUnitTest(PyonTestCase):
         self.assertTrue(retval[0]['_id']=='success', '%s' % retval)
 
     def test_query(self):
-        self.discovery.request = lambda x : x
+        self.discovery.request = lambda x,y : x
         retval = self.discovery.query('test')
         self.assertTrue(retval == 'test')
 
@@ -176,8 +180,8 @@ class DiscoveryUnitTest(PyonTestCase):
         mock_parser().parse.return_value = 'arg'
         self.discovery.request = Mock()
         self.discovery.request.return_value = 'correct_value'
-        retval = self.discovery.parse('blah blah')
-        self.discovery.request.assert_called_once_with('arg')
+        retval = self.discovery.parse('blah blah', id_only=sentinel.id_only)
+        self.discovery.request.assert_called_once_with('arg', id_only=sentinel.id_only)
         self.assertTrue(retval=='correct_value', '%s' % retval)
 
     def test_query_request_term_search(self):
@@ -259,9 +263,9 @@ class DiscoveryUnitTest(PyonTestCase):
         mock_es().search_index_advanced.return_value = {'hits':{'hits':hits}}
 
         date1 = '2012-01-01'
-        ts1 = time.mktime( dateutil.parser.parse(date1).timetuple()) * 1000
+        ts1 = calendar.timegm( dateutil.parser.parse(date1).timetuple()) * 1000
         date2 = '2012-02-01'
-        ts2 = time.mktime( dateutil.parser.parse(date2).timetuple()) * 1000
+        ts2 = calendar.timegm( dateutil.parser.parse(date2).timetuple()) * 1000
 
         retval = self.discovery.query_time('index_id','field',date1,date2,id_only=False)
 
@@ -639,6 +643,9 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == bank_id)
 
+
+
+
     @skipIf(not use_es, 'No ElasticSearch')
     def test_collections_searching(self):
 
@@ -720,6 +727,69 @@ class DiscoveryIntTest(IonIntegrationTestCase):
 
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_vertical_bounds_searching(self):
+        dp = DataProduct(name='blah')
+        dp.geospatial_bounds.geospatial_vertical_min = 20
+        dp.geospatial_bounds.geospatial_vertical_max = 50
+        dp_id, _ = self.rr.create(dp)
+        self.addCleanup(self.rr.delete,dp_id)
+
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 10,30)
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertEquals(results[0]['_id'], dp_id)
+
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 30,40)
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertEquals(results[0]['_id'], dp_id)
+        
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 30,60)
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertEquals(results[0]['_id'], dp_id)
+        
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 10,15)
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results, None)
+        
+        search_string = "search 'geospatial_bounds' vertical from %s to %s from 'data_products_index'" %( 55,60)
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results, None)
+
+    @skipIf(not use_es, 'no elasticsearch')
+    def test_temporal_bounds_searching(self):
+        dp = DataProduct(name='blah')
+        dp.nominal_datetime.start_datetime = str(int(calendar.timegm(dateutil.parser.parse('2013-03-15').timetuple()) * 1000))
+        dp.nominal_datetime.end_datetime = str(int(calendar.timegm(dateutil.parser.parse('2013-03-17').timetuple()) * 1000))
+        dp_id, _ = self.rr.create(dp)
+        self.addCleanup(self.rr.delete,dp_id)
+
+
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-19')
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertTrue(results[0]['_id'] == dp_id)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-16')
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertTrue(results[0]['_id'] == dp_id)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-16','2013-03-19')
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertTrue(results)
+        self.assertTrue(results[0]['_id'] == dp_id)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-18','2013-03-19')
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results,None)
+        search_string = "search 'nominal_datetime' timebounds from '%s' to '%s' from 'data_products_index'" %('2013-03-12','2013-03-13')
+        results = self.poll(1, self.discovery.parse, search_string)
+        self.assertEquals(results,None)
+
+
+
+
 
     @skipIf(not use_es, 'No ElasticSearch')
     def test_events_search(self):
@@ -864,6 +934,59 @@ class DiscoveryIntTest(IonIntegrationTestCase):
         self.assertIsNotNone(results, 'Results not found')
         self.assertTrue(results[0]['_id'] == dp_id)
         self.assertEquals(results[0]['_source'].name, 'example')
+    
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_match_search(self):
+        dp = DataProduct(name='example', description='This is simply a description for this data product')
+        dp_id, _ = self.rr.create(dp)
+
+        search_string = 'search "description" match "this data product" from "data_products"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+        self.assertTrue(results[0]['_id'] == dp_id)
+        self.assertEquals(results[0]['_source'].name, 'example')
+
+    @skipIf(not use_es, 'No ElasticSearch')
+    def test_expected_match_results(self):
+        names = [
+            'Instrument for site1',
+            'Instrument for simulator',
+            'CTD1',
+            'SBE37',
+            'SSN-719',
+            'Submerssible Expendable Bathyothermograph',
+            'VELPT',
+            'VELO',
+            'Safire2 169'
+            ]
+        for name in names:
+            res_id, _ = self.rr.create(InstrumentDevice(name=name))
+            self.addCleanup(self.rr.delete, res_id)
+
+        search_string = 'search "name" match "expendable" from "devices"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertEquals(len(results),1)
+        self.assertEquals(results[0]['_source'].name, 'Submerssible Expendable Bathyothermograph')
+
+
+        search_string = 'search "name" match "instrument for" from "devices"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertEquals(len(results),2)
+        self.assertTrue('Instrument for' in results[0]['_source'].name)
+        self.assertTrue('Instrument for' in results[1]['_source'].name)
+
+
+        search_string = 'search "name" match "velo for" from "devices"'
+        results = self.poll(9, self.discovery.parse, search_string)
+        self.assertIsNotNone(results, 'Results not found')
+
+        self.assertEquals(len(results),1)
+        self.assertEquals(results[0]['_source'].name, 'VELO')
+
 
 
     @skipIf(not use_es, 'No ElasticSearch')

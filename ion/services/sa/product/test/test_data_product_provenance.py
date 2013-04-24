@@ -1,4 +1,3 @@
-from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 from pyon.public import  log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -14,6 +13,10 @@ from interface.services.sa.iinstrument_management_service import InstrumentManag
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from interface.objects import  ContactInformation
 from interface.objects import AttachmentType
+from interface.objects import Device
+from interface.objects import DataProduct
+from interface.objects import DataProcess
+from interface.objects import DataProducer
 
 from pyon.util.context import LocalContextMixin
 from pyon.core.exception import BadRequest 
@@ -24,6 +27,7 @@ from interface.objects import StreamConfiguration
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.dm.utility.granule_utils import time_series_domain
 import base64
+import unittest
 
 
 class FakeProcess(LocalContextMixin):
@@ -55,22 +59,95 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         self.dataset_management = DatasetManagementServiceClient()
 
-        # create missing data process definition
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
-                            description="normally in preload",
-                            module='ion.processes.data.transforms.logical_transform',
-                            class_name='logical_transform')
-        self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         # deactivate all data processes when tests are complete
         def killAllDataProcesses():
             for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
                 self.dataprocessclient.deactivate_data_process(proc_id)
+                self.dataprocessclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
+    def test_get_data_product_provenance_report(self):
+        #Create a test device
+        device_obj = Device(name='Device1',
+                                        description='test instrument site')
+        device_id, _ = self.rrclient.create(device_obj)
+        self.addCleanup(self.rrclient.delete, device_id)
 
-    #@unittest.skip('not ready')
+        #Create a test DataProduct
+        data_product1_obj = DataProduct(name='DataProduct1',
+                                        description='test data product 1')
+        data_product1_id, _ = self.rrclient.create(data_product1_obj)
+        self.addCleanup(self.rrclient.delete, data_product1_id)
+
+        #Create a test DataProcess
+        data_process_obj = DataProcess(name='DataProcess',
+                                       description='test data process')
+        data_process_id, _ = self.rrclient.create(data_process_obj)
+        self.addCleanup(self.rrclient.delete, data_process_id)
+
+        #Create a second test DataProduct
+        data_product2_obj = DataProduct(name='DataProduct2',
+                                        description='test data product 2')
+        data_product2_id, _ = self.rrclient.create(data_product2_obj)
+        self.addCleanup(self.rrclient.delete, data_product2_id)
+
+        #Create a test DataProducer
+        data_producer_obj = DataProducer(name='DataProducer',
+                                         description='test data producer')
+        data_producer_id, rev = self.rrclient.create(data_producer_obj)
+
+        #Link the DataProcess to the second DataProduct manually
+        assoc_id, _ = self.rrclient.create_association(subject=data_process_id, predicate=PRED.hasInputProduct, object=data_product2_id)
+        self.addCleanup(self.rrclient.delete_association, assoc_id)
+
+        # Register the instrument and process. This links the device and the data process
+        # with their own producers
+        self.damsclient.register_instrument(device_id)
+        self.addCleanup(self.damsclient.unregister_instrument, device_id)
+        self.damsclient.register_process(data_process_id)
+        self.addCleanup(self.damsclient.unregister_process, data_process_id)
+
+        #Manually link the first DataProduct with the test DataProducer
+        assoc_id, _ = self.rrclient.create_association(subject=data_product1_id, predicate=PRED.hasDataProducer, object=data_producer_id)
+
+        #Get the DataProducer linked to the DataProcess (created in register_process above)
+        #Associate that with with DataProduct1's DataProducer
+        data_process_producer_ids, _ = self.rrclient.find_objects(subject=data_process_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
+        assoc_id, _ = self.rrclient.create_association(subject=data_process_producer_ids[0], predicate=PRED.hasParent, object=data_producer_id)
+        self.addCleanup(self.rrclient.delete_association, assoc_id)
+
+        #Get the DataProducer linked to the Device (created in register_instrument
+        #Associate that with the DataProcess's DataProducer
+        device_producer_ids, _ = self.rrclient.find_objects(subject=device_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
+        assoc_id, _ = self.rrclient.create_association(subject=data_producer_id, predicate=PRED.hasParent, object=device_producer_ids[0])
+
+        #Create the links between the Device, DataProducts, DataProcess, and all DataProducers
+        self.damsclient.assign_data_product(input_resource_id=device_id, data_product_id=data_product1_id)
+        self.addCleanup(self.damsclient.unassign_data_product, device_id, data_product1_id)
+        self.damsclient.assign_data_product(input_resource_id=data_process_id, data_product_id=data_product2_id)
+        self.addCleanup(self.damsclient.unassign_data_product, data_process_id, data_product2_id)
+
+        #Traverse through the relationships to get the links between objects
+        res = self.dpmsclient.get_data_product_provenance_report(data_product2_id)
+
+        #Make sure there are four keys
+        self.assertEqual(len(res.keys()), 4)
+
+        parent_count = 0
+        config_count = 0
+        for v in res.itervalues():
+            if 'parent' in v:
+                parent_count += 1
+            if 'config' in v:
+                config_count += 1
+
+        #Make sure there are three parents and four configs
+        self.assertEqual(parent_count, 3)
+        self.assertEqual(config_count, 4)
+
+
+    @unittest.skip('This test is obsolete with new framework')
     def test_get_provenance(self):
 
         #create a deployment with metadata and an initial site and device
@@ -158,7 +235,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         log_data_product_id = self.dpmsclient.create_data_product(dp_obj, parsed_stream_def_id)
-        self.omsclient.create_site_data_product(instrument_site_id, log_data_product_id)
 
 
         #-------------------------------
@@ -305,7 +381,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
-        self.output_products={}
         log.debug("TestDataProductProvenance: create output data product L0 conductivity")
 
         ctd_l0_conductivity_output_dp_obj = IonObject(  RT.DataProduct,
@@ -316,8 +391,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         ctd_l0_conductivity_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_conductivity_output_dp_obj,
                                                                                 outgoing_stream_l0_conductivity_id)
-
-        self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
 
 
         log.debug("TestDataProductProvenance: create output data product L0 pressure")
@@ -330,8 +403,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         ctd_l0_pressure_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_pressure_output_dp_obj,
                                                                             outgoing_stream_l0_pressure_id)
-        self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
-
         log.debug("TestDataProductProvenance: create output data product L0 temperature")
 
         ctd_l0_temperature_output_dp_obj = IonObject(   RT.DataProduct,
@@ -342,8 +413,6 @@ class TestDataProductProvenance(IonIntegrationTestCase):
 
         ctd_l0_temperature_output_dp_id = self.dpmsclient.create_data_product(ctd_l0_temperature_output_dp_obj,
                                                                                 outgoing_stream_l0_temperature_id)
-        self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
-
 
         #-------------------------------
         # L1 Conductivity - Temperature - Pressure: Output Data Products
@@ -455,7 +524,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product], self.output_products)
+            input_data_products = [ctd_parsed_data_product]
+            output_data_products = [ctd_l0_conductivity_output_dp_id, ctd_l0_pressure_output_dp_id, ctd_l0_temperature_output_dp_id]
+
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L0_all_dprocdef_id,
+                in_data_product_ids = input_data_products,
+                out_data_product_ids = output_data_products
+            )
             #activate only this data process just for coverage
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
@@ -474,7 +550,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1 Conductivity data_process start")
         try:
-            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_conductivity_dprocdef_id, [ctd_l0_conductivity_output_dp_id], {'conductivity':ctd_l1_conductivity_output_dp_id})
+            l1_conductivity_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L1_conductivity_dprocdef_id,
+                in_data_product_ids = [ctd_l0_conductivity_output_dp_id],
+                out_data_product_ids = [ctd_l1_conductivity_output_dp_id])
+            
             self.dataprocessclient.activate_data_process(l1_conductivity_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -487,7 +567,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
-            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_pressure_dprocdef_id, [ctd_l0_pressure_output_dp_id], {'pressure':ctd_l1_pressure_output_dp_id})
+            l1_pressure_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L1_pressure_dprocdef_id,
+                in_data_product_ids = [ctd_l0_pressure_output_dp_id],
+                out_data_product_ids = [ctd_l1_pressure_output_dp_id])
+
             self.dataprocessclient.activate_data_process(l1_pressure_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -498,7 +582,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L1_Pressure data_process start")
         try:
-            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L1_temperature_dprocdef_id, [ctd_l0_temperature_output_dp_id], {'temperature':ctd_l1_temperature_output_dp_id})
+            l1_temperature_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L1_temperature_dprocdef_id,
+                in_data_product_ids = [ctd_l0_temperature_output_dp_id],
+                out_data_product_ids = [ctd_l1_temperature_output_dp_id])
+
             self.dataprocessclient.activate_data_process(l1_temperature_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -508,7 +596,11 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L2_salinity data_process start")
         try:
-            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_salinity_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'salinity':ctd_l2_salinity_output_dp_id})
+            l2_salinity_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L2_salinity_dprocdef_id,
+                in_data_product_ids = [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id],
+                out_data_product_ids = [ctd_l2_salinity_output_dp_id])
+
             self.dataprocessclient.activate_data_process(l2_salinity_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -519,7 +611,14 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         #-------------------------------
         log.debug("TestDataProductProvenance: create L2_Density data_process start")
         try:
-            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L2_density_dprocdef_id, [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id], {'density':ctd_l2_density_output_dp_id})
+            in_dp_ids = [ctd_l1_conductivity_output_dp_id, ctd_l1_pressure_output_dp_id, ctd_l1_temperature_output_dp_id]
+            out_dp_ids = [ctd_l2_density_output_dp_id]
+
+            l2_density_all_data_process_id = self.dataprocessclient.create_data_process(
+                data_process_definition_id = ctd_L2_density_dprocdef_id,
+                in_data_product_ids = in_dp_ids,
+                out_data_product_ids = out_dp_ids)
+
             self.dataprocessclient.activate_data_process(l2_density_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)
@@ -596,7 +695,7 @@ class TestDataProductProvenance(IonIntegrationTestCase):
         # Request the xml report
         #-------------------------------
         results = self.dpmsclient.get_data_product_provenance_report(ctd_l2_density_output_dp_id)
-
+        print results
 
         #-------------------------------
         # Cleanup

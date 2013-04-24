@@ -42,6 +42,9 @@ class Test(IonIntegrationTestCase, HelperTestMixin):
         # simulator object by default.
         self._rsn_oms = CIOMSClientFactory.create_instance()
 
+    def tearDown(self):
+        CIOMSClientFactory.destroy_instance(self._rsn_oms)
+
     def test_build_network_definition(self):
         ndef = RsnOmsUtil.build_network_definition(self._rsn_oms)
 

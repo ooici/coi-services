@@ -126,31 +126,49 @@ class LoadSystemPolicy(ImmediateProcess):
                 <Actions>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">read*</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">read_</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">READ</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">FIND</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">get_</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">GET</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">is_</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find*</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">get*</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">is*</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">has*</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">has_</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
@@ -163,8 +181,9 @@ class LoadSystemPolicy(ImmediateProcess):
 
                     <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
                         <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_org_negotiations</AttributeValue>
                             <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_enrolled_users</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_org_negotiations</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">find_org_closed_negotiations</AttributeValue>
                         </Apply>
                         <ActionAttributeDesignator
                              AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
@@ -237,6 +256,7 @@ class LoadSystemPolicy(ImmediateProcess):
                         </ResourceMatch>
                     </Resource>
                 </Resources>
+
             </Target>
 
         </Rule>
@@ -270,20 +290,38 @@ class LoadSystemPolicy(ImmediateProcess):
                 <Actions>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">create_</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
                     <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">update</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">CREATE</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
                     <Action>
                         <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">delete</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">update_</AttributeValue>
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">UPDATE</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">delete_</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
                 </Actions>
@@ -458,18 +496,6 @@ class LoadSystemPolicy(ImmediateProcess):
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">has_role</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
-                    <Action>
-                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">release_commitment</AttributeValue>
-                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
-                        </ActionMatch>
-                    </Action>
                 </Actions>
 
 
@@ -543,6 +569,23 @@ class LoadSystemPolicy(ImmediateProcess):
                 </Subjects>
 
             </Target>
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">request_direct_access</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop_direct_access</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">execute_instrument_device_lifecycle</AttributeValue>
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">execute_platform_device_lifecycle</AttributeValue>
+                        </Apply>
+                        <ActionAttributeDesignator
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                    </Apply>
+                </Apply>
+            </Condition>
 
         </Rule> '''
 
@@ -808,6 +851,12 @@ class LoadSystemPolicy(ImmediateProcess):
                             <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
                         </ActionMatch>
                     </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">get_agent</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
                 </Actions>
 
                 <Subjects>
@@ -836,8 +885,162 @@ class LoadSystemPolicy(ImmediateProcess):
 
 
 
+##############
 
 
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+               <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">instrument_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">execute_instrument_device_lifecycle</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">execute_platform_device_lifecycle</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+            </Target>
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_device_lifecycle_policy</AttributeValue>
+                    <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                </Apply>
+            </Condition>
+
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Check_Lifecycle_Operations',
+            'Call the check_device_lifecycle_policy operation in the IMS',
+            policy_text, headers=sa_user_header)
+
+
+##############
+
+
+        policy_text = '''
+            <Rule RuleId="%s" Effect="Permit">
+            <Description>
+                %s
+            </Description>
+
+            <Target>
+
+               <Resources>
+                    <Resource>
+                        <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">instrument_management</AttributeValue>
+                            <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ResourceMatch>
+                    </Resource>
+                </Resources>
+
+                <Actions>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">request_direct_access</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                    <Action>
+                        <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">stop_direct_access</AttributeValue>
+                            <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </ActionMatch>
+                    </Action>
+                </Actions>
+
+
+                <Subjects>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">INSTRUMENT_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">OBSERVATORY_OPERATOR</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                    <Subject>
+                        <SubjectMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">ORG_MANAGER</AttributeValue>
+                            <SubjectAttributeDesignator
+                                 AttributeId="urn:oasis:names:tc:xacml:1.0:subject:subject-role-id"
+                                 DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                        </SubjectMatch>
+                    </Subject>
+                </Subjects>
+
+
+            </Target>
+
+            <Condition>
+                <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-function">
+                    <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">check_direct_access_policy</AttributeValue>
+                    <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                </Apply>
+            </Condition>
+
+        </Rule> '''
+
+        policy_id = policy_client.create_service_access_policy('instrument_management', 'IMS_Check_Direct_Access_Operations',
+            'Call the check_direct_access_policy operation in the IMS',
+            policy_text, headers=sa_user_header)
 
 
 #########  Load Operation Specific Preconditions #############
@@ -870,19 +1073,3 @@ class LoadSystemPolicy(ImmediateProcess):
         pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='ping_resource',
             policy_content='check_resource_operation_policy', headers=sa_user_header )
 
-
-        #Add precondition policies for IMS Direct Access operations
-
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='request_direct_access',
-            policy_content='check_direct_access_policy', headers=sa_user_header )
-
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='stop_direct_access',
-            policy_content='check_direct_access_policy', headers=sa_user_header )
-
-        #Add precondition policies for IMS lifecyle operations
-
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_instrument_device_lifecycle',
-            policy_content='check_device_lifecycle_policy', headers=sa_user_header )
-
-        pol_id = policy_client.add_process_operation_precondition_policy(process_name='instrument_management', op='execute_platform_device_lifecycle',
-            policy_content='check_device_lifecycle_policy', headers=sa_user_header )

@@ -6,11 +6,20 @@ from pyon.util.log import log
 from email.utils import formatdate
 from stat import ST_MTIME
 
-from coverage_model.coverage import SimplexCoverage
-from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType
+from coverage_model.coverage import AbstractCoverage
+from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType, ParameterFunctionType
 from pydap.model import DatasetType,BaseType, GridType
 from pydap.handlers.lib import BaseHandler
 import time
+import simplejson as json
+
+numpy_boolean = '?'
+numpy_integer_types = 'bhilqp'
+numpy_uinteger_types = 'BHILQP'
+numpy_floats = 'efdg'
+numpy_complex = 'FDG'
+numpy_object = 'O'
+numpy_str = 'SUV'
 
 class Handler(BaseHandler):
 
@@ -28,18 +37,29 @@ class Handler(BaseHandler):
             result = 'd'
         elif self.is_int(data):
             result = 'i'
+        elif result == 'O':
+            self.json_dump(data)
+            result = 'O'
+        elif result == '?':
+            result = '?'
         elif result not in ('d','f','h','i','b','H','I','B','S'):
-            raise TypeNotSupportedError()
+            raise TypeNotSupportedError('Type: %s (%s)' %(result, repr(data)))
         return result
+
+    def json_dump(self, data):
+        try:
+            return json.dumps([i for i in data])
+        except TypeError as e:
+            raise TypeNotSupportedError(e)
 
     def get_attrs(self, cov, name):
         pc = cov.get_parameter_context(name)
         attrs = {}
-        try:
+        if hasattr(pc,'uom'):
             attrs['units'] = pc.uom
-        except:
-            pass
-        attrs['long_name'] = pc.long_name
+
+        if hasattr(pc,'display_name'):
+            attrs['long_name'] = pc.display_name
         return attrs
 
     def get_data(self,cov, name, slice_):
@@ -63,6 +83,39 @@ class Handler(BaseHandler):
         grid[dims[0]] = BaseType(name=dims[0], data=time_data, type=time_data.dtype.char, attributes=time_attrs, dimensions=dims, shape=time_data.shape)
         return grid    
 
+    def filter_data(self, data):
+        if data.dtype.char in numpy_integer_types + numpy_uinteger_types:
+            return data, data.dtype.char
+        if data.dtype.char in numpy_floats:
+            return data, data.dtype.char
+        if data.dtype.char in numpy_boolean:
+            return np.asanyarray(data, dtype='int32') ,'i'
+        if data.dtype.char in numpy_complex:
+            return self.stringify(data), 'S'
+        if data.dtype.char in numpy_object:
+            return self.stringify_inplace(data), 'S'
+        if data.dtype.char in numpy_str:
+            return data, 'S'
+        return np.asanyarray(['Unsupported Type' for i in data]), 'S'
+
+
+    def stringify(self, data):
+        retval = np.empty(data.shape, dtype='O')
+        try:
+            for i,obj in enumerate(data):
+                retval[i] = str(obj)
+        except:
+            retval = np.asanyarray(['None' for d in data])
+        return retval
+
+    def stringify_inplace(self, data):
+        try:
+            for i,obj in enumerate(data):
+                data[i] = str(obj)
+        except:
+            data = np.asanyarray(['None' for d in data])
+        return data
+
     def get_dataset(self, cov, fields, fill_index, dataset, response):
         for var in fields:
             while var:
@@ -80,17 +133,20 @@ class Handler(BaseHandler):
                     
                     data = np.array([])
                     time_data = np.array([])
-                    if response == "dods":
+                    if response == "dods" or response == "dds":
                         data = self.get_data(cov, name, slice_)
                         time_data = self.get_time_data(cov, slice_)
+                        
 
                     time_attrs  = self.get_attrs(cov, name)
                     attrs  = self.get_attrs(cov, name)
                     dims = (cov.temporal_parameter_name,)
                     if isinstance(pc.param_type, QuantityType) and not param.is_coordinate and cov.temporal_parameter_name != name:
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                        data, dtype = self.filter_data(data)
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
                     if isinstance(pc.param_type, ConstantType):
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                        data, dtype = self.filter_data(data)
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
                     if isinstance(pc.param_type, ConstantRangeType):
                         #start = time.time()
                         #convert to string
@@ -107,26 +163,26 @@ class Handler(BaseHandler):
                         #print "range end", time.time() - start
                         dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, 'S')                
                     if isinstance(pc.param_type,BooleanType):
-                        data = np.asanyarray(data, dtype='int32')
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, data.dtype.char)                
+                        data, dtype = self.filter_data(data)
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
                     if isinstance(pc.param_type,CategoryType):
+                        data, dtype = self.filter_data(data)
                         #start = time.time()
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
                         #print "category end", time.time() - start
                     if isinstance(pc.param_type,ArrayType):
-                        #start = time.time()
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, self.get_numpy_type(data))                
+                        data, dtype = self.filter_data(data)
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+
                         #print "array end", time.time() - start
                     if isinstance(pc.param_type,RecordType):
-                        #start = time.time()
-                        #convert to string
-                        try:
-                            for i,ddict in enumerate(data):
-                                data[i] = str(ddict)
-                        except Exception, e:
-                            data = np.asanyarray(['None' for d in data])
-                        #print "record end", time.time() - start
-                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, 'S')
+                        data, dtype = self.filter_data(data)
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+
+                    if isinstance(pc.param_type, ParameterFunctionType):
+                        data, dtype = self.filter_data(data)
+                        dataset[name] = self.make_grid(name, data, time_data, attrs, time_attrs, dims, dtype)
+                        
                     if param.is_coordinate and cov.temporal_parameter_name == name:
                         dataset[name] = BaseType(name=name, data=data, type=data.dtype.char, attributes=attrs, shape=data.shape)
                 except Exception, e:
@@ -137,7 +193,7 @@ class Handler(BaseHandler):
 
     def parse_constraints(self, environ):
         base = os.path.split(self.filepath)
-        coverage = SimplexCoverage.load(base[0], base[1],mode='r')
+        coverage = AbstractCoverage.load(base[0], base[1],mode='r')
 
         last_modified = formatdate(time.mktime(time.localtime(os.stat(self.filepath)[ST_MTIME])))
         environ['pydap.headers'].append(('Last-modified', last_modified))

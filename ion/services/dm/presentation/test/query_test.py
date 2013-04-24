@@ -176,9 +176,23 @@ class QueryLanguageUnitTest(PyonTestCase):
         test_string = "search 'description' like 'products' from 'index'"
         retval = self.parser.parse(test_string)
         self.assertEquals(retval, {'and':[], 'or':[], 'query':{'field':'description', 'fuzzy':'products', 'index':'index'}})
+    
+    def test_match_search(self):
+        test_string = "search 'description' match 'products' from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertEquals(retval, {'and':[], 'or':[], 'query':{'field':'description', 'match':'products', 'index':'index'}})
 
     def test_owner_search(self):
         test_string = "search 'description' like 'products' from 'index' and has 'abc123'"
         retval = self.parser.parse(test_string)
         self.assertEquals(retval, {'and':[{'owner':'abc123'}], 'or':[], 'query':{'field':'description', 'fuzzy':'products', 'index':'index'}})
 
+    def test_time_bounds_search(self):
+        test_string = "search 'nominal_datetime' timebounds from '2012-01-01' to '2013-04-04' from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertEquals(retval, {'and':[], 'or':[], 'query':{'field':'nominal_datetime', 'time_bounds':{'from':'2012-01-01', 'to':'2013-04-04'}, 'index':'index'}})
+
+    def test_vertical_bounds_search(self):
+        test_string = "search 'geospatial_bounds' vertical from 0.5 to 10.2 from 'index'"
+        retval = self.parser.parse(test_string)
+        self.assertEquals(retval, {'and':[], 'or':[], 'query':{'field':'geospatial_bounds', 'vertical_bounds':{'from':0.5, 'to':10.2}, 'index':'index'}})

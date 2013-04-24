@@ -8,18 +8,20 @@
 @brief https://confluence.oceanobservatories.org/display/CIDev/Record+Dictionary
 '''
 
-from pyon.core.exception import BadRequest
+from pyon.container.cc import Container
+from pyon.core.exception import BadRequest, NotFound
 from pyon.core.object import IonObjectSerializer
 from pyon.core.interceptor.encode import encode_ion
 from pyon.util.arg_check import validate_equal
 from pyon.util.log import log
 from pyon.util.memoize import memoize_lru
 
+from ion.util.stored_values import StoredValueManager
+
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.objects import Granule
 
-
-from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType
+from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType, Span, SparseConstantType
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
 
@@ -53,6 +55,10 @@ class RecordDictionaryTool(object):
     _dirty_shape        = False
     _available_fields   = None
     _creation_timestamp = None
+    _stream_config      = {}
+    connection_id       = ''
+    connection_index    = ''
+
 
     def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
         """
@@ -67,6 +73,7 @@ class RecordDictionaryTool(object):
             stream_def_obj = RecordDictionaryTool.read_stream_def(stream_definition_id)
             pdict = stream_def_obj.parameter_dictionary
             self._available_fields = stream_def_obj.available_fields or None
+            self._stream_config = stream_def_obj.stream_configuration
             self._pdict = ParameterDictionary.load(pdict)
             self._stream_def = stream_definition_id
         
@@ -91,11 +98,57 @@ class RecordDictionaryTool(object):
         paramval = get_value_class(ptype, domain_set=domain)
         if isinstance(ptype,ParameterFunctionType):
             paramval.memoized_values = values
+        if isinstance(ptype,SparseConstantType):
+            values = np.atleast_1d(values)
+            spans = cls.spanify(values)
+            paramval.storage._storage = np.array([spans],dtype='object')
         else:
             paramval[:] = values
         paramval.storage._storage.flags.writeable = False
         return paramval
 
+    def lookup_values(self):
+        return [i for i in self._lookup_values() if not self.context(i).document_key]
+
+    def _lookup_values(self):
+        lookup_values = []
+        for field in self.fields:
+            if hasattr(self.context(field), 'lookup_value'):
+                lookup_values.append(field)
+        return lookup_values
+    
+    @classmethod
+    def spanify(cls,arr):
+        spans = []
+        lastval = None
+        for i,val in enumerate(arr):
+            if i == 0:
+                span = Span(None,None,0,val)
+                spans.append(span)
+                lastval = val
+                continue
+            if lastval == val:
+                continue
+            spans[-1].upper_bound = i
+            span = Span(i,None,-i,val)
+            spans.append(span)
+        return spans
+
+
+    def fetch_lookup_values(self):
+        for lv in self._lookup_values():
+            context = self.context(lv)
+            if context.document_key:
+                document_key = context.document_key
+                if '$designator' in context.document_key and 'reference_designator' in self._stream_config:
+                    document_key = document_key.replace('$designator',self._stream_config['reference_designator'])
+                svm = StoredValueManager(Container.instance)
+                try:
+                    doc = svm.read_value(document_key)
+                except NotFound:
+                    continue
+                if context.lookup_value in doc:
+                    self[lv] = doc[context.lookup_value]
 
     @classmethod
     def load_from_granule(cls, g):
@@ -116,7 +169,7 @@ class RecordDictionaryTool(object):
 
         if g.creation_timestamp:
             instance._creation_timestamp = g.creation_timestamp
-        
+
         for k,v in g.record_dictionary.iteritems():
             key = instance._pdict.key_from_ord(k)
             if v is not None:
@@ -124,9 +177,12 @@ class RecordDictionaryTool(object):
                 paramval = cls.get_paramval(ptype, instance.domain, v)
                 instance._rd[key] = paramval
         
+        instance.connection_id = g.connection_id
+        instance.connection_index = g.connection_index
+
         return instance
 
-    def to_granule(self, data_producer_id='',provider_metadata_update={}):
+    def to_granule(self, data_producer_id='',provider_metadata_update={}, connection_id='', connection_index=''):
         granule = Granule()
         granule.record_dictionary = {}
         
@@ -142,6 +198,8 @@ class RecordDictionaryTool(object):
         granule.data_producer_id=data_producer_id
         granule.provider_metadata_update=provider_metadata_update
         granule.creation_timestamp = time.time()
+        granule.connection_id = connection_id
+        granule.connection_index = connection_index
         return granule
 
 
@@ -168,6 +226,8 @@ class RecordDictionaryTool(object):
         return self._pdict.get_context(name).fill_value
 
     def _replace_hook(self, name,vals):
+        if vals is None:
+            return None
         if not isinstance(self._pdict.get_context(name).param_type, QuantityType):
             return vals
         if isinstance(vals, (list,tuple)):
@@ -229,6 +289,16 @@ class RecordDictionaryTool(object):
         paramval = self.get_paramval(context.param_type, dom, vals)
         self._rd[name] = paramval
 
+    def param_type(self, name):
+        if name in self.fields:
+            return self._pdict.get_context(name).param_type
+        raise KeyError(name)
+
+    def context(self, name):
+        if name in self.fields:
+            return self._pdict.get_context(name)
+        raise KeyError(name)
+
     def _reshape_const(self):
         for k in self.fields:
             if isinstance(self._rd[k], ConstantValue):
@@ -252,7 +322,8 @@ class RecordDictionaryTool(object):
                 pfv._pval_callback = self._pval_callback
                 retval = pfv[:]
                 return retval
-            except:
+            except Exception as e:
+                log.warning(e.message)
                 return None
         else:
             return None

@@ -4,25 +4,20 @@
 and the relationships between them"""
 
 import time
+from ion.services.sa.instrument.status_builder import AgentStatusBuilder
+from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
-
-from pyon.core.exception import NotFound, BadRequest, Inconsistent
+from pyon.core.exception import NotFound, BadRequest
 from pyon.public import CFG, IonObject, RT, PRED, LCS, LCE, OT
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.util.containers import create_unique_identifier
 from pyon.agent.agent import ResourceAgentState
 
 from ooi.logging import log
 
-from ion.services.sa.observatory.observatory_impl import ObservatoryImpl
-from ion.services.sa.observatory.subsite_impl import SubsiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
-#for logical/physical associations, it makes sense to search from MFMS
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
+from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+from ion.util.geo_utils import GeoUtils
 
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -31,13 +26,12 @@ from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIn
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
-import constraint
+
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
 DATA_OPERATOR_ROLE        = 'DATA_OPERATOR'
 AGENT_STATUS_EVENT_DELTA_DAYS = 5
-LOGICAL_TRANSFORM_DEFINITION_NAME = "Logical Transform Definition" # defined in preload
 
 class ObservatoryManagementService(BaseObservatoryManagementService):
 
@@ -48,6 +42,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         self.override_clients(self.clients)
         self.outil = ObservatoryUtil(self)
+        self.agent_status_builder = AgentStatusBuilder(process=self)
+
 
         self.HIERARCHY_DEPTH = {RT.InstrumentSite: 3,
                                 RT.PlatformSite: 2,
@@ -65,19 +61,21 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #        if self.container and self.container.governance_controller:
 #            reg_precondition = self.container.governance_controller.register_process_operation_precondition
 #            reg_precondition(self, 'execute_observatory_lifecycle',
-#                             self.observatory.policy_fn_lcs_precondition("observatory_id"))
+#                             self.RR2.policy_fn_lcs_precondition("observatory_id"))
 #            reg_precondition(self, 'execute_subsite_lifecycle',
-#                             self.subsite.policy_fn_lcs_precondition("subsite_id"))
+#                             self.RR2.policy_fn_lcs_precondition("subsite_id"))
 #            reg_precondition(self, 'execute_platform_site_lifecycle',
-#                             self.platform_site.policy_fn_lcs_precondition("platform_site_id"))
+#                             self.RR2.policy_fn_lcs_precondition("platform_site_id"))
 #            reg_precondition(self, 'execute_instrument_site_lifecycle',
-#                             self.instrument_site.policy_fn_lcs_precondition("instrument_site_id"))
+#                             self.RR2.policy_fn_lcs_precondition("instrument_site_id"))
 
 
     def override_clients(self, new_clients):
         """
         Replaces the service clients with a new set of them... and makes sure they go to the right places
         """
+
+        self.RR2   = EnhancedResourceRegistryClient(new_clients.resource_registry)
 
         #shortcut names for the import sub-services
         if hasattr(new_clients, "resource_registry"):
@@ -91,16 +89,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #farm everything out to the impls
 
-        self.observatory      = ObservatoryImpl(new_clients)
-        self.subsite          = SubsiteImpl(new_clients)
-        self.platform_site    = PlatformSiteImpl(new_clients)
-        self.instrument_site  = InstrumentSiteImpl(new_clients)
 
-        self.instrument_device   = InstrumentDeviceImpl(new_clients)
-        self.platform_device     = PlatformDeviceImpl(new_clients)
         self.dataproductclient = DataProductManagementServiceClient()
         self.dataprocessclient = DataProcessManagementServiceClient()
 
+    def _calc_geospatial_point_center(self, site):
+
+        siteTypes = [RT.Site, RT.Subsite, RT.Observatory, RT.PlatformSite, RT.InstrumentSite]
+        if site and site.type_ in siteTypes:
+            # if the geospatial_bounds is set then calculate the geospatial_point_center
+            for constraint in site.constraint_list:
+                if constraint.type_ == OT.GeospatialBounds:
+                    site.geospatial_point_center = GeoUtils.calc_geospatial_point_center(constraint)
 
 
     ##########################################################################
@@ -130,18 +130,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         #Instantiate initial set of User Roles for this marine facility
         instrument_operator_role = IonObject(RT.UserRole,
-                                             name=INSTRUMENT_OPERATOR_ROLE,
-                                             label='Observatory Operator',   #previously Instrument Operator
+                                             governance_name=INSTRUMENT_OPERATOR_ROLE,
+                                             name='Observatory Operator',   #previously Instrument Operator
                                              description='Operate and post events related to Observatory Platforms and Instruments')
         self.clients.org_management.add_user_role(org_id, instrument_operator_role)
         observatory_operator_role = IonObject(RT.UserRole,
-                                              name=OBSERVATORY_OPERATOR_ROLE,
-                                             label='Observatory Manager',   # previously Observatory Operator
+                                             governance_name=OBSERVATORY_OPERATOR_ROLE,
+                                             name='Observatory Manager',   # previously Observatory Operator
                                              description='Change Observatory configuration, post Site-related events')
         self.clients.org_management.add_user_role(org_id, observatory_operator_role)
         data_operator_role = IonObject(RT.UserRole,
-                                       name=DATA_OPERATOR_ROLE,
-                                       label='Observatory Data Operator',  # previously Data Operator
+                                       governance_name=DATA_OPERATOR_ROLE,
+                                       name='Observatory Data Operator',  # previously Data Operator
                                        description='Manipulate and post events related to Observatory Data products')
         self.clients.org_management.add_user_role(org_id, data_operator_role)
         
@@ -177,9 +177,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(observatory)
 
         # create the marine facility
-        observatory_id = self.observatory.create_one(observatory)
+        observatory_id = self.RR2.create(observatory, RT.Observatory)
 
         if org_id:
             self.assign_resource_to_observatory_org(observatory_id, org_id)
@@ -193,7 +195,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval observatory    Observatory
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.read_one(observatory_id)
+        return self.RR2.read(observatory_id, RT.Observatory)
 
     def update_observatory(self, observatory=None):
         """Update a Observatory resource
@@ -201,7 +203,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory    Observatory
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.update_one(observatory)
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(observatory)
+
+        return self.RR2.update(observatory, RT.Observatory)
 
     def delete_observatory(self, observatory_id=''):
         """Delete a Observatory resource
@@ -209,10 +214,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param observatory_id    str
         @throws NotFound    object with specified id does not exist
         """
-        return self.observatory.delete_one(observatory_id)
+        return self.RR2.retire(observatory_id, RT.Observatory)
 
     def force_delete_observatory(self, observatory_id=''):
-        return self.observatory.force_delete_one(observatory_id)
+        return self.RR2.pluck_delete(observatory_id, RT.Observatory)
 
 
 
@@ -226,10 +231,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        subsite_id = self.subsite.create_one(subsite)
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(subsite)
+
+        subsite_id = self.RR2.create(subsite, RT.Subsite)
 
         if parent_id:
-            self.subsite.link_parent(subsite_id, parent_id)
+            self.assign_site_to_site(subsite_id, parent_id)
 
         return subsite_id
 
@@ -240,7 +248,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval subsite    Subsite
         @throws NotFound    object with specified id does not exist
         """
-        return self.subsite.read_one(subsite_id)
+        return self.RR2.read(subsite_id, RT.Subsite)
 
     def update_subsite(self, subsite=None):
         """Update a Subsite resource
@@ -248,7 +256,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite    Subsite
         @throws NotFound    object with specified id does not exist
         """
-        return self.subsite.update_one(subsite)
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(subsite)
+
+        return self.RR2.update(subsite, RT.Subsite)
 
     def delete_subsite(self, subsite_id=''):
         """Delete a subsite resource, removes assocations to parents
@@ -256,10 +267,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param subsite_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.subsite.delete_one(subsite_id)
+        self.RR2.retire(subsite_id, RT.Subsite)
 
     def force_delete_subsite(self, subsite_id=''):
-        self.subsite.force_delete_one(subsite_id)
+        self.RR2.pluck_delete(subsite_id, RT.Subsite)
 
 
 
@@ -273,10 +284,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        platform_site_id = self.platform_site.create_one(platform_site)
+
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(platform_site)
+
+        platform_site_id = self.RR2.create(platform_site, RT.PlatformSite)
 
         if parent_id:
-            self.platform_site.link_parent(platform_site_id, parent_id)
+            self.RR2.assign_site_to_one_site_with_has_site(platform_site_id, parent_id)
 
         return platform_site_id
 
@@ -287,7 +302,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval platform_site    PlatformSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.platform_site.read_one(platform_site_id)
+        return self.RR2.read(platform_site_id, RT.PlatformSite)
 
     def update_platform_site(self, platform_site=None):
         """Update a PlatformSite resource
@@ -295,7 +310,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site    PlatformSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.platform_site.update_one(platform_site)
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(platform_site)
+
+        return self.RR2.update(platform_site, RT.PlatformSite)
 
     def delete_platform_site(self, platform_site_id=''):
         """Delete a PlatformSite resource, removes assocations to parents
@@ -303,10 +321,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param platform_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        self.platform_site.delete_one(platform_site_id)
+        self.RR2.retire(platform_site_id, RT.PlatformSite)
 
     def force_delete_platform_site(self, platform_site_id=''):
-        self.platform_site.force_delete_one(platform_site_id)
+        self.RR2.pluck_delete(platform_site_id, RT.PlatformSite)
 
 
     def create_instrument_site(self, instrument_site=None, parent_id=''):
@@ -319,10 +337,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws BadRequest    if object does not have _id or _rev attribute
         @throws NotFound    object with specified id does not exist
         """
-        instrument_site_id = self.instrument_site.create_one(instrument_site)
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(instrument_site)
+
+        instrument_site_id = self.RR2.create(instrument_site, RT.InstrumentSite)
 
         if parent_id:
-            self.instrument_site.link_parent(instrument_site_id, parent_id)
+            self.RR2.assign_site_to_one_site_with_has_site(instrument_site_id, parent_id)
 
         return instrument_site_id
 
@@ -333,7 +354,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @retval instrument_site    InstrumentSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.instrument_site.read_one(instrument_site_id)
+        return self.RR2.read(instrument_site_id, RT.InstrumentSite)
 
     def update_instrument_site(self, instrument_site=None):
         """Update a InstrumentSite resource
@@ -341,7 +362,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param instrument_site    InstrumentSite
         @throws NotFound    object with specified id does not exist
         """
-        return self.instrument_site.update_one(instrument_site)
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        self._calc_geospatial_point_center(instrument_site)
+
+        return self.RR2.update(instrument_site, RT.InstrumentSite)
 
     def delete_instrument_site(self, instrument_site_id=''):
         """Delete a InstrumentSite resource, removes assocations to parents
@@ -350,10 +374,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @throws NotFound    object with specified id does not exist
         """
         # todo: give InstrumentSite a lifecycle in COI so that we can remove the "True" argument here
-        self.instrument_site.delete_one(instrument_site_id)
+        self.RR2.retire(instrument_site_id, RT.InstrumentSite)
 
     def force_delete_instrument_site(self, instrument_site_id=''):
-        self.instrument_site.force_delete_one(instrument_site_id)
+        self.RR2.pluck_delete(instrument_site_id, RT.InstrumentSite)
 
 
 
@@ -366,29 +390,28 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         deployment on a platform at an observatory site.
         """
 
-        deployment_id, version = self.clients.resource_registry.create(deployment)
+        deployment_id = self.RR2.create(deployment, RT.Deployment)
 
         #Verify that site and device exist, add links if they do
         if site_id:
-            site_obj = self.clients.resource_registry.read(site_id)
+            site_obj = self.RR2.read(site_id)
             if site_obj:
-                self.clients.resource_registry.create_association(site_id, PRED.hasDeployment, deployment_id)
+                self.RR2.assign_deployment_to_site_with_has_deployment(deployment_id, site_id)
 
         if device_id:
-            device_obj = self.clients.resource_registry.read(device_id)
+
+            device_obj = self.RR2.read(device_id)
             if device_obj:
-                self.clients.resource_registry.create_association(device_id, PRED.hasDeployment, deployment_id)
+                self.RR2.assign_deployment_to_device_with_has_deployment(deployment_id, device_id)
 
         return deployment_id
 
     def update_deployment(self, deployment=None):
         # Overwrite Deployment object
-        self.clients.resource_registry.update(deployment)
+        self.RR2.update(deployment, RT.Deployment)
 
     def read_deployment(self, deployment_id=''):
-        # Read Deployment object with _id matching id
-        log.debug("Reading Deployment object id: %s", deployment_id)
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
+        deployment_obj = self.RR2.read(deployment_id, RT.Deployment)
 
         return deployment_obj
 
@@ -396,23 +419,11 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         Delete a Deployment resource
         """
-        #Verify that the deployment exist
-        deployment_obj = self.clients.resource_registry.read(deployment_id)
-        if not deployment_obj:
-            raise NotFound("Deployment %s does not exist" % deployment_id)
 
-        # Remove the link between the Stream Definition resource and the Data Process Definition resource
-        associations = self.clients.resource_registry.find_associations(None, PRED.hasDeployment, deployment_id, id_only=True)
-        if not associations:
-            raise NotFound("No Sites or Devices associated with this Deployment identifier " + str(deployment_id))
-        for association in associations:
-            self.clients.resource_registry.delete_association(association)
-
-        # Delete the deployment
-        self.clients.resource_registry.retire(deployment_id)
+        self.RR2.retire(deployment_id, RT.Deployment)
 
     def force_delete_deployment(self, deployment_id=''):
-        self.clients.resource_registry.delete(deployment_id)
+        self.RR2.pluck_delete(deployment_id, RT.Deployment)
 
 
     ############################
@@ -429,17 +440,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        parent_site_obj = self.subsite.read_one(parent_site_id)
-        parent_site_type = parent_site_obj._get_type()
 
-        if RT.Observatory == parent_site_type:
-            self.observatory.link_site(parent_site_id, child_site_id)
-        elif RT.Subsite == parent_site_type:
-           self.subsite.link_site(parent_site_id, child_site_id)
-        elif RT.PlatformSite == parent_site_type:
-           self.platform_site.link_site(parent_site_id, child_site_id)
-        else:
-           raise BadRequest("Tried to assign a child site to a %s resource" % parent_site_type)
+        self.RR2.assign_site_to_site_with_has_site(child_site_id, parent_site_id)
+
 
     def unassign_site_from_site(self, child_site_id='', parent_site_id=''):
         """Disconnects a child site (any subtype) from a parent site (any subtype)
@@ -448,17 +451,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param parent_site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        parent_site_obj = self.subsite.read_one(parent_site_id)
-        parent_site_type = parent_site_obj._get_type()
 
-        if RT.Observatory == parent_site_type:
-            self.observatory.unlink_site(parent_site_id, child_site_id)
-        elif RT.Subsite == parent_site_type:
-            self.subsite.unlink_site(parent_site_id, child_site_id)
-        elif RT.PlatformSite == parent_site_type:
-            self.platform_site.unlink_site(parent_site_id, child_site_id)
-        else:
-            raise BadRequest("Tried to unassign a child site from a %s resource" % parent_site_type)
+        self.RR2.unassign_site_from_site_with_has_site(child_site_id, parent_site_id)
+
 
     def assign_device_to_site(self, device_id='', site_id=''):
         """Connects a device (any type) to a site (any subtype)
@@ -467,15 +462,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        site_obj = self.subsite.read_one(site_id)
-        site_type = site_obj._get_type()
 
-        if RT.PlatformSite == site_type:
-            self.platform_site.link_device(site_id, device_id)
-        elif RT.InstrumentSite == site_type:
-            self.instrument_site.link_device(site_id, device_id)
-        else:
-            raise BadRequest("Tried to assign a device to a %s resource" % site_type)
+        self.RR2.assign_device_to_site_with_has_device(device_id, site_id)
 
     def unassign_device_from_site(self, device_id='', site_id=''):
         """Disconnects a device (any type) from a site (any subtype)
@@ -484,33 +472,44 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         @param site_id    str
         @throws NotFound    object with specified id does not exist
         """
-        site_obj = self.subsite.read_one(site_id)
-        site_type = site_obj._get_type()
 
-        if RT.PlatformSite == site_type:
-           self.platform_site.unlink_device(site_id, device_id)
-        elif RT.InstrumentSite == site_type:
-           self.instrument_site.unlink_device(site_id, device_id)
-        else:
-           raise BadRequest("Tried to unassign a device from a %s resource" % site_type)
+        self.RR2.unassign_device_from_site_with_has_device(device_id, site_id)
 
-    def assign_site_to_observatory(self, site_id='', observatory_id=''):
-        self.observatory.link_site(observatory_id, site_id)
 
-    def unassign_site_from_observatory(self, site_id="", observatory_id=''):
-        self.observatory.unlink_site(observatory_id, site_id)
+    def assign_device_to_network_parent(self, child_device_id='', parent_device_id=''):
+        """Connects a device (any type) to parent in the RSN network
+
+        @param child_device_id    str
+        @param parent_device_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        self.RR2.assign_device_to_one_device_with_has_network_parent(parent_device_id, child_device_id)
+
+
+    def unassign_device_from_network_parent(self, child_device_id='', parent_device_id=''):
+        """Disconnects a child device (any type) from parent in the RSN network
+
+        @param child_device_id    str
+        @param parent_device_id    str
+        @throws NotFound    object with specified id does not exist
+        """
+
+        self.RR2.unassign_device_from_device_with_has_network_parent(parent_device_id, child_device_id)
+
+
 
     def assign_instrument_model_to_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        self.instrument_site.link_model(instrument_site_id, instrument_model_id)
+        self.RR2.assign_instrument_model_to_instrument_site_with_has_model(instrument_model_id, instrument_site_id)
 
     def unassign_instrument_model_from_instrument_site(self, instrument_model_id='', instrument_site_id=''):
-        self.instrument_site.unlink_model(instrument_site_id, instrument_model_id)
+        self.RR2.unassign_instrument_model_from_instrument_site_with_has_model(self, instrument_model_id, instrument_site_id)
 
     def assign_platform_model_to_platform_site(self, platform_model_id='', platform_site_id=''):
-        self.platform_site.link_model(platform_site_id, platform_model_id)
+        self.RR2.assign_platform_model_to_platform_site_with_has_model(platform_model_id, platform_site_id)
 
     def unassign_platform_model_from_platform_site(self, platform_model_id='', platform_site_id=''):
-        self.platform_site.unlink_model(platform_site_id, platform_model_id)
+        self.RR2.unassign_platform_model_from_platform_site_with_has_model(platform_model_id, platform_site_id)
 
     def assign_resource_to_observatory_org(self, resource_id='', org_id=''):
         if not org_id:
@@ -518,7 +517,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         if not resource_id:
             raise BadRequest("Resource id not given")
 
-        log.debug("assign_resource_to_observatory_org: org_id=%s, resource_id=%s ", org_id, resource_id)
+        #log.trace("assign_resource_to_observatory_org: org_id=%s, resource_id=%s ", org_id, resource_id)
         self.clients.org_management.share_resource(org_id, resource_id)
 
     def unassign_resource_from_observatory_org(self, resource_id='', org_id=''):
@@ -544,276 +543,17 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def deploy_instrument_site(self, instrument_site_id='', deployment_id=''):
-        self.instrument_site.link_deployment(instrument_site_id, deployment_id)
+        self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
 
     def undeploy_instrument_site(self, instrument_site_id='', deployment_id=''):
-        self.instrument_site.unlink_deployment(instrument_site_id, deployment_id)
+        self.RR2.unassign_deployment_from_instrument_site_with_has_deployment(deployment_id, instrument_site_id)
 
     def deploy_platform_site(self, platform_site_id='', deployment_id=''):
-        self.platform_site.link_deployment(platform_site_id, deployment_id)
+        self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id)
 
     def undeploy_platform_site(self, platform_site_id='', deployment_id=''):
-        self.platform_site.unlink_deployment(platform_site_id, deployment_id)
+        self.RR2.unassign_deployment_from_platform_site_with_has_deployment(deployment_id, platform_site_id)
 
-
-    def create_site_data_product(self, site_id="", data_product_id=""):
-        # verify that both exist
-        site_obj = self.RR.read(site_id)
-        self.RR.read(data_product_id)
-
-        sitetype = type(site_obj).__name__
-
-        if not (RT.InstrumentSite == sitetype or RT.PlatformSite == sitetype):
-            raise BadRequest("Can't associate a data product to a %s" % sitetype)
-
-        # validation
-        prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct)
-        if 0 < len(prods):
-            raise BadRequest("%s '%s' already has an output data product" % (sitetype, site_id))
-
-        sites, _ = self.RR.find_subjects(sitetype, PRED.hasOutputProduct, data_product_id)
-        if 0 < len(sites):
-            raise BadRequest("DataProduct '%s' is already an output product of a %s" % (data_product_id, sitetype))
-
-        #todo: re-use existing defintion?  how?
-
-
-        #----------------------------------------------------------------------------------------------------
-        # Get the data process definition added during preload
-        #----------------------------------------------------------------------------------------------------
-
-        data_process_def_ids, _ = self.container.resource_registry.find_resources(RT.DataProcessDefinition,
-                                                                                  None,
-                                                                                  LOGICAL_TRANSFORM_DEFINITION_NAME,
-                                                                                  True)
-        if not 1 == len(data_process_def_ids):
-            raise Inconsistent("Expected 1 data process definition, got %s with name '%s'" %
-                               (len(data_process_def_ids), LOGICAL_TRANSFORM_DEFINITION_NAME))
-        data_process_def_id = data_process_def_ids[0]
-
-        #----------------------------------------------------------------------------------------------------
-        # Create a data process
-        #----------------------------------------------------------------------------------------------------
-        data_process_id = self.dataprocessclient.create_data_process(data_process_def_id,
-                                                                     None,
-                                                                     {"logical":data_product_id})
-
-        self.dataprocessclient.activate_data_process(data_process_id)
-
-        #make it all happen
-        if RT.InstrumentSite == sitetype:
-            self.instrument_site.link_output_product(site_id, data_product_id)
-        elif RT.PlatformSite == sitetype:
-            self.platform_site.link_output_product(site_id, data_product_id)
-
-
-    def streamdef_of_site(self, site_id):
-        """
-        return the streamdef associated with the output product of a site
-        """
-
-        #assume we've previously validated that the site has 1 product
-        p, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        streams, _ = self.RR.find_objects(p[0], PRED.hasStream, RT.Stream, True)
-        if 1 != len(streams):
-            raise BadRequest("Expected 1 stream on DataProduct '%s', got %d" % (p[0], len(streams)))
-        sdefs, _ = self.RR.find_objects(streams[0], PRED.hasStreamDefinition, RT.StreamDefinition, True)
-        if 1 != len(sdefs):
-            raise BadRequest("Expected 1 streamdef on StreamDefinition '%s', got %d" % (streams[0], len(sdefs)))
-
-        return sdefs[0]
-
-
-    def streamdefs_of_device(self, device_id):
-        """
-        return a dict of streamdef_id => stream_id for a given device
-        """
-
-        assert(type("") == type(device_id))
-
-        #recursive function to get all data producers
-        def child_data_producers(dpdc_ids):
-            def cdp_helper(acc2, dpdc_id2):
-                children, _ = self.RR.find_subjects(RT.DataProducer, PRED.hasParent, dpdc_id2, True)
-                for child in children:
-                    acc2.append(child)
-                    acc2 = cdp_helper(acc2, child)
-                return acc
-
-            #call helper using input list of data products
-            acc = []
-            for d in dpdc_ids:
-                acc = cdp_helper(acc, d)
-            return acc
-
-        #initial list of data producers
-        pdcs, _ = self.RR.find_objects(device_id, PRED.hasDataProducer, RT.DataProducer, True)
-        if 0 == len(pdcs):
-            raise BadRequest("Expected data producer(s) on device '%s', got none" % device_id)
-
-        #now the full list of data producers, with children
-        pdcs = child_data_producers(pdcs)
-        log.debug("Got %s data producers", len(pdcs))
-
-        streamdefs = {}
-        for pdc in pdcs:
-            log.debug("Checking data producer %s", pdc)
-            prods, _ = self.RR.find_subjects(RT.DataProduct, PRED.hasDataProducer, pdc, True)
-            for p in prods:
-                log.debug("Checking product %s", p)
-                streams, _ = self.RR.find_objects(p, PRED.hasStream, RT.Stream, True)
-                for s in streams:
-                    log.debug("Checking stream %s", s)
-                    sdefs, _ = self.RR.find_objects(s, PRED.hasStreamDefinition, RT.StreamDefinition, True)
-                    for sd in sdefs:
-                        log.debug("Checking streamdef %s", sd)
-                        if sd in streamdefs:
-                            raise BadRequest("Got a duplicate stream definition stemming from device %s" % device_id)
-                        streamdefs[sd] = s
-
-        return streamdefs
-
-
-    def check_site_for_deployment(self, site_id, site_type, model_type, check_data_products=True):
-        assert(type("") == type(site_id))
-        assert(type(RT.Resource) == type(site_type) == type(model_type))
-
-        log.debug("checking %s for deployment, will return %s", site_type, model_type)
-        # validate and return supported models
-        models, _ = self.RR.find_objects(site_id, PRED.hasModel, model_type, True)
-        if 1 > len(models):
-            raise BadRequest("Expected at least 1 model for %s '%s', got %s" % (site_type, site_id, len(models)))
-
-        if check_data_products:
-            log.trace("checking site data products")
-            #todo: remove this when platform data products start working
-            if site_type != RT.PlatformSite:
-                prods, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-                if 1 != len(prods):
-                    raise BadRequest("Expected 1 output data product on %s '%s', got %s" % (site_type,
-                                                                                            site_id,
-                                                                                            len(prods)))
-        log.trace("check_site_for_deployment returning %s models", len(models))
-
-        return models
-
-
-
-    def check_device_for_deployment(self, device_id, device_type, model_type):
-        assert(type("") == type(device_id))
-        assert(type(RT.Resource) == type(device_type) == type(model_type))
-
-        log.trace("checking %s for deployment, will return %s", device_type, model_type)
-        # validate and return model
-        models, _ = self.RR.find_objects(device_id, PRED.hasModel, model_type, True)
-        if 1 != len(models):
-            raise BadRequest("Expected 1 model for %s '%s', got %d" % (device_type, device_id, len(models)))
-        log.trace("check_device_for_deployment returning 1 model")
-        return models[0]
-
-    def check_site_device_pair_for_deployment(self, site_id, device_id, site_type=None, device_type=None):
-        assert(type("") == type(site_id) == type(device_id))
-
-        log.debug("checking %s/%s pair for deployment", site_type, device_type)
-        #return a pair that should be REMOVED, or None
-
-        if site_type is None:
-            site_type = type(self.RR.read(site_id)).__name__
-
-        if device_type is None:
-            device_type = type(self.RR.read(device_id)).__name__
-
-        ret = None
-
-        log.trace("checking existing hasDevice links from site")
-        devices, _ = self.RR.find_objects(site_id, PRED.hasDevice, device_type, True)
-        if 1 < len(devices):
-            raise Inconsistent("Found more than 1 hasDevice relationship from %s '%s'" % (site_type, site_id))
-        elif 0 < len(devices):
-            if devices[0] != device_id:
-                ret = (site_id, devices[0])
-                log.info("%s '%s' is already hasDevice with a %s", site_type, site_id, device_type)
-
-        return ret
-
-#    def has_matching_streamdef(self, site_id, device_id):
-#        if not self.streamdef_of_site(site_id) in self.streamdefs_of_device(device_id):
-#            raise BadRequest("No matching streamdefs between %s '%s' and %s '%s'" %
-#                             (site_type, site_id, device_type, device_id))
-
-    def collect_deployment_components(self, deployment_id):
-        """
-        get all devices and sites associated with this deployment and use their ID as a key to list of models
-        """
-        assert(type("") == type(deployment_id))
-
-        device_models = {}
-        site_models = {}
-
-        # significant change-up in how this works.
-        #
-        # collect all devices in this deployment
-
-        def add_sites(site_ids, site_type, model_type):
-            for s in site_ids:
-                models = self.check_site_for_deployment(s, site_type, model_type, False)
-                if s in site_models:
-                    log.warn("Site '%s' was already collected in deployment '%s'", s, deployment_id)
-                site_models[s] = models
-
-        def add_devices(device_ids, device_type, model_type):
-            for d in device_ids:
-                model = self.check_device_for_deployment(d, device_type, model_type)
-                if d in device_models:
-                    log.warn("Device '%s' was already collected in deployment '%s'", d, deployment_id)
-                device_models[d] = model
-
-
-        def collect_specific_resources(site_type, device_type, model_type):
-            # check this deployment -- specific device types -- for validity
-            # return a list of pairs (site, device) to be associated
-            log.trace("Collecting resources: site=%s device=%s model=%s", site_type, device_type, model_type)
-            new_site_ids, _ = self.RR.find_subjects(site_type,
-                                                    PRED.hasDeployment,
-                                                    deployment_id,
-                                                    True)
-
-            new_device_ids, _ = self.RR.find_subjects(device_type,
-                                                      PRED.hasDeployment,
-                                                      deployment_id,
-                                                      True)
-
-            add_sites(new_site_ids, site_type, model_type)
-            add_devices(new_device_ids, device_type, model_type)
-
-        # collect platforms, verify that only one platform device exists in the deployment
-        collect_specific_resources(RT.PlatformSite, RT.PlatformDevice, RT.PlatformModel)
-        if 1 < len(device_models):
-            raise BadRequest("Multiple platforms in the same deployment are not allowed")
-        elif 0 < len(device_models):
-            log.trace("adding devices and sites that are children of platform device / site")
-            child_device_objs = self.platform_device.find_stemming_platform_device(device_models.keys()[0])
-            child_site_objs = self.find_related_frames_of_reference(site_models.keys()[0],
-                [RT.PlatformSite, RT.InstrumentSite])
-
-            child_device_ids = [x._id for x in child_device_objs]
-            child_site_ids   = [x._id for x in child_site_objs[RT.InstrumentSite]]
-
-            # IGNORE child platforms
-            #  verify that platform site has no sub-platform-sites
-            #if 0 < len(child_site_ids[RT.PlatformSite]):
-            #    raise BadRequest("Deploying a platform with its own child platform is not allowed")
-
-            #  gather a list of all instrument sites on platform site
-            #  gather a list of all instrument devices on platform device
-            add_devices(child_device_ids, RT.InstrumentDevice, RT.InstrumentModel)
-            add_sites(child_site_ids, RT.InstrumentSite, RT.InstrumentModel)
-        else:
-            log.warn("0 platforms in deployment being activated")
-
-        collect_specific_resources(RT.InstrumentSite, RT.InstrumentDevice, RT.InstrumentModel)
-
-        return device_models, site_models
 
 
     def activate_deployment(self, deployment_id='', activate_subscriptions=False):
@@ -821,82 +561,25 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         Make the devices on this deployment the primary devices for the sites
         """
         #Verify that the deployment exists
-        self.clients.resource_registry.read(deployment_id)
+        depl_obj = self.RR2.read(deployment_id)
+        log.debug("Activing deployment '%s' (%s)", depl_obj.name, deployment_id)
 
-#        if LCS.DEPLOYED == deployment_obj.lcstate:
-#            raise BadRequest("This deploment is already active")
-
-        log.trace("activate_deployment about to collect components")
-        device_models, site_models = self.collect_deployment_components(deployment_id)
-        log.trace("Collected %s device models, %s site models", len(device_models), len(site_models))
-
-        # create a CSP so we can solve it
-        problem = constraint.Problem()
-
-        # add variables - the devices to be assigned, and their range (possible sites)
-        for device_id in device_models.keys():
-            device_model = device_models[device_id]
-            possible_sites = [s for s in site_models.keys()
-                              if device_model in site_models[s]]
-                                    #and self.streamdef_of_site(s) in self.streamdefs_of_device(device_id)]
-            problem.addVariable("device_%s" % device_id, possible_sites)
-
-        # add the constraint that all the variables have to pick their own site
-        problem.addConstraint(constraint.AllDifferentConstraint(),
-            ["device_%s" % device_id for device_id in device_models.keys()])
-
-        # perform CSP solve; this will be a list of solutions, each a dict of var -> value
-        solutions = problem.getSolutions()
-
-        def solution_to_string(soln):
-            ret = "%s" % type(soln).__name__
-            for k, v in soln.iteritems():
-                dev_obj = self.RR.read(k)
-                site_obj = self.RR.read(v)
-                ret = "%s, %s '%s' -> %s '%s'" % (ret, dev_obj._get_type(), k, site_obj._get_type(), v)
-            return ret
-
-        if 1 > len(solutions):
-            raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
-                             "model and streamdefs")
-        elif 1 < len(solutions):
-            log.warn("Found %d possible ways to map device and site, but just picking the first one", len(solutions))
-            log.warn("Here is the %s of all of them:", type(solutions).__name__)
-            for i, s in enumerate(solutions):
-                log.warn("Option %d: %s" , i+1, solution_to_string(s))
-        else:
-            log.info("Found one possible way to map devices and sites.  Best case scenario!")
-
-        pairs_add = []
-        pairs_rem = []
-
-        #figure out if any of the devices in the new mapping are already mapped and need to be removed
-        #then add the new mapping to the output array
-        for device_id in device_models.keys():
-            site_id = solutions[0]["device_%s" % device_id]
-            old_pair = self.check_site_device_pair_for_deployment(site_id, device_id)
-            if old_pair:
-                pairs_rem.append(old_pair)
-            new_pair = (site_id, device_id)
-            pairs_add.append(new_pair)
+        deployment_activator_factory = DeploymentActivatorFactory(self.clients)
+        deployment_activator = deployment_activator_factory.create(depl_obj)
+        deployment_activator.prepare()
 
         # process any removals
-        for site_id, device_id in pairs_rem:
+        for site_id, device_id in deployment_activator.hasdevice_associations_to_delete():
             log.info("Unassigning hasDevice; device '%s' from site '%s'", device_id, site_id)
-            if not activate_subscriptions:
-                log.warn("The input to the data product for site '%s' will no longer come from its primary device",
-                         site_id)
             self.unassign_device_from_site(device_id, site_id)
 
         # process the additions
-        for site_id, device_id in pairs_add:
+        for site_id, device_id in deployment_activator.hasdevice_associations_to_create():
             log.info("Setting primary device '%s' for site '%s'", device_id, site_id)
             self.assign_device_to_site(device_id, site_id)
-            if activate_subscriptions:
-                log.info("Activating subscription as requested")
-                self.transfer_site_subscription(site_id)
-#
-#        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
+
+
+        #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEPLOY)
 
 
     def deactivate_deployment(self, deployment_id=''):
@@ -908,16 +591,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
 
         #Verify that the deployment exists
-        self.clients.resource_registry.read(deployment_id)
+        deployment_obj = self.RR2.read(deployment_id)
 
 #        if LCS.DEPLOYED != deployment_obj.lcstate:
 #            raise BadRequest("This deploment is not active")
 
         # get all associated components
-        device_models, site_models = self.collect_deployment_components(deployment_id)
+        collector_factory = DeploymentResourceCollectorFactory(self.clients)
+        resource_collector = collector_factory.create(deployment_obj)
+        resource_collector.collect()
 
-        #must only remove from sites that are not deployed under a different active deployment
-        # must only remove devices that are not deployed under a different active deployment
+        # must only remove from sites that are not deployed under a different active deployment
+        # must only remove    devices that are not deployed under a different active deployment
         def filter_alternate_deployments(resource_list):
             # return the list of ids for devices or sites not connected to an alternate lcs.deployed deployment
             ret = []
@@ -931,8 +616,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                     ret.append(r)
             return ret
 
-        device_ids = filter_alternate_deployments(device_models.keys())
-        site_ids   = filter_alternate_deployments(site_models.keys())
+        device_ids = filter_alternate_deployments(resource_collector.collected_device_ids())
+        site_ids   = filter_alternate_deployments(resource_collector.collected_site_ids())
 
         # delete only associations where both site and device have passed the filter
         for s in site_ids:
@@ -946,86 +631,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 #        self.RR.execute_lifecycle_transition(deployment_id, LCE.DEVELOPED)
 
 
-
-    def transfer_site_subscription(self, site_id=""):
-        """
-        Transfer the site subscription to the current hasDevice link
-        """
-
-        # get site obj
-        log.info('Getting site object: %s', site_id)
-        site_obj = self.RR.read(site_id)
-
-        # error if no hasDevice
-        devices, _ = self.RR.find_objects(site_id, PRED.hasDevice, None, True)
-        if 1 != len(devices):
-            raise BadRequest("Expected 1 hasDevice association, got %d" % len(devices))
-        device_id = devices[0]
-
-        # get device obj
-        device_obj = self.RR.read(device_id)
-
-        # error if models don't match
-        site_type = type(site_obj).__name__
-        device_type = type(device_obj).__name__
-        if RT.InstrumentDevice == device_type:
-            model_type = RT.InstrumentModel
-        elif RT.PlatformDevice == device_type:
-            #model_type = RT.PlatformModel
-            #todo: actually transfer the subsription.  for now we abort because there are no platform data products
-            return
-        else:
-            raise BadRequest("Expected a device type, got '%s'" % device_type)
-
-        device_model = self.check_device_for_deployment(device_id, device_type, model_type)
-        site_models = self.check_site_for_deployment(site_id, site_type, model_type)
-        # commented out as per Maurice, 8/7/12
-        device_model, site_models #suppress pyflakes warnings
-#        if device_model not in site_models:
-#            raise BadRequest("The site and device model types are incompatible")
-
-        # check site/device pair.
-        # this function re-checks the association as a side effect, so this error should NEVER happen
-        if self.check_site_device_pair_for_deployment(site_id, device_id, site_type, device_type):
-            raise BadRequest("Magically and unfortunately, the site and device are no longer associated")
-
-        # get deployments
-        depl_site, _ = self.RR.find_objects(site_id, PRED.hasDeployment, RT.Deployment, True)
-        depl_dev, _  = self.RR.find_objects(device_id, PRED.hasDeployment, RT.Deployment, True)
-
-        # error if no matching deployments
-        found = False
-        for ds in depl_site:
-            if ds in depl_dev:
-                found = True
-                break
-        if not found:
-            raise BadRequest("Site and device do not share a deployment!")
-
-        # check product and process from site
-        pduct_ids, _ = self.RR.find_objects(site_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        if 1 != len(pduct_ids):
-            raise BadRequest("Expected 1 DataProduct associated to site '%s' but found %d" % (site_id, len(pduct_ids)))
-        process_ids, _ = self.RR.find_subjects(RT.DataProcess, PRED.hasOutputProduct, pduct_ids[0], True)
-        if not process_ids:
-            log.info('No DataProcess associated to the data product of this site')
-#        if 1 != len(process_ids):
-#            raise BadRequest("Expected 1 DataProcess feeding DataProduct '%s', but found %d" %
-#                             (pduct_ids[0], len(process_ids)))
-
-        #look up stream defs
-        ss = self.streamdef_of_site(site_id)
-        ds = self.streamdefs_of_device(device_id)
-
-        if not ss in ds:
-            raise BadRequest("Data product(s) of site does not have any matching streamdef for data product of device")
-        if process_ids:
-            data_process_id = process_ids[0]
-            log.info("Changing subscription: %s", data_process_id)
-            log.info('ds of ss: %s', ds[ss])
-            self.PRMS.update_data_process_inputs(data_process_id, [ds[ss]])
-
-        log.info("Successfully changed subscriptions")
 
 
 
@@ -1070,8 +675,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                 retval_ids.add(a.s)
 
 
-        log.debug("converting retrieved ids to objects = %s" % retval_ids)
-
+        log.trace("converting retrieved ids to objects = %s" % retval_ids)
         #initialize the dict
         retval = dict((restype, []) for restype in output_resource_type_list)
 
@@ -1092,7 +696,73 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         return retval
 
 
+    def find_related_sites(self, parent_resource_id='', exclude_site_types=None, include_parents=False, id_only=False):
+        if not parent_resource_id:
+            raise BadRequest("Must provide a parent parent_resource_id")
+        exclude_site_types = exclude_site_types or []
+        if not isinstance(exclude_site_types, list):
+            raise BadRequest("exclude_site_types mut be a list, is: %s" % type(exclude_site_types))
 
+        parent_resource = self.RR.read(parent_resource_id)
+
+        org_id, site_id = None, None
+        if parent_resource.type_ == RT.Org:
+            org_id = parent_resource_id
+        elif RT.Site in parent_resource._get_extends():
+            site_id = parent_resource_id
+        else:
+            raise BadRequest("Illegal parent_resource_id type. Expected Org/Site, given:%s" % parent_resource.type_)
+
+        site_resources, site_children = self.outil.get_child_sites(site_id, org_id,
+                                   exclude_types=exclude_site_types, include_parents=include_parents, id_only=id_only)
+
+        return site_resources, site_children
+
+
+    def get_sites_devices_status(self, parent_resource_id='', include_devices=False, include_status=False):
+        if not parent_resource_id:
+            raise BadRequest("Must provide a parent parent_resource_id")
+
+        parent_resource = self.RR.read(parent_resource_id)
+
+        org_id, site_id = None, None
+        if parent_resource.type_ == RT.Org:
+            org_id = parent_resource_id
+        elif RT.Site in parent_resource._get_extends():
+            site_id = parent_resource_id
+
+        result_dict = {}
+        if include_status:
+            status_rollups = self.outil.get_status_roll_ups(parent_resource_id, parent_resource.type_, include_structure=True)
+            struct_dict = status_rollups.pop("_system") if "_system" in status_rollups else {}
+
+            result_dict["site_resources"] = struct_dict.get("sites", {})
+            result_dict["site_children"] = struct_dict.get("ancestors", {})
+            if include_devices:
+                site_devices = struct_dict.get("devices", {})
+                result_dict["site_devices"] = site_devices
+                device_ids = [tuple_list[0][1] for tuple_list in site_devices.values() if tuple_list]
+                device_objs = self.RR.read_mult(device_ids)
+                result_dict["device_resources"] = dict(zip(device_ids, device_objs))
+            result_dict["site_status"] = status_rollups
+
+        else:
+            site_resources, site_children = self.outil.get_child_sites(site_id, org_id, include_parents=True, id_only=False)
+            result_dict["site_resources"] = site_resources
+            result_dict["site_children"] = site_children
+
+        return result_dict
+
+    def find_site_data_products(self, parent_resource_id='', include_sites=False, include_devices=False,
+                                include_data_products=False):
+        if not parent_resource_id:
+            raise BadRequest("Must provide a parent parent_resource_id")
+
+        res_dict = self.outil.get_site_data_products(parent_resource_id, include_sites=include_sites,
+                                                     include_devices=include_devices,
+                                                     include_data_products=include_data_products)
+
+        return res_dict
 
 
     ############################
@@ -1102,7 +772,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
     ############################
 
 
-    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+    def _get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an InstrumentDeviceExtension object containing additional related information
 
         @param site_id    str
@@ -1126,6 +796,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
+        RR2 = EnhancedResourceRegistryClient(self.RR)
+        RR2.cache_predicate(PRED.hasModel)
+
         # Get status of Site instruments.
         a, b =  self._get_instrument_states(extended_site.instrument_devices)
         extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
@@ -1133,9 +806,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id
         lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
-        for a in self.RR.find_associations(predicate=PRED.hasModel, id_only=False):
-            if a.st in lookup:
-                lookup[a.st][a.s] = a.o
+        for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
+            lookup[a.st][a.s] = a.o
 
         def retrieve_model_objs(rsrc_list, object_type):
         # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
@@ -1143,7 +815,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #  look up all the model ids, then create the proper output
             model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
             model_uniq = list(set([m for m in model_list if m is not None]))
-            model_objs = self.clients.resource_registry.read_mult(model_uniq)
+            model_objs = self.RR2.read_mult(model_uniq)
             model_dict = dict(zip(model_uniq, model_objs))
             return [model_dict.get(m) for m in model_list]
 
@@ -1151,73 +823,105 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
 
-        s_unknown = StatusType.STATUS_UNKNOWN
-
         # Status computation
-        extended_site.computed.instrument_status = [s_unknown] * len(extended_site.instrument_devices)
-        extended_site.computed.platform_status   = [s_unknown] * len(extended_site.platform_devices)
-        extended_site.computed.site_status       = [s_unknown] * len(extended_site.sites)
+        extended_site.computed.instrument_status = [self.agent_status_builder.get_aggregate_status_of_device(idev._id, "aggstatus")
+                                                    for idev in extended_site.instrument_devices]
+        extended_site.computed.platform_status   = [self.agent_status_builder.get_aggregate_status_of_device(pdev._id, "aggstatus")
+                                                    for pdev in extended_site.platform_devices]
 
+#            self.agent_status_builder.add_device_aggregate_status_to_resource_extension(device_id,
+#                                                                                    'aggstatus',
+#                                                                                    extended_site)
         def status_unknown():
             return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
-
         extended_site.computed.communications_status_roll_up = status_unknown()
         extended_site.computed.power_status_roll_up          = status_unknown()
         extended_site.computed.data_status_roll_up           = status_unknown()
         extended_site.computed.location_status_roll_up       = status_unknown()
         extended_site.computed.aggregated_status             = status_unknown()
 
-        try:
-            status_rollups = self.outil.get_status_roll_ups(site_id, extended_site.resource._get_type())
-
-            extended_site.computed.instrument_status = [status_rollups.get(idev._id,{}).get("agg", s_unknown)
-                                                        for idev in extended_site.instrument_devices]
-            extended_site.computed.platform_status   = [status_rollups.get(pdev._id,{}).get("agg", s_unknown)
-                                                        for pdev in extended_site.platform_devices]
-            extended_site.computed.site_status       = [status_rollups.get(site._id,{}).get("agg", s_unknown)
-                                                        for site in extended_site.sites]
+        extended_site.computed.site_status = [StatusType.STATUS_UNKNOWN] * len(extended_site.sites)
 
 
-            def short_status_rollup(key):
-                return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                                        value=status_rollups[site_id].get(key, s_unknown))
 
-            extended_site.computed.communications_status_roll_up = short_status_rollup("comms")
-            extended_site.computed.power_status_roll_up          = short_status_rollup("power")
-            extended_site.computed.data_status_roll_up           = short_status_rollup("data")
-            extended_site.computed.location_status_roll_up       = short_status_rollup("loc")
-            extended_site.computed.aggregated_status             = short_status_rollup("agg")
-        except Exception as ex:
-            log.exception("Computed attribute failed for site %s" % site_id)
+        return extended_site, RR2
 
+
+    def _get_site_extension_plus(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        # the "plus" means "plus all sub-site objects"
+
+        extended_site, RR2 = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        # use the related resources crawler
+        finder = RelatedResourcesCrawler()
+        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasSite])
+        full_crawllist = [RT.InstrumentSite, RT.PlatformSite, RT.Subsite]
+        search_down = get_assns({PRED.hasSite: (True, False)}, full_crawllist)
+
+        # the searches return a list of association objects, so compile all the ids by extracting them
+        subsite_ids = set([])
+
+        # we want only those IDs that are not the input resource id
+        for a in search_down(site_id, -1):
+            if a.o != site_id:
+                subsite_ids.add(a.o)
+
+        log.trace("converting retrieved ids to objects = %s" % subsite_ids)
+        subsite_objs = RR2.read_mult(list(subsite_ids))
+
+        # filtered subsites
+        def fs(resource_type, filter_fn):
+            both = lambda s: ((resource_type == s._get_type()) and filter_fn(s))
+            return filter(both, subsite_objs)
+
+        def pfs(filter_fn):
+            return fs(RT.PlatformSite, filter_fn)
+
+        def ifs(filter_fn):
+            return fs(RT.InstrumentSite, filter_fn)
+
+        extended_site.computed.platform_station_sites = pfs(lambda s: "StationSite" == s.alt_resource_type)
+        extended_site.computed.platform_component_sites = pfs(lambda s: "PlatformComponentSite" == s.alt_resource_type)
+        extended_site.computed.platform_assembly_sites = pfs(lambda s: "PlatformAssemblySite" == s.alt_resource_type)
+        extended_site.computed.instrument_sites = ifs(lambda _: True)
+
+        return extended_site, RR2, subsite_objs
+
+    # TODO: will remove this one
+    def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
+
+    def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
         return extended_site
 
 
-        #Bogus functions for computed attributes
-    def get_number_data_sets(self, observatory_id):
-        return "0"
-
-    def get_number_instruments_deployed(self, observatory_id):
-        return "0"
+    def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
 
 
-    def get_number_instruments_operational(self, observatory_id):
-        return "0"
+    def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
+
+    def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        return extended_site
 
 
-    def get_number_instruments_inoperational(self, observatory_id):
-        return "0"
+    def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
 
+        # no subsites of instrument, so shortcut
+        extended_site.computed.platform_station_sites = []
+        extended_site.computed.platform_component_sites = []
+        extended_site.computed.platform_assembly_sites = []
+        extended_site.computed.instrument_sites = []
 
-    def get_number_instruments(self, observatory_id):
-        return "0"
+        return extended_site
 
-
-    def get_number_platforms(self, observatory_id):
-        return "0"
-
-    def get_number_platforms_deployed(self, observatory_id):
-        return "0"
 
     def _get_instrument_states(self, instrument_device_obj_list=None):
 
@@ -1234,7 +938,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         for device_obj in instrument_device_obj_list:
             # first check the instrument lifecycle state
-            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
+#            if not ( device_obj.lcstate in [LCS.DEPLOYED_AVAILABLE, LCS.INTEGRATED_DISCOVERABLE] ):
+            # TODO: check that this is the intended lcs behavior and maybe check availability
+            if not ( device_obj.lcstate in [LCS.DEPLOYED, LCS.INTEGRATED] ):
                 non_op.append(device_obj)
 
             else:
@@ -1260,3 +966,59 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         return op, non_op
 
+    def get_deployment_extension(self, deployment_id='', ext_associations=None, ext_exclude=None, user_id=''):
+
+        if not deployment_id:
+            raise BadRequest("The deployment_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_deployment = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.DeploymentExtension,
+            resource_id=deployment_id,
+            computed_resource_type=OT.DeploymentComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id)
+
+        devices = set()
+        instrument_device_ids = []
+        iplatform_device_ids = []
+        subjs, _ = self.RR.find_subjects( predicate=PRED.hasDeployment, object=deployment_id, id_only=False)
+        for subj in subjs:
+            log.debug('get_deployment_extension  obj:   %s', subj)
+            if subj.type_ == "InstrumentDevice":
+                extended_deployment.instrument_devices.append(subj)
+                devices.add((subj._id, PRED.hasModel))
+            elif subj.type_ == "InstrumentSite":
+                extended_deployment.instrument_sites.append(subj)
+            elif subj.type_ == "PlatformDevice":
+                extended_deployment.platform_devices.append(subj)
+                devices.add((subj._id, PRED.hasModel))
+            elif subj.type_ == "PlatformSite":
+                extended_deployment.platform_sites.append(subj)
+            else:
+                log.warning("get_deployment_extension found invalid type connected to deployment %s. Object details: %s ", deployment_id, subj)
+
+        all_models = set()
+        device_to_model_map = {}
+        model_map = {}
+        assocs = self.RR.find_associations(anyside=list(devices), id_only=False)
+        for assoc in assocs:
+            log.debug('get_deployment_extension  assoc subj:   %s  pred: %s    obj:   %s', assoc.s, assoc.p, assoc.o)
+            all_models.add(assoc.o)
+            device_to_model_map[assoc.s] = assoc.o
+
+        model_objs = self.RR.read_mult( list(all_models) )
+        for model_obj in model_objs:
+            model_map[model_obj._id] = model_obj
+
+        for instrument in extended_deployment.instrument_devices:
+            model_id = device_to_model_map[instrument._id]
+            extended_deployment.instrument_models.append( model_map[model_id] )
+
+        for platform in extended_deployment.platform_devices:
+            model_id = device_to_model_map[platform._id]
+            extended_deployment.platform_models.append( model_map[model_id] )
+
+        return extended_deployment

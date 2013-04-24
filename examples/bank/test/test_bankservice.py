@@ -44,7 +44,7 @@ class TestBankService(PyonTestCase):
         self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'John', True)
         self.mock_ionobj.assert_called_once_with('BankAccount', account_type='Checking')
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
-        self.mock_create_association.assert_called_once_with('id_5', PRED.hasAccount, 'id_2', "H2H")
+        self.mock_create_association.assert_called_once_with('id_5', PRED.hasAccount, 'id_2', None)
         self.assertEqual(account_id, 'id_2')
 
     def test_new_acct_new_customer(self):
@@ -70,7 +70,7 @@ class TestBankService(PyonTestCase):
         self.mock_create.assert_called_with(self.mock_ionobj.return_value)
         pop_last_call(self.mock_create)
         self.mock_create.assert_called_once_with(self.mock_ionobj.return_value)
-        self.mock_create_association.assert_called_once_with('cust_id_1', PRED.hasAccount, 'acct_id_2', "H2H")
+        self.mock_create_association.assert_called_once_with('cust_id_1', PRED.hasAccount, 'acct_id_2', None)
         self.assertEqual(account_id, 'acct_id_2')
 
     def test_deposit_not_found(self):
@@ -314,5 +314,5 @@ class TestBankService(PyonTestCase):
 
         self.mock_find_resources.assert_called_once_with('BankCustomer', None, 'Roger', False)
         self.mock_find_objects.assert_called_once_with(sentinel.customer_obj,
-                PRED.hasAccount, 'BankAccount', False)
+                PRED.hasAccount, 'BankAccount', False, 0, 0, False)
         assert accounts is sentinel.accounts

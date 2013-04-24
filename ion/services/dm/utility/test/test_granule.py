@@ -11,6 +11,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
@@ -19,12 +20,12 @@ from gevent.event import Event
 from nose.plugins.attrib import attr
 from coverage_model import ParameterContext, QuantityType, AxisTypeEnum, ConstantType, NumexprFunction, ParameterFunctionType, VariabilityEnum, PythonFunction
 
+from ion.util.stored_values import StoredValueManager
+
 import numpy as np
 
 @attr('INT',group='dm')
 class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
-    xps = []
-    xns = []
     def setUp(self):
         self._start_container()
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
@@ -36,14 +37,6 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.provider_metadata_update = None
         self.event                    = Event()
 
-    def tearDown(self):
-        for xn in self.xns:
-            xni = self.container.ex_manager.create_xn_queue(xn)
-            xni.delete()
-        for xp in self.xps:
-            xpi = self.container.ex_manager.create_xp(xp)
-            xpi.delete()
-
     def verify_incoming(self, m,r,s):
         rdt = RecordDictionaryTool.load_from_granule(m)
         self.assertEquals(rdt, self.rdt)
@@ -53,23 +46,57 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.event.set()
 
 
+    def test_serialize_compatability(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_extended_parsed()
+
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd extended', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('ctd1', 'xp1', stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        sub_id = self.pubsub_management.create_subscription('sub1', stream_ids=[stream_id])
+        self.addCleanup(self.pubsub_management.delete_subscription, sub_id)
+        self.pubsub_management.activate_subscription(sub_id)
+        self.addCleanup(self.pubsub_management.deactivate_subscription, sub_id)
+
+        verified = Event()
+        def verifier(msg, route, stream_id):
+            for k,v in msg.record_dictionary.iteritems():
+                if v is not None:
+                    self.assertIsInstance(v, np.ndarray)
+            rdt = RecordDictionaryTool.load_from_granule(msg)
+            for field in rdt.fields:
+                self.assertIsInstance(rdt[field], np.ndarray)
+            verified.set()
+
+        subscriber = StandaloneStreamSubscriber('sub1', callback=verifier)
+        subscriber.start()
+        self.addCleanup(subscriber.stop)
+
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        ph.fill_rdt(rdt,10)
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(verified.wait(10))
+
+
     def test_granule(self):
         
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
-        stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id)
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd', parameter_dictionary_id=pdict_id, stream_configuration={'reference_designator':"GA03FLMA-RI001-13-CTDMOG999"})
         pdict = DatasetManagementService.get_parameter_dictionary_by_name('ctd_parsed_param_dict')
         self.addCleanup(self.pubsub_management.delete_stream_definition,stream_def_id)
 
         stream_id, route = self.pubsub_management.create_stream('ctd_stream', 'xp1', stream_definition_id=stream_def_id)
         self.addCleanup(self.pubsub_management.delete_stream,stream_id)
-        self.xps.append('xp1')
         publisher = StandaloneStreamPublisher(stream_id, route)
 
         subscriber = StandaloneStreamSubscriber('sub', self.verify_incoming)
         subscriber.start()
 
         subscription_id = self.pubsub_management.create_subscription('sub', stream_ids=[stream_id])
-        self.xns.append('sub')
         self.pubsub_management.activate_subscription(subscription_id)
 
 
@@ -80,6 +107,8 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         self.assertEquals(set(pdict.keys()), set(rdt.fields))
         self.assertEquals(pdict.temporal_parameter_name, rdt.temporal_parameter)
+
+        self.assertEquals(rdt._stream_config['reference_designator'],"GA03FLMA-RI001-13-CTDMOG999")
 
         self.rdt = rdt
         self.data_producer_id = 'data_producer'
@@ -101,10 +130,12 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         with self.assertRaises(KeyError):
             rdt['pressure'] = np.arange(20)
 
-        granule = rdt.to_granule()
+        granule = rdt.to_granule(connection_id='c1', connection_index='0')
         rdt2 = RecordDictionaryTool.load_from_granule(granule)
         self.assertEquals(rdt._available_fields, rdt2._available_fields)
         self.assertEquals(rdt.fields, rdt2.fields)
+        self.assertEquals(rdt2.connection_id,'c1')
+        self.assertEquals(rdt2.connection_index,'0')
         for k,v in rdt.iteritems():
             self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
         
@@ -128,6 +159,50 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
 
         np.testing.assert_array_almost_equal(rdt['DENSITY'], np.array([1001.76506258]))
 
+    def test_rdt_lookup(self):
+        rdt = self.create_lookup_rdt()
+
+        self.assertTrue('offset_a' in rdt.lookup_values())
+        self.assertFalse('offset_b' in rdt.lookup_values())
+
+        rdt['time'] = [0]
+        rdt['temp'] = [10.0]
+        rdt['offset_a'] = [2.0]
+        self.assertEquals(rdt['offset_b'], None)
+        self.assertEquals(rdt.lookup_values(), ['offset_a'])
+        np.testing.assert_array_almost_equal(rdt['calibrated'], np.array([12.0]))
+
+        svm = StoredValueManager(self.container)
+        svm.stored_value_cas('coefficient_document', {'offset_b':2.0})
+        svm.stored_value_cas("GA03FLMA-RI001-13-CTDMOG999_OFFSETC", {'offset_c':3.0})
+        rdt.fetch_lookup_values()
+        np.testing.assert_array_equal(rdt['offset_b'], np.array([2.0]))
+        np.testing.assert_array_equal(rdt['calibrated_b'], np.array([14.0]))
+        np.testing.assert_array_equal(rdt['offset_c'], np.array([3.0]))
+
+    def test_global_range_lookup(self):
+        reference_designator = "CE01ISSM-MF005-01-CTDBPC999"
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_simple_qc_pdict()
+        svm = StoredValueManager(self.container)
+        doc_key = 'grt_%s_TEMPWAT' % reference_designator
+        svm.stored_value_cas(doc_key, {'grt_min_value':-2, 'grt_max_value':40})
+        
+        stream_def_id = self.pubsub_management.create_stream_definition('qc parsed', parameter_dictionary_id=pdict_id, stream_configuration={'reference_designator':reference_designator})
+        self.addCleanup(self.pubsub_management.delete_stream_definition,stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['temp'] = [20]
+        rdt.fetch_lookup_values()
+        min_field = [i for i in rdt.fields if 'grt_min_value' in i][0]
+        max_field = [i for i in rdt.fields if 'grt_max_value' in i][0]
+
+        np.testing.assert_array_almost_equal(rdt[min_field], [-2.])
+        np.testing.assert_array_almost_equal(rdt[max_field], [40.])
+
+        np.testing.assert_array_almost_equal(rdt['temp_glblrng_qc'],[1])
+
+
 
     def create_rdt(self):
         contexts, pfuncs = self.create_pfuncs()
@@ -140,6 +215,14 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         return rdt
 
+    def create_lookup_rdt(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_lookups()
+
+        stream_def_id = self.pubsub_management.create_stream_definition('lookup', parameter_dictionary_id=pdict_id, stream_configuration={'reference_designator':"GA03FLMA-RI001-13-CTDMOG999"})
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        return rdt
 
 
     def create_pfuncs(self):
@@ -148,7 +231,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         funcs = {}
 
         t_ctxt = ParameterContext('TIME', param_type=QuantityType(value_encoding=np.dtype('int64')))
-        t_ctxt.uom = 'seconds since 01-01-1900'
+        t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='test_TIME', parameter_context=t_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
         contexts['TIME'] = (t_ctxt, t_ctxt_id)
@@ -204,7 +287,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = tl1_pmap
         tempL1_ctxt = ParameterContext('TEMPWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         tempL1_ctxt.uom = 'deg_C'
-        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        tempL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_TEMPWAT_L1', parameter_context=tempL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, tempL1_ctxt_id)
         contexts['TEMPWAT_L1'] = tempL1_ctxt, tempL1_ctxt_id
 
@@ -219,7 +302,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = cl1_pmap
         condL1_ctxt = ParameterContext('CONDWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         condL1_ctxt.uom = 'S m-1'
-        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        condL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=condL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, condL1_ctxt_id)
         contexts['CONDWAT_L1'] = condL1_ctxt, condL1_ctxt_id
 
@@ -235,7 +318,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = pl1_pmap
         presL1_ctxt = ParameterContext('PRESWAT_L1', param_type=ParameterFunctionType(function=expr), variability=VariabilityEnum.TEMPORAL)
         presL1_ctxt.uom = 'S m-1'
-        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_ids=[expr_id])
+        presL1_ctxt_id = self.dataset_management.create_parameter_context(name='test_CONDWAT_L1', parameter_context=presL1_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, presL1_ctxt_id)
         contexts['PRESWAT_L1'] = presL1_ctxt, presL1_ctxt_id
 
@@ -256,7 +339,7 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         expr.param_map = sal_pmap
         sal_ctxt = ParameterContext('PRACSAL', param_type=ParameterFunctionType(expr), variability=VariabilityEnum.TEMPORAL)
         sal_ctxt.uom = 'g kg-1'
-        sal_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_ids=[expr_id])
+        sal_ctxt_id = self.dataset_management.create_parameter_context(name='test_PRACSAL', parameter_context=sal_ctxt.dump(), parameter_function_id=expr_id)
         self.addCleanup(self.dataset_management.delete_parameter_context, sal_ctxt_id)
         contexts['PRACSAL'] = sal_ctxt, sal_ctxt_id
 

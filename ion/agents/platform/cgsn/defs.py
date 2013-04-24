@@ -13,7 +13,7 @@ __license__ = 'Apache 2.0'
 
 
 import os
-from ion.agents.instrument.common import BaseEnum
+from pyon.agent.common import BaseEnum
 
 # identifies the CI process
 CIPOP = 19

@@ -21,7 +21,7 @@ class OOIReferenceDesignator(object):
         # Example: CE01ISSM-MF004-01-DOSTAD999
         self.marine_io = None
         self.array, self.site, self.subsite, self.node_type, self.node_seq, self.port, self.inst_class, self.inst_series, self.inst_seq = None, None, None, None, None, None, None, None, None
-        self.site_rd, self.subsite_rd, self.node_rd, self.port_rd, self.inst_rd, self.subseries_rd = None, None, None, None, None, None
+        self.site_rd, self.subsite_rd, self.node_rd, self.port_rd, self.inst_rd, self.series_rd, self.subseries_rd = None, None, None, None, None, None, None
         # Type dataproduct
         self.dataproduct = None
         self.dataproduct_level = None
@@ -39,12 +39,14 @@ class OOIReferenceDesignator(object):
             self.rd_subtype = "class"
             self.dataproduct = rdstr
         else:
-            m = re.match('^([A-Z]{2})(?:(\d{2})(?:(\w{4})(?:-([A-Z]{2})(?:([A-Z0-9]{3})(?:-(\d{2})(?:-([A-Z0-9]{5})([A-Z0-9])(\d{3})?)?)?)?)?)?)?$', rdstr)
+            #              <array   >   <site >   <subs >   -<nodetype>   <nodeseq    >   -<port#      >   -<instclass  ><series  ><seq>
+            m = re.match(r'^([A-Z]{2})(?:(\d{2})(?:(\w{4})(?:-([A-Z]{2})(?:([A-Z0-9]{3})(?:-([A-Z0-9]{2})(?:-([A-Z0-9]{5})([A-Z0-9])(\d{3})?)?)?)?)?)?)?$', rdstr)
             if m:
                 self.rd_type = "asset"
                 self.array, self.site, self.subsite, self.node_type, self.node_seq, self.port, self.inst_class, self.inst_series, self.inst_seq = m.groups()
                 if self.inst_class:
                     self.inst_rd = rdstr
+                    self.series_rd = self.inst_class + self.inst_series
                     self.subseries_rd = self.inst_class + self.inst_series + "01"  # !!! Underspecified !!!
                     self.rd_subtype = "instrument"
                 if self.port:

@@ -3,20 +3,32 @@
 @file ion/services/sa/product/test/test_data_product_management_service_integration.py
 @brief Data Product Management Service Integration Tests
 '''
+
+import unittest, gevent, simplejson
+import numpy as np
+from mock import patch
+from nose.plugins.attrib import attr
+from gevent.event import Event
+
+from pyon.util.int_test import IonIntegrationTestCase
 from pyon.core.exception import NotFound
 from pyon.public import  IonObject
-from pyon.public import RT, PRED
-from pyon.util.int_test import IonIntegrationTestCase
+from pyon.public import RT, PRED, CFG, OT
 from pyon.util.log import log
 from pyon.util.context import LocalContextMixin
 from pyon.util.containers import DotDict
 from pyon.datastore.datastore import DataStore
-from pyon.ion.stream import StandaloneStreamSubscriber
-from pyon.ion.exchange import ExchangeNameQueue
+from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
+from pyon.ion.event import EventSubscriber, EventPublisher
 
 from ion.processes.data.last_update_cache import CACHE_DATASTORE_NAME
+from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
 from ion.services.dm.utility.granule_utils import time_series_domain
-from ion.util.parameter_yaml_IO import get_param_dict
+from ion.services.dm.utility.granule import RecordDictionaryTool
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+from ion.util.stored_values import StoredValueManager
+
 from interface.services.dm.iuser_notification_service import UserNotificationServiceClient
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -26,17 +38,9 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.sa.idata_product_management_service import  DataProductManagementServiceClient
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceClient
+from interface.objects import LastUpdate, ComputedValueAvailability, Granule, DataProduct
+from interface.objects import ProcessDefinition, DataProducer, DataProcessProducerContext
 
-from interface.objects import LastUpdate, ComputedValueAvailability, Granule
-from ion.services.dm.ingestion.test.ingestion_management_test import IngestionManagementIntTest
-
-from nose.plugins.attrib import attr
-from interface.objects import ProcessDefinition
-
-from coverage_model.basic_types import AxisTypeEnum, MutabilityEnum
-from coverage_model.coverage import CRS, GridDomain, GridShape
-
-import unittest, gevent
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -44,6 +48,7 @@ class FakeProcess(LocalContextMixin):
 
 @attr('INT', group='sa')
 #@unittest.skip('not working')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
     def setUp(self):
@@ -53,15 +58,15 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
-        self.dpsc_cli = DataProductManagementServiceClient(node=self.container.node)
-        self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
-        self.damsclient = DataAcquisitionManagementServiceClient(node=self.container.node)
-        self.pubsubcli =  PubsubManagementServiceClient(node=self.container.node)
-        self.ingestclient = IngestionManagementServiceClient(node=self.container.node)
-        self.process_dispatcher   = ProcessDispatcherServiceClient()
+        self.dpsc_cli           = DataProductManagementServiceClient()
+        self.rrclient           = ResourceRegistryServiceClient()
+        self.damsclient         = DataAcquisitionManagementServiceClient()
+        self.pubsubcli          = PubsubManagementServiceClient()
+        self.ingestclient       = IngestionManagementServiceClient()
+        self.process_dispatcher = ProcessDispatcherServiceClient()
         self.dataset_management = DatasetManagementServiceClient()
-        self.unsc = UserNotificationServiceClient()
-        self.data_retriever = DataRetrieverServiceClient()
+        self.unsc               = UserNotificationServiceClient()
+        self.data_retriever     = DataRetrieverServiceClient()
 
         #------------------------------------------
         # Create the environment
@@ -126,6 +131,8 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         return datastore
 
 
+    @attr('EXT')
+    @attr('PREP')
     def test_create_data_product(self):
 
         #------------------------------------------------------------------------------------------------
@@ -150,7 +157,11 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
             temporal_domain = tdom.dump(), 
             spatial_domain = sdom.dump())
 
-        log.debug("Created an IonObject for a data product: %s" % dp_obj)
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 10.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -10.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 10.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = -10.0
+        dp_obj.ooi_product_name = "PRODNAME"
 
         #------------------------------------------------------------------------------------------------
         # Create a set of ParameterContext objects to define the parameters in the coverage, add each to the ParameterDictionary
@@ -158,11 +169,20 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         dp_id = self.dpsc_cli.create_data_product( data_product= dp_obj,
                                             stream_definition_id=ctd_stream_def_id)
+        # Assert that the data product has an associated stream at this stage
+        stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStream, RT.Stream, True)
+        self.assertNotEquals(len(stream_ids), 0)
+
+        # Assert that the data product has an associated stream def at this stage
+        stream_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasStreamDefinition, RT.StreamDefinition, True)
+        self.assertNotEquals(len(stream_ids), 0)
+
         self.dpsc_cli.activate_data_product_persistence(dp_id)
 
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertIsNotNone(dp_obj)
-
+        self.assertEquals(dp_obj.geospatial_point_center.lat, 0.0)
+        log.debug('Created data product %s', dp_obj)
         #------------------------------------------------------------------------------------------------
         # test creating a new data product with  a stream definition
         #------------------------------------------------------------------------------------------------
@@ -190,6 +210,9 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                 streamdefs.append(sd)
         self.assertIn(ctd_stream_def_id, streamdefs)
 
+        group_names = self.dpsc_cli.get_data_product_group_list()
+        self.assertIn("PRODNAME", group_names)
+
 
         # test reading a non-existent data product
         log.debug('reading non-existent data product')
@@ -204,12 +227,19 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         # now tweak the object
         dp_obj.description = 'the very first dp'
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_north = 20.0
+        dp_obj.geospatial_bounds.geospatial_latitude_limit_south = -20.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_east = 20.0
+        dp_obj.geospatial_bounds.geospatial_longitude_limit_west = -20.0
         # now write the dp back to the registry
         update_result = self.dpsc_cli.update_data_product(dp_obj)
+
 
         # now get the dp back to see if it was updated
         dp_obj = self.dpsc_cli.read_data_product(dp_id)
         self.assertEquals(dp_obj.description,'the very first dp')
+        self.assertEquals(dp_obj.geospatial_point_center.lat, 0.0)
+        log.debug('Updated data product %s', dp_obj)
 
         #test extension
         extended_product = self.dpsc_cli.get_data_product_extension(dp_id)
@@ -222,9 +252,51 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
                          extended_product.computed.parameters.status)
         #log.debug("test_create_data_product: parameters %s" % extended_product.computed.parameters.value)
 
+
+        def ion_object_encoder(obj):
+            return obj.__dict__
+
+
+        #test prepare for create
+        data_product_data = self.dpsc_cli.prepare_data_product_support()
+
+        #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)
+
+        self.assertEqual(data_product_data._id, '')
+        self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
+        self.assertEqual(len(data_product_data.stream_definitions), 2)
+        self.assertEqual(len(data_product_data.datasets), 2)
+        self.assertEqual(len(data_product_data.data_product_stream_definition), 0)
+        self.assertEqual(len(data_product_data.data_product_dataset), 0)
+
+
+        #test prepare for update
+        data_product_data = self.dpsc_cli.prepare_data_product_support(dp_id)
+
+        #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)
+
+        self.assertEqual(data_product_data._id, dp_id)
+        self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
+        self.assertEqual(len(data_product_data.stream_definitions), 2)
+
+        self.assertEqual(len(data_product_data.datasets), 2)
+
+        self.assertEqual(len(data_product_data.data_product_stream_definition), 1)
+        self.assertEqual(data_product_data.data_product_stream_definition[0].s, dp_id)
+
+        self.assertEqual(len(data_product_data.data_product_dataset), 1)
+        self.assertEqual(data_product_data.data_product_dataset[0].s, dp_id)
+
+
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
         self.dpsc_cli.delete_data_product(dp_id)
+
+        # Assert that there are no associated streams leftover after deleting the data product
+        stream_ids, assoc_ids = self.rrclient.find_objects(dp_id, PRED.hasStream, RT.Stream, True)
+        self.assertEquals(len(stream_ids), 0)
+        self.assertEquals(len(assoc_ids), 0)
+
         self.dpsc_cli.force_delete_data_product(dp_id)
 
         # now try to get the deleted dp object
@@ -238,7 +310,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         for event in events:
             log.debug("event time: %s" % event.ts_created)
 
-#        self.assertTrue(len(events) > 0)
+        self.assertTrue(len(events) > 0)
 
     def test_data_product_stream_def(self):
         pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
@@ -248,8 +320,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         sdom = sdom.dump()
         tdom = tdom.dump()
-
-
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
@@ -262,6 +332,64 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         stream_def_id = self.dpsc_cli.get_data_product_stream_definition(dp_id)
         self.assertEquals(ctd_stream_def_id, stream_def_id)
 
+
+    def test_derived_data_product(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        ctd_stream_def_id = self.pubsubcli.create_stream_definition(name='ctd parsed', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsubcli.delete_stream_definition, ctd_stream_def_id)
+
+        tdom, sdom = time_series_domain()
+
+        dp = DataProduct(name='Instrument DP', temporal_domain=tdom.dump(), spatial_domain=sdom.dump())
+        dp_id = self.dpsc_cli.create_data_product(dp, stream_definition_id=ctd_stream_def_id)
+        self.addCleanup(self.dpsc_cli.force_delete_data_product, dp_id)
+
+        self.dpsc_cli.activate_data_product_persistence(dp_id)
+        self.addCleanup(self.dpsc_cli.suspend_data_product_persistence, dp_id)
+
+
+        dataset_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasDataset, id_only=True)
+        if not dataset_ids:
+            raise NotFound("Data Product %s dataset  does not exist" % str(dp_id))
+        dataset_id = dataset_ids[0]
+        
+        # Make the derived data product
+        simple_stream_def_id = self.pubsubcli.create_stream_definition(name='TEMPWAT stream def', parameter_dictionary_id=pdict_id, available_fields=['time','temp'])
+        tempwat_dp = DataProduct(name='TEMPWAT')
+        tempwat_dp_id = self.dpsc_cli.create_data_product(tempwat_dp, stream_definition_id=simple_stream_def_id, dataset_id=dataset_id)
+        self.addCleanup(self.dpsc_cli.delete_data_product, tempwat_dp_id)
+        # Check that the streams associated with the data product are persisted with
+        stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)
+        for stream_id in stream_ids:
+            self.assertTrue(self.ingestclient.is_persisted(stream_id))
+
+        stream_id = stream_ids[0]
+        route = self.pubsubcli.read_stream_route(stream_id=stream_id)
+
+        rdt = RecordDictionaryTool(stream_definition_id=ctd_stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+        rdt['pressure'] = np.arange(20)
+
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        
+        dataset_modified = Event()
+        def cb(*args, **kwargs):
+            dataset_modified.set()
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
+        es.start()
+        self.addCleanup(es.stop)
+
+        publisher.publish(rdt.to_granule())
+
+        self.assertTrue(dataset_modified.wait(30))
+
+        tempwat_dataset_ids, _ = self.rrclient.find_objects(tempwat_dp_id, PRED.hasDataset, id_only=True)
+        tempwat_dataset_id = tempwat_dataset_ids[0]
+        granule = self.data_retriever.retrieve(tempwat_dataset_id, delivery_format=simple_stream_def_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['time'], np.arange(20))
+        self.assertEquals(set(rdt.fields), set(['time','temp']))
 
 
     def test_activate_suspend_data_product(self):
@@ -281,8 +409,6 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         sdom = sdom.dump()
         tdom = tdom.dump()
-
-
 
         dp_obj = IonObject(RT.DataProduct,
             name='DP1',
@@ -310,13 +436,33 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         dataset_ids, _ = self.rrclient.find_objects(subject=dp_id, predicate=PRED.hasDataset, id_only=True)
         if not dataset_ids:
             raise NotFound("Data Product %s dataset  does not exist" % str(dp_id))
-        self.get_datastore(dataset_ids[0])
+        dataset_id = dataset_ids[0]
 
 
         # Check that the streams associated with the data product are persisted with
         stream_ids, _ =  self.rrclient.find_objects(dp_id,PRED.hasStream,RT.Stream,True)
         for stream_id in stream_ids:
             self.assertTrue(self.ingestclient.is_persisted(stream_id))
+
+        stream_id = stream_ids[0]
+        route = self.pubsubcli.read_stream_route(stream_id=stream_id)
+
+        rdt = RecordDictionaryTool(stream_definition_id=ctd_stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        
+        dataset_modified = Event()
+        def cb(*args, **kwargs):
+            dataset_modified.set()
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id, auto_delete=True)
+        es.start()
+        self.addCleanup(es.stop)
+
+        publisher.publish(rdt.to_granule())
+
+        self.assertTrue(dataset_modified.wait(30))
 
         #--------------------------------------------------------------------------------
         # Now get the data in one chunk using an RPC Call to start_retreive
@@ -344,9 +490,107 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         #------------------------------------------------------------------------------------------------
         self.dpsc_cli.suspend_data_product_persistence(dp_id)
 
+
+        dataset_modified.clear()
+
+        rdt['time'] = np.arange(20,40)
+
+        publisher.publish(rdt.to_granule())
+        self.assertFalse(dataset_modified.wait(2))
+
+        self.dpsc_cli.activate_data_product_persistence(dp_id)
+        dataset_modified.clear()
+
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_modified.wait(30))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_almost_equal(rdt['time'], np.arange(40))
+
+
+        dataset_ids, _ = self.rrclient.find_objects(dp_id, PRED.hasDataset, id_only=True)
+        self.assertEquals(len(dataset_ids), 1)
+
+        self.dpsc_cli.suspend_data_product_persistence(dp_id)
         self.dpsc_cli.force_delete_data_product(dp_id)
         # now try to get the deleted dp object
 
         with self.assertRaises(NotFound):
             dp_obj = self.rrclient.read(dp_id)
+
+    def test_lookup_values(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_lookups()
+        stream_def_id = self.pubsubcli.create_stream_definition('lookup', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsubcli.delete_stream_definition, stream_def_id)
+
+        data_product = DataProduct(name='lookup data product')
+        tdom, sdom = time_series_domain()
+        data_product.temporal_domain = tdom.dump()
+        data_product.spatial_domain = sdom.dump()
+
+        data_product_id = self.dpsc_cli.create_data_product(data_product, stream_definition_id=stream_def_id)
+        self.addCleanup(self.dpsc_cli.delete_data_product, data_product_id)
+        data_producer = DataProducer(name='producer')
+        data_producer.producer_context = DataProcessProducerContext()
+        data_producer.producer_context.configuration['qc_keys'] = ['offset_document']
+        data_producer_id, _ = self.rrclient.create(data_producer)
+        self.addCleanup(self.rrclient.delete, data_producer_id)
+        assoc,_ = self.rrclient.create_association(subject=data_product_id, object=data_producer_id, predicate=PRED.hasDataProducer)
+        self.addCleanup(self.rrclient.delete_association, assoc)
+
+        document_keys = self.damsclient.list_qc_references(data_product_id)
+            
+        self.assertEquals(document_keys, ['offset_document'])
+        svm = StoredValueManager(self.container)
+        svm.stored_value_cas('offset_document', {'offset_a':2.0})
+        self.dpsc_cli.activate_data_product_persistence(data_product_id)
+        dataset_ids, _ = self.rrclient.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
+        dataset_id = dataset_ids[0]
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['temp'] = [20.]
+        granule = rdt.to_granule()
+
+        stream_ids, _ = self.rrclient.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        stream_id = stream_ids[0]
+        route = self.pubsubcli.read_stream_route(stream_id=stream_id)
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        publisher.publish(granule)
+
+        self.assertTrue(dataset_monitor.event.wait(10))
+        dataset_monitor.stop()
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['temp'], rdt2['temp'])
+        np.testing.assert_array_almost_equal(rdt2['calibrated'], np.array([22.0]))
+
+
+        svm.stored_value_cas('updated_document', {'offset_a':3.0})
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        ep = EventPublisher(event_type=OT.ExternalReferencesUpdatedEvent)
+        ep.publish_event(origin=data_product_id, reference_keys=['updated_document'])
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [1]
+        rdt['temp'] = [20.]
+        granule = rdt.to_granule()
+        gevent.sleep(2) # Yield so that the event goes through
+        publisher.publish(granule)
+        self.assertTrue(dataset_monitor.event.wait(10))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt2['temp'],np.array([20.,20.]))
+        np.testing.assert_array_almost_equal(rdt2['calibrated'], np.array([22.0,23.0]))
+
+
+
 

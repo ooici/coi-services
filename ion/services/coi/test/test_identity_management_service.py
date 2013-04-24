@@ -8,14 +8,21 @@ from mock import Mock, patch
 from pyon.util.unit_test import PyonTestCase
 from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
-
+from pyon.core.governance.negotiation import Negotiation
 from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
-from pyon.public import PRED, RT, IonObject
+from pyon.public import PRED, RT, IonObject, OT
 from ion.services.coi.identity_management_service import IdentityManagementService
 from interface.services.coi.iidentity_management_service import IdentityManagementServiceClient, IdentityManagementServiceProcessClient
 from interface.services.coi.iorg_management_service import OrgManagementServiceClient
+from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
+
 from unittest.case import skip
 from pyon.util.context import LocalContextMixin
+from pyon.core.governance import ORG_MANAGER_ROLE
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum
+
+
+
 
 @attr('UNIT', group='coi')
 class TestIdentityManagementService(PyonTestCase):
@@ -122,30 +129,23 @@ class TestIdentityManagementService(PyonTestCase):
         
         self.identity_management_service.delete_actor_identity('111')
 
-        self.mock_read.assert_called_once_with('111', '')
         self.mock_delete.assert_called_once_with('111')
  
     def test_read_actor_identity_not_found(self):
-        self.mock_read.return_value = None
+        self.mock_read.side_effect = NotFound("bad")
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.identity_management_service.read_actor_identity('bad')
 
-        ex = cm.exception
-        self.assertEqual(ex.message, 'ActorIdentity bad does not exist')
         self.mock_read.assert_called_once_with('bad', '')
  
     def test_delete_actor_identity_not_found(self):
-        self.mock_read.return_value = None
+        self.mock_delete.side_effect = NotFound("bad")
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.identity_management_service.delete_actor_identity('bad')
-
-        ex = cm.exception
-        self.assertEqual(ex.message, 'ActorIdentity bad does not exist')
-        self.mock_read.assert_called_once_with('bad', '')
 
     def test_register_user_credentials(self):
         self.mock_create.return_value = ['222', 1]
@@ -155,7 +155,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.identity_management_service.register_user_credentials('111', self.user_credentials)
 
         self.mock_create.assert_called_once_with(self.user_credentials)
-        self.mock_create_association.assert_called_once_with('111', PRED.hasCredentials, '222', "H2H")
+        self.mock_create_association.assert_called_once_with('111', PRED.hasCredentials, '222', None)
 
     def test_unregister_user_credentials(self):
         self.mock_find_resources.return_value = ([self.user_credentials], [self.actor_identity_to_credentials_association])
@@ -164,7 +164,7 @@ class TestIdentityManagementService(PyonTestCase):
         self.identity_management_service.unregister_user_credentials('111', "Bogus subject")
 
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, self.user_credentials.name, False)
-        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', None, False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', None, False, 0, 0, False)
         self.mock_delete_association.assert_called_once_with('333')
         self.mock_delete.assert_called_once_with('222')
 
@@ -190,7 +190,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'ActorIdentity to UserCredentials association for user id 111 to credential Bogus subject does not exist')
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, 'Bogus subject', False)
-        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', None, False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasCredentials, '222', None, False, 0, 0, False)
 
     def test_create_user_info(self):
         self.mock_find_objects.return_value = (None, None)
@@ -203,7 +203,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         assert result == '444'
         self.mock_create.assert_called_once_with(self.user_info)
-        self.mock_create_association.assert_called_once_with('111', PRED.hasInfo, '444', "H2H")
+        self.mock_create_association.assert_called_once_with('111', PRED.hasInfo, '444', None)
 
     def test_create_user_info_fail_already_exists(self):
         self.mock_find_objects.return_value = ([self.user_info], [self.actor_identity_to_info_association])
@@ -214,7 +214,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'UserInfo already exists for user id 111')
-        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False, 0, 0, False)
 
     def test_read_and_update_user_info(self):
         self.mock_read.return_value = self.user_info
@@ -241,20 +241,18 @@ class TestIdentityManagementService(PyonTestCase):
         
         self.identity_management_service.delete_user_info('444')
 
-        self.mock_find_subjects.assert_called_once_with(RT.ActorIdentity, PRED.hasInfo, '444', False)
-        self.mock_find_associations.assert_called_once_with('111', PRED.hasInfo, '444', None, False)
+        self.mock_find_subjects.assert_called_once_with(RT.ActorIdentity, PRED.hasInfo, '444', False, 0, 0, False)
+        self.mock_find_associations.assert_called_once_with('111', PRED.hasInfo, '444', None, False, 0, 0, False)
         self.mock_delete_association.assert_called_once_with('555')
         self.mock_delete.assert_called_once_with('444')
  
     def test_read_user_info_not_found(self):
-        self.mock_read.return_value = None
+        self.mock_read.side_effect = NotFound("bad")
 
         # TEST: Execute the service operation call
         with self.assertRaises(NotFound) as cm:
             self.identity_management_service.read_user_info('bad')
 
-        ex = cm.exception
-        self.assertEqual(ex.message, 'UserInfo bad does not exist')
         self.mock_read.assert_called_once_with('bad', '')
  
     def test_delete_user_info_not_found(self):
@@ -280,7 +278,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, 'ActorIdentity to UserInfo association for user info id 444 does not exist')
         self.mock_read.assert_called_once_with('444', '')
-        self.mock_find_subjects.assert_called_once_with(RT.ActorIdentity, PRED.hasInfo, '444', False)
+        self.mock_find_subjects.assert_called_once_with(RT.ActorIdentity, PRED.hasInfo, '444', False, 0, 0, False)
 
     def test_find_user_info_by_id(self):
         self.mock_find_objects.return_value = ([self.user_info], [self.actor_identity_to_info_association])
@@ -288,7 +286,7 @@ class TestIdentityManagementService(PyonTestCase):
         result = self.identity_management_service.find_user_info_by_id('111')
 
         assert result == self.user_info
-        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False, 0, 0, False)
 
     def test_find_user_info_by_id_association_not_found(self):
         self.mock_find_objects.return_value = (None, None)
@@ -298,7 +296,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         ex = cm.exception
         self.assertEqual(ex.message, 'UserInfo for user id 111 does not exist')
-        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False, 0, 0, False)
 
     def test_find_user_info_by_name(self):
         self.mock_find_resources.return_value = ([self.user_info], [self.actor_identity_to_info_association])
@@ -337,7 +335,7 @@ class TestIdentityManagementService(PyonTestCase):
 
         assert result == self.user_info
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, "Bogus subject", False)
-        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False, 0, 0, False)
 
     def test_find_user_info_by_subject_identity_credentials_not_found(self):
         self.mock_find_resources.return_value = (None, None)
@@ -392,7 +390,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, "UserInfo for subject Bogus subject does not exist")
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, "Bogus subject", False)
-        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False)
+        self.mock_find_objects.assert_called_once_with('111', PRED.hasInfo, RT.UserInfo, False, 0, 0, False)
 
     def test_find_user_info_by_subject_info_multiple_associations_found(self):
         self.mock_find_resources.return_value = ([self.user_credentials], [self.actor_identity_to_credentials_association])
@@ -405,7 +403,7 @@ class TestIdentityManagementService(PyonTestCase):
         ex = cm.exception
         self.assertEqual(ex.message, "Multiple UserInfos for subject Bogus subject exist")
         self.mock_find_resources.assert_called_once_with(RT.UserCredentials, None, "Bogus subject", False)
-        self.mock_find_subjects.assert_called_once_with(RT.ActorIdentity, PRED.hasCredentials, '222', False)
+        self.mock_find_subjects.assert_called_once_with(RT.ActorIdentity, PRED.hasCredentials, '222', False, 0, 0, False)
 
 #    def test_signon_new_user(self):
 #                user.certificate =  """-----BEGIN CERTIFICPREDE-----
@@ -441,8 +439,9 @@ class TestIdentityManagementServiceInt(IonIntegrationTestCase):
 
         # Start container
         self._start_container()
-        self.container.start_rel_from_url('res/deploy/r2coi.yml')
+        self.container.start_rel_from_url('res/deploy/r2deploy.yml')
 
+        self.resource_registry = ResourceRegistryServiceClient(node=self.container.node)
         self.identity_management_service = IdentityManagementServiceClient(node=self.container.node)
         self.org_client = OrgManagementServiceClient(node=self.container.node)
 
@@ -601,20 +600,47 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
         user_info_id = self.identity_management_service.create_user_info(actor_id, user_info_obj)
 
         ion_org = self.org_client.find_org()
-        self.org_client.grant_role(ion_org._id, actor_id, 'ORG_MANAGER')
+
+        #Build the Service Agreement Proposal to to request a role but never close it
+        sap = IonObject(OT.RequestRoleProposal,consumer=actor_id, provider=ion_org._id, role_name=ORG_MANAGER_ROLE )
+        sap_response = self.org_client.negotiate(sap)
+
+        #Just grant the role anyway
+        #self.org_client.grant_role(ion_org._id, actor_id, ORG_MANAGER_ROLE)
 
         with self.assertRaises(NotFound):
             self.identity_management_service.get_user_info_extension('That rug really tied the room together.')
         with self.assertRaises(BadRequest):
             self.identity_management_service.get_user_info_extension()
 
-        extended_user = self.identity_management_service.get_user_info_extension(user_info_id)
+        #Check the user without the negotiation role request
+        extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id)
+        self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
+        self.assertEqual(len(extended_user.roles),1)
+        self.assertEqual(len(extended_user.open_requests),1)
+        self.assertEqual(extended_user.open_requests[0].org_id, ion_org._id)
+        self.assertEqual(extended_user.open_requests[0].user_id, user_info_id)
+        self.assertEqual(extended_user.open_requests[0].request_type, OT.RequestRoleProposal)
+        self.assertEqual(len(extended_user.closed_requests),0)
+        self.assertEqual(extended_user.open_requests[0]._id, extended_user.open_requests[0].negotiation_id)
+
+        neg = self.resource_registry.read(object_id=extended_user.open_requests[0].negotiation_id)
+        sap_response = Negotiation.create_counter_proposal(neg, ProposalStatusEnum.ACCEPTED, ProposalOriginatorEnum.PROVIDER)
+        sap_response2 = self.org_client.negotiate(sap_response)
+
+        #Now check the user after the negotiation has been accepted and the role granted
+        extended_user = self.identity_management_service.get_user_info_extension(user_info_id, org_id=ion_org._id)
         self.assertEqual(user_info_obj.type_,extended_user.resource.type_)
         self.assertEqual(len(extended_user.roles),2)
+        self.assertEqual(len(extended_user.open_requests),0)
+        self.assertEqual(len(extended_user.closed_requests),1)
+        self.assertEqual(extended_user.closed_requests[0].org_id, ion_org._id)
+        self.assertEqual(extended_user.closed_requests[0].user_id, user_info_id)
+        self.assertEqual(extended_user.closed_requests[0].request_type, OT.RequestRoleProposal)
 
         self.identity_management_service.delete_user_info(user_info_id)
 
-        self.org_client.revoke_role(ion_org._id, actor_id, 'ORG_MANAGER')
+        self.org_client.revoke_role(org_id=ion_org._id, actor_id=actor_id, role_name=ORG_MANAGER_ROLE)
 
         self.identity_management_service.unregister_user_credentials(actor_id, self.subject)
 

@@ -28,10 +28,7 @@ class DensityTransform(TransformDataProcess):
     def on_start(self):
         super(DensityTransform, self).on_start()
 
-        if not self.CFG.process.publish_streams.has_key('density'):
-            raise BadRequest("For CTD transforms, please send the stream_id "
-                                 "using a special keyword (ex: density)")
-        self.dens_stream = self.CFG.process.publish_streams.density
+        self.dens_stream = self.CFG.process.publish_streams.values()[0]
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -49,7 +46,7 @@ class DensityTransform(TransformDataProcess):
 
         log.debug("L2 density transform publishing granule with record dict: %s", granule.record_dictionary)
 
-        self.density.publish(msg=granule)
+        self.publisher.publish(msg=granule)
 
 
 class CTDL2DensityTransformAlgorithm(SimpleGranuleTransformFunction):

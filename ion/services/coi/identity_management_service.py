@@ -17,7 +17,7 @@ import copy
 
 from interface.services.coi.iidentity_management_service import BaseIdentityManagementService
 from interface.services.coi.iorg_management_service import OrgManagementServiceProcessClient
-
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, NegotiationTypeEnum
 
 class IdentityManagementService(BaseIdentityManagementService):
     """
@@ -39,15 +39,10 @@ class IdentityManagementService(BaseIdentityManagementService):
     def read_actor_identity(self, actor_id=''):
         # Read ActorIdentity object with _id matching passed user id
         actor_identity = self.clients.resource_registry.read(actor_id)
-        if not actor_identity:
-            raise NotFound("ActorIdentity %s does not exist" % actor_id)
         return actor_identity
 
     def delete_actor_identity(self, actor_id=''):
-        # Read and delete specified ActorIdentity object
-        actor_identity = self.clients.resource_registry.read(actor_id)
-        if not actor_identity:
-            raise NotFound("ActorIdentity %s does not exist" % actor_id)
+        # Delete specified ActorIdentity object
         self.clients.resource_registry.delete(actor_id)
 
     def find_actor_identity_by_name(self, name=''):
@@ -58,7 +53,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         @throws NotFound    failed to find ActorIdentity
         @throws Inconsistent    Multiple ActorIdentity objects matched name
         """
-        objects, matches = self.clients.resource_registry.find_resources(RT.ActorIdentity, None, name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.ActorIdentity, None, name, id_only=False)
         if not objects:
             raise NotFound("ActorIdentity with name %s does not exist" % name)
         if len(objects) > 1:
@@ -73,7 +68,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def unregister_user_credentials(self, actor_id='', credentials_name=''):
         # Read UserCredentials
-        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, credentials_name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, credentials_name, id_only=False)
         if not objects or len(objects) == 0:
             raise NotFound("UserCredentials %s does not exist" % credentials_name)
         if len(objects) > 1:
@@ -106,8 +101,6 @@ class IdentityManagementService(BaseIdentityManagementService):
     def read_user_info(self, user_info_id=''):
         # Read UserInfo object with _id matching passed user id
         user_info = self.clients.resource_registry.read(user_info_id)
-        if not user_info:
-            raise NotFound("UserInfo %s does not exist" % user_info_id)
         return user_info
 
     def delete_user_info(self, user_info_id='', actor_identity_id=''):
@@ -133,10 +126,11 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def find_user_info_by_email(self, user_email=''):
         #return self.clients.resource_registry.find_resources_ext(restype=RT.UserInfo, attr_name="contact.email", attr_value=user_email, id_only=False)
-        user_infos, _ = self.clients.resource_registry.find_resources(RT.UserInfo)
-        for user_info in user_infos:
-            if hasattr(user_info.contact, 'email') and user_info.contact.email == user_email:
-                return user_info
+        user_infos, _ = self.clients.resource_registry.find_resources_ext(RT.UserInfo, attr_name="contact.email", attr_value=user_email)
+        if len(user_infos) > 1:
+            log.warn("More than one UserInfo found for email '%s': %s" % (user_email, [ui._id for ui in user_infos]))
+        if user_infos:
+            return user_infos[0]
         return None
 
     def find_user_info_by_id(self, actor_id=''):
@@ -148,7 +142,7 @@ class IdentityManagementService(BaseIdentityManagementService):
         return user_info
 
     def find_user_info_by_name(self, name=''):
-        objects, matches = self.clients.resource_registry.find_resources(RT.UserInfo, None, name, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserInfo, None, name, id_only=False)
         if not objects:
             raise NotFound("UserInfo with name %s does not exist" % name)
         if len(objects) > 1:
@@ -157,7 +151,7 @@ class IdentityManagementService(BaseIdentityManagementService):
 
     def find_user_info_by_subject(self, subject=''):
         # Find UserCredentials
-        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, False)
+        objects, matches = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, id_only=False)
         if not objects:
             raise NotFound("UserCredentials with subject %s does not exist" % subject)
         if len(objects) > 1:
@@ -197,8 +191,6 @@ class IdentityManagementService(BaseIdentityManagementService):
         objects, assocs = self.clients.resource_registry.find_resources(RT.UserCredentials, None, subject, True)
         if len(objects) > 1:
             raise Conflict("More than one UserCredentials object was found for subject %s" % subject)
-        if len(assocs) > 1:
-            raise Conflict("More than one ActorIdentity object is associated with subject %s" % subject)
         if len(objects) == 1:
             log.debug("Signon known subject %s" % (subject))
             # Known user, get ActorIdentity object
@@ -219,18 +211,20 @@ class IdentityManagementService(BaseIdentityManagementService):
         else:
             log.debug("Signon new subject %s" % (subject))
             # New user.  Create ActorIdentity and UserCredentials
-            actor_identity = IonObject("ActorIdentity", {"name": subject})
+            actor_name = "Identity for %s" % subject
+            actor_identity = IonObject("ActorIdentity", name=actor_name)
             actor_id = self.create_actor_identity(actor_identity)
 
-            user_credentials = IonObject("UserCredentials", {"name": subject})
+            user_credentials = IonObject("UserCredentials", name=subject, description="Default credentials for %s" % subject)
             self.register_user_credentials(actor_id, user_credentials)
             log.debug("Signon returning actor_id, valid_until, registered: %s, %s, False" % (actor_id, valid_until))
             return actor_id, valid_until, False
 
-    def get_user_info_extension(self, user_info_id='', user_id=''):
+    def get_user_info_extension(self, user_info_id='', org_id=''):
         """Returns an UserInfoExtension object containing additional related information
 
         @param user_info_id    str
+        @param org_id    str  - An optional org id that the user is interested in filtering against.
         @retval user_info    UserInfoExtension
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified actor_id does not exist
@@ -238,11 +232,23 @@ class IdentityManagementService(BaseIdentityManagementService):
         if not user_info_id:
             raise BadRequest("The user_info_id parameter is empty")
 
+
+        #THis is a hack to get the UI going. It would be preferable to get the actor id from the extended resource
+        #container below, but their would need to be a guarantee of order of field processing in order
+        #to ensure that the actor identity has been found BEFORE the negotiation methods are called - and probably
+        #some elegant way to indicate the field and sub field; ie actor_identity._id
+        actors, _ = self.clients.resource_registry.find_subjects(subject_type=RT.ActorIdentity, predicate=PRED.hasInfo, object=user_info_id, id_only=True)
+        actor_id = actors[0] if len(actors) > 0 else ''
+
+
         extended_resource_handler = ExtendedResourceContainer(self)
         extended_user = extended_resource_handler.create_extended_resource_container(
             extended_resource_type=OT.UserInfoExtension,
             resource_id=user_info_id,
-            user_id=user_id)
+            computed_resource_type=OT.ComputedAttributes,
+            user_id=user_info_id,
+            org_id=org_id,
+            actor_id=actor_id)
 
         #If the org_id is not provided then skip looking for Org related roles.
         if extended_user:
@@ -262,34 +268,71 @@ class IdentityManagementService(BaseIdentityManagementService):
             except Exception, e:
                 raise NotFound('Could not retrieve UserRoles for User Info id: %s - %s' % (user_info_id, e.message))
 
-        #set the notifications for this user
-
-        # retrieve the set of open negotaions for this user
-        #filer out the accepted/rejected negotiations
-        extended_user.open_negotiations = []
-        extended_user.closed_negotiations = []
-        if hasattr(extended_user, 'actor_identity'):
-            negotiations, _ = self.clients.resource_registry.find_objects(extended_user.actor_identity, PRED.hasNegotiation, RT.Negotiation, id_only=False)
-            for negotiation in negotiations:
-                if negotiation.negotiation_status == NegotiationStatusEnum.OPEN:
-                    extended_user.open_negotiations.append(negotiation)
-                elif negotiation.negotiation_status == NegotiationStatusEnum.ACCEPTED or \
-                   negotiation.negotiation_status == NegotiationStatusEnum.REJECTED:
-                    extended_user.closed_negotiations.append(negotiation)
-
-
-        # replace list of lists with single list
-        replacement_owned_resources = []
-        for inner_list in extended_user.owned_resources:
-            if inner_list:
-                for actual_data_product in inner_list:
-                    if actual_data_product:
-                        replacement_owned_resources.append(actual_data_product)
-        extended_user.owned_resources = replacement_owned_resources
-
-
 
         return extended_user
+
+    def find_user_open_requests(self, user_info_id='', actor_id='', org_id=''):
+        """
+        Local function to be called by extended resource framework from get_user_info_extension operation. The first
+        parameter MUST be the same user_info_id from that operation even though it is not used.
+
+        @param user_info_id:
+        @param actor_id:
+        @param org_id:
+        @return:
+        """
+        org_client = OrgManagementServiceProcessClient(process=self)
+
+        neg_list = org_client.find_user_negotiations(actor_id=actor_id, org_id=org_id, negotiation_status=NegotiationStatusEnum.OPEN)
+
+        return self._convert_negotiations_to_requests(neg_list, user_info_id, org_id)
+
+    def find_user_closed_requests(self, user_info_id='', actor_id='', org_id=''):
+        """
+        Local function to be called by extended resource framework from get_user_info_extension operation. The first
+        parameter MUST be the same user_info_id from that operation even though it is not used.
+        @param user_info_id:
+        @param actor_id:
+        @param org_id:
+        @return:
+        """
+        org_client = OrgManagementServiceProcessClient(process=self)
+
+        neg_list = org_client.find_user_negotiations(actor_id=actor_id, org_id=org_id)
+
+        #Filter out non Open negotiations
+        neg_list = [neg for neg in neg_list if neg.negotiation_status != NegotiationStatusEnum.OPEN]
+
+        return self._convert_negotiations_to_requests(neg_list, user_info_id, org_id)
+
+    def _convert_negotiations_to_requests(self, negotiations=None, user_info_id='', org_id=''):
+        assert isinstance(negotiations, list)
+
+        orgs,_ = self.clients.resource_registry.find_resources(restype=RT.Org)
+
+        ret_list = []
+        for neg in negotiations:
+
+            request = IonObject(OT.OrgUserNegotiationRequest, ts_updated=neg.ts_updated, negotiation_id=neg._id,
+                negotiation_type=NegotiationTypeEnum._str_map[neg.negotiation_type],
+                negotiation_status=NegotiationStatusEnum._str_map[neg.negotiation_status],
+                originator=ProposalOriginatorEnum._str_map[neg.proposals[-1].originator],
+                request_type=neg.proposals[-1].type_,
+                description=neg.description, reason=neg.reason,
+                user_id=user_info_id)
+
+            # since this is a proxy for the Negotiation object, simulate its id to help the UI deal with it
+            request._id = neg._id
+
+            org_request = [ o for o in orgs if o._id == neg.proposals[-1].provider ]
+            if org_request:
+                request.org_id = org_request[0]._id
+                request.name = org_request[0].name
+
+            ret_list.append(request)
+
+        return ret_list
+
 
     def delete_user_credential_association(self, user_credential_id, actor_identity_id):
         association_id = self.clients.resource_registry.find_associations(actor_identity_id, PRED.hasCredentials, user_credential_id, id_only=True)

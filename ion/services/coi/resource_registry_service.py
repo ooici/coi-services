@@ -6,7 +6,7 @@ __license__ = 'Apache 2.0'
 import types
 from pyon.core.exception import BadRequest, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
-from pyon.public import log
+from pyon.public import log, OT
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
 
@@ -93,7 +93,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     @mask_couch_error
     def create_association(self, subject=None, predicate=None, object=None, assoc_type=None):
         return self.resource_registry.create_association(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type)
+                                                         object=object, assoc_type=assoc_type)
 
     @mask_couch_error
     def delete_association(self, association=''):
@@ -105,9 +105,9 @@ class ResourceRegistryService(BaseResourceRegistryService):
             object_type=object_type, assoc=assoc, id_only=id_only)
 
     @mask_couch_error
-    def find_objects(self, subject="", predicate="", object_type="", id_only=False):
+    def find_objects(self, subject="", predicate="", object_type="", id_only=False, limit=0, skip=0, descending=False):
         return self.resource_registry.find_objects(subject=subject, predicate=predicate,
-            object_type=object_type, id_only=id_only)
+            object_type=object_type, id_only=id_only, limit=limit, skip=skip, descending=descending)
 
     @mask_couch_error
     def read_subject(self, subject_type="", predicate="", object="", assoc="", id_only=False):
@@ -115,14 +115,14 @@ class ResourceRegistryService(BaseResourceRegistryService):
             object=object, assoc=assoc, id_only=id_only)
 
     @mask_couch_error
-    def find_subjects(self, subject_type="", predicate="", object="", id_only=False):
+    def find_subjects(self, subject_type="", predicate="", object="", id_only=False, limit=0, skip=0, descending=False):
         return self.resource_registry.find_subjects(subject_type=subject_type, predicate=predicate,
-            object=object, id_only=id_only)
+            object=object, id_only=id_only, limit=limit, skip=skip, descending=descending)
 
     @mask_couch_error
-    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False):
+    def find_associations(self, subject="", predicate="", object="", assoc_type=None, id_only=False, limit=0, skip=0, descending=False):
         return self.resource_registry.find_associations(subject=subject, predicate=predicate,
-            object=object, assoc_type=assoc_type, id_only=id_only)
+            object=object, assoc_type=assoc_type, id_only=id_only, limit=limit, skip=skip, descending=descending)
     @mask_couch_error
     def find_objects_mult(self, subjects=[], id_only=False):
         return self.resource_registry.find_objects_mult(subjects=subjects, id_only=id_only)
@@ -153,15 +153,20 @@ class ResourceRegistryService(BaseResourceRegistryService):
         return self.resource_registry.read_mult(object_ids)
 
     @mask_couch_error
-    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, user_id=''):
+    def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, optional_args=None):
         """Returns any ExtendedResource object containing additional related information derived from associations
 
         @param resource_id    str
         @param resource_extension    str
         @param ext_associations    dict
         @param ext_exclude    list
+        @param optional_args    dict
         @retval actor_identity    ExtendedResource
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified resource_id does not exist
         """
-        return self.resource_registry.get_resource_extension(resource_id, resource_extension, ext_associations, ext_exclude)
+        #Ensure that it is not a NoneType
+        optional_args = dict() if optional_args is None else optional_args
+
+        return self.resource_registry.get_resource_extension(resource_extension=resource_extension, resource_id=resource_id,
+            computed_resource_type=OT.ComputedAttributes, ext_associations=ext_associations, ext_exclude=ext_exclude, **optional_args)

@@ -98,7 +98,8 @@ class OmsTestMixin(HelperTestMixin):
         attrNames = self.ATTR_NAMES
         cur_time = ntplib.system_to_ntp_time(time.time())
         from_time = cur_time - 50  # a 50-sec time window
-        retval = self.oms.get_platform_attribute_values(platform_id, attrNames, from_time)
+        req_attrs = [(attr_id, from_time) for attr_id in attrNames]
+        retval = self.oms.get_platform_attribute_values(platform_id, req_attrs)
         log.info("get_platform_attribute_values = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
@@ -110,7 +111,8 @@ class OmsTestMixin(HelperTestMixin):
         attrNames = self.ATTR_NAMES
         cur_time = ntplib.system_to_ntp_time(time.time())
         from_time = cur_time - 50  # a 50-sec time window
-        retval = self.oms.get_platform_attribute_values(platform_id, attrNames, from_time)
+        req_attrs = [(attr_id, from_time) for attr_id in attrNames]
+        retval = self.oms.get_platform_attribute_values(platform_id, req_attrs)
         log.info("get_platform_attribute_values = %s" % retval)
         self._verify_invalid_platform_id(platform_id, retval)
 
@@ -119,7 +121,8 @@ class OmsTestMixin(HelperTestMixin):
         attrNames = BOGUS_ATTR_NAMES
         cur_time = ntplib.system_to_ntp_time(time.time())
         from_time = cur_time - 50  # a 50-sec time window
-        retval = self.oms.get_platform_attribute_values(platform_id, attrNames, from_time)
+        req_attrs = [(attr_id, from_time) for attr_id in attrNames]
+        retval = self.oms.get_platform_attribute_values(platform_id, req_attrs)
         log.info("get_platform_attribute_values = %s" % retval)
         vals = self._verify_valid_platform_id(platform_id, retval)
         self.assertIsInstance(vals, dict)
@@ -160,6 +163,7 @@ class OmsTestMixin(HelperTestMixin):
         for port_id, info in ports.iteritems():
             self.assertIsInstance(info, dict)
             self.assertTrue('network' in info)
+            self.assertTrue('is_on' in info)
 
     def test_ak_get_platform_ports_invalid_platform_id(self):
         platform_id = BOGUS_PLATFORM_ID

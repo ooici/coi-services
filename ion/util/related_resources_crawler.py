@@ -4,9 +4,9 @@
 @package  ion.util.related_resources_crawler
 @author   Ian Katz
 """
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from ooi.logging import log
-from ooi import logging
 
 class RelatedResourcesCrawler(object):
 
@@ -21,28 +21,24 @@ class RelatedResourcesCrawler(object):
 
         It returns a second generator function that configures the crawl behavior
 
-        The second generator returns the function that crawls the associaiton list given a resource id,
-          returning an associaiton list
+        The second generator returns the function that crawls the association list given a resource id,
+          returning an association list
         """
 
-        # basically a lambda function: add a list of associations-matching-a-predicate to an accumulated list
-        def collect(acc, somepredicate):
-            return acc + resource_registry_client.find_associations(predicate=somepredicate, id_only=False)
+
 
         # we need to "freeze" the partial function, by evaluating its internal data one time.
         def freeze():
 
-            # get the full association list
-            master_assn_list = reduce(collect, predicate_list, [])
+            if isinstance(resource_registry_client, EnhancedResourceRegistryClient):
+                RR2 = resource_registry_client
+            else:
+                RR2 = EnhancedResourceRegistryClient(resource_registry_client)
 
-            if log.isEnabledFor(logging.TRACE):
-                summary = {}
-                for a in master_assn_list:
-                    label = "%s %s %s" % (a.st, a.p, a.ot)
-                    if not label in summary: summary[label] = 0
-                    summary[label] += 1
+            for p in predicate_list:
+                if not RR2.has_cached_prediate(p):
+                    RR2.cache_predicate(p)
 
-                log.trace("master assn list is %s", ["%s x%d" % (k, v) for k, v in summary.iteritems()])
 
             def get_related_resources_partial_fn(predicate_dictionary, resource_whitelist):
                 """
@@ -68,6 +64,8 @@ class RelatedResourcesCrawler(object):
                     assert type((True, True)) == type(v)
                 assert type([]) == type(resource_whitelist)
 
+                for rt in resource_whitelist:
+                    RR2.cache_resources(rt)
 
                 def lookup_fn(resource_id):
                     """
@@ -77,15 +75,18 @@ class RelatedResourcesCrawler(object):
                     """
                     retval = {}
 
-                    for a in master_assn_list:
-                        search_sto, search_ots = predicate_dictionary[a.p]
+                    sto_match = lambda assn: assn.s == resource_id and assn.ot in resource_whitelist
+                    ots_match = lambda assn: assn.o == resource_id and assn.st in resource_whitelist
+                    for p, (search_sto, search_ots) in predicate_dictionary.iteritems():
+                        if search_sto:
+                            for a in RR2.filter_cached_associations(p, sto_match):
+                                log.trace("lookup_fn matched %s object", a.ot)
+                                retval[a.o] = a
+                        if search_ots:
+                            for a in RR2.filter_cached_associations(p, ots_match):
+                                log.trace("lookup_fn matched %s subject", a.st)
+                                retval[a.s] = a
 
-                        if search_sto and a.s == resource_id and a.ot in resource_whitelist:
-                            log.trace("lookup_fn matched %s object", a.ot)
-                            retval[a.o] = a
-                        elif search_ots and a.o == resource_id and a.st in resource_whitelist:
-                            log.trace("lookup_fn matched %s subject", a.st)
-                            retval[a.s] = a
 
                     return retval
 

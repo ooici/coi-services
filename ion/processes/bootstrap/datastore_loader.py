@@ -24,6 +24,7 @@ class DatastoreAdmin(ImmediateProcess):
     bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=clear prefix=ion
     bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=dump path=res/preload/local/my_dump
     bin/pycc -fc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=load path=res/preload/local/my_dump
+    bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=dumpres
     """
     def on_init(self):
         pass
@@ -45,6 +46,10 @@ class DatastoreAdmin(ImmediateProcess):
                 self.da.load_datastore(path, datastore, ignore_errors=False)
             elif op == "dump":
                 self.da.dump_datastore(path, datastore)
+            elif op == "dumpres":
+                from ion.util.datastore.resources import ResourceRegistryHelper
+                rrh = ResourceRegistryHelper()
+                rrh.dump_resources_as_xlsx(path)
             elif op == "blame":
                 # TODO make generic
                 self.da.get_blame_objects()

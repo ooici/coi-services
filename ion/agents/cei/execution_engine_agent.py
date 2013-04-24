@@ -56,7 +56,7 @@ class ExecutionEngineAgent(SimpleResourceAgent):
         # TODO: Allow other core class?
         self.core = EEAgentCore(self.CFG, self._factory, log)
 
-        interval = self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT)
+        interval = float(self.CFG.eeagent.get('heartbeat', DEFAULT_HEARTBEAT))
         if interval > 0:
             self.heartbeater = HeartBeater(
                 self.CFG, self._factory, self.resource_id, self, log=log)
@@ -98,7 +98,7 @@ class HeartBeater(object):
         self._log.log(logging.DEBUG, "Starting the heartbeat thread")
         self._CFG = CFG
         self._res = None
-        self._interval = int(CFG.eeagent.heartbeat)
+        self._interval = float(CFG.eeagent.heartbeat)
         self._res = None
         self._done = False
         self._started = False
@@ -124,10 +124,20 @@ class HeartBeater(object):
 
     @property
     def _eea_started(self):
+        """_eea_started
+        We must ensure that the eea is listening before heartbeating to the PD.
+        If the eea isn't listening, the PD's reply will be lost.
+
+        So we must ensure that the Pyon process's listeners are created, and are ready
+        """
         if self._started:
             return True
 
-        if all(self.process._process.heartbeat()):
+        if len(self.process._process.listeners) > 0 and all(self.process._process.heartbeat()):
+            self._log.debug(
+                "eeagent heartbeat started because len(self.process._process.listeners) > 0 (%s) "
+                "and all(self.process._process.heartbeat()) == True (%s)" % (
+                    len(self.process._process.listeners), str(self.process._process.heartbeat())))
             self._started = True
             return True
         else:
@@ -167,32 +177,33 @@ class HeartBeater(object):
 
 class ExecutionEngineAgentClient(object):
 
-    def __init__(self, agent_client):
+    def __init__(self, agent_client, timeout=30):
         self.client = agent_client
+        self.timeout = timeout
 
     def launch_process(self, u_pid, round, run_type, parameters):
 
         args = [u_pid, round, run_type, parameters]
         cmd = AgentCommand(command='launch_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def terminate_process(self, u_pid, round):
 
         args = [u_pid, round]
         cmd = AgentCommand(command='terminate_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def restart_process(self, u_pid, round):
 
         args = [u_pid, round]
         cmd = AgentCommand(command='restart_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def cleanup_process(self, u_pid, round):
         args = [u_pid, round]
         cmd = AgentCommand(command='cleanup_process', args=args)
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)
 
     def dump_state(self):
         cmd = AgentCommand(command='dump_state', args=[])
-        return self.client.execute(cmd)
+        return self.client.execute(cmd, timeout=self.timeout)

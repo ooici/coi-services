@@ -153,6 +153,7 @@ class TestIMSRegisterAgent(PyonTestCase):
         inst_agent_id = "iaid1"
 
         self._mock_uploader_subprocess(False)
+        self.RR.read.return_value = any_old(RT.InstrumentAgent)
         self.assertRaises(BadRequest, self.IMS.register_instrument_agent, inst_agent_id, BASE64_EGG, BASE64_ZIPFILE)
         self.RR.read.assert_called_once_with(inst_agent_id, '')
 

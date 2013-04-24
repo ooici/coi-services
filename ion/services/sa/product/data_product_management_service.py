@@ -1,22 +1,31 @@
 #!/usr/bin/env python
-
 __author__ = 'Maurice Manning'
 __license__ = 'Apache 2.0'
 
 from pyon.public import  log, IonObject
-from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
-from ion.services.sa.product.data_product_impl import DataProductImpl
-
-from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from interface.objects import DataProduct, DataProductVersion
-from interface.objects import ComputedValueAvailability
-
+from pyon.util.containers import DotDict
+from pyon.core.object import IonObjectBase
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import RT, OT, PRED, LCS, CFG
 from pyon.util.ion_time import IonTime
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.arg_check import validate_is_instance, validate_is_not_none, validate_false
+
+from ion.services.dm.utility.granule_utils import RecordDictionaryTool
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from ion.util.time_utils import TimeUtils
+from ion.util.geo_utils import GeoUtils
+
+from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
+from interface.objects import DataProduct, DataProductVersion
+from interface.objects import ComputedValueAvailability
+
+from lxml import etree
+from datetime import datetime
+
+import numpy as np
 import string
+from collections import deque
 
 class DataProductManagementService(BaseDataProductManagementService):
     """ @author     Bill Bollenbacher
@@ -25,60 +34,76 @@ class DataProductManagementService(BaseDataProductManagementService):
     """
 
     def on_init(self):
-        self.override_clients(self.clients)
-
-    def override_clients(self, new_clients):
-        """
-        Replaces the service clients with a new set of them... and makes sure they go to the right places
-        """
-        self.data_product   = DataProductImpl(self.clients)
+        self.RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
 
-    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point=''):
+
+    def create_data_product(self, data_product=None, stream_definition_id='', exchange_point='', dataset_id=''):
         """
         @param      data_product IonObject which defines the general data product resource
         @param      source_resource_id IonObject id which defines the source for the data
         @retval     data_product_id
         """
 
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.DataProduct, name=data_product.name, id_only=True)
-        validate_false(len(res), 'A data product with the name %s already exists.' % data_product.name)
-        log.info('Creating DataProduct: %s', data_product.name)
+        data_product_id = self.create_data_product_(data_product)
 
-        # Create will validate and register a new data product within the system
-        # If the stream definition has a parameter dictionary, use that
-        validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to register a data product')
-        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
-        parameter_dictionary = stream_def_obj.parameter_dictionary 
-        validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
+        self.assign_stream_definition_to_data_product(data_product_id=data_product_id,
+            stream_definition_id=stream_definition_id, exchange_point=exchange_point)
+
+        if dataset_id:
+            self.assign_dataset_to_data_product(data_product_id=data_product_id, dataset_id=dataset_id)
+
+      # Return the id of the new data product
+        return data_product_id
+
+    def create_data_product_(self, data_product=None):
+
         validate_is_not_none(data_product, 'A data product (ion object) must be passed to register a data product')
-        exchange_point = exchange_point or 'science_data'
+
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        if data_product and data_product.type_ == RT.DataProduct:
+            data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
+            log.debug("create_data_product data_product.geospatial_point_center: %s" % data_product.geospatial_point_center)
 
         #--------------------------------------------------------------------------------
         # Register - create and store a new DataProduct resource using provided metadata
         #--------------------------------------------------------------------------------
-        data_product_id, rev = self.clients.resource_registry.create(data_product)
+        data_product_id = self.RR2.create(data_product, RT.DataProduct)
 
+        return data_product_id
 
-        #-----------------------------------------------------------------------------------------------
-        #Create the stream and a dataset if a stream definition is provided
-        #-----------------------------------------------------------------------------------------------
+    def assign_stream_definition_to_data_product(self, data_product_id='', stream_definition_id='', exchange_point=''):
+
+        validate_is_not_none(data_product_id, 'A data product id must be passed to register a data product')
+        validate_is_not_none(stream_definition_id, 'A stream definition id must be passed to assign to a data product')
+        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_definition_id) # Validates and checks for param_dict
+        parameter_dictionary = stream_def_obj.parameter_dictionary
+        validate_is_not_none(parameter_dictionary , 'A parameter dictionary must be passed to register a data product')
+        exchange_point = exchange_point or 'science_data'
+
+        data_product = self.RR2.read(data_product_id)
 
         #if stream_definition_id:
         #@todo: What about topics?
 
+        # Associate the StreamDefinition with the data product
+        self.RR2.assign_stream_definition_to_data_product_with_has_stream_definition(stream_definition_id, data_product_id)
+
         stream_id,route = self.clients.pubsub_management.create_stream(name=data_product.name,
-                                                                exchange_point=exchange_point,
-                                                                description=data_product.description,
-                                                                stream_definition_id=stream_definition_id)
+            exchange_point=exchange_point,
+            description=data_product.description,
+            stream_definition_id=stream_definition_id)
 
         # Associate the Stream with the main Data Product and with the default data product version
-        self.data_product.link_stream(data_product_id, stream_id)
+        self.RR2.assign_stream_to_data_product_with_has_stream(stream_id, data_product_id)
 
 
+    def assign_dataset_to_data_product(self, data_product_id='', dataset_id=''):
+        validate_is_not_none(data_product_id, 'A data product id must be passed to assign a dataset to a data product')
+        validate_is_not_none(dataset_id, 'A dataset id must be passed to assign a dataset to a data product')
 
-        # Return the id of the new data product
-        return data_product_id
+        self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+
 
     def read_data_product(self, data_product_id=''):
         """
@@ -87,8 +112,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         # Retrieve all metadata for a specific data product
         # Return data product resource
 
-        data_product = self.data_product.read_one(data_product_id)
-        validate_is_instance(data_product,DataProduct)
+        data_product = self.RR2.read(data_product_id, RT.DataProduct)
 
         return data_product
 
@@ -100,20 +124,16 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product    DataProduct
         @throws NotFound    object with specified id does not exist
         """
-        validate_is_instance(data_product, DataProduct)
 
-        self.data_product.update_one(data_product)
+        # if the geospatial_bounds is set then calculate the geospatial_point_center
+        if data_product and data_product.type_ == RT.DataProduct:
+            data_product.geospatial_point_center = GeoUtils.calc_geospatial_point_center(data_product.geospatial_bounds)
+
+        self.RR2.update(data_product, RT.DataProduct)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
     def delete_data_product(self, data_product_id=''):
-
-        #Check if this data product is associated to a producer
-        #todo: convert to impl call
-        producer_objs = self.data_product.find_stemming_data_producer(data_product_id)
-
-        for producer_obj in producer_objs:
-            self.clients.data_acquisition_management.unassign_data_product(data_product_id, producer_obj._id)
 
         #--------------------------------------------------------------------------------
         # suspend persistence
@@ -123,48 +143,28 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # remove stream associations
         #--------------------------------------------------------------------------------
-        #self.remove_streams(data_product_id)
+        stream_ids, assoc_ids = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, True)
+        for stream, assoc in zip(stream_ids,assoc_ids):
+            self.clients.resource_registry.delete_association(assoc)
+            self.clients.pubsub_management.delete_stream(stream_ids[0])
 
         #--------------------------------------------------------------------------------
-        # remove dataset associations
+        # retire the data product
         #--------------------------------------------------------------------------------
-        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
+        self.RR2.retire(data_product_id, RT.DataProduct)
 
-#        for dataset_id in dataset_ids:
-#            self.data_product.unlink_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
-
-        #--------------------------------------------------------------------------------
-        # Delete the data product
-        #--------------------------------------------------------------------------------
-
-        self.data_product.delete_one(data_product_id)
 
     def force_delete_data_product(self, data_product_id=''):
 
-        # if not yet deleted, the first execute delete logic
-        dp_obj = self.read_data_product(data_product_id)
-        if dp_obj.lcstate != LCS.RETIRED:
-            self.delete_data_product(data_product_id)
 
         #get the assoc producers before deleteing the links
-        producers, producer_assns = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataProducer, RT.DataProducer, True)
+        producer_ids = self.RR2.find_data_producer_ids_of_data_product_using_has_data_producer(data_product_id)
 
-        self._remove_associations(data_product_id)
-        for producer in producers:
-            self.clients.resource_registry.delete(producer)
+        self.RR2.pluck(data_product_id)
+        for producer_id in producer_ids:
+            self.RR2.delete(producer_id)
 
-        self.clients.resource_registry.delete(data_product_id)
-
-    def remove_streams(self, data_product_id=''):
-        streams, assocs = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
-        datasets, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataset, id_only=True)
-        for dataset in datasets:
-            for stream, assoc in zip(streams,assocs):
-                self.clients.resource_registry.delete_association(assoc)
-                self.clients.pubsub_management.delete_stream(stream)
-                self.clients.dataset_management.remove_stream(dataset, stream)
-
-        return streams
+        self.RR2.pluck_delete(data_product_id, RT.DataProduct)
 
 
     def find_data_products(self, filters=None):
@@ -180,7 +180,8 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         # Organize and return the list of matches with summary metadata (title, summary, keywords)
 
-        return self.data_product.find_some(filters)
+        ret, _ = self.clients.resource_registry.find_resources(RT.DataProduct, None, None, False)
+        return ret
 
 
 
@@ -193,7 +194,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         #--------------------------------------------------------------------------------
         # retrieve the data_process object
         #--------------------------------------------------------------------------------
-        data_product_obj = self.data_product.read_one(data_product_id)
+        data_product_obj = self.RR2.read(data_product_id)
 
         validate_is_not_none(data_product_obj, "The data product id should correspond to a valid registered data product.")
 
@@ -207,21 +208,28 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise BadRequest("Data Product stream is without a stream definition")
         stream_def_id = stream_defs[0]
 
+
         stream_def = self.clients.pubsub_management.read_stream_definition(stream_def_id) # additional read necessary to fill in the pdict
 
+        dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, predicate=PRED.hasDataset, id_only=True)
         
-        
+        if not dataset_ids:
+            # No datasets are currently linked which means we need to create a new one
+            dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
+                                                                            stream_id=stream_id,
+                                                                            parameter_dict=stream_def.parameter_dictionary,
+                                                                            temporal_domain=data_product_obj.temporal_domain,
+                                                                            spatial_domain=data_product_obj.spatial_domain)
 
-        dataset_id = self.clients.dataset_management.create_dataset(   name= 'data_set_%s' % stream_id,
-                                                                        stream_id=stream_id,
-                                                                        parameter_dict=stream_def.parameter_dictionary,
-                                                                        temporal_domain=data_product_obj.temporal_domain,
-                                                                        spatial_domain=data_product_obj.spatial_domain)
-
-        # link dataset with data product. This creates the association in the resource registry
-        self.data_product.link_data_set(data_product_id=data_product_id, data_set_id=dataset_id)
-        
-        log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
+            # link dataset with data product. This creates the association in the resource registry
+            self.RR2.assign_dataset_to_data_product_with_has_dataset(dataset_id, data_product_id)
+            
+            # register the dataset for externalization
+            self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
+            
+            log.debug("Activating data product persistence for stream_id: %s"  % str(stream_id))
+        else:
+            dataset_id = dataset_ids[0]
 
 
 
@@ -233,6 +241,15 @@ class DataProductManagementService(BaseDataProductManagementService):
         else:
             ingestion_configuration_id = self.clients.ingestion_management.list_ingestion_configurations(id_only=True)[0]
 
+
+        #--------------------------------------------------------------------------------
+        # Identify lookup tables
+        #--------------------------------------------------------------------------------
+        config = DotDict()
+        if self._has_lookup_values(data_product_id):
+            config.process.input_product = data_product_id
+            config.process.lookup_docs = self._get_lookup_documents(data_product_id)
+
         #--------------------------------------------------------------------------------
         # persist the data stream using the ingestion config id and stream id
         #--------------------------------------------------------------------------------
@@ -240,10 +257,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         # find datasets for the data product
         dataset_id = self.clients.ingestion_management.persist_data_stream(stream_id=stream_id,
                                                 ingestion_configuration_id=ingestion_configuration_id,
-                                                dataset_id=dataset_id)
+                                                dataset_id=dataset_id,
+                                                config=config)
 
-        # register the dataset for externalization
-        self.clients.dataset_management.register_dataset(dataset_id, external_data_product_name=data_product_obj.description or data_product_obj.name)
 
 
         #--------------------------------------------------------------------------------
@@ -269,7 +285,6 @@ class DataProductManagementService(BaseDataProductManagementService):
         """Suspend data product data persistence into a data set, multiple options
 
         @param data_product_id    str
-        @param type    str
         @throws NotFound    object with specified id does not exist
         """
 
@@ -281,7 +296,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         validate_is_not_none(data_product_obj, 'Should not have been empty')
         validate_is_instance(data_product_obj, DataProduct)
 
-        if data_product_obj.dataset_configuration_id is None:
+        if not data_product_obj.dataset_configuration_id:
             raise NotFound("Data Product %s dataset configuration does not exist" % data_product_id)
 
         #--------------------------------------------------------------------------------
@@ -316,26 +331,61 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         self.provenance_results = {}
 
-        data_product = self.data_product.read_one(data_product_id)
+        data_product = self.RR2.read(data_product_id)
         validate_is_not_none(data_product, "Should have got a non empty data product")
 
         # todo: get the start time of this data product
-        self.data_product._find_producers(data_product_id, self.provenance_results)
+        self._find_producers(data_product_id, self.provenance_results)
 
         return self.provenance_results
 
     def get_data_product_provenance_report(self, data_product_id=''):
 
-        # Retrieve information that characterizes how this data was produced
-        # Return in a dictionary
+        ''' Performs a breadth-first traversal of the provenance for a data product'''
+        validate_is_not_none(data_product_id, 'A data product identifier must be passed to create a provenance report')
 
-        self.provenance_results = self.get_data_product_provenance(data_product_id)
+        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
+        if not len(producer_ids):
+            raise BadRequest('Data product has no known data producers')
 
-        results = ''
+        producer_id = producer_ids.pop(0)
+        result = {}
 
-        results = self.data_product._write_product_provenance_report(data_product_id, self.provenance_results)
+        def traversal(result, producer_id):
+            ret = {}
+            data_producer_obj = self.clients.resource_registry.read(object_id=producer_id)
+            ret['config'] = data_producer_obj.producer_context.configuration
+            data_obj_ids, _ = self.clients.resource_registry.find_subjects(predicate=PRED.hasDataProducer, object=producer_id, id_only=True)
 
-        return results
+            if data_obj_ids:
+
+                producer_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasParent, id_only=True)
+
+                if producer_ids:
+                    ret['parent'] = producer_ids
+
+                result[data_obj_ids[0]] = ret
+
+                for prod_id in producer_ids:
+                    traversal(result, prod_id)
+
+        traversal(result, producer_id)
+
+        return result
+
+
+
+
+        # # Retrieve information that characterizes how this data was produced
+        # # Return in a dictionary
+        #
+        # self.provenance_results = self.get_data_product_provenance(data_product_id)
+        #
+        # results = ''
+        #
+        # results = self._write_product_provenance_report(data_product_id, self.provenance_results)
+        #
+        # return results
 
     ############################
     #
@@ -367,13 +417,12 @@ class DataProductManagementService(BaseDataProductManagementService):
     def update_data_product_collection(self, data_product_collection=None):
         """@todo document this interface!!!
 
-        @param data_product    DataProductVersion
+        @param data_product_collection    DataProductCollection
         @throws NotFound    object with specified id does not exist
         """
 
-        validate_is_not_none(data_product_collection, "Should not pass in a None object")
 
-        self.clients.resource_registry.update(data_product_collection)
+        self.RR2.update(data_product_collection, RT.DataProductCollection)
 
         #TODO: any changes to producer? Call DataAcquisitionMgmtSvc?
 
@@ -385,9 +434,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         @param data_product_collection_id    str
         @retval data_product    DataProductVersion
         """
-        result = self.clients.resource_registry.read(data_product_collection_id)
-
-        validate_is_not_none(result, "Should not have returned an empty result")
+        result = self.RR2.read(data_product_collection_id, RT.DataProductCollection)
 
         return result
 
@@ -405,10 +452,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             if dataproduct_obj.lcstate != LCS.RETIRED:
                 raise BadRequest("All Data Products in a collection must be deleted before the collection is deleted.")
 
-        data_product_collection_obj = self.read_data_product_collection(data_product_collection_id)
-
-        if data_product_collection_obj.lcstate != LCS.RETIRED:
-            self.clients.resource_registry.retire(data_product_collection_id)
+        self.RR2.retire(data_product_collection_id, RT.DataProductCollection)
 
     def force_delete_data_product_collection(self, data_product_collection_id=''):
 
@@ -417,8 +461,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         if dp_obj.lcstate != LCS.RETIRED:
             self.delete_data_product_collection(data_product_collection_id)
 
-        self._remove_associations(data_product_collection_id)
-        self.clients.resource_registry.delete(data_product_collection_id)
+        self.RR2.pluck_delete(data_product_collection_id, RT.DataProductCollection)
 
     def add_data_product_version_to_collection(self, data_product_id='', data_product_collection_id='', version_name='', version_description=''):
 
@@ -479,7 +522,7 @@ class DataProductManagementService(BaseDataProductManagementService):
         declare a data_product to be in a given state
         @param data_product_id the resource id
         """
-        return self.data_product.advance_lcs(data_product_id, lifecycle_event)
+        return self.RR2.advance_lcs(data_product_id, lifecycle_event)
 
     def get_last_update(self, data_product_id=''):
         """@todo document this interface!!!
@@ -501,17 +544,37 @@ class DataProductManagementService(BaseDataProductManagementService):
                 continue
         return retval
 
+    def get_data_product_group_list(self, org_id=''):
+        group_names = set()
+
+        # TODO: the return volume of this can be reduced by making a reduce query.
+        res_ids, keys = self.clients.resource_registry.find_resources_ext(RT.DataProduct, attr_name="ooi_product_name", id_only=True)
+        for key in keys:
+            group_name = key.get('attr_value', None)
+            if group_name:
+                group_names.add(group_name)
+
+        return sorted(list(group_names))
+
     def _get_dataset_id(self, data_product_id=''):
         # find datasets for the data product
+        dataset_id = ''
         dataset_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, id_only=True)
-        if not dataset_ids:
+        if dataset_ids:
+            dataset_id = dataset_ids[0]
+        else:
             raise NotFound('No Dataset is associated with DataProduct %s' % data_product_id)
-        return dataset_ids[0]
+        return dataset_id
 
     def _get_stream_id(self, data_product_id=''):
         # find datasets for the data product
+        stream_id = ''
         stream_ids, _ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
-        return stream_ids[0]
+        if stream_ids:
+            stream_id =  stream_ids[0]
+        else:
+            raise NotFound('No Stream is associated with DataProduct %s' % data_product_id)
+        return stream_id
 
     ############################
     #
@@ -551,7 +614,7 @@ class DataProductManagementService(BaseDataProductManagementService):
             for producer_id, dataprodlist in value['inputs'].iteritems():
                 for dataprod in dataprodlist:
                     dp_list.append( self.clients.resource_registry.read(dataprod) )
-        extended_product.provenance_product_list = set(dp_list)  #remove dups in list
+        extended_product.provenance_product_list = list ( set(dp_list) ) #remove dups in list
 
         #set the data_ingestion_datetime from get_data_datetime
         if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
@@ -671,23 +734,24 @@ class DataProductManagementService(BaseDataProductManagementService):
         ret = IonObject(OT.ComputedListValue)
         ret.value = []
         try:
-            stream_id = self._get_stream_id(data_product_id)
-            if not stream_id:
+            stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            if not stream_def_ids:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
-                ret.reason = "There is no Stream associated with this DataProduct"
+                ret.reason = "There is no StreamDefinition associated with this DataProduct"
+                return ret
+            stream_def = self.clients.pubsub_management.read_stream_definition(stream_definition_id=stream_def_ids[0])
+
+            param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, id_only=True)
+            if not param_dict_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "There is no ParameterDictionary associated with this DataProduct"
             else:
-                stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_id, predicate=PRED.hasStreamDefinition, id_only=True)
-                if not stream_def_ids:
-                    ret.status = ComputedValueAvailability.NOTAVAILABLE
-                    ret.reason = "There is no StreamDefinition associated with this DataProduct"
+                ret.status = ComputedValueAvailability.PROVIDED
+                if stream_def.available_fields:
+                    retval = [i for i in self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0]) if i.name in stream_def.available_fields]
                 else:
-                    param_dict_ids, _ = self.clients.resource_registry.find_objects(subject=stream_def_ids[0], predicate=PRED.hasParameterDictionary, id_only=True)
-                    if not param_dict_ids:
-                        ret.status = ComputedValueAvailability.NOTAVAILABLE
-                        ret.reason = "There is no ParameterDictionary associated with this DataProduct"
-                    else:
-                        ret.status = ComputedValueAvailability.PROVIDED
-                        ret.value = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                    retval = self.clients.dataset_management.read_parameter_contexts(param_dict_ids[0])
+                ret.value = retval
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -788,13 +852,39 @@ class DataProductManagementService(BaseDataProductManagementService):
             if not dataset_ids:
                 ret.status = ComputedValueAvailability.NOTAVAILABLE
                 ret.reason = "No dataset associated with this data product"
-            else:
-                replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1)
-                #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
-                rdt = RecordDictionaryTool.load_from_granule(replay_granule)
-                ret.value =  {k : str(k) + ': ' + str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
+                return ret
+
+            stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStreamDefinition, id_only=True)
+            if not stream_def_ids:
+                ret.status = ComputedValueAvailability.NOTAVAILABLE
+                ret.reason = "No stream definition associated with this data product"
+                return ret
+
+            stream_def_id = stream_def_ids[0]
+
+            replay_granule = self.clients.data_retriever.retrieve_last_data_points(dataset_ids[0], number_of_points=1, delivery_format=stream_def_id)
+            #replay_granule = self.clients.data_retriever.retrieve_last_granule(dataset_ids[0])
+            rdt = RecordDictionaryTool.load_from_granule(replay_granule)
+            retval = {}
+            for k,v in rdt.iteritems():
+                element = np.atleast_1d(rdt[k]).flatten()[0]
+                if element == rdt._pdict.get_context(k).fill_value:
+                    retval[k] = '%s: Empty' % k
+                elif 'seconds' in rdt._pdict.get_context(k).uom:
+                    units = rdt._pdict.get_context(k).uom
+                    element = np.atleast_1d(rdt[k]).flatten()[0]
+                    unix_ts = TimeUtils.units_to_ts(units, element)
+                    dtg = datetime.utcfromtimestamp(unix_ts)
+                    try:
+                        retval[k] = '%s: %s' %(k,dtg.strftime('%Y-%m-%dT%H:%M:%SZ'))
+                    except:
+                        retval[k] = '%s: %s' %(k, element)
+
+                else:
+                    retval[k] = '%s: %s' %(k, element)
+            ret.value = retval
 #                ret.value =  {k : str(rdt[k].tolist()[0]) for k,v in rdt.iteritems()}
-                ret.status = ComputedValueAvailability.PROVIDED
+            ret.status = ComputedValueAvailability.PROVIDED
         except NotFound:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
             ret.reason = "FIXME: this message should say why the calculation couldn't be done"
@@ -836,35 +926,363 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         return ret
 
+    def _has_lookup_values(self, data_product_id):
+        stream_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasStream, id_only=True)
+        if not stream_ids:
+            raise BadRequest('No streams found for this data product')
+        stream_def_ids, _ = self.clients.resource_registry.find_objects(subject=stream_ids[0], predicate=PRED.hasStreamDefinition, id_only=True)
+        if not stream_def_ids:
+            raise BadRequest('No stream definitions found for this stream')
+        
+        return self.clients.pubsub_management.has_lookup_values(stream_definition_id=stream_def_ids[0])
 
-    def _remove_associations(self, resource_id=''):
+    def _get_lookup_documents(self, data_product_id):
+        return self.clients.data_acquisition_management.list_qc_references(data_product_id)
+
+
+    def _find_producers(self, data_product_id='', provenance_results=''):
+        source_ids = []
+        # get the link to the DataProducer resource
+        log.debug("DataProductMgmt:_find_producers start %s", data_product_id)
+        producer_ids, _ = self.clients.resource_registry.find_objects(subject=data_product_id, predicate=PRED.hasDataProducer, id_only=True)
+        for producer_id in producer_ids:
+            # get the link to that resources parent DataProducer
+            parent_ids, _ = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasParent, id_only=True)
+            for parent_id in parent_ids:
+                # get the producer that this DataProducer represents
+                nxt_producer_ids, _ = self.clients.resource_registry.find_subjects( predicate=PRED.hasDataProducer, object=parent_id, id_only=True)
+                producer_list = []
+                inputs = {}
+
+                for nxt_producer_id in nxt_producer_ids:
+                    nxt_producer_obj = self.clients.resource_registry.read(nxt_producer_id)
+                    log.debug("DataProductMgmt:_find_producers nxt_producer %s", nxt_producer_obj.name)
+                    #todo: check the type of resource; instrument, data process or extDataset'
+                    #todo: check if this is a SiteDataProduct name=SiteDataProduct and desc=site_id
+                    inputs_to_nxt_producer = self._find_producer_in_products(nxt_producer_id)
+                    log.debug("DataProductMgmt:_find_producers inputs_to_nxt_producer %s", str(inputs_to_nxt_producer))
+                    producer_list.append(nxt_producer_id)
+                    inputs[nxt_producer_id] = inputs_to_nxt_producer
+                    #provenance_results[data_product_id] = { 'producerctx':self._extract_producer_context(nxt_producer_id) , 'producer': nxt_producer_id, 'inputs': inputs_to_nxt_producer }
+                    log.debug("DataProductMgmt:_find_producers self.provenance_results %s", str(provenance_results))
+                    for input in inputs_to_nxt_producer:
+                        self._find_producers(input, provenance_results)
+
+                    provenance_results[data_product_id] = { 'producer': producer_list, 'inputs': inputs }
+
+        log.debug("DataProductMgmt:_find_producers: %s", str(source_ids))
+        return
+
+    def _find_producer_in_products(self, producer_id=''):
+        # get the link to the inout DataProduct resource
+        product_ids, _ = self.clients.resource_registry.find_objects(   subject=producer_id,
+                                                                        predicate=PRED.hasInputProduct,
+                                                                        id_only=True)
+        for product_id in product_ids:
+            product_obj = self.clients.resource_registry.read(product_id)
+            log.debug("DataProductMgmt:_find_producer_in_products: %s", product_obj.name)
+
+        return product_ids
+
+
+    def _write_product_provenance_report(self, data_product_id='', provenance_results=''):
+
+        results = ''
+
+        if not data_product_id:
+            raise BadRequest('Data Product Id %s must be provided' % str(data_product_id))
+        if not provenance_results:
+            raise BadRequest('Data Product provenance data %s must be provided' % str(provenance_results))
+
+        #set up xml doc
+        self.page = etree.Element('lineage')
+        self.doc = etree.ElementTree(self.page)
+
+        in_data_products = []
+        next_input_set = []
+        self._write_product_info(data_product_id, provenance_results)
+
+        #get the set of inputs to the producer which created this data product
+        for key, value in provenance_results[data_product_id]['inputs'].items():
+            in_data_products.extend(value)
+        log.debug("DataProductMgmt:_write_product_provenance_report in_data_products: %s",
+                  str(in_data_products))
+
+        while in_data_products:
+            for in_data_product in in_data_products:
+                # write the provenance for each of those products
+                self._write_product_info(in_data_product, provenance_results)
+                log.debug("DataProductMgmt:_write_product_provenance_report next_input_set: %s",
+                          str(provenance_results[in_data_product]['inputs']))
+                # provenance_results[in_data_product]['inputs'] contains a dict that is produce_id:[input_product_list]
+                for key, value in provenance_results[in_data_product]['inputs'].items():
+                    next_input_set.extend(value)
+                #switch to the input for these producers
+            in_data_products =  next_input_set
+            next_input_set = []
+            log.debug("DataProductMgmt:_write_product_provenance_report in_data_products (end loop): %s",
+                      str(in_data_products))
+
+
+        result = etree.tostring(self.page, pretty_print=True, encoding=None)
+
+        log.debug("DataProductMgmt:_write_product_provenance_report result: %s", str(result))
+
+        return results
+
+
+    def _write_object_info(self, data_obj=None, etree_node=None):
+
+        fields, schema = data_obj.__dict__, data_obj._schema
+
+        for att_name, attr_type in schema.iteritems():
+        #            log.debug("DataProductMgmt:_write_product_info att_name %s",  str(att_name))
+        #            log.debug("DataProductMgmt:_write_product_info attr_type %s",  str(attr_type))
+        #            log.debug("DataProductMgmt:_write_product_info attr_type [type] %s",  str(attr_type['type']))
+            attr_value = getattr(data_obj, att_name)
+            log.debug("DataProductMgmt:_write_product_info att_value %s",  str(attr_value))
+            if isinstance(attr_value, IonObjectBase):
+                log.debug("DataProductMgmt:_write_product_info IonObjectBase  att_value %s", str(attr_value))
+            if isinstance(fields[att_name], IonObjectBase):
+                sub_elem = etree.SubElement(etree_node, att_name)
+                log.debug("DataProductMgmt:_write_product_info IonObjectBase  fields[att_name] %s", str(fields[att_name]))
+                self._write_object_info(data_obj=attr_value, etree_node=sub_elem)
+            elif attr_type['type'] == 'list' and attr_value:
+                sub_elem = etree.SubElement(etree_node, att_name)
+                for list_element in attr_value:
+                    log.debug("DataProductMgmt:_list_element %s",  str(list_element))
+                    if isinstance(list_element, IonObjectBase):
+                        self._write_object_info(data_obj=list_element, etree_node=sub_elem)
+
+            elif attr_type['type'] == 'dict' and attr_value:
+                sub_elem = etree.SubElement(etree_node, att_name)
+                for key, val in attr_value.iteritems():
+                    log.debug("DataProductMgmt:dict key %s    val%s",  str(key), str(val) )
+                    if isinstance(val, IonObjectBase):
+                        self._write_object_info(data_obj=val, etree_node=sub_elem)
+                    else:
+                        log.debug("DataProductMgmt:dict new simple elem key %s ",  str(key) )
+                        dict_sub_elem = etree.SubElement(sub_elem, key)
+                        dict_sub_elem.text = str(val)
+
+
+            #special processing for timestamp elements:
+            elif  attr_type['type'] == 'str' and  '_time' in att_name  :
+                log.debug("DataProductMgmt:_format_ion_time  att_name %s   attr_value %s ", str(att_name), str(attr_value))
+                if len(attr_value) == 16 :
+                    attr_value = self._format_ion_time(attr_value)
+                sub_elem = etree.SubElement(etree_node, att_name)
+                sub_elem.text = str(attr_value)
+            else:
+                sub_elem = etree.SubElement(etree_node, att_name)
+                sub_elem.text = str(attr_value)
+
+    def _extract_producer_context(self, producer_id=''):
+
+        producer_obj = self.clients.resource_registry.read(producer_id)
+        producertype = type(producer_obj).__name__
+
+        context = {}
+        if RT.DataProcess == producertype :
+            context['DataProcess'] = str(producer_obj)
+            data_proc_def_objs, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasProcessDefinition, object_type=RT.DataProcessDefinition)
+            for data_proc_def_obj in data_proc_def_objs:
+                proc_def_type = type(data_proc_def_obj).__name__
+                if RT.DataProcessDefinition == proc_def_type :
+                    context['DataProcessDefinition'] = str(data_proc_def_obj)
+                if RT.ProcessDefinition == proc_def_type :
+                    context['ProcessDefinition'] = str(data_proc_def_obj)
+            transform_objs, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasTransform, object_type=RT.Transform)
+            if transform_objs:
+                context['Transform'] = str(transform_objs[0])
+        if RT.InstrumentDevice == producertype :
+            context['InstrumentDevice'] = str(producer_obj)
+            inst_model_objs, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasModel, object_type=RT.InstrumentModel)
+            if inst_model_objs:
+                context['InstrumentModel'] = str(inst_model_objs[0])
+        return context
+
+
+
+
+
+    def _write_product_info(self, data_product_id='', provenance_results=''):
+        #--------------------------------------------------------------------------------
+        # Data Product metadata
+        #--------------------------------------------------------------------------------
+        log.debug("DataProductMgmt:provenance_report data_product_id %s",  str(data_product_id))
+        processing_step = etree.SubElement(self.page, 'processing_step')
+        product_obj = self.clients.resource_registry.read(data_product_id)
+        data_product_tag = etree.SubElement(processing_step, 'data_product')
+
+        self._write_object_info(data_obj=product_obj, etree_node=data_product_tag)
+
+
+        #--------------------------------------------------------------------------------
+        # Data Producer metadata
+        #--------------------------------------------------------------------------------
+        producer_dict = provenance_results[data_product_id]
+        log.debug("DataProductMgmt:provenance_report  producer_dict %s ", str(producer_dict))
+        producer_list = provenance_results[data_product_id]['producer']
+        data_producer_list_tag = etree.SubElement(processing_step, 'data_producer_list')
+        for producer_id in producer_list:
+            log.debug("DataProductMgmt:reading producer  %s ", str(producer_id))
+            producer_obj = self.clients.resource_registry.read(producer_id)
+            data_producer_tag = etree.SubElement(data_producer_list_tag, 'data_producer')
+            self._write_object_info(data_obj=producer_obj, etree_node=data_producer_tag)
+
+
+            #retrieve the assoc data producer resource
+            data_producer_objs, producer_assns = self.clients.resource_registry.find_objects(subject=producer_id, predicate=PRED.hasDataProducer, id_only=False)
+            if not data_producer_objs:
+                raise BadRequest('No Data Producer resource associated with the Producer %s' % str(producer_id))
+            data_producer_obj = data_producer_objs[0]
+            sub_elem = etree.SubElement(data_producer_tag, 'data_producer_config')
+            log.debug("DataProductMgmt:data_producer_obj  %s ", str(data_producer_obj))
+            self._write_object_info(data_obj=data_producer_obj, etree_node=sub_elem)
+
+            # add the input product names for these producers
+            in_product_list = provenance_results[data_product_id]['inputs'][producer_id]
+            if in_product_list:
+                input_products_tag = etree.SubElement(data_producer_tag, "input_products")
+                for in_product in in_product_list:
+                    input_product_tag = etree.SubElement(input_products_tag, "input_product")
+                    #product_name_tag = etree.SubElement(input_product_tag, "name")
+                    product_obj = self.clients.resource_registry.read(in_product)
+                    self._write_object_info(data_obj=product_obj, etree_node=input_product_tag)
+                    #product_name_tag.text = product_obj.name
+
+
+            # check for attached deployment
+            deployment_ids, _ = self.clients.resource_registry.find_objects( subject=producer_id, predicate=PRED.hasDeployment, object_type=RT.Deployment, id_only=True)
+            #todo: match when this prouct was produced with the correct deployment object
+            if deployment_ids:
+                data_producer_deploys_tag = etree.SubElement(data_producer_tag, 'data_producer_deployments')
+                for deployment_id in deployment_ids:
+                    deployment_tag = etree.SubElement(data_producer_deploys_tag, 'deployment')
+                    deployment_obj = self.clients.resource_registry.read(deployment_id)
+                    #find the site
+                    self._write_object_info(data_obj=deployment_obj, etree_node=deployment_tag)
+                    deployment_site_ids, _ = self.clients.resource_registry.find_subjects( subject_type=RT.InstrumentSite, predicate=PRED.hasDeployment, object=deployment_id, id_only=True)
+                    for deployment_site_id in deployment_site_ids:
+                        deploy_site_tag = etree.SubElement(deployment_tag, 'deployment_site')
+                        site_obj = self.clients.resource_registry.read(deployment_site_id)
+                        self._write_object_info(data_obj=site_obj, etree_node=deploy_site_tag)
+
+            # check for lookup table attachments
+            att_ids = self.clients.resource_registry.find_attachments(producer_id, keyword="DataProcessInput", id_only=True)
+            if att_ids:
+                data_producer_lookups_tag = etree.SubElement(data_producer_tag, 'data_producer_attachments')
+                for att_id in att_ids:
+                    lookup_tag = etree.SubElement(data_producer_lookups_tag, 'attachment')
+                    attach_obj = self.clients.resource_registry.read(att_id)
+                    self._write_object_info(data_obj=attach_obj, etree_node=lookup_tag)
+
+
+
+    def _format_ion_time(self, ion_time=''):
+        ion_time_obj = IonTime.from_string(ion_time)
+        #todo: fix this and return str( ion_time_obj)
+        return str(ion_time_obj)
+
+    ############################
+    #
+    #  PREPARE UPDATE RESOURCES
+    #
+    ############################
+
+
+    def prepare_data_product_support(self, data_product_id=''):
         """
-        delete all associations to/from a resource
+        Returns the object containing the data to update an instrument device resource
         """
 
-        # find all associations where this is the subject
-        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
 
-        # find all associations where this is the object
-        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
+        resource_data = extended_resource_handler.create_prepare_resource_support(data_product_id, OT.DataProductPrepareSupport)
 
-        log.debug("_remove_associations will remove %s subject associations and %s object associations",
-            len(sbj_assns), len(obj_assns))
+        #Fill out service request information for creating a data product
+        resource_data.create_request.service_name = 'data_product_management'
+        resource_data.create_request.service_operation = 'create_data_product_'
+        resource_data.create_request.request_parameters = {
+            "data_product":  "$(data_product)"
+        }
 
-        for assn in obj_assns:
-            log.debug("_remove_associations deleting object association %s", assn)
-            self.clients.resource_registry.delete_association(assn)
 
-        for assn in sbj_assns:
-            log.debug("_remove_associations deleting subject association %s", assn)
-            self.clients.resource_registry.delete_association(assn)
+        #Fill out service request information for updating a data product
+        resource_data.update_request.service_name = 'data_product_management'
+        resource_data.update_request.service_operation = 'update_data_product'
+        resource_data.update_request.request_parameters = {
+            "data_product":  "$(data_product)"
+        }
 
-        # find all associations where this is the subject
-        _, obj_assns = self.clients.resource_registry.find_objects(subject=resource_id, id_only=True)
+        #Fill out service request information for activating a data product
+        resource_data.activate_request.service_name = 'data_product_management'
+        resource_data.activate_request.service_operation = 'activate_data_product_persistence'
+        resource_data.activate_request.request_parameters = {
+            "data_product_id":  data_product_id
+        }
 
-        # find all associations where this is the object
-        _, sbj_assns = self.clients.resource_registry.find_subjects(object=resource_id, id_only=True)
 
-        log.debug("post-deletions, _remove_associations found %s subject associations and %s object associations",
-            len(sbj_assns), len(obj_assns))
+        #Fill out service request information for deactivating a data product
+        resource_data.deactivate_request.service_name = 'data_product_management'
+        resource_data.deactivate_request.service_operation = 'suspend_data_product_persistence'
+        resource_data.deactivate_request.request_parameters = {
+            "data_product_id":  data_product_id
+        }
 
+
+        #Fill out service request information for assigning a model
+        resource_data.assign_stream_definition_request.service_name = 'instrument_management'
+        resource_data.assign_stream_definition_request.service_operation = 'assign_stream_definition_to_data_product'
+        resource_data.assign_stream_definition_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "stream_definition_id": "$(stream_definition_id)",
+            "exchange_point": "$(exchange_point)"  #Optional field
+        }
+
+
+        #Fill out service request information for unassigning a model
+        resource_data.assign_dataset_request.service_name = 'instrument_management'
+        resource_data.assign_dataset_request.service_operation = 'assign_dataset_to_data_product'
+        resource_data.assign_dataset_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "dataset_id": "$(dataset_id)"
+        }
+
+        #Fill out service request information for assigning an instrument
+        resource_data.assign_instrument_device_request.service_name = 'data_acquisition_management'
+        resource_data.assign_instrument_device_request.service_operation = 'assign_data_product'
+        resource_data.assign_instrument_device_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "instrument_device_id": "$(instrument_device_id)"
+        }
+
+
+        #Fill out service request information for unassigning an instrument
+        resource_data.unassign_instrument_device_request.service_name = 'data_acquisition_management'
+        resource_data.unassign_instrument_device_request.service_operation = 'unassign_data_product'
+        resource_data.unassign_instrument_device_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "instrument_device_id": "$(instrument_device_id)"
+        }
+
+        #Fill out service request information for assigning an instrument
+        resource_data.assign_platform_device_request.service_name = 'data_acquisition_management'
+        resource_data.assign_platform_device_request.service_operation = 'assign_data_product'
+        resource_data.assign_platform_device_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "input_resource_id": "$(instrument_device_id)"
+        }
+
+
+        #Fill out service request information for unassigning an instrument
+        resource_data.unassign_platform_device_request.service_name = 'data_acquisition_management'
+        resource_data.unassign_platform_device_request.service_operation = 'unassign_data_product'
+        resource_data.unassign_platform_device_request.request_parameters = {
+            "data_product_id": data_product_id,
+            "input_resource_id": "$(instrument_device_id)"
+        }
+
+        return resource_data

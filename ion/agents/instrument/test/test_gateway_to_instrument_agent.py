@@ -117,8 +117,8 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
         return _process_gateway_request(resource_id, "get_capabilities", agent_get_capabilities_request, requester)
         
     # XXX            
-    def gw_execute_agent(self, resource_id="", command=None, requester=None):
-        return self._gw_execute( 'execute_agent', resource_id, command, requester)
+    def gw_execute_agent(self, resource_id="", command=None, requester=None, timeout=300):
+        return self._gw_execute( 'execute_agent', resource_id, command, requester, timeout)
     
     # XXX    
     def gw_get_agent(self, resource_id='', params=[], requester=None):
@@ -133,8 +133,8 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
     def gw_ping_agent(self, resource_id="", requester=None):
         return self._gw_ping('ping_agent', resource_id, requester)
     
-    def gw_execute_resource(self, resource_id='', command=None, requester=None):
-        return self._gw_execute('execute_resource', resource_id, command, requester)
+    def gw_execute_resource(self, resource_id='', command=None, requester=None, timeout=300):
+        return self._gw_execute('execute_resource', resource_id, command, requester, timeout)
     
     def gw_get_resource(self, resource_id='', params=[], requester=None):
         return self._gw_get('get_resource', resource_id, params, requester)
@@ -151,15 +151,16 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
     def gw_emit(self, requester=None):
         pass
     
-    def _gw_execute(self, op, resource_id, cmd, requester=None):
+    def _gw_execute(self, op, resource_id, cmd, requester=None, timeout=300):
 
         agent_cmd_params = IonObjectSerializer().serialize(cmd)
 
         agent_execute_request = {  "agentRequest": {
             "agentId": resource_id,
             "agentOp": op,
-            "expiry": 0,
+#            "expiry": 0,
             "params": {
+                "timeout": timeout,
                 "command": agent_cmd_params
             }
         }}

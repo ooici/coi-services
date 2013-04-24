@@ -89,7 +89,7 @@ class RegisterModulePreparerPy(RegisterModulePreparerBase):
         try:
             contents = base64.decodestring(py_b64)
         except Exception as e:
-            return None, e.message
+            return None, ("%s: %s" % ("base64.decodestring error: ", e.message))
 
         log.debug("creating tempfile with contents")
         f_handle, tempfilename = mytempfile.mkstemp()

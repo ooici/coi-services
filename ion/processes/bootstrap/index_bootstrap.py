@@ -133,6 +133,10 @@ class IndexBootStrap(ImmediateProcess):
                 mapping.update( ep.ElasticMap(k).type('string'))
             elif ion_type=='GeospatialIndex':
                 mapping.update( ep.ElasticMap(k).type('geo_point'))
+            elif ion_type=='TemporalBounds':
+                mapping.update({k: {'type':'object','properties':{ 'start_datetime' : {'type':'double','dynamic':False}, 'end_datetime' :{'type':'double','dynamic':False}}}})
+            elif ion_type=='GeospatialBounds':
+                mapping.update({k: {'type':'object','properties':{ 'geospatial_vertical_min' : {'type':'double','dynamic':False}, 'geospatial_vertical_max' :{'type':'double','dynamic':False}}}})
 
         return {rtype : {'properties' : mapping}}
 

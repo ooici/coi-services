@@ -2,6 +2,7 @@ import shutil
 import tempfile
 import uuid
 import unittest
+import time
 import os
 
 from mock import Mock, patch, DEFAULT
@@ -30,10 +31,12 @@ from ion.services.cei.test import ProcessStateWaiter
 try:
     from epu.states import InstanceState
     from epu.processdispatcher.engines import domain_id_from_engine
+    from epu.dashiproc.epumanagement import EPUManagementClient
     _HAS_EPU = True
 except ImportError:
     InstanceState = None
     domain_id_from_engine = None
+    EPUManagementClient = None
     _HAS_EPU = False
 
 # NOTE: much of the Process Dispatcher functionality is tested directly in the
@@ -188,7 +191,7 @@ class ProcessDispatcherServiceDashiHandlerTest(PyonTestCase):
             NotFound: FakeDashiNotFoundError,
             BadRequest: FakeDashiBadRequestError,
             Conflict: FakeDashiWriteConflictError
-            }
+        }
 
         self.pd_dashi_handler = PDDashiHandler(self.mock_backend, self.mock_dashi)
 
@@ -408,6 +411,28 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         name = self.mock_core.schedule_process.call_args[1]['name']
         self.assertTrue(name.startswith("payload_process-ha"))
 
+    def test_queueing_mode_default(self):
+
+        proc_def = DotDict()
+        proc_def['name'] = "someprocess"
+        proc_def['executable'] = {'module': 'my_module', 'class': 'class'}
+        mock_read_definition = Mock()
+        mock_read_definition.return_value = proc_def
+        self.pd_service.backend.read_definition = mock_read_definition
+
+        pid = self.pd_service.create_process("fake-process-def-id")
+
+        proc_schedule = ProcessSchedule()
+
+        configuration = {"some": "value"}
+
+        self.pd_service.schedule_process("fake-process-def-id",
+            proc_schedule, configuration, pid)
+
+        self.assertEqual(self.mock_core.schedule_process.call_count, 1)
+        call_args, call_kwargs = self.mock_core.schedule_process.call_args
+        self.assertEqual(call_kwargs['queueing_mode'], "ALWAYS")
+
     def test_queueing_mode(self):
 
         proc_def = DotDict()
@@ -419,15 +444,15 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         pid = self.pd_service.create_process("fake-process-def-id")
 
-        pyon_queueing_mode = ProcessQueueingMode.ALWAYS
-        core_queueing_mode = "ALWAYS"
+        pyon_queueing_mode = ProcessQueueingMode.NEVER
+        core_queueing_mode = "NEVER"
 
         proc_schedule = ProcessSchedule()
         proc_schedule.queueing_mode = pyon_queueing_mode
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -453,7 +478,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -480,7 +505,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
 
         configuration = {"some": "value"}
 
-        pid2 = self.pd_service.schedule_process("fake-process-def-id",
+        self.pd_service.schedule_process("fake-process-def-id",
             proc_schedule, configuration, pid)
 
         self.assertEqual(self.mock_core.schedule_process.call_count, 1)
@@ -532,7 +557,7 @@ class ProcessDispatcherServiceNativeTest(PyonTestCase):
         self.mock_core.describe_process.return_value = None
 
         with self.assertRaises(NotFound):
-            proc = self.pd_service.read_process("processid")
+            self.pd_service.read_process("processid")
         assert self.mock_core.describe_process.called
 
     def test_read_process_with_config(self):
@@ -583,6 +608,15 @@ class TestProcess(BaseService):
         if proc is None:
             return
         return proc._proc_name
+
+
+class TestProcessThatCrashes(BaseService):
+    """Test process to deploy via PD
+    """
+    name = __name__ + "test"
+
+    def on_init(self):
+        raise Exception("I died :(")
 
 
 class TestClient(RPCClient):
@@ -741,6 +775,233 @@ class ProcessDispatcherServiceIntTest(IonIntegrationTestCase):
             self.pd_cli.create_process_definition(definition)
 
 
+@unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
+@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while not in CEI LAUNCH mode')
+@unittest.skipUnless(os.getenv('CEI_LAUNCHINT_TEST', False), 'Skip Test that messes up the database')
+@attr('LAUNCHINT', group='cei')
+class ProcessDispatcherServiceDestructiveLaunchIntTest(IonIntegrationTestCase):
+
+    """ProcessDispatcherServiceDestructiveLaunchIntTest
+
+    These tests cause the pd to request more VMs, which can cause problems in
+    a test environment. Also, they require two extra engines to be started. To run
+    the tests, add the following to your launch yml file:
+
+    test_one_spare_slot:
+      base_need: 1
+      replicas: 1
+      slots: 1
+      spare_slots: 1
+
+    test_maximum_of_one:
+      base_need: 1
+      replicas: 1
+      slots: 1
+      maximum_vms: 1
+    """
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
+
+        from pyon.public import CFG
+        import dashi
+
+        uri = "amqp://%s:%s@%s:%s" % (
+            CFG.server.amqp.username, CFG.server.amqp.password,
+            CFG.server.amqp.host, "5672")
+        exchange = CFG.dashi.exchange
+        sysname = CFG.dashi.sysname
+        self.dashi = dashi.DashiConnection("test", uri, exchange, sysname=sysname)
+
+        self.rr_cli = ResourceRegistryServiceClient()
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
+        self.epum_cli = EPUManagementClient(self.dashi, "epu_management_service")
+
+        self.proc_prefix = 'test_launchint_process'
+
+        self.process_definition = ProcessDefinition(name=self.proc_prefix)
+        self.process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
+                                              'class': 'TestProcess'}
+        self.process_definition_id = self.pd_cli.create_process_definition(self.process_definition)
+
+        self.waiter = ProcessStateWaiter()
+        self.waiter.start()
+
+    def tearDown(self):
+        procs = self.pd_cli.list_processes()
+        for process in procs:
+            if process.process_id.startswith(self.proc_prefix) and process.process_state <= ProcessStateEnum.RUNNING:
+                print "Killing process %s" % process.process_id
+                self.pd_cli.cancel_process(process.process_id)
+        self.waiter.stop()
+
+    def assert_available_instances(self, engine, n, timeout=240):
+
+        start_time = time.time()
+
+        while True:
+            domain = self.epum_cli.describe_domain("pd_domain_%s" % engine)
+
+            available_instances = []
+            for instance in domain.get('instances', []):
+                state = instance['state']
+                if state == '600-RUNNING':
+                    available_instances.append(instance)
+
+            try:
+                self.assertEqual(len(available_instances), n)
+                break
+            except AssertionError:
+                if start_time + timeout > time.time():
+                    time.sleep(1)
+                    continue
+                else:
+                    raise
+
+    def test_spare_slots(self):
+        engine = "test_one_spare_slot"
+
+        self.assert_available_instances(engine, 1)
+
+        target = ProcessTarget(execution_engine_id=engine)
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.target = target
+
+        pid = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(
+            self.process_definition_id, process_schedule, process_id=pid)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING, timeout=60)
+
+        self.assert_available_instances(engine, 2)
+
+        time.sleep(20)
+
+        self.pd_cli.cancel_process(pid)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED, timeout=120)
+
+        time.sleep(20)
+
+        self.assert_available_instances(engine, 1)
+
+    def test_maximum_vms(self):
+        engine = "test_maximum_of_one"
+
+        self.assert_available_instances(engine, 1)
+
+        target = ProcessTarget(execution_engine_id=engine)
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.target = target
+
+        pid0 = self.pd_cli.create_process(self.process_definition_id)
+        pid1 = self.pd_cli.create_process(self.process_definition_id)
+
+        self.pd_cli.schedule_process(
+            self.process_definition_id, process_schedule, process_id=pid0)
+        self.pd_cli.schedule_process(
+            self.process_definition_id, process_schedule, process_id=pid1)
+
+        self.waiter.await_state_event(pid0, ProcessStateEnum.RUNNING, timeout=60)
+
+        assertion_error = None
+        try:
+            self.assert_available_instances(engine, 2)
+        except AssertionError as e:
+            assertion_error = e
+        assert assertion_error is not None, "Engine started 2 VMs, when maximum is 1"
+
+        self.pd_cli.cancel_process(pid0)
+        self.pd_cli.cancel_process(pid1)
+        self.waiter.await_state_event(pid0, ProcessStateEnum.TERMINATED, timeout=120)
+
+
+@unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
+@unittest.skipUnless(os.getenv('CEI_LAUNCH_TEST', False), 'Skip if not in CEI LAUNCH mode')
+@unittest.skipIf(os.getenv('PYCC_MODE', False), 'Skip if in PYCC mode')
+@attr('INT', group='cei')
+class ProcessDispatcherServiceLaunchIntTest(IonIntegrationTestCase):
+
+    def setUp(self):
+        self._start_container()
+        self.container.start_rel_from_url('res/deploy/r2cei.yml')
+
+        self.rr_cli = ResourceRegistryServiceClient()
+        self.pd_cli = ProcessDispatcherServiceClient(node=self.container.node)
+
+        self.waiter = ProcessStateWaiter()
+
+    def tearDown(self):
+        self.waiter.stop()
+
+    def test_restart_throttling(self):
+
+        process_definition = ProcessDefinition(name='test_process')
+        process_definition.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
+                                         'class': 'TestProcessThatCrashes'}
+        process_definition_id = self.pd_cli.create_process_definition(process_definition)
+
+        process_schedule = ProcessSchedule()
+        process_schedule.queueing_mode = ProcessQueueingMode.ALWAYS
+        process_schedule.restart_mode = ProcessRestartMode.ALWAYS
+
+        pid = self.pd_cli.create_process(process_definition_id)
+        self.waiter.start(pid)
+
+        # feed in a string that the process will return -- verifies that
+        # configuration actually makes it to the instantiated process
+        configuration = {'process': {'minimum_time_between_starts': 15}}
+
+        pid2 = self.pd_cli.schedule_process(process_definition_id,
+            process_schedule, configuration=configuration, process_id=pid)
+        self.assertEqual(pid, pid2)
+
+        # The process hits PENDING right away
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+
+        # Then crashes on init, and restarts quickly once (see TestProcessThatCrashes impl above)
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time < 2.0, "Process should restart quickly, not be throttled"
+
+        # Now the process schould be throttled, and restart more slowly
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time > 10.0, "Process should take more than 10s to start, throttled"
+
+        # We check again for good measure
+
+        self.waiter.await_state_event(pid, ProcessStateEnum.REQUESTED)
+        requested_at = time.time()
+        self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
+        self.waiter.await_state_event(pid, ProcessStateEnum.PENDING)
+        pending_at = time.time()
+        wait_time = pending_at - requested_at
+
+        assert wait_time > 10.0, "Process should take more than 10s to start, throttled"
+
+        # kill the process
+        self.pd_cli.cancel_process(pid)
+        self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+
+
 pd_config = {
     'processdispatcher': {
         'backend': "native",
@@ -757,6 +1018,13 @@ pd_config = {
             "engine2": {
                 "slots": 100,
                 "base_need": 1
+            },
+            "engine3": {
+                "slots": 100,
+                "base_need": 1,
+                "heartbeat_period": 2,
+                "heartbeat_warning": 4,
+                "heartbeat_missing": 6
             }
         }
     }
@@ -798,10 +1066,10 @@ def _get_eeagent_config(node_id, persistence_dir, slots=100, resource_id=None):
             'launch_type': {
                 'name': 'pyon',
                 'persistence_directory': persistence_dir,
-                },
             },
+        },
         'agent': {'resource_id': resource_id},
-        }
+    }
 
 
 @unittest.skipIf(_HAS_EPU is False, 'epu dependency not available')
@@ -843,7 +1111,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
             pd_config['processdispatcher']['dashi_uri'],
             pd_config['processdispatcher']['dashi_exchange'],
             sysname=CFG.get_safe("dashi.sysname")
-            )
+        )
 
         #send a fake node_state message to PD's dashi binding.
         self.node1_id = uuid.uuid4().hex
@@ -1068,10 +1336,19 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
 
-    def _add_test_process(self, restart_mode=None):
+    def _add_test_process(self, restart_mode=None, queueing_mode=None, execution_engine_id=None,
+                          node_exclusive=None):
         process_schedule = ProcessSchedule()
+        target = process_schedule.target = ProcessTarget()
         if restart_mode is not None:
             process_schedule.restart_mode = restart_mode
+        if queueing_mode is not None:
+            process_schedule.queueing_mode = queueing_mode
+        if execution_engine_id is not None:
+            target.execution_engine_id = execution_engine_id
+        if node_exclusive is not None:
+            target.node_exclusive = node_exclusive
+
         pid = self.pd_cli.create_process(self.process_definition_id)
 
         pid_listen_name = "PDtestproc_%s" % uuid.uuid4().hex
@@ -1188,3 +1465,66 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self.assertEqual(proc.process_id, pid)
         self.assertEqual(proc.process_configuration, {})
         self.assertEqual(proc.process_state, ProcessStateEnum.TERMINATED)
+
+    def test_missing_eeagent(self):
+        self.waiter.start()
+
+        # start a non-default engine that has heartbeat monitoring enabled
+        node2_id = uuid.uuid4().hex
+        self._send_node_state("engine3", node2_id)
+        eeagent_pid = self._start_eeagent(node2_id)
+
+        pids = []
+        clients = {}
+        # start 10 processes with RestartMode.ALWAYS
+        for _ in range(10):
+            pid, client = self._add_test_process(ProcessRestartMode.ALWAYS,
+                ProcessQueueingMode.ALWAYS, "engine3")
+            pids.append(pid)
+            clients[pid] = client
+
+        # now add a couple processes with node exclusive tags
+        # per OOIION-816, this was not correctly handled.
+        for i in range(2):
+            pid, client = self._add_test_process(ProcessRestartMode.ALWAYS,
+                ProcessQueueingMode.ALWAYS, "engine3", node_exclusive="xlc%s" % i)
+            pids.append(pid)
+            clients[pid] = client
+
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
+
+        for pid in pids:
+            client = clients[pid]
+            self.assertFalse(client.is_restart())
+            self.assertEqual(client.count(), 1)
+
+        before_time = time.time()
+        # now kill the whole eeagent. doctor should detect
+        resource_id = self._eea_pid_to_resource_id[eeagent_pid]
+        persistence_dir = self._eea_pid_to_persistence_dir[eeagent_pid]
+        self._kill_eeagent(eeagent_pid)
+
+        # manually kill the processes to simulate a real container failure
+        for pid in pids:
+            self.container.terminate_process(pid)
+
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.WAITING)
+
+        elapsed = time.time() - before_time
+        log.info("Elapsed time from EEagent kill to process restarts is %s s", elapsed)
+        # resource heartbeat_missing time is 6 seconds. so we should expect
+        # elapsed time to be roughly in this range. This may end up racy on
+        # slower test environments however
+        self.assertTrue(4 <= elapsed < 10)
+
+        # now add the eeagent back and processes should resume
+        self._start_eeagent(node2_id, resource_id=resource_id,
+            persistence_dir=persistence_dir)
+
+        # wait for restartables to restart
+        self.waiter.await_many_state_events(pids, ProcessStateEnum.RUNNING)
+
+        for pid in pids:
+            client = clients[pid]
+            self.assertTrue(client.is_restart())
+            self.assertEqual(client.count(), 1)

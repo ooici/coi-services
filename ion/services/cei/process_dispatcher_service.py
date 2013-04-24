@@ -924,12 +924,14 @@ class PDNativeBackend(object):
 
         run_type = 'pyon'
 
+        restart_throttling_config = conf.get('restart_throttling_config', {'minimum_time_between_starts': 0})
+
         self.core = ProcessDispatcherCore(self.store, self.registry,
             self.eeagent_client, self.notifier)
         self.doctor = PDDoctor(self.core, self.store)
-        self.matchmaker = PDMatchmaker(self.store, self.eeagent_client,
+        self.matchmaker = PDMatchmaker(self.core, self.store, self.eeagent_client,
             self.registry, epum_client, self.notifier, dashi_name,
-            domain_definition_id, base_domain_config, run_type)
+            domain_definition_id, base_domain_config, run_type, restart_throttling_config)
 
         heartbeat_queue = conf.get('heartbeat_queue', DEFAULT_HEARTBEAT_QUEUE)
         self.beat_subscriber = HeartbeatSubscriber(heartbeat_queue,

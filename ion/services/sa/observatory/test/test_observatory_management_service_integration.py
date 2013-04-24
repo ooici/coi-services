@@ -1,11 +1,14 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
+import string
+import unittest
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
 from pyon.util.containers import DotDict, get_ion_ts
 from pyon.util.int_test import IonIntegrationTestCase
 from pyon.util.context import LocalContextMixin
-from pyon.public import RT, PRED
-from pyon.public import log, IonObject
+from pyon.public import RT, PRED, OT
+from pyon.public import IonObject
 from pyon.event.event import EventPublisher
 from pyon.agent.agent import ResourceAgentState
 from ion.services.dm.utility.granule_utils import time_series_domain
@@ -17,10 +20,24 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
-
+from pyon.core.governance import get_actor_header
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old
+
+
+# some stuff for logging info to the console
+log = DotDict()
+
+def mk_logger(level):
+    def logger(fmt, *args):
+        print "%s %s" % (string.ljust("%s:" % level, 8), (fmt % args))
+
+    return logger
+
+log.debug = mk_logger("DEBUG")
+log.info  = mk_logger("INFO")
+log.warn  = mk_logger("WARNING")
 
 
 class FakeProcess(LocalContextMixin):
@@ -41,6 +58,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
         self.RR = ResourceRegistryServiceClient(node=self.container.node)
+        self.RR2 = EnhancedResourceRegistryClient(self.RR)
         self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
         self.org_management_service = OrgManagementServiceClient(node=self.container.node)
         self.IMS =  InstrumentManagementServiceClient(node=self.container.node)
@@ -55,7 +73,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 #    @unittest.skip('this exists only for debugging the launch process')
 #    def test_just_the_setup(self):
 #        return
-
 
     def destroy(self, resource_ids):
         self.OMS.force_delete_observatory(resource_ids.observatory_id)
@@ -73,12 +90,117 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.OMS.force_delete_instrument_site(resource_ids.instrument_site4_id)
 
     #@unittest.skip('targeting')
-    def test_resources_associations(self):
+    def test_observatory_management(self):
         resources = self._make_associations()
+
+        self._do_test_find_related_sites(resources)
+
+        self._do_test_get_sites_devices_status(resources)
+
+        self._do_test_find_site_data_products(resources)
+
+        self._do_test_find_related_frames_of_reference(resources)
+
+        self._do_test_create_geospatial_point_center(resources)
+
+        self._do_test_find_observatory_org(resources)
+
         self.destroy(resources)
 
+    def _do_test_find_related_sites(self, resources):
+
+        site_resources, site_children = self.OMS.find_related_sites(resources.org_id)
+
+        #import sys, pprint
+        #print >> sys.stderr, pprint.pformat(site_resources)
+        #print >> sys.stderr, pprint.pformat(site_children)
+
+        #self.assertIn(resources.org_id, site_resources)
+        self.assertIn(resources.observatory_id, site_resources)
+        self.assertIn(resources.subsite_id, site_resources)
+        self.assertIn(resources.subsite_id, site_resources)
+        self.assertIn(resources.subsite2_id, site_resources)
+        self.assertIn(resources.platform_site_id, site_resources)
+        self.assertIn(resources.instrument_site_id, site_resources)
+        self.assertEquals(len(site_resources), 13)
+
+        self.assertEquals(site_resources[resources.observatory_id].type_, RT.Observatory)
+
+        self.assertIn(resources.org_id, site_children)
+        self.assertIn(resources.observatory_id, site_children)
+        self.assertIn(resources.subsite_id, site_children)
+        self.assertIn(resources.subsite_id, site_children)
+        self.assertIn(resources.subsite2_id, site_children)
+        self.assertIn(resources.platform_site_id, site_children)
+        self.assertNotIn(resources.instrument_site_id, site_children)
+        self.assertEquals(len(site_children), 9)
+
+        self.assertIsInstance(site_children[resources.subsite_id], list)
+        self.assertEquals(len(site_children[resources.subsite_id]), 2)
+
+    def _do_test_get_sites_devices_status(self, resources):
+
+        result_dict = self.OMS.get_sites_devices_status(resources.org_id)
+
+        site_resources = result_dict.get("site_resources", None)
+        site_children = result_dict.get("site_children", None)
+
+        self.assertEquals(len(site_resources), 14)
+        self.assertEquals(len(site_children), 9)
+
+        result_dict = self.OMS.get_sites_devices_status(resources.org_id, include_devices=True, include_status=True)
+
+        site_resources = result_dict.get("site_resources", None)
+        site_children = result_dict.get("site_children", None)
+        site_devices = result_dict.get("site_devices", None)
+        device_resources = result_dict.get("device_resources", None)
+        site_status = result_dict.get("site_status", None)
+
+        self.assertEquals(len(site_resources), 14)
+        self.assertEquals(len(site_children), 9)
+        self.assertEquals(len(site_devices), 18)
+        self.assertEquals(site_devices[resources.observatory_id], [])
+        self.assertEquals(site_devices[resources.platform_site_id][0][0], RT.PlatformSite)
+        self.assertEquals(site_devices[resources.platform_site_id][0][1], resources.platform_device_id)
+        self.assertEquals(site_devices[resources.platform_site_id][0][2], RT.PlatformDevice)
+
+        self.assertEquals(site_devices[resources.instrument_site_id][0][0], RT.InstrumentSite)
+        self.assertEquals(site_devices[resources.instrument_site_id][0][1], resources.instrument_device_id)
+        self.assertEquals(site_devices[resources.instrument_site_id][0][2], RT.InstrumentDevice)
+
+        self.assertEquals(len(device_resources), 4)
+        self.assertEquals(device_resources[resources.instrument_device_id].type_, RT.InstrumentDevice)
+
+        self.assertIsInstance(site_status[resources.org_id], dict)
+        self.assertIsInstance(site_status[resources.observatory_id], dict)
+        self.assertIsInstance(site_status[resources.platform_site_id], dict)
+        self.assertIsInstance(site_status[resources.instrument_device_id], dict)
+        self.assertEquals(set(site_status[resources.instrument_device_id].keys()), set(["agg","power","comms","data","loc"]))
+
+        result_dict = self.OMS.get_sites_devices_status(resources.observatory_id, include_devices=True, include_status=True)
+
+        site_resources = result_dict.get("site_resources")
+        site_children = result_dict.get("site_children")
+        site_devices = result_dict.get("site_devices")
+        device_resources = result_dict.get("device_resources")
+        site_status = result_dict.get("site_status")
+
+        self.assertEquals(len(site_resources), 13)
+        self.assertEquals(len(site_children), 8)
+        self.assertEquals(len(site_devices), 17)
+
+    def _do_test_find_site_data_products(self, resources):
+        res_dict = self.OMS.find_site_data_products(resources.org_id)
+
+        #import sys, pprint
+        #print >> sys.stderr, pprint.pformat(res_dict)
+
+        self.assertIsNone(res_dict['data_product_resources'])
+        self.assertIn(resources.platform_device_id, res_dict['device_data_products'])
+        self.assertIn(resources.instrument_device_id, res_dict['device_data_products'])
+
     #@unittest.skip('targeting')
-    def test_find_related_frames_of_reference(self):
+    def _do_test_find_related_frames_of_reference(self, stuff):
         # finding subordinates gives a dict of obj lists, convert objs to ids
         def idify(adict):
             ids = {}
@@ -191,8 +313,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         org_id = self.OMS.create_marine_facility(any_old(RT.Org))
 
-        def create_under_org(resource_type):
-            obj = any_old(resource_type)
+        def create_under_org(resource_type, extra_fields=None):
+            obj = any_old(resource_type, extra_fields)
 
             if RT.InstrumentDevice == resource_type:
                 resource_id = self.IMS.create_instrument_device(obj)
@@ -245,6 +367,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_siteb_id, PRED.hasSite, instrument_site_id)
 
         self.RR.create_association(platform_siteb_id, PRED.hasDevice, platform_deviceb_id)
+        #test network parent link
+        self.OMS.assign_device_to_network_parent(platform_device_id, platform_deviceb_id)
 
         self.RR.create_association(platform_site_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
@@ -298,72 +422,107 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         observatory_id = self.OMS.create_observatory(observatory_obj)
         self.OMS.force_delete_observatory(observatory_id)
 
+    #@unittest.skip("targeting")
+    def _do_test_create_geospatial_point_center(self, resources):
+        platformsite_obj = IonObject(RT.PlatformSite,
+                                        name='TestPlatformSite',
+                                        description='some new TestPlatformSite')
+        geo_index_obj = IonObject(OT.GeospatialBounds)
+        geo_index_obj.geospatial_latitude_limit_north = 20.0
+        geo_index_obj.geospatial_latitude_limit_south = 10.0
+        geo_index_obj.geospatial_longitude_limit_east = 15.0
+        geo_index_obj.geospatial_longitude_limit_west = 20.0
+        platformsite_obj.constraint_list = [geo_index_obj]
+
+        platformsite_id = self.OMS.create_platform_site(platformsite_obj)
+
+        # now get the dp back to see if it was updated
+        platformsite_obj = self.OMS.read_platform_site(platformsite_id)
+        self.assertEquals('some new TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(15.0, platformsite_obj.geospatial_point_center.lat, places=1)
+
+
+        #now adjust a few params
+        platformsite_obj.description = 'some old TestPlatformSite'
+        geo_index_obj = IonObject(OT.GeospatialBounds)
+        geo_index_obj.geospatial_latitude_limit_north = 30.0
+        geo_index_obj.geospatial_latitude_limit_south = 20.0
+        platformsite_obj.constraint_list = [geo_index_obj]
+        update_result = self.OMS.update_platform_site(platformsite_obj)
+
+        # now get the dp back to see if it was updated
+        platformsite_obj = self.OMS.read_platform_site(platformsite_id)
+        self.assertEquals('some old TestPlatformSite', platformsite_obj.description)
+        self.assertAlmostEqual(25.0, platformsite_obj.geospatial_point_center.lat, places=1)
+
+        self.OMS.force_delete_platform_site(platformsite_id)
+
 
     #@unittest.skip("targeting")
-    def test_find_observatory_org(self):
+    def _do_test_find_observatory_org(self, resources):
+        log.debug("Make TestOrg")
         org_obj = IonObject(RT.Org,
                             name='TestOrg',
                             description='some new mf org')
 
         org_id =  self.OMS.create_marine_facility(org_obj)
 
+        log.debug("Make Observatory")
         observatory_obj = IonObject(RT.Observatory,
                                         name='TestObservatory',
                                         description='some new obs')
         observatory_id = self.OMS.create_observatory(observatory_obj)
 
-        #make association
-        
+        log.debug("assign observatory to org")
         self.OMS.assign_resource_to_observatory_org(observatory_id, org_id)
 
 
-        #find association
-
+        log.debug("verify assigment")
         org_objs = self.OMS.find_org_by_observatory(observatory_id)
         self.assertEqual(1, len(org_objs))
         self.assertEqual(org_id, org_objs[0]._id)
-        print("org_id=<" + org_id + ">")
+        log.debug("org_id=<" + org_id + ">")
 
-        #create a subsite with parent Observatory
+        log.debug("create a subsite with parent Observatory")
         subsite_obj =  IonObject(RT.Subsite,
                                 name= 'TestSubsite',
                                 description = 'sample subsite')
         subsite_id = self.OMS.create_subsite(subsite_obj, observatory_id)
         self.assertIsNotNone(subsite_id, "Subsite not created.")
 
-        # verify that Subsite is linked to Observatory
+        log.debug("verify that Subsite is linked to Observatory")
         mf_subsite_assoc = self.RR.get_association(observatory_id, PRED.hasSite, subsite_id)
         self.assertIsNotNone(mf_subsite_assoc, "Subsite not connected to Observatory.")
 
 
-        # add the Subsite as a resource of this Observatory
+        log.debug("add the Subsite as a resource of this Observatory")
         self.OMS.assign_resource_to_observatory_org(resource_id=subsite_id, org_id=org_id)
-        # verify that Subsite is linked to Org
+        log.debug("verify that Subsite is linked to Org")
         org_subsite_assoc = self.RR.get_association(org_id, PRED.hasResource, subsite_id)
         self.assertIsNotNone(org_subsite_assoc, "Subsite not connected as resource to Org.")
 
 
-        #create a logical platform with parent Subsite
+        log.debug("create a logical platform with parent Subsite")
         platform_site_obj =  IonObject(RT.PlatformSite,
                                 name= 'TestPlatformSite',
                                 description = 'sample logical platform')
         platform_site_id = self.OMS.create_platform_site(platform_site_obj, subsite_id)
         self.assertIsNotNone(platform_site_id, "PlatformSite not created.")
 
-        # verify that PlatformSite is linked to Site
+        log.debug("verify that PlatformSite is linked to Site")
         site_lp_assoc = self.RR.get_association(subsite_id, PRED.hasSite, platform_site_id)
         self.assertIsNotNone(site_lp_assoc, "PlatformSite not connected to Site.")
 
 
-        # add the PlatformSite as a resource of this Observatory
+        log.debug("add the PlatformSite as a resource of this Observatory")
         self.OMS.assign_resource_to_observatory_org(resource_id=platform_site_id, org_id=org_id)
-        # verify that PlatformSite is linked to Org
+        log.debug("verify that PlatformSite is linked to Org")
         org_lp_assoc = self.RR.get_association(org_id, PRED.hasResource, platform_site_id)
         self.assertIsNotNone(org_lp_assoc, "PlatformSite not connected as resource to Org.")
 
 
 
-        #create a logical instrument with parent logical platform
+        log.debug("create a logical instrument with parent logical platform")
         instrument_site_obj =  IonObject(RT.InstrumentSite,
                                 name= 'TestInstrumentSite',
                                 description = 'sample logical instrument')
@@ -371,49 +530,89 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertIsNotNone(instrument_site_id, "InstrumentSite not created.")
 
 
-        # verify that InstrumentSite is linked to PlatformSite
+        log.debug("verify that InstrumentSite is linked to PlatformSite")
         li_lp_assoc = self.RR.get_association(platform_site_id, PRED.hasSite, instrument_site_id)
         self.assertIsNotNone(li_lp_assoc, "InstrumentSite not connected to PlatformSite.")
 
 
-        # add the InstrumentSite as a resource of this Observatory
+        log.debug("add the InstrumentSite as a resource of this Observatory")
         self.OMS.assign_resource_to_observatory_org(resource_id=instrument_site_id, org_id=org_id)
-        # verify that InstrumentSite is linked to Org
+        log.debug("verify that InstrumentSite is linked to Org")
         org_li_assoc = self.RR.get_association(org_id, PRED.hasResource, instrument_site_id)
         self.assertIsNotNone(org_li_assoc, "InstrumentSite not connected as resource to Org.")
 
 
-        # remove the InstrumentSite as a resource of this Observatory
+        log.debug("remove the InstrumentSite as a resource of this Observatory")
         self.OMS.unassign_resource_from_observatory_org(instrument_site_id, org_id)
-        # verify that InstrumentSite is linked to Org
+        log.debug("verify that InstrumentSite is linked to Org")
         assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.InstrumentSite, id_only=True )
-        self.assertEqual(len(assocs), 0)
+        self.assertEqual(0, len(assocs))
 
-        # remove the InstrumentSite
+        log.debug("remove the InstrumentSite, association should drop automatically")
         self.OMS.delete_instrument_site(instrument_site_id)
         assocs, _ = self.RR.find_objects(platform_site_id, PRED.hasSite, RT.InstrumentSite, id_only=True )
-        self.assertEqual(len(assocs), 1)
-        #todo: remove the dangling association
+        self.assertEqual(0, len(assocs))
 
 
-        # remove the PlatformSite as a resource of this Observatory
+        log.debug("remove the PlatformSite as a resource of this Observatory")
         self.OMS.unassign_resource_from_observatory_org(platform_site_id, org_id)
-        # verify that PlatformSite is linked to Org
+        log.debug("verify that PlatformSite is linked to Org")
         assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.PlatformSite, id_only=True )
-        self.assertEqual(len(assocs), 0)
+        self.assertEqual(0, len(assocs))
 
 
-        # remove the Site as a resource of this Observatory
+        log.debug("remove the Site as a resource of this Observatory")
         self.OMS.unassign_resource_from_observatory_org(subsite_id, org_id)
-        # verify that Site is linked to Org
+        log.debug("verify that Site is linked to Org")
         assocs,_ = self.RR.find_objects(org_id, PRED.hasResource, RT.Subsite, id_only=True )
-        self.assertEqual(len(assocs), 0)
+        self.assertEqual(0, len(assocs))
 
         self.RR.delete(org_id)
         self.OMS.force_delete_observatory(observatory_id)
         self.OMS.force_delete_subsite(subsite_id)
         self.OMS.force_delete_platform_site(platform_site_id)
         self.OMS.force_delete_instrument_site(instrument_site_id)
+
+
+    @attr('EXT')
+    def test_observatory_extensions(self):
+
+
+
+        obs_id = self.RR2.create(any_old(RT.Observatory))
+        pss_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="StationSite")))
+        pas_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="PlatformAssemblySite")))
+        pcs_id = self.RR2.create(any_old(RT.PlatformSite, dict(alt_resource_type="PlatformComponentSite")))
+        ins_id = self.RR2.create(any_old(RT.InstrumentSite))
+
+        obs_obj = self.RR2.read(obs_id)
+        pss_obj = self.RR2.read(pss_id)
+        pas_obj = self.RR2.read(pas_id)
+        pcs_obj = self.RR2.read(pcs_id)
+        ins_obj = self.RR2.read(ins_id)
+
+        self.RR2.create_association(obs_id, PRED.hasSite, pss_id)
+        self.RR2.create_association(pss_id, PRED.hasSite, pas_id)
+        self.RR2.create_association(pas_id, PRED.hasSite, pcs_id)
+        self.RR2.create_association(pcs_id, PRED.hasSite, ins_id)
+
+        extended_obs = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
+        self.assertEqual([pss_obj], extended_obs.computed.platform_station_sites)
+        self.assertEqual([pas_obj], extended_obs.computed.platform_assembly_sites)
+        self.assertEqual([pcs_obj], extended_obs.computed.platform_component_sites)
+        self.assertEqual([ins_obj], extended_obs.computed.instrument_sites)
+
+        extended_pss = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
+        self.assertEqual([pas_obj], extended_pss.computed.platform_assembly_sites)
+        self.assertEqual([pcs_obj], extended_pss.computed.platform_component_sites)
+        self.assertEqual([ins_obj], extended_pss.computed.instrument_sites)
+
+        extended_pas = self.OMS.get_observatory_site_extension(pas_id, user_id=12345)
+        self.assertEqual([pcs_obj], extended_pas.computed.platform_component_sites)
+        self.assertEqual([ins_obj], extended_pas.computed.instrument_sites)
+
+        extended_pcs = self.OMS.get_platform_component_site_extension(pcs_id, user_id=12345)
+        self.assertEqual([ins_obj], extended_pcs.computed.instrument_sites)
 
 
     #@unittest.skip("in development...")
@@ -441,6 +640,26 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
                                             data_product_id=data_product_id1)
 
 
+        #Create a  user to be used as regular member
+        member_actor_obj = IonObject(RT.ActorIdentity, name='org member actor')
+        member_actor_id,_ = self.RR.create(member_actor_obj)
+        assert(member_actor_id)
+        member_actor_header = get_actor_header(member_actor_id)
+
+        member_user_obj = IonObject(RT.UserInfo, name='org member user')
+        member_user_id,_ = self.RR.create(member_user_obj)
+        assert(member_user_id)
+
+        self.RR.create_association(subject=member_actor_id, predicate=PRED.hasInfo, object=member_user_id)
+
+        #Build the Service Agreement Proposal to enroll a user actor
+        sap = IonObject(OT.EnrollmentProposal,consumer=member_actor_id, provider=stuff.org_id )
+
+        sap_response = self.org_management_service.negotiate(sap, headers=member_actor_header )
+
+        #enroll the member without using negotiation
+        self.org_management_service.enroll_member(org_id=stuff.org_id, actor_id=member_actor_id)
+
         #--------------------------------------------------------------------------------
         # Get the extended Site (platformSite)
         #--------------------------------------------------------------------------------
@@ -451,6 +670,11 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_site.platform_models))
         self.assertEqual(stuff.platform_device_id, extended_site.platform_devices[0]._id)
         self.assertEqual(stuff.platform_model_id, extended_site.platform_models[0]._id)
+
+        log.debug("verify that PlatformDeviceb is linked to PlatformDevice with hasNetworkParent link")
+        associations = self.RR.find_associations(subject=stuff.platform_deviceb_id, predicate=PRED.hasNetworkParent, object=stuff.platform_device_id, id_only=True)
+        self.assertIsNotNone(associations, "PlatformDevice child not connected to PlatformDevice parent.")
+
 
         #--------------------------------------------------------------------------------
         # Get the extended Org
@@ -466,11 +690,14 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(2, extended_org.number_of_instruments)
         self.assertEqual(2, len(extended_org.instrument_models) )
 
+        self.assertEqual(1, len(extended_org.members))
+        self.assertEqual(1, len(extended_org.open_requests))
+
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
-        extended_org = self.org_management_service.get_marine_facility_extension(ion_org_id._id)
+        extended_org = self.org_management_service.get_marine_facility_extension(ion_org_id._id, user_id=12345)
         log.debug("test_observatory_org_extended: extended_ION_org:  %s ", str(extended_org))
-        self.assertEqual(0, len(extended_org.members))
+        self.assertEqual(1, len(extended_org.members))
         self.assertEqual(0, extended_org.number_of_platforms)
         #self.assertEqual(1, len(extended_org.sites))
 

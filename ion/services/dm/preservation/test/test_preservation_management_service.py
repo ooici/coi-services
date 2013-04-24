@@ -231,7 +231,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             file_system_datastore_id=self.file_system_datastore_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.couch_instance_id, PRED.hasDatastore, self.file_system_datastore_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.couch_instance_id, PRED.hasDatastore, self.file_system_datastore_id, None)
         self.assertEqual(couch_instance_id, self.couch_instance_id)
 
     def test_create_couch_instance_with_persistence_system(self):
@@ -246,7 +246,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             persistence_system_id=self.couch_cluster_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.couch_cluster_id, PRED.hasPersistenceInstance, self.couch_instance_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.couch_cluster_id, PRED.hasPersistenceInstance, self.couch_instance_id, None)
         self.assertEqual(couch_instance_id, self.couch_instance_id)
 
     def test_create_couch_instance_with_config(self):
@@ -288,7 +288,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             file_system_datastore_id=self.file_system_datastore_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.elastic_search_instance_id, PRED.hasDatastore, self.file_system_datastore_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.elastic_search_instance_id, PRED.hasDatastore, self.file_system_datastore_id, None)
         self.assertEqual(elastic_search_instance_id, self.elastic_search_instance_id)
 
     def test_create_elastic_search_instance_with_persistence_system(self):
@@ -303,7 +303,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             persistence_system_id=self.elastic_search_cluster_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.elastic_search_cluster_id, PRED.hasPersistenceInstance, self.elastic_search_instance_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.elastic_search_cluster_id, PRED.hasPersistenceInstance, self.elastic_search_instance_id, None)
         self.assertEqual(elastic_search_instance_id, self.elastic_search_instance_id)
 
     def test_create_elastic_search_instance_with_config(self):
@@ -351,7 +351,7 @@ class PreservationManagementServiceTest(PyonTestCase):
 
         self.mock_read.assert_called_once_with(self.couch_instance_id, '')
         self.assertEqual(self.mock_find_associations.call_count, 2)
-        expected = [call(self.couch_instance_id, '', '', PRED.hasDatastore, False), call('', self.couch_instance_id, '', PRED.hasPersistenceInstance, False)]
+        expected = [call(self.couch_instance_id, '', '', PRED.hasDatastore, False, 0, 0, False), call('', self.couch_instance_id, '', PRED.hasPersistenceInstance, False, 0, 0, False)]
         self.assertEqual(expected, self.mock_find_associations.call_args_list)
         self.assertEqual(self.mock_delete_association.call_count, 2)
         expected = [call(self.instance_has_datastore_id), call(self.system_has_instance_id)]
@@ -393,7 +393,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             persistence_system_id=self.couch_cluster_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.couch_cluster_id, PRED.hasDatastore, self.couch_datastore_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.couch_cluster_id, PRED.hasDatastore, self.couch_datastore_id, None)
         self.assertEqual(couch_datastore_id, self.couch_datastore_id)
 
     def test_create_elastic_search_datastore_no_association(self):
@@ -419,7 +419,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             persistence_system_id=self.elastic_search_cluster_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.elastic_search_cluster_id, PRED.hasDatastore, self.elastic_search_datastore_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.elastic_search_cluster_id, PRED.hasDatastore, self.elastic_search_datastore_id, None)
         self.assertEqual(elastic_search_datastore_id, self.elastic_search_datastore_id)
 
     def test_create_file_system_datastore_no_association(self):
@@ -443,7 +443,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             persistence_system_id=self.couch_cluster_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.couch_cluster_id, PRED.hasDatastore, self.file_system_datastore_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.couch_cluster_id, PRED.hasDatastore, self.file_system_datastore_id, None)
         self.assertEqual(file_system_datastore_id, self.file_system_datastore_id)
 
     def test_create_file_system_datastore_with_persistent_archive(self):
@@ -456,7 +456,7 @@ class PreservationManagementServiceTest(PyonTestCase):
             persistent_archive_id=self.archive_id)
 
         self.assertTrue(self.mock_create.called)
-        self.mock_create_association.assert_called_once_with(self.file_system_datastore_id, PRED.hasArchive, self.archive_id, "H2H")
+        self.mock_create_association.assert_called_once_with(self.file_system_datastore_id, PRED.hasArchive, self.archive_id, None)
         self.assertEqual(file_system_datastore_id, self.file_system_datastore_id)
 
     def test_read_datastore(self):
@@ -486,7 +486,7 @@ class PreservationManagementServiceTest(PyonTestCase):
 
         self.mock_read.assert_called_once_with(self.couch_datastore_id, '')
         self.assertEqual(self.mock_find_associations.call_count, 2)
-        expected = [call('', '', self.couch_datastore_id, PRED.hasDatastore, False), call(self.couch_datastore_id, '', '', PRED.hasArchive, False)]
+        expected = [call('', '', self.couch_datastore_id, PRED.hasDatastore, False, 0, 0, False), call(self.couch_datastore_id, '', '', PRED.hasArchive, False, 0, 0, False)]
         self.assertEqual(expected, self.mock_find_associations.call_args_list)
         self.assertEqual(self.mock_delete_association.call_count, 4)
         expected = [call(self.system_has_datastore_id), call(self.datastore_has_archive_id), call(self.system_has_datastore_id), call(self.datastore_has_archive_id)]

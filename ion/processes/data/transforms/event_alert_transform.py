@@ -32,7 +32,6 @@ class EventAlertTransform(TransformEventListener):
         self.timer_origin = self.CFG.get_safe('process.timer_origin', 'Interval Timer')
         self.instrument_origin = self.CFG.get_safe('process.instrument_origin', '')
 
-        self.counter = 0
         self.event_times = []
 
         #-------------------------------------------------------------------------------------
@@ -137,7 +136,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         self.instrument_variable_name = None
         self.timer_origin = None
         self.timer_interval = None
-        self.count = 0
         self.timer_cleanup = (None, None)
         self.origin = ''
 
@@ -247,7 +245,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
                 values = bad_values,
                 time_stamps = bad_value_times,
                 valid_values = self.valid_values,
-                state = DeviceStatusType.OUT_OF_RANGE,
+                status = DeviceStatusType.STATUS_WARNING,
                 description = "Event to deliver the status of instrument."
             )
 
@@ -257,10 +255,6 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
         """
         When timer events come, if no granule has arrived since the last timer event, publish an alarm
         """
-        self.count += 1
-
-        log.debug("Got a timer event with count: %s" % self.count )
-
         if msg.origin == self.timer_origin and self.origin:
 
             if self.granules.qsize() == 0:

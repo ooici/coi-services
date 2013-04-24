@@ -5,7 +5,7 @@ from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
-from coverage_model import SimplexCoverage
+from coverage_model import AbstractCoverage
 #from coverage_model.parameter_types import QuantityType
 
 from xml.dom.minidom import parse, parseString
@@ -37,12 +37,8 @@ class RegistrationProcess(StandaloneProcess):
     def setup_filesystem(self, path):
         if os.path.exists(os.path.join(path,'datasets.xml')):
             return
-        zip_str = base64.decodestring(datasets_xml_zip)
-        zip_file = StringIO.StringIO()
-        zip_file.write(zip_str)
-        with ZipFile(zip_file) as zipper:
-            zipper.extract('datasets.xml', path)
-        zip_file.close()
+        with open(os.path.join(path,'datasets.xml'),'w') as f:
+            f.write(datasets_xml)
 
     def register_dap_dataset(self, dataset_id, data_product_name=''):
         coverage_path = DatasetManagementService._get_coverage_path(dataset_id)
@@ -71,9 +67,9 @@ class RegistrationProcess(StandaloneProcess):
     def get_errdap_name_map(self, names):
         result = {}
         for name in names:
-            if 'lon' in name:
+            if name == 'lon':
                 result[name] = 'longitude'
-            elif 'lat' in name:
+            elif name == 'lat':
                 result[name] = 'latitude'
             else:
                 result[name] = name
@@ -83,7 +79,7 @@ class RegistrationProcess(StandaloneProcess):
         #http://coastwatch.pfeg.noaa.gov/erddap/download/setupDatasetsXml.html
         result = ''
         paths = os.path.split(coverage_path)
-        cov = SimplexCoverage.load(coverage_path)
+        cov = AbstractCoverage.load(coverage_path)
         doc = xml.dom.minidom.Document()
         
         #erd_type_map = {'d':'double', 'f':"float", 'h':'short', 'i':'int', 'l':'int', 'q':'int', 'b':'byte', 'b':'char', 'S':'String'} 
@@ -150,25 +146,8 @@ class RegistrationProcess(StandaloneProcess):
                 atts['license'] = '[standard]'
                 atts['summary'] = cov.name
                 atts['cdm_data_type'] = 'Grid'
-                atts['subsetVariables'] = ','.join([erd_name_map[v] for v in vars])
                 atts['standard_name_vocabulary'] = 'CF-12'
                 
-                try:
-                    lat_min,lat_max = cov.get_data_bounds("lat")
-                    atts['geospatial_lat_max'] = str(lat_max)
-                    atts['geospatial_lat_min'] = str(lat_min)
-                    pc = cov.get_parameter_context("lat")
-                    atts['geospatial_lat_units'] = str(pc.uom)
-                    
-                    lon_min,lon_max = cov.get_data_bounds("lon")
-                    atts['geospatial_lon_max'] = str(lon_max)
-                    atts['geospatial_lon_min'] = str(lon_min)
-                    pc = cov.get_parameter_context("lon")
-                    atts['geospatial_lon_units'] = str(pc.uom)
-                except:
-                    #silently fail and just don't fill attributes
-                    pass
-
                 for key, val in atts.iteritems():
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', key)
@@ -180,16 +159,11 @@ class RegistrationProcess(StandaloneProcess):
                     dataset_element.appendChild(add_attributes_element)
 
                 for var_name in vars:
-                    param = cov.get_parameter(var_name)
-                    var = param.context
+                    var = cov.get_parameter_context(var_name)
                     
                     units = "unknown"
-                    try:
+                    if hasattr(var,'uom') and var.uom:
                         units = var.uom
-                    except:
-                        pass
-                    if units is None:
-                        units = "unknown"
 
                     #if len(param.shape) >=1 and not param.is_coordinate: #dataVariable
                     data_element = doc.createElement('dataVariable')
@@ -204,8 +178,13 @@ class RegistrationProcess(StandaloneProcess):
                     data_element.appendChild(destination_name_element)
                     
                     add_attributes_element = doc.createElement('addAttributes')
-                    if not var.attributes is None:
-                        for key, val in var.attributes.iteritems():
+                    if var.ATTRS is not None:
+                        for key in var.ATTRS:
+                            if not hasattr(var,key):
+                                continue
+                            val = getattr(var,key)
+                            if not val:
+                                val = ''
                             att_element = doc.createElement('att')
                             att_element.setAttribute('name', key)
                             text_node = doc.createTextNode(val)
@@ -221,15 +200,15 @@ class RegistrationProcess(StandaloneProcess):
                     att_element = doc.createElement('att')
                     att_element.setAttribute('name', 'long_name')
                     long_name = ""
-                    if var.long_name is not None:
-                        long_name = var.long_name
+                    if hasattr(var,'display_name') and var.display_name is not None:
+                        long_name = var.display_name
                         text_node = doc.createTextNode(long_name)
                         att_element.appendChild(text_node)
                         add_attributes_element.appendChild(att_element)
                     
                     att_element = doc.createElement('att')
                     standard_name = ""
-                    if var.standard_name is not None:
+                    if hasattr(var,'standard_name') and var.standard_name is not None:
                         standard_name = var.standard_name
                         att_element.setAttribute('name', 'standard_name')
                         text_node = doc.createTextNode(standard_name)
@@ -249,8 +228,8 @@ class RegistrationProcess(StandaloneProcess):
                 index += 1
                 #bug with prettyxml
                 #http://ronrothman.com/public/leftbraned/xml-dom-minidom-toprettyxml-and-silly-whitespace/
-                result += dataset_element.toprettyxml() + '\n'
-                #result += dataset_element.toxml() + '\n'
+                #result += dataset_element.toprettyxml() + '\n'
+                result += dataset_element.toxml() + '\n'
 
         cov.close()
 
@@ -610,149 +589,7 @@ class RegistrationProcess(StandaloneProcess):
                         'k']
         return str.lower(units) in degree_units
 
-datasets_xml_zip = """
-UEsDBBQACAAIAAFcWUEAAAAAAAAAAAAAAAAMABAAZGF0YXNldHMueG1sVVgMAFcklFByW4lQ9wEU
-AO09/VfbOrK/cw7/g5b3zgJ3EycO4bM0dwOhhbdAeE3avr379uUotpJ461i+lk2a+9e/GUl2nG8D
-CaUsnBYSWxpJM6OZ0Wg0Ov31e98l9ywQDvfeb5lGcYswz+K243Xfb1016vmjo/3jvLlFfq1sbpyy
-wLapX6MhFSwU+ORP+Tz5eHF78al6Ta5uP9Q/3VSbV/XbzY1mjxHH6/CgT0OADZ9J2HME6TguI8Jn
-ltNxmCCDnmP1iK0hkiGPAnLxqVar3pGB47pEsOCeGTE4J3Ro0l3COymQPSoIJR02IOw77ftuAlv0
-eOTaZMCDbwS6g00AvLMoJLQTskA1GYNm330WOH3mQV8GTtjTfcmRzQ0oF8MKmO9Si0HrrK+KpUeq
-GwmSUUFzmxt/h+oW9YjVo16XqY7b3IqwLbLDjK6RI9S2k0q5uGSfhRQf7uJ4YKAaO1A9iDwP6GQQ
-hR5VXii8tRmxWciskNnYTeKx7yEJYWQTLSMYRu3NjR3AHweEeAQ+QAci30DWcDm1Y3rfOB78i0Im
-duWQLuiIdBr/AcMKF0Ch4a0uS+6pGzGyY7MOjdyQvCdmsXhUJDvcY2TA2LddhPa1x7xZXcPO5Ub8
-EfYoNnXPvO0Qxgh15C/VLAwVuGxzA8brBDO7EqMmLm8ounDPHQKGEFVc8+Zw4WCcDlKYUC90LMen
-IZMdky0nCJFtaRoiU8GcsqjrDiXqrjoTg5Xo8wiinAUBD3LED7jFhAAC65kQch+K2FiM9anjbm7E
-wxEIAbouH8v+AnCv2+SSlnquSeQkhI17gcMYUFU9YH1+z2DgyRBmM5xi1M0NAj/UCp179n6rQ13B
-tgADnKSREFJgT/IBZoSelTlV7TQpMPSh9kWt9jFw7A8B79eovxVXv6q93wKRc3Np9Vx6ZNPh1kR7
-FRwFQu/zYEzc5GCkDLrYC0P/pFCwOBXhgIZWz/A7zDU8TqnR5fcFJdAKNh94SOuCxE/M7/8DaOqF
-fUB0Pi9bktJuCmmdSCBH/R4xARzagTEQiwUhBXRbroOiBMespzjU6DAgIu90ANE15qHUAUHWADnn
-gEihYUitbwSGBGQGagTAmX8w6vIIuJe1ScDbPNzNSewjFRSve8BEgWORqzt8GADbxO2ZpT2jvG8c
-HBpHx7tEUgcIafF+n+YF82lAUUK4jggNCTMWU4BenpZzxAUMYjtthtISe5dqTMrAXxB82+XQ/WK+
-tL8/3YVfcKYTGCsbE/Q2cO0QG+NBKKUnlR0qhDhdlJQHMcihfUX9GNmgBgwiSXOqn5xBd79h3cpp
-YerRPAr6AbvHCaQnigWzlQOnKkpGcgJiB+TkKnz+dE1E1BZW4PjIaIqdiRhCd/o5EnmIWjkdoUqH
-uy4fSAC0q+ZuQjIJLkYgCBY9ceZR5jTd6AXWHQ1M8D4zPNpnf4XaPvWGBvyFSepxgBhMvTktLIA1
-zuugVgT2yQNGVEMC8gLDCqCexT4HLtkB5peSJTXjxS502PH0iPyo7QJSU1WUXqa+z2ggJDPFtbcF
-6bq8Td1qGAZOO1Y1TeRZ+JfIaWyyQ3DcI9WAs9DjXn6yvW2YftDLSDJTm1kUCyoaIFIitAEc2Q3J
-k7Wb34hiQTnS6+rtLuJ/G7lhW9JwO+TwIVDTQoQUMKN5FJhDKDLDWwu6hZJZOMizRgKiHwlUXWT7
-H9h/Kaj/WSikv2wTbHFcaJ5qIjT5nRxfI0EnQn2/pQWdeVwyzIMjY880zKPCFnBV8gq0CfUSGdgd
-ycAtUqhoXaKQQ0kfiyHfTpFbREg6QWa2F/YCZtsCxKktzgsCGNh1nZAVzqoFAYgq7IMI39WsQWcw
-xrKeZoKPuFNCATj4GRD38AZKh+MN6GGZU+CJbCCekHNV5gVYBnxcaeIT86ioeviIunsHGeouVtUV
-rekT+lYeS96bywJCLSBYEF4JPN3ADDOtYpbLRVQB0290JRC8IxlT0caMehOCngOR+X7rHAnroZAU
-W5XzD3nTODgtwOvKzNI32k5vjVerVz/VGjmiqufIZ8/BQkTbGKTmCAvV/JDcw+JrAXg0bmDQW5WZ
-Jk0Ki1iwCzhrIc5aoLalDbMQsgidMMIOb1Vu69UqOUfYXxF2jnwFHaoekFtuswVwAIgLJtl5z+UB
-93tD183THKn+HlFyU69dARJu72Al9VEK+BxpWGAbgXHx3yCZnXBIdo4AKUNoqu9zkJlsd0FT1qBn
-d1p6HagYdVYp7gp8SWaTl4Ut2uk4HpsLoGuFfgvIFfUXFwFlvaQE2AeLC/zBF/TDsee+8qkQ2MX5
-lX3uDrvcA05AKtsZCnKvu7hkwAfzhyM1YguXmnOL4MuWZHvaZS0whxdQabysBD6CCywyNo/jyf3d
-EV9o4NC2y9I9UKLjFuBWEGwsS+SDBOB03SzwqKuwu0qYQLEZ4GQpG2al48mlTlxUNz/55ql94F7m
-PsR887BOoDhc0gmlVbL2wxoJoHk9UaOfpwImZx/nomXBFOvyANRaHdUXiCloZFJCTVREhLTwIwhF
-DqLOCwPlIap3SEpKkisPlkSUgMBly0Ba2OwZDUCbOX0US0op2xxMD2imaBT3skIAWsyAsDelg+bU
-b4BhCOWveXdJBVizgYRvBegIkfN8bkm1uqx36m30+lGlQRfW8FmAaD3X4mFC4MwWDoUJhlMPQBeP
-lj1oems7p+HY7GyIv3Npx8ZVDZYquFSVKxww92HFh4a/XML1HBdWdV5i6dtOp8OwSLxanWlRjVqa
-NKqaVSF6praplphj8DOjsmuu1iJrosHdcwvmD7XIVmVavSzLrVltIW6f03IDrerZNLClsGrdw5qv
-HbkUhR0OvrTc5kPx1YiCDjqLLpnT7YVg+N07gi8w98w3c+/N3FtS9s3cU6X+vcw9pbKy9gPKrsPM
-Q5F2ze7ZlPydqJYy8qal4NOsubyZ1RibY8wtrf8z2WYP8kNJFrLXYvXYb1bP2qwe+ye3ekiN3Tt6
-A/LN/nmzf97snzf755H2j/0A+8d+sQbQSCA+0RQqGvtPs4WWA/ipjKExp9Us46iJtbR11MBQCFA+
-k1YS6iZmnfFQqrMH20ncB1lG/cLH6/rZxbn+02pLcDPsI45b7XFXJJOqoi1phZSKRVC502V0Zcfz
-Jl6cFqafjQ3hnHpg2ogwoI7XAOR63U+sy75X4q7Nex9LCy3iwE4CxXsHLakBeU5YMYFkC17PtO0W
-WRIKdeT24o584kCfkBFFFWl3kR1EzkIDwe4rLCL5tyrNgP6LWSFM47uAY3TkgqodBgo/YM0HV8Q2
-YyS0/IB/B5mhCQoWzdR8n6gZJi217jWLg/VpBZEjWMuxc0T0HH8JDF/1cQwA2H05kohm+Kg1RY4o
-FTjfGoxgModf5vYlRx4P+1UY8EuXS3f0vF5vxNIAFAl1eVca879qsfNei4iz0bzPauermgtKf2PD
-AQ9sgXLszOHC77GAkT93w3fkC0zrUO28yO93PR5yMfTCHgtVTCapqsCyT9TW5vvmhtznEaqG2vOp
-+1BcP4GJzbxIli3ArPFE3xFiXsXzHoPXIeBc1e33uefQLEVT20RZit86uMXEshZ1shflXZZpbPXv
-w4wlgQpApIy9vXO6Mih7Ztkm64N+lWJMPZY7aenHE9UasAQDOT0s1GR41nD8KWrXpWw2tl78eH5T
-SxZ4f9MlFgBxHTAGMHz1H/Ea9J9rWaeKqN+XBTc3tIbZwb/U1Yi7OOcqcFGQ2hCqAHfvSiW0c8sD
-mB24iL6jMihyd3NjlmaSMZK3bEAueeDAoo6cS6kJAC6LpeLhCTHz5jGpRl3cCpNazNjcuOWgD082
-N+56Q4HzT1olcbwzs0l7SP6Leox8cBkIq16bOR7ZqTc+Y930vinGhoPWxihqKA21rhntkQ9QHKyz
-blLlNgJOVxt01IUWR+XPouAbWKoUDwvEpYELikWSJ0JzA4h91wJ8YzCmHK0fOIhUGdrHA6h4Xsw1
-i7qqaS6qKpjFkZTpymauaWLlyXfEp05ABlQGNsoIS1i7A65SYeG8Q86bNYW9Dg82N2SMrFCiTqRj
-HZNO96itYqU9jmTCLUvhO9+YMDDWc3MjLqcaRwkqW8edTlR/5D+Oc6RUzpHyUY6YMFgEYO4XiR1B
-Oxx6EIFF4MsTHggVIyl5pyPjM+UBEJbCAbaRJo+Ij21gs2DNu+r0gsScHJmyLsQ7AiKbeHE1HP7m
-ho0rFTBIY0xrWPDlD+ZB94I4jFepdR1ID/zwB1Shogc4eQdQEJUjUHNYpC7FCqqTmjxigZ+unb4T
-qi3hZEBjm/4iNVLQM3gqIP65wbkIP7HxkbxAYxLq3dXL+kHRKBb38vi7rL/h30SSxvVgIgMSOPYZ
-ukrQeQnccfuX2xGYMkI5ir8d4F+tPP6iNcM8MA2HJGBM7EypHH+TYBoOiLdUZ+b1pl6aO6g93Rsn
-BWUOGJBCTMXcNsEGEzLy9nPz3Fh4MGB0LsARxqDHHYPZUUEoAV5oW9zu83iBZVid/q+O/d4smkfF
-PwNbveu4tPv+3mEDeYTC+z1yAjzJRNuweCE9PsBQbmrhJNVnPJCp9MkhGQ0Q6GM5MF9qgYHMRc7Q
-rmKuDQPb6bWTL39Fr6kBQ+jiQgWGih1FFkwL/TnLxwyOhsTEnedrmLeCmbTUxj0HVzZaox1neTRL
-pxVwXP+kVgPYmQmFlm15nHXQamHxPONdcddRBLc8njkQCoo/wDOU0TGiPAwoMcNrsNC2KiYxS4dP
-jFt64j5XeRmAx3JoOoRLbilIz8+ayQyNmsXiyvyQTyW1wrKiNdibByUwj8xSOfvm5Lzdzb0nuvTy
-pjkFYdWkoOFDSLHELb1KSpTN4yIplw8y43A2FTLH+82hwf66KYCbPXJThPnc6mWlhHLIPJYKf8rn
-ca2SL+7n94qEqM9HeWT8/OMpZhZLpcPS0dFBEWznYun48OiodLQM/SkB1JzhZJooHaHBuFVRNrYg
-sEqABal5fFjMF0341ywWT+S/35bAGVtyblVmubcm2SRW5bFTbu16fMzX+CR1vkS/Fcn0Inty9OtV
-b8uan9Bu19zKsuUiPVbAXfJI89i4pZw/Wrcx03NbtBXykM4N9XkC/Toup5p++ZJxUCzBmhVWKE+0
-U15gePWjo9Nnkl+iDVB2DD/T3uEJCBNSwkovd1u800oF4rccryUYbQ0yxLhrIRZ1yXXefBYmNItR
-f708CKvkvWNiGkeHT9TXbxz4yjjQ71HGn0UMmsZhcZ+YB0ax/CYGZxpYSARyhwTx9X7D2jn4+Vnt
-WYRdqUyKxvFeZjb5t+KzMQ4jih6viM0E7qCsl8P2TGCN4hHZKxulYmnqVPbDuGyvtBR9y9jscCmE
-yeAqvUX0gNiqeFNJ7m80i9LnfV4kDbWT9NyqNlGlLZFtKJoD7xqf189+prl+9iuVS5L9zPK/Ifep
-jb9z8437JrkvzOwsDEfhCcV1OQxTPFs2jo9MtP6ODqcUwMM4tvhkhl3O8hMMmwrleFg06lQkSCI+
-Fef+OMYNMw9J867NugFjrekYqBUz8FzZuYCBzWdi4JJk4IMnmpWvgYHNNwaew8AdN+JB637dS5xi
-+YDsZ2ektTiGl/mSVrFY+YDoZMKSsW1fuBvS7jJ6P5bpMPXCXMZTNUih4PIQM5WSAGM1sVNc5rET
-78gVBnZth+Sbxwc6+eui/RrNlvcwpulgvdXy5HdEyfp5sny8R8rGwd6U6/5Fc6Uvg3DJXcBBnoQO
-W2ZNpj02SeTtPRqnb+z5OPa8q5fXzJpkzyjt/dggkWXrtAm2rAGXcPee2Uk837OvcjDYrTXl0/bj
-aL9HeLRTMXTr9wPdtm7XzVXlklF+6mrmicLugYbgw9kqJe50hCbx3UjEAZJLarc+OK77ZTZHLuXH
-tXC0QCb21Eha8FZ+hoG0QPq3kE9bfTzk+9KZu763buYG9B4ev3LmfnnsOS1wY1594RzZcNa+5Dkk
-R0eG+dp58pnYSug4+ZfOV7f10po3pjHk/7hIisbh/g+OI34lrBVr1JfOWZdrXnYgZ5llWBIfP3WX
-5nmXxC+Wsag8uRr1XzpncXkKdb3MdUtvCfz/sQLr0cqwviymNLXsqGtsPi8H3nM36rNWJ6BWzH6K
-rI9hvuvnCK+hwbotMHPf3EdXysGPXfQu239ZTZDM0kP6P8LPF7v3tFcvN8OrJ4Gu27U3mQBmYQqY
-+tlVYyz3C6W2VQ26XMzP+oJF8n3qCwM+YZ4Hg0YF2+k6gfpt+D1/RpIXnVqF26xCsQFM9GF9AzIk
-WVfwlS6cIUGK5ajjzLgbxiYu1YkTYJCAWXjiPr6UBJ+le41DKcTXqCUfWgFTRzHlCc++/b56UytU
-PxdqZy2JmtZds9lq6t6vBvTlVYvCfKSuRIpoVT99rDdWAzruaOvsasUAb+iKRt9oVltnTtt1eDeg
-fm+44n42Vj3wi9rdiiHWangmPAQxr7InnKNxxeSh8R5zfcI9EvM73t5HHVcYU/IhNTcCRkMetORV
-UluVb07f6GBOpOFfR11dUH0ywcvkIBdWTaVmqVZr2RKzSHbPkSShJollQ474zOtGDsrTQQ/P2uMx
-berCH+q2aRhwvCIrN5XYBe8WAeVALqwkj4V8fgZ4BUlMLmkb0Zm9oswbSd2HV6yxPgvEY2regEz3
-2MPr3TGXdifH6PKu3Es7dynovo5jpbLeVKXkEYUvLAhZO5Dn5hW2HKDOE+rfwKoAXmgMAtuiun9x
-SVRGqVBQi+J1evK+NxgEXieprpGU/AjGsbr0TUln0AL6eRAfqJO3wVG8mc88Pi5uq9wZAtMMWG5k
-M3KBgRF4hePfEAxGylVt5jpMcrkTIZdfY3I8UK9e6EJ7Dc7DYY58DNgw32PyIkusJW9ly7cDPsAH
-qYkAtAhpYCFbSOgRJjFzHTCyOlEQz5wGj/D6N49cuMzv4V13DXihAUcqA8Zl1PfbeN+gmnUGwdQs
-6pJNj4cyz0acXQTKDxOUwVdXHzJTF7MFydWa7LvPhbpJE80Og3xkSt5DZ+O8llhFhrFcAhptciVc
-eXeCui9ugAlc8fsNtYD3Yfk7UUCmpZGZSxiCcwEavhbEA2gqx0g8dHXTIjnHeywlldRw8LJNSfCO
-48IaQvVW336pMo1EIwTgdZweQ4aRiVpxyDK7xD9weK3G55ub6qe//xOfVO9BDssEHh+ZBz0jO9hL
-fWcibgkrM2X3hOzIOz53F04SnRoOWyF5zYyNRHQmhgnA1TMzDWvainxAxsBGfdxa9Oy21eDiK0Yh
-jW7gDINoQdJAYXcMrDdKEya4KMjbfOeZjo/Kn8xHKRjreMsGoOTKVnn8jL+cFha8TlqV10SqVI7M
-HkUhNPQdjO6wgkNNLpRcWFIDbbf597i9ShR4J7giOvFYiLcQn0iUeAMhEXRC8ZqasQopIHcAuI8Z
-Bis6Tx8HDY8sK8L3Z2f1/zlRVUfFHmBZT+QMdPqswYIZ4RepOuPJArPUkLn+MDOLLJhO1afzFMkE
-ezOT6qk8SLMOEo/Av4rMerPnSlbzS2bAvq2dZbPBHpM97YVp8qenQ0NFkKCNgLhT14zLe0D91H2e
-V3V4Vbv6IIvAfMccNQaReiTJshXfax6LU2lNzIySlEWk6jjTmbl0M556jbcAQzvxTcK51J3CXF0m
-Tm4+N5qJmWHFyUvD0VVEc7NT4nWwdgFKjaYdSSbjokWGVkPj6MrPHuFiDSSfJh1sjOU7Uc/wknCM
-Ed09LcwqF4PQA0tD0I/SAKZLxbLRnXpjMz/skZ0+5lidfjtRb1bG13y2jLBIiXSzuP2nkitMvJkq
-/0EmsKoM4Sd/c5O37e3m9uXlSb9/IsT2b9tpALpodsdlStDOifwGGCjzKypNrjIl5INUIXSbqeqz
-NU9h8uW4iyyrj1TfrwyrSXdAh4JYPQb2K/L+7yqzfgvzc6F91+EyfZ1K/KZn6BSnT0rWp+cJUnHZ
-5Kq2pAoftyOGiTro9x0xMHjQLXAvLFidgh9r90Km6OsVu7Vny7Kd893MCcpnd3rBgYGEvaS3dja7
-ZWaXtTrCH5iZY3XHAH4Uc02082JOB0wtb1AcbW5coh8FcwLKu8L1ddrSgZ++AzmwberLJWV6GaQe
-G/Ft0lPrpfHqk7nVz6p4JTXeSJ11yTT3hhQmGyh0oT38OwZ8fB21+L6ciZGN9djvM7dJeW3YEOGq
-Ohxie/ghDXx+h1O3zqvr3sE41RTTBEsGcGt9cKSXEBfqWiPAKh4TMCoXzZBHZCD3ZaQ9Fkr/DOYl
-wrX7AsxowGOosQYDCy0f0OsJLrwaqFsPEz4LDCxOf120mt1fuJbF/tWcoFKIikWJl4LP0bor4OIA
-WoclQVwkacSKAgGkqnSoK+QaNX6QgoniVa15cRgt45f//V668CwFbfRS14i92YgOMKyQYmOPdDE/
-YBff0TEWqtr/J2GfFiafx8W5CMeetwCo6sd/QqXJt7oWSz8zfjktsBmFLNwoljoELB8NJV5dnhZm
-vk04OgC2OZclUsZX8+rmAtl05svVGYM/zxp95gJ94UJrIpf+I+H8lKt7adTLrRlmb1W8yF10l5Us
-7AgRZSjrZCgy4VkYDAYTnoUHexVyqdu1yNfzqXiXmV6GzY1q2B/fxnCC5OorlZTfEU7bwe+5GaXj
-744F624G+InfxNfLxE+XVJ5ybsT1sT/jCeIXgfnqoH95DIB8lC0dffpanPlJ6VXlr6CuROyHuU9u
-U81SFISMw+1MRRs+Y3ahJjcrgdwvbrMmthAex8jjfh4peairdlzPIj6U266YaBnZe5fYeM2AXpGi
-IcyDZBtM7X2A0sPU6hz3CdpQH4qh0wX+qxTh0iuCxiPHTQdhkJt0WTQ+1bYGxdeY6B1EjsdcEbt/
-wGiWexNDWdZmvsuHKuO7zFeutyRlA52OzFROpI0tNjfkJkq8aYIbHtXQpR7uC+m9Ep29X7MBDXiE
-uz50QB1HeoRIDAGdUjJHOjKrrix3kGIQhhznNgx+DBOMyrkpt2fUYbxwc6MNDQEqceb4ep6+IwOY
-MDr5tcrDjTyoOoG3A7wjmHJebevQzY3U+uGdfDpAvsVtla7ahoLWVOfVSTrhdD25YemFqmgvnjg2
-78MyM37sq0mi8r/r3ajUC02CACwo2yBgpXkKOUm/kWiqPKysaFftjzoJImzcw+/jVlkaTdLpl+w+
-xZtfiYg1yFU42pMKmEpWHmruSi44lJY2DGjihkND2cuxTcs9dyiBxbeVq+08KGG5XGBVTE++udF1
-cHA9mGlqYwwNACJDpZJU/TFIxInkHJbsweFWG8KS9dXoxnygApP19wg8DHkwmks72keDvsswwBT/
-QArlqdncKBVNM4+J6Ud5SnclneS+XoCbl7KTCpKL+dVngVPzdQYwQM1uFk+ndHJqKYUxRmmJIOUH
-SpIMrs4svpXYSs3oSYmLZ/GdLPLVrTmve9p5ocNZsJvLfC1JNviRLbr2LLLX9bmHFB+XaPspvqtV
-j63aXGnm6hc0tHiJtpJc0Mk4lFvvSVNGrthbwgel6XXn2OurRcXXWlZEDBbfE5mMWuYAfsle14Nl
-AKaPFeq8xnulw4NlZ4wmpB4a+usmYeMuOxGFn5GML915Pp28fykV09Hb8PPiCPmxkVnidpfczfHT
-kHFpjs2fj4xfv1xmpuPgvvdKCLn0MNGKCZl4UtA5sWaK1rILWPu1yNfSK6ZnNTs96Rs9Xz49b7Jb
-sf03M/YxZuxzUvOs+ikrNdt4aPJFzM7jwyfrzwzpxuPgJSdIXKNkp3dHdw2ys3336aKxjR5EGa0g
-HVGhCtDbJXiZ4Xn+pnpLhBNfefgRd5nINcWbNqWjMSedcyrOnNmjFhwBD+3IUg48wShx8ZLLJDqK
-oee7x20ClLAAkcr9fPu1QZrM6nlxfjaoD9AEOYNVLQOKkdKxSXZMs2CWC0fFaefaUnZ+knyKt4DW
-rWqaN3eZdU3Y918IOz81W9ozK5tF4cYrNu4fQM/Bq6Hn0ki1n5aetYuvmelps8Eroedzz8/RPshU
-qvUV0/PLVSMrOe8d8TqoKe+YfJ3kvGvW/p6Vnn5oD18IQfNPvXnmVdpCzavaA7Zd1rid9EBiPvGi
-2Wd2VGMIxjXa5+vfdvj8gG2H6KVQc+nGwb/fxgOQ8ssDSHn/RspnJ2U61F2eKMgc7Y7xJm2omSO6
-0emodxkh5YQ90sUQKceCNX4Y+QTjQTGWCCMwdpjRNXJkawhM8lmwAKm+tRuDnBk2Ty0Lo2xkzI8O
-78F+LA6hj3s7FkOPjdbirzNOFPwLT0JjFHgXFNnv7kmhYJb2jPK+cXBoHB2f7Jf3SoUYBgLHzs84
-Qm5j4JYcWYUHXWME0KjJN0CDUQldx+Kep2K74sMy8cEUQNJWJY0ujCafLLwUjE+FwPBIBepOf3sU
-KCHcLX0Y/XG1O9QKJR9PYAdeGbfcg3mCQc+O1/2gCi5sB0gB9qNEJZRLfYupa/VYn8onOPJG8hUI
-N3qlC0s/V1K2GX87LYxe6JLo2grOhhU8Ny4jhUKKi/T4sS418/hFsXi0OJvAoqj9dQX132HESNZ4
-/mWFn+fAOkbjIveADHLlWbKsUeVI26vRg0yx5I8PsH5hQc0Lz61PJydM1Zw8TjEnZUKWkGg5E9WX
-5aGQciriR1U0LhgruMdGPWY4aCy5/GVELk4f5F2x7ZYSYqsOaFtBDKg+njk6eE7iY+e/rRkvcaaC
-EXuvI5bxMTF/6xroKMB0LRGpL2CoY8eCl8iAp68+VnX6OoNumQAw41y0UEBWcHJ/1kpCn7nVql3I
-h/8PUEsHCO9zv65nHwAA3cEAAFBLAQIVAxQACAAIAAFcWUHvc7+uZx8AAN3BAAAMAAwAAAAAAAAA
-AEDtgQAAAABkYXRhc2V0cy54bWxVWAgAVySUUHJbiVBQSwUGAAAAAAEAAQBGAAAAsR8AAAAA
+datasets_xml="""<?xml version="1.0" ?><erddapDatasets>
+<requestBlacklist/>
+</erddapDatasets>
 """

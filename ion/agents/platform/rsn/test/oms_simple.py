@@ -4,10 +4,15 @@
 @package ion.agents.platform.rsn.test.oms_simple
 @file    ion/agents/platform/rsn/test/oms_simple.py
 @author  Carlos Rueda
-@brief   Simple program for direct connection with real OMS exercising
-         operations as they are made available.
+@brief   Program that connects to the real RSN OMS enpoint to do basic
+         verification of the operations. Note that VPN is required.
 
-         bin/python ion/agents/platform/rsn/test/oms_simple.py
+         USAGE: bin/python ion/agents/platform/rsn/test/oms_simple.py [uri]
+         default uri: 'http://alice:1234@10.180.80.10:9021/'
+
+         See bottom of this file for a complete execution.
+
+@see     https://confluence.oceanobservatories.org/display/syseng/CIAD+MI+SV+CI-OMS+interface
 """
 
 __author__ = 'Carlos Rueda'
@@ -16,336 +21,248 @@ __license__ = 'Apache 2.0'
 
 import xmlrpclib
 import sys
-import os
-import traceback
-
-from ion.agents.platform.util.network_util import NetworkUtil
-
-
-# hard-coded list for initial testing accord to Matthew M's email
-attributeNames = [
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.1.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.1.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.2.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.2.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.3.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.3.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.4.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.4.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.1.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.1.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.2.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.2.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.45.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.45.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.45.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.80.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.80.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.80.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.45.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.45.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.45.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.80.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.80.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.80.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.45.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.45.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.45.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.80.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.80.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.80.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.1.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.1.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.2.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.2.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.3.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.3.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.45.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.45.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.45.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.80.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.80.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.80.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.45.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.45.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.45.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.80.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.80.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.80.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.45.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.45.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.45.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.80.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.80.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.80.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.45.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.45.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.45.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.80.1',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.80.2',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.80.3',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.2.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.2.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.3.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.3.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.5.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.5.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.6.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.6.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.1.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.1.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.2.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.2.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.3.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.3.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.4.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.4.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.5.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.5.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.1.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.1.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.10.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.10.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.2.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.2.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.3.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.3.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.4.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.4.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.5.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.5.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.6.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.6.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.7.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.7.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.8.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.8.80.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.9.45.0',
-    '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.9.80.0'
-]
-
 
 # Main program
 if __name__ == "__main__":  # pragma: no cover
 
-    def gen_diagrams(name, pnode):
-        yml_name = '%s.yml' % name
-        file(yml_name, 'w').write(NetworkUtil._gen_yaml(pnode))
-        dot_name = '%s.dot' % name
-        pml_name = '%s.puml' % name
-        file(dot_name, 'w').write(NetworkUtil._gen_diagram(pnode, style="dot"))
-        file(pml_name, 'w').write(NetworkUtil._gen_diagram(pnode, style="plantuml"))
-        print "topology =\n%s" % NetworkUtil._dump_pnode(pnode, only_topology=True)
-        try:
-            dot_cmd = 'dot -Tpng %s.dot -o %s.png' % (name,name)
-            open_cmd = 'open %s.png' % name
-            import subprocess
-            subprocess.call(dot_cmd.split())
-            subprocess.call(open_cmd.split())
-        except Exception, e:
-            print "error generating diagrams: %s" % str(e)
+    uri = "http://alice:1234@10.180.80.10:9021/"
+    if len(sys.argv) == 2:
+        uri = sys.argv[1]
+    elif len(sys.argv) > 2:
+        print "USAGE: %s [uri]" % sys.argv[0]
+        print "default uri: %r" % uri
+        exit()
 
-    uri = os.getenv('OMS', "http://alice:1234@10.180.80.10:9021/")
-
-    #####
-    import re
-    if re.search('simulator', uri):
-        from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
-        oms = CIOMSClientFactory.create_instance(uri)
-        print "ping() = %s"  % oms.ping()
-        map = oms.get_platform_map()
-        print "get_platform_map() = %s" % map
-        pnodes = NetworkUtil.create_node_network(map)
-        if not '' in pnodes:
-            print "platform map does not include '' to indicate root platforms."
-        else:
-            dummy_root = pnodes['']
-            gen_diagrams('sim_topology', dummy_root)
-        sys.exit()
-    #####
-
-
+    print '\nconnecting to %r ...' % uri
     proxy = xmlrpclib.ServerProxy(uri)
+    print 'connection established.'
 
-    retval = proxy.hello.ping()
-    print "ping() = %s"  % retval
+    tried = {}
 
-    retval = proxy.config.get_platform_map()
-    print "get_platform_map() = %s" % retval
+    def get_method(handler_name, method_name):
+        """
+        Gets the method from the proxy.
+        @param handler_name  Name of the handler; can be None to indicate get
+                             method directly from proxy.
+        @param method_name   Method's name
 
-    pnodes = NetworkUtil.create_node_network(retval)
-    if not '' in pnodes:
-        print "platform map does not include '' to indicate root platforms."
-    else:
-        dummy_root = pnodes['']
-        gen_diagrams('oms_topology', dummy_root)
+        @return              callable; None if any error getting the method
+        """
 
-    #
-    # The following calls were related with the old prototype. May be adjusted
-    # as the real OMS server gets updated.
-    #
+        # get method:
+        if handler_name:
+            # get handler:
+            try:
+                handler = getattr(proxy, handler_name)
+            except Exception as e:
+                print "error getting handler %s: %s: %s" % (handler_name, type(e), str(e))
+                return None
+            try:
+                method = getattr(handler, method_name)
+                return method
+            except Exception as e:
+                print "error method %s.%s: %s: %s" % (handler_name, method_name, type(e), str(e))
+                return None
+        else:
+            try:
+                method = getattr(proxy, method_name)
+                return method
+            except Exception as e:
+                print "error getting proxy's method %s: %s: %s" % (method_name, type(e), str(e))
+                return None
 
-    for deviceType in ['Network', 'Server']:
-        res = proxy.getDeviceListByType(deviceType)
-        print "getDeviceListByType('%s') = %s" % (deviceType, str(res))
+    def run(handler_name, method_name, *args):
+        """
+        Runs a method against the proxy.
 
-    deviceName = '10.1.2.12'
+        If handler_name is given, and the method on the corresponding
+        handler fails, then the method is tried in the proxy directly.
+        NOTE: This strategy is temporary, just while RSN indicates
+        the specific set of handlers they will be using.
 
-    for attributeName in attributeNames:
+        @param handler_name  Name of the handler; can be None to indicate get
+                             method directly from proxy.
+        @param method_name   Method's name
+        @param args          to display method to be called.
+        """
+        global tried
 
-        sys.stdout.write("getDeviceAttribute('%s', '%s') = " % (deviceName, attributeName))
+        tried[method_name] = ""
+        print("\n-- %s --" % method_name)
+
+        # get the method
+        method = get_method(handler_name, method_name)
+        if method is None:
+            tried[method_name] = "could not get handler or method"
+            return
+
+        sargs = ", ".join(["%r" % a for a in args])
+
+        if handler_name:
+            sys.stdout.write("%s.%s(%s) -> " % (handler_name, method_name, sargs))
+        else:
+            sys.stdout.write("%s(%s) -> " % (method_name, sargs))
         sys.stdout.flush()
 
+        # run method
         try:
-            res = proxy.getDeviceAttribute(deviceName, attributeName)
-            sys.stdout.write("%s\n" % str(res))
+            retval = method(*args)
+            print "%r" % retval
+            tried[method_name] = "OK"
+            return retval
         except Exception as e:
-            sys.stdout.write("%s: %s\n" % (type(e), str(e)))
-            traceback.print_exc()
-#            break
+            print "Exception: %s: %s" % (type(e), str(e))
+            tried[method_name] = str(e)
 
+            if handler_name:
+                # try without handler:
+                sys.stdout.write("\t without handler: ")
+                sys.stdout.flush()
+                method = get_method(None, method_name)
+                if method is None:
+                    return
+
+                sys.stdout.write("%s(%s) -> " % (method_name, sargs))
+                sys.stdout.flush()
+                try:
+                    retval = method(*args)
+                    print "%r" % retval
+                    tried[method_name] = "OK"
+                    return retval
+                except Exception as e:
+                    print "Exception: %s: %s" % (type(e), str(e))
+
+    print "\nBasic verification of the operations:"
+
+    run("hello", "ping")
+    run("config", 'get_platform_types')
+
+    plat_map = run("config", 'get_platform_map')
+    platform_id = "dummy_platform_id"
+    if plat_map:
+        platform_id = plat_map[0][0]
+
+    run("config", 'get_platform_metadata', platform_id)
+    run("config", 'get_platform_attributes', platform_id)
+    run("config", 'get_platform_attribute_values', platform_id, {})
+    run("config", 'set_platform_attribute_values', platform_id, {})
+    ports = run("config", 'get_platform_ports', platform_id)
+
+    port_id = "dummy_port_id"
+    instrument_id = "dummy_instrument_id"
+    run("config", 'connect_instrument', platform_id, port_id, instrument_id, {})
+    run("config", 'disconnect_instrument', platform_id, port_id, instrument_id)
+    run("config", 'get_connected_instruments', platform_id, port_id)
+    run("config", 'turn_on_platform_port', platform_id, port_id)
+    run("config", 'turn_off_platform_port', platform_id, port_id)
+
+    url = "dummy_url_listener"
+    run("config", 'register_event_listener', url, [])
+    run("config", 'unregister_event_listener', url, [])
+    run("config", 'get_registered_event_listeners')
+
+    run("config", 'get_checksum', platform_id)
+
+    print("\nSummary of basic verification:")
+    for method_name, result in sorted(tried.iteritems()):
+        print("%20s %-40s: %s" % ("", method_name, result))
+
+    print("\nNote: Just couple of handlers tried while RSN indicates "
+          "the specific set of handlers they will be using.\n")
 
 """
-$ date
-Mon Oct 29 11:59:56 PDT 2012
-$ bin/python ion/agents/platform/rsn/test/oms_simple.py
-ping() = pong
-get_platform_map() = [['LJ01A', 'LV01A'], ['LJ01B', 'LV01B'], ['LJ01C', 'LV01C'], ['LJ01D', 'MJ01C'], ['LJ03A', 'LV03A'], ['LV01A', 'Node1A'], ['LV01B', 'Node1B'], ['LV01C', 'Node1C'], ['LV03A', 'Node3A'], ['MJ01A', 'Node1A'], ['MJ01B', 'LV01B'], ['MJ01C', 'Node1D'], ['MJ03A', 'Node3A'], ['MJ03B', 'Node3B'], ['MJ03C', 'Node3B'], ['MJ03D', 'Node3B'], ['MJ03E', 'Node3B'], ['MJ03F', 'Node3B'], ['Node1A', 'ShoreStation'], ['Node1B', 'Node1A'], ['Node1C', 'Node1B'], ['Node1D', 'Node1C'], ['Node3A', 'Node5A'], ['Node3B', 'Node3A'], ['Node5A', 'ShoreStation'], ['PC01A', 'LV01A'], ['PC01B', 'LV01C'], ['PC03A', 'LV03A'], ['SC01A', 'PC01A'], ['SC01B', 'PC01B'], ['SC03A', 'PC03A'], ['SF01A', 'SC01A'], ['SF01B', 'SC01B'], ['SF03A', 'SC03A'], ['ShoreStation', '']]
-topology =
-ShoreStation
-    Node1A
-        MJ01A
-        Node1B
-            Node1C
-                Node1D
-                    MJ01C
-                        LJ01D
-                LV01C
-                    PC01B
-                        SC01B
-                            SF01B
-                    LJ01C
-            LV01B
-                LJ01B
-                MJ01B
-        LV01A
-            LJ01A
-            PC01A
-                SC01A
-                    SF01A
-    Node5A
-        Node3A
-            Node3B
-                MJ03F
-                MJ03E
-                MJ03D
-                MJ03C
-                MJ03B
-            MJ03A
-            LV03A
-                LJ03A
-                PC03A
-                    SC03A
-                        SF03A
+$ date && bin/python ion/agents/platform/rsn/test/oms_simple.py
+Thu Apr 18 16:13:18 PDT 2013
 
-getDeviceListByType('Network') = ['10.180.80.180', '10.1.2.12', '10.180.80.182', '10.180.80.184', '10.180.80.185', '10.180.80.50', '10.180.80.52', '10.180.80.58', '10.180.80.54', '10.180.80.195', '10.180.80.194', '10.180.80.189']
-getDeviceListByType('Server') = ['fremont.benhall.rsn.apl.washington.edu', '10.180.80.30', '10.180.80.13', '10.180.80.11']
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.1.45.0') = [2]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.1.80.0') = [2]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.2.45.0') = [0]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.2.80.0') = [0]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.3.45.0') = [39]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.3.80.0') = [39]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.4.45.0') = [99]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.2.4.80.0') = [99]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.1.45.0') = [38]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.1.80.0') = [38]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.2.45.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.2.80.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.45.1') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.45.2') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.45.3') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.80.1') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.80.2') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.2.80.3') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.45.1') = [121]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.45.2') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.45.3') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.80.1') = [121]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.80.2') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.3.80.3') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.45.1') = [152]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.45.2') = [147]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.45.3') = [163]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.80.1') = [153]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.80.2') = [147]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.3.3.1.4.80.3') = [162]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.1.45.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.1.80.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.2.45.0') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.2.80.0') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.3.45.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.3.80.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.45.1') = [121]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.45.2') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.45.3') = [119]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.80.1') = [121]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.80.2') = [119]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.2.80.3') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.45.1') = [142]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.45.2') = [137]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.45.3') = [152]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.80.1') = [142]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.80.2') = [137]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.3.80.3') = [152]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.45.1') = [1565]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.45.2') = [1501]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.45.3') = [1668]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.80.1') = [1562]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.80.2') = [1502]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.4.80.3') = [1672]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.45.1') = [42]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.45.2') = [41]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.45.3') = [45]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.80.1') = [42]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.80.2') = [41]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.4.4.1.5.80.3') = [45]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.2.45.0') = [13679]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.2.80.0') = [13676]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.3.45.0') = [1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.3.80.0') = [1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.5.45.0') = [122922633]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.5.80.0') = [122924602]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.6.45.0') = [16183300]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.7.6.80.0') = [16147400]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.1.45.0') = [2]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.1.80.0') = [2]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.2.45.0') = [-1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.2.80.0') = [-1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.3.45.0') = [-1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.3.80.0') = [-1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.4.45.0') = [-1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.4.80.0') = [-1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.5.45.0') = [2]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.8.5.80.0') = [2]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.1.45.0') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.1.80.0') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.10.45.0') = [84]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.10.80.0') = [84]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.2.45.0') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.2.80.0') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.3.45.0') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.3.80.0') = [120]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.4.45.0') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.4.80.0') = [600]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.5.45.0') = [12000]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.5.80.0') = [12000]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.6.45.0') = [12000]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.6.80.0') = [12000]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.7.45.0') = [1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.7.80.0') = [1]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.8.45.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.8.80.0') = [3]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.9.45.0') = [84]
-getDeviceAttribute('10.1.2.12', '.1.3.6.1.4.1.23494.2.1.2.1.6.1.9.9.80.0') = [84]
+connecting to 'http://alice:1234@10.180.80.10:9021/' ...
+connection established.
+
+Basic verification of the operations:
+
+-- ping --
+hello.ping() -> 'pong'
+
+-- get_platform_types --
+config.get_platform_types() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_types not found'>
+	 without handler: get_platform_types() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_types not found'>
+
+-- get_platform_map --
+config.get_platform_map() -> [['Node1A', 'ShoreStation'], ['Node1B', 'ShoreStation'], ['ShoreStation', '']]
+
+-- get_platform_metadata --
+config.get_platform_metadata('Node1A') -> ''
+
+-- get_platform_attributes --
+config.get_platform_attributes('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attributes not found'>
+	 without handler: get_platform_attributes('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attributes not found'>
+
+-- get_platform_attribute_values --
+config.get_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attribute_values not found'>
+	 without handler: get_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attribute_values not found'>
+
+-- set_platform_attribute_values --
+config.set_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function set_platform_attribute_values not found'>
+	 without handler: set_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function set_platform_attribute_values not found'>
+
+-- get_platform_ports --
+config.get_platform_ports('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_ports not found'>
+	 without handler: get_platform_ports('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_ports not found'>
+
+-- connect_instrument --
+config.connect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function connect_instrument not found'>
+	 without handler: connect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function connect_instrument not found'>
+
+-- disconnect_instrument --
+config.disconnect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function disconnect_instrument not found'>
+	 without handler: disconnect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function disconnect_instrument not found'>
+
+-- get_connected_instruments --
+config.get_connected_instruments('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_connected_instruments not found'>
+	 without handler: get_connected_instruments('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_connected_instruments not found'>
+
+-- turn_on_platform_port --
+config.turn_on_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_on_platform_port not found'>
+	 without handler: turn_on_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_on_platform_port not found'>
+
+-- turn_off_platform_port --
+config.turn_off_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_off_platform_port not found'>
+	 without handler: turn_off_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_off_platform_port not found'>
+
+-- register_event_listener --
+config.register_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function register_event_listener not found'>
+	 without handler: register_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function register_event_listener not found'>
+
+-- unregister_event_listener --
+config.unregister_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function unregister_event_listener not found'>
+	 without handler: unregister_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function unregister_event_listener not found'>
+
+-- get_registered_event_listeners --
+config.get_registered_event_listeners() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_registered_event_listeners not found'>
+	 without handler: get_registered_event_listeners() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_registered_event_listeners not found'>
+
+-- get_checksum --
+config.get_checksum('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_checksum not found'>
+	 without handler: get_checksum('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_checksum not found'>
+
+Summary of basic verification:
+                     connect_instrument                      : <Fault 8001: 'function connect_instrument not found'>
+                     disconnect_instrument                   : <Fault 8001: 'function disconnect_instrument not found'>
+                     get_checksum                            : <Fault 8001: 'function get_checksum not found'>
+                     get_connected_instruments               : <Fault 8001: 'function get_connected_instruments not found'>
+                     get_platform_attribute_values           : <Fault 8001: 'function get_platform_attribute_values not found'>
+                     get_platform_attributes                 : <Fault 8001: 'function get_platform_attributes not found'>
+                     get_platform_map                        : OK
+                     get_platform_metadata                   : OK
+                     get_platform_ports                      : <Fault 8001: 'function get_platform_ports not found'>
+                     get_platform_types                      : <Fault 8001: 'function get_platform_types not found'>
+                     get_registered_event_listeners          : <Fault 8001: 'function get_registered_event_listeners not found'>
+                     ping                                    : OK
+                     register_event_listener                 : <Fault 8001: 'function register_event_listener not found'>
+                     set_platform_attribute_values           : <Fault 8001: 'function set_platform_attribute_values not found'>
+                     turn_off_platform_port                  : <Fault 8001: 'function turn_off_platform_port not found'>
+                     turn_on_platform_port                   : <Fault 8001: 'function turn_on_platform_port not found'>
+                     unregister_event_listener               : <Fault 8001: 'function unregister_event_listener not found'>
+
+Note: Just couple of handlers tried while RSN indicates the specific set of handlers they will be using.
+
 """

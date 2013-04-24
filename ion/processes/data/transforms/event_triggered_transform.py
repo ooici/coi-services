@@ -21,11 +21,7 @@ class EventTriggeredTransform_A(TransformEventListener, TransformDataProcess):
 
         self.awake = False
 
-        if not self.CFG.process.publish_streams.has_key('conductivity'):
-            raise BadRequest("For event triggered transform, please send the stream_id "
-                             "using the special keyword, conductivity")
-
-        self.cond_stream = self.CFG.process.publish_streams.conductivity
+        self.cond_stream = self.CFG.process.publish_streams.values()[0]
 
         # Read the parameter dict from the stream def of the stream
         pubsub = PubsubManagementServiceProcessClient(process=self)
@@ -55,7 +51,7 @@ class EventTriggeredTransform_A(TransformEventListener, TransformDataProcess):
                 return
 
             granule = TransformAlgorithm.execute(packet, params=self.stream_definition._id)
-            self.conductivity.publish(msg=granule)
+            self.publisher.publish(msg=granule)
         else:
             return # the transform does not do anything with received packets when it is not yet awake
 

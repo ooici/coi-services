@@ -1,4 +1,3 @@
-from ion.services.sa.observatory.observatory_management_service import LOGICAL_TRANSFORM_DEFINITION_NAME
 from pyon.public import log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -75,18 +74,12 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.processdispatchclient = ProcessDispatcherServiceClient(node=self.container.node)
         self.dataset_management = DatasetManagementServiceClient()
 
-        # create missing data process definition
-        dpd_obj = IonObject(RT.DataProcessDefinition,
-                            name=LOGICAL_TRANSFORM_DEFINITION_NAME,
-                            description="normally in preload",
-                            module='ion.processes.data.transforms.logical_transform',
-                            class_name='logical_transform')
-        self.dataprocessclient.create_data_process_definition(dpd_obj)
 
         # deactivate all data processes when tests are complete
         def killAllDataProcesses():
             for proc_id in self.rrclient.find_resources(RT.DataProcess, None, None, True)[0]:
                 self.dataprocessclient.deactivate_data_process(proc_id)
+                self.dataprocessclient.delete_data_process(proc_id)
         self.addCleanup(killAllDataProcesses)
 
 
@@ -238,8 +231,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         pid = self.create_logger('ctd_parsed', stream_ids[0] )
         self.loggerpids.append(pid)
 
-        self.omsclient.create_site_data_product(instrumentSite_id, instrument_site_output_dp_id)
-
 
         #-------------------------------
         # Create Old Deployment
@@ -276,8 +267,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear1',
             description="SBE37IMAgentInstanceYear1",
-            comms_device_address='sbe37-simulator.oceanobservatories.org',
-            comms_device_port=4001,
             port_agent_config = port_agent_config,
             stream_configurations = [raw_config, parsed_config])
 
@@ -372,8 +361,6 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstanceYear2',
             description="SBE37IMAgentInstanceYear2",
-            comms_device_address='sbe37-simulator.oceanobservatories.org',
-            comms_device_port=4004,
             port_agent_config = port_agent_config)
 
 
@@ -436,7 +423,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         self.dataprocessclient.assign_stream_definition_to_data_process_definition(outgoing_stream_l0_temperature_id, ctd_L0_all_dprocdef_id, binding='temperature' )
 
 
-        self.output_products={}
+        self.out_prod_dict={}
         log.debug("test_deployAsPrimaryDevice: create output data product L0 conductivity")
 
         ctd_l0_conductivity_output_dp_obj = IonObject(RT.DataProduct,
@@ -446,7 +433,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
             spatial_domain = sdom)
 
         ctd_l0_conductivity_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_conductivity_output_dp_obj, stream_definition_id=parsed_stream_def_id)
-        self.output_products['conductivity'] = ctd_l0_conductivity_output_dp_id
+        self.out_prod_dict['conductivity'] = ctd_l0_conductivity_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_conductivity_output_dp_id)
 
 
@@ -460,7 +447,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         ctd_l0_pressure_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_pressure_output_dp_obj, stream_definition_id=parsed_stream_def_id)
 
-        self.output_products['pressure'] = ctd_l0_pressure_output_dp_id
+        self.out_prod_dict['pressure'] = ctd_l0_pressure_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_pressure_output_dp_id)
 
         log.debug("test_deployAsPrimaryDevice: create output data product L0 temperature")
@@ -473,7 +460,7 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
 
         ctd_l0_temperature_output_dp_id = self.dataproductclient.create_data_product(data_product=ctd_l0_temperature_output_dp_obj, stream_definition_id=parsed_stream_def_id)
 
-        self.output_products['temperature'] = ctd_l0_temperature_output_dp_id
+        self.out_prod_dict['temperature'] = ctd_l0_temperature_output_dp_id
         #self.dataproductclient.activate_data_product_persistence(data_product_id=ctd_l0_temperature_output_dp_id)
 
 
@@ -483,7 +470,8 @@ class TestIMSDeployAsPrimaryDevice(IonIntegrationTestCase):
         #-------------------------------
         log.debug("test_deployAsPrimaryDevice: create L0 all data_process start")
         try:
-            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product_year1], self.output_products)
+            out_data_products = self.out_prod_dict.values()
+            ctd_l0_all_data_process_id = self.dataprocessclient.create_data_process(ctd_L0_all_dprocdef_id, [ctd_parsed_data_product_year1], out_data_products)
             self.dataprocessclient.activate_data_process(ctd_l0_all_data_process_id)
         except BadRequest as ex:
             self.fail("failed to create new data process: %s" %ex)

@@ -9,7 +9,8 @@ from pyon.datastore.datastore import DataStore
 from pyon.event.event import EventSubscriber
 from pyon.ion.exchange import ExchangeNameQueue
 from pyon.ion.stream import StandaloneStreamSubscriber, StandaloneStreamPublisher
-from pyon.public import RT, log, OT
+from pyon.public import RT, log, OT, PRED
+from pyon.util.containers import DotDict
 from pyon.util.poller import poll
 from pyon.util.int_test import IonIntegrationTestCase
 
@@ -18,9 +19,12 @@ from ion.services.dm.ingestion.test.ingestion_management_test import IngestionMa
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from ion.services.dm.inventory.data_retriever_service import DataRetrieverService
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
+from ion.services.dm.utility.test.parameter_helper import ParameterHelper
+from ion.util.stored_values import StoredValueManager
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType, ViewCoverage, ComplexCoverage, SimplexCoverage
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -32,6 +36,8 @@ from interface.objects import Granule
 
 from gevent.event import Event
 from nose.plugins.attrib import attr
+
+from uuid import uuid4
 
 import gevent
 import time
@@ -311,6 +317,146 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.streams.append(stream_id)
         self.stop_ingestion(stream_id)
 
+
+    def test_coverage_transform(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_parsed()
+        stream_def_id = self.pubsub_management.create_stream_definition('ctd parsed', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('example', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        ingestion_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_config_id, dataset_id=dataset_id)
+        self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        
+        rdt = ph.get_rdt(stream_def_id)
+        ph.fill_parsed_rdt(rdt)
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], rdt['time'])
+        np.testing.assert_array_almost_equal(rdt_out['temp'], rdt['temp'])
+
+        np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
+        np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
+        np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+
+
+    def test_qc_events(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_qc_pdict()
+        stream_def_id = self.pubsub_management.create_stream_definition('qc stream def', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('qc stream', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        ingestion_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+        config = DotDict()
+
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_config_id, dataset_id=dataset_id, config=config)
+        self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(10)
+        rdt['temp'] = np.arange(10) * 3
+
+        verified = Event()
+        def verification(event, *args, **kwargs):
+            self.assertEquals(event.qc_parameter, 'temp_qc')
+            self.assertEquals(event.temporal_value, 7)
+            verified.set()
+
+        es = EventSubscriber(event_type=OT.ParameterQCEvent, origin=dataset_id, callback=verification, auto_delete=True)
+        es.start()
+        self.addCleanup(es.stop)
+
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(verified.wait(10))
+
+
+
+    def test_lookup_values_ingest_replay(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_lookups()
+        stream_def_id = self.pubsub_management.create_stream_definition('lookups', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+
+        stream_id, route = self.pubsub_management.create_stream('example', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+
+        ingestion_config_id = self.get_ingestion_config()
+        dataset_id = self.create_dataset(pdict_id)
+        config = DotDict()
+        config.process.lookup_docs = ['test1', 'test2']
+        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_config_id, dataset_id=dataset_id, config=config)
+        self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
+
+        stored_value_manager = StoredValueManager(self.container)
+        stored_value_manager.stored_value_cas('test1',{'offset_a':10.0, 'offset_b':13.1})
+        
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = [20.0] * 20
+
+        granule = rdt.to_granule()
+
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+
+        publisher.publish(granule)
+        self.assertTrue(dataset_monitor.event.wait(30))
+        
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(20))
+        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20))
+        np.testing.assert_array_equal(rdt_out['offset_b'], np.array([rdt_out.fill_value('offset_b')] * 20))
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(20,40)
+        rdt['temp'] = [20.0] * 20
+        granule = rdt.to_granule()
+
+        dataset_monitor.event.clear()
+
+        stored_value_manager.stored_value_cas('test1',{'offset_a':20.0})
+        stored_value_manager.stored_value_cas('coefficient_document',{'offset_b':10.0})
+        gevent.sleep(2)
+
+        publisher.publish(granule)
+        self.assertTrue(dataset_monitor.event.wait(30))
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], np.arange(40))
+        np.testing.assert_array_almost_equal(rdt_out['temp'], np.array([20.] * 20 + [20.] * 20))
+        np.testing.assert_array_equal(rdt_out['offset_b'], np.array([10.] * 40))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated'], np.array([30.]*20 + [40.]*20))
+        np.testing.assert_array_almost_equal(rdt_out['calibrated_b'], np.array([40.] * 20 + [50.] * 20))
+
+
+
     @unittest.skip('Doesnt work')
     @attr('LOCOINT')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
@@ -332,7 +478,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         stream_def_id = self.pubsub_management.create_stream_definition('replay_stream', parameter_dictionary_id=pdict_id)
         replay_stream, replay_route = self.pubsub_management.create_stream('replay', 'xp1', stream_definition_id=stream_def_id)
         dataset_id = self.create_dataset(pdict_id)
-        scov = DatasetManagementService._get_coverage(dataset_id)
+        scov = DatasetManagementService._get_simplex_coverage(dataset_id)
 
         bb = CoverageCraft(scov)
         bb.rdt['time'] = np.arange(100)
@@ -490,17 +636,13 @@ class TestDMEnd2End(IonIntegrationTestCase):
         dataset_id = self.create_dataset(pdict_id)
         self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=config_id, dataset_id=dataset_id)
 
-        dataset_modified = Event()
-        def cb(*args, **kwargs):
-            dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb, origin=dataset_id)
-        es.start()
+        dataset_monitor = DatasetMonitor(dataset_id)
 
-        self.addCleanup(es.stop)
+        self.addCleanup(dataset_monitor.stop)
 
         self.publish_fake_data(stream_id, route)
 
-        self.assertTrue(dataset_modified.wait(30))
+        self.assertTrue(dataset_monitor.event.wait(30))
 
         query = {
             'start_time': 0 - 2208988800,
@@ -566,7 +708,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         ntp_ago  = unix_ago + 2208988800
 
         stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
-        coverage = DatasetManagementService._get_coverage(dataset_id)
+        coverage = DatasetManagementService._get_simplex_coverage(dataset_id)
         coverage.insert_timesteps(20)
         coverage.set_parameter_values('time', np.arange(ntp_ago,ntp_now))
         
@@ -608,7 +750,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         DataRetrieverService._refresh_interval = 1
         datasets = [self.make_simple_dataset() for i in xrange(10)]
         for stream_id, route, stream_def_id, dataset_id in datasets:
-            coverage = DatasetManagementService._get_coverage(dataset_id)
+            coverage = DatasetManagementService._get_simplex_coverage(dataset_id)
             coverage.insert_timesteps(10)
             coverage.set_parameter_values('time', np.arange(10))
             coverage.set_parameter_values('temp', np.arange(10))
@@ -653,6 +795,145 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(event.is_set())
 
         
+    def publish_and_wait(self, dataset_id, granule):
+        stream_ids, _ = self.resource_registry.find_objects(dataset_id, PRED.hasStream,id_only=True)
+        stream_id=stream_ids[0]
+        route = self.pubsub_management.read_stream_route(stream_id)
+        publisher = StandaloneStreamPublisher(stream_id,route)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        publisher.publish(granule)
+        self.assertTrue(dataset_monitor.event.wait(10))
+
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_thorough_gap_analysis(self):
+        dataset_id = self.test_ingestion_gap_analysis()
+        vcov = DatasetManagementService._get_coverage(dataset_id)
+
+        self.assertIsInstance(vcov,ViewCoverage)
+        ccov = vcov.reference_coverage
+
+        self.assertIsInstance(ccov, ComplexCoverage)
+        self.assertEquals(len(ccov._reference_covs), 3)
+
+
+    def test_ingestion_gap_analysis(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
+
+        connection1 = uuid4().hex
+        connection2 = uuid4().hex
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = [0]
+        rdt['temp'] = [0]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='0'))
+        rdt['time'] = [1]
+        rdt['temp'] = [1]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index=1))
+        rdt['time'] = [2]
+        rdt['temp'] = [2]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='3')) # Gap, missed message
+        rdt['time'] = [3]
+        rdt['temp'] = [3]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='3')) # Gap, new connection
+        rdt['time'] = [4]
+        rdt['temp'] = [4]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='4'))
+        rdt['time'] = [5]
+        rdt['temp'] = [5]
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index=5))
+
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['time'], np.arange(6))
+        np.testing.assert_array_equal(rdt['temp'], np.arange(6))
+        return dataset_id
+
+    def test_sparse_values(self):
+        ph = ParameterHelper(self.dataset_management, self.addCleanup)
+        pdict_id = ph.create_sparse()
+        stream_def_id = self.pubsub_management.create_stream_definition('sparse', parameter_dictionary_id=pdict_id)
+        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
+        stream_id, route = self.pubsub_management.create_stream('example', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
+        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
+        dataset_id = self.create_dataset(pdict_id)
+        self.start_ingestion(stream_id,dataset_id)
+        self.addCleanup(self.stop_ingestion, stream_id)
+
+        ntp_now = time.time() + 2208988800
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['time'] = [ntp_now]
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [300000]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['lat'] = [45]
+        rdt['conductivity'] = [4341400]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['lon'] = [-71]
+        rdt['pressure'] = [256.8]
+
+        publisher = StandaloneStreamPublisher(stream_id, route)
+        dataset_monitor = DatasetMonitor(dataset_id)
+        self.addCleanup(dataset_monitor.stop)
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+
+        np.testing.assert_array_almost_equal(rdt_out['time'], rdt['time'])
+        np.testing.assert_array_almost_equal(rdt_out['temp'], rdt['temp'])
+        np.testing.assert_array_almost_equal(rdt_out['lat'], np.array([45]))
+        np.testing.assert_array_almost_equal(rdt_out['lon'], np.array([-71]))
+
+        np.testing.assert_array_almost_equal(rdt_out['conductivity_L1'], np.array([42.914]))
+        np.testing.assert_array_almost_equal(rdt_out['temp_L1'], np.array([20.]))
+        np.testing.assert_array_almost_equal(rdt_out['pressure_L1'], np.array([3.068]))
+        np.testing.assert_array_almost_equal(rdt_out['density'], np.array([1021.7144739593881]))
+        np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
+
+
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['lat'] = [46]
+        rdt['lon'] = [-73]
+        
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+        
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['lat'] = [1000]
+        rdt['lon'] = [3]
+        
+        publisher.publish(rdt.to_granule())
+
+        rdt = ph.get_rdt(stream_def_id)
+        rdt['time'] = [ntp_now]
+        rdt['internal_timestamp'] = [ntp_now]
+        rdt['temp'] = [300000]
+        rdt['preferred_timestamp'] = ['driver_timestamp']
+        rdt['port_timestamp'] = [ntp_now]
+        rdt['quality_flag'] = [None]
+        rdt['conductivity'] = [4341400]
+        rdt['driver_timestamp'] = [ntp_now]
+        rdt['pressure'] = [256.8]
+        
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(dataset_monitor.event.wait(30))
+        dataset_monitor.event.clear()
+
+
+        replay_granule = self.data_retriever.retrieve(dataset_id)
+        rdt_out = RecordDictionaryTool.load_from_granule(replay_granule)
+        np.testing.assert_array_almost_equal(rdt_out['lat'], np.array([45, 46]))
+        np.testing.assert_array_almost_equal(rdt_out['lon'], np.array([-71,-73]))
+
+
 
     @unittest.skip('Outdated due to ingestion retry')
     @attr('LOCOINT')
@@ -685,9 +966,28 @@ class TestDMEnd2End(IonIntegrationTestCase):
 
         sub.stop()
 
+    @attr('LOCOINT')
+    @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Host requires file-system access to coverage files, CEI mode does not support.')
+    def test_coverage_types(self):
+        # Make a simple dataset and start ingestion, pretty standard stuff.
+        ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        cov = DatasetManagementService._get_coverage(dataset_id=dataset_id)
+        self.assertIsInstance(cov, ViewCoverage)
 
+        cov = DatasetManagementService._get_simplex_coverage(dataset_id=dataset_id)
+        self.assertIsInstance(cov, SimplexCoverage)
 
+class DatasetMonitor(object):
+    def __init__(self, dataset_id):
+        self.dataset_id = dataset_id
+        self.event = Event()
 
+        self.es = EventSubscriber(event_type=OT.DatasetModiied, callback=self.cb, origin=self.dataset_id, auto_delete=True)
+        self.es.start()
+    
+    def cb(self, *args, **kwargs):
+        self.event.set()
 
-
+    def stop(self):
+        self.es.stop()
 

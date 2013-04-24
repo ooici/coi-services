@@ -38,7 +38,7 @@ class DataRetrieverService(BaseDataRetrieverService):
 
 
     def on_start(self):
-        self.event_subscriber = EventSubscriber(event_type='DatasetModified', callback=lambda event,m : self._eject_cache(event.origin))
+        self.event_subscriber = EventSubscriber(event_type='DatasetModified', callback=lambda event,m : self._eject_cache(event.origin), auto_delete=True)
         self.event_subscriber.start()
 
 
@@ -50,7 +50,7 @@ class DataRetrieverService(BaseDataRetrieverService):
             except KeyError:
                 pass
     
-    def define_replay(self, dataset_id='', query=None, delivery_format=None, stream_id=''):
+    def define_replay(self, dataset_id='', query=None, delivery_format='', stream_id=''):
         ''' Define the stream that will contain the data from data store by streaming to an exchange name.
         query: 
           start_time: 0    The beginning timestamp
@@ -141,13 +141,13 @@ class DataRetrieverService(BaseDataRetrieverService):
                 #@TODO: Add in LRU logic (maybe some mem checking too!)
                 if len(cls._retrieve_cache) > cls._cache_limit:
                     cls._retrieve_cache.popitem(0)
-                retval = DatasetManagementService._get_view_coverage(dataset_id, mode='r') 
+                retval = DatasetManagementService._get_coverage(dataset_id, mode='r') 
             age = time.time()
             cls._retrieve_cache[dataset_id] = (retval, age)
         return retval
 
     @classmethod
-    def retrieve_oob(cls, dataset_id='', query=None, delivery_format=None):
+    def retrieve_oob(cls, dataset_id='', query=None, delivery_format=''):
         query = query or {}
         coverage = None
         try:
@@ -167,7 +167,7 @@ class DataRetrieverService(BaseDataRetrieverService):
         return rdt.to_granule()
 
   
-    def retrieve(self, dataset_id='', query=None, delivery_format=None, module='', cls='', kwargs=None):
+    def retrieve(self, dataset_id='', query=None, delivery_format='', module='', cls='', kwargs=None):
         '''
         Retrieves a dataset.
         @param dataset_id      Dataset identifier
@@ -185,11 +185,11 @@ class DataRetrieverService(BaseDataRetrieverService):
 
         return retrieve_data
 
-    def retrieve_last_data_points(self, dataset_id='', number_of_points=100):
-        return ReplayProcess.get_last_values(dataset_id, number_of_points)
+    def retrieve_last_data_points(self, dataset_id='', number_of_points=100, delivery_format=''):
+        return ReplayProcess.get_last_values(dataset_id, number_of_points, delivery_format)
 
-    def retrieve_last_granule(self, dataset_id):
-        return self.retrieve_last_data_points(dataset_id,10)
+    def retrieve_last_granule(self, dataset_id='', delivery_format=''):
+        return self.retrieve_last_data_points(dataset_id,10,delivery_format)
 
     def replay_data_process(self, dataset_id, query, delivery_format, replay_stream_id):
         dataset = self.clients.dataset_management.read_dataset(dataset_id=dataset_id)

@@ -1,7 +1,7 @@
 #from interface.services.icontainer_agent import ContainerAgentClient
 from interface.objects import AttachmentType
 #from pyon.ion.endpoint import ProcessRPCClient
-from pyon.public import Container, IonObject
+from pyon.public import IonObject
 
 from pyon.util.containers import DotDict
 from pyon.util.int_test import IonIntegrationTestCase
@@ -16,18 +16,14 @@ from interface.services.sa.iobservatory_management_service import ObservatoryMan
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
 
-from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
-from pyon.public import RT, LCS, PRED
+#from pyon.core.exception import BadRequest, NotFound, Conflict, Inconsistent
+from pyon.public import RT, PRED
 from nose.plugins.attrib import attr
 import unittest
 import string
 
 from ion.services.sa.test.helpers import any_old
-from ion.services.sa.observatory.instrument_site_impl import InstrumentSiteImpl
-from ion.services.sa.observatory.platform_site_impl import PlatformSiteImpl
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
+
 
 
 # some stuff for logging info to the console

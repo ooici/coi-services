@@ -4,7 +4,7 @@
 @package ion.agents.platform.rsn.simulator.oms_values
 @file    ion/agents/platform/rsn/simulator/oms_values.py
 @author  Carlos Rueda
-@brief   Platform attribute value generators for the OMS simulator.
+@brief   Platform attribute value generators for the RSN OMS simulator.
 """
 
 __author__ = 'Carlos Rueda'
@@ -24,6 +24,7 @@ _MAX_RESULT_SIZE = 1000
 
 # next value for generators created by _create_simple_generator
 _next_value = 990000
+
 
 def _create_simple_generator(gen_period):
     """
@@ -80,6 +81,7 @@ def _create_sine_generator(sine_period, gen_period, min_val, max_val):
     """
 
     twopi = 2 * math.pi
+
     def _gen(from_time, to_time):
         if from_time < _START_TIME:
             from_time = _START_TIME
@@ -107,28 +109,49 @@ def _create_sine_generator(sine_period, gen_period, min_val, max_val):
     return _gen
 
 
-_default_generator = _create_simple_generator(gen_period=5)
-
-# for simplicity, use the same parameterized sine generator for
-# all "input_voltage" regardless of the platform:
-_input_voltage_generator = _create_sine_generator(
-                                        sine_period=30,
-                                        gen_period=5,
-                                        min_val=-500,
-                                        max_val=+500)
-
-# concrete generators per platform/attribute:
+# generators per platform/attribute:
 _plat_attr_generators = {
     # we used to have a couple here, but now none for the moment.
 
     # An example would be:
-#    ('LJ01D', 'input_voltage'): _create_sine_generator(
-#                                        sine_period=30,
-#                                        gen_period=5,
-#                                        min_val=-500,
-#                                        max_val=+500),
+    # ('LJ01D', 'input_voltage'): _create_sine_generator(sine_period=30,
+    #                                                    gen_period=2.5,
+    #                                                    min_val=-500,
+    #                                                    max_val=+500),
 
 }
+
+
+# generators per attribute:
+_attribute_generators = {
+
+    'input_voltage':
+    _create_sine_generator(sine_period=30,
+                           gen_period=2.5,
+                           min_val=-500,
+                           max_val=+500),
+
+    'input_bus_current':
+    _create_sine_generator(sine_period=50,
+                           gen_period=5,
+                           min_val=-300,
+                           max_val=+300),
+
+    'MVPC_temperature':
+    _create_sine_generator(sine_period=20,
+                           gen_period=4,
+                           min_val=-200,
+                           max_val=+200),
+
+    'MVPC_pressure_1':
+    _create_sine_generator(sine_period=20,
+                           gen_period=4,
+                           min_val=-100,
+                           max_val=+100),
+    }
+
+
+_default_generator = _create_simple_generator(gen_period=5)
 
 
 def generate_values(platform_id, attr_id, from_time, to_time):
@@ -141,10 +164,17 @@ def generate_values(platform_id, attr_id, from_time, to_time):
     @param from_time    lower limit of desired time window
     @param to_time      upper limit of desired time window
     """
-    if 'input_voltage' == attr_id:
-        gen = _input_voltage_generator
+
+    # try by platform/attribute:
+    if (platform_id, attr_id) in _plat_attr_generators:
+        gen = _plat_attr_generators[(platform_id, attr_id)]
+
+    # else: try by the attribute only:
+    elif attr_id in _attribute_generators:
+        gen = _attribute_generators[attr_id]
+
     else:
-        gen = _plat_attr_generators.get((platform_id, attr_id), _default_generator)
+        gen = _default_generator
 
     return gen(from_time, to_time)
 

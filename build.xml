@@ -41,6 +41,7 @@
             <fileset dir="extern/pyon" includes="**/*.pyc"/>
             <fileset dir="extern/marine-integrations" includes="**/*.pyc"/>
             <fileset dir="extern/coverage-model" includes="**/*.pyc"/>
+            <fileset dir="extern/ion-functions" includes="**/*.pyc"/>
             <fileset dir="extern/parameter-definitions" includes="**/*.pyc"/>
         </delete>
         <delete dir="interface" failonerror="false"/>

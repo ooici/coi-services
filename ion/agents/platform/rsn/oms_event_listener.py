@@ -84,7 +84,9 @@ class OmsEventListener(object):
         if self._notifications:
             self._notifications.clear()
 
-        self._http_server = WSGIServer((host, port), self.__application)
+        import sys
+        self._http_server = WSGIServer((host, port), self.__application,
+                                       log=sys.stdout)
         log.info("starting http server for receiving event notifications...")
         self._http_server.start()
         self._url = "http://%s:%s" % self._http_server.address

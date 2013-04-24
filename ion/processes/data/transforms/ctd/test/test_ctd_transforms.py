@@ -45,9 +45,6 @@ class TestCtdTransforms(IonUnitTestCase):
         # This test does not start a container so we have to hack creating a FileSystem singleton instance
 #        FileSystem(DotDict())
 
-        self.px_ctd = SimpleCtdPublisher()
-        self.px_ctd.last_time = 0
-
         self.tx_L0 = ctd_L0_all()
         self.tx_L0.streams = defaultdict(Mock)
         self.tx_L0.cond_publisher = Mock()
@@ -273,7 +270,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         # Build a packet that can be published
-        self.px_ctd = SimpleCtdPublisher()
         publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
@@ -365,7 +361,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         # Build a packet that can be published
-        self.px_ctd = SimpleCtdPublisher()
         publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
@@ -559,7 +554,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         # Build a packet that can be published
-        self.px_ctd = SimpleCtdPublisher()
         publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
@@ -647,7 +641,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         # Build a packet that can be published
-        self.px_ctd = SimpleCtdPublisher()
         publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
@@ -735,7 +728,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         # Build a packet that can be published
-        self.px_ctd = SimpleCtdPublisher()
         publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
@@ -821,7 +813,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
         pub = StandaloneStreamPublisher('stream_id', stream_route)
 
         # Build a packet that can be published
-        self.px_ctd = SimpleCtdPublisher()
         publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 
         # Publish the packet
@@ -926,7 +917,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 #        pub = StandaloneStreamPublisher('stream_id', stream_route)
 #
 #        # Build a packet that can be published
-#        self.px_ctd = SimpleCtdPublisher()
 #        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 #
 #        # Publish the packet
@@ -1016,7 +1006,6 @@ class CtdTransformsIntTest(IonIntegrationTestCase):
 #        pub = StandaloneStreamPublisher('stream_id', stream_route)
 #
 #        # Build a packet that can be published
-#        self.px_ctd = SimpleCtdPublisher()
 #        publish_granule = self._get_new_ctd_packet(stream_definition_id=stream_def_id, length = 5)
 #
 #        # Publish the packet

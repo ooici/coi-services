@@ -21,10 +21,13 @@ from interface.objects import Dataset
 from interface.services.dm.idataset_management_service import BaseDatasetManagementService, DatasetManagementServiceClient
 
 from coverage_model.basic_types import AxisTypeEnum
-from coverage_model import SimplexCoverage as ViewCoverage
+from coverage_model import AbstractCoverage, ViewCoverage, ComplexCoverage, ComplexCoverageType
+from coverage_model.parameter_functions import AbstractFunction
+
+from uuid import uuid4
 
 import os
-
+import numpy as np
 
 class DatasetManagementService(BaseDatasetManagementService):
     DEFAULT_DATASTORE = 'datasets'
@@ -43,7 +46,6 @@ class DatasetManagementService(BaseDatasetManagementService):
 #--------
 
     def create_dataset(self, name='', datastore_name='', view_name='', stream_id='', parameter_dict=None, spatial_domain=None, temporal_domain=None, parameter_dictionary_id='', description=''):
-
         validate_true(parameter_dict or parameter_dictionary_id, 'A parameter dictionary must be supplied to register a new dataset.')
         validate_is_not_none(spatial_domain, 'A spatial domain must be supplied to register a new dataset.')
         validate_is_not_none(temporal_domain, 'A temporal domain must be supplied to register a new dataset.')
@@ -70,6 +72,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         if stream_id:
             self.add_stream(dataset_id,stream_id)
 
+        log.debug('creating dataset: %s', dataset_id)
 
         cov = self._create_coverage(dataset_id, description or dataset_id, parameter_dict, spatial_domain, temporal_domain) 
         self._save_coverage(cov)
@@ -143,8 +146,24 @@ class DatasetManagementService(BaseDatasetManagementService):
 
 #--------
 
-    def create_parameter_context(self, name='', parameter_context=None, description='', parameter_type='', value_encoding='', unit_of_measure='', parameter_function_ids=None):
-        parameter_function_ids = parameter_function_ids or []
+    @classmethod
+    def numpy_walk(cls,obj):
+        if isinstance(obj, np.number):
+            return np.asscalar(obj)
+        if isinstance(obj, np.dtype):
+            return {'__np__':obj.str}
+        if isinstance(obj,dict):
+            if '__np__' in obj and len(obj)==1:
+                return np.dtype(obj['__np__'])
+            return {k:cls.numpy_walk(v) for k,v in obj.iteritems()}
+        if isinstance(obj,list):
+            return [i for i in obj]
+        if isinstance(obj, tuple):
+            return tuple((i for i in obj))
+        return obj
+
+
+    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name='', precision=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
@@ -153,20 +172,33 @@ class DatasetManagementService(BaseDatasetManagementService):
         
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')
+        parameter_context = self.numpy_walk(parameter_context)
         pc_res = ParameterContextResource(name=name, parameter_context=parameter_context, description=description)
-        pc_res.parameter_type  = parameter_type
-        pc_res.value_encoding  = value_encoding
-        pc_res.unit_of_measure = unit_of_measure
+        pc_res.reference_urls = reference_urls or []
+        pc_res.parameter_type = parameter_type
+        pc_res.internal_name = internal_name or name
+        pc_res.value_encoding = value_encoding
+        pc_res.code_report = code_report or {}
+        pc_res.units = units
+        pc_res.fill_value = fill_value
+        pc_res.display_name = display_name
+        pc_res.parameter_function_id = parameter_function_id
+        pc_res.parameter_function_map = parameter_function_map
+        pc_res.standard_name = standard_name
+        pc_res.ooi_short_name = ooi_short_name
+        pc_res.precision = precision or '5'
+
         pc_id, ver = self.clients.resource_registry.create(pc_res)
-        for pfunc_id in parameter_function_ids:
-            self.read_parameter_function(pfunc_id)
-            self.clients.resource_registry.create_association(subject=pc_id, predicate=PRED.hasParameterFunction, object=pfunc_id)
+        if parameter_function_id:
+            self.read_parameter_function(parameter_function_id)
+            self.clients.resource_registry.create_association(subject=pc_id, predicate=PRED.hasParameterFunction, object=parameter_function_id)
         
         return pc_id
 
     def read_parameter_context(self, parameter_context_id=''):
         res = self.clients.resource_registry.read(parameter_context_id)
         validate_is_instance(res,ParameterContextResource)
+        res.parameter_context = self.numpy_walk(res.parameter_context)
         return res
 
     def delete_parameter_context(self, parameter_context_id=''):
@@ -180,13 +212,16 @@ class DatasetManagementService(BaseDatasetManagementService):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
-        return res[0]
+        retval = res[0]
+        retval.parameter_context = self.numpy_walk(retval.parameter_context)
+        return retval
 
 #--------
 
     def create_parameter_function(self, name='', parameter_function=None, description=''):
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_function, dict, 'parameter_function field is not dictable.')
+        parameter_function = self.numpy_walk(parameter_function)
         pf_res = ParameterFunctionResource(name=name, parameter_function=parameter_function, description=description)
         pf_id, ver = self.clients.resource_registry.create(pf_res)
         return pf_id
@@ -194,6 +229,7 @@ class DatasetManagementService(BaseDatasetManagementService):
     def read_parameter_function(self, parameter_function_id=''):
         res = self.clients.resource_registry.read(parameter_function_id)
         validate_is_instance(res, ParameterFunctionResource)
+        res.parameter_function = self.numpy_walk(res.parameter_function)
         return res
 
     def delete_parameter_function(self, parameter_function_id=''):
@@ -207,7 +243,9 @@ class DatasetManagementService(BaseDatasetManagementService):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterFunction,name=name, id_only=id_only)
         if not len(res):
             raise NotFound('Unable to locate parameter function with name: %s' % name)
-        return res[0]
+        retval = res[0]
+        retval.parameter_function = self.numpy_walk(retval.parameter_function)
+        return retval
 
 #--------
 
@@ -244,12 +282,15 @@ class DatasetManagementService(BaseDatasetManagementService):
 
     def read_parameter_contexts(self, parameter_dictionary_id='', id_only=False):
         pcs, assocs = self.clients.resource_registry.find_objects(subject=parameter_dictionary_id, predicate=PRED.hasParameterContext, id_only=id_only)
+        if not id_only:
+            for pc in pcs:
+                pc.parameter_context = self.numpy_walk(pc.parameter_context)
         return pcs
 
     def read_parameter_dictionary_by_name(self, name='', id_only=False):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterDictionary, name=name, id_only=id_only)
         if not len(res):
-            raise NotFound('Unable to locate context with name: %s' % name)
+            raise NotFound('Unable to locate dictionary with name: %s' % name)
         return res[0]
 
 #--------
@@ -295,8 +336,10 @@ class DatasetManagementService(BaseDatasetManagementService):
     def dataset_extents(self, dataset_id='', parameters=None):
         self.read_dataset(dataset_id)
         parameters = parameters or None
-        coverage = self._get_coverage(dataset_id)
-        return coverage.get_data_extents(parameters)
+        coverage = DatasetManagementService._get_coverage(dataset_id)
+        extents = coverage.get_data_extents(parameters)
+        coverage.close()
+        return extents
 
     def dataset_extents_by_axis(self, dataset_id='', axis=None):
         self.read_dataset(dataset_id) 
@@ -327,6 +370,17 @@ class DatasetManagementService(BaseDatasetManagementService):
         return pc
 
     @classmethod
+    def get_parameter_function(cls, parameter_function_id=''):
+        '''
+        Preferred client-side class method for constructing a parameter function
+        '''
+        dms_cli = DatasetManagementServiceClient()
+        pf_res = dms_cli.read_parameter_function(parameter_function_id=parameter_function_id)
+        pf = AbstractFunction.load(pf_res.parameter_function)
+        pf._identifier = pf._id
+        return pf
+
+    @classmethod
     def get_parameter_context_by_name(cls, name=''):
         dms_cli = DatasetManagementServiceClient()
         pc_res = dms_cli.read_parameter_context_by_name(name=name, id_only=False)
@@ -344,8 +398,13 @@ class DatasetManagementService(BaseDatasetManagementService):
         pd  = dms_cli.read_parameter_dictionary(parameter_dictionary_id)
         pcs = dms_cli.read_parameter_contexts(parameter_dictionary_id=parameter_dictionary_id, id_only=False)
 
-        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in pcs], pd.temporal_context)
-        pdict._identifier = parameter_dictionary_id
+        return cls.build_parameter_dictionary(pd, pcs)
+
+    @classmethod
+    def build_parameter_dictionary(cls, parameter_dictionary_obj, parameter_contexts):
+        pdict = cls._merge_contexts([ParameterContext.load(i.parameter_context) for i in parameter_contexts],
+                                    parameter_dictionary_obj.temporal_context)
+        pdict._identifier = parameter_dictionary_obj._id
 
         return pdict
 
@@ -371,12 +430,44 @@ class DatasetManagementService(BaseDatasetManagementService):
             self.clients.resource_registry.delete_association(assoc)
 
     def _create_coverage(self, dataset_id, description, parameter_dict, spatial_domain,temporal_domain):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
         pdict = ParameterDictionary.load(parameter_dict)
         sdom = GridDomain.load(spatial_domain)
         tdom = GridDomain.load(temporal_domain)
+        scov = self._create_simplex_coverage(dataset_id, pdict, sdom, tdom, self.inline_data_writes)
+        vcov = ViewCoverage(file_root, dataset_id, description or dataset_id, reference_coverage_location=scov.persistence_dir)
+        scov.close()
+        return vcov
+
+    @classmethod
+    def _create_simplex_coverage(cls, dataset_id, parameter_dictionary, spatial_domain, temporal_domain, inline_data_writes=True):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        scov = SimplexCoverage(file_root,dataset_id,description or dataset_id,parameter_dictionary=pdict, temporal_domain=tdom, spatial_domain=sdom, inline_data_writes=self.inline_data_writes)
+        scov = SimplexCoverage(file_root,uuid4().hex,'Simplex Coverage for %s' % dataset_id, parameter_dictionary=parameter_dictionary, temporal_domain=temporal_domain, spatial_domain=spatial_domain, inline_data_writes=inline_data_writes)
         return scov
+
+    @classmethod
+    def _splice_coverage(cls, dataset_id, scov):
+        file_root = FileSystem.get_url(FS.CACHE,'datasets')
+        vcov = cls._get_coverage(dataset_id,mode='a')
+        scov_pth = scov.persistence_dir
+        if isinstance(vcov.reference_coverage, SimplexCoverage):
+            ccov = ComplexCoverage(file_root, uuid4().hex, 'Complex coverage for %s' % dataset_id, 
+                    reference_coverage_locs=[vcov.head_coverage_path,],
+                    parameter_dictionary=ParameterDictionary(),
+                    complex_type=ComplexCoverageType.TEMPORAL_AGGREGATION)
+            log.info('Creating Complex Coverage: %s', ccov.persistence_dir)
+            ccov.append_reference_coverage(scov_pth)
+            ccov_pth = ccov.persistence_dir
+            ccov.close()
+            vcov.replace_reference_coverage(ccov_pth)
+        elif isinstance(vcov.reference_coverage, ComplexCoverage):
+            log.info('Appending simplex coverage to complex coverage')
+            vcov.reference_coverage.append_reference_coverage(scov_pth)
+        vcov.refresh()
+        vcov.close()
+
+
+
 
     @classmethod
     def _save_coverage(cls, coverage):
@@ -385,14 +476,20 @@ class DatasetManagementService(BaseDatasetManagementService):
     @classmethod
     def _get_coverage(cls,dataset_id,mode='w'):
         file_root = FileSystem.get_url(FS.CACHE,'datasets')
-        coverage = SimplexCoverage(file_root, dataset_id,mode=mode)
+        coverage = AbstractCoverage.load(file_root, dataset_id, mode=mode)
         return coverage
 
     @classmethod
-    def _get_view_coverage(cls, dataset_id, mode='r'):
-        file_root = cls._get_coverage_path(dataset_id)
-        coverage = ViewCoverage(file_root, dataset_id, mode=mode)
-        return coverage
+    def _get_simplex_coverage(cls, dataset_id, mode='w'):
+        cov = cls._get_coverage(dataset_id, mode=mode)
+        if isinstance(cov, SimplexCoverage):
+            return cov
+        if isinstance(cov, ViewCoverage):
+            path = cov.head_coverage_path
+            guid = os.path.basename(path)
+            cov.close()
+            return cls._get_simplex_coverage(guid, mode=mode)
+        raise BadRequest('Unsupported coverage type found: %s' % type(cov))
 
     @classmethod
     def _get_coverage_path(cls, dataset_id):
@@ -405,6 +502,10 @@ class DatasetManagementService(BaseDatasetManagementService):
             pc1 = ParameterContext.load(pc1) or {}
         if pc2:
             pc2 = ParameterContext.load(pc2) or {}
+        if hasattr(pc1,'lookup_value') or hasattr(pc2,'lookup_value'):
+            if hasattr(pc1,'lookup_value') and hasattr(pc2,'lookup_value'):
+                return bool(pc1 == pc2) and pc1.document_key == pc2.document_key
+            return False
         return bool(pc1 == pc2)
             
     @classmethod

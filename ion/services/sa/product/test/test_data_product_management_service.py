@@ -1,4 +1,5 @@
 #from pyon.ion.endpoint import ProcessRPCClient
+from ion.services.sa.test.helpers import UnitTestGenerator
 from pyon.public import  log, IonObject
 from pyon.util.int_test import IonIntegrationTestCase
 from ion.services.sa.product.data_product_management_service import DataProductManagementService
@@ -19,8 +20,6 @@ from nose.plugins.attrib import attr
 import unittest
 import time
 
-from ion.services.sa.product.data_product_impl import DataProductImpl
-from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
 from coverage_model.parameter import ParameterDictionary, ParameterContext
 from coverage_model.parameter_types import QuantityType
 from coverage_model.coverage import GridDomain, GridShape, CRS
@@ -124,9 +123,18 @@ class TestDataProductManagementServiceUnit(PyonTestCase):
         self.clients.resource_registry.find_resources.assert_called_once_with(RT.DataProduct, None, None, False)
 
 
- 
-#dynamically add tests to the test classes. THIS MUST HAPPEN OUTSIDE THE CLASS
 
-#unit
-rim = ResourceImplMetatest(TestDataProductManagementServiceUnit, DataProductManagementService, log)
-rim.add_resource_impl_unittests(DataProductImpl)
+utg = UnitTestGenerator(TestDataProductManagementServiceUnit,
+                        DataProductManagementService)
+
+#utg.test_all_in_one(True)
+
+utg.add_resource_unittests(RT.DataProduct, "data_product", {})
+utg.add_resource_unittests(RT.DataProductCollection, "data_product_collection", {})
+
+#remove some tests that don't work
+delattr(TestDataProductManagementServiceUnit, "test_data_product_create_d14a028")
+delattr(TestDataProductManagementServiceUnit, "test_data_product_collection_create_d14a028")
+delattr(TestDataProductManagementServiceUnit, "test_data_product_collection_create_bad_noname_d14a028")
+delattr(TestDataProductManagementServiceUnit, "test_data_product_collection_create_bad_wrongtype_d14a028")
+

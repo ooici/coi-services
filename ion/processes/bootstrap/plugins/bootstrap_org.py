@@ -35,7 +35,7 @@ class BootstrapOrg(BootstrapPlugin):
         self.org_id = org_ms_client.create_org(org)
 
         # Instantiate initial set of User Roles for this Org
-        ion_manager = UserRole(name=ION_MANAGER,label='ION Manager', description='ION Manager')
+        ion_manager = UserRole(governance_name=ION_MANAGER, name='ION Manager', description='ION Manager')
         org_ms_client.add_user_role(self.org_id, ion_manager)
         org_ms_client.grant_role(self.org_id, system_actor_id, ION_MANAGER )
 

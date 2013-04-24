@@ -180,6 +180,12 @@ class sbe37(asyncore.dispatcher_with_send):
                 time.sleep(0.1)
                 if self.count > 25:
                     self.count = 1
+                    if lag > 0:
+                        rnd_lag_val = int(random.uniform(0, 99))
+                        print "LAG RND VAL = " + str(rnd_lag_val)
+                        if lag > rnd_lag_val:
+                            print "SLEEP EXTRA " + str(sec)
+			    time.sleep(sec)
                     if self.tx_real_time:
                         self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
                     #self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(10,30), random.uniform(0.03, 0.07), random.uniform(-5, -9), random.uniform(0.18, 0.36), random.uniform(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
@@ -862,12 +868,19 @@ def usage():
     print "Available options are:"
     print "  -h, --help    : Displays this message"
     print "  -p, --port=   : Sets the port to listen on (default = " + str(port) + ")."
+    print "  -l, --lag=    : Sets what percent of time it will lag (0-99)."
+    print "  -s, --sec=    : Sets how long it will lag in seconds."
     print
 
 def get_opts():
 
+    global lag
+    global sec
+    lag = 0
+    sec = 0
+
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "p:h", ["help", "port="])
+        opts, args = getopt.getopt(sys.argv[1:], "p:h:l:s", ["help", "port=", "lag=", "sec="])
     except getopt.GetoptError, err:
         print str(err)
         sys.exit()
@@ -886,6 +899,10 @@ def get_opts():
             if port < 1000:
                 port_usage()
                 sys.exit()
+        elif o in ("-l", "--lag"):
+            lag = int(a)
+        elif o in ("-s", "--sec"):
+            sec = int(a)
         else:
             assert False, "unhandled option"
 

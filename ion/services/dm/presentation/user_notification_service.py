@@ -218,7 +218,7 @@ class UserNotificationService(BaseUserNotificationService):
         To trigger the batch notification, have the scheduler create a timer with event_origin = process_batch_key
         """
         self.batch_processing_subscriber = EventSubscriber(
-            event_type="ResourceEvent",
+            event_type="TimerEvent",
             origin=process_batch_key,
             queue_name='user_notification',
             callback=process
@@ -458,8 +458,12 @@ class UserNotificationService(BaseUserNotificationService):
         @throws NotFound    object with specified parameters does not exist
         @throws NotFound    object with specified parameters does not exist
         """
+        event_tuples = []
 
-        event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
+        try:
+            event_tuples = self.container.event_repository.find_events(event_type=type, origin=origin, start_ts=min_datetime, end_ts=max_datetime, limit=limit, descending=descending)
+        except Exception as exc:
+            log.warning("The UNS find_events operation for event origin = %s and type = %s failed. Error message = %s", origin, type, exc.message)
 
         events = [item[2] for item in event_tuples]
         log.debug("(find_events) UNS found the following relevant events: %s", events)
@@ -604,7 +608,7 @@ class UserNotificationService(BaseUserNotificationService):
         event_types = [event.type_] + event.base_types
         summary = ""
         if "ResourceLifecycleEvent" in event_types:
-            summary = "%s lifecycle state change: %s" % (event.origin_type, event.new_state)
+            summary = "%s lifecycle state change: %s_%s" % (event.origin_type, event.lcstate, event.availability)
         elif "ResourceModifiedEvent" in event_types:
             summary = "%s modified: %s" % (event.origin_type, event.sub_type)
 
@@ -626,7 +630,7 @@ class UserNotificationService(BaseUserNotificationService):
         elif "ResourceAgentResourceCommandEvent" in event_types:
             summary = "%s agent resource command '%s(%s)' executed: %s" % (event.origin_type, event.command, event.execute_command, "OK" if event.result is None else event.result)
         elif "DeviceStatusEvent" in event_types:
-            summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.state,"???"))
+            summary = "%s '%s' status change: %s" % (event.origin_type, event.sub_type, DeviceStatusType._str_map.get(event.status,"???"))
         elif "DeviceOperatorEvent" in event_types or "ResourceOperatorEvent" in event_types:
             summary = "Operator entered: %s" % event.description
 

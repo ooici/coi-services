@@ -232,11 +232,21 @@ class PortNode(BaseNode):
 class InstrumentNode(BaseNode):
     """
     Represents an instrument in a port.
+    Note, also used directly in PlatformNode to capture the configuration for
+    instruments.
+
+    self._instrument_id
+    self._attrs = { ... }
+    self._CFG = dict
+
+    The _CFG element included for convenience to capture the provided
+    configuration dict.
     """
-    def __init__(self, instrument_id, attrs=None):
+    def __init__(self, instrument_id, attrs=None, CFG=None):
         BaseNode.__init__(self)
         self._instrument_id = instrument_id
         self._attrs = attrs or {}
+        self._CFG = CFG
 
     def __repr__(self):
         return "InstrumentNode{id=%s, attrs=%s}" % (
@@ -252,6 +262,10 @@ class InstrumentNode(BaseNode):
         Attributes of this instrument.
         """
         return self._attrs
+
+    @property
+    def CFG(self):
+        return self._CFG
 
     def diff(self, other):
         """
@@ -290,10 +304,23 @@ class PlatformNode(BaseNode):
     self._ports = { port_id: PortNode, ... }
     self._subplatforms = { platform_id: PlatformNode, ...}
     self._parent = None | PlatformNode
+    self._instruments = { instrument_id: InstrumentNode, ...}
+    self._CFG = dict
+
+    The _CFG element included for convenience to capture the provided
+    configuration dict in PlatformAgent. See
+    create_network_definition_from_ci_config()
+
+    NOTE: because _instruments is only to capture provided instrument
+    configuration, this property is NOT taken into account for the
+    _compute_checksum operation, which is intended for the current state of
+    the attributes and ports (which also include instruments but in the sense
+     of being connected to the port).
 
     """
+    #TODO: some separation of configuration vs. state would be convenient.
 
-    def __init__(self, platform_id, platform_types=None):
+    def __init__(self, platform_id, platform_types=None, CFG=None):
         BaseNode.__init__(self)
         self._platform_id = platform_id
         self._platform_types = platform_types or []
@@ -302,6 +329,8 @@ class PlatformNode(BaseNode):
         self._attrs = {}
         self._subplatforms = {}
         self._parent = None
+        self._instruments = {}
+        self._CFG = CFG
 
     def set_name(self, name):
         self._name = name
@@ -341,6 +370,10 @@ class PlatformNode(BaseNode):
         return self._ports[port_id]
 
     @property
+    def CFG(self):
+        return self._CFG
+
+    @property
     def parent(self):
         return self._parent
 
@@ -354,6 +387,18 @@ class PlatformNode(BaseNode):
         self._subplatforms[pn.platform_id] = pn
         pn._parent = self
 
+    @property
+    def instruments(self):
+        """
+        Instruments configured for this platform.
+        """
+        return self._instruments
+
+    def add_instrument(self, instrument):
+        if instrument.instrument_id in self._instruments:
+            raise Exception('%s: duplicate instrument ID' % instrument.instrument_id)
+        self._instruments[instrument.instrument_id] = instrument
+
     def __str__(self):
         s = "<%s" % self.platform_id
         if self.name:
@@ -363,6 +408,7 @@ class PlatformNode(BaseNode):
         s += "ports=%s\n"         % list(self.ports.itervalues())
         s += "attrs=%s\n"         % list(self.attrs.itervalues())
         s += "#subplatforms=%d\n" % len(self.subplatforms)
+        s += "#instruments=%d\n"  % len(self.instruments)
         return s
 
     def get_map(self, pairs):

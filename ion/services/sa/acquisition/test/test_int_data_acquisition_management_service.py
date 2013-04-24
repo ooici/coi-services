@@ -22,6 +22,10 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from nose.plugins.attrib import attr
 from pyon.util.int_test import IonIntegrationTestCase
 import unittest
+from ion.services.sa.process.test.test_int_data_process_management_service import global_range_test_document
+from interface.objects import Attachment, AttachmentType, ReferenceAttachmentContext, DataProduct, InstrumentDevice
+import numpy as np
+from ion.util.stored_values import StoredValueManager
 
 class FakeProcess(LocalContextMixin):
     name = ''
@@ -126,14 +130,21 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             self.fail("non-existing data source was found during delete")
 
 
-    #@unittest.skip('Not done yet.')
     def test_register_instrument(self):
-        # Register an instrument as a data producer in coordination with DM PubSub: create stream, register and create producer object
-
-
         # set up initial instrument to register
         instrument_obj = IonObject(RT.InstrumentDevice, name='Inst1',description='an instrument that is creating the data product')
         instrument_id, rev = self.rrclient.create(instrument_obj)
+
+        self.base_register_instrument(instrument_id)
+
+    def test_register_platform(self):
+        # set up initial instrument to register
+        platform_obj = IonObject(RT.PlatformDevice, name='Plat1',description='a platform that is creating the data product')
+        platform_id, rev = self.rrclient.create(platform_obj)
+
+    #@unittest.skip('Not done yet.')
+    def base_register_instrument(self, instrument_id):
+        # Register an instrument as a data producer in coordination with DM PubSub: create stream, register and create producer object
 
         dataproduct_obj = IonObject(RT.DataProduct, name='DataProduct1',description='sample data product')
         dataproduct_id, rev = self.rrclient.create(dataproduct_obj)
@@ -149,18 +160,28 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         # test assigning a data product to an instrument, creating the stream for the product
         try:
             self.client.assign_data_product(instrument_id, dataproduct_id)
+            self.client.assign_data_product_source(dataproduct_id, instrument_id)
         except BadRequest as ex:
             self.fail("failed to assign data product to data producer: %s" %ex)
         except NotFound as ex:
             self.fail("failed to assign data product to data producer: %s" %ex)
 
+        assocs = self.rrclient.find_associations(dataproduct_id, PRED.hasSource, instrument_id)
+        if not assocs or len(assocs) == 0:
+            self.fail("failed to assign data product to data producer")
+
         # test UNassigning a data product from instrument, deleting the stream for the product
         try:
             self.client.unassign_data_product(instrument_id, dataproduct_id)
+            self.client.unassign_data_product_source(dataproduct_id, instrument_id)
         except BadRequest as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
         except NotFound as ex:
             self.fail("failed to failed to UNassign data product to data producer data producer: %s" %ex)
+
+        assocs = self.rrclient.find_associations(dataproduct_id, PRED.hasSource, instrument_id)
+        if  assocs:
+            self.fail("failed to unassign data product to data producer")
 
         # test UNregistering a new data producer
         try:
@@ -368,14 +389,14 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
                 self.client.delete_external_dataset(extdataset_id)
                 self.client.delete_data_source_model(datamodel_id)
                 self.client.delete_external_dataset_agent(datasetagent_id)
-                self.client.delete_data_source_agent(datasource_agent_instance_id)
+                self.client.delete_data_source_agent_instance(datasource_agent_instance_id)
 
                 self.client.force_delete_external_data_provider(dataprovider_id)
                 self.client.force_delete_data_source(datasource_id)
                 self.client.force_delete_external_dataset(extdataset_id)
                 self.client.force_delete_data_source_model(datamodel_id)
                 self.client.force_delete_external_dataset_agent(datasetagent_id)
-                self.client.force_delete_data_source_agent(datasource_agent_instance_id)
+                self.client.force_delete_data_source_agent_instance(datasource_agent_instance_id)
             except NotFound as ex:
                 self.fail("existing data product was not found during delete")
 
@@ -388,3 +409,42 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
                 pass
             else:
                 self.fail("non-existing data product was found during read: %s" %bad_obj)
+
+
+    def make_grt_parser(self):
+        return self.client.create_parser(name='grt', description='', module='ion.util.parsers.global_range_test', method='grt_parser', config=None)
+
+
+    def test_qc_attachment(self):
+        instrument_device = InstrumentDevice(name='whatever')
+        instrument_device_id,_ = self.rrclient.create(instrument_device)
+        self.addCleanup(self.rrclient.delete, instrument_device_id)
+        self.client.register_instrument(instrument_device_id)
+        self.addCleanup(self.client.unregister_instrument, instrument_device_id)
+        dp = DataProduct(name='instrument output')
+
+        dp_id,_ = self.rrclient.create(dp)
+        self.addCleanup(self.rrclient.delete, dp_id)
+
+        parser_id = self.make_grt_parser()
+        attachment = Attachment(name='qc ref', attachment_type=AttachmentType.REFERENCE,content=global_range_test_document, context=ReferenceAttachmentContext(parser_id=parser_id))
+        att_id = self.rrclient.create_attachment(dp_id, attachment)
+        self.addCleanup(self.rrclient.delete_attachment, att_id)
+
+        attachment2 = Attachment(name='qc ref2', attachment_type=AttachmentType.REFERENCE, content=global_range_test_document2, context=ReferenceAttachmentContext(parser_id=parser_id))
+        att2_id = self.rrclient.create_attachment(dp_id, attachment2)
+        self.addCleanup(self.rrclient.delete_attachment, att2_id)
+
+        self.client.assign_data_product(instrument_device_id, dp_id)
+        self.addCleanup(self.client.unassign_data_product, instrument_device_id, dp_id)
+        svm = StoredValueManager(self.container)
+        doc = svm.read_value('grt_TEST_TEMPWAT_TEMPWAT')
+        np.testing.assert_array_almost_equal(doc['grt_min_value'], 10.)
+
+        doc = svm.read_value('grt_TEST_PRACSAL_PRACSAL')
+        np.testing.assert_array_almost_equal(doc['grt_min_value'], 0.)
+
+
+global_range_test_document2 = '''Array,Instrument Class,Reference Designator,Data Product In,Units,Data Product Flagged,Min Value (lim(1)),Max Value (lim(2))
+Array 1,SBE37,TEST,PRACSAL,deg_C,PRACSAL,0,28'''
+

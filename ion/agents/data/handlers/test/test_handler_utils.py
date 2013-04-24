@@ -83,8 +83,8 @@ class TestHandlerUtils(PyonTestCase):
                 'RDLm_BELM_2012_08_14_1300.ruv']
         glob_mock.return_value = lst1
 
-        lst2 = [('RDLm_BELM_2012_08_14_1200.ruv', 1313712000, 100),
-                ('RDLm_BELM_2012_08_14_1300.ruv', 1313712000, 100)]
+        lst2 = [('RDLm_BELM_2012_08_14_1200.ruv', 1313712000, 100, 0),
+                ('RDLm_BELM_2012_08_14_1300.ruv', 1313712000, 100, 0)]
 
         self.assertEqual(list_file_info_fs(base='test_data/ruv', pattern='*.ruv'), lst2)
 

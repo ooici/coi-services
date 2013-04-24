@@ -9,34 +9,26 @@
 
 #from mock import Mock #, sentinel, patch
 from ion.services.sa.instrument.instrument_management_service import InstrumentManagementService
+from ion.services.sa.test.helpers import UnitTestGenerator
 from nose.plugins.attrib import attr
 
 
 
 from ooi.logging import log
 
-from ion.services.sa.resource_impl.resource_impl_metatest import ResourceImplMetatest
-
-from ion.services.sa.instrument.instrument_agent_instance_impl import InstrumentAgentInstanceImpl
-from ion.services.sa.instrument.instrument_agent_impl import InstrumentAgentImpl
-from ion.services.sa.instrument.instrument_device_impl import InstrumentDeviceImpl
-from ion.services.sa.instrument.instrument_model_impl import InstrumentModelImpl
-from ion.services.sa.instrument.platform_agent_instance_impl import PlatformAgentInstanceImpl
-from ion.services.sa.instrument.platform_agent_impl import PlatformAgentImpl
-from ion.services.sa.instrument.platform_device_impl import PlatformDeviceImpl
-from ion.services.sa.instrument.platform_model_impl import PlatformModelImpl
-from ion.services.sa.instrument.sensor_device_impl import SensorDeviceImpl
-from ion.services.sa.instrument.sensor_model_impl import SensorModelImpl
 
 #from pyon.core.exception import BadRequest, Conflict, Inconsistent, NotFound
 import unittest
+from pyon.ion.resource import RT
 from pyon.util.unit_test import PyonTestCase
 
+unittest # block pycharm inspection
 
 @attr('UNIT', group='sa')
 class TestInstrumentManagement(PyonTestCase):
 
     def setUp(self):
+
         self.mock_ionobj = self._create_IonObject_mock('ion.services.sa.instrument.instrument_management_service.IonObject')
 
         #self.mock_ionobj = IonObject
@@ -52,17 +44,24 @@ class TestInstrumentManagement(PyonTestCase):
         self.addCleanup(delattr, self, "mock_ionobj")
         #self.resource_impl_cleanup()
 
+        log.debug("setUp complete")
+
     #def resource_impl_cleanup(self):
         #pass
 
-rim = ResourceImplMetatest(TestInstrumentManagement, InstrumentManagementService, log)
-rim.test_all_in_one(True)
 
-rim.add_resource_impl_unittests(InstrumentAgentImpl, {"driver_module": "potato"})
-rim.add_resource_impl_unittests(InstrumentDeviceImpl, {"serial_number": "123", "firmware_version": "x"})
-rim.add_resource_impl_unittests(PlatformAgentImpl, {"description": "the big donut"})
-rim.add_resource_impl_unittests(PlatformDeviceImpl, {"serial_number": "2345"})
-rim.add_resource_impl_unittests(PlatformModelImpl, {"description": "desc"})
-rim.add_resource_impl_unittests(SensorDeviceImpl, {"serial_number": "123"})
+utg = UnitTestGenerator(TestInstrumentManagement,
+                        InstrumentManagementService)
 
+utg.test_all_in_one(True)
 
+utg.add_resource_unittests(RT.InstrumentAgentInstance, "instrument_agent_instance", {})
+utg.add_resource_unittests(RT.InstrumentAgent, "instrument_agent", {"driver_module": "potato"})
+utg.add_resource_unittests(RT.InstrumentDevice, "instrument_device", {"serial_number": "123", "firmware_version": "x"})
+utg.add_resource_unittests(RT.InstrumentModel, "instrument_model")
+utg.add_resource_unittests(RT.PlatformAgentInstance, "platform_agent_instance", {})
+utg.add_resource_unittests(RT.PlatformAgent, "platform_agent", {"description": "the big donut"})
+utg.add_resource_unittests(RT.PlatformDevice, "platform_device", {"serial_number": "2345"})
+utg.add_resource_unittests(RT.PlatformModel, "platform_model", {"description": "desc"})
+utg.add_resource_unittests(RT.SensorDevice, "sensor_device", {"serial_number": "123"})
+utg.add_resource_unittests(RT.SensorModel, "sensor_model")

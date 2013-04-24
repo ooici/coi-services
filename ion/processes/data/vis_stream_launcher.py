@@ -43,8 +43,8 @@ class VisStreamLauncher(ImmediateProcess):
     def on_start(self):
 
         log.debug("VizStreamProducer start")
-        self.data_source_name = self.CFG.get('name')
-        self.dataset = self.CFG.get('dataset')
+        self.data_source_name = self.CFG.get_safe('name', 'sine_wave_generator')
+        self.dataset = self.CFG.get_safe('dataset', 'sinusoidal')
 
         # create a pubsub client and a resource registry client
         self.rrclient = ResourceRegistryServiceClient(node=self.container.node)
@@ -110,7 +110,7 @@ class VisStreamLauncher(ImmediateProcess):
             self.damsclient.assign_data_product(input_resource_id=instDevice_id, data_product_id=data_product_id)
             self.dpclient.activate_data_product_persistence(data_product_id=data_product_id)
 
-        print ">>>>>>>>>>>>> DATAPRODUCT FOR PRODUCING DATA : ", data_product_id
+        print ">>>>>>>>>>>>> Dataproduct for sine wave generator : ", data_product_id
 
         # Retrieve the id of the OUTPUT stream from the out Data Product
         stream_ids, _ = self.rrclient.find_objects(data_product_id, PRED.hasStream, None, True)

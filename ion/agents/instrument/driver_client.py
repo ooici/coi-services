@@ -11,16 +11,16 @@ __license__ = 'Apache 2.0'
 
 import time
 import thread
-import logging
-import time
 
 # We import "regular" zmq, not the patched version because
 # we handle the nonblocking sockets directly as they need to work
 # with unpatched threads as well.
 import zmq
 
-from pyon.public import log
+from ooi.logging import log
+from pyon.core.exception import ExceptionFactory
 
+EXCEPTION_FACTORY = ExceptionFactory()
 class DriverClient(object):
     """
     Base class for driver clients, subclassed for specific messaging
@@ -195,23 +195,23 @@ class ZmqDriverClient(DriverClient):
                 # Socket not ready to accept send. Sleep and retry later.
                 time.sleep(.5)
             
-        log.debug('Awaiting reply.')
+        log.trace('Awaiting reply.')
         while True:
             try:
                 # Attempt reply recv. Retry if necessary.
                 reply = self.zmq_cmd_socket.recv_pyobj(flags=zmq.NOBLOCK)
                 # Reply recieved, break and return.
                 break
-
             except zmq.ZMQError:
                 # Socket not ready with the reply. Sleep and retry later.
                 time.sleep(.5)
+            except Exception,e:
+                raise SystemError('exception reading from zmq socket')
                 
-        log.debug('Reply: %s.' % str(reply))
-        
-        if isinstance(reply, Exception):
-            raise reply
+        log.trace('Reply: %r', reply)
+
+        ## exception information is returned as a tuple (code, message, stacks)
+        if isinstance(reply, tuple) and len(reply)==3:
+            raise EXCEPTION_FACTORY.create_exception(*reply)
         else:
             return reply
-    
-    

@@ -10,7 +10,6 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 
 from pyon.core.exception import NotFound, Unauthorized #, Conflict
 from pyon.public import RT, LCS, LCE, PRED, CFG
-from pyon.ion.resource import get_maturity_visibility
 from nose.plugins.attrib import attr
 
 from ion.services.sa.test.helpers import any_old
@@ -106,7 +105,7 @@ class TestAssembly(IonIntegrationTestCase):
         resource_obj = self.client.IMS.read_platform_agent(platform_agent_id)
 
         log.debug("checking current state of resource")
-        self.assertEqual(LCS.PLANNED, get_maturity_visibility(resource_obj.lcstate)[0])
+        self.assertEqual(LCS.PLANNED, resource_obj.lcstate)
 
         log.debug("executing test-specific failure check")
         fail_fn(platform_agent_id, LCE.DEVELOP)

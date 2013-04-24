@@ -33,5 +33,6 @@ class Test(IonIntegrationTestCase, OmsTestMixin):
 
     @classmethod
     def tearDownClass(cls):
+        CIOMSClientFactory.destroy_instance(cls.oms)
         event_notifications = OmsTestMixin.stop_http_server()
         log.info("event_notifications = %s" % str(event_notifications))

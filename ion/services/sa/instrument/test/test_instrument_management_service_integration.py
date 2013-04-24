@@ -5,7 +5,10 @@ from interface.services.icontainer_agent import ContainerAgentClient
 #from pyon.ion.endpoint import ProcessRPCClient
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
-from ion.services.sa.resource_impl.resource_impl import ResourceImpl
+from ion.services.sa.instrument.agent_configuration_builder import PlatformAgentConfigurationBuilder, InstrumentAgentConfigurationBuilder
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from pyon.core.exception import BadRequest
+
 from pyon.datastore.datastore import DataStore
 from pyon.public import Container, IonObject
 from pyon.util.containers import DotDict
@@ -23,12 +26,11 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType, StreamConfiguration
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 
-from pyon.public import RT, PRED, CFG
+from pyon.public import RT, PRED, CFG, OT
 from nose.plugins.attrib import attr
 from ooi.logging import log
-import unittest
+import unittest, simplejson
 
-import gevent
 
 from ion.services.sa.test.helpers import any_old
 
@@ -55,7 +57,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DSC  = DatasetManagementServiceClient(node=self.container.node)
         self.PDC  = ProcessDispatcherServiceClient(node=self.container.node)
 
-        print 'started services'
+        self.RR2 = EnhancedResourceRegistryClient(self.RR)
 
 #    @unittest.skip('this test just for debugging setup')
 #    def test_just_the_setup(self):
@@ -157,6 +159,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(extended_instrument.owners), 2)
         self.assertEqual(extended_instrument.instrument_model._id, instrument_model_id)
 
+        # Lifecycle
+        self.assertEquals(len(extended_instrument.lcstate_transitions), 5)
+        self.assertEquals(set(extended_instrument.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_instrument.availability_transitions), 2)
+        self.assertEquals(set(extended_instrument.availability_transitions.keys()), set(['enable', 'announce']))
+
         # Verify that computed attributes exist for the extended instrument
         self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
@@ -181,7 +189,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #check agent
         inst_agent_obj = self.RR.read(instrument_agent_id)
         #compound assoc return list of lists so check the first element
-        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent[0].name)
+        self.assertEqual(inst_agent_obj.name, extended_instrument.instrument_agent.name)
 
         #check platform device
         plat_device_obj = self.RR.read(platform_device_id)
@@ -193,6 +201,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_device_id, extended_platform.instrument_devices[0]._id)
         self.assertEqual(1, len(extended_platform.instrument_models))
         self.assertEqual(instrument_model_id, extended_platform.instrument_models[0]._id)
+        self.assertEquals(extended_platform.platform_agent._id, platform_agent_id)
+
+        self.assertEquals(len(extended_platform.lcstate_transitions), 5)
+        self.assertEquals(set(extended_platform.lcstate_transitions.keys()), set(['develop', 'deploy', 'retire', 'plan', 'integrate']))
+        self.assertEquals(len(extended_platform.availability_transitions), 2)
+        self.assertEquals(set(extended_platform.availability_transitions.keys()), set(['enable', 'announce']))
 
         #check sensor devices
         self.assertEqual(1, len(extended_instrument.sensor_devices))
@@ -228,11 +242,11 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         # cleanup
         c = DotDict()
         c.resource_registry = self.RR
-        resource_impl = ResourceImpl(c)
-        resource_impl.pluck(instrument_agent_id)
-        resource_impl.pluck(instrument_model_id)
-        resource_impl.pluck(instrument_device_id)
-        resource_impl.pluck(platform_agent_id)
+        self.RR2.pluck(instrument_agent_id)
+        self.RR2.pluck(instrument_model_id)
+        self.RR2.pluck(instrument_device_id)
+        self.RR2.pluck(platform_agent_id)
+        self.RR2.pluck(sensor_device_id)
         self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)
@@ -334,8 +348,6 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         instAgentInstance_obj = IonObject(RT.InstrumentAgentInstance, name='SBE37IMAgentInstance',
                                           description="SBE37IMAgentInstance",
-                                          comms_device_address='sbe37-simulator.oceanobservatories.org',
-                                          comms_device_port=4001,
                                           port_agent_config = port_agent_config)
 
 
@@ -436,3 +448,499 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DP.delete_data_product(data_product_id1)
         self.DP.delete_data_product(data_product_id2)
 
+
+    def test_data_producer(self):
+        idevice_id = self.IMS.create_instrument_device(any_old(RT.InstrumentDevice))
+        self.assertEqual(1, len(self.RR2.find_data_producer_ids_of_instrument_device_using_has_data_producer(idevice_id)))
+
+        pdevice_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
+        self.assertEqual(1, len(self.RR2.find_data_producer_ids_of_platform_device_using_has_data_producer(pdevice_id)))
+
+
+    def test_agent_instance_config_hasDevice(self):
+        def assign_fn(child_device_id, parent_device_id):
+            self.RR2.create_association(parent_device_id, PRED.hasDevice, child_device_id)
+
+        def find_fn(parent_device_id):
+            ret, _ = self.RR.find_objects(subject=parent_device_id, predicate=PRED.hasDevice, id_only=True)
+            return ret
+
+        self.base_agent_instance_config(assign_fn, find_fn)
+
+    def test_agent_instance_config_hasNetworkParent(self):
+        def assign_fn(child_device_id, parent_device_id):
+            self.RR2.create_association(child_device_id, PRED.hasNetworkParent, parent_device_id)
+
+        def find_fn(parent_device_id):
+            ret, _ = self.RR.find_subjects(object=parent_device_id, predicate=PRED.hasNetworkParent, id_only=True)
+            return ret
+
+        self.base_agent_instance_config(assign_fn, find_fn)
+
+    def base_agent_instance_config(self, 
+                                   assign_child_platform_to_parent_platform_fn, 
+                                   find_child_platform_ids_of_parent_platform_fn):
+        """
+        Verify that agent configurations are being built properly
+        """
+        clients = DotDict()
+        clients.resource_registry  = self.RR
+        clients.pubsub_management  = self.PSC
+        clients.dataset_management = self.DSC
+        pconfig_builder = PlatformAgentConfigurationBuilder(clients)
+        iconfig_builder = InstrumentAgentConfigurationBuilder(clients)
+
+
+        tdom, sdom = time_series_domain()
+        sdom = sdom.dump()
+        tdom = tdom.dump()
+
+        org_obj = any_old(RT.Org)
+        org_id = self.RR2.create(org_obj)
+
+        inst_startup_config = {'startup': 'config'}
+
+        generic_alerts_config = {'lvl1': {'lvl2': 'lvl3val'}}
+
+        required_config_keys = [
+            'org_governance_name',
+            'device_type',
+            'agent',
+            'driver_config',
+            'stream_config',
+            'startup_config',
+            'aparam_alert_config',
+            'children']
+
+
+
+        def verify_instrument_config(config, device_id):
+            for key in required_config_keys:
+                self.assertIn(key, config)
+            self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
+            self.assertEqual(RT.InstrumentDevice, config['device_type'])
+            self.assertIn('driver_config', config)
+            driver_config = config['driver_config']
+            expected_driver_fields = {'process_type': ('ZMQPyClassDriverLauncher',),
+                                      }
+            for k, v in expected_driver_fields.iteritems():
+                self.assertIn(k, driver_config)
+                self.assertEqual(v, driver_config[k])
+            self.assertEqual
+
+            self.assertEqual({'resource_id': device_id}, config['agent'])
+            self.assertEqual(inst_startup_config, config['startup_config'])
+            self.assertIn('aparam_alert_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
+            self.assertIn('stream_config', config)
+            for key in ['children']:
+                self.assertEqual({}, config[key])
+
+
+        def verify_child_config(config, device_id, inst_device_id=None):
+            for key in required_config_keys:
+                self.assertIn(key, config)
+            self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
+            self.assertEqual(RT.PlatformDevice, config['device_type'])
+            self.assertEqual({'resource_id': device_id}, config['agent'])
+            self.assertIn('aparam_alert_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
+            self.assertIn('stream_config', config)
+            self.assertIn('driver_config', config)
+            self.assertIn('foo', config['driver_config'])
+            self.assertEqual('bar', config['driver_config']['foo'])
+            self.assertIn('process_type', config['driver_config'])
+            self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
+
+            if None is inst_device_id:
+                for key in ['children', 'startup_config']:
+                    self.assertEqual({}, config[key])
+            else:
+                for key in ['startup_config']:
+                    self.assertEqual({}, config[key])
+
+                self.assertIn(inst_device_id, config['children'])
+                verify_instrument_config(config['children'][inst_device_id], inst_device_id)
+
+
+        def verify_parent_config(config, parent_device_id, child_device_id, inst_device_id=None):
+            for key in required_config_keys:
+                self.assertIn(key, config)
+            self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
+            self.assertEqual(RT.PlatformDevice, config['device_type'])
+            self.assertIn('process_type', config['driver_config'])
+            self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
+            self.assertEqual({'resource_id': parent_device_id}, config['agent'])
+            self.assertIn('aparam_alert_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
+            self.assertIn('stream_config', config)
+            for key in ['startup_config']:
+                self.assertEqual({}, config[key])
+
+            self.assertIn(child_device_id, config['children'])
+            verify_child_config(config['children'][child_device_id], child_device_id, inst_device_id)
+
+
+
+
+
+
+        rpdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_raw_param_dict', id_only=True)
+        raw_stream_def_id = self.PSC.create_stream_definition(name='raw', parameter_dictionary_id=rpdict_id)
+        #todo: create org and figure out which agent resource needs to get assigned to it
+
+
+        def _make_platform_agent_structure(agent_config=None):
+            if None is agent_config: agent_config = {}
+
+            # instance creation
+            platform_agent_instance_obj = any_old(RT.PlatformAgentInstance, {'driver_config': {'foo': 'bar'},
+                                                                             'alerts': generic_alerts_config})
+            platform_agent_instance_obj.agent_config = agent_config
+            platform_agent_instance_id = self.IMS.create_platform_agent_instance(platform_agent_instance_obj)
+
+            # agent creation
+            raw_config = StreamConfiguration(stream_name='raw', parameter_dictionary_name='ctd_raw_param_dict', records_per_granule=2, granule_publish_rate=5 )
+            platform_agent_obj = any_old(RT.PlatformAgent, {"stream_configurations":[raw_config]})
+            platform_agent_id = self.IMS.create_platform_agent(platform_agent_obj)
+
+            # device creation
+            platform_device_id = self.IMS.create_platform_device(any_old(RT.PlatformDevice))
+
+            # data product creation
+            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
+            self.DAMS.assign_data_product(input_resource_id=platform_device_id, data_product_id=dp_id)
+            self.DP.activate_data_product_persistence(data_product_id=dp_id)
+
+            # assignments
+            self.RR2.assign_platform_agent_instance_to_platform_device_with_has_agent_instance(platform_agent_instance_id, platform_device_id)
+            self.RR2.assign_platform_agent_to_platform_agent_instance_with_has_agent_definition(platform_agent_id, platform_agent_instance_id)
+            self.RR2.assign_platform_device_to_org_with_has_resource(platform_agent_instance_id, org_id)
+
+            return platform_agent_instance_id, platform_agent_id, platform_device_id
+
+
+        def _make_instrument_agent_structure(agent_config=None):
+            if None is agent_config: agent_config = {}
+
+            # instance creation
+            instrument_agent_instance_obj = any_old(RT.InstrumentAgentInstance, {"startup_config": inst_startup_config,
+                                                                                 'alerts': generic_alerts_config})
+            instrument_agent_instance_obj.agent_config = agent_config
+            instrument_agent_instance_id = self.IMS.create_instrument_agent_instance(instrument_agent_instance_obj)
+
+            # agent creation
+            raw_config = StreamConfiguration(stream_name='raw',
+                                             parameter_dictionary_name='ctd_raw_param_dict',
+                                             records_per_granule=2,
+                                             granule_publish_rate=5 )
+            instrument_agent_obj = any_old(RT.InstrumentAgent, {"stream_configurations":[raw_config]})
+            instrument_agent_id = self.IMS.create_instrument_agent(instrument_agent_obj)
+
+            # device creation
+            instrument_device_id = self.IMS.create_instrument_device(any_old(RT.InstrumentDevice))
+
+            # data product creation
+            dp_obj = any_old(RT.DataProduct, {"temporal_domain":tdom, "spatial_domain": sdom})
+            dp_id = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=raw_stream_def_id)
+            self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=dp_id)
+            self.DP.activate_data_product_persistence(data_product_id=dp_id)
+
+            # assignments
+            self.RR2.assign_instrument_agent_instance_to_instrument_device_with_has_agent_instance(instrument_agent_instance_id, instrument_device_id)
+            self.RR2.assign_instrument_agent_to_instrument_agent_instance_with_has_agent_definition(instrument_agent_id, instrument_agent_instance_id)
+            self.RR2.assign_instrument_device_to_org_with_has_resource(instrument_agent_instance_id, org_id)
+
+            return instrument_agent_instance_id, instrument_agent_id, instrument_device_id
+
+
+
+        # can't do anything without an agent instance obj
+        log.debug("Testing that preparing a launcher without agent instance raises an error")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
+        self.assertRaises(AssertionError, pconfig_builder.prepare, will_launch=False)
+
+        log.debug("Making the structure for a platform agent, which will be the child")
+        platform_agent_instance_child_id, _, platform_device_child_id  = _make_platform_agent_structure()
+        platform_agent_instance_child_obj = self.RR2.read(platform_agent_instance_child_id)
+
+        log.debug("Preparing a valid agent instance launch, for config only")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_child_obj)
+        child_config = pconfig_builder.prepare(will_launch=False)
+        verify_child_config(child_config, platform_device_child_id)
+
+
+        log.debug("Making the structure for a platform agent, which will be the parent")
+        platform_agent_instance_parent_id, _, platform_device_parent_id  = _make_platform_agent_structure()
+        platform_agent_instance_parent_obj = self.RR2.read(platform_agent_instance_parent_id)
+
+        log.debug("Testing child-less parent as a child config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        parent_config = pconfig_builder.prepare(will_launch=False)
+        verify_child_config(parent_config, platform_device_parent_id)
+
+        log.debug("assigning child platform to parent")
+        assign_child_platform_to_parent_platform_fn(platform_device_child_id, platform_device_parent_id)
+
+        child_device_ids = find_child_platform_ids_of_parent_platform_fn(platform_device_parent_id)
+        self.assertNotEqual(0, len(child_device_ids))
+
+        log.debug("Testing parent + child as parent config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        parent_config = pconfig_builder.prepare(will_launch=False)
+        verify_parent_config(parent_config, platform_device_parent_id, platform_device_child_id)
+
+
+        log.debug("making the structure for an instrument agent")
+        instrument_agent_instance_id, _, instrument_device_id = _make_instrument_agent_structure()
+        instrument_agent_instance_obj = self.RR2.read(instrument_agent_instance_id)
+
+        log.debug("Testing instrument config")
+        iconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
+        iconfig_builder.set_agent_instance_object(instrument_agent_instance_obj)
+        instrument_config = iconfig_builder.prepare(will_launch=False)
+        verify_instrument_config(instrument_config, instrument_device_id)
+
+        log.debug("assigning instrument to platform")
+        self.RR2.assign_instrument_device_to_platform_device_with_has_device(instrument_device_id, platform_device_child_id)
+
+        child_device_ids = self.RR2.find_instrument_device_ids_of_platform_device_using_has_device(platform_device_child_id)
+        self.assertNotEqual(0, len(child_device_ids))
+
+        log.debug("Testing entire config")
+        pconfig_builder._update_cached_predicates() # associations have changed since builder was instantiated
+        pconfig_builder.set_agent_instance_object(platform_agent_instance_parent_obj)
+        full_config = pconfig_builder.prepare(will_launch=False)
+        verify_parent_config(full_config, platform_device_parent_id, platform_device_child_id, instrument_device_id)
+
+        #self.fail(parent_config)
+        #plauncher.prepare(will_launch=False)
+
+
+    @attr('PREP')
+    def test_prepare_resource_support(self):
+        """
+        create one of each resource and association used by IMS
+        to guard against problems in ion-definitions
+        """
+
+        #stuff we control
+        instrument_agent_instance_id, _ =  self.RR.create(any_old(RT.InstrumentAgentInstance))
+        instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
+        instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
+        instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
+        platform_agent_instance_id, _ =    self.RR.create(any_old(RT.PlatformAgentInstance))
+        platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
+        platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
+        platform_model_id, _ =             self.RR.create(any_old(RT.PlatformModel))
+        sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
+        sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
+
+        #stuff we associate to
+        data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
+        org_id, _ =                self.RR.create(any_old(RT.Org))
+
+        #instrument_agent_instance_id #is only a target
+
+        #instrument_agent
+        self.RR.create_association(instrument_agent_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_agent_instance_id, PRED.hasAgentDefinition, instrument_agent_id)
+
+        #instrument_device
+        self.RR.create_association(instrument_device_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(instrument_device_id, PRED.hasAgentInstance, instrument_agent_instance_id)
+        self.RR.create_association(instrument_device_id, PRED.hasDataProducer, data_producer_id)
+        self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
+        self.RR.create_association(org_id, PRED.hasResource, instrument_device_id)
+
+
+        instrument_model_id #is only a target
+
+        platform_agent_instance_id #is only a target
+
+        #platform_agent
+        self.RR.create_association(platform_agent_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_agent_instance_id, PRED.hasAgentDefinition, platform_agent_id)
+
+        #platform_device
+        self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
+        self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
+
+        platform_model_id #is only a target
+
+        #sensor_device
+        self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
+        self.RR.create_association(sensor_device_id, PRED.hasDevice, instrument_device_id)
+
+        sensor_model_id #is only a target
+
+        #create a parsed product for this instrument output
+        tdom, sdom = time_series_domain()
+        tdom = tdom.dump()
+        sdom = sdom.dump()
+        dp_obj = IonObject(RT.DataProduct,
+            name='the parsed data',
+            description='ctd stream test',
+            processing_level_code='Parsed_Canonical',
+            temporal_domain = tdom,
+            spatial_domain = sdom)
+        pdict_id = self.DSC.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
+        parsed_stream_def_id = self.PSC.create_stream_definition(name='parsed', parameter_dictionary_id=pdict_id)
+        data_product_id1 = self.DP.create_data_product(data_product=dp_obj, stream_definition_id=parsed_stream_def_id)
+        log.debug( 'new dp_id = %s', data_product_id1)
+
+        self.DAMS.assign_data_product(input_resource_id=instrument_device_id, data_product_id=data_product_id1)
+
+
+        def addInstOwner(inst_id, subject):
+
+            actor_identity_obj = any_old(RT.ActorIdentity, {"name": subject})
+            user_id = self.IDS.create_actor_identity(actor_identity_obj)
+            user_info_obj = any_old(RT.UserInfo)
+            user_info_id = self.IDS.create_user_info(user_id, user_info_obj)
+
+            self.RR.create_association(inst_id, PRED.hasOwner, user_id)
+
+
+        #Testing multiple instrument owners
+        addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Roger Unwin A254")
+        addInstOwner(instrument_device_id, "/DC=org/DC=cilogon/C=US/O=ProtectNetwork/CN=Bob Cumbers A256")
+
+        def ion_object_encoder(obj):
+            return obj.__dict__
+
+
+        #First call to create
+        instrument_data = self.IMS.prepare_instrument_device_support()
+
+        #print simplejson.dumps(instrument_data, default=ion_object_encoder, indent= 2)
+
+
+        self.assertEqual(instrument_data._id, '')
+        self.assertEqual(instrument_data.type_, OT.InstrumentDevicePrepareSupport)
+        self.assertEqual(len(instrument_data.instrument_models), 1)
+        self.assertEqual(instrument_data.instrument_models[0]._id, instrument_model_id)
+        self.assertEqual(len(instrument_data.instrument_agents), 1)
+        self.assertEqual(instrument_data.instrument_agents[0]._id, instrument_agent_id)
+        self.assertEqual(len(instrument_data.instrument_device_model), 0)
+        self.assertEqual(len(instrument_data.instrument_agent_models), 1)
+        self.assertEqual(instrument_data.instrument_agent_models[0].o, instrument_model_id)
+        self.assertEqual(instrument_data.instrument_agent_models[0].s, instrument_agent_id)
+        self.assertEqual(len(instrument_data.sensor_devices), 1)
+        self.assertEqual(instrument_data.sensor_devices[0]._id, sensor_device_id)
+
+
+        #Next call to update
+        instrument_data = self.IMS.prepare_instrument_device_support(instrument_device_id)
+
+        #print simplejson.dumps(instrument_data, default=ion_object_encoder, indent= 2)
+
+        self.assertEqual(instrument_data._id, instrument_device_id)
+        self.assertEqual(instrument_data.type_, OT.InstrumentDevicePrepareSupport)
+        self.assertEqual(len(instrument_data.instrument_models), 1)
+        self.assertEqual(instrument_data.instrument_models[0]._id, instrument_model_id)
+        self.assertEqual(len(instrument_data.instrument_agents), 1)
+        self.assertEqual(instrument_data.instrument_agents[0]._id, instrument_agent_id)
+        self.assertEqual(len(instrument_data.instrument_device_model), 1)
+        self.assertEqual(instrument_data.instrument_device_model[0].s, instrument_device_id)
+        self.assertEqual(instrument_data.instrument_device_model[0].o, instrument_model_id)
+        self.assertEqual(len(instrument_data.instrument_agent_models), 1)
+        self.assertEqual(instrument_data.instrument_agent_models[0].o, instrument_model_id)
+        self.assertEqual(instrument_data.instrument_agent_models[0].s, instrument_agent_id)
+        self.assertEqual(len(instrument_data.sensor_devices), 1)
+        self.assertEqual(instrument_data.sensor_devices[0]._id, sensor_device_id)
+        self.assertEqual(len(instrument_data.instrument_device_sensor_device), 1)
+        self.assertEqual(instrument_data.instrument_device_sensor_device[0].o, instrument_device_id)
+        self.assertEqual(instrument_data.instrument_device_sensor_device[0].s, sensor_device_id)
+        self.assertEqual(instrument_data.assign_instrument_model_request.request_parameters['instrument_device_id'], instrument_device_id)
+
+
+
+        #test prepare for update of data product to see if it is associated with the instrument that was created
+        data_product_data = self.DP.prepare_data_product_support(data_product_id1)
+
+        #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent=2)
+
+        self.assertEqual(data_product_data._id, data_product_id1)
+        self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
+        self.assertEqual(len(data_product_data.stream_definitions), 1)
+
+        self.assertEqual(len(data_product_data.datasets), 0)
+
+        self.assertEqual(len(data_product_data.data_product_stream_definition), 1)
+        self.assertEqual(data_product_data.data_product_stream_definition[0].s, data_product_id1)
+
+        self.assertEqual(len(data_product_data.data_product_dataset), 0)
+
+        self.assertEqual(len(data_product_data.instrument_devices), 1)
+
+        self.assertEqual(len(data_product_data.data_product_instrument_device), 1)
+        self.assertEqual(data_product_data.data_product_instrument_device[0].s, instrument_device_id)
+        self.assertEqual(data_product_data.data_product_instrument_device[0].o, data_product_id1)
+
+        self.assertEqual(len(data_product_data.platform_devices), 1)
+
+
+        platform_data = self.IMS.prepare_platform_device_support()
+
+        self.assertEqual(platform_data._id, '')
+        self.assertEqual(platform_data.type_, OT.PlatformDevicePrepareSupport)
+        self.assertEqual(len(platform_data.platform_models), 1)
+        self.assertEqual(platform_data.platform_models[0]._id, platform_model_id)
+        self.assertEqual(len(platform_data.platform_agents), 1)
+        self.assertEqual(platform_data.platform_agents[0]._id, platform_agent_id)
+        self.assertEqual(len(platform_data.platform_device_model), 0)
+        self.assertEqual(len(platform_data.platform_agent_models), 1)
+        self.assertEqual(platform_data.platform_agent_models[0].o, platform_model_id)
+        self.assertEqual(platform_data.platform_agent_models[0].s, platform_agent_id)
+        self.assertEqual(len(platform_data.instrument_devices), 1)
+        self.assertEqual(platform_data.instrument_devices[0]._id, instrument_device_id)
+
+
+        platform_data = self.IMS.prepare_platform_device_support(platform_device_id)
+
+        #print simplejson.dumps(platform_data, default=ion_object_encoder, indent= 2)
+
+
+        self.assertEqual(platform_data._id, platform_device_id)
+        self.assertEqual(platform_data.type_, OT.PlatformDevicePrepareSupport)
+        self.assertEqual(len(platform_data.platform_models), 1)
+        self.assertEqual(platform_data.platform_models[0]._id, platform_model_id)
+        self.assertEqual(len(platform_data.platform_agents), 1)
+        self.assertEqual(platform_data.platform_agents[0]._id, platform_agent_id)
+        self.assertEqual(len(platform_data.platform_device_model), 1)
+        self.assertEqual(platform_data.platform_device_model[0].s, platform_device_id)
+        self.assertEqual(platform_data.platform_device_model[0].o, platform_model_id)
+        self.assertEqual(len(platform_data.platform_agent_models), 1)
+        self.assertEqual(platform_data.platform_agent_models[0].o, platform_model_id)
+        self.assertEqual(platform_data.platform_agent_models[0].s, platform_agent_id)
+        self.assertEqual(len(platform_data.instrument_devices), 1)
+        self.assertEqual(platform_data.instrument_devices[0]._id, instrument_device_id)
+        self.assertEqual(platform_data.assign_platform_model_request.request_parameters['platform_device_id'], platform_device_id)
+
+        # cleanup
+        c = DotDict()
+        c.resource_registry = self.RR
+        self.RR2.pluck(instrument_agent_id)
+        self.RR2.pluck(instrument_model_id)
+        self.RR2.pluck(instrument_device_id)
+        self.RR2.pluck(platform_agent_id)
+        self.RR2.pluck(sensor_device_id)
+        self.IMS.force_delete_instrument_agent(instrument_agent_id)
+        self.IMS.force_delete_instrument_model(instrument_model_id)
+        self.IMS.force_delete_instrument_device(instrument_device_id)
+        self.IMS.force_delete_platform_agent_instance(platform_agent_instance_id)
+        self.IMS.force_delete_platform_agent(platform_agent_id)
+        self.IMS.force_delete_platform_device(platform_device_id)
+        self.IMS.force_delete_platform_model(platform_model_id)
+        self.IMS.force_delete_sensor_device(sensor_device_id)
+        self.IMS.force_delete_sensor_model(sensor_model_id)
+
+        #stuff we associate to
+        self.RR.delete(data_producer_id)
+        self.RR.delete(org_id)

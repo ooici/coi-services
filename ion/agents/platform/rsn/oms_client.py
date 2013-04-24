@@ -86,7 +86,7 @@ class CIOMSClient(object):
         """
         raise NotImplementedError()  #pragma: no cover
 
-    def get_platform_attribute_values(self, platform_id, attrNames, from_time):
+    def get_platform_attribute_values(self, platform_id, attrs):
         """
         See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
@@ -100,12 +100,7 @@ class CIOMSClient(object):
 
     def get_platform_ports(self, platform_id):
         """
-        Returns information for each port in a given platform.
-
-        @param platform_id	 	 Platform ID
-
-        @retval {platform_id: {port_id: portInfo, ...} }
-                Dict with information for each port in the platform
+        See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
         """
         raise NotImplementedError()  #pragma: no cover
 
