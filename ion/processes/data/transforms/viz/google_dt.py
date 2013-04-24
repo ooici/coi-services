@@ -98,19 +98,18 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         precisions = {}
         fill_values = {}
-        for field in rdt._pdict:
-            _precision_str = rdt._pdict.get_context(field).precision
-            if _precision_str == None or _precision_str == '':
+        for field in rdt.fields:
+            precision_str = rdt.context(field).precision
+            if not precision_str:
                 precisions[field] = default_precision
             else:
-                precisions[field] = int(_precision_str)
+                try:
+                    precisions[field] = int(precision_str)
+                except ValueError:
+                    precisions[field] = default_precision
 
-            _fv_str = rdt._pdict.get_context(field).fill_value
-            if _fv_str == None or _fv_str == '':
-                fill_values[field] = None
-            else:
-                fill_values[field] = int(_fv_str)
 
+            fill_values[field] = rdt.fill_value(field)
 
         if stream_definition_id == None:
             log.error("GoogleDT transform: Need a output stream definition to process graphs")
@@ -131,7 +130,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         data_description.append(('time','number','time'))
 
         for field in fields:
-            if field == 'time':
+            if field == rdt.temporal_parameter:
                 continue
 
             # If a config block was passed, consider only the params listed in it
@@ -141,6 +140,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
             # only consider fields which are allowed.
             if rdt[field] == None:
+                continue
+
+            # Check if visibility is false (system generated params)
+            if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
                 continue
 
             """
