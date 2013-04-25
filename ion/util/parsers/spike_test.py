@@ -11,7 +11,7 @@ def spike_parser(document):
     '''
     This parser YIELDS a document per call or until it's done
     The format for the document is CSV in this table format
-    Array,Instrument Class,Reference Designator,Data Product,Units,ACC,N,L
+    Array,Instrument Class,Reference Designator,Data Products,Units,ACC,N,L
 
     Document Schema:
         array:
@@ -45,17 +45,25 @@ def spike_parser(document):
     sio.seek(0)
 
 
+
+
     dr = DictReader(sio)
     for row in dr:
-        key = '_'.join(['spike', row['Reference Designator'], row['Data Product']])
+        try:
+            acc = float(row['ACC'])
+            spike_n = float(row['N'])
+            spike_l = float(row['L'])
+        except ValueError:
+            continue
+        key = '_'.join(['spike', row['Reference Designator'], row['Data Products']])
         document = {}
         document['array']                = row['Array']
         document['instrument_class']     = row['Instrument Class']
         document['reference_designator'] = row['Reference Designator']
-        document['data_product_in']      = row['Data Product']
+        document['data_products']        = row['Data Products']
         document['units']                = row['Units']
-        document['acc']                  = row['ACC']
-        document['spike_n']              = float(row['N'])
-        document['spike_l']              = float(row['L'])
+        document['acc']                  = acc
+        document['spike_n']              = spike_n
+        document['spike_l']              = spike_l
         yield key,document
     return

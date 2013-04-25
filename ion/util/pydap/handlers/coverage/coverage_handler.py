@@ -8,6 +8,7 @@ from stat import ST_MTIME
 
 from coverage_model.coverage import AbstractCoverage
 from coverage_model.parameter_types import QuantityType,ConstantRangeType,ArrayType, ConstantType, RecordType, CategoryType, BooleanType, ParameterFunctionType
+from coverage_model.parameter_functions import ParameterFunctionException
 from pydap.model import DatasetType,BaseType, GridType
 from pydap.handlers.lib import BaseHandler
 import time
@@ -64,7 +65,11 @@ class Handler(BaseHandler):
 
     def get_data(self,cov, name, slice_):
         #pc = cov.get_parameter_context(name)
-        data = cov.get_parameter_values(name, tdoa=slice_)
+        try:
+            data = cov.get_parameter_values(name, tdoa=slice_)
+        except ParameterFunctionException:
+            time_vector = self.get_time_data(cov,slice_)
+            data = np.empty(time_vector.shape, dtype='object')
         data = np.asanyarray(data) 
         if not data.shape:
             data.shape = (1,)

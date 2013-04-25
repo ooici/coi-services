@@ -320,7 +320,9 @@ class EnhancedResourceRegistryClient(object):
         else:
             return objs
 
-    def find_subjects(self, subject_type, predicate, object, id_only=False):
+    def find_subjects(self, subject_type='', predicate='', object='', id_only=False):
+        assert subject_type != ''
+        assert predicate != ''
         object_id, object_type = self._extract_id_and_type(object)
 
         if not self.has_cached_prediate(predicate):
@@ -332,10 +334,19 @@ class EnhancedResourceRegistryClient(object):
 
         log.info("Using %s cached results for 'find (%s) subjects'", len(self._cached_predicates[predicate]), predicate)
 
+        def filter_fn(assoc):
+            if object != assoc.o:
+                return False
+
+            if "" != subject_type and subject_type != assoc.st:
+                return False
+
+            return True
+
         log.debug("Checking object_id=%s, subject_type=%s", object_id, subject_type)
         preds = self._cached_predicates[predicate]
         time_search_start = get_ion_ts()
-        subject_ids = [a.s for a in self._cached_predicates[predicate] if object_id == a.o and a.st == subject_type]
+        subject_ids = [a.s for a in self.filter_cached_associations(predicate, filter_fn)]
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
         log.debug("Processed %s %s predicates for %s subjects in %s seconds",
@@ -352,7 +363,7 @@ class EnhancedResourceRegistryClient(object):
             return self.read_mult(subject_ids, subject_type)
 
 
-    def find_objects(self, subject, predicate, object_type, id_only=False):
+    def find_objects(self, subject, predicate, object_type='', id_only=False):
         subject_id, subject_type = self._extract_id_and_type(subject)
 
         if not self.has_cached_prediate(predicate):
@@ -364,10 +375,19 @@ class EnhancedResourceRegistryClient(object):
 
         log.info("Using %s cached results for 'find (%s) objects'", len(self._cached_predicates[predicate]), predicate)
 
+        def filter_fn(assoc):
+            if subject_id != assoc.s:
+                return False
+
+            if "" != object_type and object_type != assoc.ot:
+                return False
+
+            return True
+
         log.debug("Checking subject_id=%s, object_type=%s", subject_id, object_type)
         preds = self._cached_predicates[predicate]
         time_search_start = get_ion_ts()
-        object_ids = [a.o for a in preds if subject_id == a.s and a.ot == object_type] # filter cached list
+        object_ids = [a.o for a in self.filter_cached_associations(predicate, filter_fn)]
         time_search_stop = get_ion_ts()
         total_time = int(time_search_stop) - int(time_search_start)
         log.debug("Processed %s %s predicates for %s objects in %s seconds",
