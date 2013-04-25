@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydDQ0OTduYUZFUUVDb3FYbEM4U1FaLWc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEFjOS0wd3NHRnV2d2xfeVBYY3VEelE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -1533,6 +1533,10 @@ Reason: %s
                 for val in lookup_values:
                     context_ids[val] = 0
                 if hasattr(context,'qc_contexts'):
+                    for qc in context.qc_contexts:
+                        if qc not in self.resource_ids:
+                            obj = dataset_management.read_parameter_context(qc)
+                            self._register_id(qc, qc, obj)
                     definitions.extend(context.qc_contexts)
             except KeyError:
                 pass
