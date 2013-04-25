@@ -85,7 +85,7 @@ class TransformStreamListener(TransformStreamProcess):
         super(TransformStreamListener,self).on_start()
         self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
 
-        self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.recv_callback)
+        self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.receive_callback)
         self.add_endpoint(self.subscriber)
 
     def receive_callback(self, *a, **b):
