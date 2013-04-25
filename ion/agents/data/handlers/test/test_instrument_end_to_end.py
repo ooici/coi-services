@@ -67,9 +67,10 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.route = self.pubsub.read_stream_route(self.stream_id)
 
     def do_configure(self):
-        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = self.stream_id
-        self.agent_instance.dataset_agent_config['driver_config']['stream_id'] = self.stream_id
-        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = self.route
+        pass
+#        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = self.stream_id
+#        self.agent_instance.dataset_agent_config['driver_config']['stream_id'] = self.stream_id
+#        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = self.route
 
     def do_listen_for_incoming(self):
         subscription_id = self.pubsub.create_subscription('validator', data_product_ids=[self.data_product._id])

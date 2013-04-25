@@ -1466,7 +1466,7 @@ class IONLoader(ImmediateProcess):
 
     def _load_StreamDefinition(self, row):
         if not row['parameter_dictionary'] and row['parameter_dictionary'] not in self.resource_ids:
-            log.error('Stream Definition defined for undefined parameter dictionary: %s', row['parameter_dictionary'])
+            log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
             return
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
         svc_client = self._get_service_client("dataset_management")
