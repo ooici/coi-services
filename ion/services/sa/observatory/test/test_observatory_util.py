@@ -52,13 +52,25 @@ class TestObservatoryUtil(IonUnitTestCase):
         ['PD_1', 'hasDevice', 'ID_1'],
     ]
 
+    def spy_get_child_sites(self, parent_site_id=None, org_id=None, exclude_types=None, include_parents=True, id_only=True):
+        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id=parent_site_id,
+                                                                    org_id=org_id,
+                                                                    exclude_types=exclude_types,
+                                                                    include_parents=include_parents,
+                                                                    id_only=id_only)
+
+        print "child_sites of", parent_site_id, "are", child_sites
+        print "site_ancestors of", parent_site_id, "are", site_ancestors
+
+        return child_sites, site_ancestors
+
     def test_get_child_sites(self):
         self.mu.load_mock_resources(self.res_list)
         self.mu.load_mock_associations(self.assoc_list)
 
         self.obs_util = ObservatoryUtil(self.process_mock, self.container_mock)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='Obs_1', include_parents=False, id_only=True)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='Obs_1', include_parents=False, id_only=True)
         self.assertEquals(len(child_sites), 3)
         self.assertEquals(len(site_ancestors), 3)
         self.assertIn('Sub_1', child_sites)
@@ -67,45 +79,45 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.assertNotIn('Obs_1', child_sites)
         self.assertEquals(len([v for v in child_sites.values() if v is None]), 3)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='Obs_1', include_parents=False, id_only=False)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='Obs_1', include_parents=False, id_only=False)
         self.assertEquals(len(child_sites), 3)
         self.assertEquals(len(site_ancestors), 3)
         self.assertEquals(len([v for v in child_sites.values() if v is None]), 0)
         self.assertEquals(child_sites['Sub_1']._get_type(), RT.Subsite)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='Obs_1', include_parents=True)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='Obs_1', include_parents=True)
         self.assertEquals(len(child_sites), 4)
         self.assertEquals(len(site_ancestors), 3)
         self.assertIn('Obs_1', child_sites)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='Sub_1', include_parents=False)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='Sub_1', include_parents=False)
         self.assertEquals(len(child_sites), 2)
         self.assertEquals(len(site_ancestors), 2)
         self.assertNotIn('Sub_1', child_sites)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='Sub_1', include_parents=True)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='Sub_1', include_parents=True)
         self.assertEquals(len(child_sites), 4)
         self.assertEquals(len(site_ancestors), 3)
         self.assertIn('Sub_1', child_sites)
         self.assertIn('Obs_1', child_sites)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='PS_1', include_parents=False)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='PS_1', include_parents=False)
         self.assertEquals(len(child_sites), 1)
         self.assertEquals(len(site_ancestors), 1)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='PS_1', include_parents=True)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='PS_1', include_parents=True)
         self.assertEquals(len(child_sites), 4)
         self.assertEquals(len(site_ancestors), 3)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='IS_1', include_parents=False)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='IS_1', include_parents=False)
         self.assertEquals(len(child_sites), 0)
         self.assertEquals(len(site_ancestors), 0)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='IS_1', include_parents=True)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='IS_1', include_parents=True)
         self.assertEquals(len(child_sites), 4)
         self.assertEquals(len(site_ancestors), 3)
 
-        child_sites, site_ancestors = self.obs_util.get_child_sites(parent_site_id='XXX', include_parents=True)
+        child_sites, site_ancestors = self.spy_get_child_sites(parent_site_id='XXX', include_parents=True)
         self.assertEquals(len(child_sites), 1)
         self.assertEquals(len(site_ancestors), 0)
 

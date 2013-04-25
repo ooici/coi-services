@@ -4,6 +4,7 @@
 and the relationships between them"""
 
 import time
+from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 from ion.services.sa.observatory.deployment_activator import DeploymentActivatorFactory, DeploymentResourceCollectorFactory
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
@@ -824,23 +825,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
         # Status computation
-        extended_site.computed.instrument_status = [self.agent_status_builder.get_aggregate_status_of_device(idev._id, "aggstatus")
+        ec = extended_site.computed
+        ec.instrument_status = [self.agent_status_builder.get_aggregate_status_of_device(idev._id, "aggstatus")
                                                     for idev in extended_site.instrument_devices]
-        extended_site.computed.platform_status   = [self.agent_status_builder.get_aggregate_status_of_device(pdev._id, "aggstatus")
+        ec.platform_status   = [self.agent_status_builder.get_aggregate_status_of_device(pdev._id, "aggstatus")
                                                     for pdev in extended_site.platform_devices]
 
-#            self.agent_status_builder.add_device_aggregate_status_to_resource_extension(device_id,
-#                                                                                    'aggstatus',
-#                                                                                    extended_site)
-        def status_unknown():
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
-        extended_site.computed.communications_status_roll_up = status_unknown()
-        extended_site.computed.power_status_roll_up          = status_unknown()
-        extended_site.computed.data_status_roll_up           = status_unknown()
-        extended_site.computed.location_status_roll_up       = status_unknown()
-        extended_site.computed.aggregated_status             = status_unknown()
+        # status rollups from attached device if it exists (handled in agent status builder)
+        device_ids = RR2.find_objects(site_id, PRED.hasDevice, id_only=True)
+        if 0 == len(device_ids):
+            device_id = None
+        else:
+            device_id = device_ids[0]
+        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(device_id,
+                                                                                    'child_agg_status',
+                                                                                    extended_site)
 
-        extended_site.computed.site_status = [StatusType.STATUS_UNKNOWN] * len(extended_site.sites)
+
+        ec.site_status = [StatusType.STATUS_UNKNOWN] * len(extended_site.sites)
 
 
 

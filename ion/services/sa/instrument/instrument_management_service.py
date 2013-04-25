@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ion.services.sa.instrument.rollx_builder import RollXBuilder
 from ion.services.sa.instrument.status_builder import AgentStatusBuilder
 
 from ion.util.agent_launcher import AgentLauncher
@@ -32,8 +33,6 @@ from ion.services.dm.inventory.dataset_management_service import DatasetManageme
 
 from ion.services.sa.instrument.flag import KeywordFlag
 
-from ion.services.sa.observatory.observatory_util import ObservatoryUtil
-
 from ion.util.module_uploader import RegisterModulePreparerEgg
 from ion.util.qa_doc_parser import QADocParser
 
@@ -57,7 +56,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         IonObject("Resource")
 
         self.override_clients(self.clients)
-        self.outil = ObservatoryUtil(self)
 
         self.extended_resource_handler = ExtendedResourceContainer(self)
 
@@ -1781,6 +1779,26 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         except Exception as e:
             raise e
+
+
+        rollx_builder = RollXBuilder(self)
+
+        top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
+        net_stats, ancestors = rollx_builder.get_network_hierarchy(top_platformnode_id,
+                                                                   lambda x: self.agent_status_builder.get_aggregate_status_of_device(x, "aggstatus"))
+        extended_platform.computed.rsn_network_child_device_status = net_stats
+
+        parent_node_device_ids = rollx_builder.get_parent_network_nodes(platform_device_id)
+
+        if 0 == len(parent_node_device_ids):
+            extended_platform.computed.rsn_network_rollup = StatusType.STATUS_UNKNOWN
+        else:
+            parent_node_statuses = [self.agent_status_builder.get_status_of_device(x, "aggstatus") for x in parent_node_device_ids]
+            rollup_values = {}
+            for key, _ in parent_node_statuses[0].iteritems():
+                rollup_values[key] = self.agent_status_builder._rollup_value([ns[key] for ns in parent_node_statuses])
+
+            extended_platform.computed.rsn_network_rollup = rollup_values
 
         return extended_platform
 
