@@ -207,17 +207,16 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
     def assign_data_product(self, input_resource_id='', data_product_id=''):
+        log.debug('assigning data product %s to resource %s', data_product_id, input_resource_id)
         #Connect the producer for an existing input resource with a data product
 
         # Verify that both ids are valid
-#        input_resource_obj = self.clients.resource_registry.read(input_resource_id) -- don't need this unless producer is not found
+        #input_resource_obj = self.clients.resource_registry.read(input_resource_id) #actually, don't need this one unless producer is not found (see if below)
         data_product_obj = self.clients.resource_registry.read(data_product_id)
-
         #find the data producer resource associated with the source resource that is creating the data product
         primary_producer_ids, _ = self.clients.resource_registry.find_objects(subject=input_resource_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
-
         if not primary_producer_ids:
-            self.clients.resource_registry.read(input_resource_id) # raise different NotFound if resource doesn't exist
+            self.clients.resource_registry.read(input_resource_id) # raise different NotFound if resource didn't exist
             raise NotFound("Data Producer for input resource %s does not exist" % input_resource_id)
 
         #connect the producer to the product directly
@@ -227,8 +226,9 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_producer_obj = DataProducer(name=data_product_obj.name, description=data_product_obj.description)
         data_producer_obj.producer_context.configuration = {}
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
-        log.debug("DAMS:assign_data_product: data_producer_id %s", data_producer_id)
-        for attachment in self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False):
+
+        attachments = self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False)
+        for attachment in attachments:
             if attachment.attachment_type == AttachmentType.REFERENCE:
                 parser_id = attachment.context.parser_id
                 if parser_id:
@@ -236,7 +236,6 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
-
         # Associate the Producer with the main Producer
         self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  primary_producer_ids[0])
 
@@ -620,7 +619,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
                                                                                                         external_dataset_id)
 
         self.assign_external_data_agent_to_agent_instance(external_dataset_agent_id, external_dataset_agent_instance_id)
-        log.info('created dataset agent instance %s, agent id=%s', external_dataset_agent_instance_id, external_dataset_agent_id)
+        log.debug('created dataset agent instance %s, agent id=%s', external_dataset_agent_instance_id, external_dataset_agent_id)
         return external_dataset_agent_instance_id
 
     def update_external_dataset_agent_instance(self, external_dataset_agent_instance=None):
@@ -652,11 +651,14 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #todo:  if instance running, then return or throw
         #todo: if instance exists and dataset_agent_instance_obj.dataset_agent_config is completd then just schedule_process
 
+        #def read_object(self, subject="", predicate="", object_type="", assoc="", id_only=False):
+        #def read_subject(self, subject_type="", predicate="", object="", assoc="", id_only=False):
+
         dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
-        ext_dataset_id = self.clients.resource_registry.read_subject(RT.ExternalDataset, PRED.hasAgentInstance, external_dataset_agent_instance_id, True)
-        ext_dataset_model_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasModel, RT.ExternalDatasetModel, True)
-        ext_dataset_agent_id = self.clients.resource_registry.read_subject(RT.ExternalDatasetAgent, PRED.hasAgentDefinition, ext_dataset_model_id, True)
-        process_definition_id = self.clients.resource_registry.read_object(ext_dataset_agent_id, PRED.hasProcessDefinition, RT.ProcessDefinition, True)
+        ext_dataset_id = self.clients.resource_registry.read_subject(subject_type=RT.ExternalDataset, predicate=PRED.hasAgentInstance, object=external_dataset_agent_instance_id, id_only=True)
+        ext_dataset_model_id = self.clients.resource_registry.read_object(subject=ext_dataset_id, predicate=PRED.hasModel, object_type=RT.ExternalDatasetModel, id_only=True)
+        ext_dataset_agent_id = self.clients.resource_registry.read_object(object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=external_dataset_agent_instance_id, id_only=True)
+        process_definition_id = self.clients.resource_registry.read_object(subject=ext_dataset_agent_id, predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=True)
 
         # THIS CODE DOESN'T MAKE SENSE -- GETS MULTIPLE DATA PRODUCTS BUT ONLY SETS 'parsed' IN OUTPUT
         #out_streams = {}
@@ -669,8 +671,8 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #    out_streams['parsed'] = self.clients.resource_registry.read_object(product_id, PRED.hasStream, RT.Stream, True)
 
         # INSTEAD FOR NOW ENFORCE ONLY ONE DATA PRODUCT
-        data_product_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, True)
-        stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, True)
+        data_product_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
+        stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
 
         # REPLACE CONFIGURATION WITH TESTED ENTRIES
         ## Create agent config.
@@ -684,7 +686,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
         dataset_agent_instance_obj.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = stream_id
         dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
-        dataset_agent_instance_obj.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = route
+        dataset_agent_instance_obj.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = { key: getattr(route, key) for key in route._schema }
         log.debug("start_external_dataset_agent_instance: agent_config %r", dataset_agent_instance_obj.dataset_agent_config)
 
         # Setting the restart mode
@@ -792,7 +794,7 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #Connect the agent instance with an external data set
         data_source = self.clients.resource_registry.read(external_dataset_id)
         agent_instance = self.clients.resource_registry.read(agent_instance_id)
-        log.info("associating: external dataset %s hasAgentInstance %s", external_dataset_id, agent_instance_id)
+        log.debug("associating: external dataset %s hasAgentInstance %s", external_dataset_id, agent_instance_id)
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(external_dataset_id,  PRED.hasAgentInstance,  agent_instance_id, id_only=True)
         if not associations:
@@ -814,13 +816,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #Connect the agent with an agent instance
         data_source = self.clients.resource_registry.read(external_data_agent_id)
         agent_instance = self.clients.resource_registry.read(agent_instance_id)
-        log.info("associating: external dataset agent instance %s hasAgentDefinition %s", agent_instance_id, external_data_agent_id)
+        log.debug("associating: external dataset agent instance %s hasAgentDefinition %s", agent_instance_id, external_data_agent_id)
 
         # check if the association already exists
         associations = self.clients.resource_registry.find_associations(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id, id_only=True)
-        log.info('found associations: %r', associations)
+        log.trace('found associations: %r', associations)
         if not associations:
-            log.info('creating')
             self.clients.resource_registry.create_association(agent_instance_id,  PRED.hasAgentDefinition,   external_data_agent_id)
 
     def unassign_external_data_agent_from_agent_instance(self, external_data_agent_id='', agent_instance_id=''):
@@ -903,15 +904,13 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
 
     def register_producer_qc_reference(self, producer_id='', parser_id='', attachment_id=''):
-
+        log.debug('register_producer_qc_reference: %s %s %s', producer_id, parser_id, attachment_id)
         attachment = self.clients.resource_registry.read_attachment(attachment_id, include_content=True)
         document = attachment.content
-        document_keys = self.parse_qc_reference(parser_id, document)
-
-        document_keys = document_keys or []
+        document_keys = self.parse_qc_reference(parser_id, document) or []
 
         producer_obj = self.clients.resource_registry.read(producer_id)
-        if 'qc_keys' in producer_obj.producer_context.configuration: 
+        if 'qc_keys' in producer_obj.producer_context.configuration:
             producer_obj.producer_context.configuration['qc_keys'].extend(document_keys)
         else:
             producer_obj.producer_context.configuration['qc_keys'] = document_keys

@@ -300,7 +300,7 @@ class InstrumentAgent(ResourceAgent):
 
     #TODO - When/If the Instrument and Platform agents are dervied from a
     # common device agent class, then relocate to the parent class and share
-    def check_resource_operation_policy(self, msg,  headers):
+    def check_resource_operation_policy(self, process, message, headers):
         '''
         This function is used for governance validation for certain agent operations.
         @param msg:
@@ -320,14 +320,13 @@ class InstrumentAgent(ResourceAgent):
         if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
                             INSTRUMENT_OPERATOR_ROLE):
             return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
-                          % (self.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                          % (process.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
                              self._get_process_org_governance_name())
 
-        com = get_resource_commitments(gov_values.actor_id,
-                                       gov_values.resource_id)
+        com = get_resource_commitments(gov_values.resource_id, gov_values.actor_id)
         if com is None:
             return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' \
-                % (self.name, gov_values.op, gov_values.actor_id,
+                % (process.name, gov_values.op, gov_values.actor_id,
                    self.resource_id)
 
         return True, ''

@@ -13,9 +13,7 @@ from pyon.net.endpoint import Subscriber
 from pyon.public import log
 from pyon.core.exception import NotFound, BadRequest, ServerError, Conflict, IonException
 from pyon.util.containers import create_valid_identifier
-from pyon.event.event import EventPublisher
-from pyon.core import bootstrap
-from pyon.event.event import EventSubscriber
+from pyon.event.event import EventPublisher, EventSubscriber
 from gevent import event as gevent_event
 
 try:
@@ -877,10 +875,13 @@ class PDNativeBackend(object):
         default_engine = conf.get('default_engine')
         if default_engine is None and len(engine_conf.keys()) == 1:
             default_engine = engine_conf.keys()[0]
+        process_engines = conf.get('process_engines')
+
         self.CFG = service.CFG
         self.store = get_processdispatcher_store(self.CFG, use_gevent=True)
         self.store.initialize()
-        self.registry = EngineRegistry.from_config(engine_conf, default=default_engine)
+        self.registry = EngineRegistry.from_config(engine_conf, default=default_engine,
+                                                   process_engines=process_engines)
 
         # The Process Dispatcher communicates with EE Agents over ION messaging
         # but it still uses dashi to talk to the EPU Management Service, until

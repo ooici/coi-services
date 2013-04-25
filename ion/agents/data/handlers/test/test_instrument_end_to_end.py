@@ -16,6 +16,7 @@ from pyon.util.int_test import IonIntegrationTestCase
 from pyon.ion.stream import StandaloneStreamSubscriber
 from ion.services.sa.acquisition.test.test_bulk_data_ingestion import FakeProcess
 from ion.core.includes.mi import DriverEvent
+from interface.services.sa.idata_acquisition_management_service import  DataAcquisitionManagementServiceClient
 
 @attr('INT', group='eoi')
 class TestPreloadThenLoadDataset(IonIntegrationTestCase):
@@ -31,6 +32,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         config = dict(op="load", scenario="BETA,NOSE", attachments="res/preload/r2_ioc/attachments")
         self.container.spawn_process("Loader", "ion.processes.bootstrap.ion_loader", "IONLoader", config=config)
         self.pubsub = PubsubManagementServiceClient()
+        self.dams = DataAcquisitionManagementServiceClient()
 
     def find_object_by_name(self, name, resource_type):
         objects,_ = self.container.resource_registry.find_resources(resource_type)
@@ -65,9 +67,10 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.route = self.pubsub.read_stream_route(self.stream_id)
 
     def do_configure(self):
-        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = self.stream_id
-        self.agent_instance.dataset_agent_config['driver_config']['stream_id'] = self.stream_id
-        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = self.route
+        pass
+#        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = self.stream_id
+#        self.agent_instance.dataset_agent_config['driver_config']['stream_id'] = self.stream_id
+#        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = self.route
 
     def do_listen_for_incoming(self):
         subscription_id = self.pubsub.create_subscription('validator', data_product_ids=[self.data_product._id])
@@ -109,10 +112,17 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
 
         import pprint
         log.info('launching agent with config: %s', pprint.pformat(self.agent_instance.dataset_agent_config))
-        self.container.spawn_process(name=self.agent_instance.name,
-            module=self.agent.handler_module,
-            cls=self.agent.handler_class,
-            config=self.agent_instance.dataset_agent_config)
+
+        try:
+            self.dams.start_external_dataset_agent_instance(self.agent_instance._id)
+        except Exception as ex:
+            log.error('failed to start agent', exc_info=True)
+            raise ex
+
+#        self.container.spawn_process(name=self.agent_instance.name,
+#            module=self.agent.handler_module,
+#            cls=self.agent.handler_class,
+#            config=self.agent_instance.dataset_agent_config)
         #
         # should i wait for process (above) to start
         # before launching client (below)?
@@ -199,10 +209,10 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
 
     def get_dvr_config(self):
         DVR_CONFIG = {
-            'dvr_mod': 'ion.agents.data.handlers.sbe52_binary_parser',
+            'dvr_mod': 'ion.agents.data.handlers.sbe52_binary_handler',
             'dvr_cls': 'SBE52BinaryDataHandler',
             'dh_cfg': {
-                'parser_mod': 'ion.agents.data.handlers.sbe52_binary_parser',
+                'parser_mod': 'ion.agents.data.handlers.sbe52_binary_handler',
                 'parser_cls': 'SBE52BinaryCTDParser',
                 'stream_id': self.stream_id,
                 'stream_route': self.route,
@@ -302,7 +312,7 @@ class TestHypm_WPF_ACM(BulkIngestBase, IonIntegrationTestCase):
         t_ctxt.uom = 'seconds since 01-01-1970'
         context_ids.append(self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump()))
 
-        ut_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('int64')))
+        ut_ctxt = ParameterContext('upload_time', param_type=QuantityType(value_encoding=np.dtype('int64')))
         ut_ctxt.uom = 'seconds since 01-01-1970'
         context_ids.append(self.dataset_management.create_parameter_context(name='upload_time', parameter_context=ut_ctxt.dump()))
 

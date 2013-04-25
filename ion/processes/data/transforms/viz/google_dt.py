@@ -6,9 +6,8 @@
 '''
 
 
-from pyon.core.exception import BadRequest
+from pyon.core.exception import BadRequest, Timeout
 from pyon.public import log
-
 
 from ion.core.function.transform_function import SimpleGranuleTransformFunction
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
@@ -49,30 +48,25 @@ class VizTransformGoogleDT(TransformDataProcess):
         super(VizTransformGoogleDT, self).__init__()
 
     def on_start(self):
-        self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
 
         self.stream_info  = self.CFG.get_safe('process.publish_streams', {})
         self.stream_names = self.stream_info.keys()
         self.stream_ids   = self.stream_info.values()
-        if not self.stream_names:
+        if not self.stream_names or not self.stream_ids:
             raise BadRequest('Google DT Transform has no output streams.')
 
+        self.pubsub_management = PubsubManagementServiceProcessClient(process=self)
+        self.stream_def = self.pubsub_management.read_stream_definition(stream_id=self.stream_ids[0])
         super(VizTransformGoogleDT,self).on_start()
 
 
 
     def recv_packet(self, packet, in_stream_route, in_stream_id):
         log.info('Received packet')
-        outgoing = VizTransformGoogleDTAlgorithm.execute(packet, params=self.get_stream_definition())
+        outgoing = VizTransformGoogleDTAlgorithm.execute(packet, params=self.stream_def._id)
         for stream_name in self.stream_names:
             publisher = getattr(self, stream_name)
             publisher.publish(outgoing)
-
-
-    def get_stream_definition(self):
-        stream_id = self.stream_ids[0]
-        self.stream_def = self.pubsub_management.read_stream_definition(stream_id=stream_id)
-        return self.stream_def._id
 
 
 class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
@@ -98,19 +92,18 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
 
         precisions = {}
         fill_values = {}
-        for field in rdt._pdict:
-            _precision_str = rdt._pdict.get_context(field).precision
-            if _precision_str == None or _precision_str == '':
+        for field in rdt.fields:
+            precision_str = rdt.context(field).precision
+            if not precision_str:
                 precisions[field] = default_precision
             else:
-                precisions[field] = int(_precision_str)
+                try:
+                    precisions[field] = int(precision_str)
+                except ValueError:
+                    precisions[field] = default_precision
 
-            _fv_str = rdt._pdict.get_context(field).fill_value
-            if _fv_str == None or _fv_str == '':
-                fill_values[field] = None
-            else:
-                fill_values[field] = int(_fv_str)
 
+            fill_values[field] = rdt.fill_value(field)
 
         if stream_definition_id == None:
             log.error("GoogleDT transform: Need a output stream definition to process graphs")
@@ -131,7 +124,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         data_description.append(('time','number','time'))
 
         for field in fields:
-            if field == 'time':
+            if field == rdt.temporal_parameter:
                 continue
 
             # If a config block was passed, consider only the params listed in it
@@ -143,11 +136,9 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if rdt[field] == None:
                 continue
 
-            """
-            if (rdt[field] != None) and (rdt[field].dtype not in gdt_allowed_numerical_types):
-                print ">>>>>>>>>>>>>> DONT KNOW HOW TO HANDLE : ", field, " , Type : ", rdt[field].dtype
+            # Check if visibility is false (system generated params)
+            if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
                 continue
-            """
 
             # Handle string type or if its an unknown type, convert to string
             if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):

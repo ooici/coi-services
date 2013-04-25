@@ -610,6 +610,10 @@ class TestProcess(BaseService):
         return proc._proc_name
 
 
+# a copy to use in process definitions for testing process->engine map functionality
+TestProcessForProcessEngineMap = TestProcess
+
+
 class TestProcessThatCrashes(BaseService):
     """Test process to deploy via PD
     """
@@ -1026,6 +1030,9 @@ pd_config = {
                 "heartbeat_warning": 4,
                 "heartbeat_missing": 6
             }
+        },
+        "process_engines": {
+            "ion.services.cei.test.test_process_dispatcher.TestProcessForProcessEngineMap": "engine2"
         }
     }
 }
@@ -1176,6 +1183,16 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(pid, ProcessStateEnum.WAITING)
 
+        # request a process that is mapped (in config) to engine2
+        def2 = ProcessDefinition(name='test_process2')
+        def2.executable = {'module': 'ion.services.cei.test.test_process_dispatcher',
+                           'class': 'TestProcessForProcessEngineMap'}
+        def2_id = self.pd_cli.create_process_definition(def2)
+
+        process_mapped_pid = self.pd_cli.create_process(def2_id)
+        self.pd_cli.schedule_process(def2_id, process_id=process_mapped_pid)
+        self.waiter.await_state_event(process_mapped_pid, ProcessStateEnum.WAITING)
+
         # request unknown engine, with NEVER queuing mode. The request
         # should be rejected.
         # verifies L4-CI-CEI-RQ52
@@ -1192,13 +1209,14 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
 
         self.waiter.await_state_event(rejected_pid, ProcessStateEnum.REJECTED)
 
-        # now add a node and eeagent for engine2. original process should leave
+        # now add a node and eeagent for engine2. original processes should leave
         # queue and start running
         node2_id = uuid.uuid4().hex
         self._send_node_state("engine2", node2_id)
         self._start_eeagent(node2_id)
 
         self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
+        self.waiter.await_state_event(process_mapped_pid, ProcessStateEnum.RUNNING)
 
         # spawn another process. it should start immediately.
 
@@ -1232,6 +1250,8 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         # kill the processes for good
         self.pd_cli.cancel_process(pid)
         self.waiter.await_state_event(pid, ProcessStateEnum.TERMINATED)
+        self.pd_cli.cancel_process(process_mapped_pid)
+        self.waiter.await_state_event(process_mapped_pid, ProcessStateEnum.TERMINATED)
         self.pd_cli.cancel_process(pid2)
         self.waiter.await_state_event(pid2, ProcessStateEnum.TERMINATED)
         self.pd_cli.cancel_process(pid3)

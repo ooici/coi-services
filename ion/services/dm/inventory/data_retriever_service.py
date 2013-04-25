@@ -30,17 +30,10 @@ class DataRetrieverService(BaseDataRetrieverService):
     _cache_limit      = 5
     _retrieve_cache   = collections.OrderedDict()
     _cache_lock       = gevent.coros.RLock()
-    
-    def on_quit(self): #pragma no cover
-        #self.clients.process_dispatcher.delete_process_definition(process_definition_id=self.process_definition_id)
-        self.event_subscriber.stop()
-        super(DataRetrieverService,self).on_quit()
-
 
     def on_start(self):
         self.event_subscriber = EventSubscriber(event_type='DatasetModified', callback=lambda event,m : self._eject_cache(event.origin), auto_delete=True)
-        self.event_subscriber.start()
-
+        self.add_endpoint(self.event_subscriber)
 
     @classmethod
     def _eject_cache(cls, dataset_id):

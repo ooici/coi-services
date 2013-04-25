@@ -10,13 +10,13 @@
 """
 import msgpack
 
-from pyon.public import log, OT
+from pyon.public import log, OT, RT
 from pyon.util.async import spawn
 from pyon.core.exception import NotFound
 from pyon.util.containers import get_safe
 from pyon.event.event import EventPublisher
-
-from interface.objects import Granule, Attachment, AttachmentType
+from pyon.core.bootstrap import IonObject
+from interface.objects import Granule, Attachment, AttachmentType, StreamRoute
 
 from ion.core.includes.mi import DriverParameter, DriverEvent
 from ion.agents.instrument.exceptions import InstrumentParameterException, InstrumentCommandException, InstrumentDataException, NotImplementedException, InstrumentException
@@ -238,10 +238,22 @@ class BaseDataHandler(object):
         stream_id = get_safe(config, 'stream_id', None)
         if not stream_id:
             raise ConfigurationError('Configuration does not contain required \'stream_id\' member')
-        stream_route = get_safe(config, 'stream_route', None)
+        stream_route_param = get_safe(config, 'stream_route', None)
 
-        if not stream_route:
-            raise ConfigurationError('Configuration does not contain required \'stream_route\' member')
+        if not stream_route_param:
+            raise ConfigurationError('Configuration does not contain required stream_route member')
+        if isinstance(stream_route_param, StreamRoute):
+            # process_dispatcher.spawn does not support IonObjects, only JSONable configuration
+            # but many existing tests pass stream route directly
+            log.warning('stream_route config parameter: use of a StreamRoute object is deprecated, pass dict instead')
+            stream_route = stream_route_param
+        elif isinstance(stream_route_param, dict):
+            # approved method -- pass a dict with appropriate fields to reconstruct IonObject
+            log.debug('using stream route: %r', stream_route_param)
+            stream_route = IonObject(OT.StreamRoute, stream_route_param)
+#            stream_route = IonObject(RT.StreamRoute, exchange_point=stream_route_param['exchange_point'], routing_key=stream_route_param['routing_key'], credentials=stream_route_param['credentials'])
+        else:
+            raise ConfigurationError('stream_route value should be a dict, not %r'%stream_route_param)
 
         isNew = get_safe(config, 'constraints') is None
 

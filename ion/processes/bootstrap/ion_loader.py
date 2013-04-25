@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidGg4dVRoS2NBdUxQeXhtb0VrZEp6eXc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEFjOS0wd3NHRnV2d2xfeVBYY3VEelE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -139,12 +139,12 @@ DEFAULT_CATEGORIES = [
     'TransformFunction',
     'DataProcessDefinition',
     'DataProcess',
-    'DataProductLink',                  # no resource but complex service call
+    'Parser',
     'Attachment',
+    'DataProductLink',                  # no resource but complex service call
     'WorkflowDefinition',
     'Workflow',
     'Deployment',
-    'Parser',
     ]
 
 # The following lists all categories that define information used by other categories.
@@ -1465,13 +1465,25 @@ class IONLoader(ImmediateProcess):
             self._load_InstrumentSite(newrow)
 
     def _load_StreamDefinition(self, row):
+        if not row['parameter_dictionary'] and row['parameter_dictionary'] not in self.resource_ids:
+            log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
+            return
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-        pname = row["param_dict_name"]
         svc_client = self._get_service_client("dataset_management")
-        parameter_dictionary_id = svc_client.read_parameter_dictionary_by_name(pname, id_only=True,
-            headers=self._get_system_actor_headers())
+        reference_designator = row['reference_designator']
+        available_fields = row['available_fields']
+        if available_fields:
+            available_fields = available_fields.split(',')
+            available_fields = [i.strip() for i in available_fields]
+            for i,field in enumerate(available_fields):
+                if field.startswith('PD') and field in self.resource_objs:
+                    available_fields[i] = self.resource_objs[field].name
+        
+        parameter_dictionary_id = self.resource_ids[row['parameter_dictionary']]
         svc_client = self._get_service_client("pubsub_management")
         res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
+                stream_configuration={'reference_designator' : reference_designator} if reference_designator else None,
+                available_fields = available_fields or None,
             headers=self._get_system_actor_headers())
         self._register_id(row[COL_ID], res_id, res_obj)
 
@@ -1521,6 +1533,10 @@ Reason: %s
                 for val in lookup_values:
                     context_ids[val] = 0
                 if hasattr(context,'qc_contexts'):
+                    for qc in context.qc_contexts:
+                        if qc not in self.resource_ids:
+                            obj = dataset_management.read_parameter_context(qc)
+                            self._register_id(qc, qc, obj)
                     definitions.extend(context.qc_contexts)
             except KeyError:
                 pass
@@ -1532,11 +1548,14 @@ Reason: %s
             pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
                                                                       temporal_context=temporal_parameter_name,
                                                                       headers=self._get_system_actor_headers())
+            pdict = self.container.resource_registry.read(pdict_id)
+            pdict.alt_ids = ['PRE:'+row[COL_ID]]
+            self.container.resource_registry.update(pdict)
         except Exception:
             log.exception('%s has a problem', row['name'])
             return
 
-        self._register_id(row[COL_ID], pdict_id)
+        self._register_id(row[COL_ID], pdict_id, pdict)
 
     def _load_Parser(self, row):
         name        = row['name']
@@ -1587,7 +1606,7 @@ Reason: %s
         name         = row['Name']
         ptype        = row['Parameter Type']
         encoding     = row['Value Encoding']
-        uom          = row['Unit of Measure']
+        uom          = row['Unit of Measure'] or 'undefined'
         code_set     = row['Code Set']
         fill_value   = row['Fill Value']
         display_name = row['Display Name']
@@ -2293,6 +2312,11 @@ Reason: %s
         gcrs_id = row['coordinate_system_id']
         if gcrs_id:
             res_obj.geospatial_coordinate_reference_system = self.resource_ids[gcrs_id]
+        parent_dataset_id=None
+        if row['parent'] and row['parent'] in self.resource_ids:
+            parent_id = self.resource_ids[row['parent']]
+            parent_dataset_ids, _ = self.container.resource_registry.find_objects(parent_id,PRED.hasDataset, id_only=True)
+            parent_dataset_id = parent_dataset_ids[0] if len(parent_dataset_ids) else None
         res_obj.spatial_domain = sdom.dump()
         res_obj.temporal_domain = tdom.dump()
 
@@ -2312,6 +2336,7 @@ Reason: %s
             svc_client = self._get_service_client("data_product_management")
             stream_definition_id = self.resource_ids[row["stream_def_id"]]
             res_id = svc_client.create_data_product(data_product=res_obj, stream_definition_id=stream_definition_id,
+                    dataset_id=parent_dataset_id or None,
                 headers=headers)
             self._register_id(row[COL_ID], res_id, res_obj)
 
@@ -2419,7 +2444,7 @@ Reason: %s
                 source_obj = self._get_resource_obj(source_id)
                 self._create_association(dp_obj, PRED.hasSource, source_obj)
             else:
-                svc_client.assign_data_product_source(dp_id, source_id, headers=headers)
+                svc_client.assign_data_product_source(dp_id, source_id, headers=headers, timeout=120)
 
         # Create data product assignment
         if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
@@ -2440,7 +2465,7 @@ Reason: %s
                 self._create_association(dp_obj, PRED.hasDataProducer, data_producer_obj)
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
-                svc_client.assign_data_product(input_res_id, dp_id, headers=headers)
+                svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=120)
 
 
     def _load_DataProductLink_OOI(self):
@@ -2483,6 +2508,8 @@ Reason: %s
 
         res_id = self.resource_ids[row["resource_id"]]
         att_obj = self._create_object_from_row("Attachment", row, "att/")
+        if row['parser'] and row['parser'] in self.resource_ids:
+            att_obj.context = objects.ReferenceAttachmentContext(parser_id=self.resource_ids[row['parser']])
         filename = row["file_path"]
         if not filename:
             raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])

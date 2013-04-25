@@ -17,6 +17,7 @@ from ion.services.dm.utility.granule import RecordDictionaryTool
 from ion.util.time_utils import TimeUtils
 
 from coverage_model import utils
+from coverage_model.parameter_functions import ParameterFunctionException
 
 from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
@@ -153,7 +154,10 @@ class ReplayProcess(BaseReplayProcess):
 
         for field in fields:
             log.info( 'Slice is %s' , slice_)
-            n = coverage.get_parameter_values(field,tdoa=slice_)
+            try:
+                n = coverage.get_parameter_values(field,tdoa=slice_)
+            except ParameterFunctionException:
+                continue
             if n is None:
                 rdt[field] = [n]
             elif isinstance(n,np.ndarray):

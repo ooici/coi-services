@@ -213,7 +213,8 @@ class DatasetManagementService(BaseDatasetManagementService):
         if not len(res):
             raise NotFound('Unable to locate context with name: %s' % name)
         retval = res[0]
-        retval.parameter_context = self.numpy_walk(retval.parameter_context)
+        if not id_only:
+            retval.parameter_context = self.numpy_walk(retval.parameter_context)
         return retval
 
 #--------

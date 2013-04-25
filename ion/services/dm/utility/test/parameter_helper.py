@@ -278,6 +278,17 @@ class ParameterHelper(object):
 
         return contexts, funcs
 
+    def create_parsers(self):
+        resource_registry       = Container.instance.resource_registry
+        from interface.objects import Parser
+        resource_registry.create(Parser(name='Global Range Test',module="ion.util.parsers.global_range_test", method="grt_parser"))
+        resource_registry.create(Parser(name='Stuck Value Test',module="ion.util.parsers.stuck_value_test", method="stuck_value_test_parser"))
+        resource_registry.create(Parser(name="Gradient Test",module="ion.util.parsers.gradient_test", method="gradient_test_parser"))
+        resource_registry.create(Parser(name="Spike Test",module="ion.util.parsers.spike_test", method="spike_parser"))
+
+
+
+
     def create_parsed_params(self):
         
         contexts = {}
@@ -545,6 +556,12 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
         return func
 
+    def create_spike_test_function(self):
+        func = PythonFunction('dataqc_spiketest','ion_functions.qc.qc_functions','dataqc_spiketest',['dat','acc','N','L'])
+        func_id = self.dataset_management.create_parameter_function(name='dataqc_spiketest', parameter_function=func.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
+        return func
+    
     def create_simple_qc(self):
         contexts = {}
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
@@ -555,7 +572,8 @@ class ParameterHelper(object):
         
         temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         temp_ctxt.uom = 'deg_C'
-        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump())
+        temp_ctxt.ooi_short_name = 'TEMPWAT'
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
@@ -563,15 +581,21 @@ class ParameterHelper(object):
         ctxt_id, pc = types_manager.make_grt_qc('temp', 'TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
         contexts['temp_qc'] = pc, ctxt_id
+        
+        ctxt_id, pc = types_manager.make_spike_qc('temp', 'TEMPWAT')
+        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
+        contexts['temp_spike_qc'] = pc, ctxt_id
 
         return contexts
 
     def create_simple_qc_pdict(self):
         types_manager = TypesManager(self.dataset_management,None,None)
         self.create_global_range_function()
+        self.create_spike_test_function()
         contexts = self.create_simple_qc()
         context_ids = [i[1] for i in contexts.itervalues()]
         context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_qc'][0]))
+        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_spike_qc'][0]))
         pdict_id = self.dataset_management.create_parameter_dictionary('simple_qc', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
