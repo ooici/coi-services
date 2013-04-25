@@ -102,7 +102,6 @@ class UserNotificationService(BaseUserNotificationService):
     """
 
     def __init__(self, *args, **kwargs):
-        self._subscribers = []
         self._schedule_ids = []
         BaseUserNotificationService.__init__(self, *args, **kwargs)
 
@@ -174,9 +173,7 @@ class UserNotificationService(BaseUserNotificationService):
             origin='UserNotificationService',
             callback=reload_user_info
         )
-        self.reload_user_info_subscriber.start()
-        # For cleanup of the subscriber
-        self._subscribers.append(self.reload_user_info_subscriber)
+        self.add_endpoint(self.reload_user_info_subscriber)
 
     def on_quit(self):
         """
@@ -184,9 +181,6 @@ class UserNotificationService(BaseUserNotificationService):
 
         Cleans up subscribers spawned here, terminates any scheduled tasks to the scheduler.
         """
-        for sub in self._subscribers:
-            sub.stop()
-
         for sid in self._schedule_ids:
             try:
                 self.clients.scheduler.cancel_timer(sid)
@@ -229,8 +223,7 @@ class UserNotificationService(BaseUserNotificationService):
             queue_name='user_notification',
             callback=process
         )
-        self.batch_processing_subscriber.start()
-        self._subscribers.append(self.batch_processing_subscriber)
+        self.add_endpoint(self.batch_processing_subscriber)
 
     def create_notification(self, notification=None, user_id=''):
         """

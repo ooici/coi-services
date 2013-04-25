@@ -13,7 +13,7 @@ from nose.plugins.attrib import attr
 from gevent.event import Event
 
 @attr('INT',group='dm')
-class TestTrasforms(IonIntegrationTestCase):
+class TestTransforms(IonIntegrationTestCase):
     def setUp(self):
         self._start_container()
         self.queue_cleanup = []
