@@ -163,7 +163,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         return obj
 
 
-    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report=None, units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map=None, standard_name='', ooi_short_name='', precision=''):
+    def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision=''):
         res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
         if len(res):
             for r in res:
@@ -178,7 +178,7 @@ class DatasetManagementService(BaseDatasetManagementService):
         pc_res.parameter_type = parameter_type
         pc_res.internal_name = internal_name or name
         pc_res.value_encoding = value_encoding
-        pc_res.code_report = code_report or {}
+        pc_res.code_report = code_report or ''
         pc_res.units = units
         pc_res.fill_value = fill_value
         pc_res.display_name = display_name
