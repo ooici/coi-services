@@ -94,6 +94,7 @@ class PlatformAgentState(BaseEnum):
     STOPPED           = ResourceAgentState.STOPPED
     COMMAND           = ResourceAgentState.COMMAND
     MONITORING        = 'PLATFORM_AGENT_STATE_MONITORING'
+    LAUNCHING         = 'PLATFORM_AGENT_STATE_LAUNCHING'
 
 
 class PlatformAgentEvent(BaseEnum):
@@ -120,6 +121,7 @@ class PlatformAgentEvent(BaseEnum):
 
     START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
     STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
+    LAUNCH_COMPLETE           = 'PLATFORM_AGENT_LAUNCH_COMPLETE'
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -215,7 +217,8 @@ class PlatformAgent(ResourceAgent):
         self._async_children_launched = None
 
         # Default initial state.
-        self._initial_state = PlatformAgentState.UNINITIALIZED
+        #self._initial_state = PlatformAgentState.UNINITIALIZED
+        self._initial_state = PlatformAgentState.LAUNCHING
 
         # List of current alarm objects.
         self.aparam_alerts = []
@@ -282,6 +285,13 @@ class PlatformAgent(ResourceAgent):
             log.info("%r: starting _children_launch", self._platform_id)
             Greenlet(self._children_launch).start()
             log.info("%r: started _children_launch", self._platform_id)
+
+        #processing complete so unblock and accept cmds
+        self._fsm.on_event(PlatformAgentEvent.LAUNCH_COMPLETE)
+        cur_state = self._fsm.get_current_state()
+        if cur_state != ResourceAgentState.UNINITIALIZED:
+            raise Exception()
+
 
     def _validate_configuration(self):
         """
@@ -2288,6 +2298,20 @@ class PlatformAgent(ResourceAgent):
     # UNINITIALIZED event handlers.
     ##############################################################
 
+    def _handler_launching_launchcomplete(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        recursion = self._get_recursion_parameter("_handler_launching_launchcomplete", args, kwargs)
+
+        next_state = PlatformAgentState.UNINITIALIZED
+        result = None
+
+        return next_state, result
+
     def _handler_uninitialized_initialize(self, *args, **kwargs):
         """
         """
@@ -2633,6 +2657,7 @@ class PlatformAgent(ResourceAgent):
                                                   events=events)
 
         # UNINITIALIZED state event handlers.
+        self._fsm.add_handler(PlatformAgentState.LAUNCHING, PlatformAgentEvent.LAUNCH_COMPLETE, self._handler_launching_launchcomplete)
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
 
