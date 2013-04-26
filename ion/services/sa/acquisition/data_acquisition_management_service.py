@@ -21,7 +21,7 @@ from interface.objects import AttachmentType
 from collections import deque
 
 from ooi.timer import Timer, Accumulator
-stats = Accumulator(presist=True)
+stats = Accumulator(persist=True)
 
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
