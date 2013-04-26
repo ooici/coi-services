@@ -44,14 +44,14 @@ def trend_parser(document):
 
     dr = DictReader(sio)
     for row in dr:
-        key = '_'.join(['trend', row['Reference Designator'], row['Data Product']])
+        key = '_'.join(['trend', row['Reference Designator'], row['Data Products']])
         document = {}
         document['array']                = row['Array']
         document['instrument_class']     = row['Instrument Class']
         document['reference_designator'] = row['Reference Designator']
-        document['data_product_in']      = row['Data Product']
+        document['data_product_in']      = row['Data Products']
         document['time_interval']        = float(row['Time interval length in days'])
-        document['polynomial_order']     = row['Polynomial order']
+        document['polynomial_order']     = float(row['Polynomial order'])
         document['standard_deviation']   = float(row['Standard deviation reduction factor (nstd)'])
         yield key,document
     return
