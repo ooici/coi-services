@@ -229,6 +229,7 @@ class Handler(BaseHandler):
             fields = [[(name, ())] for name in all_vars]
         
         dataset = self.get_dataset(coverage, fields, fill_index, dataset, response)
+        coverage.close()
         return dataset
     
     def none_to_str(self, data):
