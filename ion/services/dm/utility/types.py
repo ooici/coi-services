@@ -206,6 +206,13 @@ class TypesManager(object):
             return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
         else:
             raise KeyError('dataqc_spiketest was never loaded')
+    @memoize_lru(maxsize=100)
+    def find_stuck_value(self):
+        res_obj, _ = Container.instance.resource_registry.find_resources(name="dataqc_stuckvaluetest", restype=RT.ParameterFunction, id_only=False)
+        if res_obj:
+            return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
+        else:
+            raise KeyError('dataqc_spiketest was never loaded')
 
     def make_qc_functions(self, name, data_product, registration_function):
         contexts = []
@@ -252,6 +259,11 @@ class TypesManager(object):
 
         ctxt_id = self.dataset_management.create_parameter_context(name='%s_spketst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
         return ctxt_id, pc
+
+    def make_stuckvalue_qc(self, name, data_product):
+        pfunc_id, pfunc = self.find_stuck_value()
+
+
 
 
 
