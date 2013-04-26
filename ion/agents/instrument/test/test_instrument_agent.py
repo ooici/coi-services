@@ -1050,8 +1050,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         retval = self._ia_client.get_agent(['streams'])['streams']
         self.assertIn('raw', retval)
         self.assertIn('parsed', retval)
-        self.assertItemsEqual(retval['raw'], raw_fields)
-        self.assertItemsEqual(retval['parsed'], parsed_fields)
+        for x in raw_fields:
+            self.assertIn(x, retval['raw'])
+        for x in parsed_fields:
+            self.assertIn(x, retval['parsed'])
         
         retval = self._ia_client.get_agent(['pubrate'])
         expected_pubrate_result = {'pubrate': {'raw': 0, 'parsed': 0}}
