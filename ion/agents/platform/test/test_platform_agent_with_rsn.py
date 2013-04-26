@@ -40,8 +40,8 @@ from pyon.core.exception import Conflict
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
 from ion.agents.platform.responses import NormalResponse
-from ion.agents.platform.platform_driver import PlatformDriverState
-from ion.agents.platform.platform_driver import PlatformDriverEvent
+from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverState
+from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
@@ -99,33 +99,15 @@ class TestPlatformAgent(BaseIntTestPlatform):
             instrument_id = instrument_id,
             attributes = instrument_attributes
         )
-        cmd = AgentCommand(command=PlatformAgentEvent.CONNECT_INSTRUMENT, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        result = retval.result
+        result = self._execute_resource(RSNPlatformDriverEvent.CONNECT_INSTRUMENT, **kwargs)
         log.info("CONNECT_INSTRUMENT = %s", result)
         self.assertIsInstance(result, dict)
-        self.assertTrue(port_id in result)
+        self.assertIn(port_id, result)
         self.assertIsInstance(result[port_id], dict)
         returned_attrs = self._verify_valid_instrument_id(instrument_id, result[port_id])
         if isinstance(returned_attrs, dict):
             for attrName in instrument_attributes:
-                self.assertTrue(attrName in returned_attrs)
-
-    def _get_connected_instruments(self):
-        port_id = self.PORT_ID
-
-        kwargs = dict(
-            port_id = port_id,
-        )
-        cmd = AgentCommand(command=PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        result = retval.result
-        log.info("GET_CONNECTED_INSTRUMENTS = %s", result)
-        self.assertIsInstance(result, dict)
-        self.assertTrue(port_id in result)
-        self.assertIsInstance(result[port_id], dict)
-        instrument_id = self.INSTRUMENT_ID
-        self.assertTrue(instrument_id in result[port_id])
+                self.assertIn(attrName, returned_attrs)
 
     def _disconnect_instrument(self):
         # TODO real settings and corresp verification
@@ -137,14 +119,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
             port_id = port_id,
             instrument_id = instrument_id
         )
-        cmd = AgentCommand(command=PlatformAgentEvent.DISCONNECT_INSTRUMENT, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        result = retval.result
+        result = self._execute_resource(RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT, **kwargs)
         log.info("DISCONNECT_INSTRUMENT = %s", result)
         self.assertIsInstance(result, dict)
-        self.assertTrue(port_id in result)
+        self.assertIn(port_id, result)
         self.assertIsInstance(result[port_id], dict)
-        self.assertTrue(instrument_id in result[port_id])
+        self.assertIn(instrument_id, result[port_id])
         self._verify_instrument_disconnected(instrument_id, result[port_id][instrument_id])
 
     def _turn_on_port(self):
@@ -155,9 +135,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         kwargs = dict(
             port_id = port_id
         )
-        cmd = AgentCommand(command=PlatformAgentEvent.TURN_ON_PORT, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        result = retval.result
+        result = self._execute_resource(RSNPlatformDriverEvent.TURN_ON_PORT, **kwargs)
         log.info("TURN_ON_PORT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
@@ -171,15 +149,16 @@ class TestPlatformAgent(BaseIntTestPlatform):
         kwargs = dict(
             port_id = port_id
         )
-        cmd = AgentCommand(command=PlatformAgentEvent.TURN_OFF_PORT, kwargs=kwargs)
-        retval = self._execute_agent(cmd)
-        result = retval.result
+        result = self._execute_resource(RSNPlatformDriverEvent.TURN_OFF_PORT, **kwargs)
         log.info("TURN_OFF_PORT = %s", result)
         self.assertIsInstance(result, dict)
         self.assertTrue(port_id in result)
         self.assertEquals(result[port_id], NormalResponse.PORT_TURNED_OFF)
 
     def _get_resource(self):
+        """
+        Gets platform attribute values/
+        """
         attrNames = self.ATTR_NAMES
         #
         # OOIION-631: use get_ion_ts() as a basis for using system time, which is
@@ -230,11 +209,12 @@ class TestPlatformAgent(BaseIntTestPlatform):
             self._verify_attribute_value_out_of_range(attrName, attr_values)
 
     def _get_subplatform_ids(self):
-        cmd = AgentCommand(command=PlatformAgentEvent.GET_SUBPLATFORM_IDS)
+        kwargs = dict(subplatform_ids=None)
+        cmd = AgentCommand(command=PlatformAgentEvent.GET_RESOURCE, kwargs=kwargs)
         retval = self._execute_agent(cmd)
-        self.assertIsInstance(retval.result, list)
-        self.assertTrue(x in retval.result for x in self.SUBPLATFORM_IDS)
-        return retval.result
+        subplatform_ids = retval.result
+        self.assertIsInstance(subplatform_ids, (list, tuple))
+        return subplatform_ids
 
     def test_capabilities(self):
         self._create_network_and_start_root_platform()
@@ -257,21 +237,8 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.EXECUTE_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_STATE,
 
-            PlatformAgentEvent.GET_METADATA,
-            PlatformAgentEvent.GET_PORTS,
-
-            PlatformAgentEvent.CONNECT_INSTRUMENT,
-            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
-            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
-
-            PlatformAgentEvent.TURN_ON_PORT,
-            PlatformAgentEvent.TURN_OFF_PORT,
-            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
-
             PlatformAgentEvent.START_MONITORING,
             PlatformAgentEvent.STOP_MONITORING,
-
-            PlatformAgentEvent.CHECK_SYNC,
         ]
 
 
@@ -304,13 +271,11 @@ class TestPlatformAgent(BaseIntTestPlatform):
         ]
         res_pars_all = []
         res_cmds_all = [
-            PlatformDriverEvent.GET_PORTS,
-            PlatformDriverEvent.CONNECT_INSTRUMENT,
-            PlatformDriverEvent.DISCONNECT_INSTRUMENT,
-            PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS,
-            PlatformDriverEvent.TURN_ON_PORT,
-            PlatformDriverEvent.TURN_OFF_PORT,
-            PlatformDriverEvent.GET_CHECKSUM
+            RSNPlatformDriverEvent.CONNECT_INSTRUMENT,
+            RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT,
+            RSNPlatformDriverEvent.TURN_ON_PORT,
+            RSNPlatformDriverEvent.TURN_OFF_PORT,
+            RSNPlatformDriverEvent.CHECK_SYNC
         ]
 
         ##################################################################
@@ -360,9 +325,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         agt_cmds_inactive = [
             PlatformAgentEvent.RESET,
             PlatformAgentEvent.SHUTDOWN,
-            PlatformAgentEvent.GET_METADATA,
-            PlatformAgentEvent.GET_PORTS,
-            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GO_ACTIVE,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
@@ -382,7 +344,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self.assertItemsEqual(agt_cmds, agt_cmds_all)
         self.assertItemsEqual(agt_pars, agt_pars_all)
-        self.assertItemsEqual(res_cmds, res_cmds_all)
+        self.assertEqual(set(res_cmds), set(res_cmds_all))
         self.assertItemsEqual(res_pars, [])
 
         ##################################################################
@@ -440,16 +402,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.SHUTDOWN,
             PlatformAgentEvent.PAUSE,
             PlatformAgentEvent.CLEAR,
-            PlatformAgentEvent.GET_METADATA,
-            PlatformAgentEvent.GET_PORTS,
 
-            PlatformAgentEvent.CONNECT_INSTRUMENT,
-            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
-            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
-
-            PlatformAgentEvent.TURN_ON_PORT,
-            PlatformAgentEvent.TURN_OFF_PORT,
-            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
@@ -458,8 +411,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.START_MONITORING,
-
-            PlatformAgentEvent.CHECK_SYNC,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_command)
@@ -510,16 +461,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         agt_cmds_monitoring = [
             PlatformAgentEvent.RESET,
             PlatformAgentEvent.SHUTDOWN,
-            PlatformAgentEvent.GET_METADATA,
-            PlatformAgentEvent.GET_PORTS,
 
-            PlatformAgentEvent.CONNECT_INSTRUMENT,
-            PlatformAgentEvent.DISCONNECT_INSTRUMENT,
-            PlatformAgentEvent.GET_CONNECTED_INSTRUMENTS,
-
-            PlatformAgentEvent.TURN_ON_PORT,
-            PlatformAgentEvent.TURN_OFF_PORT,
-            PlatformAgentEvent.GET_SUBPLATFORM_IDS,
             PlatformAgentEvent.GET_RESOURCE_CAPABILITIES,
             PlatformAgentEvent.PING_RESOURCE,
             PlatformAgentEvent.GET_RESOURCE,
@@ -528,8 +470,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
             PlatformAgentEvent.GET_RESOURCE_STATE,
 
             PlatformAgentEvent.STOP_MONITORING,
-
-            PlatformAgentEvent.CHECK_SYNC,
         ]
 
         self.assertItemsEqual(agt_cmds, agt_cmds_monitoring)
@@ -618,8 +558,11 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._ping_resource()
 
         self._get_metadata()
-        self._get_ports()
         self._get_subplatform_ids()
+
+        ports = self._get_ports()
+        for port_id in ports:
+            self._get_connected_instruments(port_id)
 
         #####################
         # done
@@ -678,8 +621,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._connect_instrument()
         self._turn_on_port()
 
-        self._get_connected_instruments()
-
         self._turn_off_port()
         self._disconnect_instrument()
 
@@ -713,13 +654,6 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._reset()
         self._shutdown()
 
-    def _execute_resource(self, cmd, *args, **kwargs):
-        cmd = AgentCommand(command=cmd, args=args, kwargs=kwargs)
-        retval = self._pa_client.execute_resource(cmd)
-        log.debug("_execute_resource: cmd=%s: retval=%s", cmd, retval)
-        self.assertTrue(retval.result)
-        return retval.result
-
     def test_execute_resource(self):
         self._create_network_and_start_root_platform()
 
@@ -729,12 +663,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._go_active()
         self._run()
 
-        self._execute_resource(PlatformDriverEvent.GET_CHECKSUM)
-        self._execute_resource(PlatformDriverEvent.GET_METADATA)
-
-        ports = self._execute_resource(PlatformDriverEvent.GET_PORTS)
-        for port_id in ports:
-            self._execute_resource(PlatformDriverEvent.GET_CONNECTED_INSTRUMENTS, port_id)
+        self._execute_resource(RSNPlatformDriverEvent.CHECK_SYNC)
 
         #####################
         # done
@@ -756,22 +685,22 @@ class TestPlatformAgent(BaseIntTestPlatform):
                                      count=2)
 
         res_state = self._pa_client.get_resource_state()
-        self.assertEqual(res_state, PlatformDriverState.DISCONNECTED)
+        self.assertEqual(res_state, RSNPlatformDriverState.DISCONNECTED)
 
         self._go_active()
 
         res_state = self._pa_client.get_resource_state()
-        self.assertEqual(res_state, PlatformDriverState.CONNECTED)
+        self.assertEqual(res_state, RSNPlatformDriverState.CONNECTED)
 
         self._run()
 
         res_state = self._pa_client.get_resource_state()
-        self.assertEqual(res_state, PlatformDriverState.CONNECTED)
+        self.assertEqual(res_state, RSNPlatformDriverState.CONNECTED)
 
         self._go_inactive()
 
         res_state = self._pa_client.get_resource_state()
-        self.assertEqual(res_state, PlatformDriverState.DISCONNECTED)
+        self.assertEqual(res_state, RSNPlatformDriverState.DISCONNECTED)
 
         self._reset()
 

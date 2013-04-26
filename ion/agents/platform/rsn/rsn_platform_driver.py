@@ -15,6 +15,8 @@ from pyon.public import log
 import logging
 
 from ion.agents.platform.platform_driver import PlatformDriver
+from ion.agents.platform.platform_driver import PlatformDriverState
+from ion.agents.platform.platform_driver import PlatformDriverEvent
 from ion.agents.platform.util.network import InstrumentNode
 from ion.agents.platform.exceptions import PlatformException
 from ion.agents.platform.exceptions import PlatformDriverException
@@ -24,6 +26,35 @@ from ion.agents.platform.responses import NormalResponse, InvalidResponse
 from ion.agents.platform.rsn.oms_event_listener import OmsEventListener
 
 from ion.agents.platform.util import ion_ts_2_ntp
+
+from pyon.agent.common import BaseEnum
+from pyon.agent.instrument_fsm import FSMError
+
+
+class RSNPlatformDriverState(PlatformDriverState):
+    """
+    We simply inherit the states from the superclass
+    """
+    pass
+
+
+class RSNPlatformDriverEvent(PlatformDriverEvent):
+    """
+    The ones for superclass plus a few others for the CONNECTED state.
+    """
+    CONNECT_INSTRUMENT        = 'RSN_PLATFORM_DRIVER_CONNECT_INSTRUMENT'
+    DISCONNECT_INSTRUMENT     = 'RSN_PLATFORM_DRIVER_DISCONNECT_INSTRUMENT'
+    TURN_ON_PORT              = 'RSN_PLATFORM_DRIVER_TURN_ON_PORT'
+    TURN_OFF_PORT             = 'RSN_PLATFORM_DRIVER_TURN_OFF_PORT'
+    CHECK_SYNC                = 'RSN_PLATFORM_DRIVER_CHECK_SYNC'
+
+
+class RSNPlatformDriverCapability(BaseEnum):
+    CONNECT_INSTRUMENT        = RSNPlatformDriverEvent.CONNECT_INSTRUMENT
+    DISCONNECT_INSTRUMENT     = RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT
+    TURN_ON_PORT              = RSNPlatformDriverEvent.TURN_ON_PORT
+    TURN_OFF_PORT             = RSNPlatformDriverEvent.TURN_OFF_PORT
+    CHECK_SYNC                = RSNPlatformDriverEvent.CHECK_SYNC
 
 
 class RSNPlatformDriver(PlatformDriver):
@@ -48,7 +79,13 @@ class RSNPlatformDriver(PlatformDriver):
         # actual http server is started via corresponding method.
         self._event_listener = OmsEventListener(self._notify_driver_event)
 
-    def _validate_driver_configuration(self, driver_config):
+    def _filter_capabilities(self, events):
+        """
+        """
+        events_out = [x for x in events if RSNPlatformDriverCapability.has(x)]
+        return events_out
+
+    def validate_driver_configuration(self, driver_config):
         """
         Driver config must include 'oms_uri' entry.
         """
@@ -133,10 +170,20 @@ class RSNPlatformDriver(PlatformDriver):
         md = retval[self._platform_id]
         return md
 
+    def get_subplatform_ids(self):
+        """
+        Gets the IDs of my sub-platforms.
+        """
+        return self._pnode.subplatforms.keys()
+
     def get_attribute_values(self, attrs):
         """
         """
         log.debug("get_attribute_values: attrs=%s", attrs)
+
+        if not isinstance(attrs, (list, tuple)):
+            raise PlatformException('get_attribute_values: attrs argument must be a '
+                                    'list [(attrName, from_time), ...]. Given: %s', attrs)
 
         self._assert_rsn_oms()
 
@@ -480,9 +527,10 @@ class RSNPlatformDriver(PlatformDriver):
     # sync/checksum
     ##############################################################
 
-    def get_checksum(self):
+    def get_external_checksum(self):
         """
-        Returns the checksum associated to this platform.
+        Returns the checksum of the external platform associated with this
+        driver.
 
         @return SHA1 hash value as string of hexadecimal digits.
         """
@@ -492,3 +540,233 @@ class RSNPlatformDriver(PlatformDriver):
         dic_plat = self._verify_platform_id_in_response(response)
         log.debug("%r: get_checksum... dic_plat=%s" % (self._platform_id, dic_plat))
         return dic_plat  # note: return the dic for the platform
+
+    def _check_sync(self):
+        """
+        This will be the main operation related with checking that the
+        information on this platform agent (and sub-platforms) is consistent
+        with the information in the external network rooted at the
+        corresponding platform, then publishing relevant notification events.
+
+        For the moment, it only tries to do the following:
+        - gets the checksum reported by the external platform
+        - compares it with the local checksum
+        - if equal ...
+        - if different ...
+
+        @todo complete implementation
+
+        @return TODO
+        """
+
+        log.debug("%r: _check_sync: getting external checksum...", self._platform_id)
+
+        external_checksum = self.get_external_checksum()
+        local_checksum = self._pnode.compute_checksum()
+
+        if external_checksum == local_checksum:
+            result = "OK: checksum for platform_id=%r: %s" % (
+                self._platform_id, local_checksum)
+        else:
+            result = "ERROR: different external and local checksums for " \
+                     "platform_id=%r: %s != %s" % (self._platform_id,
+                     external_checksum, local_checksum)
+
+            # TODO - determine what sub-components are in disagreement
+            # TODO - publish relevant event(s)
+
+        log.debug("%r: _check_sync: result: %s", self._platform_id, result)
+
+        return result
+
+    ##############################################################
+    # GET
+    ##############################################################
+
+    def get(self, *args, **kwargs):
+
+        if 'attrs' in kwargs:
+            attrs = kwargs['attrs']
+            result = self.get_attribute_values(attrs)
+            return result
+
+        if 'subplatform_ids' in kwargs:
+            result = self.get_subplatform_ids()
+            return result
+
+        if 'ports' in kwargs:
+            result = self._get_ports()
+            return result
+
+        if 'connected_instruments' in kwargs:
+            port_id = kwargs['connected_instruments']
+            result = self.get_connected_instruments(port_id)
+            return result
+
+        if 'metadata' in kwargs:
+            result = self.get_metadata()
+            return result
+
+        return super(RSNPlatformDriver, self).get(*args, **kwargs)
+
+
+    ##############################################################
+    # EXECUTE
+    ##############################################################
+
+    def execute(self, cmd, *args, **kwargs):
+        """
+        Executes the given command.
+
+        @param cmd   command
+
+        @return  result of the execution
+        """
+
+        if cmd == RSNPlatformDriverEvent.CHECK_SYNC:
+            result = self._check_sync()
+
+        elif cmd == RSNPlatformDriverEvent.TURN_ON_PORT:
+            result = self.turn_on_port(*args, **kwargs)
+
+        elif cmd == RSNPlatformDriverEvent.TURN_OFF_PORT:
+            result = self.turn_off_port(*args, **kwargs)
+
+        elif cmd == RSNPlatformDriverEvent.CONNECT_INSTRUMENT:
+            result = self.connect_instrument(*args, **kwargs)
+
+        elif cmd == RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT:
+            result = self.disconnect_instrument(*args, **kwargs)
+
+        else:
+            result = super(RSNPlatformDriver, self).execute(cmd, args, kwargs)
+
+        return result
+
+    def _get_ports(self):
+        ports = {}
+        for port_id, port in self._pnode.ports.iteritems():
+            ports[port_id] = {'network': port.network,
+                              'is_on': port.is_on}
+        log.debug("%r: _get_ports: %s", self._platform_id, ports)
+        return ports
+
+    ##############################################################
+    # CONNECTED event handlers we add in this subclass
+    ##############################################################
+
+    def _handler_connected_connect_instrument(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('connect_instrument: missing port_id argument')
+
+        instrument_id = kwargs.get('instrument_id', None)
+        if instrument_id is None:
+            raise FSMError('connect_instrument: missing instrument_id argument')
+
+        attributes = kwargs.get('attributes', None)
+        if attributes is None:
+            raise FSMError('connect_instrument: missing attributes argument')
+
+        result = self.connect_instrument(port_id, instrument_id, attributes)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_disconnected_connect_instrument(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('disconnect_instrument: missing port_id argument')
+
+        instrument_id = kwargs.get('instrument_id', None)
+        if instrument_id is None:
+            raise FSMError('disconnect_instrument: missing instrument_id argument')
+
+        result = self.disconnect_instrument(port_id, instrument_id)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_turn_on_port(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('turn_on_port: missing port_id argument')
+
+        result = self.turn_on_port(port_id)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_turn_off_port(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        port_id = kwargs.get('port_id', None)
+        if port_id is None:
+            raise FSMError('turn_off_port: missing port_id argument')
+
+        result = self.turn_off_port(port_id)
+        next_state = None
+
+        return next_state, result
+
+    def _handler_connected_check_sync(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        result = self._check_sync()
+        next_state = None
+
+        return next_state, result
+
+    ##############################################################
+    # RSN Platform driver FSM setup
+    ##############################################################
+
+    def _construct_fsm(self,
+                       states=RSNPlatformDriverState,
+                       events=RSNPlatformDriverEvent,
+                       enter_event=RSNPlatformDriverEvent.ENTER,
+                       exit_event=RSNPlatformDriverEvent.EXIT):
+        """
+        """
+        log.debug("constructing RSN platform driver FSM")
+
+        super(RSNPlatformDriver, self)._construct_fsm(states, events,
+                                                      enter_event, exit_event)
+
+        # CONNECTED state event handlers we add in this class:
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_disconnected_connect_instrument)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_ON_PORT, self._handler_connected_turn_on_port)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_OFF_PORT, self._handler_connected_turn_off_port)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.CHECK_SYNC, self._handler_connected_check_sync)
