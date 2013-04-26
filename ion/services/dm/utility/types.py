@@ -206,6 +206,13 @@ class TypesManager(object):
             return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
         else:
             raise KeyError('dataqc_spiketest was never loaded')
+    @memoize_lru(maxsize=100)
+    def find_stuck_value(self):
+        res_obj, _ = Container.instance.resource_registry.find_resources(name="dataqc_stuckvaluetest", restype=RT.ParameterFunction, id_only=False)
+        if res_obj:
+            return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
+        else:
+            raise KeyError('dataqc_spiketest was never loaded')
 
     def make_qc_functions(self, name, data_product, registration_function):
         contexts = []
@@ -213,6 +220,9 @@ class TypesManager(object):
         contexts.append(ctxt_id)
         registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
         ctxt_id, pc = self.make_spike_qc(name,data_product)
+        contexts.append(ctxt_id)
+        registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
+        ctxt_id, pc = self.make_stuckvalue_qc(name,data_product)
         contexts.append(ctxt_id)
         registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
 
@@ -253,6 +263,23 @@ class TypesManager(object):
         ctxt_id = self.dataset_management.create_parameter_context(name='%s_spketst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
         return ctxt_id, pc
 
+    def make_stuckvalue_qc(self, name, data_product):
+        pfunc_id, pfunc = self.find_stuck_value()
+
+        reso_id, reso_name = self.get_lookup_value('LV_svt_$designator_%s||svt_resolution' % data_product)
+        n_id, n_name = self.get_lookup_value('LV_svt_$designator_%s||svt_n' % data_product)
+
+        pmap = {'x' : name, 'reso': reso_name, 'num': n_name}
+        pfunc.param_map = pmap
+        pfunc.lookup_values = [reso_id, n_id]
+        dp_name = re.sub(r'_L[0-9]+','',data_product)
+        pc = ParameterContext(name='%s_stuckvl_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
+        pc.uom = '1'
+        pc.ooi_short_name = '%s_STUCKVL_QC' % dp_name
+        pc.description =  'The OOI Stuck Value Test quality control algorithm generates a flag for repeated occurrence of one value in a time series.'
+
+        ctxt_id = self.dataset_management.create_parameter_context(name='%s_stuckvl_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
+        return ctxt_id, pc
 
 
 

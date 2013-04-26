@@ -22,6 +22,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.objects import Granule
 
 from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType, Span, SparseConstantType
+from coverage_model.parameter_functions import ParameterFunctionException
 from coverage_model.parameter_values import AbstractParameterValue, ConstantValue
 from coverage_model.parameter_types import ParameterFunctionType
 
@@ -146,6 +147,7 @@ class RecordDictionaryTool(object):
                 try:
                     doc = svm.read_value(document_key)
                 except NotFound:
+                    log.info('Reference Document for %s not found', document_key)
                     continue
                 if context.lookup_value in doc:
                     self[lv] = doc[context.lookup_value]
@@ -322,8 +324,9 @@ class RecordDictionaryTool(object):
                 pfv._pval_callback = self._pval_callback
                 retval = pfv[:]
                 return retval
-            except Exception as e:
-                log.warning(e.message)
+            except ParameterFunctionException:
+                from traceback import format_exc
+                log.info(format_exc())
                 return None
         else:
             return None
