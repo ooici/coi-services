@@ -25,7 +25,7 @@ from interface.services.coi.iexchange_management_service import ExchangeManageme
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.services.coi.isystem_management_service import SystemManagementServiceProcessClient
-
+from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum, ComputedValueAvailability
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
 from pyon.core.governance.negotiation import Negotiation
@@ -70,7 +70,7 @@ Mh9xL90hfMJyoGemjJswG5g3fAdTP/Lv0I6/nWeH/cLjwwpQgIEjEAVXl7KHuzX5vPD/wqQ=
 -----END CERTIFICATE-----"""
 
 DENY_EXCHANGE_TEXT = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+        <Rule RuleId="%s" Effect="Deny">
             <Description>
                 %s
             </Description>
@@ -92,7 +92,7 @@ DENY_EXCHANGE_TEXT = '''
 
 
 TEST_POLICY_TEXT = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Permit">
+        <Rule RuleId="%s" Effect="Permit">
             <Description>
                 %s
             </Description>
@@ -128,7 +128,7 @@ TEST_POLICY_TEXT = '''
 
 
 TEST_BOUNDARY_POLICY_TEXT = '''
-        <Rule RuleId="urn:oasis:names:tc:xacml:2.0:example:ruleid:%s" Effect="Deny">
+        <Rule RuleId="%s" Effect="Deny">
             <Description>
                 %s
             </Description>
@@ -149,6 +149,158 @@ TEST_BOUNDARY_POLICY_TEXT = '''
 
         </Rule>
         '''
+
+###########
+
+
+DENY_PARAM_50_RULE = '''
+            <Rule RuleId="%s:" Effect="Permit">
+                <Description>
+                    %s
+                </Description>
+
+                <Target>
+                    <Resources>
+                        <Resource>
+                            <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">.*$</AttributeValue>
+                                <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ResourceMatch>
+                        </Resource>
+                        <Resource>
+                            <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">agent</AttributeValue>
+                                <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:receiver-type" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ResourceMatch>
+                        </Resource>
+                    </Resources>
+
+                    <Actions>
+                        <Action>
+                            <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">set_resource</AttributeValue>
+                                <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ActionMatch>
+                        </Action>
+                    </Actions>
+
+                </Target>
+
+              <Condition>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-code">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string"><![CDATA[def policy_func(process, message, headers):
+                            params = message['params']
+                            if params['INTERVAL'] <= 50:
+                                return True, ''
+                            return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 50'
+                        ]]>
+                        </AttributeValue>
+                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                    </Apply>
+                </Condition>
+
+            </Rule>
+            '''
+
+
+DENY_PARAM_30_RULE = '''
+            <Rule RuleId="%s:" Effect="Permit">
+                <Description>
+                    %s
+                </Description>
+
+                <Target>
+                    <Resources>
+                        <Resource>
+                            <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">.*$</AttributeValue>
+                                <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ResourceMatch>
+                        </Resource>
+                        <Resource>
+                            <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">agent</AttributeValue>
+                                <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:receiver-type" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ResourceMatch>
+                        </Resource>
+                    </Resources>
+
+                    <Actions>
+                        <Action>
+                            <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">set_resource</AttributeValue>
+                                <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ActionMatch>
+                        </Action>
+                    </Actions>
+
+                </Target>
+
+              <Condition>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-code">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string"><![CDATA[def policy_func(process, message, headers):
+                            params = message['params']
+                            if params['INTERVAL'] <= 30:
+                                return True, ''
+                            return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 50'
+                        ]]>
+                        </AttributeValue>
+                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                    </Apply>
+                </Condition>
+
+            </Rule>
+            '''
+
+DENY_PARAM_10_RULE = '''
+            <Rule RuleId="%s:" Effect="Permit">
+                <Description>
+                    %s
+                </Description>
+
+                <Target>
+                    <Resources>
+                        <Resource>
+                            <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-regexp-match">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">.*$</AttributeValue>
+                                <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:resource-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ResourceMatch>
+                        </Resource>
+                        <Resource>
+                            <ResourceMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">agent</AttributeValue>
+                                <ResourceAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:resource:receiver-type" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ResourceMatch>
+                        </Resource>
+                    </Resources>
+
+                    <Actions>
+                        <Action>
+                            <ActionMatch MatchId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
+                                <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">set_resource</AttributeValue>
+                                <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-id" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                            </ActionMatch>
+                        </Action>
+                    </Actions>
+
+                </Target>
+
+              <Condition>
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:evaluate-code">
+                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string"><![CDATA[def policy_func(process, message, headers):
+                            params = message['params']
+                            if params['INTERVAL'] <= 10:
+                                return True, ''
+                            return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 50'
+                        ]]>
+                        </AttributeValue>
+                        <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
+                    </Apply>
+                </Condition>
+
+            </Rule>
+            '''
+
 
 
 @attr('INT', group='coi')
@@ -175,6 +327,7 @@ class TestGovernanceHeaders(IonIntegrationTestCase):
         self.resource_id_header_value = ''
 
     @attr('LOCOINT')
+    @attr('HEADERS')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_governance_message_headers(self):
         '''
@@ -321,7 +474,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         gevent.sleep(self.SLEEP_TIME*2)  # Wait for events to be fired and policy updated
 
-        self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+        self.rr_msg_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+        self.rr_client = ResourceRegistryServiceWrapper(self.container.resource_registry, process)
 
         self.id_client = IdentityManagementServiceProcessClient(node=self.container.node, process=process)
 
@@ -366,7 +520,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
     def tearDown(self):
-        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy, headers=self.system_actor_header)
+        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy)
 
         #Must remove the policies in the reverse order they were added
         for policy in sorted(policy_list,key=lambda p: p.ts_created, reverse=True):
@@ -637,6 +791,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @attr('RESET')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     @patch.dict(CFG, {'container':{'org_boundary':True}})
     def test_policy_cache_reset(self):
@@ -682,6 +837,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @attr('BOUNDARY')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     @patch.dict(CFG, {'container':{'org_boundary':True}})
     def test_org_boundary(self):
@@ -698,7 +854,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(org2_id, org2._id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
-        actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
+        actors,_ = self.rr_msg_client.find_resources(restype=RT.ActorIdentity)
         self.assertEqual(len(actors),2) #Should include the ION System Actor, Web auth actor.
 
         log.debug('Begin testing with policies')
@@ -715,7 +871,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         actor_header = get_actor_header(actor_id)
 
         #First try to get a list of Users by hitting the RR anonymously - should be allowed.
-        actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity)
+        actors,_ = self.rr_msg_client.find_resources(restype=RT.ActorIdentity)
         self.assertEqual(len(actors),3) #Should include the ION System Actor and web auth actor as well.
 
         #Now enroll the actor as a member of the Second Org
@@ -735,12 +891,12 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #First try to get a list of Users by hitting the RR anonymously - should be denied.
         with self.assertRaises(Unauthorized) as cm:
-            actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=self.anonymous_actor_headers)
+            actors,_ = self.rr_msg_client.find_resources(restype=RT.ActorIdentity, headers=self.anonymous_actor_headers)
         self.assertIn( 'resource_registry(find_resources) has been denied',cm.exception.message)
 
 
         #Now try to hit the RR with a real user and should now be allowed
-        actors,_ = self.rr_client.find_resources(restype=RT.ActorIdentity, headers=actor_header)
+        actors,_ = self.rr_msg_client.find_resources(restype=RT.ActorIdentity, headers=actor_header)
         self.assertEqual(len(actors),3) #Should include the ION System Actor and web auth actor as well.
 
         #TODO - figure out how to right a XACML rule to be a member of the specific Org as well
@@ -757,6 +913,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
     @attr('LOCOINT')
+    @attr('ENROLL')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_org_enroll_negotiation(self):
 
@@ -920,6 +1077,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_i), 2)
 
     @attr('LOCOINT')
+    @attr('ROLE')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_org_role_negotiation(self):
 
@@ -1176,7 +1334,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEquals(len(events_i), 3)
 
     @attr('LOCOINT')
-    @attr('RESOURCE')
+    @attr('ACQUIRE')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     def test_org_acquire_resource_negotiation(self):
 
@@ -1554,7 +1712,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Create Test InstrumentDevice - use the system admin for now
         inst_obj = IonObject(RT.InstrumentDevice, name='Test_Instrument_123')
-        inst_obj_id,_ = self.rr_client.create(inst_obj, headers=self.system_actor_header)
+        inst_obj_id,_ = self.rr_client.create(inst_obj )
 
         #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
         from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
@@ -1620,13 +1778,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=self.anonymous_actor_headers)
         self.assertEqual(extended_inst._id, inst_obj_id)
         self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.NOTAVAILABLE)
-        self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
+        #self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
 
         #Org member get extended is allowed, but internal agent status should be unavailable
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
         self.assertEqual(extended_inst._id, inst_obj_id)
         self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.NOTAVAILABLE)
-        self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
+        #self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
 
 
         #Grant the role of Instrument Operator to the user
@@ -2101,8 +2259,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.ims_client.force_delete_instrument_device(inst_dev_id, headers=inst_operator_actor_header)
 
         self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
-        self.rr_client.delete(member_actor_id, headers=self.system_actor_header)
-        self.rr_client.delete(obs_operator_actor_id, headers=self.system_actor_header)
+        self.rr_client.delete(member_actor_id)
+        self.rr_client.delete(obs_operator_actor_id)
 
 
 @attr('INT', group='coi')
@@ -2146,7 +2304,8 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
         gevent.sleep(self.SLEEP_TIME*2)  # Wait for events to be fired and policy updated
 
-        self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+        #self.rr_client = ResourceRegistryServiceProcessClient(node=self.container.node, process=process)
+        self.rr_client = ResourceRegistryServiceWrapper(self.container.resource_registry, process)
         self.RR = self.rr_client  # support for the parent SA test class of this class
 
         self.id_client = IdentityManagementServiceProcessClient(node=self.container.node, process=process)
@@ -2195,7 +2354,7 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
         self.realtype = {}
 
     def tearDown(self):
-        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy, headers=self.system_actor_header)
+        policy_list, _ = self.rr_client.find_resources(restype=RT.Policy )
 
         #Must remove the policies in the reverse order they were added
         for policy in sorted(policy_list,key=lambda p: p.ts_created, reverse=True):
@@ -2203,18 +2362,68 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and policy updated
 
-
+    @attr('RESOURCE')
     def test_related_resource_policies(self):
         """
         This test is used to verify that policies of related resources can be setup and invoked in the "tree" of resources.
         @return:
         """
 
-        self.create_observatory(True, create_with_marine_facility=True)
-        self.create_observatory(False, create_with_marine_facility=True)
+        obs_id = self.create_observatory(True, create_with_marine_facility=True)
 
-        from ion.util.related_resources_crawler import RelatedResourcesCrawler
-        r = RelatedResourcesCrawler()
+        orgs,_ = self.rr_client.find_subjects(RT.Org ,PRED.hasResource, obs_id)
+        assert orgs
+        obs_org = orgs[0]
+
+        #Create user
+        inst_operator_actor_id, valid_until, registered = self.id_client.signon(USER1_CERTIFICATE, True, headers=self.apache_actor_header)
+        log.debug( "actor id=" + inst_operator_actor_id)
+
+        inst_operator_actor_header = get_actor_header(inst_operator_actor_id)
+
+        #Create a second user to be used as regular member
+        member_actor_obj = IonObject(RT.ActorIdentity, name='org member actor')
+        member_actor_id,_ = self.rr_client.create(member_actor_obj)
+        assert(member_actor_id)
+
+        #Create a third user to be used as observatory operator
+        obs_operator_actor_obj = IonObject(RT.ActorIdentity, name='observatory operator actor')
+        obs_operator_actor_id,_ = self.rr_client.create(obs_operator_actor_obj)
+        assert(obs_operator_actor_id)
+
+        #Create Instrument Operator Role and add it to the second Org
+        org_member_role = IonObject(RT.UserRole, governance_name=ORG_MEMBER_ROLE, name='Org Member', description='Org Member')
+        self.org_client.add_user_role(obs_org._id, org_member_role, headers=self.system_actor_header)
+
+        inst_operator_role = IonObject(RT.UserRole, governance_name=INSTRUMENT_OPERATOR_ROLE, name='Instrument Operator', description='Instrument Operator')
+        self.org_client.add_user_role(obs_org._id, inst_operator_role, headers=self.system_actor_header)
+
+        #Create Instrument Operator Role and add it to the second Org
+        obs_operator_role = IonObject(RT.UserRole, governance_name=OBSERVATORY_OPERATOR_ROLE, name='Observatory Operator', description='Observatory Operator')
+        self.org_client.add_user_role(obs_org._id, obs_operator_role, headers=self.system_actor_header)
+
+
+        roles = self.org_client.find_org_roles(obs_org._id)
+        self.assertEqual(len(roles),3)
+        self.assertItemsEqual([r.governance_name for r in roles], [ORG_MEMBER_ROLE, INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE])
+
+        self.org_client.enroll_member(obs_org._id,inst_operator_actor_id, headers=self.system_actor_header)
+        self.org_client.enroll_member(obs_org._id,member_actor_id, headers=self.system_actor_header)
+        self.org_client.enroll_member(obs_org._id,obs_operator_actor_id, headers=self.system_actor_header)
+
+
+        #Grant the role of Instrument Operator to the user
+        self.org_client.grant_role(obs_org._id, inst_operator_actor_id, INSTRUMENT_OPERATOR_ROLE, headers=self.system_actor_header)
+
+        #Grant the role of Observatory Operator to the user
+        self.org_client.grant_role(obs_org._id, obs_operator_actor_id, OBSERVATORY_OPERATOR_ROLE, headers=self.system_actor_header)
+
+
+        #Refresh header with updated roles
+        inst_operator_actor_header = get_actor_header(inst_operator_actor_id)
+        member_actor_header = get_actor_header(member_actor_id)
+        obs_operator_actor_header = get_actor_header(obs_operator_actor_id)
+
 
         inst_devices,_ = self.rr_client.find_resources(restype=RT.InstrumentDevice)
         assert len(inst_devices) > 0
@@ -2222,26 +2431,17 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
         instrument_id = inst_devices[1]._id   #just pick one
         instrument_name = inst_devices[1].name   #just pick one
 
-        resource_types = [RT.InstrumentModel, RT.InstrumentSite, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
-        predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
-        test_real_fn = r.generate_get_related_resources_fn(self.rr_client, resource_whitelist=resource_types, predicate_dictionary=predicate_set)
-        related_objs = test_real_fn(instrument_id)
 
-        unique_ids = [instrument_id]
-        for i in related_objs:
-            if i.o not in unique_ids: unique_ids.append(i.o)
-            if i.s not in unique_ids: unique_ids.append(i.s)
+        #Setup commitment to acquire the resource
+        self.org_client.create_resource_commitment(org_id=obs_org._id, actor_id=inst_operator_actor_id, resource_id=instrument_id, headers=self.system_actor_header)
 
-        unique_objs = self.rr_client.read_mult(object_ids=unique_ids)
-        print unique_objs
-        inst_model = [ o for o in unique_objs if o.type_ == RT.InstrumentModel ]
-        if inst_model:
-            pass
+        #Creating second set of resources just to make it a more filled RR
+        self.create_observatory(False, create_with_marine_facility=True)
 
         #Startup an agent - TODO: will fail with Unauthorized to spawn process if not right user role
         from ion.agents.instrument.test.test_instrument_agent import start_instrument_agent_process
         ia_client = start_instrument_agent_process(self.container, resource_id=instrument_id, resource_name=instrument_name,
-            org_governance_name=self.ion_org.org_governance_name, message_headers=self.system_actor_header)
+            org_governance_name=obs_org.org_governance_name, message_headers=self.system_actor_header)
 
         #Going to try access to other operations on the agent, don't care if they actually work - just
         #do they get denied or not
@@ -2250,29 +2450,102 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
             SBE37Parameter.INTERVAL : 100,
             }
 
+
         with self.assertRaises(Conflict) as cm:
-            ret_val = ia_client.set_resource(new_params, headers=self.system_actor_header)
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
 
 
-        #Test access precondition to check policies for values
-        pre_func1 =\
-        """def precondition_func(process, msg, headers):
+        policy_id = self.pol_client.create_resource_access_policy(instrument_id, 'restrict_50_policy',
+            'Check the value of the SBE37Parameter.INTERVAL parameter',
+            DENY_PARAM_50_RULE, headers=self.system_actor_header)
 
-            params = msg['params']
-            if params['INTERVAL'] > 50:
-                return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 50'
-            else:
-                return True, ''
 
-        """
+        gevent.sleep(5)  # Wait for events to be published and policy updated
 
-        #Add an example of a operation specific policy that checks internal values to decide on access
-        #pol_id = self.pol_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='set_resource', policy_content=pre_func1, headers=self.system_actor_header )
+        #The policy should now deny the same command as above since the SBE37Parameter.INTERVAL value is greater than 50
+        with self.assertRaises(Unauthorized) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
+        self.assertIn( 'The value for SBE37Parameter.INTERVAL cannot be greater than 50',cm.exception.message)
 
-        #gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published and policy updated
 
-        #with self.assertRaises(Unauthorized) as cm:
-        #    ret_val = ia_client.set_resource(new_params, headers=self.system_actor_header)
-        #self.assertIn( 'The value for SBE37Parameter.INTERVAL cannot be greater than 50',cm.exception.message)
+        new_params = {
+            SBE37Parameter.TA0 : 2,
+            SBE37Parameter.INTERVAL : 35,
+            }
 
+        #The policy should not deny this since the  SBE37Parameter.INTERVAL value is less than 50
+        with self.assertRaises(Conflict) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
+
+        #The policy should now deny the same command as above since the actor does not have the right role
+        with self.assertRaises(Unauthorized) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=member_actor_header)
+
+        #The policy should not deny this since the  SBE37Parameter.INTERVAL value is less than 50 and the user has the right role
+        with self.assertRaises(Conflict) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=obs_operator_actor_header)
+
+        #Find Model
+        models,_ = self.rr_client.find_objects(instrument_id ,PRED.hasModel, RT.InstrumentModel)
+        assert models
+        inst_model = models[0]
+
+        #Add a more restrictive policy for instruments models associated to this instrument
+
+        policy_id = self.pol_client.create_resource_access_policy(inst_model._id, 'restrict_30_policy',
+            'Check the value of the SBE37Parameter.INTERVAL parameter',
+            DENY_PARAM_30_RULE, headers=self.system_actor_header)
+
+
+        gevent.sleep(5)  # Wait for events to be published and policy updated
+
+        #The policy should now deny the same command as above since the policy checks for a lower value for all models associated with this instrument
+        with self.assertRaises(Unauthorized) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=member_actor_header)
+
+
+
+        new_params = {
+            SBE37Parameter.TA0 : 2,
+            SBE37Parameter.INTERVAL : 25,
+            }
+
+        #The policy should not deny this since the  SBE37Parameter.INTERVAL value is less than 30
+        with self.assertRaises(Conflict) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
+
+
+        #Add a more restrictive policy for the observatory that holds all of these resources
+
+        policy_id = self.pol_client.create_resource_access_policy(obs_id, 'restrict_10_policy',
+            'Check the value of the SBE37Parameter.INTERVAL parameter',
+            DENY_PARAM_10_RULE, headers=self.system_actor_header)
+
+
+        gevent.sleep(5)  # Wait for events to be published and policy updated
+
+        #The policy should now deny the same command as above since the policy checks for a lower value for all instruments in thie observatory
+        with self.assertRaises(Unauthorized) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=member_actor_header)
+
+
+
+        new_params = {
+            SBE37Parameter.TA0 : 2,
+            SBE37Parameter.INTERVAL : 11,
+            }
+
+        #The policy should still deny the same command as above since the policy checks for a lower value for all instruments in thie observatory
+        with self.assertRaises(Unauthorized) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=member_actor_header)
+
+
+        new_params = {
+            SBE37Parameter.TA0 : 2,
+            SBE37Parameter.INTERVAL : 8,
+            }
+
+        #The policy should not deny this since the  SBE37Parameter.INTERVAL value is less than 10
+        with self.assertRaises(Conflict) as cm:
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
 

@@ -58,9 +58,9 @@ class PolicyManagementService(BasePolicyManagementService):
             raise BadRequest("The policy_rule parameter is missing")
 
 
-        service_policy_obj = IonObject(OT.ResourceAccessPolicy, policy_rule=policy_rule)
+        resource_policy_obj = IonObject(OT.ResourceAccessPolicy, policy_rule=policy_rule, resource_id=resource_id)
 
-        policy_obj = IonObject(RT.Policy, name=policy_name, description=description, policy_type=service_policy_obj)
+        policy_obj = IonObject(RT.Policy, name=policy_name, description=description, policy_type=resource_policy_obj)
 
         policy_id = self.create_policy(policy_obj)
 
@@ -186,9 +186,13 @@ class PolicyManagementService(BasePolicyManagementService):
         if not is_basic_identifier(policy.name):
             raise BadRequest("The policy name '%s' can only contain alphanumeric and underscore characters" % policy.name)
 
-        #If there is a policy_rule field then try to add the policy name and decription to the rule text
-        if hasattr(policy.policy_type, 'policy_rule'):
-            policy.policy_type.policy_rule = policy.policy_type.policy_rule % (policy.name, policy.description)
+        try:
+            #If there is a policy_rule field then try to add the policy name and decription to the rule text
+            if hasattr(policy.policy_type, 'policy_rule'):
+                policy.policy_type.policy_rule = policy.policy_type.policy_rule % (policy.name, policy.description)
+
+        except Exception, e:
+            raise Inconsistent("Missing the elements in the policy rule to set the description: " + e.message)
 
         policy_id, version = self.clients.resource_registry.create(policy)
 
@@ -471,7 +475,7 @@ class PolicyManagementService(BasePolicyManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        resource_id_list = [resource_id]
+        resource_id_list = []
         rules = ""
 
         #Include related resource policies for specific resource types
@@ -490,6 +494,11 @@ class PolicyManagementService(BasePolicyManagementService):
             resource_types = [ RT.Observatory, RT.Org]
             predicate_set = {PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
             resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
+
+        if not len(resource_id_list):
+            resource_id_list.append(resource_id)
+
+        log.debug("Retrieving policies for resources: %s", resource_id_list)
 
         for res_id in resource_id_list:
             policy_set = self._find_resource_policies(res_id)
