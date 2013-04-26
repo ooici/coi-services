@@ -67,7 +67,7 @@ from interface.objects import StreamAlertType, AggregateStatusType
 """
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_comms_alerts.py:TestAgentCommsAlerts
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_comms_alerts.py:TestAgentCommsAlerts.test_lost_connection_alert
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_comms_alerts.py:TestAgentCommsAlerts.xx
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_comms_alerts.py:TestAgentCommsAlerts.test_connect_failed_alert
 """
 
 ###############################################################################
@@ -119,7 +119,7 @@ from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 state_alert_def = {
-    'name' : 'comms_warning',
+    'name' : 'comms_state_warning',
     'description' : 'Detected comms failure.',
     'alert_type' : StreamAlertType.WARNING,
     'alert_states' : [
@@ -132,6 +132,19 @@ state_alert_def = {
         ResourceAgentState.STREAMING
         ],
     'alert_class' : 'StateAlert'
+}
+
+command_alert_def = {
+    'name' : 'comms_command_warning',
+    'description' : 'Detected comms failure while connecting.',
+    'alert_type' : StreamAlertType.WARNING,
+    'command' : ResourceAgentEvent.GO_ACTIVE,
+    'clear_states' : [
+        ResourceAgentState.IDLE,
+        ResourceAgentState.COMMAND,
+        ResourceAgentState.STREAMING
+        ],
+    'alert_class' : 'CommandErrorAlert'
 }
 
 class FakeProcess(LocalContextMixin):
@@ -225,7 +238,7 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
             'test_mode' : True,
             'forget_past' : False,
             'enable_persistence' : True,
-            'aparam_alert_config' : [state_alert_def]
+            'aparam_alert_config' : [state_alert_def, command_alert_def]
         }
 
         self._ia_client = None
@@ -445,8 +458,76 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
 
         self._async_event_result.get(timeout=30) 
         """
-        {'origin': '123xyz', 'status': 1, '_id': '256d4a46fe9e4d088b3ef7aff8d65b7e', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_INACTIVE'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366751524053', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
-        {'origin': '123xyz', 'status': 1, '_id': '79222723d3cb4b6ab404e3b01e9f4c9d', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_LOST_CONNECTION'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366751557845', 'sub_type': 1, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
-        {'origin': '123xyz', 'status': 1, '_id': 'bcd9b32c387c46529077759842758faf', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_COMMAND'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1366751596426', 'sub_type': 3, 'origin_type': 'InstrumentDevice', 'name': 'comms_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': '9d7db919a0414741a2aa97f3dc310647', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_INACTIVE'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367008029709', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_state_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': 'f746cec5e486445e856ef29af8d8d49a', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367008029717', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_command_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': '126b1e20f54f4bd2b84a93584831ea8d', 'description': 'Detected comms failure.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_LOST_CONNECTION'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367008062061', 'sub_type': 'WARNING', 'origin_type': 'InstrumentDevice', 'name': 'comms_state_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': '90f5762112dd446b939c6675d34dd61d', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_COMMAND'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367008098639', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_state_warning'}
+        """
+        
+    def test_connect_failed_alert(self):
+        """
+        test_connect_failed_alert
+        Verify that agents detect failed connections and issue alert.
+        """
+
+        self._event_count = 4
+
+        # Remove the port agent.
+        self._support.stop_pagent()
+
+        self._start_agent()
+
+        # We start in uninitialized state.
+        # In this state there is no driver process.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
+        # Initialize the agent.
+        # The agent is spawned with a driver config, but you can pass one in
+        # optinally with the initialize command. This validates the driver
+        # config, launches a driver process and connects to it via messaging.
+        # If successful, we switch to the inactive state.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
+
+        with self.assertRaises(Exception):
+            cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+            retval = self._ia_client.execute_agent(cmd)
+
+        # Now start up the port agent.
+        self._support.start_pagent()
+
+        # This time it will work.
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        self._async_event_result.get(timeout=30) 
+        """
+        {'origin': '123xyz', 'status': 1, '_id': 'ac1ae3ec24e74f65bde24362d689346a', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': ['RESOURCE_AGENT_STATE_INACTIVE'], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367007751167', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_state_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': '6af6a6156172481ebc44baad2708ec5c', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367007751175', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_command_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': 'b493698b46fd4fc1b4c66c53b70ed043', 'description': 'Detected comms failure while connecting.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367007756771', 'sub_type': 'WARNING', 'origin_type': 'InstrumentDevice', 'name': 'comms_command_warning'}
+        {'origin': '123xyz', 'status': 1, '_id': 'c01e911ecb1a47c5a04cbbcbfb348a42', 'description': 'The alert is cleared.', 'time_stamps': [], 'type_': 'DeviceStatusAlertEvent', 'valid_values': [], 'values': [None], 'value_id': '', 'base_types': ['DeviceStatusEvent', 'DeviceEvent', 'Event'], 'stream_name': '', 'ts_created': '1367007792905', 'sub_type': 'ALL_CLEAR', 'origin_type': 'InstrumentDevice', 'name': 'comms_command_warning'}
         """
         

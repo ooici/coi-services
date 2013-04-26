@@ -403,7 +403,7 @@ class InstrumentAgent(ResourceAgent):
             pass
         
         # Connect to the device.
-        dvr_comms = self._dvr_config.get('comms_config', None)   
+        dvr_comms = self._dvr_config.get('comms_config', None)
         self._dvr_client.cmd_dvr('configure', dvr_comms)
         self._dvr_client.cmd_dvr('connect')
         
@@ -1274,6 +1274,12 @@ class InstrumentAgent(ResourceAgent):
     def _on_state_enter(self, state):
         self._aam.process_alerts(state=state)
 
+    def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
+        print '########## calling alerts with command: ' + str(execute_cmd)
+        self._aam.process_alerts(command=execute_cmd, command_success=False)
+        super(InstrumentAgent, self)._on_command_error(cmd, execute_cmd, args,
+                                                       kwargs, ex)
+        
     ###############################################################################
     # Event callback and handling for direct access.
     ###############################################################################
