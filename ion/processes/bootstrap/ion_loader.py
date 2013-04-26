@@ -79,7 +79,7 @@ from interface import objects
 from interface.objects import StreamAlertType
 
 from ooi.timer import Accumulator, Timer
-stats = Accumulator(persist=False)
+stats = Accumulator(persist=True)
 
 # format for time values within the preload data
 DEFAULT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"

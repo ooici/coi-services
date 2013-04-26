@@ -20,6 +20,9 @@ from ion.util.stored_values import StoredValueManager
 from interface.objects import AttachmentType
 from collections import deque
 
+from ooi.timer import Timer, Accumulator
+stats = Accumulator(presist=True)
+
 class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def on_init(self):
@@ -205,39 +208,59 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
             self.clients.resource_registry.delete(producer)
         return
 
-
     def assign_data_product(self, input_resource_id='', data_product_id=''):
+
         log.debug('assigning data product %s to resource %s', data_product_id, input_resource_id)
         #Connect the producer for an existing input resource with a data product
+
+        t = Timer() if stats.is_log_enabled() else None
 
         # Verify that both ids are valid
         #input_resource_obj = self.clients.resource_registry.read(input_resource_id) #actually, don't need this one unless producer is not found (see if below)
         data_product_obj = self.clients.resource_registry.read(data_product_id)
+        if t:
+            t.complete_step('dams.assign_data_product.read_dataproduct')
+
         #find the data producer resource associated with the source resource that is creating the data product
         primary_producer_ids, _ = self.clients.resource_registry.find_objects(subject=input_resource_id, predicate=PRED.hasDataProducer, object_type=RT.DataProducer, id_only=True)
+        if t:
+            t.complete_step('dams.assign_data_product.find_producer')
         if not primary_producer_ids:
             self.clients.resource_registry.read(input_resource_id) # raise different NotFound if resource didn't exist
             raise NotFound("Data Producer for input resource %s does not exist" % input_resource_id)
 
         #connect the producer to the product directly
         self.clients.resource_registry.create_association(subject=input_resource_id, predicate=PRED.hasOutputProduct, object=data_product_id)
+        if t:
+            t.complete_step('dams.assign_data_product.create_association.hasOutputProduct')
 
         #create data producer resource for this data product
         data_producer_obj = DataProducer(name=data_product_obj.name, description=data_product_obj.description)
         data_producer_obj.producer_context.configuration = {}
         data_producer_id, rev = self.clients.resource_registry.create(data_producer_obj)
+        if t:
+            t.complete_step('dams.assign_data_product.create_dataproducer')
 
         attachments = self.clients.resource_registry.find_attachments(data_product_id, include_content=False, id_only=False)
+        if t:
+            t.complete_step('dams.assign_data_product.find_attachments')
         for attachment in attachments:
             if attachment.attachment_type == AttachmentType.REFERENCE:
                 parser_id = attachment.context.parser_id
                 if parser_id:
                     self.register_producer_qc_reference(data_producer_id, parser_id, attachment._id)
-
+        if t:
+            t.complete_step('dams.assign_data_product.register_qc')
         # Associate the Product with the Producer
         self.clients.resource_registry.create_association(data_product_id,  PRED.hasDataProducer,  data_producer_id)
+        if t:
+            t.complete_step('dams.assign_data_product.create_association.hasDataProducer')
         # Associate the Producer with the main Producer
         self.clients.resource_registry.create_association(data_producer_id,  PRED.hasParent,  primary_producer_ids[0])
+        if t:
+            t.complete_step('dams.assign_data_product.create_association.hasParent')
+            stats.add(t)
+            stats.add_value('dams.assign_data_product.attachment_count', len(attachments))
 
     def unassign_data_product(self, input_resource_id='', data_product_id=''):
         """
