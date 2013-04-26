@@ -2444,7 +2444,7 @@ Reason: %s
                 source_obj = self._get_resource_obj(source_id)
                 self._create_association(dp_obj, PRED.hasSource, source_obj)
             else:
-                svc_client.assign_data_product_source(dp_id, source_id, headers=headers, timeout=120)
+                svc_client.assign_data_product_source(dp_id, source_id, headers=headers, timeout=300)
 
         # Create data product assignment
         if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
@@ -2465,7 +2465,7 @@ Reason: %s
                 self._create_association(dp_obj, PRED.hasDataProducer, data_producer_obj)
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
-                svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=120)
+                svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=300)
 
 
     def _load_DataProductLink_OOI(self):
