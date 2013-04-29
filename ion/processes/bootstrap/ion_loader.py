@@ -1198,6 +1198,8 @@ class IONLoader(ImmediateProcess):
             self._calc_geospatial_point_center(fofr_obj)
 
     def _load_Observatory_OOI(self):
+        # Observatory resources are created from aggregate SAF subsite assets (i.e. one or
+        # multiple SAF subsites make one Observatory).
         ooi_objs = self.ooi_loader.get_type_assets("ssite")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             constrow = {}
@@ -1301,6 +1303,8 @@ class IONLoader(ImmediateProcess):
                         headers=headers)
 
     def _load_PlatformSite_OOI(self):
+        # TODO: Load all or only until cut off date?
+
         site_objs = self.ooi_loader.get_type_assets("site")
         subsite_objs = self.ooi_loader.get_type_assets("subsite")
         osite_objs = self.ooi_loader.get_type_assets("osite")
@@ -1419,6 +1423,7 @@ class IONLoader(ImmediateProcess):
                         headers=headers)
 
     def _load_InstrumentSite_OOI(self):
+        # TBD: Only import until cut off date
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         node_objs = self.ooi_loader.get_type_assets("node")
         class_objs = self.ooi_loader.get_type_assets("class")
