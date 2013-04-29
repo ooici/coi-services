@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dC05RnZHMEx3V0RYNEp3YTgwUllMU2c&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dEVqWnBsdHJ3MW5aMFpzTnA5V014Mmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
