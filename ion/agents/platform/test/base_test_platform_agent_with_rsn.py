@@ -363,7 +363,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                                 count=0):
         """
         Starts event subscriber for events of given event_type ("DeviceEvent"
-        by default) and given sub_type ("platform_event" by default).
+        by default) and given sub_type (None by default).
         """
 
         def consume_event(evt, *args, **kwargs):
@@ -1077,6 +1077,37 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     #################################################################
 
     def _start_platform(self, p_obj):
+        """
+        Starts the given platform waiting for it to transition to the
+        UNINITIALIZED state (note that the agent starts in the LAUNCHING state).
+
+        More in concrete the sequence of steps here are:
+        - prepares subscriber to receive the UNINITIALIZED state transition
+        - launches the platform process
+        - waits for the start of the process
+        - waits for the transition to the UNINITIALIZED state
+        """
+        ##############################################################
+        # prepare to receive the UNINITIALIZED state transition:
+        async_res = AsyncResult()
+
+        def consume_event(evt, *args, **kwargs):
+            log.debug("Got ResourceAgentStateEvent %s from origin %r", evt.state, evt.origin)
+            if evt.state == PlatformAgentState.UNINITIALIZED:
+                async_res.set(evt)
+
+        # start subscriber:
+        sub = EventSubscriber(event_type="ResourceAgentStateEvent",
+                              origin=p_obj.platform_device_id,
+                              callback=consume_event)
+        sub.start()
+        log.info("registered event subscriber to wait for state=%r from origin %r",
+                 PlatformAgentState.UNINITIALIZED, p_obj.platform_device_id)
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+        ##############################################################
+        # now start the platform:
         agent_instance_id = p_obj.platform_agent_instance_id
         log.debug("about to call start_platform_agent_instance with id=%s", agent_instance_id)
         p_obj.pid = self.IMS.start_platform_agent_instance(platform_agent_instance_id=agent_instance_id)
@@ -1090,10 +1121,15 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         self.assertTrue(gate.await(90), "The platform agent instance did not spawn in 90 seconds")
 
         # Start a resource agent client to talk with the agent.
-        self._pa_client = ResourceAgentClient('paclient',
+        self._pa_client = ResourceAgentClient(p_obj.platform_device_id,
                                               name=agent_instance_obj.agent_process_id,
                                               process=FakeProcess())
         log.debug("got platform agent client %s", str(self._pa_client))
+
+        ##############################################################
+        # wait for the UNINITIALIZED event:
+        from pyon.public import CFG
+        async_res.get(timeout=CFG.endpoint.receive.timeout)
 
     def _stop_platform(self, p_obj):
         try:

@@ -19,6 +19,8 @@ from pyon.agent.agent import ResourceAgentEvent
 from interface.objects import AgentCommand
 from pyon.agent.agent import ResourceAgentClient
 
+from pyon.event.event import EventSubscriber
+
 from pyon.core.exception import BadRequest, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
@@ -61,27 +63,6 @@ import pprint
 
 PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
-
-
-# LAUNCH_CHILDREN_ON_START: This flag can be set to True to (S) launch the children
-# on_start (and terminate them on_quit), or to False to (I) launch the
-# children as part of INITIALIZE (and terminate them as part of RESET).
-# The logic in the code supports both methods.
-# TODO: stick with only one method after more comprehensive tests. Ideally,
-# for overall consistency regarding parent-children coordination, method (S)
-# would be preferable. However, I'm enabling method (I) mainly for two reasons:
-# 1) although all tests complete OK with (S), there are exceptions related with
-# the canceling of processes at the end of the tests, with message "already dead?"
-# in the stack traces. The exceptions are just logged out (with stack trace in TRACE
-# mode). Example:
-# ion.services.cei.process_dispatcher_service:701 PD: Failed to terminate process
-# PlatformAgent_LJ01D8784776f2fee4007909b7233c5929bb6 in container. already dead?:
-# 400 - Cannot terminate.
-# 2) another reason is that the logic for (I) is more complicated: need to use
-# a greenlet to launch the children asynchronously (direct launching in on_start
-# causes timeout on the very first child).
-#
-LAUNCH_CHILDREN_ON_START = False
 
 
 class PlatformAgentState(BaseEnum):
@@ -281,17 +262,11 @@ class PlatformAgent(ResourceAgent):
 
         self._async_children_launched = AsyncResult()
 
-        if LAUNCH_CHILDREN_ON_START:
-            log.info("%r: starting _children_launch", self._platform_id)
-            Greenlet(self._children_launch).start()
-            log.info("%r: started _children_launch", self._platform_id)
-
-        #processing complete so unblock and accept cmds
-        self._fsm.on_event(PlatformAgentEvent.LAUNCH_COMPLETE)
-        cur_state = self._fsm.get_current_state()
-        if cur_state != ResourceAgentState.UNINITIALIZED:
-            raise Exception()
-
+        # NOTE: the launch of the children is only started here via a greenlet
+        # so we can return from this method quickly.
+        log.info("%r: starting _children_launch", self._platform_id)
+        Greenlet(self._children_launch).start()
+        log.info("%r: started _children_launch", self._platform_id)
 
     def _validate_configuration(self):
         """
@@ -407,6 +382,12 @@ class PlatformAgent(ResourceAgent):
         # Ready, children launched and event subscribers in place
         self._async_children_launched.set()
         log.debug("%r: _children_launch completed", self._platform_id)
+
+        #processing complete so unblock and accept cmds
+        self._fsm.on_event(PlatformAgentEvent.LAUNCH_COMPLETE)
+        cur_state = self._fsm.get_current_state()
+        if cur_state != ResourceAgentState.UNINITIALIZED:
+            raise Exception()
 
     def _get_children_resource_ids(self):
         """
@@ -1006,6 +987,55 @@ class PlatformAgent(ResourceAgent):
 
         return recursion
 
+    def _prepare_await_state(self, origin, state):
+        """
+        Does preparations to wait until the given origin publishes a
+        ResourceAgentStateEvent with the given state.
+
+        @param origin  Origin for the EventSubscriber
+        @param state   Expected state
+
+        @return (asyn_res, sub) Arguments for subsequent call self_await_state(async_res, sun)
+        """
+
+        asyn_res = AsyncResult()
+
+        def consume_event(evt, *args, **kwargs):
+            log.debug("%r: got ResourceAgentStateEvent %s from origin %r",
+                      self._platform_id, evt.state, evt.origin)
+            if evt.state == state:
+                asyn_res.set(evt)
+
+        subscriber = EventSubscriber(event_type="ResourceAgentStateEvent",
+                                     origin=origin,
+                                     callback=consume_event)
+
+        subscriber.start()
+        log.debug("%r: registered event subscriber to wait for state=%r from origin %r",
+                  self._platform_id, state, origin)
+        subscriber._ready_event.wait(timeout=self._timeout)
+
+        return asyn_res, subscriber
+
+    def _await_state(self, async_res, sub):
+        """
+        Waits until the state given to _prepare_await_state is published and
+        received.
+
+        @param async_res   As returned by call to _prepare_await_state
+        @param sub         As returned by call to _prepare_await_state
+        """
+        try:
+            # wait for the event:
+            async_res.get(timeout=self._timeout)
+
+        finally:
+            try:
+                sub.stop()
+            except Exception as ex:
+                log.warn("%r: error stopping event subscriber to wait for a state: %s",
+                         self._platform_id, ex)
+
     ##############################################################
     # supporting routines dealing with sub-platforms
     ##############################################################
@@ -1013,6 +1043,7 @@ class PlatformAgent(ResourceAgent):
     def _launch_platform_agent(self, subplatform_id):
         """
         Launches a sub-platform agent, creates ResourceAgentClient,
+        waits until the sub-platform transitions to UNINITIALIZED state,
         and publishes device_added event.
 
         @param subplatform_id Platform ID
@@ -1025,6 +1056,11 @@ class PlatformAgent(ResourceAgent):
 
         assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
 
+        # prepare to wait for the UNINITIALIZED state; this is done before the
+        # launch below to avoid potential race condition
+        asyn_res, subscriber = self._prepare_await_state(sub_resource_id,
+                                                         PlatformAgentState.UNINITIALIZED)
+
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r: launching sub-platform agent %r: CFG=%s",
                       self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
@@ -1036,13 +1072,14 @@ class PlatformAgent(ResourceAgent):
 
         pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
 
-        state = pa_client.get_agent_state()
-        assert PlatformAgentState.UNINITIALIZED == state
-
         self._pa_clients[subplatform_id] = DotDict(pa_client=pa_client,
                                                    pid=pid,
                                                    resource_id=sub_resource_id)
 
+        # wait until UNINITIALIZED:
+        self._await_state(asyn_res, subscriber)
+
+        # all ready, publish device_added:
         self._status_manager.publish_device_added_event(sub_resource_id)
 
     def _execute_platform_agent(self, a_client, cmd, sub_id):
@@ -1928,37 +1965,21 @@ class PlatformAgent(ResourceAgent):
 
         # then, children initialization
         if recursion:
-            # first, make sure the children are launched:
-            if LAUNCH_CHILDREN_ON_START:
-                # children were launched in on_start; wait here until all
-                # of them are launched:
-                try:
-                    self._async_children_launched.get(timeout=self._timeout)
-                    log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
+            # note that the launch of the children is started in on_start;
+            # wait here until they are actually launched (see _children_launch):
+            try:
+                self._async_children_launched.get(timeout=self._timeout)
+                log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
+                          self._platform_id)
+            except:
+                #
+                # Do not proceed further with initialization of children.
+                #
+                log.exception("%r: exception while waiting children "
+                              "to be launched. "
+                              "Not proceeding with initialization of children.",
                               self._platform_id)
-                except:
-                    #
-                    # Do not proceed further with initialization of children.
-                    #
-                    log.exception("%r: exception while waiting children "
-                                  "to be launched. "
-                                  "Not proceeding with initialization of children.",
-                                  self._platform_id)
-                    return
-
-            else:
-                # launch children here (which is synchronous here)
-                try:
-                    self._children_launch()
-
-                except:
-                    #
-                    # Do not proceed further with initialization of children.
-                    #
-                    log.exception("%r: exception while launching children processes. "
-                                  "Not proceeding with initialization of children.",
-                                  self._platform_id)
-                    return
+                return
 
             # All is OK here. Proceed with initializing children:
             try:
@@ -2295,22 +2316,24 @@ class PlatformAgent(ResourceAgent):
         self._platform_resource_monitor = None
 
     ##############################################################
-    # UNINITIALIZED event handlers.
+    # LAUNCHING event handlers.
     ##############################################################
 
-    def _handler_launching_launchcomplete(self, *args, **kwargs):
+    def _handler_launching_launch_complete(self, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
             log.trace("%r/%s args=%s kwargs=%s",
-                self._platform_id, self.get_agent_state(), str(args), str(kwargs))
-
-        recursion = self._get_recursion_parameter("_handler_launching_launchcomplete", args, kwargs)
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
 
         next_state = PlatformAgentState.UNINITIALIZED
         result = None
 
         return next_state, result
+
+    ##############################################################
+    # UNINITIALIZED event handlers.
+    ##############################################################
 
     def _handler_uninitialized_initialize(self, *args, **kwargs):
         """
@@ -2656,8 +2679,10 @@ class PlatformAgent(ResourceAgent):
         super(PlatformAgent, self)._construct_fsm(states=states,
                                                   events=events)
 
+        # LAUNCHING state event handlers.
+        self._fsm.add_handler(PlatformAgentState.LAUNCHING, PlatformAgentEvent.LAUNCH_COMPLETE, self._handler_launching_launch_complete)
+
         # UNINITIALIZED state event handlers.
-        self._fsm.add_handler(PlatformAgentState.LAUNCHING, PlatformAgentEvent.LAUNCH_COMPLETE, self._handler_launching_launchcomplete)
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.INITIALIZE, self._handler_uninitialized_initialize)
         self._fsm.add_handler(PlatformAgentState.UNINITIALIZED, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
 

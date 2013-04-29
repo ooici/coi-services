@@ -509,12 +509,10 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._initialize()   # -> INACTIVE
         self._reset()        # -> UNINITIALIZED
-        self._shutdown()     # -> UNINITIALIZED
 
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
         self._reset()        # -> UNINITIALIZED
-        self._shutdown()     # -> UNINITIALIZED
 
         self._initialize()   # -> INACTIVE
         self._go_active()    # -> IDLE
@@ -523,6 +521,7 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._resume()       # -> COMMAND
         self._clear()        # -> IDLE
         self._reset()        # -> UNINITIALIZED
+
         self._shutdown()     # -> UNINITIALIZED
 
     def test_get_set_resources(self):
