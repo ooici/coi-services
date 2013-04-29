@@ -234,13 +234,6 @@ class AgentConfigurationBuilder(object):
             self.RR2.find_parameter_contexts_of_parameter_dictionary_using_has_parameter_context(dict_obj._id)
         return DatasetManagementService.build_parameter_dictionary(dict_obj, parameter_contexts)
 
-    def _meet_in_the_middle(self,dp_id, pdict_id):
-        # Given a pdict_id and a data_product_id find the stream def in the middle
-        pdict_stream_defs = self.RR2.find_stream_definition_ids_by_parameter_dictionary_using_has_parameter_dictionary(pdict_id)
-        stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(dp_id)
-        result = stream_def_id if stream_def_id in pdict_stream_defs else None
-        return result
-
 
     def _generate_stream_config(self):
         log.debug("_generate_stream_config for %s", self.agent_instance_obj.name)
@@ -253,8 +246,11 @@ class AgentConfigurationBuilder(object):
         streams_dict = {}
         for stream_cfg in agent_obj.stream_configurations:
             #create a stream def for each param dict to match against the existing data products
+            param_dict_id = dsm.read_parameter_dictionary_by_name(stream_cfg.parameter_dictionary_name,
+                                                                  id_only=True)
+            stream_def_id = psm.create_stream_definition(parameter_dictionary_id=param_dict_id)
             streams_dict[stream_cfg.stream_name] = {'param_dict_name':stream_cfg.parameter_dictionary_name,
-                                                    #'stream_def_id':stream_def_id,
+                                                    'stream_def_id':stream_def_id,
                                                     'records_per_granule': stream_cfg.records_per_granule,
                                                     'granule_publish_rate':stream_cfg.granule_publish_rate,
                                                     'alarms'              :stream_cfg.alarms  }
@@ -263,23 +259,34 @@ class AgentConfigurationBuilder(object):
         device_id = device_obj._id
         data_product_objs = self.RR2.find_data_products_of_instrument_device_using_has_output_product(device_id)
 
-        stream_config = {}
+        out_streams = {}
         for d in data_product_objs:
-            stream_def_id = self.RR2.find_stream_definition_id_of_data_product_using_has_stream_definition(d._id)
+            product_id = d._id
+            stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(product_id)
+            out_streams[stream_id] = d.name
+
+
+        stream_config = {}
+
+        log.debug("Creating a stream config for each stream (dataproduct) assoc with this agent/device")
+        for product_stream_id in out_streams.keys():
+
+            #get the streamroute object from pubsub by passing the stream_id
+            stream_def_id = self.RR2.find_stream_definition_id_of_stream_using_has_stream_definition(product_stream_id)
+
+            #match the streamdefs/apram dict for this model with the data products attached to this device to know which tag to use
             for model_stream_name, stream_info_dict  in streams_dict.items():
                 # read objects from cache to be compared
-                pdict = self.RR2.find_resource_by_name(RT.ParameterDictionary, stream_info_dict.get('param_dict_name'))
-                stream_def_id = self._meet_in_the_middle(d._id, pdict._id)
 
-                if stream_def_id:
+                if psm.compare_stream_definition(stream_def_id, stream_info_dict.get('stream_def_id')):
                     #model_param_dict = self.RR2.find_resources_by_name(RT.ParameterDictionary,
                     #                                         stream_info_dict.get('param_dict_name'))[0]
                     #model_param_dict = self._get_param_dict_by_name(stream_info_dict.get('param_dict_name'))
                     #stream_route = self.RR2.read(product_stream_id).stream_route
-                    product_stream_id = self.RR2.find_stream_id_of_data_product_using_has_stream(d._id)
-                    stream_def = psm.read_stream_definition(stream_def_id)
+                    model_param_dict = DatasetManagementService.get_parameter_dictionary_by_name(stream_info_dict.get('param_dict_name'))
                     stream_route = psm.read_stream_route(stream_id=product_stream_id)
 
+                    log.info("stream_config[%s] matches product '%s'", model_stream_name, out_streams[product_stream_id])
 
                     if model_stream_name in stream_config:
                         log.warn("Overwiting stream_config[%s]", model_stream_name)
@@ -288,7 +295,7 @@ class AgentConfigurationBuilder(object):
                                                         'stream_id'             : product_stream_id,
                                                         'stream_definition_ref' : stream_def_id,
                                                         'exchange_point'        : stream_route.exchange_point,
-                                                        'parameter_dictionary'  : stream_def.parameter_dictionary,
+                                                        'parameter_dictionary'  : model_param_dict.dump(),
                                                         'records_per_granule'   : stream_info_dict.get('records_per_granule'),
                                                         'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
                                                         'alarms'                : stream_info_dict.get('alarms')
