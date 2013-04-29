@@ -2023,12 +2023,6 @@ Reason: %s
 
                 self._load_InstrumentAgent(newrow)
 
-    def _load_ExternalDatasetAgentInstance_OOI(self, row): pass
-    def _load_ExternalDatasetAgent_OOI(self, row): pass
-    def _load_ExternalDataset_OOI(self, row): pass
-    def _load_ExternalDatasetModel_OOI(self, row): pass
-    def _load_ExternalDataProvider_OOI(self, row): pass
-
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
         if len(contacts) > 1:
@@ -2165,10 +2159,6 @@ Reason: %s
 
     def _load_InstrumentAgentInstance_OOI(self):
         pass
-
-    def _load_ExternalDatasetAgentInstance_OOI(self):
-        pass
-
 
     def _load_PlatformAgent(self, row):
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
