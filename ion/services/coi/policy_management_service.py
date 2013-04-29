@@ -64,7 +64,7 @@ class PolicyManagementService(BasePolicyManagementService):
 
         policy_id = self.create_policy(policy_obj)
 
-        self.add_resource_policy(resource_id, policy_id)
+        self._add_resource_policy(resource_id, policy_id, publish_event=False)
 
         return policy_id
 
@@ -288,21 +288,8 @@ class PolicyManagementService(BasePolicyManagementService):
         @throws NotFound    object with specified id does not exist
         """
 
-        if not resource_id:
-            raise BadRequest("The resource_id parameter is missing")
 
-        resource = self.clients.resource_registry.read(resource_id)
-        if not resource:
-            raise NotFound("Resource %s does not exist" % resource_id)
-
-        if not policy_id:
-            raise BadRequest("The policy_id parameter is missing")
-
-        policy = self.clients.resource_registry.read(policy_id)
-        if not policy:
-            raise NotFound("Policy %s does not exist" % policy_id)
-
-        self._add_resource_policy(resource, policy)
+        resource, policy = self._add_resource_policy(resource_id, policy_id)
 
         return True
 
@@ -334,15 +321,29 @@ class PolicyManagementService(BasePolicyManagementService):
         return True
 
     #Internal helper function for removing a policy resource association and publish event for containers to update
-    def _add_resource_policy(self, resource, policy):
+    def _add_resource_policy(self, resource_id, policy_id, publish_event=True):
+
+        if not resource_id:
+            raise BadRequest("The resource_id parameter is missing")
+
+        resource = self.clients.resource_registry.read(resource_id)
+        if not resource:
+            raise NotFound("Resource %s does not exist" % resource_id)
+
+        if not policy_id:
+            raise BadRequest("The policy_id parameter is missing")
+
+        policy = self.clients.resource_registry.read(policy_id)
+        if not policy:
+            raise NotFound("Policy %s does not exist" % policy_id)
+
         aid = self.clients.resource_registry.create_association(resource, PRED.hasPolicy, policy)
-        if not aid:
-            return False
 
         #Publish an event that the resource policy has changed
-        self._publish_resource_policy_event(policy, resource)
+        if publish_event:
+            self._publish_resource_policy_event(policy, resource)
 
-        return True
+        return resource, policy
 
     def _remove_resource_policy(self, resource, policy):
         aid = self.clients.resource_registry.get_association(resource, PRED.hasPolicy, policy)
@@ -362,7 +363,7 @@ class PolicyManagementService(BasePolicyManagementService):
         """
         policy_event = args[0]
         policy_id = policy_event.origin
-        log.debug("Policy modified: %s" % policy_id)
+        log.debug("Policy modified: %s" ,  str(policy_event.__dict__))
 
         try:
             policy = self.clients.resource_registry.read(policy_id)
@@ -389,7 +390,14 @@ class PolicyManagementService(BasePolicyManagementService):
 
 
     def _publish_resource_policy_event(self, policy, resource, delete_policy=False):
-        #Sent ResourcePolicyEvent event
+        """
+        Publish ResourcePolicyEvent event
+        @param policy:
+        @param resource:
+        @param delete_policy:
+        @return:
+        """
+
 
         if self.event_pub:
             event_data = dict()
@@ -402,8 +410,33 @@ class PolicyManagementService(BasePolicyManagementService):
 
             self.event_pub.publish_event(event_type='ResourcePolicyEvent', origin=policy._id, **event_data)
 
+
+    def _publish_related_resource_policy_event(self, policy, resource_id, delete_policy=False):
+        """
+        Publish ResourcePolicyEvent event
+        @param policy:
+        @param resource:
+        @param delete_policy:
+        @return:
+        """
+
+
+        if self.event_pub:
+            event_data = dict()
+            event_data['origin_type'] = 'Resource_Policy'
+            event_data['description'] = 'Updated Related Resource Policy'
+            event_data['resource_id'] = resource_id
+            event_data['sub_type'] = 'DeletePolicy' if delete_policy else ''
+
+            self.event_pub.publish_event(event_type='RelatedResourcePolicyEvent', origin=policy._id, **event_data)
+
     def _publish_service_policy_event(self, policy, delete_policy=False):
-        #Sent ServicePolicyEvent event
+        """
+        Publish ServicePolicyEvent event
+        @param policy:
+        @param delete_policy:
+        @return:
+        """
 
         if self.event_pub:
             event_data = dict()
@@ -475,25 +508,9 @@ class PolicyManagementService(BasePolicyManagementService):
         if not resource:
             raise NotFound("Resource %s does not exist" % resource_id)
 
-        resource_id_list = []
         rules = ""
 
-        #Include related resource policies for specific resource types
-        #TODO - this is the first attempt at this... may have to iterate on this
-        if resource.type_ == RT.InstrumentDevice:
-            resource_types = [RT.InstrumentModel, RT.InstrumentSite, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
-            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True), PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
-            resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
-
-        elif resource.type_ == RT.PlatformDevice:
-            resource_types = [RT.PlatformModel, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
-            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
-            resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
-        else:
-            #For anything else attempt to add Observatory by default
-            resource_types = [ RT.Observatory, RT.Org]
-            predicate_set = {PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
-            resource_id_list.extend(self._get_related_resource_ids(resource_id=resource_id, resource_types=resource_types, predicate_set=predicate_set))
+        resource_id_list = self._get_related_resource_ids(resource)
 
         if not len(resource_id_list):
             resource_id_list.append(resource_id)
@@ -505,12 +522,36 @@ class PolicyManagementService(BasePolicyManagementService):
 
             for p in policy_set:
                 if p.enabled and p.policy_type.type_ == OT.ResourceAccessPolicy :
+                    log.debug("Including policy: %s", p.name)
                     rules += p.policy_type.policy_rule
 
 
         return rules
 
-    def _get_related_resource_ids(self, resource_id, resource_types=None, predicate_set=None):
+    def _get_related_resource_ids(self, resource):
+
+        resource_id_list = []
+
+        #Include related resource policies for specific resource types
+        #TODO - this is the first attempt at this... may have to iterate on this
+        if resource.type_ == RT.InstrumentDevice:
+            resource_types = [RT.InstrumentModel, RT.InstrumentSite, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True), PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
+            resource_id_list.extend(self._crawl_related_resources(resource_id=resource._id, resource_types=resource_types, predicate_set=predicate_set))
+
+        elif resource.type_ == RT.PlatformDevice:
+            resource_types = [RT.PlatformModel, RT.PlatformDevice, RT.PlatformSite, RT.Subsite, RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasModel: (True, True), PRED.hasDevice: (False, True) , PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
+            resource_id_list.extend(self._crawl_related_resources(resource_id=resource._id, resource_types=resource_types, predicate_set=predicate_set))
+        else:
+            #For anything else attempt to add Observatory by default
+            resource_types = [ RT.Observatory, RT.Org]
+            predicate_set = {PRED.hasSite: (False, True), PRED.hasResource: (False, True)}
+            resource_id_list.extend(self._crawl_related_resources(resource_id=resource._id, resource_types=resource_types, predicate_set=predicate_set))
+
+        return resource_id_list
+
+    def _crawl_related_resources(self, resource_id, resource_types=None, predicate_set=None):
         """
         An internal helper function to generate a unique list of related resources
         @return:
