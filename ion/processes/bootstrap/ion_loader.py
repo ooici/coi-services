@@ -952,8 +952,8 @@ class IONLoader(ImmediateProcess):
 
     def _create_temporal_constraint(self, row):
         format = row['time_format'] or DEFAULT_TIME_FORMAT
-        start = calendar.timegm(time.strptime(row['start'], format))
-        end = calendar.timegm(time.strptime(row['end'], format))
+        start = str(calendar.timegm(time.strptime(row['start'], format)))
+        end = str(calendar.timegm(time.strptime(row['end'], format)))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
     def _load_User(self, row):
@@ -1198,6 +1198,8 @@ class IONLoader(ImmediateProcess):
             self._calc_geospatial_point_center(fofr_obj)
 
     def _load_Observatory_OOI(self):
+        # Observatory resources are created from aggregate SAF subsite assets (i.e. one or
+        # multiple SAF subsites make one Observatory).
         ooi_objs = self.ooi_loader.get_type_assets("ssite")
         for ooi_id, ooi_obj in ooi_objs.iteritems():
             constrow = {}
@@ -1301,6 +1303,8 @@ class IONLoader(ImmediateProcess):
                         headers=headers)
 
     def _load_PlatformSite_OOI(self):
+        # TODO: Load all or only until cut off date?
+
         site_objs = self.ooi_loader.get_type_assets("site")
         subsite_objs = self.ooi_loader.get_type_assets("subsite")
         osite_objs = self.ooi_loader.get_type_assets("osite")
@@ -1419,6 +1423,7 @@ class IONLoader(ImmediateProcess):
                         headers=headers)
 
     def _load_InstrumentSite_OOI(self):
+        # TBD: Only import until cut off date
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         node_objs = self.ooi_loader.get_type_assets("node")
         class_objs = self.ooi_loader.get_type_assets("class")
@@ -2018,12 +2023,6 @@ Reason: %s
 
                 self._load_InstrumentAgent(newrow)
 
-    def _load_ExternalDatasetAgentInstance_OOI(self, row): pass
-    def _load_ExternalDatasetAgent_OOI(self, row): pass
-    def _load_ExternalDataset_OOI(self, row): pass
-    def _load_ExternalDatasetModel_OOI(self, row): pass
-    def _load_ExternalDataProvider_OOI(self, row): pass
-
     def _load_ExternalDataProvider(self, row):
         contacts = self._get_contacts(row, field='contact_id')
         if len(contacts) > 1:
@@ -2168,10 +2167,6 @@ Reason: %s
 
     def _load_InstrumentAgentInstance_OOI(self):
         pass
-
-    def _load_ExternalDatasetAgentInstance_OOI(self):
-        pass
-
 
     def _load_PlatformAgent(self, row):
         stream_config_names = get_typed_value(row['stream_configurations'], targettype="simplelist")
