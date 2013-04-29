@@ -1126,9 +1126,9 @@ class InstrumentAgent(ResourceAgent):
             self.aparam_set_pubrate(aparam_pubrate_config)
 
         # If specified and configed, build the alerts aparam.                
-        aparam_alert_config = self.CFG.get('aparam_alert_config', None)
-        if aparam_alert_config and 'alerts' in aparams:
-            self.aparam_set_alerts(aparam_alert_config)
+        aparam_alerts_config = self.CFG.get('aparam_alerts_config', None)
+        if aparam_alerts_config and 'alerts' in aparams:
+            self.aparam_set_alerts(aparam_alerts_config)
                 
     def _restore_resource(self):
         """
