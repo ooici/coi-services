@@ -65,12 +65,6 @@ PA_MOD = 'ion.agents.platform.platform_agent'
 PA_CLS = 'PlatformAgent'
 
 
-# LAUNCH_CHILDREN_ON_START (developer flag): set to True to launch the children
-# on_start, or to False to launch the children as part of INITIALIZE.
-# TODO: remove flag, ie., just follow the desired method.
-LAUNCH_CHILDREN_ON_START = True
-
-
 class PlatformAgentState(BaseEnum):
     """
     Platform agent state enum.
@@ -268,10 +262,11 @@ class PlatformAgent(ResourceAgent):
 
         self._async_children_launched = AsyncResult()
 
-        if LAUNCH_CHILDREN_ON_START:
-            log.info("%r: starting _children_launch", self._platform_id)
-            Greenlet(self._children_launch).start()
-            log.info("%r: started _children_launch", self._platform_id)
+        # NOTE: the launch of the children is only started here via a greenlet
+        # so we can return from this method quickly.
+        log.info("%r: starting _children_launch", self._platform_id)
+        Greenlet(self._children_launch).start()
+        log.info("%r: started _children_launch", self._platform_id)
 
     def _validate_configuration(self):
         """
@@ -1970,37 +1965,21 @@ class PlatformAgent(ResourceAgent):
 
         # then, children initialization
         if recursion:
-            # first, make sure the children are launched:
-            if LAUNCH_CHILDREN_ON_START:
-                # children were launched in on_start; wait here until all
-                # of them are launched:
-                try:
-                    self._async_children_launched.get(timeout=self._timeout)
-                    log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
+            # note that the launch of the children is started in on_start;
+            # wait here until they are actually launched (see _children_launch):
+            try:
+                self._async_children_launched.get(timeout=self._timeout)
+                log.debug("%r: _children_launch: LAUNCHED. Continuing with initialization",
+                          self._platform_id)
+            except:
+                #
+                # Do not proceed further with initialization of children.
+                #
+                log.exception("%r: exception while waiting children "
+                              "to be launched. "
+                              "Not proceeding with initialization of children.",
                               self._platform_id)
-                except:
-                    #
-                    # Do not proceed further with initialization of children.
-                    #
-                    log.exception("%r: exception while waiting children "
-                                  "to be launched. "
-                                  "Not proceeding with initialization of children.",
-                                  self._platform_id)
-                    return
-
-            else:
-                # launch children here (which is synchronous here)
-                try:
-                    self._children_launch()
-
-                except:
-                    #
-                    # Do not proceed further with initialization of children.
-                    #
-                    log.exception("%r: exception while launching children processes. "
-                                  "Not proceeding with initialization of children.",
-                                  self._platform_id)
-                    return
+                return
 
             # All is OK here. Proceed with initializing children:
             try:
