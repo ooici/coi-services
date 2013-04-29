@@ -24,23 +24,30 @@ class AgentStatusBuilder(object):
         self.process = process
 
 
+    def set_status_computed_attributes(self, computed_attrs, values_dict=None, availability=None, reason=None):
+        mappings = {AggregateStatusType.AGGREGATE_COMMS    : "communications_status_roll_up",
+                    AggregateStatusType.AGGREGATE_POWER    : "power_status_roll_up",
+                    AggregateStatusType.AGGREGATE_DATA     : "data_status_roll_up",
+                    AggregateStatusType.AGGREGATE_LOCATION : "location_status_roll_up"}
+
+        if values_dict is None:
+            values_dict = {}
+
+        for k, a in mappings.iteritems():
+            if k in values_dict:
+                status = ComputedIntValue(status=availability, value=values_dict[k], reason=reason)
+            else:
+                status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, reason=None)
+            setattr(computed_attrs, a, status)
+
+
     def add_device_aggregate_status_to_resource_extension(self, device_id, status_name, extended_resource):
 
         if not status_name or not extended_resource :
             raise BadRequest("The device or extended resource parameter is empty")
 
-        def set_unknown(reason):
-            ec = extended_resource.computed
-            ec.communications_status_roll_up =\
-            ec.power_status_roll_up =\
-            ec.data_status_roll_up =\
-            ec.location_status_roll_up =\
-            ec.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                    value=DeviceStatusType.STATUS_UNKNOWN,
-                                                    reason=reason)
-
         if not device_id:
-            set_unknown("No device")
+            self.set_status_computed_attributes(extended_resource.computed, {}, None, "No device")
             return
 
         try:
@@ -49,18 +56,19 @@ class AgentStatusBuilder(object):
             print 'add_device_aggregate_status_to_resource_extension status: %s', agg
 
             if agg:
-                ec = extended_resource.computed
-                ec.communications_status_roll_up = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_COMMS])
-                ec.power_status_roll_up          = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_POWER])
-                ec.data_status_roll_up           = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_DATA])
-                ec.location_status_roll_up       = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_LOCATION])
-                ec.aggregated_status             = self._compute_aggregated_status_overall(agg)
+                self.set_status_computed_attributes(extended_resource.computed, agg, ComputedValueAvailability.PROVIDED)
+                extended_resource.computed.aggregated_status = self._compute_aggregated_status_overall(agg)
+            else:
+                self.set_status_computed_attributes(extended_resource.computed, {}, None, "Status name '%s' not found" % status_name)
+                extended_resource.computed.aggregated_status = self._compute_aggregated_status_overall({})
 
         except NotFound:
-            set_unknown("Could not connect to instrument agent instance -- may not be running")
+            self.set_status_computed_attributes(extended_resource.computed, {}, None,
+                                                "Could not connect to instrument agent instance -- may not be running")
 
         except Unauthorized:
-            set_unknown("The requester does not have the proper role to access the status of this instrument agent")
+            self.set_status_computed_attributes(extended_resource.computed, {}, None,
+                                                "The requester does not have the proper role to access the status of this instrument agent")
 
         except Exception as e:
             raise e
@@ -101,11 +109,12 @@ class AgentStatusBuilder(object):
 
         values_list = agg_status_dict.values()
 
-        status = self._rollup_value(values_list)
+        status = self._crush_status_list(values_list)
 
         return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status)
 
-    def _rollup_value(self, values_list):
+
+    def _crush_status_list(self, values_list):
 
         if DeviceStatusType.STATUS_CRITICAL in values_list:
             status = DeviceStatusType.STATUS_CRITICAL

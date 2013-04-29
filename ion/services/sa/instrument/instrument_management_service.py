@@ -38,7 +38,7 @@ from ion.util.qa_doc_parser import QADocParser
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ComputedIntValue, StatusType, ProcessDefinition
+from interface.objects import AttachmentType, ComputedValueAvailability, ComputedIntValue, StatusType, ProcessDefinition, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
@@ -1755,9 +1755,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                   RT.PlatformDevice)
 
 
-        #retrieve the aggreate and rollup status from the platform agent
-        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(platform_device_id, 'rollup_status', extended_platform)
-        log.debug('get_platform_device_extension  extended_platform.computed: %s', extended_platform.computed)
 
         #retrieve the list of aggreate status for all children of this platform agent
         try:
@@ -1767,15 +1764,32 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
 
             if child_agg_status:
-                extended_platform.computed.child_device_status = child_agg_status
+                extended_platform.computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
+                                                                                   value=child_agg_status)
+
+            #retrieve the platform status from the platform agent
+            this_status = pa_client.get_agent(['agg_status'])['agg_status']
+            combined_status = dict([(k, self.agent_status_builder._crush_status_list([v] + child_agg_status.get(k, [])))
+                                    for k, v in this_status.iteritems()])
+            self.agent_status_builder.set_status_computed_attributes(extended_platform.computed, combined_status,
+                                                                     ComputedValueAvailability.PROVIDED)
+
+            extended_platform.computed.aggregated_status = self.agent_status_builder._compute_aggregated_status_overall(combined_status)
+
 
         except NotFound:
             reason = "Could not connect to platform agent instance -- may not be running"
-            extended_platform.computed.child_device_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+            extended_platform.computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                               value={},
+                                                                               reason=reason)
+            extended_platform.computed.aggregated_status = self.agent_status_builder._compute_aggregated_status_overall({})
 
         except Unauthorized:
             reason = "The requester does not have the proper role to access the status of this platform agent"
-            extended_platform.computed.child_device_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
+            extended_platform.computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                               value={},
+                                                                               reason=reason)
+            extended_platform.computed.aggregated_status = self.agent_status_builder._compute_aggregated_status_overall({})
 
         except Exception as e:
             raise e
@@ -1796,7 +1810,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             parent_node_statuses = [self.agent_status_builder.get_status_of_device(x, "aggstatus") for x in parent_node_device_ids]
             rollup_values = {}
             for key, _ in parent_node_statuses[0].iteritems():
-                rollup_values[key] = self.agent_status_builder._rollup_value([ns[key] for ns in parent_node_statuses])
+                rollup_values[key] = self.agent_status_builder._crush_status_list([ns[key] for ns in parent_node_statuses])
 
             extended_platform.computed.rsn_network_rollup = rollup_values
 
