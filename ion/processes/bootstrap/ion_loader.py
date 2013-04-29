@@ -2080,7 +2080,7 @@ Reason: %s
         agent = self._get_resource_obj(row['agent'])
         agent_config = parse_dict(row['agent_config'])
         driver_config = parse_dict(row['driver_config'])
-        pubrate = row['aparam_pubrate_config']
+        pubrate = row['publish_rate']
 
 #        handler_module = agent.handler_module
 #        handler_class = agent.handler_class
@@ -2120,7 +2120,7 @@ Reason: %s
 
     def _load_InstrumentAgentInstance(self, row):
         startup_config = parse_dict(row['startup_config'])
-        pubrate = row['aparam_pubrate_config']
+        pubrate = row['publish_rate']
 
         alerts = [ self.alerts[id.strip()] for id in row['alerts'].split(',') ] if row['alerts'].strip() else []
 #        if row['alerts']:
@@ -2232,7 +2232,7 @@ Reason: %s
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
-        pubrate = row['aparam_pubrate_config']
+        pubrate = row['publish_rate']
 
         driver_config = parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
