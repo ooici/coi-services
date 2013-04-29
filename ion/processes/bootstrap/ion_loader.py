@@ -952,8 +952,8 @@ class IONLoader(ImmediateProcess):
 
     def _create_temporal_constraint(self, row):
         format = row['time_format'] or DEFAULT_TIME_FORMAT
-        start = calendar.timegm(time.strptime(row['start'], format))
-        end = calendar.timegm(time.strptime(row['end'], format))
+        start = str(calendar.timegm(time.strptime(row['start'], format)))
+        end = str(calendar.timegm(time.strptime(row['end'], format)))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
 
     def _load_User(self, row):
