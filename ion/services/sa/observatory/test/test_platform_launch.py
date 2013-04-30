@@ -6,6 +6,9 @@
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   Test cases for launching and shutting down a platform agent network
 """
+from interface.objects import ComputedIntValue
+from ion.services.sa.test.helpers import any_old
+from pyon.ion.resource import RT
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
@@ -35,21 +38,28 @@ from pyon.public import CFG
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
 class TestPlatformLaunch(BaseIntTestPlatform):
 
-    def _run_commands(self):
-        """
-        A common sequence of commands for the root platform in some of the
-        tests below.
-        """
+    def _run_startup_commands(self):
         self._ping_agent()
         self._initialize()
         self._go_active()
         self._run()
 
-        #####################
-        # done
+
+    def _run_shutdown_commands(self):
         self._go_inactive()
         self._reset()
         self._shutdown()
+
+    def _run_commands(self):
+        """
+        A common sequence of commands for the root platform in some of the
+        tests below.
+        """
+        self._run_startup_commands()
+
+        #####################
+        # done
+        self._run_shutdown_commands()
 
     def test_single_platform(self):
         #
@@ -115,3 +125,48 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self.addCleanup(self._stop_platform, p_root)
 
         self._run_commands()
+
+
+    def test_platform_device_extended_attributes(self):
+        p_root = self._create_small_hierarchy()
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+
+        self._run_startup_commands()
+
+        pdevice_id = p_root["platform_device_id"]
+        p_extended = self.IMS.get_platform_device_extension(pdevice_id)
+
+        for retval in [p_extended.computed.communications_status_roll_up,
+                       p_extended.computed.data_status_roll_up,
+                       p_extended.computed.power_status_roll_up,
+                       p_extended.computed.power_status_roll_up,
+                       #p_extended.computed.rsn_network_child_device_status,
+                       #p_extended.computed.rsn_network_rollup,
+                       ]:
+            self.assertIsInstance(retval, ComputedIntValue)
+
+
+        print "aggregated status:", p_extended.aggregated_status
+        print "communications_status_roll_up", p_extended.computed.communications_status_roll_up
+        print "data_status_roll_up", p_extended.computed.data_status_roll_up
+        print "location_status_roll_up", p_extended.computed.location_status_roll_up
+        print "power_status_roll_up", p_extended.computed.power_status_roll_up
+        print "rsn_network_child_device_status", p_extended.computed.rsn_network_child_device_status
+        print "rsn_network_rollup", p_extended.computed.rsn_network_rollup
+
+        psite_id = self.RR2.create(any_old(RT.PlatformSite))
+        self.RR2.assign_device_to_site_with_has_device(pdevice_id, psite_id)
+
+        ps_extended = self.OMS.get_site_extension(psite_id)
+
+        for retval in [ps_extended.computed.communications_status_roll_up,
+                       ps_extended.computed.data_status_roll_up,
+                       ps_extended.computed.power_status_roll_up,
+                       ps_extended.computed.power_status_roll_up,
+                       #ps_extended.computed.rsn_network_child_device_status,
+                       #ps_extended.computed.rsn_network_rollup,
+        ]:
+            self.assertIsInstance(retval, ComputedIntValue)
+
+        self._run_shutdown_commands()

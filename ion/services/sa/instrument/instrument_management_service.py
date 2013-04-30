@@ -1755,44 +1755,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                   RT.PlatformDevice)
 
 
-
-        #retrieve the list of aggreate status for all children of this platform agent
-        try:
-            pa_client = self.agent_status_builder.obtain_agent_handle(platform_device_id)
-
-            child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
-            log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
-
-            if child_agg_status:
-                extended_platform.computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                                                                   value=child_agg_status)
-
-            #retrieve the platform status from the platform agent
-            this_status = pa_client.get_agent(['agg_status'])['agg_status']
-            combined_status = dict([(k, self.agent_status_builder._crush_status_list([v] + child_agg_status.get(k, [])))
-                                    for k, v in this_status.iteritems()])
-            self.agent_status_builder.set_status_computed_attributes(extended_platform.computed, combined_status,
-                                                                     ComputedValueAvailability.PROVIDED)
-
-            extended_platform.computed.aggregated_status = self.agent_status_builder._compute_aggregated_status_overall(combined_status)
-
-
-        except NotFound:
-            reason = "Could not connect to platform agent instance -- may not be running"
-            extended_platform.computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                                               value={},
-                                                                               reason=reason)
-            extended_platform.computed.aggregated_status = self.agent_status_builder._compute_aggregated_status_overall({})
-
-        except Unauthorized:
-            reason = "The requester does not have the proper role to access the status of this platform agent"
-            extended_platform.computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                                               value={},
-                                                                               reason=reason)
-            extended_platform.computed.aggregated_status = self.agent_status_builder._compute_aggregated_status_overall({})
-
-        except Exception as e:
-            raise e
+        self.agent_status_builder.add_platform_device_aggregate_status_to_resource_extension(platform_device_id,
+                                                                                             extended_platform)
 
 
         rollx_builder = RollXBuilder(self)
@@ -1854,7 +1818,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
                 context_dict = {}
                 pdict = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0]).parameter_dictionary
-                log.debug("get_data_product_parameters_set: pdict %s ", str(pdict) )
+                log.trace("get_data_product_parameters_set: pdict %s ", str(pdict) )
 
                 pdict_full = ParameterDictionary.load(pdict)
 
