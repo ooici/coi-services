@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgGScp7mjYjydEFjOS0wd3NHRnV2d2xfeVBYY3VEelE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dEVqWnBsdHJ3MW5aMFpzTnA5V014Mmc&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -2079,6 +2079,7 @@ Reason: %s
         agent = self._get_resource_obj(row['agent'])
         agent_config = parse_dict(row['agent_config'])
         driver_config = parse_dict(row['driver_config'])
+        pubrate = row['publish_rate']
 
 #        handler_module = agent.handler_module
 #        handler_class = agent.handler_class
@@ -2104,6 +2105,7 @@ Reason: %s
             'driver_config' : driver_config,
             'stream_config' : { }, #'a': 'ion_loader:1933'},
             'agent'         : {'resource_id': dataset._id},
+            'aparam_pubrate_config': pubrate
             #'test_mode' : True
         } )
 
@@ -2117,6 +2119,7 @@ Reason: %s
 
     def _load_InstrumentAgentInstance(self, row):
         startup_config = parse_dict(row['startup_config'])
+        pubrate = row['publish_rate']
 
         alerts = [ self.alerts[id.strip()] for id in row['alerts'].split(',') ] if row['alerts'].strip() else []
 #        if row['alerts']:
@@ -2128,6 +2131,10 @@ Reason: %s
         #        alerts_config  = parse_dict(row['alerts'])
 
         # define complicated attributes
+        agent_config = {
+            'aparam_pubrate_config' : pubrate
+        }
+
         driver_config = { 'comms_config': { 'addr':  row['comms_server_address'],
                                                     'port':  int(row['comms_server_port']),
                                                     'cmd_port': int(row['comms_server_cmd_port']) } }
@@ -2144,7 +2151,8 @@ Reason: %s
 
         res_id = self._basic_resource_create(row, "InstrumentAgentInstance", "iai/",
             "instrument_management", "create_instrument_agent_instance",
-            set_attributes=dict(driver_config=driver_config,
+            set_attributes=dict(agent_config=agent_config,
+                                driver_config=driver_config,
                                 port_agent_config=port_agent_config,
                                 startup_config=startup_config,
                                 alerts=alerts),
@@ -2213,20 +2221,23 @@ Reason: %s
 
     def _load_PlatformAgentInstance(self, row):
         # construct values for more complex fields
+
+        alerts_config = [ self.alerts[id.strip()] for id in row['alerts'].split(',') ] if row['alerts'].strip() else []
+
         platform_id = row['platform_id']
         platform_agent_id = self.resource_ids[row['platform_agent_id']]
         platform_device_id = self.resource_ids[row['platform_device_id']]
+        pubrate = row['publish_rate']
 
         driver_config = parse_dict(row['driver_config'])
         log.debug("driver_config = %s", driver_config)
 
-        alerts_config  = parse_dict(row['alerts'])
-
         # Note: platform_id currently expected by PlatformAgent as follows:
         agent_config = {
-            'platform_config': {'platform_id': platform_id}
+            'platform_config': {'platform_id': platform_id},
+            'aparam_pubrate_config' : pubrate
         }
-        # TODO determine how to finally indicate this platform_id.
+        # TODO determine how to finally indicate this platform_id.)
 
         res_id = self._basic_resource_create(row, "PlatformAgentInstance", "pai/",
             "instrument_management", "create_platform_agent_instance",
