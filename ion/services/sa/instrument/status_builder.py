@@ -10,7 +10,7 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Unauthorized
 
 
-from interface.objects import ComputedValueAvailability, ComputedIntValue
+from interface.objects import ComputedValueAvailability, ComputedIntValue, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 
 
@@ -39,6 +39,52 @@ class AgentStatusBuilder(object):
             else:
                 status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, reason=None)
             setattr(computed_attrs, a, status)
+
+
+    def add_platform_device_aggregate_status_to_resource_extension(self, platform_device_id, extension):
+
+        computed_attributes = extension.computed
+
+        #retrieve the list of aggreate status for all children of this platform agent
+        try:
+            pa_client = self.obtain_agent_handle(platform_device_id)
+
+            child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
+            log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
+
+            if child_agg_status and hasattr(computed_attributes, "child_device_status"):
+                computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
+                                                                                   value=child_agg_status)
+
+            #retrieve the platform status from the platform agent
+            this_status = pa_client.get_agent(['aggstatus'])['aggstatus']
+            log.debug("this_status is %s", this_status)
+            combined_status = dict([(k, self._crush_status_list([v] + child_agg_status.get(k, [])))
+            for k, v in this_status.iteritems()])
+            log.debug("combined_status is %s", this_status)
+            self.set_status_computed_attributes(computed_attributes, combined_status,
+                                                                     ComputedValueAvailability.PROVIDED)
+
+            computed_attributes.aggregated_status = self._compute_aggregated_status_overall(combined_status)
+
+        except NotFound:
+            reason = "Could not connect to platform agent instance -- may not be running"
+            computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                               value={},
+                                                                               reason=reason)
+            computed_attributes.aggregated_status = self._compute_aggregated_status_overall({})
+
+        except Unauthorized:
+            reason = "The requester does not have the proper role to access the status of this platform agent"
+            computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                               value={},
+                                                                               reason=reason)
+            computed_attributes.aggregated_status = self._compute_aggregated_status_overall({})
+
+        except Exception as e:
+            raise e
+
+
 
 
     def add_device_aggregate_status_to_resource_extension(self, device_id, status_name, extended_resource):

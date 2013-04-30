@@ -832,14 +832,20 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                     for pdev in extended_site.platform_devices]
 
         # status rollups from attached device if it exists (handled in agent status builder)
-        device_ids = RR2.find_objects(site_id, PRED.hasDevice, id_only=True)
-        if 0 == len(device_ids):
+        devices = RR2.find_objects(site_id, PRED.hasDevice, id_only=False)
+        if 0 == len(devices):
             device_id = None
+            device_type = None
         else:
-            device_id = device_ids[0]
-        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(device_id,
-                                                                                    'child_agg_status',
-                                                                                    extended_site)
+            device_id = devices[0]._id
+            device_type = type(devices[0]).__name__
+
+        if RT.PlatformDevice == device_type:
+            self.agent_status_builder.add_platform_device_aggregate_status_to_resource_extension(device_id, extended_site)
+        else:
+            self.agent_status_builder.add_device_aggregate_status_to_resource_extension(device_id,
+                                                                                        'child_agg_status',
+                                                                                        extended_site)
 
 
         ec.site_status = [StatusType.STATUS_UNKNOWN] * len(extended_site.sites)
