@@ -6,6 +6,7 @@
 @brief Publication / Subscription Management Service Implementation
 '''
 from pyon.core.exception import Conflict, BadRequest, NotFound
+from pyon.net.transport import TransportError
 from pyon.public import RT, PRED
 from pyon.util.arg_check import validate_true, validate_is_instance, validate_false, validate_equal
 from pyon.util.containers import create_unique_identifier
@@ -476,12 +477,18 @@ class PubsubManagementService(BasePubsubManagementService):
     def _bind(self, exchange_point, exchange_name, binding_key):
         xp = self.container.ex_manager.create_xp(exchange_point)
         xn = self.container.ex_manager.create_xn_queue(exchange_name)
-        xn.bind(binding_key, xp)
+        try:
+            xn.bind(binding_key, xp)
+        except TransportError:
+            log.exception('Pubsub could not bind %s to %s', binding_key, str(xp))
 
     def _unbind(self, exchange_point, exchange_name, binding_key):
         xp = self.container.ex_manager.create_xp(exchange_point)
         xn = self.container.ex_manager.create_xn_queue(exchange_name)
-        xn.unbind(binding_key, xp)
+        try:
+            xn.unbind(binding_key, xp)
+        except TransportError:
+            log.exception('Pubsub could not unbind %s from %s', binding_key, str(xp))
     
     #--------------------------------------------------------------------------------
 
