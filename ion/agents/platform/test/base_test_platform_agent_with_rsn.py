@@ -1167,7 +1167,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         #retval = self._pa_client.execute_agent(cmd, timeout=timeout)
         retval = self._pa_client.execute_agent(cmd)
         elapsed_time = time.time() - time_start
-        log.info("_execute_agent: cmd=%r elapsed_time=%s, retval = %s",
+        log.info("_execute_agent: timing cmd=%r elapsed_time=%s, retval = %s",
                  cmd.command, elapsed_time, str(retval))
         return retval
 
