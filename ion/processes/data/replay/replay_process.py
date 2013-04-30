@@ -153,7 +153,7 @@ class ReplayProcess(BaseReplayProcess):
             fields = rdt.fields
 
         for field in fields:
-            log.info( 'Slice is %s' , slice_)
+            log.trace( 'Slice is %s' , slice_)
             try:
                 n = coverage.get_parameter_values(field,tdoa=slice_)
             except ParameterFunctionException:

@@ -156,7 +156,6 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
     def do_shutdown(self):
         pass # might be nice to stop the driver...
 
-
 @attr('INT', group='eoi')
 class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
     """
@@ -184,9 +183,9 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
         cnd_ctxt.uom = 'mmho/cm'
         context_ids.append(self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cnd_ctxt.dump()))
 
-        temp_ctxt = ParameterContext('temperature', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
+        temp_ctxt = ParameterContext('temp', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         temp_ctxt.uom = 'degC'
-        context_ids.append(self.dataset_management.create_parameter_context(name='temperature', parameter_context=temp_ctxt.dump()))
+        context_ids.append(self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump()))
 
         press_ctxt = ParameterContext('pressure', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         press_ctxt.uom = 'decibars'
@@ -227,7 +226,33 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        self.assertIsNotNone(rdt['temperature'])
+        self.assertIsNotNone(rdt['temp'])
+
+
+class TestBinaryCTD2(TestBinaryCTD):
+    """ repeat same test using the simple_dataset_agent """
+    def setup_resources(self):
+        self.name = 'hypm_01_wpf_ctd'
+        self.description = 'ctd instrument test'
+        self.EDA_NAME = 'ExampleEDA'
+        self.EDA_MOD = 'ion.agents.data.simple_dataset_agent'
+        self.EDA_CLS = 'FilePollingDatasetAgent'
+    def get_dvr_config(self):
+        pdict = self.dataset_management.read_parameter_dictionary(self.pdict_id)
+        stream_def_obj = self.pubsub_management.read_stream_definition(self.stream_def_id)
+        DVR_CONFIG = {
+            'directory': 'test_data',
+            'pattern': 'C*.DAT',
+            'frequency': 5,
+            'max_records': 5,
+            'stream_id': self.stream_id,
+            'stream_route': { key: getattr(self.route, key) for key in self.route._schema },
+            'parser.module': 'ion.agents.data.handlers.sbe52_binary_handler',
+            'parser.class': 'SBE52BinaryCTDParser',
+            'parameter_dict': stream_def_obj.parameter_dictionary,
+            'last_time': 0
+        }
+        return DVR_CONFIG
 
 
 

@@ -38,6 +38,7 @@ from ion.agents.data.handlers.handler_utils import list_file_info, calculate_ite
 import struct
 import time
 from ooi.logging import log
+import os
 
 # 2 days @ 1 record/sec
 MAX_RECORDS_PER_GRANULE=2*24*60*60
@@ -150,6 +151,7 @@ class SBE52BinaryDataHandler(BaseDataHandler):
 
         for f in new_flst:
             try:
+                size = os.stat('somefile.txt').st_size
                 try:
                     #find the new data check index in config
                     index = -1
@@ -177,8 +179,10 @@ class SBE52BinaryDataHandler(BaseDataHandler):
 
 # TODO: record files already read for future additions...
 #                    #update new data check with the latest file position
-#                    if 'set_new_data_check' in config and index > -1:
-#                        config['set_new_data_check'][index] = (f[0], f[1], f[2], file_pos)
+                    if 'set_new_data_check' in config and index > -1:
+                        # WRONG: should only record this after file finished parsing,
+                        # but may not have another yield at that point to trigger update
+                        config['set_new_data_check'][index] = (f[0], f[1], f[2], size)
 
                     yield g
 
@@ -203,9 +207,10 @@ class SBE52BinaryCTDParser(object):
     _record_index = 0
     _upload_time = time.time()
 
-    def __init__(self, url, *a, **b):
+    def __init__(self, url, parse_after=0, *a, **b):
         """ raise exception if file does not meet spec, or is too large to read into memory """
         self._profiles = []
+        self._parse_after = parse_after
         with open(url, 'rb') as f:
             f.seek(0,2)
             size = f.tell()
@@ -214,9 +219,10 @@ class SBE52BinaryCTDParser(object):
             f.seek(0)
             profile = self._read_profile(f)
             while profile:
-                self._profiles.append(profile)
+                if profile['end']>self._parse_after:
+                    self._profiles.append(profile)
                 profile = self._read_profile(f)
-        log.debug('parsed %s, found %d profiles', url, len(self._profiles))
+        log.debug('parsed %s, found %d usable profiles', url, len(self._profiles))
 
     def _read_profile(self, f):
         line = f.read(11)
@@ -253,15 +259,17 @@ class SBE52BinaryCTDParser(object):
         last_index = min(max_count+self._record_index,len(records))
         while self._record_index<last_index:
             data = records[self._record_index]
-            record = {
-                'upload_time': self._upload_time,
-                'time': self._interpolate_time(self._record_index,start,end,len(records)),
-                'conductivity': self._get_conductivity(data),
-                'temp': self._get_temperature(data),
-                'pressure': self._get_pressure(data),
-                'oxygen': self._get_oxygen(data)
-            }
-            out.append(record)
+            time = self._interpolate_time(self._record_index,start,end,len(records))
+            if time>self._parse_after:
+                record = {
+                    'upload_time': self._upload_time,
+                    'time': time,
+                    'conductivity': self._get_conductivity(data),
+                    'temp': self._get_temperature(data),
+                    'pressure': self._get_pressure(data),
+                    'oxygen': self._get_oxygen(data)
+                }
+                out.append(record)
             self._record_index+=1
 
         if self._record_index==len(records):
@@ -292,13 +300,11 @@ class SBE52BinaryCTDParser(object):
         return float(raw)/divisor - offset
 
     def _unpack_int(self, data):
-        # can't use struct.unpack -- these fields are not typical 2, 4 or 8-byte widths
+        # can't use struct.unpack once for the whole field -- these fields are not typical 2, 4 or 8-byte widths
         out = 0
         for char in data[:-1]:
-#            out+=char
             out+=struct.unpack('<B',char)[0]
             out*=256
-#        out+=data[-1]
         out+=struct.unpack('<B',data[-1])[0]
         return out
 
