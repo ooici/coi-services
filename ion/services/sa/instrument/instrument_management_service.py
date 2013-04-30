@@ -38,7 +38,7 @@ from ion.util.qa_doc_parser import QADocParser
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ComputedIntValue, StatusType, ProcessDefinition
+from interface.objects import AttachmentType, ComputedValueAvailability, ComputedIntValue, StatusType, ProcessDefinition, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
@@ -1755,30 +1755,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                   RT.PlatformDevice)
 
 
-        #retrieve the aggreate and rollup status from the platform agent
-        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(platform_device_id, 'rollup_status', extended_platform)
-        log.debug('get_platform_device_extension  extended_platform.computed: %s', extended_platform.computed)
-
-        #retrieve the list of aggreate status for all children of this platform agent
-        try:
-            pa_client = self.agent_status_builder.obtain_agent_handle(platform_device_id)
-
-            child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
-            log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
-
-            if child_agg_status:
-                extended_platform.computed.child_device_status = child_agg_status
-
-        except NotFound:
-            reason = "Could not connect to platform agent instance -- may not be running"
-            extended_platform.computed.child_device_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
-
-        except Unauthorized:
-            reason = "The requester does not have the proper role to access the status of this platform agent"
-            extended_platform.computed.child_device_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, value=DeviceStatusType.STATUS_UNKNOWN, reason=reason)
-
-        except Exception as e:
-            raise e
+        self.agent_status_builder.add_platform_device_aggregate_status_to_resource_extension(platform_device_id,
+                                                                                             extended_platform)
 
 
         rollx_builder = RollXBuilder(self)
@@ -1796,7 +1774,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             parent_node_statuses = [self.agent_status_builder.get_status_of_device(x, "aggstatus") for x in parent_node_device_ids]
             rollup_values = {}
             for key, _ in parent_node_statuses[0].iteritems():
-                rollup_values[key] = self.agent_status_builder._rollup_value([ns[key] for ns in parent_node_statuses])
+                rollup_values[key] = self.agent_status_builder._crush_status_list([ns[key] for ns in parent_node_statuses])
 
             extended_platform.computed.rsn_network_rollup = rollup_values
 
@@ -1840,7 +1818,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
                 context_dict = {}
                 pdict = self.clients.pubsub_management.read_stream_definition(stream_def_ids[0]).parameter_dictionary
-                log.debug("get_data_product_parameters_set: pdict %s ", str(pdict) )
+                log.trace("get_data_product_parameters_set: pdict %s ", str(pdict) )
 
                 pdict_full = ParameterDictionary.load(pdict)
 
@@ -1873,55 +1851,34 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         resource_data = extended_resource_handler.create_prepare_resource_support(instrument_device_id, OT.InstrumentDevicePrepareSupport)
 
         #Fill out service request information for creating a instrument device
-        resource_data.create_request.service_name = 'instrument_management'
-        resource_data.create_request.service_operation = 'create_instrument_device'
-        resource_data.create_request.request_parameters = {
-            "instrument_device":  "$(instrument_device)"
-        }
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'instrument_management',
+            'create_instrument_device', { "instrument_device":  "$(instrument_device)" })
 
-        #Fill out service request information for updating a instrument device
-        resource_data.update_request.service_name = 'instrument_management'
-        resource_data.update_request.service_operation = 'update_instrument_device'
-        resource_data.update_request.request_parameters = {
-            "instrument_device":  "$(instrument_device)"
-        }
+        #Fill out service request information for creating a instrument device
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'instrument_management',
+            'update_instrument_device', { "instrument_device":  "$(instrument_device)" })
 
         #Fill out service request information for assigning a model
-        resource_data.assign_instrument_model_request.service_name = 'instrument_management'
-        resource_data.assign_instrument_model_request.service_operation = 'assign_instrument_model_to_instrument_device'
-        resource_data.assign_instrument_model_request.request_parameters = {
-            "instrument_model_id":  "$(instrument_model_id)",
-            "instrument_device_id":  instrument_device_id
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentModel'].assign_request, 'instrument_management',
+            'assign_instrument_model_to_instrument_device', { "instrument_model_id":  "$(instrument_model_id)",
+                                                              "instrument_device_id":  instrument_device_id })
 
 
         #Fill out service request information for unassigning a model
-        resource_data.unassign_instrument_model_request.service_name = 'instrument_management'
-        resource_data.unassign_instrument_model_request.service_operation = 'unassign_instrument_model_to_instrument_device'
-        resource_data.unassign_instrument_model_request.request_parameters = {
-            "instrument_model_id":  "$(instrument_model_id)",
-            "instrument_device_id":  instrument_device_id
-        }
-
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentModel'].unassign_request, 'instrument_management',
+            'unassign_instrument_model_from_instrument_device', { "instrument_model_id":  "$(instrument_model_id)",
+                                                                "instrument_device_id":  instrument_device_id })
 
         #Fill out service request information for assigning a sensor
-        resource_data.assign_sensor_device_request.service_name = 'instrument_management'
-        resource_data.assign_sensor_device_request.service_operation = 'assign_sensor_device_to_instrument_device'
-        resource_data.assign_sensor_device_request.request_parameters = {
-            "sensor_device_id":  "$(sensor_device_id)",
-            "instrument_device_id":  instrument_device_id
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['SensorDevice'].assign_request, 'instrument_management',
+            'assign_sensor_device_to_instrument_device', { "sensor_device_id":  "$(sensor_device_id)",
+                                                              "instrument_device_id":  instrument_device_id })
 
 
         #Fill out service request information for unassigning a sensor
-        resource_data.unassign_sensor_device_request.service_name = 'instrument_management'
-        resource_data.unassign_sensor_device_request.service_operation = 'unassign_sensor_device_to_instrument_device'
-        resource_data.unassign_sensor_device_request.request_parameters = {
-            "sensor_device_id":  "$(sensor_device_id)",
-            "instrument_device_id":  instrument_device_id
-        }
-
-
+        extended_resource_handler.set_service_requests(resource_data.associations['SensorDevice'].unassign_request, 'instrument_management',
+            'unassign_sensor_device_from_instrument_device', { "sensor_device_id":  "$(sensor_device_id)",
+                                                                "instrument_device_id":  instrument_device_id })
 
         return resource_data
 
@@ -1936,53 +1893,37 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         resource_data = extended_resource_handler.create_prepare_resource_support(platform_device_id, OT.PlatformDevicePrepareSupport)
 
-        #Fill out service request information for creating a platform device
-        resource_data.create_request.service_name = 'instrument_management'
-        resource_data.create_request.service_operation = 'create_platform_device'
-        resource_data.create_request.request_parameters = {
-            "platform_device":  "$(platform_device)"
-        }
 
-        #Fill out service request information for updating a platform device
-        resource_data.update_request.service_name = 'instrument_management'
-        resource_data.update_request.service_operation = 'update_platform_device'
-        resource_data.update_request.request_parameters = {
-            "platform_device":  "$(platform_device)"
-        }
+        #Fill out service request information for creating a platform device
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'instrument_management',
+            'create_platform_device', { "platform_device":  "$(platform_device)" })
+
+        #Fill out service request information for creating a platform device
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'instrument_management',
+            'update_platform_device', { "platform_device":  "$(platform_device)" })
 
         #Fill out service request information for assigning a model
-        resource_data.assign_platform_model_request.service_name = 'instrument_management'
-        resource_data.assign_platform_model_request.service_operation = 'assign_platform_model_to_platform_device'
-        resource_data.assign_platform_model_request.request_parameters = {
-            "platform_model_id":  "$(platform_model_id)",
-            "platform_device_id":  platform_device_id
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformModel'].assign_request, 'instrument_management',
+            'assign_platform_model_to_platform_device', { "platform_model_id":  "$(platform_model_id)",
+                                                          "platform_device_id":  platform_device_id })
 
 
         #Fill out service request information for unassigning a model
-        resource_data.unassign_platform_model_request.service_name = 'instrument_management'
-        resource_data.unassign_platform_model_request.service_operation = 'unassign_platform_model_to_platform_device'
-        resource_data.unassign_platform_model_request.request_parameters = {
-            "platform_model_id":  "$(platform_model_id)",
-            "platform_device_id":  platform_device_id
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformModel'].unassign_request, 'instrument_management',
+            'unassign_platform_model_from_platform_device', {  "platform_model_id":  "$(platform_model_id)",
+                                                             "platform_device_id":  platform_device_id})
 
         #Fill out service request information for assigning an instrument
-        resource_data.assign_instrument_device_request.service_name = 'instrument_management'
-        resource_data.assign_instrument_device_request.service_operation = 'assign_instrument_device_to_platform_device'
-        resource_data.assign_instrument_device_request.request_parameters = {
-            "instrument_device_id":  "$(instrument_device_id)",
-            "platform_device_id":  platform_device_id
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request, 'instrument_management',
+            'assign_instrument_device_to_platform_device', {"instrument_device_id":  "$(instrument_device_id)",
+                                                            "platform_device_id":  platform_device_id })
 
 
         #Fill out service request information for unassigning an instrument
-        resource_data.unassign_instrument_device_request.service_name = 'instrument_management'
-        resource_data.unassign_instrument_device_request.service_operation = 'unassign_instrument_device_to_platform_device'
-        resource_data.unassign_instrument_device_request.request_parameters = {
-            "instrument_device_id":  "$(instrument_device_id)",
-            "platform_device_id":  platform_device_id
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].unassign_request, 'instrument_management',
+            'unassign_instrument_device_from_platform_device', { "instrument_device_id":  "$(instrument_device_id)",
+                                                               "platform_device_id":  platform_device_id })
+
 
         return resource_data
 

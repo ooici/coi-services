@@ -238,7 +238,7 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
             'test_mode' : True,
             'forget_past' : False,
             'enable_persistence' : True,
-            'aparam_alert_config' : [state_alert_def, command_alert_def]
+            'aparam_alerts_config' : [state_alert_def, command_alert_def]
         }
 
         self._ia_client = None

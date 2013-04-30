@@ -818,47 +818,48 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         #First call to create
         instrument_data = self.IMS.prepare_instrument_device_support()
 
-        #print simplejson.dumps(instrument_data, default=ion_object_encoder, indent= 2)
+        #print simplejson.dumps(instrument_data, default=ion_object_encoder, indent=2)
 
 
         self.assertEqual(instrument_data._id, '')
         self.assertEqual(instrument_data.type_, OT.InstrumentDevicePrepareSupport)
-        self.assertEqual(len(instrument_data.instrument_models), 1)
-        self.assertEqual(instrument_data.instrument_models[0]._id, instrument_model_id)
-        self.assertEqual(len(instrument_data.instrument_agents), 1)
-        self.assertEqual(instrument_data.instrument_agents[0]._id, instrument_agent_id)
-        self.assertEqual(len(instrument_data.instrument_device_model), 0)
-        self.assertEqual(len(instrument_data.instrument_agent_models), 1)
-        self.assertEqual(instrument_data.instrument_agent_models[0].o, instrument_model_id)
-        self.assertEqual(instrument_data.instrument_agent_models[0].s, instrument_agent_id)
-        self.assertEqual(len(instrument_data.sensor_devices), 1)
-        self.assertEqual(instrument_data.sensor_devices[0]._id, sensor_device_id)
+        self.assertEqual(len(instrument_data.associations['InstrumentModel'].resources), 1)
+        self.assertEqual(instrument_data.associations['InstrumentModel'].resources[0]._id, instrument_model_id)
+        self.assertEqual(len(instrument_data.associations['InstrumentAgent'].resources), 1)
+        self.assertEqual(instrument_data.associations['InstrumentAgent'].resources[0]._id, instrument_agent_id)
+        self.assertEqual(len(instrument_data.associations['InstrumentModel'].associated_resources), 0)
+        self.assertEqual(len(instrument_data.associations['InstrumentAgent'].associated_resources), 1)
+        self.assertEqual(instrument_data.associations['InstrumentAgent'].associated_resources[0].o, instrument_model_id)
+        self.assertEqual(instrument_data.associations['InstrumentAgent'].associated_resources[0].s, instrument_agent_id)
+        self.assertEqual(len(instrument_data.associations['SensorDevice'].resources), 1)
+        self.assertEqual(instrument_data.associations['SensorDevice'].resources[0]._id, sensor_device_id)
+
 
 
         #Next call to update
         instrument_data = self.IMS.prepare_instrument_device_support(instrument_device_id)
 
-        #print simplejson.dumps(instrument_data, default=ion_object_encoder, indent= 2)
+        #print 'Update results'
+        #print simplejson.dumps(instrument_data, default=ion_object_encoder, indent=2)
 
         self.assertEqual(instrument_data._id, instrument_device_id)
         self.assertEqual(instrument_data.type_, OT.InstrumentDevicePrepareSupport)
-        self.assertEqual(len(instrument_data.instrument_models), 1)
-        self.assertEqual(instrument_data.instrument_models[0]._id, instrument_model_id)
-        self.assertEqual(len(instrument_data.instrument_agents), 1)
-        self.assertEqual(instrument_data.instrument_agents[0]._id, instrument_agent_id)
-        self.assertEqual(len(instrument_data.instrument_device_model), 1)
-        self.assertEqual(instrument_data.instrument_device_model[0].s, instrument_device_id)
-        self.assertEqual(instrument_data.instrument_device_model[0].o, instrument_model_id)
-        self.assertEqual(len(instrument_data.instrument_agent_models), 1)
-        self.assertEqual(instrument_data.instrument_agent_models[0].o, instrument_model_id)
-        self.assertEqual(instrument_data.instrument_agent_models[0].s, instrument_agent_id)
-        self.assertEqual(len(instrument_data.sensor_devices), 1)
-        self.assertEqual(instrument_data.sensor_devices[0]._id, sensor_device_id)
-        self.assertEqual(len(instrument_data.instrument_device_sensor_device), 1)
-        self.assertEqual(instrument_data.instrument_device_sensor_device[0].o, instrument_device_id)
-        self.assertEqual(instrument_data.instrument_device_sensor_device[0].s, sensor_device_id)
-        self.assertEqual(instrument_data.assign_instrument_model_request.request_parameters['instrument_device_id'], instrument_device_id)
-
+        self.assertEqual(len(instrument_data.associations['InstrumentModel'].resources), 1)
+        self.assertEqual(instrument_data.associations['InstrumentModel'].resources[0]._id, instrument_model_id)
+        self.assertEqual(len(instrument_data.associations['InstrumentAgent'].resources), 1)
+        self.assertEqual(instrument_data.associations['InstrumentAgent'].resources[0]._id, instrument_agent_id)
+        self.assertEqual(len(instrument_data.associations['InstrumentModel'].associated_resources), 1)
+        self.assertEqual(instrument_data.associations['InstrumentModel'].associated_resources[0].s, instrument_device_id)
+        self.assertEqual(instrument_data.associations['InstrumentModel'].associated_resources[0].o, instrument_model_id)
+        self.assertEqual(len(instrument_data.associations['InstrumentAgent'].associated_resources), 1)
+        self.assertEqual(instrument_data.associations['InstrumentAgent'].associated_resources[0].o, instrument_model_id)
+        self.assertEqual(instrument_data.associations['InstrumentAgent'].associated_resources[0].s, instrument_agent_id)
+        self.assertEqual(len(instrument_data.associations['SensorDevice'].resources), 1)
+        self.assertEqual(instrument_data.associations['SensorDevice'].resources[0]._id, sensor_device_id)
+        self.assertEqual(len(instrument_data.associations['SensorDevice'].associated_resources), 1)
+        self.assertEqual(instrument_data.associations['SensorDevice'].associated_resources[0].o, instrument_device_id)
+        self.assertEqual(instrument_data.associations['SensorDevice'].associated_resources[0].s, sensor_device_id)
+        self.assertEqual(instrument_data.associations['InstrumentModel'].assign_request.request_parameters['instrument_device_id'], instrument_device_id)
 
 
         #test prepare for update of data product to see if it is associated with the instrument that was created
@@ -868,60 +869,62 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(data_product_data._id, data_product_id1)
         self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
-        self.assertEqual(len(data_product_data.stream_definitions), 1)
+        self.assertEqual(len(data_product_data.associations['StreamDefinition'].resources), 1)
 
-        self.assertEqual(len(data_product_data.datasets), 0)
+        self.assertEqual(len(data_product_data.associations['Dataset'].resources), 0)
 
-        self.assertEqual(len(data_product_data.data_product_stream_definition), 1)
-        self.assertEqual(data_product_data.data_product_stream_definition[0].s, data_product_id1)
+        self.assertEqual(len(data_product_data.associations['StreamDefinition'].associated_resources), 1)
+        self.assertEqual(data_product_data.associations['StreamDefinition'].associated_resources[0].s, data_product_id1)
 
-        self.assertEqual(len(data_product_data.data_product_dataset), 0)
+        self.assertEqual(len(data_product_data.associations['Dataset'].associated_resources), 0)
 
-        self.assertEqual(len(data_product_data.instrument_devices), 1)
+        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].resources), 1)
 
-        self.assertEqual(len(data_product_data.data_product_instrument_device), 1)
-        self.assertEqual(data_product_data.data_product_instrument_device[0].s, instrument_device_id)
-        self.assertEqual(data_product_data.data_product_instrument_device[0].o, data_product_id1)
+        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].associated_resources), 1)
+        self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].s, instrument_device_id)
+        self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].o, data_product_id1)
 
-        self.assertEqual(len(data_product_data.platform_devices), 1)
+        self.assertEqual(len(data_product_data.associations['PlatformDevice'].resources), 1)
 
 
         platform_data = self.IMS.prepare_platform_device_support()
 
         self.assertEqual(platform_data._id, '')
         self.assertEqual(platform_data.type_, OT.PlatformDevicePrepareSupport)
-        self.assertEqual(len(platform_data.platform_models), 1)
-        self.assertEqual(platform_data.platform_models[0]._id, platform_model_id)
-        self.assertEqual(len(platform_data.platform_agents), 1)
-        self.assertEqual(platform_data.platform_agents[0]._id, platform_agent_id)
-        self.assertEqual(len(platform_data.platform_device_model), 0)
-        self.assertEqual(len(platform_data.platform_agent_models), 1)
-        self.assertEqual(platform_data.platform_agent_models[0].o, platform_model_id)
-        self.assertEqual(platform_data.platform_agent_models[0].s, platform_agent_id)
-        self.assertEqual(len(platform_data.instrument_devices), 1)
-        self.assertEqual(platform_data.instrument_devices[0]._id, instrument_device_id)
-
+        self.assertEqual(len(platform_data.associations['PlatformModel'].resources), 1)
+        self.assertEqual(platform_data.associations['PlatformModel'].resources[0]._id, platform_model_id)
+        self.assertEqual(len(platform_data.associations['PlatformAgent'].resources), 1)
+        self.assertEqual(platform_data.associations['PlatformAgent'].resources[0]._id, platform_agent_id)
+        self.assertEqual(len(platform_data.associations['PlatformModel'].associated_resources), 0)
+        self.assertEqual(len(platform_data.associations['PlatformAgent'].associated_resources), 1)
+        self.assertEqual(platform_data.associations['PlatformAgent'].associated_resources[0].o, platform_model_id)
+        self.assertEqual(platform_data.associations['PlatformAgent'].associated_resources[0].s, platform_agent_id)
+        self.assertEqual(len(platform_data.associations['InstrumentDevice'].resources), 1)
+        self.assertEqual(platform_data.associations['InstrumentDevice'].resources[0]._id, instrument_device_id)
 
         platform_data = self.IMS.prepare_platform_device_support(platform_device_id)
 
-        #print simplejson.dumps(platform_data, default=ion_object_encoder, indent= 2)
-
+        #print simplejson.dumps(platform_data, default=ion_object_encoder, indent=2)
 
         self.assertEqual(platform_data._id, platform_device_id)
         self.assertEqual(platform_data.type_, OT.PlatformDevicePrepareSupport)
-        self.assertEqual(len(platform_data.platform_models), 1)
-        self.assertEqual(platform_data.platform_models[0]._id, platform_model_id)
-        self.assertEqual(len(platform_data.platform_agents), 1)
-        self.assertEqual(platform_data.platform_agents[0]._id, platform_agent_id)
-        self.assertEqual(len(platform_data.platform_device_model), 1)
-        self.assertEqual(platform_data.platform_device_model[0].s, platform_device_id)
-        self.assertEqual(platform_data.platform_device_model[0].o, platform_model_id)
-        self.assertEqual(len(platform_data.platform_agent_models), 1)
-        self.assertEqual(platform_data.platform_agent_models[0].o, platform_model_id)
-        self.assertEqual(platform_data.platform_agent_models[0].s, platform_agent_id)
-        self.assertEqual(len(platform_data.instrument_devices), 1)
-        self.assertEqual(platform_data.instrument_devices[0]._id, instrument_device_id)
-        self.assertEqual(platform_data.assign_platform_model_request.request_parameters['platform_device_id'], platform_device_id)
+        self.assertEqual(len(platform_data.associations['PlatformModel'].resources), 1)
+        self.assertEqual(platform_data.associations['PlatformModel'].resources[0]._id, platform_model_id)
+        self.assertEqual(len(platform_data.associations['PlatformAgent'].resources), 1)
+        self.assertEqual(platform_data.associations['PlatformAgent'].resources[0]._id, platform_agent_id)
+        self.assertEqual(len(platform_data.associations['PlatformModel'].associated_resources), 1)
+        self.assertEqual(platform_data.associations['PlatformModel'].associated_resources[0].s, platform_device_id)
+        self.assertEqual(platform_data.associations['PlatformModel'].associated_resources[0].o, platform_model_id)
+        self.assertEqual(len(platform_data.associations['PlatformAgent'].associated_resources), 1)
+        self.assertEqual(platform_data.associations['PlatformAgent'].associated_resources[0].o, platform_model_id)
+        self.assertEqual(platform_data.associations['PlatformAgent'].associated_resources[0].s, platform_agent_id)
+        self.assertEqual(len(platform_data.associations['InstrumentDevice'].resources), 1)
+        self.assertEqual(platform_data.associations['InstrumentDevice'].resources[0]._id, instrument_device_id)
+        self.assertEqual(len(platform_data.associations['InstrumentDevice'].associated_resources), 1)
+        self.assertEqual(platform_data.associations['InstrumentDevice'].associated_resources[0].s, platform_device_id)
+        self.assertEqual(platform_data.associations['InstrumentDevice'].associated_resources[0].o, instrument_device_id)
+        self.assertEqual(platform_data.associations['PlatformModel'].assign_request.request_parameters['platform_device_id'], platform_device_id)
+
 
         # cleanup
         c = DotDict()

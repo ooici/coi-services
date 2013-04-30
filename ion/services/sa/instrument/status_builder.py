@@ -10,7 +10,7 @@ from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest, NotFound, Unauthorized
 
 
-from interface.objects import ComputedValueAvailability, ComputedIntValue
+from interface.objects import ComputedValueAvailability, ComputedIntValue, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 
 
@@ -24,23 +24,76 @@ class AgentStatusBuilder(object):
         self.process = process
 
 
+    def set_status_computed_attributes(self, computed_attrs, values_dict=None, availability=None, reason=None):
+        mappings = {AggregateStatusType.AGGREGATE_COMMS    : "communications_status_roll_up",
+                    AggregateStatusType.AGGREGATE_POWER    : "power_status_roll_up",
+                    AggregateStatusType.AGGREGATE_DATA     : "data_status_roll_up",
+                    AggregateStatusType.AGGREGATE_LOCATION : "location_status_roll_up"}
+
+        if values_dict is None:
+            values_dict = {}
+
+        for k, a in mappings.iteritems():
+            if k in values_dict:
+                status = ComputedIntValue(status=availability, value=values_dict[k], reason=reason)
+            else:
+                status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, reason=None)
+            setattr(computed_attrs, a, status)
+
+
+    def add_platform_device_aggregate_status_to_resource_extension(self, platform_device_id, extension):
+
+        computed_attributes = extension.computed
+
+        #retrieve the list of aggreate status for all children of this platform agent
+        try:
+            pa_client = self.obtain_agent_handle(platform_device_id)
+
+            child_agg_status = pa_client.get_agent(['child_agg_status'])['child_agg_status']
+            log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
+
+            if child_agg_status and hasattr(computed_attributes, "child_device_status"):
+                computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
+                                                                                   value=child_agg_status)
+
+            #retrieve the platform status from the platform agent
+            this_status = pa_client.get_agent(['aggstatus'])['aggstatus']
+            log.debug("this_status is %s", this_status)
+            combined_status = dict([(k, self._crush_status_list([v] + child_agg_status.get(k, [])))
+            for k, v in this_status.iteritems()])
+            log.debug("combined_status is %s", this_status)
+            self.set_status_computed_attributes(computed_attributes, combined_status,
+                                                                     ComputedValueAvailability.PROVIDED)
+
+            computed_attributes.aggregated_status = self._compute_aggregated_status_overall(combined_status)
+
+        except NotFound:
+            reason = "Could not connect to platform agent instance -- may not be running"
+            computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                               value={},
+                                                                               reason=reason)
+            computed_attributes.aggregated_status = self._compute_aggregated_status_overall({})
+
+        except Unauthorized:
+            reason = "The requester does not have the proper role to access the status of this platform agent"
+            computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                               value={},
+                                                                               reason=reason)
+            computed_attributes.aggregated_status = self._compute_aggregated_status_overall({})
+
+        except Exception as e:
+            raise e
+
+
+
+
     def add_device_aggregate_status_to_resource_extension(self, device_id, status_name, extended_resource):
 
         if not status_name or not extended_resource :
             raise BadRequest("The device or extended resource parameter is empty")
 
-        def set_unknown(reason):
-            ec = extended_resource.computed
-            ec.communications_status_roll_up =\
-            ec.power_status_roll_up =\
-            ec.data_status_roll_up =\
-            ec.location_status_roll_up =\
-            ec.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                    value=DeviceStatusType.STATUS_UNKNOWN,
-                                                    reason=reason)
-
         if not device_id:
-            set_unknown("No device")
+            self.set_status_computed_attributes(extended_resource.computed, {}, None, "No device")
             return
 
         try:
@@ -49,23 +102,27 @@ class AgentStatusBuilder(object):
             print 'add_device_aggregate_status_to_resource_extension status: %s', agg
 
             if agg:
-                ec = extended_resource.computed
-                ec.communications_status_roll_up = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_COMMS])
-                ec.power_status_roll_up          = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_POWER])
-                ec.data_status_roll_up           = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_DATA])
-                ec.location_status_roll_up       = self._create_computed_status(agg[AggregateStatusType.AGGREGATE_LOCATION])
-                ec.aggregated_status             = self._compute_aggregated_status_overall(agg)
+                self.set_status_computed_attributes(extended_resource.computed, agg, ComputedValueAvailability.PROVIDED)
+                extended_resource.computed.aggregated_status = self._compute_aggregated_status_overall(agg)
+            else:
+                reason = "Status name '%s' not found" % status_name
+                self.set_status_computed_attributes(extended_resource.computed, {}, None, reason)
+                extended_resource.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                                reason=reason)
 
         except NotFound:
-            set_unknown("Could not connect to instrument agent instance -- may not be running")
+            self.set_status_computed_attributes(extended_resource.computed, {}, None,
+                                                "Could not connect to instrument agent instance -- may not be running")
 
         except Unauthorized:
-            set_unknown("The requester does not have the proper role to access the status of this instrument agent")
+            self.set_status_computed_attributes(extended_resource.computed, {}, None,
+                                                "The requester does not have the proper role to access the status of this instrument agent")
 
         except Exception as e:
             raise e
 
         return
+
 
     def get_status_of_device(self, device_id, status_name):
         try:
@@ -101,11 +158,12 @@ class AgentStatusBuilder(object):
 
         values_list = agg_status_dict.values()
 
-        status = self._rollup_value(values_list)
+        status = self._crush_status_list(values_list)
 
         return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=status)
 
-    def _rollup_value(self, values_list):
+
+    def _crush_status_list(self, values_list):
 
         if DeviceStatusType.STATUS_CRITICAL in values_list:
             status = DeviceStatusType.STATUS_CRITICAL

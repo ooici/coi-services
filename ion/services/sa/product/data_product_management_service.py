@@ -1211,87 +1211,61 @@ class DataProductManagementService(BaseDataProductManagementService):
 
         resource_data = extended_resource_handler.create_prepare_resource_support(data_product_id, OT.DataProductPrepareSupport)
 
-        #Fill out service request information for creating a data product
-        resource_data.create_request.service_name = 'data_product_management'
-        resource_data.create_request.service_operation = 'create_data_product_'
-        resource_data.create_request.request_parameters = {
-            "data_product":  "$(data_product)"
-        }
 
 
-        #Fill out service request information for updating a data product
-        resource_data.update_request.service_name = 'data_product_management'
-        resource_data.update_request.service_operation = 'update_data_product'
-        resource_data.update_request.request_parameters = {
-            "data_product":  "$(data_product)"
-        }
+        #Fill out service request information for creating a platform device
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'data_product_management',
+            'create_data_product_', { "data_product":  "$(data_product)" })
 
-        #Fill out service request information for activating a data product
-        resource_data.activate_request.service_name = 'data_product_management'
-        resource_data.activate_request.service_operation = 'activate_data_product_persistence'
-        resource_data.activate_request.request_parameters = {
-            "data_product_id":  data_product_id
-        }
+        #Fill out service request information for creating a platform device
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'data_product_management',
+            'update_data_product', { "data_product":  "$(data_product)" })
 
+        #Fill out service request information for activating a platform device
+        extended_resource_handler.set_service_requests(resource_data.activate_request, 'data_product_management',
+            'activate_data_product_persistence', { "data_product":  "$(data_product)" })
 
-        #Fill out service request information for deactivating a data product
-        resource_data.deactivate_request.service_name = 'data_product_management'
-        resource_data.deactivate_request.service_operation = 'suspend_data_product_persistence'
-        resource_data.deactivate_request.request_parameters = {
-            "data_product_id":  data_product_id
-        }
+        #Fill out service request information for deactivating a platform device
+        extended_resource_handler.set_service_requests(resource_data.deactivate_request, 'data_product_management',
+            'suspend_data_product_persistence', { "data_product":  "$(data_product)" })
 
-
-        #Fill out service request information for assigning a model
-        resource_data.assign_stream_definition_request.service_name = 'instrument_management'
-        resource_data.assign_stream_definition_request.service_operation = 'assign_stream_definition_to_data_product'
-        resource_data.assign_stream_definition_request.request_parameters = {
-            "data_product_id": data_product_id,
-            "stream_definition_id": "$(stream_definition_id)",
-            "exchange_point": "$(exchange_point)"  #Optional field
-        }
+        #Fill out service request information for assigning a stream definition
+        extended_resource_handler.set_service_requests(resource_data.associations['StreamDefinition'].assign_request, 'data_product_management',
+            'assign_stream_definition_to_data_product', { "data_product_id": data_product_id,
+                                                        "stream_definition_id": "$(stream_definition_id)",
+                                                        "exchange_point": "$(exchange_point)" })
 
 
-        #Fill out service request information for unassigning a model
-        resource_data.assign_dataset_request.service_name = 'instrument_management'
-        resource_data.assign_dataset_request.service_operation = 'assign_dataset_to_data_product'
-        resource_data.assign_dataset_request.request_parameters = {
-            "data_product_id": data_product_id,
-            "dataset_id": "$(dataset_id)"
-        }
+        #Fill out service request information for assigning a dataset
+        extended_resource_handler.set_service_requests(resource_data.associations['Dataset'].assign_request, 'data_product_management',
+            'assign_dataset_to_data_product', { "data_product_id": data_product_id,
+                                                "dataset_id": "$(dataset_id)" })
+
 
         #Fill out service request information for assigning an instrument
-        resource_data.assign_instrument_device_request.service_name = 'data_acquisition_management'
-        resource_data.assign_instrument_device_request.service_operation = 'assign_data_product'
-        resource_data.assign_instrument_device_request.request_parameters = {
-            "data_product_id": data_product_id,
-            "instrument_device_id": "$(instrument_device_id)"
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request, 'data_acquisition_management',
+            'assign_data_product', {"data_product_id": data_product_id,
+                                    "instrument_device_id": "$(instrument_device_id)"})
 
 
         #Fill out service request information for unassigning an instrument
-        resource_data.unassign_instrument_device_request.service_name = 'data_acquisition_management'
-        resource_data.unassign_instrument_device_request.service_operation = 'unassign_data_product'
-        resource_data.unassign_instrument_device_request.request_parameters = {
-            "data_product_id": data_product_id,
-            "instrument_device_id": "$(instrument_device_id)"
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].unassign_request, 'data_acquisition_management',
+            'unassign_data_product', {"data_product_id": data_product_id,
+                                      "instrument_device_id": "$(instrument_device_id)" })
+
+
 
         #Fill out service request information for assigning an instrument
-        resource_data.assign_platform_device_request.service_name = 'data_acquisition_management'
-        resource_data.assign_platform_device_request.service_operation = 'assign_data_product'
-        resource_data.assign_platform_device_request.request_parameters = {
-            "data_product_id": data_product_id,
-            "input_resource_id": "$(instrument_device_id)"
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformDevice'].assign_request, 'data_acquisition_management',
+            'assign_data_product', {"data_product_id": data_product_id,
+                                    "instrument_device_id": "$(platform_device_id)"})
 
 
         #Fill out service request information for unassigning an instrument
-        resource_data.unassign_platform_device_request.service_name = 'data_acquisition_management'
-        resource_data.unassign_platform_device_request.service_operation = 'unassign_data_product'
-        resource_data.unassign_platform_device_request.request_parameters = {
-            "data_product_id": data_product_id,
-            "input_resource_id": "$(instrument_device_id)"
-        }
+        extended_resource_handler.set_service_requests(resource_data.associations['PlatformDevice'].unassign_request, 'data_acquisition_management',
+            'unassign_data_product', {"data_product_id": data_product_id,
+                                      "instrument_device_id": "$(platform_device_id)" })
+
+
 
         return resource_data

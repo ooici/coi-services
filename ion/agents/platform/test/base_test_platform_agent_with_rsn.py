@@ -6,6 +6,7 @@
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   A base class for platform agent integration testing
 """
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
@@ -246,6 +247,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self.RR   = ResourceRegistryServiceClient(node=self.container.node)
         self.IMS  = InstrumentManagementServiceClient(node=self.container.node)
+        self.OMS  = ObservatoryManagementServiceClient(node=self.container.node)
         self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.DP   = DataProductManagementServiceClient(node=self.container.node)
         self.PSC  = PubsubManagementServiceClient(node=self.container.node)

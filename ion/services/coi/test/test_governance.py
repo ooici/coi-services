@@ -242,7 +242,7 @@ DENY_PARAM_30_RULE = '''
                             params = message['params']
                             if params['INTERVAL'] <= 30:
                                 return True, ''
-                            return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 50'
+                            return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 30'
                         ]]>
                         </AttributeValue>
                         <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
@@ -291,7 +291,7 @@ DENY_PARAM_10_RULE = '''
                             params = message['params']
                             if params['INTERVAL'] <= 10:
                                 return True, ''
-                            return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 50'
+                            return False, 'The value for SBE37Parameter.INTERVAL cannot be greater than 10'
                         ]]>
                         </AttributeValue>
                         <ActionAttributeDesignator AttributeId="urn:oasis:names:tc:xacml:1.0:action:param-dict" DataType="http://www.w3.org/2001/XMLSchema#dict"/>
@@ -2454,7 +2454,7 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
         with self.assertRaises(Conflict) as cm:
             ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
 
-
+        print 'Creating policy for inst: ' + instrument_id
         policy_id = self.pol_client.create_resource_access_policy(instrument_id, 'restrict_50_policy',
             'Check the value of the SBE37Parameter.INTERVAL parameter',
             DENY_PARAM_50_RULE, headers=self.system_actor_header)
@@ -2485,13 +2485,16 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
         with self.assertRaises(Conflict) as cm:
             ret_val = ia_client.set_resource(new_params, headers=obs_operator_actor_header)
 
+
+        #FROM HERE ON DOWN THE TESTS ARE FOR POLICIES ON RELATED RESOURCES
+        '''
         #Find Model
         models,_ = self.rr_client.find_objects(instrument_id ,PRED.hasModel, RT.InstrumentModel)
         assert models
         inst_model = models[0]
 
         #Add a more restrictive policy for instruments models associated to this instrument
-
+        print 'Creating policy for model: ' + inst_model._id
         policy_id = self.pol_client.create_resource_access_policy(inst_model._id, 'restrict_30_policy',
             'Check the value of the SBE37Parameter.INTERVAL parameter',
             DENY_PARAM_30_RULE, headers=self.system_actor_header)
@@ -2501,7 +2504,8 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
         #The policy should now deny the same command as above since the policy checks for a lower value for all models associated with this instrument
         with self.assertRaises(Unauthorized) as cm:
-            ret_val = ia_client.set_resource(new_params, headers=member_actor_header)
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
+        self.assertIn( 'The value for SBE37Parameter.INTERVAL cannot be greater than 30',cm.exception.message)
 
 
 
@@ -2517,6 +2521,8 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
         #Add a more restrictive policy for the observatory that holds all of these resources
 
+        print 'Creating policy for obs: ' + obs_id
+
         policy_id = self.pol_client.create_resource_access_policy(obs_id, 'restrict_10_policy',
             'Check the value of the SBE37Parameter.INTERVAL parameter',
             DENY_PARAM_10_RULE, headers=self.system_actor_header)
@@ -2526,7 +2532,8 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
         #The policy should now deny the same command as above since the policy checks for a lower value for all instruments in thie observatory
         with self.assertRaises(Unauthorized) as cm:
-            ret_val = ia_client.set_resource(new_params, headers=member_actor_header)
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
+        self.assertIn( 'The value for SBE37Parameter.INTERVAL cannot be greater than 10',cm.exception.message)
 
 
 
@@ -2537,7 +2544,8 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
 
         #The policy should still deny the same command as above since the policy checks for a lower value for all instruments in thie observatory
         with self.assertRaises(Unauthorized) as cm:
-            ret_val = ia_client.set_resource(new_params, headers=member_actor_header)
+            ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
+        self.assertIn( 'The value for SBE37Parameter.INTERVAL cannot be greater than 10',cm.exception.message)
 
 
         new_params = {
@@ -2548,4 +2556,6 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
         #The policy should not deny this since the  SBE37Parameter.INTERVAL value is less than 10
         with self.assertRaises(Conflict) as cm:
             ret_val = ia_client.set_resource(new_params, headers=inst_operator_actor_header)
+
+        '''
 
