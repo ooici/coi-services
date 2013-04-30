@@ -105,8 +105,10 @@ class AgentStatusBuilder(object):
                 self.set_status_computed_attributes(extended_resource.computed, agg, ComputedValueAvailability.PROVIDED)
                 extended_resource.computed.aggregated_status = self._compute_aggregated_status_overall(agg)
             else:
-                self.set_status_computed_attributes(extended_resource.computed, {}, None, "Status name '%s' not found" % status_name)
-                extended_resource.computed.aggregated_status = self._compute_aggregated_status_overall({})
+                reason = "Status name '%s' not found" % status_name
+                self.set_status_computed_attributes(extended_resource.computed, {}, None, reason)
+                extended_resource.computed.aggregated_status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                                reason=reason)
 
         except NotFound:
             self.set_status_computed_attributes(extended_resource.computed, {}, None,
@@ -120,6 +122,7 @@ class AgentStatusBuilder(object):
             raise e
 
         return
+
 
     def get_status_of_device(self, device_id, status_name):
         try:
