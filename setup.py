@@ -26,7 +26,6 @@ setup(  name = 'coi-services',
         packages = find_packages(),
         dependency_links = [
             'http://sddevrepo.oceanobservatories.org/releases/',
-            'https://github.com/lukecampbell/udunitspy/tarball/master#egg=udunitspy-0.0.6',
         ],
         test_suite = 'pyon',
         install_requires = [
