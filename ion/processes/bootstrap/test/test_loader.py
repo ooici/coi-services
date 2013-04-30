@@ -224,10 +224,9 @@ class TestLoader(IonIntegrationTestCase):
                           'PARAMETERS': {"TXWAVESTATS": False, 'TXWAVEBURST': 'false', 'TXREALTIME': True}},
                         iai.startup_config)
         self.assertEqual(2, len(iai.alerts))
-#        self.assertEqual({'entry': 'foo'}, iai.alerts['complex'])
 
         pai = self.find_object_by_name("Unit Test Platform Agent Instance", RT.PlatformAgentInstance)
-        self.assertEqual({'entry': 'foo'}, pai.alerts['complex'])
+        self.assertEqual(1, len(pai.alerts))
 
         orgs, _ = self.container.resource_registry.find_subjects(RT.Org, PRED.hasResource, iai._id, True)
         self.assertEqual(1, len(orgs))
