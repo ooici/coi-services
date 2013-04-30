@@ -262,13 +262,12 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         #print simplejson.dumps(data_product_data, default=ion_object_encoder, indent= 2)
 
-        self.assertEqual(data_product_data._id, '')
+        self.assertEqual(data_product_data._id, "")
         self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
-        self.assertEqual(len(data_product_data.stream_definitions), 2)
-        self.assertEqual(len(data_product_data.datasets), 2)
-        self.assertEqual(len(data_product_data.data_product_stream_definition), 0)
-        self.assertEqual(len(data_product_data.data_product_dataset), 0)
-
+        self.assertEqual(len(data_product_data.associations['StreamDefinition'].resources), 2)
+        self.assertEqual(len(data_product_data.associations['Dataset'].resources), 2)
+        self.assertEqual(len(data_product_data.associations['StreamDefinition'].associated_resources), 0)
+        self.assertEqual(len(data_product_data.associations['Dataset'].associated_resources), 0)
 
         #test prepare for update
         data_product_data = self.dpsc_cli.prepare_data_product_support(dp_id)
@@ -277,16 +276,15 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(data_product_data._id, dp_id)
         self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
-        self.assertEqual(len(data_product_data.stream_definitions), 2)
+        self.assertEqual(len(data_product_data.associations['StreamDefinition'].resources), 2)
 
-        self.assertEqual(len(data_product_data.datasets), 2)
+        self.assertEqual(len(data_product_data.associations['Dataset'].resources), 2)
 
-        self.assertEqual(len(data_product_data.data_product_stream_definition), 1)
-        self.assertEqual(data_product_data.data_product_stream_definition[0].s, dp_id)
+        self.assertEqual(len(data_product_data.associations['StreamDefinition'].associated_resources), 1)
+        self.assertEqual(data_product_data.associations['StreamDefinition'].associated_resources[0].s, dp_id)
 
-        self.assertEqual(len(data_product_data.data_product_dataset), 1)
-        self.assertEqual(data_product_data.data_product_dataset[0].s, dp_id)
-
+        self.assertEqual(len(data_product_data.associations['Dataset'].associated_resources), 1)
+        self.assertEqual(data_product_data.associations['Dataset'].associated_resources[0].s, dp_id)
 
         # now 'delete' the data product
         log.debug("deleting data product: %s" % dp_id)
