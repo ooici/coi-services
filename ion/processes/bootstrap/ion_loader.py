@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dEVqWnBsdHJ3MW5aMFpzTnA5V014Mmc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidHlIX1J6eTRLMzZkcWlRdktOWEwxblE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -2079,7 +2079,7 @@ Reason: %s
         agent = self._get_resource_obj(row['agent'])
         agent_config = parse_dict(row['agent_config'])
         driver_config = parse_dict(row['driver_config'])
-        pubrate = row['publish_rate']
+        pubrate = row['records_per_granule']
 
 #        handler_module = agent.handler_module
 #        handler_class = agent.handler_class
@@ -2090,23 +2090,28 @@ Reason: %s
         driver_config.update( {
             'dvr_mod' : row['handler_module'],
             'dvr_cls' : row['handler_class'],
-            'dh_cfg': {
+#            'dh_cfg': {
+                # ExternalDatasetAgent only
                 'parser_mod': row['parser_module'],
                 'parser_cls': row['parser_class'],
+                # TwoDelegateDatasetAgent
+                'parser.module': row['parser_module'],
+                'parser.class': row['parser_class'],
+                'poller.module': row['poller_module'],
+                'poller.class': row['poller_class'],
                 #'TESTING':True,
                 'stream_def': streamdef_id,
 #                'stream_id':stream_id,
 #                'param_dictionary':pdict.dump(),
                 'data_producer_id':self.external_dataset_producer_id[dataset._id],
-#                'max_records':20,
-                }
+                'max_records': int(pubrate),
+#                'debug-dh-cfg': 'abc'
+#                }
             } )
         agent_config.update( {
             'driver_config' : driver_config,
-            'stream_config' : { }, #'a': 'ion_loader:1933'},
+            'stream_config' : { },
             'agent'         : {'resource_id': dataset._id},
-            'aparam_pubrate_config': pubrate
-            #'test_mode' : True
         } )
 
         agent_instance = IonObject(RT.ExternalDatasetAgentInstance,  name=name, description=description,
@@ -2510,13 +2515,13 @@ Reason: %s
                 self._load_DataProductLink(newrow, do_bulk=self.bulk)
 
     def _load_Attachment(self, row):
-        log.info("Loading Attachment")
-
         res_id = self.resource_ids[row["resource_id"]]
+        filename = row["file_path"]
+        log.trace("Loading Attachment %s from file %s", res_id, filename)
+
         att_obj = self._create_object_from_row("Attachment", row, "att/")
         if row['parser'] and row['parser'] in self.resource_ids:
             att_obj.context = objects.ReferenceAttachmentContext(parser_id=self.resource_ids[row['parser']])
-        filename = row["file_path"]
         if not filename:
             raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])
 
