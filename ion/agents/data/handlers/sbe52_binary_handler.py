@@ -151,7 +151,7 @@ class SBE52BinaryDataHandler(BaseDataHandler):
 
         for f in new_flst:
             try:
-                size = os.stat('somefile.txt').st_size
+                size = os.stat(f[0]).st_size
                 try:
                     #find the new data check index in config
                     index = -1
@@ -207,11 +207,11 @@ class SBE52BinaryCTDParser(object):
     _record_index = 0
     _upload_time = time.time()
 
-    def __init__(self, url, parse_after=0, *a, **b):
+    def __init__(self, url=None, open_file=None, parse_after=0, *a, **b):
         """ raise exception if file does not meet spec, or is too large to read into memory """
         self._profiles = []
         self._parse_after = parse_after
-        with open(url, 'rb') as f:
+        with open_file or open(url, 'rb') as f:
             f.seek(0,2)
             size = f.tell()
             if size>MAX_INMEMORY_SIZE:
