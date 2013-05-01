@@ -32,6 +32,7 @@ from pyon.ion.resource import RT
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import instruments_dict
 
+from unittest import skip
 from mock import patch
 from pyon.public import CFG
 
@@ -104,6 +105,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
         self._run_commands()
 
+    @skip("Runs fine but waiting for comments to enable in general")
     @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 420}}})
     def test_13_platforms_and_8_instruments(self):
         #
