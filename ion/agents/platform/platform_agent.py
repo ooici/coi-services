@@ -779,8 +779,6 @@ class PlatformAgent(ResourceAgent):
         Callback to receive asynchronous driver events.
         @param driver_event The driver event received.
         """
-        log.debug('%r: in state=%s: received driver_event=%s',
-            self._platform_id, self.get_agent_state(), str(driver_event))
 
         if isinstance(driver_event, AttributeValueDriverEvent):
             self._handle_attribute_value_event(driver_event)
@@ -807,8 +805,8 @@ class PlatformAgent(ResourceAgent):
         """
         @param state   the state entered by the driver.
         """
+        log.debug('%r: platform agent driver state change: %s', self._platform_id, state)
         try:
-            log.debug('%r: platform agent driver state change: %s', self._platform_id, state)
             event_data = {'state': state}
             self._event_publisher.publish_event(event_type='ResourceAgentResourceStateEvent',
                                                 origin_type=self.ORIGIN_TYPE,
@@ -820,7 +818,11 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_attribute_value_event(self, driver_event):
 
-        log.debug("%r: driver_event = %s", self._platform_id, driver_event)
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug("%r: driver_event = %s", self._platform_id, driver_event.brief())
+        elif log.isEnabledFor(logging.TRACE):
+            # show driver_event as retrieved (driver_event.vals_dict might be large)
+            log.trace("%r: driver_event = %s", self._platform_id, driver_event)
 
         stream_name = driver_event.stream_name
 
@@ -914,8 +916,16 @@ class PlatformAgent(ResourceAgent):
         try:
             publisher.publish(g)
 
-            if log.isEnabledFor(logging.DEBUG):
+            if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+                summary_params = {attr_id: "(%d vals)" % len(vals)
+                                  for attr_id, vals in pub_params.iteritems()}
+                summary_timestamps = "(%d vals)" % len(timestamps)
                 log.debug("%r: Platform agent published data granule on stream %r: "
+                          "%s  timestamps: %s",
+                          self._platform_id, stream_name,
+                          summary_params, summary_timestamps)
+            elif log.isEnabledFor(logging.TRACE):  # pragma: no cover
+                log.trace("%r: Platform agent published data granule on stream %r: "
                           "%s  timestamps: %s",
                           self._platform_id, stream_name,
                           self._pp.pformat(pub_params), self._pp.pformat(timestamps))
@@ -926,9 +936,9 @@ class PlatformAgent(ResourceAgent):
 
     def _handle_external_event_driver_event(self, driver_event):
 
-        event_type = driver_event._event_type
+        event_type = driver_event.event_type
 
-        event_instance = driver_event._event_instance
+        event_instance = driver_event.event_instance
         platform_id = event_instance.get('platform_id', None)
         message = event_instance.get('message', None)
         timestamp = event_instance.get('timestamp', None)

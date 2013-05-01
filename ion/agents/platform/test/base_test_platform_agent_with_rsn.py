@@ -321,8 +321,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         def consume_data(message, stream_route, stream_id):
             # A callback for processing subscribed-to data.
-            log.info('Subscriber received data message: %s. stream_name=%r stream_id=%r',
-                     str(message), stream_name, stream_id)
+            log.debug('Subscriber received data message: %s. stream_name=%r stream_id=%r',
+                      message, stream_name, stream_id)
             self._samples_received.append(message)
             self._async_data_result.set()
 

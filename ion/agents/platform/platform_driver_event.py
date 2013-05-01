@@ -48,6 +48,16 @@ class AttributeValueDriverEvent(DriverEvent):
             self.__class__.__name__, self.platform_id, self.stream_name,
             self.vals_dict)
 
+    def brief(self):
+        """
+        A brief string representation.
+        """
+        summary = {attr_id: "(%d vals)" % len(vals)
+                   for attr_id, vals in self.vals_dict.iteritems()}
+        return "%s(platform_id=%r, stream_name=%r, vals_dict=%r)" % (
+            self.__class__.__name__, self.platform_id, self.stream_name,
+            summary)
+
 
 class ExternalEventDriverEvent(DriverEvent):
     """
