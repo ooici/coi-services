@@ -30,7 +30,7 @@ Preload OOI assets (bulk mode)
 Preload system UI only
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=loadui ui_path='https://userexperience.oceanobservatories.org/database-exports'
 
-Start the UI (in ion-ux, virtualenv):
+Start the UI (in ion-ux, virtualenv prepared as documented):
 > python main.py
 
 To restart services container (without full process relaunch):
@@ -73,3 +73,6 @@ Delete OOI assets for a retry:
 
 Reload OOI assets, filter to only Global Papa:
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=X path=master assets=res/preload/r2_ioc/ooi_assets loadooi=True
+
+Load OOI assets based on a preload script file
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
