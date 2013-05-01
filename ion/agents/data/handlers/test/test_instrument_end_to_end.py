@@ -44,7 +44,6 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
     def test_use_case(self):
         # setUp() has already started the container and performed the preload
         self.assert_dataset_loaded('Test External CTD Dataset') # make sure we have the ExternalDataset resources
-        self.do_configure()                                     # update agent configuration with runtime parameters TODO: should be done by services?
         self.do_listen_for_incoming()                           # listen for any data being received from the dataset
         self.do_read_dataset()                                  # call services to load dataset
         self.assert_data_received()                             # check that data was received as expected
@@ -57,20 +56,14 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.agent_instance = obj[0]
         obj,_ = rr.find_objects(object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=self.agent_instance._id)
         self.agent = obj[0]
-        stream_definition_id = self.agent_instance.dataset_driver_config['dh_cfg']['stream_def']
+        stream_definition_id = self.agent_instance.dataset_driver_config['dh_cfg']['stream_def'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['stream_def']
         self.stream_definition = rr.read(stream_definition_id)
-        data_producer_id = self.agent_instance.dataset_driver_config['dh_cfg']['data_producer_id']
+        data_producer_id = self.agent_instance.dataset_driver_config['dh_cfg']['data_producer_id'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['data_producer_id']
         self.data_producer = rr.read(data_producer_id) #subject="", predicate="", object_type="", assoc="", id_only=False)
         self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.external_dataset._id)
         ids,_ = rr.find_objects(self.data_product._id, PRED.hasStream, RT.Stream, id_only=True)
         self.stream_id = ids[0]
         self.route = self.pubsub.read_stream_route(self.stream_id)
-
-    def do_configure(self):
-        pass
-#        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = self.stream_id
-#        self.agent_instance.dataset_agent_config['driver_config']['stream_id'] = self.stream_id
-#        self.agent_instance.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = self.route
 
     def do_listen_for_incoming(self):
         subscription_id = self.pubsub.create_subscription('validator', data_product_ids=[self.data_product._id])
@@ -89,40 +82,17 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.pubsub.activate_subscription(subscription_id)
         self.addCleanup(self.pubsub.deactivate_subscription, subscription_id)
 
+        self.dataset_modified = Event()
+        def cb2(*args, **kwargs):
+            self.dataset_modified.set()
+            # TODO: event isn't using the ExternalDataset, but a different ID for a Dataset
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb2, origin=self.external_dataset._id)
+        es.start()
+        self.addCleanup(es.stop)
+
     def do_read_dataset(self):
-        # WORKING TEST:
-        #current config {'dh_cfg': {'TESTING': True,
-        #                           'data_producer_id': 'hypm_ctd_data_producer_id',
-        #                           'max_records': 4,
-        #                           'parser_cls': 'HYPM_01_WFP_CTDParser',
-        #                           'parser_mod': 'ion.agents.data.handlers.hypm_data_handler',
-        #                           'stream_def': '76d86451011c4bc1b62975301ff2f6e6',
-        #                           'stream_id': '85da7a7f7322467f96b67cc9e0cd4f2a',
-        #                           'stream_route': <interface.objects.StreamRoute object at 0x108e0b050>},
-        #               'dvr_cls': 'HYPMDataHandler',
-        #               'dvr_mod': 'ion.agents.data.handlers.hypm_data_handler'}
 
-        # MY CONFIG:
-        #'driver_config': {'dh_cfg': {'data_producer_id': 'b455e2648f8f48c3987d73369b5f1e61',
-        #                             'stream_def': 'f1f20512cd6e4bbc926e3c7e1b13e735'},
-        #                  'dvr_cls': 'ExternalDatasetAgent',
-        #                  'dvr_mod': 'ion.agents.data.external_dataset_agent',
-        #                  'key2': 'value2',
-        #                  'key3': 'value3'},
-
-        import pprint
-        log.info('launching agent with config: %s', pprint.pformat(self.agent_instance.dataset_agent_config))
-
-        try:
-            self.dams.start_external_dataset_agent_instance(self.agent_instance._id)
-        except Exception as ex:
-            log.error('failed to start agent', exc_info=True)
-            raise ex
-
-#        self.container.spawn_process(name=self.agent_instance.name,
-#            module=self.agent.handler_module,
-#            cls=self.agent.handler_class,
-#            config=self.agent_instance.dataset_agent_config)
+        self.dams.start_external_dataset_agent_instance(self.agent_instance._id)
         #
         # should i wait for process (above) to start
         # before launching client (below)?
@@ -134,16 +104,11 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.client.execute_resource(command=AgentCommand(command=DriverEvent.START_AUTOSAMPLE))
 
     def assert_data_received(self):
-        dataset_modified = Event()
-        def cb2(*args, **kwargs):
-            dataset_modified.set()
-        es = EventSubscriber(event_type=OT.DeviceCommonLifecycleEvent, callback=cb2, origin='BaseDataHandler._acquire_sample')
-        es.start()
-        self.addCleanup(es.stop)
 
         #let it go for up to 120 seconds, then stop the agent and reset it
-        dataset_modified.wait(120)
-        self.assertTrue(self.granule_count>2)
+        if not self.dataset_modified.is_set():
+            self.dataset_modified.wait(30)
+        self.assertTrue(self.granule_count>2, msg='granule count = %d'%self.granule_count)
 
         rdt = RecordDictionaryTool.load_from_granule(self.granule_capture[0])
         self.assertAlmostEqual(0, rdt['oxygen'][0], delta=0.01)
@@ -152,10 +117,8 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.assertAlmostEqual(9.5163, rdt['temp'][0], delta=0.01)
         self.assertAlmostEqual(1500353102, rdt['time'][0], delta=1)
 
-
     def do_shutdown(self):
-        pass # might be nice to stop the driver...
-
+        self.dams.stop_external_dataset_agent_instance(self.agent_instance._id)
 
 @attr('INT', group='eoi')
 class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
@@ -184,9 +147,9 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
         cnd_ctxt.uom = 'mmho/cm'
         context_ids.append(self.dataset_management.create_parameter_context(name='conductivity', parameter_context=cnd_ctxt.dump()))
 
-        temp_ctxt = ParameterContext('temperature', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
+        temp_ctxt = ParameterContext('temp', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         temp_ctxt.uom = 'degC'
-        context_ids.append(self.dataset_management.create_parameter_context(name='temperature', parameter_context=temp_ctxt.dump()))
+        context_ids.append(self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump()))
 
         press_ctxt = ParameterContext('pressure', param_type=ArrayType())  # param_type=QuantityType(value_encoding=np.dtype('float32')))
         press_ctxt.uom = 'decibars'
@@ -227,7 +190,35 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        self.assertIsNotNone(rdt['temperature'])
+        self.assertIsNotNone(rdt['temp'])
+
+@attr('INT', group='eoi')
+class TestBinaryCTD_DelegateAgent(TestBinaryCTD):
+    """ repeat same test using the simple_dataset_agent """
+    def setup_resources(self):
+        self.name = 'hypm_01_wpf_ctd'
+        self.description = 'ctd instrument test'
+        self.EDA_NAME = 'ExampleEDA'
+        self.EDA_MOD = 'ion.agents.data.simple_dataset_agent'
+        self.EDA_CLS = 'TwoDelegateDatasetAgent'
+    def get_dvr_config(self):
+        pdict = self.dataset_management.read_parameter_dictionary(self.pdict_id)
+        stream_def_obj = self.pubsub_management.read_stream_definition(self.stream_def_id)
+        DVR_CONFIG = {
+            'directory': 'test_data',
+            'pattern': 'C*.DAT',
+            'frequency': 5,
+            'max_records': 5,
+            'stream_id': self.stream_id,
+            'stream_route': { key: getattr(self.route, key) for key in self.route._schema },
+            'parser.module': 'ion.agents.data.handlers.sbe52_binary_handler',
+            'parser.class': 'SBE52BinaryCTDParser',
+            'poller.module': 'ion.agents.data.simple_dataset_agent',
+            'poller.class': 'AdditiveSequentialFilePoller',
+            'parameter_dict': stream_def_obj.parameter_dictionary,
+            'last_time': 0
+        }
+        return DVR_CONFIG
 
 
 
@@ -516,5 +507,3 @@ class TestHypm_WPF_ENG(BulkIngestBase, IonIntegrationTestCase):
     def get_retrieve_client(self, dataset_id=''):
         replay_data = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
-        #print rdt['Time_Time']
-        #print rdt['Core_Current']
