@@ -437,8 +437,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                               **kwargs)
 
         sub.start()
-        log.info("registered event subscriber: count=%d,  event_type=%r, kwargs=%s",
-                 event_type, count, kwargs)
+        log.info("registered event subscriber: count=%d, event_type=%r, kwargs=%s",
+                 count, event_type, kwargs)
 
         self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)
