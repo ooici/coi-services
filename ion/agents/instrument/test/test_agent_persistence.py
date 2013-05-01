@@ -189,7 +189,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         }
 
         self._ia_client = None
-        self._ia_pid = '8989'
+        self._ia_pid = '1234'
         
         self.addCleanup(self._verify_agent_reset)
         self.addCleanup(self.container.state_repository.put_state,
@@ -269,13 +269,13 @@ class TestAgentPersistence(IonIntegrationTestCase):
         """
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
-            
-        pid = container_client.spawn_process(name=IA_NAME,
+        
+        self._ia_pid = container_client.spawn_process(name=IA_NAME,
             module=IA_MOD,
             cls=IA_CLS,
             config=self._agent_config,
-            process_id=self._ia_pid)
-        log.info('Started instrument agent pid=%s.', str(self._ia_pid))
+            process_id=self._ia_pid)            
+            
         
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
@@ -311,7 +311,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
     # Tests.
     ###############################################################################
 
-    @unittest.skip('Fails on buildbot, reason unknown.')
+    #@unittest.skip('Fails on buildbot, reason unknown.')
     def test_agent_config_persistence(self):
         """
         test_agent_config_persistence
@@ -424,7 +424,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
 
         # Now stop and restart the agent.
         self._stop_agent()
-        gevent.sleep(5)
+        gevent.sleep(15)
         self._start_agent()
 
         # We start in uninitialized state.
@@ -508,7 +508,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
 
         # Now stop and restart the agent.
         self._stop_agent()
-        gevent.sleep(3)
+        gevent.sleep(15)
         self._start_agent()
 
         state = self._ia_client.get_agent_state()
