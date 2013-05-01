@@ -49,6 +49,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 
@@ -200,7 +201,6 @@ instruments_dict = {
 
 # The value should probably be defined in pyon.yml or some common place so
 # clients don't have to do updates upon new versions of the egg.
-#SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg"
 SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg"
 
 class FakeProcess(LocalContextMixin):
@@ -246,6 +246,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self.RR   = ResourceRegistryServiceClient(node=self.container.node)
         self.IMS  = InstrumentManagementServiceClient(node=self.container.node)
+        self.OMS  = ObservatoryManagementServiceClient(node=self.container.node)
         self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.DP   = DataProductManagementServiceClient(node=self.container.node)
         self.PSC  = PubsubManagementServiceClient(node=self.container.node)

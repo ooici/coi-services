@@ -331,7 +331,7 @@ class AgentConfigurationBuilder(object):
         agent_config['driver_config']       = self._generate_driver_config()
         agent_config['stream_config']       = self._generate_stream_config()
         agent_config['agent']               = self._generate_agent_config()
-        agent_config['aparam_alert_config'] = self._generate_alerts_config()
+        agent_config['aparam_alerts_config'] = self._generate_alerts_config()
         agent_config['startup_config']      = self._generate_startup_config()
         agent_config['children']            = self._generate_children()
 
