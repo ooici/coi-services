@@ -31,6 +31,7 @@ from ion.agents.platform.exceptions import PlatformException, PlatformConfigurat
 from ion.agents.platform.platform_driver_event import AttributeValueDriverEvent
 from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
+from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
 
@@ -56,6 +57,8 @@ from ion.agents.platform.status_manager import StatusManager
 import logging
 import time
 from gevent import Greenlet
+from gevent import sleep
+from gevent import spawn
 from gevent.event import AsyncResult
 
 import pprint
@@ -76,6 +79,7 @@ class PlatformAgentState(BaseEnum):
     COMMAND           = ResourceAgentState.COMMAND
     MONITORING        = 'PLATFORM_AGENT_STATE_MONITORING'
     LAUNCHING         = 'PLATFORM_AGENT_STATE_LAUNCHING'
+    LOST_CONNECTION   = ResourceAgentState.LOST_CONNECTION
 
 
 class PlatformAgentEvent(BaseEnum):
@@ -103,6 +107,9 @@ class PlatformAgentEvent(BaseEnum):
     START_MONITORING          = 'PLATFORM_AGENT_START_MONITORING'
     STOP_MONITORING           = 'PLATFORM_AGENT_STOP_MONITORING'
     LAUNCH_COMPLETE           = 'PLATFORM_AGENT_LAUNCH_COMPLETE'
+
+    LOST_CONNECTION           = ResourceAgentEvent.LOST_CONNECTION
+    AUTORECONNECT             = ResourceAgentEvent.AUTORECONNECT
 
 
 class PlatformAgentCapability(BaseEnum):
@@ -219,6 +226,15 @@ class PlatformAgent(ResourceAgent):
         # verified. This object does all main status management including
         # event subscribers, and helps with related publications.
         self._status_manager = None
+
+        #####################################
+        # lost_connection handling:
+
+        # Autoreconnect thread.
+        self._autoreconnect_greenlet = None
+
+        # State when lost.
+        self._state_when_lost = None
 
         log.info("PlatformAgent constructor complete.")
 
@@ -739,6 +755,10 @@ class PlatformAgent(ResourceAgent):
         assert self._plat_driver is not None, "_create_driver must have been called first"
 
     def _get_attribute_values(self, attrs):
+        """
+        The callback for resource monitoring.
+        This method will return None is case of lost connection.
+        """
         self._assert_driver()
         kwargs = dict(attrs=attrs)
         result = self._plat_driver.get_resource(**kwargs)
@@ -749,6 +769,10 @@ class PlatformAgent(ResourceAgent):
         kwargs = dict(attrs=attrs)
         result = self._plat_driver.set_resource(**kwargs)
         return result
+
+    ##############################################################
+    # Asynchronous driver event callback and handlers.
+    ##############################################################
 
     def evt_recv(self, driver_event):
         """
@@ -768,6 +792,10 @@ class PlatformAgent(ResourceAgent):
 
         if isinstance(driver_event, StateChangeDriverEvent):
             self._async_driver_event_state_change(driver_event.state)
+            return
+
+        if isinstance(driver_event, AsyncAgentEvent):
+            self._async_driver_event_agent_event(driver_event.event)
             return
 
         else:
@@ -928,6 +956,24 @@ class PlatformAgent(ResourceAgent):
 
         except:
             log.exception("Error while publishing platform event")
+
+    def _async_driver_event_agent_event(self, event):
+        """
+        Driver initiated agent FSM event.
+        """
+        log.debug("%r/%s: received _async_driver_event_agent_event=%s",
+                  self._platform_id, self.get_agent_state(), event)
+
+        try:
+            self._fsm.on_event(event)
+
+        except:
+            log.warn("%r/%s: error processing asynchronous agent event %s",
+                     self._platform_id, self.get_agent_state(), event)
+
+    ##############################################################
+    # some more utilities
+    ##############################################################
 
     def _create_resource_agent_client(self, sub_id, sub_resource_id):
         """
@@ -2622,8 +2668,120 @@ class PlatformAgent(ResourceAgent):
         return (next_state, result)
 
     ##############################################################
+    # LOST_CONNECTION event handlers.
+    ##############################################################
+
+    def _handler_lost_connection_enter(self, *args, **kwargs):
+        """
+        Publishes a ResourceAgentConnectionLostErrorEvent
+        and starts reconnection greenlet.
+        """
+        super(PlatformAgent, self)._common_state_enter(*args, **kwargs)
+        log.error("%r: (LC) lost connection to the device. Will attempt to reconnect...",
+                  self._platform_id)
+
+        self._event_publisher.publish_event(
+            event_type='ResourceAgentConnectionLostErrorEvent',
+            origin_type=self.ORIGIN_TYPE,
+            origin=self.resource_id)
+
+        # Setup reconnect timer.
+        self._autoreconnect_greenlet = spawn(self._autoreconnect)
+
+    def _handler_lost_connection_exit(self, *args, **kwargs):
+        """
+        Updates flag to stop the reconnection greenlet.
+        """
+        self._autoreconnect_greenlet = None
+        super(PlatformAgent, self)._common_state_exit(*args, **kwargs)
+
+    def _autoreconnect(self):
+        """
+        Calls self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT) every few
+        seconds.
+        """
+        log.debug("%r: (LC) _autoreconnect starting", self._platform_id)
+        while self._autoreconnect_greenlet:
+            sleep(5)
+            if self._autoreconnect_greenlet:
+                try:
+                    self._fsm.on_event(ResourceAgentEvent.AUTORECONNECT)
+                except:
+                    pass
+
+        log.debug("%r: (LC) _autoreconnect ended", self._platform_id)
+
+    def _handler_lost_connection_autoreconnect(self, *args, **kwargs):
+
+        log.debug("%r: (LC) _handler_lost_connection_autoreconnect: trying CONNECT...",
+                  self._platform_id)
+        try:
+            driver_state = self._trigger_driver_event(PlatformDriverEvent.CONNECT)
+
+        except Exception as e:
+            log.debug("%r: (LC) Exception while trying CONNECT: %s", self._platform_id, e)
+            return None, None
+
+        assert driver_state == PlatformDriverState.CONNECTED
+
+        if self._state_when_lost == PlatformAgentState.MONITORING:
+            self._start_resource_monitoring()
+
+        next_state = self._state_when_lost
+
+        log.debug("%r: (LC) _handler_lost_connection_autoreconnect: next_state=%s",
+                  self._platform_id, next_state)
+
+        return next_state, None
+
+    def _handler_lost_connection_reset(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        recursion = self._get_recursion_parameter("_handler_lost_connection_reset", args, kwargs)
+
+        next_state = PlatformAgentState.UNINITIALIZED
+        result = self._reset(recursion)
+
+        return next_state, result
+
+    def _handler_lost_connection_go_inactive(self, *args, **kwargs):
+        """
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        recursion = self._get_recursion_parameter("_handler_lost_connection_go_inactive", args, kwargs)
+
+        next_state = PlatformAgentState.INACTIVE
+        result = self._go_inactive(recursion)
+
+        return next_state, result
+
+    ##############################################################
     # some common event handlers.
     ##############################################################
+
+    def _handler_connection_lost_driver_event(self, *args, **kwargs):
+        """
+        Handle a connection lost event from the driver.
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s",
+                      self._platform_id, self.get_agent_state(), str(args), str(kwargs))
+
+        self._state_when_lost = self.get_agent_state()
+        log.debug("%r: (LC) _handler_connection_lost_driver_event: _state_when_lost=%s",
+                  self._platform_id, self._state_when_lost)
+
+        if self._platform_resource_monitor:
+            self._stop_resource_monitoring()
+
+        return PlatformAgentState.LOST_CONNECTION, None
 
     def _handler_shutdown(self, *args, **kwargs):
         """
@@ -2702,6 +2860,7 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(PlatformAgentState.IDLE, PlatformAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # STOPPED state event handlers.
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.RESUME, self._handler_stopped_resume)
@@ -2709,9 +2868,9 @@ class PlatformAgent(ResourceAgent):
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(PlatformAgentState.STOPPED, PlatformAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # COMMAND and MONITORING common state event handlers.
-        # TODO revisit this when introducing the BUSY state
         for state in [PlatformAgentState.COMMAND, PlatformAgentState.MONITORING]:
             self._fsm.add_handler(state, PlatformAgentEvent.RESET, self._handler_command_reset)
             self._fsm.add_handler(state, PlatformAgentEvent.SHUTDOWN, self._handler_shutdown)
@@ -2721,6 +2880,7 @@ class PlatformAgent(ResourceAgent):
             self._fsm.add_handler(state, PlatformAgentEvent.GET_RESOURCE, self._handler_get_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.SET_RESOURCE, self._handler_set_resource)
             self._fsm.add_handler(state, PlatformAgentEvent.EXECUTE_RESOURCE, self._handler_execute_resource)
+            self._fsm.add_handler(state, PlatformAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
 
         # additional COMMAND state event handlers.
         self._fsm.add_handler(PlatformAgentState.COMMAND, PlatformAgentEvent.GO_INACTIVE, self._handler_idle_go_inactive)
@@ -2730,3 +2890,13 @@ class PlatformAgent(ResourceAgent):
 
         # additional MONITORING state event handlers.
         self._fsm.add_handler(PlatformAgentState.MONITORING, PlatformAgentEvent.STOP_MONITORING, self._handler_stop_resource_monitoring)
+
+        # LOST_CONNECTION state event handlers.
+        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.ENTER, self._handler_lost_connection_enter)
+        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.EXIT, self._handler_lost_connection_exit)
+        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.RESET, self._handler_lost_connection_reset)
+        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.AUTORECONNECT, self._handler_lost_connection_autoreconnect)
+        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GO_INACTIVE, self._handler_lost_connection_go_inactive)
+        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
+        self._fsm.add_handler(PlatformAgentState.LOST_CONNECTION, PlatformAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
+

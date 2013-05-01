@@ -153,6 +153,10 @@ class ResourceMonitor(object):
                   "for attrs=%s returned %s",
                   self._platform_id, attrs, retrieved_vals)
 
+        if retrieved_vals is None:
+            # lost connection; nothing else to do here:
+            return
+
         # vals_dict: attributes with non-empty reported values:
         vals_dict = {}
         for attr_id, from_time in attrs:

@@ -359,15 +359,28 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     #################################################################
 
     def _start_event_subscriber(self, event_type="DeviceEvent",
+                                origin=None,
                                 sub_type=None,
                                 count=0):
         """
+        DEPRECATED: to be replaced by _start_event_subscriber2, which always
+        returns newly AsyncResult and list objects.
+
         Starts event subscriber for events of given event_type ("DeviceEvent"
-        by default) and given sub_type (None by default).
+        by default), origin (None by default), and given sub_type (None by
+        default).
+        Note: only the events of exactly the given type are considered,
+        *no* subclasses of that type (note that the subscriber callback is also
+        called with subclasses of the given type).
         """
+
+        self._async_event_result = AsyncResult()
+        self._events_received = []
 
         def consume_event(evt, *args, **kwargs):
             # A callback for consuming events.
+            if evt.type_ != event_type:
+                return
             log.info('Event subscriber received evt: %s.', str(evt))
             self._events_received.append(evt)
             if count == 0:
@@ -377,6 +390,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                 self._async_event_result.set()
 
         sub = EventSubscriber(event_type=event_type,
+                              origin=origin,
                               sub_type=sub_type,
                               callback=consume_event)
 
@@ -386,6 +400,49 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+    def _start_event_subscriber2(self, count, event_type, **kwargs):
+        """
+        Starts an event subscriber to expect the given number of events of the
+        given event_type.
+        Note: only the events of exactly the given type are considered,
+        *no* subclasses of that type (note that the subscriber callback is also
+        called with subclasses of the given type).
+
+        @param count       number of event that should be received
+        @param event_type  desired event type
+        @param kwargs      other arguments for EventSubscriber constructor
+
+        @return (async_event_result, events_received)  Use these to wait
+                until the expected number of events.
+        """
+
+        async_event_result, events_received = AsyncResult(), []
+
+        def consume_event(evt, *args, **kwargs):
+            # A callback for consuming events.
+            if evt.type_ != event_type:
+                return
+            log.info('Event subscriber received evt: %s.', str(evt))
+            events_received.append(evt)
+            if count == 0:
+                async_event_result.set(evt)
+
+            elif count == len(events_received):
+                async_event_result.set()
+
+        sub = EventSubscriber(event_type=event_type,
+                              callback=consume_event,
+                              **kwargs)
+
+        sub.start()
+        log.info("registered event subscriber: count=%d,  event_type=%r, kwargs=%s",
+                 event_type, count, kwargs)
+
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+        return async_event_result, events_received
 
     def _stop_event_subscribers(self):
         """
