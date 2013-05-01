@@ -16,7 +16,7 @@ from pyon.util.containers import create_unique_identifier
 from pyon.util.containers import DotDict
 from pyon.util.arg_check import validate_is_not_none, validate_true
 from pyon.ion.resource import ExtendedResourceContainer
-from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, TransformFunction, DataProcess, ProcessQueueingMode
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessRestartMode, TransformFunction, DataProcess, ProcessQueueingMode, ComputedValueAvailability
 
 from interface.services.sa.idata_process_management_service import BaseDataProcessManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
@@ -767,3 +767,10 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 active_count += 1
         log.debug("get_data_process_active_subscriptions_count(id=%s): %s subscriptions", data_process_id, active_count)
         return active_count
+
+
+    def get_operational_state(self, taskable_resource_id):   # from Device
+        retval =  OT.ComputedStringValue
+        retval.value = ''
+        retval.status = ComputedValueAvailability.NOTAVAILABLE
+        return retval

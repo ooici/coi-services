@@ -268,9 +268,13 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         Test assignment of custom attributes
         """
 
+        instModel_obj = IonObject(OT.CustomAttribute,
+                                  name='SBE37IMModelAttr',
+                                  description="model custom attr")
+
         instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel,
                 {"custom_attributes":
-                         {"favorite_color": "attr desc goes here"}
+                         [instModel_obj]
             }))
         instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice,
                 {"custom_attributes":
@@ -500,7 +504,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         inst_startup_config = {'startup': 'config'}
 
-        generic_alerts_config = {'lvl1': {'lvl2': 'lvl3val'}}
+        generic_alerts_config = [ {'lvl2': 'lvl3val'} ]
 
         required_config_keys = [
             'org_governance_name',
@@ -509,7 +513,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             'driver_config',
             'stream_config',
             'startup_config',
-            'aparam_alert_config',
+            'aparam_alerts_config',
             'children']
 
 
@@ -530,8 +534,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
             self.assertEqual({'resource_id': device_id}, config['agent'])
             self.assertEqual(inst_startup_config, config['startup_config'])
-            self.assertIn('aparam_alert_config', config)
-            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
+            self.assertIn('aparam_alerts_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alerts_config'])
             self.assertIn('stream_config', config)
             for key in ['children']:
                 self.assertEqual({}, config[key])
@@ -543,8 +547,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertEqual(org_obj.org_governance_name, config['org_governance_name'])
             self.assertEqual(RT.PlatformDevice, config['device_type'])
             self.assertEqual({'resource_id': device_id}, config['agent'])
-            self.assertIn('aparam_alert_config', config)
-            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
+            self.assertIn('aparam_alerts_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alerts_config'])
             self.assertIn('stream_config', config)
             self.assertIn('driver_config', config)
             self.assertIn('foo', config['driver_config'])
@@ -571,8 +575,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
             self.assertIn('process_type', config['driver_config'])
             self.assertEqual(('ZMQPyClassDriverLauncher',), config['driver_config']['process_type'])
             self.assertEqual({'resource_id': parent_device_id}, config['agent'])
-            self.assertIn('aparam_alert_config', config)
-            self.assertEqual(generic_alerts_config, config['aparam_alert_config'])
+            self.assertIn('aparam_alerts_config', config)
+            self.assertEqual(generic_alerts_config, config['aparam_alerts_config'])
             self.assertIn('stream_config', config)
             for key in ['startup_config']:
                 self.assertEqual({}, config[key])

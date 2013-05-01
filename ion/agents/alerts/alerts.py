@@ -15,12 +15,15 @@ from pyon.public import IonObject, log
 
 # Standard imports.
 import time
+import copy
 
 # gevent.
 import gevent
 
 # Alarm types and events.
-from interface.objects import StreamAlertType, AggregateStatusType
+from interface.objects import StreamAlertType
+from interface.objects import AggregateStatusType
+from interface.objects import DeviceStatusType
 
 # Events.
 from pyon.event.event import EventPublisher
@@ -33,6 +36,61 @@ class BaseAlert(object):
     """
     Base class for all alert types.
     """
+    schema = {
+        'display_name' : '',
+        'description' : '',
+        "type" : {
+            "name" :
+            {
+                "display_name" : "Alert Name",
+                "description" : "Alert name unique to this agent.",
+                "required" : True,
+                "type" : "str"
+            
+            },
+            "description" : {
+                "display_name" : "Alert Description",
+                "description" : "Descriptive purpose of the alert.",
+                "required" : True,
+                "type" : "str"
+            
+            },
+            "alert_type" : {
+                "display_name" : "Alert Type",
+                "description" : "Severity type of the alert.",
+                "required" : True,
+                "type" : "int",
+                "string_map" : StreamAlertType._str_map,
+                "value_map" : StreamAlertType._value_map
+            
+            },
+            "aggregate_type" : {
+                "display_name" : "Aggregate Type",
+                "description" : "Functional type of the alert for aggregate status.",
+                "required" : False,
+                "type" : "int",        
+                "string_map" : AggregateStatusType._str_map,
+                "value_map" : AggregateStatusType._value_map
+                },
+            "value" : {
+                "display_name" : "Current Value",
+                "description" : "Current value of the alert.",
+                "required" : False,                
+                "type" : "alert specific"
+                },
+            "status" : {
+                "display_name" : "Alert Status",
+                "description" : "Current boolean status of the alert.",
+                "required" : False,
+                "type" : "bool"
+                }
+            }
+        }
+    
+    @classmethod
+    def get_schema(cls):
+        return copy.deepcopy(cls.schema)
+
     def __init__(self, name=None, description=None, alert_type=None,
                  resource_id=None, origin_type=None, aggregate_type=None):
         assert isinstance(name, str)
@@ -118,6 +176,22 @@ class BaseAlert(object):
         pass
 
 class StreamAlert(BaseAlert):
+    
+    schema = {
+            "stream_name" : {
+                "display_name" : "Stream Name",
+                "description" : "Name of the stream this alert listens on.",
+                "required" : True,
+                "type" : "str"
+            }
+        }
+
+    @classmethod
+    def get_schema(cls):
+        retval = BaseAlert.get_schema()
+        retval['type'].update(cls.schema)
+        return retval
+    
     def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
                     origin_type=None, aggregate_type=None, stream_name=None):
         
@@ -138,6 +212,23 @@ class StreamAlert(BaseAlert):
         return event_data
     
 class StreamValueAlert(StreamAlert):
+    
+    schema = {
+        "value_id" : {
+            "display_name" : "Value ID",
+            "description" : "Name of data value field within stream.",
+            "required" : True,
+            "type" : "str"                
+        }
+    }
+    
+    @classmethod
+    def get_schema(cls):
+        retval = StreamAlert.get_schema()
+        retval['type'].update(cls.schema)
+        return retval
+    
+    
     def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
                     origin_type=None, aggregate_type=None, stream_name=None, value_id=None):
         
@@ -161,8 +252,52 @@ class IntervalAlert(StreamValueAlert):
     """
     An alert that triggers when values leave a defined range.
     """
-    
     rel_ops = ['<', '<=']
+
+    schema = {
+        "lower_bound" : {
+            "display_name" : "Lower Bound",
+            "description" : "Lower bound of the data valid interval.",
+            "required" : False,
+            "type" : "float"                            
+        },
+        "upper_bound" : {
+            "display_name" : "Upper Bound",
+            "description" : "Upper bound of the data valid interval.",
+            "required" : False,
+            "type" : "float"                            
+        },
+        "lower_rel_op" : {
+            "display_name" : "Lower Bound Operator",
+            "description" : "Lower bound inequallity operator of the data valid interval.",
+            "required" : False,
+            "type" : "str",
+            "valid_values" : ['<','<=']
+        },
+        "upper_rel_op" : {
+            "display_name" : "Upper Bound Operator",
+            "description" : "Upper bound inequallity operator of the data valid interval.",
+            "required" : False,
+            "type" : "str",
+            "valid_values" : ['<','<=']
+        },
+        "class_name" : {
+            "display_name" : "Alert Class Name",
+            "descritpion" : "Name of class implementing alert.",
+            "required" : True,
+            "type" : "str",
+            "value" : "IntervalAlert"
+            }            
+        }
+
+    @classmethod
+    def get_schema(cls):
+        retval = StreamValueAlert.get_schema()
+        retval['type'].update(cls.schema)
+        retval['display_name'] = 'Data Interval Alert'
+        retval['description'] = 'Alert triggered by out of range data values.'
+        retval['type']['value']['type'] = "float"
+        return retval
     
     def __init__(self, name=None, stream_name=None, description=None, alert_type=None,
                  value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
@@ -336,6 +471,32 @@ class LateDataAlert(StreamAlert):
     """
     An alert that triggers when data is late in streaming mode.
     """
+    schema = {
+        "time_delta" : {
+            "display_name" : "Time Delta",
+            "description" : "Wait time for new data to arrive on the stream.",
+            "required" : True,
+            "type" : "float"
+        },
+        "class_name" : {
+            "display_name" : "Alert Class Name",
+            "descritpion" : "Name of class implementing alert.",
+            "required" : True,
+            "type" : "str",
+            "value" : "LateDataAlert"
+        }            
+    }
+    
+    @classmethod
+    def get_schema(cls):
+        retval = StreamAlert.get_schema()
+        retval['type'].update(cls.schema)
+        retval['display_name'] = 'Late Data Alert'
+        retval['description'] = 'Alert triggered by late data in streaming mode.'
+        retval['type']['value']['type'] = "float"        
+        return retval
+    
+    
     def __init__(self, name=None, stream_name=None, description=None, alert_type=None,
                  value_id=None, resource_id=None, origin_type=None, aggregate_type=None,
                  time_delta=None, get_state=None, **kwargs):
@@ -387,7 +548,38 @@ class StateAlert(BaseAlert):
     """
     An alert that triggers for specified state changes.
     Useful for detecting spontaneous disconnects.
-    """
+    """    
+    schema = {
+        "alert_states" : {
+            "display_name" : "Alert States",
+            "description" : "List of states that trigger the alert.",
+            "required" : True,
+            "type" : ["str"],
+            },
+        "clear_states" : {
+            "display_name" : "Clear State",
+            "description" : "List of states that clear the alert.",
+            "required" : True,
+            "type" : ["str"],
+        },
+        "class_name" : {
+            "display_name" : "Alert Class Name",
+            "descritpion" : "Name of class implementing alert.",
+            "type" : "str",
+            "required" : True,
+            "value" : "StateAlert"
+        }
+    }
+    
+    @classmethod
+    def get_schema(cls):
+        retval = BaseAlert.get_schema()
+        retval['type'].update(cls.schema)
+        retval['display_name'] = 'State Alert'
+        retval['description'] = 'Alert triggered by specified states.'
+        retval['type']['value']['type'] = "str"        
+        return retval
+    
     def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
                  origin_type=None, aggregate_type=None, alert_states=None,
                  clear_states=None, **kwargs):
@@ -442,6 +634,39 @@ class CommandErrorAlert(BaseAlert):
     An alert that triggers for specified command errors.
     Useful for detecting failed connection attmepts.
     """
+    schema = {
+        "command" : {
+            "display_name" : "Command Name",
+            "description" : "Execute agent command whos failure triggers the alert.",
+            "required" : True,
+            "type" : "str",
+            },
+        "clear_states" : {
+            "display_name" : "Clear State",
+            "description" : "List of states that clear the alert.",
+            "required" : True,
+            "type" : ["str"],
+        },
+        "class_name" : {
+            "display_name" : "Alert Class Name",
+            "descritpion" : "Name of class implementing alert.",
+            "type" : "str",
+            "required" : True,
+            "value" : "CommandErrorAlert"
+        }
+        
+    }
+    
+    @classmethod
+    def get_schema(cls):
+        retval = BaseAlert.get_schema()
+        retval['type'].update(cls.schema)
+        retval['display_name'] = 'Command Alert'
+        retval['description'] = 'Alert triggered by specified command errors.'
+        retval['type']['value']['type'] = "str"                
+        return retval
+    
+    
     def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
                  origin_type=None, aggregate_type=None, command=None,
                  clear_states=None, **kwargs):
@@ -494,3 +719,13 @@ class CommandErrorAlert(BaseAlert):
 
         if self._prev_status != self._status:
             self.publish_alert()
+    
+def get_alerts_schema():
+    
+    return [
+        IntervalAlert.get_schema(),
+        LateDataAlert.get_schema(),
+        StateAlert.get_schema(),
+        CommandErrorAlert.get_schema()
+        ]
+    

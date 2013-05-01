@@ -1275,7 +1275,6 @@ class InstrumentAgent(ResourceAgent):
         self._aam.process_alerts(state=state)
 
     def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
-        print '########## calling alerts with command: ' + str(execute_cmd)
         self._aam.process_alerts(command=execute_cmd, command_success=False)
         super(InstrumentAgent, self)._on_command_error(cmd, execute_cmd, args,
                                                        kwargs, ex)
