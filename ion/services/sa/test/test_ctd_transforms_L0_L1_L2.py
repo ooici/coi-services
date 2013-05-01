@@ -30,7 +30,7 @@ import gevent
 
 from pyon.util.context import LocalContextMixin
 
-from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition, ComputedStringValue
+from interface.objects import ProcessStateEnum, StreamConfiguration, AgentCommand, ProcessDefinition, ComputedStringValue, ComputedValueAvailability
 from ion.services.cei.process_dispatcher_service import ProcessStateGate
 from ion.agents.port.port_agent_process import PortAgentProcessType, PortAgentType
 
@@ -555,6 +555,11 @@ class TestCTDTransformsIntegration(IonIntegrationTestCase):
 
         process_ids, _ = self.rrclient.find_objects(subject=ctd_l0_all_data_process_id, predicate=PRED.hasProcess, id_only=True)
         self.addCleanup(self.processdispatchclient.cancel_process,process_ids[0])
+
+        extended_process = self.dataprocessclient.get_data_process_extension(ctd_l0_all_data_process_id)
+        self.assertEquals(extended_process.computed.operational_state.status, ComputedValueAvailability.NOTAVAILABLE)
+        self.assertEquals(data_process.message_controllable, True)
+
 
         #-------------------------------------------------------------------------------------
         # L1 Conductivity: Create the data process
