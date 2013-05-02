@@ -10,6 +10,7 @@ import math
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 import unittest
 from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
+from pyon.public import log
 
 class TestLoaderAlgo(PyonTestCase):
 
@@ -233,3 +234,6 @@ class TestLoader(IonIntegrationTestCase):
         orgs, _ = self.container.resource_registry.find_subjects(RT.Org, PRED.hasResource, iai._id, True)
         self.assertEqual(1, len(orgs))
         self.assertEqual(org._id, orgs[0])
+
+        entries ,_ = self.container.resource_registry.find_resources(RT.SchedulerEntry, id_only=False)
+        self.assertGreaterEqual(len(entries), 1)
