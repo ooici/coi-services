@@ -433,7 +433,7 @@ class OrgManagementService(BaseOrgManagementService):
 
                 #Automatically reject the proposal if the exipration request is greater than 12 hours from now or 0
                 cur_time = int(get_ion_ts())
-                expiration = cur_time +  ( 12 * 60 * 60 * 1000 ) # 12 hours from now
+                expiration = int(cur_time +  ( 12 * 60 * 60 * 1000 )) # 12 hours from now
                 if sap.expiration == 0 or sap.expiration > expiration:
                     #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
                     provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
