@@ -145,6 +145,7 @@ DEFAULT_CATEGORIES = [
     'WorkflowDefinition',
     'Workflow',
     'Deployment',
+    'Scheduler',
     ]
 
 # The following lists all categories that define information used by other categories.
@@ -2609,3 +2610,33 @@ Reason: %s
         if get_typed_value(row['activate'], targettype="bool"):
             oms.activate_deployment(deployment_id, headers=headers)
 
+
+
+    def _load_Scheduler(self,row):
+        scheduler_type = row['type']
+        event_origin = row['event_origin']
+        event_subtype = row['event_subtype']
+
+        client = self._get_service_client('scheduler')
+        if scheduler_type == 'TimeOfDayTimer':
+            #times_of_day are comma separated strings of the format HH:MM:SS that must be put into a lsit of dicts
+            times_of_day = []
+            times_of_day_string = row['times_of_day']
+            list_of_strings = times_of_day_string.strip().split(',')
+            for string in list_of_strings:
+                HH, MM, SS = string.strip().split(':')
+                times_of_day.append( {'hour':HH, 'minute':MM, 'second':SS} )
+
+            expires = row['expires']
+            tag = client.create_time_of_day_timer(times_of_day=times_of_day,  expires=expires, event_origin=event_origin, event_subtype=event_subtype)
+
+            #if the subtype is the UNS batch timer then set the key in UNS
+            if event_subtype == 'UNS_batch_timer':
+                client = self._get_service_client('user_notification')
+                client.set_process_batch_key(process_batch_key = event_origin)
+
+        elif scheduler_type == 'IntervalTimer':
+            start_time = row['start_time']
+            interval = int(row['interval'])
+            end_time = row['end_time']
+            tag = client.create_interval_timer(start_time= start_time, interval=interval,  end_time=end_time, event_origin=event_origin, event_subtype=event_origin)
