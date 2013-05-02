@@ -10,7 +10,6 @@ import math
 from interface.services.dm.iingestion_management_service import IngestionManagementServiceClient
 import unittest
 from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
-from pyon.public import log
 
 class TestLoaderAlgo(PyonTestCase):
 
