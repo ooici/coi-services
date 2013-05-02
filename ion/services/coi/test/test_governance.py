@@ -1857,7 +1857,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         with self.assertRaises(Unauthorized) as cm:
             cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
             retval = ia_client.execute_resource(cmd, headers=actor_header)
-        self.assertIn('(execute_resource) has been denied',cm.exception.message)
+        self.assertIn('InstrumentDevice(execute_resource) has been denied',cm.exception.message)
 
 
         #Going to try access to other operations on the agent, don't care if they actually work - just
@@ -1902,6 +1902,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response5 = self.org_client.negotiate(sap_response4, headers=actor_header )
         '''
 
+        gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and commitments recorded
+
         #This operation should now be allowed since the resource has been acquired
         with self.assertRaises(Conflict) as cm:
             cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
@@ -1934,6 +1936,19 @@ class TestGovernanceInt(IonIntegrationTestCase):
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and commitments recorded
+
+
+        #Should fail if another user has acquired the resource exclusively
+        with self.assertRaises(Unauthorized) as cm:
+            ia_client.set_resource(new_params, headers=obs_operator_actor_header)
+        self.assertIn('InstrumentDevice(set_resource) has been denied since another user',cm.exception.message)
+
+        #Should fail if another user has acquired the resource exclusively
+        with self.assertRaises(Unauthorized) as cm:
+            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
+            retval = ia_client.execute_resource(cmd, headers=obs_operator_actor_header)
+        self.assertIn('InstrumentDevice(execute_resource) has been denied since another user',cm.exception.message)
+
 
         #Request Direct Access again - with a different user and it should fail since other user has exclusive access
         with self.assertRaises(Unauthorized) as cm:
