@@ -220,8 +220,10 @@ class PlatformResourceMonitor(object):
 
                 # Note that notification from the driver has the form
                 # of a non-empty list of pairs (val, ts)
-                assert isinstance(param_value, list)
-                assert isinstance(param_value[0], tuple)
+                assert isinstance(param_value, list), \
+                    "param_value must be a list. Got: %s" % param_value
+                assert isinstance(param_value[0], (tuple, list)), \
+                    "param_value element must be a tuple. Got: %s" % param_value[0]
 
                 self._buffers[param_name] += param_value
 
