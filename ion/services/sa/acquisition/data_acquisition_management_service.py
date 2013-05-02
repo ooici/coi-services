@@ -697,19 +697,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         data_product_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
         stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
 
-        # REPLACE CONFIGURATION WITH TESTED ENTRIES
-        ## Create agent config.
-        #dataset_agent_instance_obj.dataset_agent_config = {
-        #    'driver_config' : dataset_agent_instance_obj.dataset_driver_config,
-        #    'stream_config' : {'parsed': stream_id },
-        #    'agent'         : {'resource_id': ext_dataset_id},
-        #}
-
+        stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
         route = self.clients.pubsub_management.read_stream_route(stream_id)
 
-        dataset_agent_instance_obj.dataset_agent_config['driver_config']['dh_cfg']['stream_id'] = stream_id
+        log.info('stream def: %r', { key: getattr(stream_def_obj, key) for key in stream_def_obj._schema })
+        dataset_agent_instance_obj.dataset_agent_config['driver_config']['parameter_dict'] = stream_def_obj.parameter_dictionary
         dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
-        dataset_agent_instance_obj.dataset_agent_config['driver_config']['dh_cfg']['stream_route'] = { key: getattr(route, key) for key in route._schema }
+        dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
+        dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_route'] = { key: getattr(route, key) for key in route._schema }
+
         log.debug("start_external_dataset_agent_instance: agent_config %r", dataset_agent_instance_obj.dataset_agent_config)
 
         # Setting the restart mode

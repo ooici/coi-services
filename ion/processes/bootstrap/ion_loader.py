@@ -97,7 +97,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgjFgozf2vG6dEVqWnBsdHJ3MW5aMFpzTnA5V014Mmc&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidHlIX1J6eTRLMzZkcWlRdktOWEwxblE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -115,7 +115,7 @@ DEFAULT_CATEGORIES = [
     'ParameterDictionary',
     'Alerts',                           # in memory only - all scenarios loaded
     'StreamConfiguration',              # in memory only - all scenarios loaded
-    'SensorModel',
+    #'SensorModel',
     'PlatformModel',
     'InstrumentModel',
     'Observatory',
@@ -133,7 +133,7 @@ DEFAULT_CATEGORIES = [
     'ExternalDatasetAgent',
     'ExternalDatasetAgentInstance',
     'InstrumentDevice',
-    'SensorDevice',
+    #'SensorDevice',
     'InstrumentAgentInstance',
     'DataProduct',
     'TransformFunction',
@@ -145,6 +145,7 @@ DEFAULT_CATEGORIES = [
     'WorkflowDefinition',
     'Workflow',
     'Deployment',
+    'Scheduler',
     ]
 
 # The following lists all categories that define information used by other categories.
@@ -238,7 +239,7 @@ class IONLoader(ImmediateProcess):
             self.ui_path = CANDIDATE_UI_ASSETS
 
         self.debug = config.get("debug", False)        # Debug mode with certain shorthands
-        self.ooiuntil = config.get("ooiuntil", None) # Don't import stuff later than given date
+        self.ooiuntil = config.get("ooiuntil", None)  # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
         self.exportui = config.get("exportui", False)  # Save UI JSON file
@@ -1774,7 +1775,6 @@ Reason: %s
                 oms_client.assign_device_to_network_parent(self.resource_ids[network_parent_id], res_id,
                                                            headers=headers)
 
-
     def _load_PlatformDevice_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("node")
 
@@ -1783,12 +1783,12 @@ Reason: %s
             newrow[COL_ID] = ooi_id + "_PD"
             newrow['pd/name'] = "%s" % ooi_obj.get('name', '')
             newrow['pd/description'] = "Platform %s device #01" % ooi_id
-            newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
+            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
             newrow['platform_model_id'] = ooi_id[9:11] + "_PM"
             newrow['contact_ids'] = ''
             newrow['network_parent_id'] = ""
 
-            if not self._match_filter(ooi_obj.get('array_list', None)):
+            if not self._match_filter([ooi_id[:2]]):
                 continue
 
             self._load_PlatformDevice(newrow)
@@ -1799,7 +1799,7 @@ Reason: %s
             uplink_node = ooi_obj.get('uplink_node', "")
             newrow['network_parent_id'] = uplink_node + "_PD" if uplink_node else ""
 
-            if not self._match_filter(ooi_obj.get('array_list', None)):
+            if not self._match_filter([ooi_id[:2]]):
                 continue
 
             self._load_PlatformDevice_ext(newrow)
@@ -2079,7 +2079,7 @@ Reason: %s
         agent = self._get_resource_obj(row['agent'])
         agent_config = parse_dict(row['agent_config'])
         driver_config = parse_dict(row['driver_config'])
-        pubrate = row['publish_rate']
+        pubrate = row['records_per_granule']
 
 #        handler_module = agent.handler_module
 #        handler_class = agent.handler_class
@@ -2090,23 +2090,28 @@ Reason: %s
         driver_config.update( {
             'dvr_mod' : row['handler_module'],
             'dvr_cls' : row['handler_class'],
-            'dh_cfg': {
+#            'dh_cfg': {
+                # ExternalDatasetAgent only
                 'parser_mod': row['parser_module'],
                 'parser_cls': row['parser_class'],
+                # TwoDelegateDatasetAgent
+                'parser.module': row['parser_module'],
+                'parser.class': row['parser_class'],
+                'poller.module': row['poller_module'],
+                'poller.class': row['poller_class'],
                 #'TESTING':True,
                 'stream_def': streamdef_id,
 #                'stream_id':stream_id,
 #                'param_dictionary':pdict.dump(),
                 'data_producer_id':self.external_dataset_producer_id[dataset._id],
-#                'max_records':20,
-                }
+                'max_records': int(pubrate),
+#                'debug-dh-cfg': 'abc'
+#                }
             } )
         agent_config.update( {
             'driver_config' : driver_config,
-            'stream_config' : { }, #'a': 'ion_loader:1933'},
+            'stream_config' : { },
             'agent'         : {'resource_id': dataset._id},
-            'aparam_pubrate_config': pubrate
-            #'test_mode' : True
         } )
 
         agent_instance = IonObject(RT.ExternalDatasetAgentInstance,  name=name, description=description,
@@ -2381,6 +2386,7 @@ Reason: %s
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
             newrow['stream_def_id'] = ''
+            newrow['parent'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
             # (2) Device Data Product - raw
@@ -2394,6 +2400,7 @@ Reason: %s
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
             newrow['stream_def_id'] = ''
+            newrow['parent'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
             data_product_list = ooi_obj.get('data_product_list', [])
@@ -2430,6 +2437,7 @@ Reason: %s
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
+                newrow['parent'] = ''
 
                 self._load_DataProduct(newrow, do_bulk=self.bulk)
 
@@ -2510,13 +2518,13 @@ Reason: %s
                 self._load_DataProductLink(newrow, do_bulk=self.bulk)
 
     def _load_Attachment(self, row):
-        log.info("Loading Attachment")
-
         res_id = self.resource_ids[row["resource_id"]]
+        filename = row["file_path"]
+        log.trace("Loading Attachment %s from file %s", res_id, filename)
+
         att_obj = self._create_object_from_row("Attachment", row, "att/")
         if row['parser'] and row['parser'] in self.resource_ids:
             att_obj.context = objects.ReferenceAttachmentContext(parser_id=self.resource_ids[row['parser']])
-        filename = row["file_path"]
         if not filename:
             raise iex.BadRequest('attachment did not include a filename: ' + row[COL_ID])
 
@@ -2602,3 +2610,33 @@ Reason: %s
         if get_typed_value(row['activate'], targettype="bool"):
             oms.activate_deployment(deployment_id, headers=headers)
 
+
+
+    def _load_Scheduler(self,row):
+        scheduler_type = row['type']
+        event_origin = row['event_origin']
+        event_subtype = row['event_subtype']
+
+        client = self._get_service_client('scheduler')
+        if scheduler_type == 'TimeOfDayTimer':
+            #times_of_day are comma separated strings of the format HH:MM:SS that must be put into a lsit of dicts
+            times_of_day = []
+            times_of_day_string = row['times_of_day']
+            list_of_strings = times_of_day_string.strip().split(',')
+            for string in list_of_strings:
+                HH, MM, SS = string.strip().split(':')
+                times_of_day.append( {'hour':HH, 'minute':MM, 'second':SS} )
+
+            expires = row['expires']
+            tag = client.create_time_of_day_timer(times_of_day=times_of_day,  expires=expires, event_origin=event_origin, event_subtype=event_subtype)
+
+            #if the subtype is the UNS batch timer then set the key in UNS
+            if event_subtype == 'UNS_batch_timer':
+                client = self._get_service_client('user_notification')
+                client.set_process_batch_key(process_batch_key = event_origin)
+
+        elif scheduler_type == 'IntervalTimer':
+            start_time = row['start_time']
+            interval = int(row['interval'])
+            end_time = row['end_time']
+            tag = client.create_interval_timer(start_time= start_time, interval=interval,  end_time=end_time, event_origin=event_origin, event_subtype=event_origin)

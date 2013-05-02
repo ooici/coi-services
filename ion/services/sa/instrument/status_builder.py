@@ -69,16 +69,18 @@ class AgentStatusBuilder(object):
 
         except NotFound:
             reason = "Could not connect to platform agent instance -- may not be running"
-            computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                                               value={},
-                                                                               reason=reason)
+            if hasattr(computed_attributes, "child_device_status"):
+                computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                                   value={},
+                                                                                   reason=reason)
             computed_attributes.aggregated_status = self._compute_aggregated_status_overall({})
 
         except Unauthorized:
             reason = "The requester does not have the proper role to access the status of this platform agent"
-            computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                                               value={},
-                                                                               reason=reason)
+            if hasattr(computed_attributes, "child_device_status"):
+                computed_attributes.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                            value={},
+                                                                            reason=reason)
             computed_attributes.aggregated_status = self._compute_aggregated_status_overall({})
 
         except Exception as e:

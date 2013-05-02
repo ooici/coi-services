@@ -1619,31 +1619,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
-    def get_firmware_version(self, instrument_device_id):
-        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
-        if ia_client:
-            ret.value = 0.0 #todo: use ia_client
-        return ret
-
-
     def get_last_data_received_datetime(self, instrument_device_id):
-        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
-        if ia_client:
-            ret.value = 0.0 #todo: use ia_client
+        # not currently available from device or agent
+        ret = IonObject(OT.ComputedFloatValue)
+        ret.value = 0
+        ret.status = ComputedValueAvailability.NOTAVAILABLE
         return ret
 
 
     def get_operational_state(self, taskable_resource_id):   # from Device
         ia_client, ret = self.agent_status_builder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
         if ia_client:
-            ret.value = "" #todo: use ia_client
+            ret.value = ia_client.get_agent_state()
         return ret
 
-    def get_last_calibration_datetime(self, instrument_device_id):
-        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(instrument_device_id, OT.ComputedFloatValue)
-        if ia_client:
-            ret.value = 0 #todo: use ia_client
-        return ret
 
     def get_uptime(self, device_id):
         ia_client, ret = self.agent_status_builder.obtain_agent_calculation(device_id, OT.ComputedStringValue)

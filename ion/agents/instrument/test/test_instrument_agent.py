@@ -45,6 +45,7 @@ from pyon.core.object import IonObjectDeserializer
 
 # Pyon exceptions.
 from pyon.core.exception import BadRequest, Conflict, Timeout, ResourceError
+from pyon.core.exception import IonException
 
 # Agent imports.
 from pyon.util.context import LocalContextMixin
@@ -2138,7 +2139,7 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                 try:
                     gevent.sleep(.5)
                     test._ia_client.execute_resource(cmd)
-                except:
+                except IonException:
                     break
                 
             while True:
@@ -2146,10 +2147,10 @@ class TestInstrumentAgent(IonIntegrationTestCase):
                     gevent.sleep(.5)
                     test._ia_client.execute_resource(cmd)
                     break
-                except:
+                except IonException:
                     pass
-
-        timeout = gevent.Timeout(120)
+                
+        timeout = gevent.Timeout(240)
         timeout.start()
         try:
 
@@ -2166,11 +2167,14 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             
             # Wait for the device to connect and start sampling again.
             gl.join()
+            gl = None
             timeout.cancel()
             
-        except Timeout as t:
-            gl.kill()
-            self.fail('Could not reconnect to device.')
+        except (Exception, gevent.Timeout) as ex:
+            if gl:
+                gl.kill()
+                gl = None
+            self.fail('Could not reconnect to device: '+str(ex))
 
     def test_connect_failed(self):
         """
