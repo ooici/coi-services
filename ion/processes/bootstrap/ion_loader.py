@@ -2624,7 +2624,7 @@ Reason: %s
             times_of_day_string = row['times_of_day']
             list_of_strings = times_of_day_string.strip().split(',')
             for string in list_of_strings:
-                HH, MM, SS = string.split(':')
+                HH, MM, SS = string.strip().split(':')
                 times_of_day.append( {'hour':HH, 'minute':MM, 'second':SS} )
 
             expires = row['expires']
