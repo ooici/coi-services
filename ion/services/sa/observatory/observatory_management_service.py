@@ -23,7 +23,7 @@ from ion.util.geo_utils import GeoUtils
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, StatusType
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, StatusType, ComputedListValue
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
@@ -830,6 +830,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                     for idev in extended_site.instrument_devices]
         ec.platform_status   = [self.agent_status_builder.get_aggregate_status_of_device(pdev._id, "aggstatus")
                                                     for pdev in extended_site.platform_devices]
+
+        ec.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=ec.instrument_status)
+        ec.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=ec.platform_status)
 
         # status rollups from attached device if it exists (handled in agent status builder)
         devices = RR2.find_objects(site_id, PRED.hasDevice, id_only=False)
