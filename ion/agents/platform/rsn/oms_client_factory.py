@@ -18,6 +18,7 @@ from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 import xmlrpclib
 import os
 import yaml
+from gevent import Greenlet, sleep
 
 _OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/rsn/oms_uri_aliases.yml'
 
@@ -110,9 +111,27 @@ class CIOMSClientFactory(object):
         from ion.agents.platform.rsn.simulator.process_util import ProcessUtil
         cls._sim_process = ProcessUtil()
         rsn_oms = cls._sim_process.launch()
+
         if inactivity_period:
             rsn_oms.exit_inactivity(inactivity_period)
-            log.debug("called exit_inactivity with %s", inactivity_period)
+
+            def hearbeat():
+                n = 0
+                while cls._sim_process:
+                    sleep(1)
+                    n += 1
+                    if cls._sim_process and n % 20 == 0:
+                        log.debug("heartbeat sent")
+                        try:
+                            rsn_oms.ping()
+                        except:
+                            pass
+                log.debug("heartbeat ended")
+
+            Greenlet(hearbeat).start()
+            log.debug("called exit_inactivity with %s and started heartbeat",
+                      inactivity_period)
+
         return "localsimulator"
 
     @classmethod
