@@ -1619,15 +1619,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
 
-    def get_firmware_version(self, instrument_device_id):
-
-        # not currently tracked in data model
-        ret = IonObject(OT.ComputedFloatValue)
-        ret.value = 0
-        ret.status = ComputedValueAvailability.NOTAVAILABLE
-        return ret
-
-
     def get_last_data_received_datetime(self, instrument_device_id):
         # not currently available from device or agent
         ret = IonObject(OT.ComputedFloatValue)
@@ -1642,12 +1633,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ret.value = ia_client.get_agent_state()
         return ret
 
-    def get_last_calibration_datetime(self, instrument_device_id):
-        # not currently tracked in data model
-        ret = IonObject(OT.ComputedFloatValue)
-        ret.value = 0
-        ret.status = ComputedValueAvailability.NOTAVAILABLE
-        return ret
 
     def get_uptime(self, device_id):
         ia_client, ret = self.agent_status_builder.obtain_agent_calculation(device_id, OT.ComputedStringValue)

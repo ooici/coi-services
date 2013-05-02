@@ -166,9 +166,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEquals(set(extended_instrument.availability_transitions.keys()), set(['enable', 'announce']))
 
         # Verify that computed attributes exist for the extended instrument
-        self.assertIsInstance(extended_instrument.computed.firmware_version, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.last_data_received_datetime, ComputedFloatValue)
-        self.assertIsInstance(extended_instrument.computed.last_calibration_datetime, ComputedFloatValue)
         self.assertIsInstance(extended_instrument.computed.uptime, ComputedStringValue)
 
         self.assertIsInstance(extended_instrument.computed.power_status_roll_up, ComputedIntValue)
@@ -219,8 +217,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertTrue( 'temp' in extended_instrument.computed.data_product_parameters_set.value['Parsed_Canonical'])
 
         #none of these will work because there is no agent
-        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
-                         extended_instrument.computed.firmware_version.status)
+#        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
+#                         extended_instrument.computed.firmware_version.status)
 #        self.assertEqual(ComputedValueAvailability.NOTAVAILABLE,
 #                         extended_instrument.computed.operational_state.status)
 #        self.assertEqual(ComputedValueAvailability.PROVIDED,
