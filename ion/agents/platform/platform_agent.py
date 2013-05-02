@@ -594,42 +594,89 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
 
 
-    #TODO - When/If the Instrument and Platform agents are dervied from a common device agent class, then relocate to the parent class and share
+    #TODO - When/If the Instrument and Platform agents are dervied from a
+    # common device agent class, then relocate to the parent class and share
     def check_resource_operation_policy(self, process, message, headers):
         '''
-        This function is used for governance validation for certain agent operations.
+        Inst Operators must have a shared commitment to call set_resource(), execute_resource() or ping_resource()
+        Org Managers and Observatory Operators do not have to have a commitment to call set_resource(), execute_resource() or ping_resource()
+        However, an actor cannot call these if someone else has an exclusive commitment
+        Agent policy is fully documented on confluence
         @param msg:
         @param headers:
         @return:
         '''
+
 
         try:
             gov_values = GovernanceHeaderValues(headers, resource_id_required=False)
         except Inconsistent, ex:
             return False, ex.message
 
+        log.debug("check_resource_operation_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
+
         resource_name = process.resource_type if process.resource_type is not None else process.name
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
-            return True, ''
+        coms = get_valid_resource_commitments(gov_values.resource_id)
+        if coms is None:
+            log.debug('commitments: None')
+        else:
+            log.debug('commitment count: %d', len(coms))
 
-        if has_org_role(gov_values.actor_roles , self.container.governance_controller.system_root_org_name, [ION_MANAGER]):
+        if coms is None and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+            [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
             return True, ''
 
         if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
-            INSTRUMENT_OPERATOR_ROLE):
+            [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE, INSTRUMENT_OPERATOR_ROLE]):
             return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
                           % (resource_name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
                              self._get_process_org_governance_name())
 
-        com = get_valid_resource_commitments(gov_values.resource_id, gov_values.actor_id)
-        if com is None:
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (resource_name, gov_values.op, gov_values.actor_id, self.resource_id)
+        if coms is None:
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s'\
+                          % (resource_name, gov_values.op, gov_values.actor_id,
+                             self.resource_id)
+
+
+        actor_has_shared_commitment = False
+
+        #Iterrate over commitments and look to see if actor or others have an exclusive access
+        for com in coms:
+            log.debug("checking commitments: actor_id: %s exclusive: %s",com.consumer,  str(com.commitment.exclusive))
+
+            if com.consumer == gov_values.actor_id:
+                actor_has_shared_commitment = True
+
+            if com.commitment.exclusive and com.consumer == gov_values.actor_id:
+                return True, ''
+
+            if com.commitment.exclusive and com.consumer != gov_values.actor_id:
+                return False, '%s(%s) has been denied since another user %s has acquired the resource exclusively' % (resource_name, gov_values.op, com.consumer)
+
+
+
+        if not actor_has_shared_commitment and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), INSTRUMENT_OPERATOR_ROLE):
+            return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
+                          % (resource_name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                             self._get_process_org_governance_name())
 
         return True, ''
 
-    def check_agent_operation_policy(self, process, message, headers):
 
+
+    def check_agent_operation_policy(self, process, message, headers):
+        """
+        Inst Operators must have an exclusive commitment to call set_agent(), execute_agent() or ping_agent()
+        Org Managers and Observatory Operators do not have to have a commitment to call set_agent(), execute_agent() or ping_agent()
+        However, an actor cannot call these if someone else has an exclusive commitment
+        Agent policy is fully documented on confluence
+
+        @param process:
+        @param message:
+        @param headers:
+        @return:
+        """
         try:
             gov_values = GovernanceHeaderValues(headers=headers, process=process)
         except Inconsistent, ex:
@@ -639,12 +686,11 @@ class PlatformAgent(ResourceAgent):
 
         resource_name = process.resource_type if process.resource_type is not None else process.name
 
-        #Inst Operators must have an exclusive commitment to call set_agent(), execute_agent() or ping_agent()
-        #Org Managers and Observatory Operators do not have to have a commitment to call set_agent(), execute_agent() or ping_agent()
-        #However, an actor cannot call these if someone else has an exclusive commitment
-        #Agent policy is fully documented on confluence
-
         coms = get_valid_resource_commitments(gov_values.resource_id)
+        if coms is None:
+            log.debug('commitments: None')
+        else:
+            log.debug('commitment count: %d', len(coms))
 
         if coms is None and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
             [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
