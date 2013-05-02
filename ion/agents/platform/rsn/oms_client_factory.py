@@ -101,7 +101,7 @@ class CIOMSClientFactory(object):
         log.debug("destroy_instance: _inst_count = %d", cls._inst_count)
 
     @classmethod
-    def launch_simulator(cls):
+    def launch_simulator(cls, inactivity_period):
         """
         Utility to launch the simulator as a separate process.
 
@@ -109,7 +109,10 @@ class CIOMSClientFactory(object):
         """
         from ion.agents.platform.rsn.simulator.process_util import ProcessUtil
         cls._sim_process = ProcessUtil()
-        cls._sim_process.launch()
+        rsn_oms = cls._sim_process.launch()
+        if inactivity_period:
+            rsn_oms.exit_inactivity(inactivity_period)
+            log.debug("called exit_inactivity with %s", inactivity_period)
         return "localsimulator"
 
     @classmethod

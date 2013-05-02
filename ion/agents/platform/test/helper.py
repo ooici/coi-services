@@ -103,6 +103,7 @@ class HelperTestMixin:
 
         # _oms_uri: see _dispatch_simulator and related methods:
         cls._oms_uri = None
+        cls._inactivity_period = None
 
     def _verify_valid_platform_id(self, platform_id, dic):
         """
@@ -217,7 +218,7 @@ class HelperTestMixin:
         self.assertEquals(expected, result, "instrument_id=%r: expecting %r but "
                     "got result=%r" % (instrument_id, expected, result))
 
-    def _dispatch_simulator(self, oms_uri):
+    def _dispatch_simulator(self, oms_uri, inactivity_period=180):
         """
         Method to be called in setUp. If oms_uri == "launchsimulator", it
         launches the simulator and returns the updated URI (which can be the
@@ -230,18 +231,22 @@ class HelperTestMixin:
           at any time (for example, for testing connection lost).
         - _simulator_enable can be called to explicitly re-launch it.
 
-        @param oms_uri   The initial URI
+        @param oms_uri            The initial URI
+        @param inactivity_period  If launched, the simulator process will
+                                  exit after this period of inactivity (180)
 
         @return The updated URI in case the oms_uri is "launchsimulator"
                 or the given oms_uri.
         """
         self._oms_uri = oms_uri
+        self._inactivity_period = inactivity_period
         return self._launch_simulator()
 
     def _launch_simulator(self):
         if self._oms_uri == "launchsimulator":
             self.addCleanup(self._stop_launched_simulator)
-            return CIOMSClientFactory.launch_simulator()
+            log.debug("launch_simulator inactivity: %s", self._inactivity_period)
+            return CIOMSClientFactory.launch_simulator(self._inactivity_period)
         else:
             return self._oms_uri
 

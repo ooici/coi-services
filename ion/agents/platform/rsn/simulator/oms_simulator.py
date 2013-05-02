@@ -90,6 +90,12 @@ class CIOMSSimulator(CIOMSClient):
             self._event_generator.stop()
             self._event_generator = None
 
+    def _enter(self):
+        """
+        Called when entering any of the CI-OMS interface methods methods.
+        """
+        self._dispatch_synthetic_exception()
+
     def _dispatch_synthetic_exception(self):
         """
         Called by all CI_OMS interface methods to dispatch the
@@ -101,22 +107,22 @@ class CIOMSSimulator(CIOMSClient):
             raise Exception(msg)
 
     def ping(self):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         return "pong"
 
     def get_platform_map(self):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         return self._ndef.get_map()
 
     def get_platform_types(self):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         return self._platform_types
 
     def get_platform_metadata(self, platform_id):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -134,7 +140,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: md}
 
     def get_platform_attributes(self, platform_id):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -148,7 +154,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: ret_infos}
 
     def get_platform_attribute_values(self, platform_id, req_attrs):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -169,7 +175,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: vals}
 
     def set_platform_attribute_values(self, platform_id, input_attrs):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -197,7 +203,7 @@ class CIOMSSimulator(CIOMSClient):
         return retval
 
     def get_platform_ports(self, platform_id):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -210,7 +216,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: ports}
 
     def connect_instrument(self, platform_id, port_id, instrument_id, attributes):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -256,7 +262,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: {port_id: {instrument_id: result}}}
 
     def disconnect_instrument(self, platform_id, port_id, instrument_id):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -278,7 +284,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: {port_id: {instrument_id: result}}}
 
     def get_connected_instruments(self, platform_id, port_id):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -295,7 +301,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: {port_id: result}}
 
     def turn_on_platform_port(self, platform_id, port_id):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -315,7 +321,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: {port_id: result}}
 
     def turn_off_platform_port(self, platform_id, port_id):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
@@ -335,7 +341,7 @@ class CIOMSSimulator(CIOMSClient):
         return {platform_id: {port_id: result}}
 
     def describe_event_types(self, event_type_ids):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if len(event_type_ids) == 0:
             return EventInfo.EVENT_TYPES
@@ -350,7 +356,7 @@ class CIOMSSimulator(CIOMSClient):
         return result
 
     def get_events_by_platform_type(self, platform_types):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if len(platform_types) == 0:
             platform_types = self._platform_types.keys()
@@ -374,7 +380,7 @@ class CIOMSSimulator(CIOMSClient):
         return True
 
     def register_event_listener(self, url, event_types):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         log.debug("register_event_listener called: url=%r, event_types=%s",
                  url, str(event_types))
@@ -421,7 +427,7 @@ class CIOMSSimulator(CIOMSClient):
         return {url: result_list}
 
     def unregister_event_listener(self, url, event_types):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         log.debug("unregister_event_listener called: url=%r, event_types=%s",
                  url, str(event_types))
@@ -478,7 +484,7 @@ class CIOMSSimulator(CIOMSClient):
         return {url: result_list}
 
     def get_registered_event_listeners(self):
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         return self._reg_event_listeners
 
@@ -489,7 +495,7 @@ class CIOMSSimulator(CIOMSClient):
         exploit some caching mechanism along with appropriate invalidation
         upon modifications to the platform information.
         """
-        self._dispatch_synthetic_exception()
+        self._enter()
 
         if platform_id not in self._pnodes:
             return {platform_id: InvalidResponse.PLATFORM_ID}
