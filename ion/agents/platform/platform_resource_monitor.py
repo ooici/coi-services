@@ -209,12 +209,17 @@ class PlatformResourceMonitor(object):
 
         @param driver_event An AttributeValueDriverEvent
         """
-        log.debug('%r: received driver_event from monitor=%s',
-                  self._platform_id, driver_event)
-
         assert isinstance(driver_event, AttributeValueDriverEvent)
 
         with self._lock:
+            if len(self._buffers) == 0:
+                # we are not currently monitoring.
+                return
+
+            log.debug('%r: received driver_event from monitor=%s',
+                      self._platform_id, driver_event)
+
+
             for param_name, param_value in driver_event.vals_dict.iteritems():
                 assert param_name in self._buffers
 
