@@ -33,6 +33,7 @@ from ion.agents.platform.platform_driver_event import ExternalEventDriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
+from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
@@ -220,12 +221,19 @@ class PlatformAgent(ResourceAgent):
         # event subscribers, and helps with related publications.
         self._status_manager = None
 
+        # Agent alert manager.
+        self._aam = None
+
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
         self._pp = pprint.PrettyPrinter()
 
     def on_init(self):
+        
+        # Set up alert manager.
+        self._aam = AgentAlertManager(self)
+        
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
@@ -426,6 +434,7 @@ class PlatformAgent(ResourceAgent):
 
         finally:
             super(PlatformAgent, self).on_quit()
+            self._aam.stop_all()
 
     def _do_quit(self):
         """
@@ -2666,6 +2675,37 @@ class PlatformAgent(ResourceAgent):
                 return retval
 
         return 0
+
+    ##############################################################
+    # Base class overrides for state and cmd error alerts.
+    ##############################################################
+
+    """
+    Some version of this code needs to be placed wherever a sample arrives
+    for publication.
+
+       # If the sample event is encoded, load it back to a dict.
+        if isinstance(val, str):
+            val = json.loads(val)
+
+        self._asp.on_sample(val)
+        try:
+            stream_name = val['stream_name']
+            values = val['values']
+            for v in values:
+                value = v['value']
+                value_id = v['value_id']
+                self._aam.process_alerts(stream_name=stream_name,
+                                         value=value, value_id=value_id)
+    """    
+
+    def _on_state_enter(self, state):
+        self._aam.process_alerts(state=state)
+
+    def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
+        self._aam.process_alerts(command=execute_cmd, command_success=False)
+        super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
+                                                       kwargs, ex)
 
     ##############################################################
     # FSM setup.
