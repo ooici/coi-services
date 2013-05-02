@@ -1782,12 +1782,12 @@ Reason: %s
             newrow[COL_ID] = ooi_id + "_PD"
             newrow['pd/name'] = "%s" % ooi_obj.get('name', '')
             newrow['pd/description'] = "Platform %s device #01" % ooi_id
-            newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
+            newrow['org_ids'] = self.ooi_loader.get_org_ids([ooi_id[:2]])
             newrow['platform_model_id'] = ooi_id[9:11] + "_PM"
             newrow['contact_ids'] = ''
             newrow['network_parent_id'] = ""
 
-            if not self._match_filter(ooi_obj.get('array_list', None)):
+            if not self._match_filter([ooi_id[:2]]):
                 continue
 
             self._load_PlatformDevice(newrow)
@@ -1798,7 +1798,7 @@ Reason: %s
             uplink_node = ooi_obj.get('uplink_node', "")
             newrow['network_parent_id'] = uplink_node + "_PD" if uplink_node else ""
 
-            if not self._match_filter(ooi_obj.get('array_list', None)):
+            if not self._match_filter([ooi_id[:2]]):
                 continue
 
             self._load_PlatformDevice_ext(newrow)
