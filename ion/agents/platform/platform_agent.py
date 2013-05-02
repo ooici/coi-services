@@ -23,7 +23,7 @@ from pyon.event.event import EventSubscriber
 
 from pyon.core.exception import BadRequest, Inconsistent
 
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments, ION_MANAGER
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 
 
@@ -608,6 +608,8 @@ class PlatformAgent(ResourceAgent):
         except Inconsistent, ex:
             return False, ex.message
 
+        resource_name = process.resource_type if process.resource_type is not None else process.name
+
         if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
             return True, ''
 
@@ -617,14 +619,56 @@ class PlatformAgent(ResourceAgent):
         if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
             INSTRUMENT_OPERATOR_ROLE):
             return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
-                          % (process.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                          % (resource_name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
                              self._get_process_org_governance_name())
 
-        com = get_resource_commitments(gov_values.resource_id, gov_values.actor_id)
+        com = get_valid_resource_commitments(gov_values.resource_id, gov_values.actor_id)
         if com is None:
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (process.name, gov_values.op, gov_values.actor_id, self.resource_id)
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' % (resource_name, gov_values.op, gov_values.actor_id, self.resource_id)
 
         return True, ''
+
+    def check_agent_operation_policy(self, process, message, headers):
+
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        log.debug("check_agent_operation_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
+
+        resource_name = process.resource_type if process.resource_type is not None else process.name
+
+        #Inst Operators must have an exclusive commitment to call set_agent(), execute_agent() or ping_agent()
+        #Org Managers and Observatory Operators do not have to have a commitment to call set_agent(), execute_agent() or ping_agent()
+        #However, an actor cannot call these if someone else has an exclusive commitment
+        #Agent policy is fully documented on confluence
+
+        coms = get_valid_resource_commitments(gov_values.resource_id)
+
+        if coms is None and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+            [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+            return True, ''
+
+        if coms is None and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), INSTRUMENT_OPERATOR_ROLE):
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (resource_name, gov_values.op, gov_values.actor_id)
+
+        #TODO - this commitment might not be with the right Org - may have to relook at how this is working in R3.
+        #Iterrate over commitments and look to see if actor or others have an exclusive access
+        for com in coms:
+
+            log.debug("checking commitments: actor_id: %s exclusive: %s",com.consumer,  str(com.commitment.exclusive))
+            if com.commitment.exclusive and com.consumer == gov_values.actor_id:
+                return True, ''
+
+            if com.commitment.exclusive and com.consumer != gov_values.actor_id:
+                return False, '%s(%s) has been denied since another user %s has acquired the resource exclusively' % (resource_name, gov_values.op, com.consumer)
+
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+            return True, ''
+
+        return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (resource_name, gov_values.op, gov_values.actor_id)
+
 
     ##############################################################
 
