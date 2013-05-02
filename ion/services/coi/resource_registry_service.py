@@ -152,6 +152,12 @@ class ResourceRegistryService(BaseResourceRegistryService):
     def read_mult(self, object_ids=[]):
         return self.resource_registry.read_mult(object_ids)
 
+    ############################
+    #
+    #  RESOURCE EXTENSION
+    #
+    ############################
+
     @mask_couch_error
     def get_resource_extension(self, resource_id='', resource_extension='', ext_associations=None, ext_exclude=None, optional_args=None):
         """Returns any ExtendedResource object containing additional related information derived from associations
@@ -161,7 +167,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
         @param ext_associations    dict
         @param ext_exclude    list
         @param optional_args    dict
-        @retval actor_identity    ExtendedResource
+        @retval extended_resource    ExtendedResource
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified resource_id does not exist
         """
@@ -170,3 +176,19 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
         return self.resource_registry.get_resource_extension(resource_extension=resource_extension, resource_id=resource_id,
             computed_resource_type=OT.ComputedAttributes, ext_associations=ext_associations, ext_exclude=ext_exclude, **optional_args)
+
+    ############################
+    #
+    #  PREPARE RESOURCE SUPPORT
+    #
+    ############################
+
+    @mask_couch_error
+    def prepare_resource_support(self, resource_type='', resource_id=''):
+        """
+        Returns the object containing the data to create/update a resource
+        """
+
+        return self.resource_registry.prepare_resource_support(resource_type=resource_type, resource_id=resource_id)
+
+
