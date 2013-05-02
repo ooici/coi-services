@@ -32,6 +32,9 @@ class CIOMSClientFactory(object):
 
     _uri_aliases = None
 
+    # _sim_process: see launch_simulator and related methods
+    _sim_process = None
+
     @classmethod
     def _load_uri_aliases(cls):
         try:
@@ -96,3 +99,25 @@ class CIOMSClientFactory(object):
         # else: nothing needed to do.
             
         log.debug("destroy_instance: _inst_count = %d", cls._inst_count)
+
+    @classmethod
+    def launch_simulator(cls):
+        """
+        Utility to launch the simulator as a separate process.
+
+        @return the new URI for a regular call to create_instance(uri).
+        """
+        from ion.agents.platform.rsn.simulator.process_util import ProcessUtil
+        cls._sim_process = ProcessUtil()
+        cls._sim_process.launch()
+        return "localsimulator"
+
+    @classmethod
+    def stop_launched_simulator(cls):
+        """
+        Utility to stop the process launched with launch_simulator.
+        """
+        if cls._sim_process:
+            log.debug("stopping launched simulator...")
+            cls._sim_process.stop()
+            cls._sim_process = None

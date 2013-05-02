@@ -77,6 +77,7 @@ from gevent.event import AsyncResult
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
@@ -100,12 +101,21 @@ from ion.services.sa.test.helpers import any_old
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
 
-# By default, test against "embedded" simulator. The OMS environment variable
-# can be used to indicate a different RSN OMS server endpoint. Some aliases for
-# the "oms_uri" parameter include "localsimulator" and "simulator".
-# See CIOMSClientFactory.
+###############################################################################
+# oms_uri: This indicates the URI to connect to the RSN OMS server endpoint.
+# By default, this value is "launchsimulator" meaning that the simulator is
+# launched as an external process for each test. This default is appropriate
+# for the buildbots. For local testing, the OMS environment variable can be
+# used to indicate a different RSN OMS server endpoint. Some aliases for
+# the "oms_uri" parameter include "embsimulator" (instantiates the simulator
+# class directly) and "localsimulator" (assumes the simulator is already running
+# as an external process, locally) and others. See oms_uri_aliases.yml.
+oms_uri = os.getenv('OMS', "launchsimulator")
+
+# initialization of the driver configuration. See setUp for possible update
+# of the 'oms_uri' entry related with the special value "launchsimulator".
 DVR_CONFIG = {
-    'oms_uri': os.getenv('OMS', 'embsimulator'),
+    'oms_uri': oms_uri
 }
 
 DVR_MOD = 'ion.agents.platform.rsn.rsn_platform_driver'
@@ -240,6 +250,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         HelperTestMixin.setUpClass()
 
     def setUp(self):
+
+        DVR_CONFIG['oms_uri'] = self._dispatch_simulator(oms_uri)
+        log.debug("DVR_CONFIG['oms_uri'] = %s", DVR_CONFIG['oms_uri'])
+
         self._start_container()
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')

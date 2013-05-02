@@ -5,9 +5,11 @@
 @file    ion/agents/platform/test/helper.py
 @author  Carlos Rueda
 @brief   Definitions and functionality to facilitate common validations in tests.
+         It also provides some supporting methods related with the simulator.
+
          The expected structures and error responses are currently based on the
-         CI-OMS interface. This scheme may of course need to be adjusted according
-         to needed refactorings when CG or other platform networks are incorporated.
+         CI-OMS interface. This scheme may need to be adjusted when CG or other
+         platform networks are incorporated.
 """
 
 __author__ = 'Carlos Rueda'
@@ -18,11 +20,15 @@ from ion.agents.platform.rsn.simulator.logger import Logger
 log = Logger.get_logger()
 
 from ion.agents.platform.responses import NormalResponse, InvalidResponse
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
+from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
+import time
 
 
 class HelperTestMixin:
     """
     A mixin to facilitate common validations in tests.
+    It also provides some supporting methods related with the simulator,
     """
 
     @classmethod
@@ -94,6 +100,9 @@ class HelperTestMixin:
             cls.INSTRUMENT_ID = 'LJ01D_port_1_instrument_1'
         else:
             print("PLAT_NETWORK undefined -> using base platform: %r" % cls.PLATFORM_ID)
+
+        # _oms_uri: see _dispatch_simulator and related methods:
+        cls._oms_uri = None
 
     def _verify_valid_platform_id(self, platform_id, dic):
         """
@@ -207,3 +216,61 @@ class HelperTestMixin:
         expected = NormalResponse.INSTRUMENT_DISCONNECTED
         self.assertEquals(expected, result, "instrument_id=%r: expecting %r but "
                     "got result=%r" % (instrument_id, expected, result))
+
+    def _dispatch_simulator(self, oms_uri):
+        """
+        Method to be called in setUp. If oms_uri == "launchsimulator", it
+        launches the simulator and returns the updated URI (which can be the
+        alias "localsimulator" or some concrete URI) to be used to update the
+        driver configuration. Otherwise it returns the given argument.
+
+        In case of launched simulator:
+        - addCleanup is called here to stop the launched simulator at end of test.
+        - _simulator_disable can be called by a test to stop the simulator
+          at any time (for example, for testing connection lost).
+        - _simulator_enable can be called to explicitly re-launch it.
+
+        @param oms_uri   The initial URI
+
+        @return The updated URI in case the oms_uri is "launchsimulator"
+                or the given oms_uri.
+        """
+        self._oms_uri = oms_uri
+        return self._launch_simulator()
+
+    def _launch_simulator(self):
+        if self._oms_uri == "launchsimulator":
+            self.addCleanup(self._stop_launched_simulator)
+            return CIOMSClientFactory.launch_simulator()
+        else:
+            return self._oms_uri
+
+    def _stop_launched_simulator(self):
+        if self._oms_uri == "launchsimulator":
+            CIOMSClientFactory.stop_launched_simulator()
+
+    def _simulator_disable(self):
+        """
+        This will cause the connection to the simulator to get lost.
+        """
+        if self._oms_uri == "launchsimulator":
+            self._stop_launched_simulator()
+
+        elif self._oms_uri == "embsimulator":
+            CIOMSSimulator.start_raising_exceptions_at(time.time())
+
+        else:
+            self.fail("_simulator_disable does not work for: %s" % self._oms_uri)
+
+    def _simulator_enable(self):
+        """
+        Reenables the simulator.
+        """
+        if self._oms_uri == "launchsimulator":
+            self._launch_simulator()
+
+        elif self._oms_uri == "embsimulator":
+            CIOMSSimulator.start_raising_exceptions_at(0)
+
+        else:
+            self.fail("_simulator_enable does not work for: %s" % self._oms_uri)

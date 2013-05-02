@@ -46,9 +46,6 @@ from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
-from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
-
-import time
 from gevent import sleep
 from mock import patch
 from pyon.public import CFG
@@ -748,32 +745,35 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         self._start_resource_monitoring()
 
-        ######################################################
-        # prepare simulator to start raising exceptions in a few seconds and
-        # let activity go on for a while including the lost connection that
-        # should happen in this interval:
-        CIOMSSimulator.start_raising_exceptions_at(time.time() + 10)
-        sleep(20)
+        # let normal activity go on for a while - note, the sleep here should
+        # be large enough to allow for some retrievals during the monitoring
+        # so that the lost connection is detected.
+        sleep(15)
 
-        # verify the platform is now in LOST_CONNECTION:
-        self._assert_state(PlatformAgentState.LOST_CONNECTION)
+        ######################################################
+        # disable simulator to trigger lost connection:
+        log.debug("disabling simulator")
+        self._simulator_disable()
 
         # verify a ResourceAgentConnectionLostErrorEvent was published:
         async_event_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertEquals(len(events_received), 1)
 
+        # verify the platform is now in LOST_CONNECTION:
+        self._assert_state(PlatformAgentState.LOST_CONNECTION)
+
         ######################################################
         # reconnect phase
 
-        # tell simulator to resume normal operations:
-        CIOMSSimulator.start_raising_exceptions_at(0)
+        # launch simulator again so connection is re-established:
+        log.debug("re-enabling simulator")
+        self._simulator_enable()
 
         # wait for a bit for the reconnection to take effect:
-        sleep(10)
+        sleep(15)
 
-        # verify the platform is now in MONITORING
+        # verify the platform is now back in MONITORING
         self._assert_state(PlatformAgentState.MONITORING)
-
 
         #####################
         # done

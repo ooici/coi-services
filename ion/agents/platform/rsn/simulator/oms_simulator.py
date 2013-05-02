@@ -41,10 +41,15 @@ class CIOMSSimulator(CIOMSClient):
         """
         After the given time (if positive), all methods in any created
         instance of this class will start raising Exceptions. This allows to
-        test for the "lost connection" case in the platform agent and driver.
+        test for the "lost connection" case in the platform agent and driver
+        when the simulator is run in "embedded" form.
+
+        Note: actual disconnection is performed when the simulator is launched
+        as an external process (via the special URI alias "launchsimulator")
+        and then killing that process at some point during the interaction.
         """
         secs = at_time - time.time()
-        log.debug("synthetic exceptions starting in %s secs from now", secs)
+        log.debug("(LC) synthetic exceptions starting in %s secs from now", secs)
         cls._exception_time = at_time
 
     def __init__(self, yaml_filename='ion/agents/platform/rsn/simulator/network.yml'):
@@ -91,7 +96,7 @@ class CIOMSSimulator(CIOMSClient):
         simulation of connection lost.
         """
         if 0 < self._exception_time <= time.time():
-            msg = "synthetic exception from CIOMSSimulator"
+            msg = "(LC) synthetic exception from CIOMSSimulator"
             log.debug(msg)
             raise Exception(msg)
 
