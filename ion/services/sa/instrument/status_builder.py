@@ -59,8 +59,17 @@ class AgentStatusBuilder(object):
             #retrieve the platform status from the platform agent
             this_status = pa_client.get_agent(['aggstatus'])['aggstatus']
             log.debug("this_status is %s", this_status)
-            combined_status = dict([(k, self._crush_status_list([v] + child_agg_status.get(k, [])))
-            for k, v in this_status.iteritems()])
+
+            combined_status = {}
+            # 1. loop through the items in this device status,
+            # 2. append all the statuses of that type from child devices,
+            # 3. crush
+            for stype, svalue in this_status.iteritems():
+                status_list = [svalue]
+                for dev_id, otherstats in child_agg_status.iteritems():
+                    status_list.append(otherstats.get(stype, DeviceStatusType.STATUS_UNKNOWN))
+                combined_status[stype] = self._crush_status_list(status_list)
+
             log.debug("combined_status is %s", this_status)
             self.set_status_computed_attributes(computed_attributes, combined_status,
                                                                      ComputedValueAvailability.PROVIDED)
