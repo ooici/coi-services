@@ -711,6 +711,7 @@ class OOILoader(object):
         report_lines = []
         node_objs = self.get_type_assets("node")
         inst_objs = self.get_type_assets("instrument")
+        series_objs = self.get_type_assets("series")
 
         deploy_platforms = {}
         platform_children = {}
@@ -751,7 +752,7 @@ class OOILoader(object):
         deploy_platform_list = deploy_platforms.values()
         deploy_platform_list.sort(key=lambda obj: [obj['deploy_date'], obj['name']])
 
-        # Pass: Find instruments by node, set datetime
+        # Pass: Find instruments by node, set first deployment date
         inst_by_node = {}
         isite_by_node = {}
         pagent_objs = self.get_type_assets("platformagent")
@@ -795,7 +796,10 @@ class OOILoader(object):
             #    deploy_date = node_deploy
             inst_obj['deploy_date'] = deploy_date or datetime.datetime(2020, 1, 1)
 
-        # Set recovery mode etc in nodes and instruments
+            series_obj = series_objs[ooi_rd.series_rd]
+            series_obj["deploy_date"] = min(inst_obj['deploy_date'], series_obj.get("deploy_date", None) or datetime.datetime(2020, 1, 1))
+
+        # Set data recovery mode etc in nodes and instruments
         for ooi_id, ooi_obj in node_objs.iteritems():
             pagent_type = ooi_obj.get('platform_agent_type', "")
             pagent_obj = pagent_objs.get(pagent_type, None)
@@ -813,6 +817,7 @@ class OOILoader(object):
                     inst_obj['data_agent_rt'] = data_agent_rt
                     inst_obj['data_agent_recovery'] = data_agent_recovery
 
+        # Compose the report
         report_lines.append((0, "OOI ASSET REPORT - DEPLOYMENT UNTIL %s" % end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"))
         report_lines.append((0, "Platforms by deployment date:"))
         inst_class_all = set()

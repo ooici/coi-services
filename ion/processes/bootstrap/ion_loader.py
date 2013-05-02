@@ -115,7 +115,7 @@ DEFAULT_CATEGORIES = [
     'ParameterDictionary',
     'Alerts',                           # in memory only - all scenarios loaded
     'StreamConfiguration',              # in memory only - all scenarios loaded
-    'SensorModel',
+    #'SensorModel',
     'PlatformModel',
     'InstrumentModel',
     'Observatory',
@@ -133,7 +133,7 @@ DEFAULT_CATEGORIES = [
     'ExternalDatasetAgent',
     'ExternalDatasetAgentInstance',
     'InstrumentDevice',
-    'SensorDevice',
+    #'SensorDevice',
     'InstrumentAgentInstance',
     'DataProduct',
     'TransformFunction',
@@ -238,7 +238,7 @@ class IONLoader(ImmediateProcess):
             self.ui_path = CANDIDATE_UI_ASSETS
 
         self.debug = config.get("debug", False)        # Debug mode with certain shorthands
-        self.ooiuntil = config.get("ooiuntil", None) # Don't import stuff later than given date
+        self.ooiuntil = config.get("ooiuntil", None)  # Don't import stuff later than given date
         if self.ooiuntil:
             self.ooiuntil = datetime.datetime.strptime(self.ooiuntil, "%m/%d/%Y")
         self.exportui = config.get("exportui", False)  # Save UI JSON file
@@ -1774,7 +1774,6 @@ Reason: %s
                 oms_client.assign_device_to_network_parent(self.resource_ids[network_parent_id], res_id,
                                                            headers=headers)
 
-
     def _load_PlatformDevice_OOI(self):
         ooi_objs = self.ooi_loader.get_type_assets("node")
 
@@ -2381,6 +2380,7 @@ Reason: %s
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
             newrow['stream_def_id'] = ''
+            newrow['parent'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
             # (2) Device Data Product - raw
@@ -2394,6 +2394,7 @@ Reason: %s
             newrow['geo_constraint_id'] = const_id1
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
             newrow['stream_def_id'] = ''
+            newrow['parent'] = ''
             self._load_DataProduct(newrow, do_bulk=self.bulk)
 
             data_product_list = ooi_obj.get('data_product_list', [])
@@ -2430,6 +2431,7 @@ Reason: %s
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
+                newrow['parent'] = ''
 
                 self._load_DataProduct(newrow, do_bulk=self.bulk)
 
