@@ -2,7 +2,7 @@
 
 __author__ = 'Michael Meisinger, Thomas Lennan, Stephen Henrie'
 
-import unittest
+import unittest, simplejson
 from nose.plugins.attrib import attr
 
 from pyon.core.exception import BadRequest, Conflict, NotFound, Inconsistent
@@ -503,3 +503,40 @@ class TestResourceRegistry(IonIntegrationTestCase):
         self.assertEqual(test_obj_id,extended_resource._id)
         self.assertEqual(len(extended_resource.owners),2)
         self.assertEqual(extended_resource.user_id, user_info_id1)
+
+
+    @attr('PREP')
+    def test_prepare_resource_support(self):
+
+        prepare_data = self.resource_registry_service.prepare_resource_support(resource_type=RT.StreamDefinition)
+
+        self.assertEqual(prepare_data.create_request.service_name, "resource_registry")
+        self.assertEqual(prepare_data.create_request.service_operation, "create")
+        self.assertEqual(prepare_data.create_request.request_parameters, { "object":  "$(object)" })
+
+        self.assertEqual(prepare_data.update_request.service_name, "resource_registry")
+        self.assertEqual(prepare_data.update_request.service_operation, "update")
+        self.assertEqual(prepare_data.update_request.request_parameters, { "object":  "$(object)" })
+
+        res_id,_ = self.resource_registry_service.create(prepare_data.resource)
+
+
+        prepare_data = self.resource_registry_service.prepare_resource_support(resource_type=RT.StreamDefinition, resource_id=res_id)
+
+        prepare_data.resource.name = "test_stream_def"
+        prepare_data.resource.stream_type = "test_type"
+
+        stream_def_id,_ = self.resource_registry_service.update(prepare_data.resource)
+
+        #def ion_object_encoder(obj):
+        #    return obj.__dict__
+
+        #print simplejson.dumps(prepare_data, default=ion_object_encoder, indent=2)
+
+        stream_def = self.resource_registry_service.read(stream_def_id)
+
+        self.assertEqual(stream_def.name, prepare_data.resource.name)
+        self.assertEqual(stream_def.stream_type, prepare_data.resource.stream_type)
+
+
+
