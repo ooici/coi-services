@@ -6,7 +6,7 @@
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   Test cases for launching and shutting down a platform agent network
 """
-from interface.objects import ComputedIntValue
+from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue
 from ion.services.sa.test.helpers import any_old
 from pyon.ion.resource import RT
 
@@ -137,6 +137,21 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         pdevice_id = p_root["platform_device_id"]
         p_extended = self.IMS.get_platform_device_extension(pdevice_id)
 
+        extended_device_datatypes = {
+            "communications_status_roll_up": ComputedIntValue,
+            "power_status_roll_up": ComputedIntValue,
+            "data_status_roll_up": ComputedIntValue,
+            "location_status_roll_up": ComputedIntValue,
+            "aggregated_status": ComputedIntValue,
+        }
+
+        for attr, thetype in extended_device_datatypes.iteritems():
+            self.assertIsInstance(getattr(p_extended.computed, attr),
+                                  thetype,
+                                  "Computed attribute %s is not %s" % (attr, thetype))
+
+
+
         for retval in [p_extended.computed.communications_status_roll_up,
                        p_extended.computed.data_status_roll_up,
                        p_extended.computed.power_status_roll_up,
@@ -144,7 +159,7 @@ class TestPlatformLaunch(BaseIntTestPlatform):
                        #p_extended.computed.rsn_network_child_device_status,
                        #p_extended.computed.rsn_network_rollup,
                        ]:
-            self.assertIsInstance(retval, ComputedIntValue)
+            self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status)
 
 
         print "aggregated status:", p_extended.aggregated_status
@@ -155,10 +170,39 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         print "rsn_network_child_device_status", p_extended.computed.rsn_network_child_device_status
         print "rsn_network_rollup", p_extended.computed.rsn_network_rollup
 
+
+        # test extended attributes of site
+
         psite_id = self.RR2.create(any_old(RT.PlatformSite))
         self.RR2.assign_device_to_site_with_has_device(pdevice_id, psite_id)
 
         ps_extended = self.OMS.get_site_extension(psite_id)
+
+        extended_site_datatypes = {
+            "number_data_sets": ComputedIntValue,
+            "number_instruments_deployed": ComputedIntValue,
+            "number_instruments_operational": ComputedIntValue,
+            "number_instruments": ComputedIntValue,
+            "number_platforms": ComputedIntValue,
+            "number_platforms_deployed": ComputedIntValue,
+            "communications_status_roll_up": ComputedIntValue,
+            "power_status_roll_up": ComputedIntValue,
+            "data_status_roll_up": ComputedIntValue,
+            "location_status_roll_up": ComputedIntValue,
+            "aggregated_status": ComputedIntValue,
+            "platform_status": ComputedListValue,
+            "instrument_status": ComputedListValue,
+            "platform_station_sites": ComputedListValue,
+            "platform_assembly_sites": ComputedListValue,
+            "platform_component_sites": ComputedListValue,
+            "instrument_sites": ComputedListValue,
+        }
+        for attr, thetype in extended_site_datatypes.iteritems():
+            self.assertIsInstance(getattr(ps_extended.computed, attr),
+                                  thetype,
+                                  "Computed attribute %s is not %s" % (attr, thetype))
+
+
 
         for retval in [ps_extended.computed.communications_status_roll_up,
                        ps_extended.computed.data_status_roll_up,
@@ -167,6 +211,6 @@ class TestPlatformLaunch(BaseIntTestPlatform):
                        #ps_extended.computed.rsn_network_child_device_status,
                        #ps_extended.computed.rsn_network_rollup,
         ]:
-            self.assertIsInstance(retval, ComputedIntValue)
+            self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status)
 
         self._run_shutdown_commands()
