@@ -778,6 +778,7 @@ class InstrumentAgent(ResourceAgent):
         """
         if self._enable_persistence:
             self._set_state('rparams', val)
+            self._flush_state()
         try:
             event_data = {
                 'config' : val
