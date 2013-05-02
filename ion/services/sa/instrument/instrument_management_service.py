@@ -43,8 +43,8 @@ from interface.objects import AggregateStatusType, DeviceStatusType
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, has_exclusive_resource_commitment
-from pyon.core.governance import has_shared_resource_commitment, is_resource_owner, ION_MANAGER, get_resource_commitments
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role
+from pyon.core.governance import has_valid_shared_resource_commitment, is_resource_owner
 
 
 class InstrumentManagementService(BaseInstrumentManagementService):
@@ -792,35 +792,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     ##
     ##
-    ##  PRECONDITION FUNCTIONS
+    ##  GOVERNANCE FUNCTIONS
     ##
     ##
-
-    def check_direct_access_policy(self, process, message, headers):
-
-        try:
-            gov_values = GovernanceHeaderValues(headers=headers, process=process)
-        except Inconsistent, ex:
-            return False, ex.message
-
-        log.debug("check_direct_access_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
-
-        coms = get_resource_commitments(gov_values.resource_id)
-        if coms is None:
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (process.name, gov_values.op, gov_values.actor_id)
-
-        #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working in R3.
-        #Iterrate over commitments and look to see if actor or others have an exclusive access
-        for com in coms:
-            if com.commitment.exclusive and com.consumer == gov_values.actor_id:
-                return True, ''
-
-            if com.commitment.exclusive and com.consumer != gov_values.actor_id:
-                return False, '%s(%s) has been denied since another user %s has acquired the resource exclusively' % (process.name, gov_values.op, com.consumer)
-
-
-        return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (process.name, gov_values.op, gov_values.actor_id)
-
 
 
     def check_device_lifecycle_policy(self, process, message, headers):
@@ -858,7 +832,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                 return True, ''
 
             #TODO - this shared commitment might not be with the right Org - may have to relook at how this is working.
-            is_shared = has_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
+            is_shared = has_valid_shared_resource_commitment(gov_values.actor_id, gov_values.resource_id)
 
             #Check across Orgs which have shared this device for role which as proper level to allow lifecycle transition
             for org in orgs:
@@ -866,43 +840,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                     return True, ''
 
         return False, '%s(%s) has been denied since the user %s has not acquired the resource or is not the proper role for this transition: %s' % (process.name, gov_values.op, gov_values.actor_id, lifecycle_event)
-
-
-    ##
-    ##
-    ##  DIRECT ACCESS
-    ##
-    ##
-
-    def request_direct_access(self, instrument_device_id=''):
-        """
-
-        """
-
-        # determine whether id is for physical or logical instrument
-        # look up instrument if not
-
-        # Validate request; current instrument state, policy, and other
-
-        # Retrieve and save current instrument settings
-
-        # Request DA channel, save reference
-
-        # Return direct access channel
-        raise NotImplementedError()
-        pass
-
-    def stop_direct_access(self, instrument_device_id=''):
-        """
-
-        """
-        # Return Value
-        # ------------
-        # {success: true}
-        #
-        raise NotImplementedError()
-        pass
-
 
 
 
@@ -1831,7 +1768,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def prepare_instrument_device_support(self, instrument_device_id=''):
         """
-        Returns the object containing the data to update an instrument device resource
+        Returns the object containing the data to create/update an instrument device resource
         """
 
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
@@ -1874,7 +1811,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
     def prepare_platform_device_support(self, platform_device_id=''):
         """
-        Returns the object containing the data to update an instrument device resource
+        Returns the object containing the data to create/update an instrument device resource
         """
 
         #TODO - does this have to be filtered by Org ( is an Org parameter needed )
