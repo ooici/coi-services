@@ -149,9 +149,21 @@ class ResourceMonitor(object):
 
         retrieved_vals = self._get_attribute_values(attrs)
 
-        log.debug("%r: _retrieve_attribute_values: _get_attribute_values "
-                  "for attrs=%s returned %s",
-                  self._platform_id, attrs, retrieved_vals)
+        if retrieved_vals is None:
+            # lost connection; nothing else to do here:
+            return
+
+        if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
+            summary = {attr_id: "(%d vals)" % len(vals)
+                       for attr_id, vals in retrieved_vals.iteritems()}
+            log.debug("%r: _retrieve_attribute_values: _get_attribute_values "
+                      "for attrs=%s returned %s",
+                      self._platform_id, attrs, summary)
+        elif log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            # show retrieved_vals as retrieved (might be large)
+            log.trace("%r: _retrieve_attribute_values: _get_attribute_values "
+                      "for attrs=%s returned %s",
+                      self._platform_id, attrs, retrieved_vals)
 
         # vals_dict: attributes with non-empty reported values:
         vals_dict = {}

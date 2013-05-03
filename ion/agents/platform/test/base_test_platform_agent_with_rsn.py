@@ -6,7 +6,6 @@
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   A base class for platform agent integration testing
 """
-from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
@@ -50,6 +49,7 @@ from interface.services.sa.idata_product_management_service import DataProductMa
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 
 from pyon.ion.stream import StandaloneStreamSubscriber
 
@@ -77,6 +77,7 @@ from gevent.event import AsyncResult
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
+from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
@@ -100,12 +101,21 @@ from ion.services.sa.test.helpers import any_old
 from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestSupport
 
 
-# By default, test against "embedded" simulator. The OMS environment variable
-# can be used to indicate a different RSN OMS server endpoint. Some aliases for
-# the "oms_uri" parameter include "localsimulator" and "simulator".
-# See CIOMSClientFactory.
+###############################################################################
+# oms_uri: This indicates the URI to connect to the RSN OMS server endpoint.
+# By default, this value is "launchsimulator" meaning that the simulator is
+# launched as an external process for each test. This default is appropriate
+# for the buildbots. For local testing, the OMS environment variable can be
+# used to indicate a different RSN OMS server endpoint. Some aliases for
+# the "oms_uri" parameter include "embsimulator" (instantiates the simulator
+# class directly) and "localsimulator" (assumes the simulator is already running
+# as an external process, locally) and others. See oms_uri_aliases.yml.
+oms_uri = os.getenv('OMS', "launchsimulator")
+
+# initialization of the driver configuration. See setUp for possible update
+# of the 'oms_uri' entry related with the special value "launchsimulator".
 DVR_CONFIG = {
-    'oms_uri': os.getenv('OMS', 'embsimulator'),
+    'oms_uri': oms_uri
 }
 
 DVR_MOD = 'ion.agents.platform.rsn.rsn_platform_driver'
@@ -201,7 +211,6 @@ instruments_dict = {
 
 # The value should probably be defined in pyon.yml or some common place so
 # clients don't have to do updates upon new versions of the egg.
-#SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg"
 SBE37_EGG = "http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg"
 
 class FakeProcess(LocalContextMixin):
@@ -241,6 +250,10 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         HelperTestMixin.setUpClass()
 
     def setUp(self):
+
+        DVR_CONFIG['oms_uri'] = self._dispatch_simulator(oms_uri)
+        log.debug("DVR_CONFIG['oms_uri'] = %s", DVR_CONFIG['oms_uri'])
+
         self._start_container()
 
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
@@ -322,8 +335,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         def consume_data(message, stream_route, stream_id):
             # A callback for processing subscribed-to data.
-            log.info('Subscriber received data message: %s. stream_name=%r stream_id=%r',
-                     str(message), stream_name, stream_id)
+            log.debug('Subscriber received data message: %s. stream_name=%r stream_id=%r',
+                      message, stream_name, stream_id)
             self._samples_received.append(message)
             self._async_data_result.set()
 
@@ -361,15 +374,28 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     #################################################################
 
     def _start_event_subscriber(self, event_type="DeviceEvent",
+                                origin=None,
                                 sub_type=None,
                                 count=0):
         """
+        DEPRECATED: to be replaced by _start_event_subscriber2, which always
+        returns newly AsyncResult and list objects.
+
         Starts event subscriber for events of given event_type ("DeviceEvent"
-        by default) and given sub_type (None by default).
+        by default), origin (None by default), and given sub_type (None by
+        default).
+        Note: only the events of exactly the given type are considered,
+        *no* subclasses of that type (note that the subscriber callback is also
+        called with subclasses of the given type).
         """
+
+        self._async_event_result = AsyncResult()
+        self._events_received = []
 
         def consume_event(evt, *args, **kwargs):
             # A callback for consuming events.
+            if evt.type_ != event_type:
+                return
             log.info('Event subscriber received evt: %s.', str(evt))
             self._events_received.append(evt)
             if count == 0:
@@ -379,6 +405,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                 self._async_event_result.set()
 
         sub = EventSubscriber(event_type=event_type,
+                              origin=origin,
                               sub_type=sub_type,
                               callback=consume_event)
 
@@ -388,6 +415,49 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         self._event_subscribers.append(sub)
         sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+    def _start_event_subscriber2(self, count, event_type, **kwargs):
+        """
+        Starts an event subscriber to expect the given number of events of the
+        given event_type.
+        Note: only the events of exactly the given type are considered,
+        *no* subclasses of that type (note that the subscriber callback is also
+        called with subclasses of the given type).
+
+        @param count       number of event that should be received
+        @param event_type  desired event type
+        @param kwargs      other arguments for EventSubscriber constructor
+
+        @return (async_event_result, events_received)  Use these to wait
+                until the expected number of events.
+        """
+
+        async_event_result, events_received = AsyncResult(), []
+
+        def consume_event(evt, *args, **kwargs):
+            # A callback for consuming events.
+            if evt.type_ != event_type:
+                return
+            log.info('Event subscriber received evt: %s.', str(evt))
+            events_received.append(evt)
+            if count == 0:
+                async_event_result.set(evt)
+
+            elif count == len(events_received):
+                async_event_result.set()
+
+        sub = EventSubscriber(event_type=event_type,
+                              callback=consume_event,
+                              **kwargs)
+
+        sub.start()
+        log.info("registered event subscriber: count=%d, event_type=%r, kwargs=%s",
+                 count, event_type, kwargs)
+
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+        return async_event_result, events_received
 
     def _stop_event_subscribers(self):
         """
@@ -1169,7 +1239,7 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         #retval = self._pa_client.execute_agent(cmd, timeout=timeout)
         retval = self._pa_client.execute_agent(cmd)
         elapsed_time = time.time() - time_start
-        log.info("_execute_agent: cmd=%r elapsed_time=%s, retval = %s",
+        log.info("_execute_agent: timing cmd=%r elapsed_time=%s, retval = %s",
                  cmd.command, elapsed_time, str(retval))
         return retval
 

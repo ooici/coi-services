@@ -24,6 +24,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_check_sync
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_execute_resource
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_lost_connection_and_reconnect
 #
 
 
@@ -45,6 +46,7 @@ from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
+from gevent import sleep
 from mock import patch
 from pyon.public import CFG
 
@@ -711,4 +713,71 @@ class TestPlatformAgent(BaseIntTestPlatform):
 
         #####################
         # done
+        self._shutdown()
+
+    def test_lost_connection_and_reconnect(self):
+        #
+        # Starts up the network and puts the root platform in the MONITORING
+        # state; then makes the simulator generate synthetic exceptions for
+        # any call, which are handled by the driver as "connection lost"
+        # situations; then it verifies the publication of the associated event
+        # from the agent, and the LOST_CONNECTION state for the agent.
+        # Finally, it instructs the simulator to resume working normally,
+        # which should make the reconnect logic in the agent to recover the
+        # connection and go back to the state where it was at connection lost.
+        #
+
+        ######################################################
+        # set up network and put root in MONITORING state
+
+        self._create_network_and_start_root_platform()
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._initialize()
+
+        async_event_result, events_received = self._start_event_subscriber2(
+            count=1,
+            event_type="ResourceAgentConnectionLostErrorEvent",
+            origin=self.p_root.platform_device_id)
+
+        self._go_active()
+        self._run()
+
+        self._start_resource_monitoring()
+
+        # let normal activity go on for a while - note, the sleep here should
+        # be large enough to allow for some retrievals during the monitoring
+        # so that the lost connection is detected.
+        sleep(15)
+
+        ######################################################
+        # disable simulator to trigger lost connection:
+        log.debug("disabling simulator")
+        self._simulator_disable()
+
+        # verify a ResourceAgentConnectionLostErrorEvent was published:
+        async_event_result.get(timeout=CFG.endpoint.receive.timeout)
+        self.assertEquals(len(events_received), 1)
+
+        # verify the platform is now in LOST_CONNECTION:
+        self._assert_state(PlatformAgentState.LOST_CONNECTION)
+
+        ######################################################
+        # reconnect phase
+
+        # launch simulator again so connection is re-established:
+        log.debug("re-enabling simulator")
+        self._simulator_enable()
+
+        # wait for a bit for the reconnection to take effect:
+        sleep(15)
+
+        # verify the platform is now back in MONITORING
+        self._assert_state(PlatformAgentState.MONITORING)
+
+        #####################
+        # done
+        self._stop_resource_monitoring()
+        self._go_inactive()
+        self._reset()
         self._shutdown()

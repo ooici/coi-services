@@ -209,19 +209,26 @@ class PlatformResourceMonitor(object):
 
         @param driver_event An AttributeValueDriverEvent
         """
-        log.debug('%r: received driver_event from monitor=%s',
-                  self._platform_id, driver_event)
-
         assert isinstance(driver_event, AttributeValueDriverEvent)
 
         with self._lock:
+            if len(self._buffers) == 0:
+                # we are not currently monitoring.
+                return
+
+            log.debug('%r: received driver_event from monitor=%s',
+                      self._platform_id, driver_event)
+
+
             for param_name, param_value in driver_event.vals_dict.iteritems():
                 assert param_name in self._buffers
 
                 # Note that notification from the driver has the form
                 # of a non-empty list of pairs (val, ts)
-                assert isinstance(param_value, list)
-                assert isinstance(param_value[0], tuple)
+                assert isinstance(param_value, list), \
+                    "param_value must be a list. Got: %s" % param_value
+                assert isinstance(param_value[0], (tuple, list)), \
+                    "param_value element must be a tuple. Got: %s" % param_value[0]
 
                 self._buffers[param_name] += param_value
 

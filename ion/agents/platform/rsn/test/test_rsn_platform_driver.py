@@ -11,6 +11,8 @@ __author__ = 'Carlos Rueda'
 __license__ = 'Apache 2.0'
 
 
+# bin/nosetests -sv ion/agents/platform/rsn/test/test_rsn_platform_driver.py
+
 from pyon.public import log
 import logging
 
@@ -27,12 +29,20 @@ from pyon.util.int_test import IonIntegrationTestCase
 from nose.plugins.attrib import attr
 
 from gevent import sleep
+import os
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
 
+# see related comments in base_test_platform_agent_with_rsn
+oms_uri = os.getenv('OMS', 'launchsimulator')
+
 DVR_CONFIG = {
-    'oms_uri': 'embsimulator',
+    'oms_uri': oms_uri  # see setUp for possible update of this entry
+}
+
+DVR_CONFIG = {
+    'oms_uri': 'launchsimulator',
 }
 
 
@@ -44,6 +54,9 @@ class TestRsnPlatformDriver(IonIntegrationTestCase, HelperTestMixin):
         HelperTestMixin.setUpClass()
 
     def setUp(self):
+
+        DVR_CONFIG['oms_uri'] = self._dispatch_simulator(oms_uri)
+        log.debug("DVR_CONFIG['oms_uri'] = %s", DVR_CONFIG['oms_uri'])
 
         # Use the network definition provided by RSN OMS directly.
         rsn_oms = CIOMSClientFactory.create_instance(DVR_CONFIG['oms_uri'])

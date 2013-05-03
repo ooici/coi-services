@@ -34,7 +34,7 @@ if __name__ == "__main__":  # pragma: no cover
         exit()
 
     print '\nconnecting to %r ...' % uri
-    proxy = xmlrpclib.ServerProxy(uri)
+    proxy = xmlrpclib.ServerProxy(uri, allow_none=True)
     print 'connection established.'
 
     tried = {}
@@ -75,64 +75,47 @@ if __name__ == "__main__":  # pragma: no cover
         """
         Runs a method against the proxy.
 
-        If handler_name is given, and the method on the corresponding
-        handler fails, then the method is tried in the proxy directly.
-        NOTE: This strategy is temporary, just while RSN indicates
-        the specific set of handlers they will be using.
-
-        @param handler_name  Name of the handler; can be None to indicate get
-                             method directly from proxy.
+        @param handler_name  Name of the handler
         @param method_name   Method's name
         @param args          to display method to be called.
         """
         global tried
 
-        tried[method_name] = ""
-        print("\n-- %s --" % method_name)
+        full_method_name = "%s.%s" % (handler_name, method_name)
+
+        tried[full_method_name] = ""
 
         # get the method
         method = get_method(handler_name, method_name)
         if method is None:
-            tried[method_name] = "could not get handler or method"
+            tried[full_method_name] = "could not get handler or method"
             return
 
         sargs = ", ".join(["%r" % a for a in args])
 
-        if handler_name:
-            sys.stdout.write("%s.%s(%s) -> " % (handler_name, method_name, sargs))
-        else:
-            sys.stdout.write("%s(%s) -> " % (method_name, sargs))
+        sys.stdout.write("%s(%s) -> " % (full_method_name, sargs))
         sys.stdout.flush()
 
         # run method
         try:
             retval = method(*args)
+            tried[full_method_name] = "OK"
             print "%r" % retval
-            tried[method_name] = "OK"
-            return retval
-        except Exception as e:
-            print "Exception: %s: %s" % (type(e), str(e))
-            tried[method_name] = str(e)
+        except xmlrpclib.Fault as e:
+            if e.faultCode == 8001:
+                retval = "Not found"
+            else:
+                retval = "Fault %d: %s" % (e.faultCode, e.faultString)
+                # raise
+                # print "Exception: %s: %s" % (type(e), str(e))
+                # tried[full_method_name] = str(e)
 
-            if handler_name:
-                # try without handler:
-                sys.stdout.write("\t without handler: ")
-                sys.stdout.flush()
-                method = get_method(None, method_name)
-                if method is None:
-                    return
+            tried[full_method_name] = retval
+            print "%s" % retval
 
-                sys.stdout.write("%s(%s) -> " % (method_name, sargs))
-                sys.stdout.flush()
-                try:
-                    retval = method(*args)
-                    print "%r" % retval
-                    tried[method_name] = "OK"
-                    return retval
-                except Exception as e:
-                    print "Exception: %s: %s" % (type(e), str(e))
+        return retval
 
-    print "\nBasic verification of the operations:"
+    print "Basic verification of the operations:\n"
 
     run("hello", "ping")
     run("config", 'get_platform_types')
@@ -143,9 +126,9 @@ if __name__ == "__main__":  # pragma: no cover
         platform_id = plat_map[0][0]
 
     run("config", 'get_platform_metadata', platform_id)
-    run("config", 'get_platform_attributes', platform_id)
-    run("config", 'get_platform_attribute_values', platform_id, {})
-    run("config", 'set_platform_attribute_values', platform_id, {})
+    run("attr", 'get_platform_attributes', platform_id)
+    run("attr", 'get_platform_attribute_values', platform_id, {})
+    run("attr", 'set_platform_attribute_values', platform_id, {})
     ports = run("config", 'get_platform_ports', platform_id)
 
     port_id = "dummy_port_id"
@@ -153,116 +136,66 @@ if __name__ == "__main__":  # pragma: no cover
     run("config", 'connect_instrument', platform_id, port_id, instrument_id, {})
     run("config", 'disconnect_instrument', platform_id, port_id, instrument_id)
     run("config", 'get_connected_instruments', platform_id, port_id)
-    run("config", 'turn_on_platform_port', platform_id, port_id)
-    run("config", 'turn_off_platform_port', platform_id, port_id)
+    run("port", 'turn_on_platform_port', platform_id, port_id)
+    run("port", 'turn_off_platform_port', platform_id, port_id)
 
     url = "dummy_url_listener"
-    run("config", 'register_event_listener', url, [])
-    run("config", 'unregister_event_listener', url, [])
-    run("config", 'get_registered_event_listeners')
+    run("event", 'register_event_listener', url)
+    run("event", 'unregister_event_listener', url)
+    run("event", 'get_registered_event_listeners')
 
     run("config", 'get_checksum', platform_id)
 
-    print("\nSummary of basic verification:")
-    for method_name, result in sorted(tried.iteritems()):
-        print("%20s %-40s: %s" % ("", method_name, result))
+    run("event", 'generate_test_event', 'ref_id', 'simulated event', platform_id, 'power')
 
-    print("\nNote: Just couple of handlers tried while RSN indicates "
-          "the specific set of handlers they will be using.\n")
+    print("\nSummary of basic verification:")
+    for full_method_name, result in sorted(tried.iteritems()):
+        print("%20s %-40s: %s" % ("", full_method_name, result))
 
 """
 $ date && bin/python ion/agents/platform/rsn/test/oms_simple.py
-Thu Apr 18 16:13:18 PDT 2013
+Wed May  1 12:20:59 PDT 2013
 
 connecting to 'http://alice:1234@10.180.80.10:9021/' ...
 connection established.
-
 Basic verification of the operations:
 
--- ping --
 hello.ping() -> 'pong'
-
--- get_platform_types --
-config.get_platform_types() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_types not found'>
-	 without handler: get_platform_types() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_types not found'>
-
--- get_platform_map --
+config.get_platform_types() -> Not found
 config.get_platform_map() -> [['Node1A', 'ShoreStation'], ['Node1B', 'ShoreStation'], ['ShoreStation', '']]
-
--- get_platform_metadata --
 config.get_platform_metadata('Node1A') -> ''
-
--- get_platform_attributes --
-config.get_platform_attributes('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attributes not found'>
-	 without handler: get_platform_attributes('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attributes not found'>
-
--- get_platform_attribute_values --
-config.get_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attribute_values not found'>
-	 without handler: get_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_attribute_values not found'>
-
--- set_platform_attribute_values --
-config.set_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function set_platform_attribute_values not found'>
-	 without handler: set_platform_attribute_values('Node1A', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function set_platform_attribute_values not found'>
-
--- get_platform_ports --
-config.get_platform_ports('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_ports not found'>
-	 without handler: get_platform_ports('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_platform_ports not found'>
-
--- connect_instrument --
-config.connect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function connect_instrument not found'>
-	 without handler: connect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id', {}) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function connect_instrument not found'>
-
--- disconnect_instrument --
-config.disconnect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function disconnect_instrument not found'>
-	 without handler: disconnect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function disconnect_instrument not found'>
-
--- get_connected_instruments --
-config.get_connected_instruments('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_connected_instruments not found'>
-	 without handler: get_connected_instruments('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_connected_instruments not found'>
-
--- turn_on_platform_port --
-config.turn_on_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_on_platform_port not found'>
-	 without handler: turn_on_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_on_platform_port not found'>
-
--- turn_off_platform_port --
-config.turn_off_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_off_platform_port not found'>
-	 without handler: turn_off_platform_port('Node1A', 'dummy_port_id') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function turn_off_platform_port not found'>
-
--- register_event_listener --
-config.register_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function register_event_listener not found'>
-	 without handler: register_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function register_event_listener not found'>
-
--- unregister_event_listener --
-config.unregister_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function unregister_event_listener not found'>
-	 without handler: unregister_event_listener('dummy_url_listener', []) -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function unregister_event_listener not found'>
-
--- get_registered_event_listeners --
-config.get_registered_event_listeners() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_registered_event_listeners not found'>
-	 without handler: get_registered_event_listeners() -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_registered_event_listeners not found'>
-
--- get_checksum --
-config.get_checksum('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_checksum not found'>
-	 without handler: get_checksum('Node1A') -> Exception: <class 'xmlrpclib.Fault'>: <Fault 8001: 'function get_checksum not found'>
+attr.get_platform_attributes('Node1A') -> Fault 8002: error
+attr.get_platform_attribute_values('Node1A', {}) -> Not found
+attr.set_platform_attribute_values('Node1A', {}) -> Not found
+config.get_platform_ports('Node1A') -> Not found
+config.connect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id', {}) -> Not found
+config.disconnect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id') -> Not found
+config.get_connected_instruments('Node1A', 'dummy_port_id') -> Not found
+port.turn_on_platform_port('Node1A', 'dummy_port_id') -> Fault 8002: error
+port.turn_off_platform_port('Node1A', 'dummy_port_id') -> Fault 8002: error
+event.register_event_listener('dummy_url_listener') -> {'dummy_url_listener': 3576425022.469944}
+event.unregister_event_listener('dummy_url_listener') -> {'dummy_url_listener': 3576425022.767337}
+event.get_registered_event_listeners() -> {'23422.jwl': 3576419989.9077272}
+config.get_checksum('Node1A') -> Not found
+event.generate_test_event('ref_id', 'simulated event', 'Node1A', 'power') -> Not found
 
 Summary of basic verification:
-                     connect_instrument                      : <Fault 8001: 'function connect_instrument not found'>
-                     disconnect_instrument                   : <Fault 8001: 'function disconnect_instrument not found'>
-                     get_checksum                            : <Fault 8001: 'function get_checksum not found'>
-                     get_connected_instruments               : <Fault 8001: 'function get_connected_instruments not found'>
-                     get_platform_attribute_values           : <Fault 8001: 'function get_platform_attribute_values not found'>
-                     get_platform_attributes                 : <Fault 8001: 'function get_platform_attributes not found'>
-                     get_platform_map                        : OK
-                     get_platform_metadata                   : OK
-                     get_platform_ports                      : <Fault 8001: 'function get_platform_ports not found'>
-                     get_platform_types                      : <Fault 8001: 'function get_platform_types not found'>
-                     get_registered_event_listeners          : <Fault 8001: 'function get_registered_event_listeners not found'>
-                     ping                                    : OK
-                     register_event_listener                 : <Fault 8001: 'function register_event_listener not found'>
-                     set_platform_attribute_values           : <Fault 8001: 'function set_platform_attribute_values not found'>
-                     turn_off_platform_port                  : <Fault 8001: 'function turn_off_platform_port not found'>
-                     turn_on_platform_port                   : <Fault 8001: 'function turn_on_platform_port not found'>
-                     unregister_event_listener               : <Fault 8001: 'function unregister_event_listener not found'>
-
-Note: Just couple of handlers tried while RSN indicates the specific set of handlers they will be using.
-
+                     attr.get_platform_attribute_values      : Not found
+                     attr.get_platform_attributes            : Fault 8002: error
+                     attr.set_platform_attribute_values      : Not found
+                     config.connect_instrument               : Not found
+                     config.disconnect_instrument            : Not found
+                     config.get_checksum                     : Not found
+                     config.get_connected_instruments        : Not found
+                     config.get_platform_map                 : OK
+                     config.get_platform_metadata            : OK
+                     config.get_platform_ports               : Not found
+                     config.get_platform_types               : Not found
+                     event.generate_test_event               : Not found
+                     event.get_registered_event_listeners    : OK
+                     event.register_event_listener           : OK
+                     event.unregister_event_listener         : OK
+                     hello.ping                              : OK
+                     port.turn_off_platform_port             : Fault 8002: error
+                     port.turn_on_platform_port              : Fault 8002: error
 """
