@@ -831,7 +831,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='0'))
         rdt['time'] = [1]
         rdt['temp'] = [1]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index=1))
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='1'))
         rdt['time'] = [2]
         rdt['temp'] = [2]
         self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection1,connection_index='3')) # Gap, missed message
@@ -843,7 +843,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='4'))
         rdt['time'] = [5]
         rdt['temp'] = [5]
-        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index=5))
+        self.publish_and_wait(dataset_id, rdt.to_granule(connection_id=connection2,connection_index='5'))
 
         granule = self.data_retriever.retrieve(dataset_id)
         rdt = RecordDictionaryTool.load_from_granule(granule)
