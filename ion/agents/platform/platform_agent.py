@@ -34,7 +34,7 @@ from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
-from ion.agents.agent_alert_manager import AgentAlertManager
+#-from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
@@ -240,7 +240,6 @@ class PlatformAgent(ResourceAgent):
         # Agent alert manager.
         self._aam = None
 
-
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
@@ -248,8 +247,8 @@ class PlatformAgent(ResourceAgent):
 
     def on_init(self):
         
-        # Set up alert manager.
-        self._aam = AgentAlertManager(self)
+        #- Set up alert manager.
+        #- self._aam = AgentAlertManager(self)
         
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
@@ -451,7 +450,7 @@ class PlatformAgent(ResourceAgent):
 
         finally:
             super(PlatformAgent, self).on_quit()
-            self._aam.stop_all()
+            #- self._aam.stop_all()
 
     def _do_quit(self):
         """
@@ -2958,13 +2957,13 @@ class PlatformAgent(ResourceAgent):
                                          value=value, value_id=value_id)
     """    
 
-    def _on_state_enter(self, state):
-        self._aam.process_alerts(state=state)
-
-    def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
-        self._aam.process_alerts(command=execute_cmd, command_success=False)
-        super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
-                                                       kwargs, ex)
+    #- def _on_state_enter(self, state):
+    #-     self._aam.process_alerts(state=state)
+    #-
+    #- def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
+    #-     self._aam.process_alerts(command=execute_cmd, command_success=False)
+    #-     super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
+    #-                                                    kwargs, ex)
 
     ##############################################################
     # FSM setup.
