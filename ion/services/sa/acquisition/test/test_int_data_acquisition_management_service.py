@@ -438,13 +438,12 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
         self.client.assign_data_product(instrument_device_id, dp_id)
         self.addCleanup(self.client.unassign_data_product, instrument_device_id, dp_id)
         svm = StoredValueManager(self.container)
-        doc = svm.read_value('grt_TEST_TEMPWAT_TEMPWAT')
-        np.testing.assert_array_almost_equal(doc['grt_min_value'], 10.)
-
-        doc = svm.read_value('grt_TEST_PRACSAL_PRACSAL')
-        np.testing.assert_array_almost_equal(doc['grt_min_value'], 0.)
+        doc = svm.read_value('grt_CE01ISSM-MF005-01-CTDBPC999_TEMPWAT')
+        np.testing.assert_array_almost_equal(doc['grt_min_value'], -2.)
 
 
-global_range_test_document2 = '''Array,Instrument Class,Reference Designator,Data Product In,Units,Data Product Flagged,Min Value (lim(1)),Max Value (lim(2))
-Array 1,SBE37,TEST,PRACSAL,deg_C,PRACSAL,0,28'''
+
+global_range_test_document2 = '''Array,Instrument Class,Reference Designator,Data Products,Units,Data Product Flagged,Minimum Range (lim(1)),Maximum Range (lim(2))
+CE,CTDBP,CE01ISSM-MF005-01-CTDBPC999,TEMPWAT,degrees C,,-2,40'''
+
 
