@@ -37,12 +37,6 @@ from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
 
 from ion.services.sa.test.test_find_related_resources import ResourceHelper
 
-# This import will dynamically load the driver egg.  It is needed for the MI includes below
-import ion.agents.instrument.test.test_instrument_agent
-from mi.core.instrument.instrument_driver import DriverProtocolState
-from mi.core.instrument.instrument_driver import DriverConnectionState
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
-from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
 ORG2 = 'Org 2'
 
@@ -1492,10 +1486,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Counter proposals for demonstration only
         #Calculate one week from now in milliseconds
         cur_time = int(get_ion_ts())
-        week_expiration = int(cur_time +  ( 7 * 24 * 60 * 60 * 1000 ))
+        week_expiration = cur_time +  ( 7 * 24 * 60 * 60 * 1000 )
 
         sap_response = Negotiation.create_counter_proposal(negotiations[0], originator=ProposalOriginatorEnum.PROVIDER)
-        sap_response.expiration = week_expiration
+        sap_response.expiration = str(week_expiration)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
         #User Creates a counter proposal
@@ -1503,10 +1497,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
             negotiation_status=NegotiationStatusEnum.OPEN, headers=actor_header)
 
         cur_time = int(get_ion_ts())
-        month_expiration = int(cur_time +  ( 30 * 24 * 60 * 60 * 1000 ))
+        month_expiration = cur_time +  ( 30 * 24 * 60 * 60 * 1000 )
 
         sap_response = Negotiation.create_counter_proposal(negotiations[0])
-        sap_response.expiration = month_expiration
+        sap_response.expiration = str(month_expiration)
         sap_response2 = self.org_client.negotiate(sap_response, headers=self.system_actor_header )
 
 
@@ -1562,11 +1556,11 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(contracts),1)
 
         cur_time = int(get_ion_ts())
-        invalid_expiration = int(cur_time +  ( 13 * 60 * 60 * 1000 )) # 12 hours from now
+        invalid_expiration = cur_time +  ( 13 * 60 * 60 * 1000 ) # 12 hours from now
 
         #Now try to acquire the resource exclusively for longer than 12 hours
         sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id,
-                    expiration=invalid_expiration)
+                    expiration=str(invalid_expiration))
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         #make sure the negotiation was rejected for being too long.
@@ -1575,10 +1569,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Now try to acquire the resource exclusively for 20 minutes
         cur_time = int(get_ion_ts())
-        valid_expiration = int(cur_time +  ( 20 * 60 * 1000 )) # 12 hours from now
+        valid_expiration = cur_time +  ( 20 * 60 * 1000 ) # 12 hours from now
 
         sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=ia_list[0]._id,
-                    expiration=valid_expiration)
+                    expiration=str(valid_expiration))
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         #Check commitment to be active
@@ -1695,6 +1689,13 @@ class TestGovernanceInt(IonIntegrationTestCase):
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
     @patch.dict(CFG, {'system':{'load_policy':True}})
     def test_instrument_agent_policy(self):
+
+        # This import will dynamically load the driver egg.  It is needed for the MI includes below
+        import ion.agents.instrument.test.test_instrument_agent
+        from mi.core.instrument.instrument_driver import DriverProtocolState
+        from mi.core.instrument.instrument_driver import DriverConnectionState
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
         #Make sure that the system policies have been loaded
         policy_list,_ = self.rr_client.find_resources(restype=RT.Policy)
@@ -1929,10 +1930,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Request to access the resource exclusively for two hours
         cur_time = int(get_ion_ts())
-        two_hour_expiration = int(cur_time +  ( 2 * 60 * 60 * 1000 )) # 2 hours from now
+        two_hour_expiration = cur_time +  ( 2 * 60 * 60 * 1000 ) # 2 hours from now
 
         sap = IonObject(OT.AcquireResourceExclusiveProposal,consumer=actor_id, provider=org2_id, resource_id=inst_obj_id,
-                    expiration=two_hour_expiration)
+                    expiration=str(two_hour_expiration))
         sap_response = self.org_client.negotiate(sap, headers=actor_header )
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be fired and commitments recorded
@@ -2406,6 +2407,13 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
         This test is used to verify that policies of related resources can be setup and invoked in the "tree" of resources.
         @return:
         """
+
+        # This import will dynamically load the driver egg.  It is needed for the MI includes below
+        import ion.agents.instrument.test.test_instrument_agent
+        from mi.core.instrument.instrument_driver import DriverProtocolState
+        from mi.core.instrument.instrument_driver import DriverConnectionState
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
 
         obs_id = self.create_observatory(True, create_with_marine_facility=True)
 
