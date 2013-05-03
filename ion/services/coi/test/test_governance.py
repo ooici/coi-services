@@ -2408,6 +2408,13 @@ class TestResourcePolicyInt(IonIntegrationTestCase, ResourceHelper):
         @return:
         """
 
+        # This import will dynamically load the driver egg.  It is needed for the MI includes below
+        import ion.agents.instrument.test.test_instrument_agent
+        from mi.core.instrument.instrument_driver import DriverProtocolState
+        from mi.core.instrument.instrument_driver import DriverConnectionState
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+        from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37Parameter
+
         obs_id = self.create_observatory(True, create_with_marine_facility=True)
 
         orgs,_ = self.rr_client.find_subjects(RT.Org ,PRED.hasResource, obs_id)
