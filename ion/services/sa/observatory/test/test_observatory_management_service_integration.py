@@ -623,6 +623,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
 
         parsed_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',
                                                                                     id_only=True)
+
         parsed_stream_def_id = self.pubsubcli.create_stream_definition(name='parsed',
                                                                        parameter_dictionary_id=parsed_pdict_id)
         tdom, sdom = time_series_domain()
@@ -633,6 +634,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
             description='ctd stream test',
             temporal_domain = tdom,
             spatial_domain = sdom)
+
 
         data_product_id1 = self.dpclient.create_data_product(data_product=dp_obj,
                                                              stream_definition_id=parsed_stream_def_id)
@@ -646,11 +648,13 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         assert(member_actor_id)
         member_actor_header = get_actor_header(member_actor_id)
 
+
         member_user_obj = IonObject(RT.UserInfo, name='org member user')
         member_user_id,_ = self.RR.create(member_user_obj)
         assert(member_user_id)
 
         self.RR.create_association(subject=member_actor_id, predicate=PRED.hasInfo, object=member_user_id)
+
 
         #Build the Service Agreement Proposal to enroll a user actor
         sap = IonObject(OT.EnrollmentProposal,consumer=member_actor_id, provider=stuff.org_id )
@@ -664,8 +668,13 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         # Get the extended Site (platformSite)
         #--------------------------------------------------------------------------------
 
-        extended_site = self.OMS.get_site_extension(stuff.platform_site_id)
-        log.debug("extended_site:  %s ", str(extended_site))
+
+        try:
+            extended_site = self.OMS.get_site_extension(stuff.platform_site_id)
+        except:
+            log.error('failed to get extended site', exc_info=True)
+            raise
+        log.debug("extended_site:  %r ", extended_site)
         self.assertEqual(1, len(extended_site.platform_devices))
         self.assertEqual(1, len(extended_site.platform_models))
         self.assertEqual(stuff.platform_device_id, extended_site.platform_devices[0]._id)
@@ -693,6 +702,9 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_org.members))
         self.assertEqual(1, len(extended_org.open_requests))
 
+        self.assertTrue(len(extended_site.deployments)>0)
+        self.assertEqual(len(extended_site.deployments), len(extended_site.deployment_info.value))
+
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
         extended_org = self.org_management_service.get_marine_facility_extension(ion_org_id._id, user_id=12345)
@@ -700,7 +712,6 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_org.members))
         self.assertEqual(0, extended_org.number_of_platforms)
         #self.assertEqual(1, len(extended_org.sites))
-
 
 
         #--------------------------------------------------------------------------------

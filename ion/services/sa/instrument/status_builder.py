@@ -110,7 +110,6 @@ class AgentStatusBuilder(object):
         try:
             agg = self.get_status_of_device(device_id, status_name)
             log.debug('add_device_aggregate_status_to_resource_extension status: %s', agg)
-            print 'add_device_aggregate_status_to_resource_extension status: %s', agg
 
             if agg:
                 self.set_status_computed_attributes(extended_resource.computed, agg, ComputedValueAvailability.PROVIDED)
