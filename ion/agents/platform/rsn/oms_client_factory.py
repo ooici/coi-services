@@ -18,6 +18,7 @@ from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 import xmlrpclib
 import os
 import yaml
+from gevent import Greenlet, sleep
 
 _OMS_URI_ALIASES_FILENAME = 'ion/agents/platform/rsn/oms_uri_aliases.yml'
 
@@ -31,6 +32,9 @@ class CIOMSClientFactory(object):
     _inst_count = 0
 
     _uri_aliases = None
+
+    # _sim_process: see launch_simulator and related methods
+    _sim_process = None
 
     @classmethod
     def _load_uri_aliases(cls):
@@ -96,3 +100,46 @@ class CIOMSClientFactory(object):
         # else: nothing needed to do.
             
         log.debug("destroy_instance: _inst_count = %d", cls._inst_count)
+
+    @classmethod
+    def launch_simulator(cls, inactivity_period):
+        """
+        Utility to launch the simulator as a separate process.
+
+        @return the new URI for a regular call to create_instance(uri).
+        """
+        from ion.agents.platform.rsn.simulator.process_util import ProcessUtil
+        cls._sim_process = ProcessUtil()
+        rsn_oms = cls._sim_process.launch()
+
+        if inactivity_period:
+            rsn_oms.exit_inactivity(inactivity_period)
+
+            def hearbeat():
+                n = 0
+                while cls._sim_process:
+                    sleep(1)
+                    n += 1
+                    if cls._sim_process and n % 20 == 0:
+                        log.debug("heartbeat sent")
+                        try:
+                            rsn_oms.ping()
+                        except:
+                            pass
+                log.debug("heartbeat ended")
+
+            Greenlet(hearbeat).start()
+            log.debug("called exit_inactivity with %s and started heartbeat",
+                      inactivity_period)
+
+        return "localsimulator"
+
+    @classmethod
+    def stop_launched_simulator(cls):
+        """
+        Utility to stop the process launched with launch_simulator.
+        """
+        if cls._sim_process:
+            log.debug("stopping launched simulator...")
+            cls._sim_process.stop()
+            cls._sim_process = None

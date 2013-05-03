@@ -2030,4 +2030,3 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             raw_sizes.append(rdt['raw'].size)
         raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
         self.assertTrue(any(raw_sizes_greater_than_one))
-                

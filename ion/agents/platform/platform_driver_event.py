@@ -48,6 +48,16 @@ class AttributeValueDriverEvent(DriverEvent):
             self.__class__.__name__, self.platform_id, self.stream_name,
             self.vals_dict)
 
+    def brief(self):
+        """
+        A brief string representation.
+        """
+        summary = {attr_id: "(%d vals)" % len(vals)
+                   for attr_id, vals in self.vals_dict.iteritems()}
+        return "%s(platform_id=%r, stream_name=%r, vals_dict=%r)" % (
+            self.__class__.__name__, self.platform_id, self.stream_name,
+            summary)
+
 
 class ExternalEventDriverEvent(DriverEvent):
     """
@@ -85,3 +95,19 @@ class StateChangeDriverEvent(DriverEvent):
 
     def __str__(self):
         return "%s(state=%r)" % (self.__class__.__name__, self.state)
+
+
+class AsyncAgentEvent(DriverEvent):
+    """
+    Event to tell the agent to send a given event to its FSM.
+    """
+    def __init__(self, event):
+        DriverEvent.__init__(self)
+        self._event = event
+
+    @property
+    def event(self):
+        return self._event
+
+    def __str__(self):
+        return "%s(event=%r)" % (self.__class__.__name__, self.event)
