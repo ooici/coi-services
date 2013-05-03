@@ -349,6 +349,9 @@ class OOILoader(object):
         self._add_object_attribute('class',
             row['SClass_PublicID'], 'array_list', refid[:2], value_is_list=True, list_dup_ok=True)
 
+        self._add_object_attribute('series',
+                                   series_id, 'array_list', refid[:2], value_is_list=True, list_dup_ok=True)
+
     def _parse_DataQCLookupTables(self, row):
         # Adds a list of data products with level to instruments
         refid = row['ReferenceDesignator']
@@ -416,7 +419,6 @@ class OOILoader(object):
                                    name, None, None, name=name, local_name=local_name)
         self._add_object_attribute('osite',
                                    name, 'site_rd_list', ooi_rd, value_is_list=True)
-
 
     def _parse_Subsites(self, row):
         ooi_rd = row['Reference ID']
@@ -708,8 +710,13 @@ class OOILoader(object):
         log.info("Deleted %s OOI resources and %s associations", len(del_objs), len(del_assocs))
 
     def analyze_ooi_assets(self, end_date):
+        """
+        Iterates through OOI assets and determines relevant ones by a cutoff data.
+        Prepares a report and export for easier development.
+        """
         report_lines = []
         node_objs = self.get_type_assets("node")
+        nodetype_objs = self.get_type_assets("nodetype")
         inst_objs = self.get_type_assets("instrument")
         series_objs = self.get_type_assets("series")
 
@@ -748,6 +755,11 @@ class OOILoader(object):
             except Exception as ex:
                 ooi_obj['deploy_date'] = None
                 print "Date parse error", ex
+
+            nodetype_obj = nodetype_objs[ooi_id[9:11]]
+            nodetype_obj["deploy_date"] = min(ooi_obj['deploy_date'], nodetype_obj.get("deploy_date", None) or datetime.datetime(2020, 1, 1))
+
+        # TODO: Adjust incorrect child node or instrument deployment dates to minimum of parent platform date
 
         deploy_platform_list = deploy_platforms.values()
         deploy_platform_list.sort(key=lambda obj: [obj['deploy_date'], obj['name']])

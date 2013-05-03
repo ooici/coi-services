@@ -444,8 +444,12 @@ class IONLoader(ImmediateProcess):
         Can load the spreadsheets from http or file location.
         Optionally imports OOI assets at the beginning of each category.
         """
+        if self.debug:
+            log.warn("WARNING: Debug==True. Certain shortcuts will be taken for easier development")
         if self.bulk:
             log.warn("WARNING: Bulk load is ENABLED. Making bulk RR calls to create resources/associations. No policy checks!")
+        if self.loadooi and self.ooiuntil:
+            log.warn("WARNING: Loading OOI assets only until %s cutoff date!", self.ooiuntil)
 
         # read everything ahead of time, not on the fly
         # that way if the Nth CSV is garbled, you don't waste time preloading the other N-1
@@ -680,6 +684,14 @@ class IONLoader(ImmediateProcess):
             if item in self.ooifilter:
                 return True
         return False
+
+    def _before_cutoff(self, ooi_obj):
+        """Indicates whether a given OOI parsed asset is first used before a cutoff date"""
+        deploy_date = ooi_obj.get("deploy_date", None)
+        if self.ooiuntil and (not deploy_date or deploy_date > self.ooiuntil):
+            return False
+        else:
+            return True
 
     def _basic_resource_create(self, row, restype, prefix, svcname, svcop,
                                constraints=None, constraint_field='constraint_list',
@@ -1100,6 +1112,9 @@ class IONLoader(ImmediateProcess):
         ooi_objs = self.ooi_loader.get_type_assets("nodetype")
 
         for ooi_id, ooi_obj in ooi_objs.iteritems():
+            if not self._before_cutoff(ooi_obj):
+                continue
+
             newrow = {}
             newrow[COL_ID] = ooi_id + "_PM"
             newrow['pm/name'] = ooi_obj['name']
@@ -1130,6 +1145,9 @@ class IONLoader(ImmediateProcess):
             class_name = class_obj["name"]
             if "DEPRECATED" in class_name:
                 continue
+            if not self._before_cutoff(series_obj):
+                continue
+
             family_obj = family_objs[class_obj['family']]
             makemodel_obj = makemodel_objs[series_obj['makemodel']] if series_obj.get('makemodel', None) else None
             subseries_obj = subseries_objs.get(ooi_id + "01", None)
@@ -1154,7 +1172,7 @@ class IONLoader(ImmediateProcess):
             newrow['im/manufacturer'] = makemodel_obj['Manufacturer'] if makemodel_obj else ""
             newrow['im/manufacturer_url'] = makemodel_obj['Vendor Website'] if makemodel_obj else ""
             newrow['im/reference_designator'] = ooi_id
-            newrow['org_ids'] = self.ooi_loader.get_org_ids(class_obj.get('array_list', None))
+            newrow['org_ids'] = self.ooi_loader.get_org_ids(series_obj.get('array_list', None))
             reference_urls = []
             addl = {}
             if makemodel_obj:
@@ -1311,7 +1329,11 @@ class IONLoader(ImmediateProcess):
         ssite_objs = self.ooi_loader.get_type_assets("ssite")
 
         def _load_platform(ooi_id, ooi_obj):
+            if not self._before_cutoff(ooi_obj):
+                return
+
             ooi_rd = OOIReferenceDesignator(ooi_id)
+
             const_id1 = ''
             if ooi_obj.get('latitude', None) or ooi_obj.get('longitude', None) or ooi_obj.get('depth_subsite', None):
                 const_id1 = ooi_id + "_const1"
@@ -1430,6 +1452,9 @@ class IONLoader(ImmediateProcess):
         series_objs = self.ooi_loader.get_type_assets("series")
 
         for ooi_id, inst_obj in inst_objs.iteritems():
+            if not self._before_cutoff(inst_obj):
+                return
+
             constrow = {}
             const_id1 = ''
             if inst_obj['latitude'] or inst_obj['longitude'] or inst_obj['depth_port_max'] or inst_obj['depth_port_min']:
