@@ -241,7 +241,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         data_product_stream_ids.append(ctd_stream_id)
 
         #Create and start the workflow
-        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=30)
+        workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id, timeout=60)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
@@ -259,7 +259,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
         #Stop the workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id,delete_data_products=False, timeout=30)  # Should test true at some point
+        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id,delete_data_products=False, timeout=60)  # Should test true at some point
 
         #Validate the data from each of the messages along the way
         self.validate_google_dt_transform_results(results)
@@ -308,7 +308,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         #Create and start the workflow
         workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id,
-            persist_workflow_data_product=True, timeout=30)
+            persist_workflow_data_product=True, timeout=60)
 
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
@@ -326,7 +326,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
         #Stop the workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id,delete_data_products=False, timeout=30)  # Should test true at some point
+        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id,delete_data_products=False, timeout=60)  # Should test true at some point
 
         #Validate the data from each of the messages along the way
         self.validate_mpl_graphs_transform_results(results)
@@ -371,14 +371,14 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         data_product_stream_ids.append(ctd_stream_id1)
 
         #Create and start the first workflow
-        workflow_id1, workflow_product_id1 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id1, timeout=30)
+        workflow_id1, workflow_product_id1 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id1, timeout=60)
 
         #Create the second input data product
         ctd_stream_id2, ctd_parsed_data_product_id2 = self.create_ctd_input_stream_and_data_product('ctd_parsed2')
         data_product_stream_ids.append(ctd_stream_id2)
 
         #Create and start the second workflow
-        workflow_id2, workflow_product_id2 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id2, timeout=30)
+        workflow_id2, workflow_product_id2 = self.workflowclient.create_data_process_workflow(workflow_def_id, ctd_parsed_data_product_id2, timeout=60)
 
         #Walk the associations to find the appropriate output data streams to validate the messages
         workflow_ids,_ = self.rrclient.find_resources(restype=RT.Workflow)
@@ -399,10 +399,10 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         self.process_dispatcher.cancel_process(ctd_sim_pid2)
 
         #Stop the first workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id1,delete_data_products=False, timeout=30)  # Should test true at some point
+        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id1,delete_data_products=False, timeout=60)  # Should test true at some point
 
         #Stop the second workflow processes
-        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id2,delete_data_products=False, timeout=30)  # Should test true at some point
+        self.workflowclient.terminate_data_process_workflow(workflow_id=workflow_id2,delete_data_products=False, timeout=60)  # Should test true at some point
 
         workflow_ids,_ = self.rrclient.find_resources(restype=RT.Workflow)
         assertions(len(workflow_ids) == 0 )
