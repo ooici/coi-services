@@ -15,6 +15,8 @@ from nose.plugins.attrib import attr
 from pyon.agent.agent import ResourceAgentClient, ResourceAgentState, ResourceAgentEvent
 import ion.agents.instrument.test.test_instrument_agent
 from mi.instrument.seabird.sbe37smb.ooicore.driver import SBE37ProtocolEvent
+from ion.services.dm.test.test_dm_end_2_end import DatasetMonitor
+from ion.services.dm.utility.granule import RecordDictionaryTool
 
 @attr('INT', group='dm')
 class TestInstrumentIntegration(DMTestCase):
@@ -109,7 +111,7 @@ class TestInstrumentIntegration(DMTestCase):
         self.assertEqual(expected_state,state)
         return retval
 
-    def test_example(self):
+    def test_instrument_simple(self):
         instrument_model_id = self.create_instrument_model()
         instrument_agent_id = self.create_instrument_agent(instrument_model_id)
         instrument_device_id = self.create_instrument_device(instrument_model_id)
@@ -129,7 +131,14 @@ class TestInstrumentIntegration(DMTestCase):
         self.agent_state_transition(agent_client, ResourceAgentEvent.GO_ACTIVE, ResourceAgentState.IDLE)
         self.agent_state_transition(agent_client, ResourceAgentEvent.RUN, ResourceAgentState.COMMAND)
 
+        dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(parsed_dp_id)
+        monitor = DatasetMonitor(dataset_id=dataset_id)
+
         for i in xrange(10):
             agent_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))
+            monitor.event.wait(10)
+            monitor.event.clear()
 
+        rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve(dataset_id))
+        self.assertEquals(len(rdt), 10)
 
