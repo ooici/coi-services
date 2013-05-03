@@ -23,11 +23,11 @@ from ion.util.geo_utils import GeoUtils
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, StatusType, ComputedListValue
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedDictValue, StatusType, ComputedListValue
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
-
+from ion.services.sa.observatory.deployment_util import describe_deployments
 
 INSTRUMENT_OPERATOR_ROLE  = 'INSTRUMENT_OPERATOR'
 OBSERVATORY_OPERATOR_ROLE = 'OBSERVATORY_OPERATOR'
@@ -797,6 +797,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
+
         RR2 = EnhancedResourceRegistryClient(self.RR)
         RR2.cache_predicate(PRED.hasModel)
 
@@ -804,11 +805,13 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         a, b =  self._get_instrument_states(extended_site.instrument_devices)
         extended_site.instruments_operational, extended_site.instruments_not_operational = a, b
 
+
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id
         lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
         for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
             lookup[a.st][a.s] = a.o
+
 
         def retrieve_model_objs(rsrc_list, object_type):
         # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
@@ -824,6 +827,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
 
+
         # Status computation
         ec = extended_site.computed
         ec.instrument_status = [self.agent_status_builder.get_aggregate_status_of_device(idev._id, "aggstatus")
@@ -833,6 +837,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         ec.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=ec.instrument_status)
         ec.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=ec.platform_status)
+
 
         # status rollups from attached device if it exists (handled in agent status builder)
         devices = RR2.find_objects(site_id, PRED.hasDevice, id_only=False)
@@ -851,8 +856,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
                                                                                         extended_site)
 
 
-        ec.site_status = [StatusType.STATUS_UNKNOWN] * len(extended_site.sites)
+        # TODO: add real status here!
+        ec.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[StatusType.STATUS_UNKNOWN] * len(extended_site.sites))
 
+
+        # add UI details for deployments
+        extended_site.deployment_info = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=describe_deployments(extended_site.deployments, self.clients))
 
 
         return extended_site, RR2
@@ -997,7 +1006,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         iplatform_device_ids = []
         subjs, _ = self.RR.find_subjects( predicate=PRED.hasDeployment, object=deployment_id, id_only=False)
         for subj in subjs:
-            log.debug('get_deployment_extension  obj:   %s', subj)
+
             if subj.type_ == "InstrumentDevice":
                 extended_deployment.instrument_devices.append(subj)
                 devices.add((subj._id, PRED.hasModel))
@@ -1016,7 +1025,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         model_map = {}
         assocs = self.RR.find_associations(anyside=list(devices), id_only=False)
         for assoc in assocs:
-            log.debug('get_deployment_extension  assoc subj:   %s  pred: %s    obj:   %s', assoc.s, assoc.p, assoc.o)
+
             all_models.add(assoc.o)
             device_to_model_map[assoc.s] = assoc.o
 
