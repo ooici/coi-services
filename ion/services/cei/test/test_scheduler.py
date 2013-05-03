@@ -333,8 +333,6 @@ class TestSchedulerService(IonIntegrationTestCase):
         # Cancel the timer
         self.ssclient.cancel_timer(id)
 
-
-
     def tod_callback(self, *args, **kwargs):
         tod_receive_time = datetime.datetime.utcnow()
         self.tod_count += 1
@@ -345,6 +343,68 @@ class TestSchedulerService(IonIntegrationTestCase):
             time_diff = math.fabs((tod_receive_time - self.tod_sent_time).total_seconds() - self.expire_sec_2)
             self.assertTrue(time_diff <= 2)
         log.debug("test_scheduler: tod_callback: time:" + str(tod_receive_time) + " count:" + str(self.tod_count))
+
+    def test_timeoffday_timer_in_past_seconds(self):
+        # test creating a new timer that is one-time-only
+        # create the timer resource
+        # get the current time, set the timer to several seconds from current time
+        # create the event listener
+        # call scheduler to set the timer
+        # verify that  event arrival is within one/two seconds of current time
+
+        event_origin = "Time_Of_Day3"
+        expire_sec = -4
+        self.tod_count2 = 0
+        now = datetime.datetime.utcnow()
+        expire1 = now + timedelta(seconds=expire_sec)
+        # Create two timers
+        times_of_day = [{'hour': str(expire1.hour), 'minute': str(expire1.minute), 'second': str(expire1.second)}]
+
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.tod_callback2, origin=event_origin)
+        sub.start()
+        self.addCleanup(sub.stop)
+
+        # Expires in 3 days
+        expires = time.mktime((datetime.datetime.utcnow() + timedelta(days=3)).timetuple())
+        self.tod_sent_time = datetime.datetime.utcnow()
+        id = self.ssclient.create_time_of_day_timer(times_of_day=times_of_day, expires=expires, event_origin=event_origin, event_subtype="")
+        self.interval_timer_sent_time = datetime.datetime.utcnow()
+        self.assertEqual(type(id), str)
+
+        # Wait and see if the any events are generated
+        gevent.sleep(5)
+
+        # After waiting, validate no event is generated
+        self.assertEqual(self.tod_count2, 0, "Invalid number of timeouts generated. Number of timeout: %d Expected timeout: 0 Timer id: %s " %(self.tod_count2, id))
+
+        # Cancel the timer
+        self.ssclient.cancel_timer(id)
+
+        # This is example for the following case
+        # Example current time is 8:00AM. User setups a timer for 6:00AM. Since it is 8am, it tries to
+        #   setup a timer for tomorrow 6am but the expire time is set at 5AM tomorrow
+        event_origin = "Time_Of_Day4"
+        expire_sec = -4
+        self.tod_count2 = 0
+        now = datetime.datetime.utcnow()
+        expire1 = now + timedelta(seconds=expire_sec)
+        times_of_day = [{'hour': str(expire1.hour), 'minute': str(expire1.minute), 'second': str(expire1.second)}]
+
+        sub = EventSubscriber(event_type="TimerEvent", callback=self.tod_callback2, origin=event_origin)
+        sub.start()
+        self.addCleanup(sub.stop)
+
+        # Expires before the first event
+        time_delta = timedelta(days=1) + timedelta(seconds=-(abs(expire_sec*2)))   # Notice the minus sign. It expires before the first event
+        expires = time.mktime((now + time_delta).timetuple())
+        self.tod_sent_time = datetime.datetime.utcnow()
+        with self.assertRaises(BadRequest):
+            id = self.ssclient.create_time_of_day_timer(times_of_day=times_of_day, expires=expires, event_origin=event_origin, event_subtype="")
+
+    def tod_callback2(self, *args, **kwargs):
+        tod_receive_time = datetime.datetime.utcnow()
+        self.tod_count2 += 1
+        log.debug("test_scheduler: tod_callback2: time:")
 
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False), 'Skip test while in CEI LAUNCH mode')
     def test_quit_stops_timers(self):

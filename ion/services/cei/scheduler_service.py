@@ -38,38 +38,52 @@ class SchedulerService(BaseSchedulerService):
         # terminate any pending spawns
         self._stop_pending_timers()
 
-    def __notify(self, task, id, index):
-        log.debug("SchedulerService:__notify: - " + task.event_origin + " - Time: " + str(self.__now()) + " - ID: " + id + " -Index:" + str(index))
+    def _notify(self, task, id_, index):
+        log.debug("SchedulerService:_notify: - " + task.event_origin + " - Time: " + str(self._now()) + " - id_: " + id_ + " -Index:" + str(index))
         self.pub.publish_event(origin=task.event_origin)
 
-    def __now(self):
+    def _now(self):
         return datetime.utcnow()
 
-    def __now_posix(self, now):
-        return time.mktime(now.timetuple())
+    def _convert_to_posix_time(self, t):
+        return time.mktime(t.timetuple())
 
-    def _expire_callback(self, id, index):
-        task = self.__get_entry(id)
-        self.__notify(task, id, index)
-        if not self.__reschedule(id, index):
-            self.__delete(id, index)
+    def _expire_callback(self, id_, index):
+        task = self.__get_entry(id_)
+        self._notify(task, id_, index)
+        if not self.__reschedule(id_, index):
+            self.__delete(id_, index)
 
     def __calculate_next_interval(self, task, current_time):
         if task.start_time < current_time:
             next_interval = task.start_time
-            while (next_interval < current_time):
+            while next_interval < current_time:
                 next_interval = next_interval + task.interval
-            return (next_interval - current_time)
+            return next_interval - current_time
         else:
             return (task.start_time - current_time) + task.interval
 
     def __get_expire_time(self, task):
-        now = self.__now()
-        now_posix = self.__now_posix(now)
+        now = self._now()
+        now_posix = self._convert_to_posix_time(now)
         expires_in = []
         if type(task) == TimeOfDayTimer:
             for time_of_day in task.times_of_day:
-                expire_time = datetime(now.year, now.month, now.day, time_of_day['hour'], time_of_day['minute'], time_of_day['second'])
+                expire_time_input = datetime(year=now.year, month=now.month, day=now.day, hour=time_of_day['hour'], minute=time_of_day['minute'], second=time_of_day['second'])
+                # Find out if the time is already passed for today. If it is schedule it for tomorrow
+                if expire_time_input.time() > now.time():
+                    expire_time = datetime(year=now.year, month=now.month, day=now.day, hour=time_of_day['hour'], minute=time_of_day['minute'], second=time_of_day['second'])
+                else:
+                    tomorrow_posix = self._convert_to_posix_time(now + timedelta(days=1))
+                    tomorrow = now + timedelta(days=1)
+                    if task.expires < tomorrow_posix:
+                        # This occurs in the following case:
+                        # Current time is 8am. Timer setup is 6am. Expire time is tomorrow at 5am
+                        # Example current time is 8:00AM. User setups a timer for 6:00AM. Since it is 8am, it tries to
+                        #   setup timer for tomorrow  6am but the expire time is set at 5AM tomorrow
+                        raise BadRequest("SchedulerService: couldn't setup a timer. Please check the timer and the expiration time")
+                    expire_time = datetime(year=tomorrow.year, month=tomorrow.month, day=tomorrow.day, hour=time_of_day['hour'], minute=time_of_day['minute'], second=time_of_day['second'])
+
                 expires_in.append(ceil((expire_time - now).total_seconds()))
         elif type(task) == IntervalTimer and (task.end_time == -1 or ((now_posix + task.interval) <= task.end_time)):
             expires_in = [(self.__calculate_next_interval(task, now_posix))]
@@ -77,12 +91,13 @@ class SchedulerService(BaseSchedulerService):
 
     def __get_reschedule_expire_time(self, task, index):
         expires_in = False
-        now = self.__now()
-        now_posix = self.__now_posix(now)
+        now = self._now()
+        now_posix = self._convert_to_posix_time(now)
         if type(task) == TimeOfDayTimer:
-            if task.expires > now_posix:
+            tomorrow = now + timedelta(days=1)
+            tomorrow_posix = self._convert_to_posix_time(tomorrow)
+            if task.expires > tomorrow_posix:
                 time_of_day = task.times_of_day[index]
-                tomorrow = now + timedelta(days=1)
                 expire_time = datetime(tomorrow.year, tomorrow.month, tomorrow.day, time_of_day['hour'], time_of_day['minute'], time_of_day['second'])
                 expires_in = (ceil((expire_time - now).total_seconds()))
             else:
@@ -101,8 +116,8 @@ class SchedulerService(BaseSchedulerService):
                 return False
         return True
 
-    def __schedule(self, scheduler_entry, id=False):
-        # if "id" is set, it means scheduler_entry is already in Resource Regsitry. This can occur during a sytsem restart
+    def __schedule(self, scheduler_entry, id_=False):
+        # if "id_" is set, it means scheduler_entry is already in Resource Registry. This can occur during a system restart
         spawns = []
         task = scheduler_entry.entry
         expire_times = self.__get_expire_time(task)
@@ -110,62 +125,62 @@ class SchedulerService(BaseSchedulerService):
             log.error("SchedulerService:__schedule: scheduling: expire time is less than zero: ")
             return False
 
-        if not id:
-            id, _ = self.clients.resource_registry.create(scheduler_entry)
-        self.__create_entry(task, spawns, id)
+        if not id_:
+            id_, _ = self.clients.resource_registry.create(scheduler_entry)
+        self.__create_entry(task, spawns, id_)
         for index, expire_time in enumerate(expire_times):
-            log.debug("SchedulerService:__schedule: scheduling: - " + task.event_origin + " - Now: " + str(self.__now()) +
-                      " - Expire: " + str(expire_time) + " - ID: " + id + " - Index:" + str(index))
-            spawn = gevent.spawn_later(expire_time, self._expire_callback, id, index)
+            log.debug("SchedulerService:__schedule: scheduling: - " + task.event_origin + " - Now: " + str(self._now()) +
+                      " - Expire: " + str(expire_time) + " - ID: " + id_ + " - Index:" + str(index))
+            spawn = gevent.spawn_later(expire_time, self._expire_callback, id_, index)
             spawns.append(spawn)
-        return id
+        return id_
 
-    def __reschedule(self, id, index):
+    def __reschedule(self, id_, index):
         if self._no_reschedule:
-            log.debug("SchedulerService:__reschedule: process quitting, refusing to reschedule %s", id)
+            log.debug("SchedulerService:__reschedule: process quitting, refusing to reschedule %s", id_)
             return False
 
-        task = self.__get_entry(id)
+        task = self.__get_entry(id_)
         expire_time = self.__get_reschedule_expire_time(task, index)
         if expire_time:
-            log.debug("SchedulerService:__reschedule: rescheduling: - " + task.event_origin + " - Now: " + str(self.__now()) +
-                      " - Expire: " + str(expire_time) + " - ID: " + id + " -Index:" + str(index))
-            spawn = gevent.spawn_later(expire_time, self._expire_callback, id, index)
-            self.__update_entry(id=id, index=index, spawn=spawn)
+            log.debug("SchedulerService:__reschedule: rescheduling: - " + task.event_origin + " - Now: " + str(self._now()) +
+                      " - Expire: " + str(expire_time) + " - ID: " + id_ + " -Index:" + str(index))
+            spawn = gevent.spawn_later(expire_time, self._expire_callback, id_, index)
+            self.__update_entry(id_=id_, index=index, spawn=spawn)
 
             return True
         else:
-            log.debug("SchedulerService:__reschedule: timer expired. Removed from RR  : - " + task.event_origin + " - Now: " + str(self.__now()) +
-                      " - Expire: " + str(expire_time) + " - ID: " + id + " -Index:" + str(index))
+            log.debug("SchedulerService:__reschedule: timer expired. Removed from RR  : - " + task.event_origin + " - Now: " + str(self._now()) +
+                      " - Expire: " + str(expire_time) + " - ID: " + id_ + " -Index:" + str(index))
         return False
 
-    def __create_entry(self, task, spawns, id):
-        self.schedule_entries[id] = {"task": task, "spawns": spawns}
+    def __create_entry(self, task, spawns, id_):
+        self.schedule_entries[id_] = {"task": task, "spawns": spawns}
 
-    def __update_entry(self, id, index, spawn=None, interval=None):
+    def __update_entry(self, id_, index, spawn=None, interval=None):
         if spawn is not None:
-            self.schedule_entries[id]["spawns"][index] = spawn
+            self.schedule_entries[id_]["spawns"][index] = spawn
         if interval is not None:
-            self.schedule_entries[id]["task"].interval = interval
+            self.schedule_entries[id_]["task"].interval = interval
 
-    def __get_entry_all(self, id):
-        return self.schedule_entries[id]
+    def __get_entry_all(self, id_):
+        return self.schedule_entries[id_]
 
-    def __get_spawns(self, id):
-        return self.schedule_entries[id]["spawns"]
+    def __get_spawns(self, id_):
+        return self.schedule_entries[id_]["spawns"]
 
-    def __get_entry(self, id):
-        return self.schedule_entries[id]["task"]
+    def __get_entry(self, id_):
+        return self.schedule_entries[id_]["task"]
 
-    def __delete(self, id, index, force=False):
-        if id in self.schedule_entries:
-            task = self.__get_entry(id)
+    def __delete(self, id_, index, force=False):
+        if id_ in self.schedule_entries:
+            task = self.__get_entry(id_)
             if force and type(task) == TimeOfDayTimer:
-                log.debug("SchedulerService:__delete: entry deleted " + id + " -Index:" + str(index))
-                del self.schedule_entries[id]
-                self.clients.resource_registry.delete(id)
+                log.debug("SchedulerService:__delete: entry deleted " + id_ + " -Index:" + str(index))
+                del self.schedule_entries[id_]
+                self.clients.resource_registry.delete(id_)
             elif type(task) == TimeOfDayTimer:
-                task = self.__get_entry(id)
+                task = self.__get_entry(id_)
                 task.times_of_day[index] = None
                 # Delete if all the timers are set to none
                 are_all_timers_expired = True
@@ -174,13 +189,13 @@ class SchedulerService(BaseSchedulerService):
                         are_all_timers_expired = False
                         break
                 if are_all_timers_expired:
-                    log.debug("SchedulerService:__delete: entry deleted " + id + " -Index:" + str(index))
-                    del self.schedule_entries[id]
-                    self.clients.resource_registry.delete(id)
+                    log.debug("SchedulerService:__delete: entry deleted " + id_ + " -Index:" + str(index))
+                    del self.schedule_entries[id_]
+                    self.clients.resource_registry.delete(id_)
             else:
-                log.debug("SchedulerService:__delete: entry deleted " + id + " -Index:" + str(index))
-                del self.schedule_entries[id]
-                self.clients.resource_registry.delete(id)
+                log.debug("SchedulerService:__delete: entry deleted " + id_ + " -Index:" + str(index))
+                del self.schedule_entries[id_]
+                self.clients.resource_registry.delete(id_)
             return True
         return False
 
@@ -191,7 +206,7 @@ class SchedulerService(BaseSchedulerService):
             return False
             # Validate the timer is set correctly
         if type(task) == IntervalTimer:
-            if (task.end_time != -1 and (self.__now_posix(self.__now()) >= task.end_time)):
+            if task.end_time != -1 and (self._convert_to_posix_time(self._now()) >= task.end_time):
                 log.error("SchedulerService.__is_timer_valid: IntervalTimer is set to incorrect value")
                 return False
         elif type(task) == TimeOfDayTimer:
@@ -259,12 +274,12 @@ class SchedulerService(BaseSchedulerService):
         Create a timer which will send TimerEvents as requested for a given schedule.
         The schedule request is expressed through a specific subtype of TimerSchedulerEntry.
         The task is delivered as a TimeEvent to which processes can subscribe. The creator
-        defines the fields of the task. A GUID-based id prefixed by readable process name
+        defines the fields of the task. A GUID-based id_ prefixed by readable process name
         is recommended for the origin. Because the delivery of the task is via the ION Exchange
         there is potential for a small deviation in precision.
         Returns a timer_id which can be used to cancel the timer.
 
-        @param timer__schedule    TimerSchedulerEntry
+        @param scheduler_entry    TimerSchedulerEntry
         @retval timer_id    str
         @throws BadRequest    if timer is misformed and can not be scheduled
         """
@@ -272,10 +287,10 @@ class SchedulerService(BaseSchedulerService):
         status = self.__is_timer_valid(scheduler_entry.entry)
         if not status:
             raise BadRequest
-        id = self.__schedule(scheduler_entry)
-        if not id:
+        id_ = self.__schedule(scheduler_entry)
+        if not id_:
             raise BadRequest
-        return id
+        return id_
 
     def cancel_timer(self, timer_id=''):
         """
@@ -289,18 +304,18 @@ class SchedulerService(BaseSchedulerService):
             spawns = self.__get_spawns(timer_id)
             for spawn in spawns:
                 spawn.kill()
-            log.debug("SchedulerService: cancel_timer: id: " + str(timer_id))
-            self.__delete(id=timer_id, index=None, force=True)
+            log.debug("SchedulerService: cancel_timer: id_: " + str(timer_id))
+            self.__delete(id_=timer_id, index=None, force=True)
         except:
-            log.error("SchedulerService: cancel_timer: timer id doesn't exist: " + str(timer_id))
+            log.error("SchedulerService: cancel_timer: timer id_ doesn't exist: " + str(timer_id))
             raise BadRequest
 
     def create_interval_timer(self, start_time="", interval=0, end_time="", event_origin="", event_subtype=""):
-        if (end_time != -1 and (self.__now_posix(self.__now()) >= end_time)) or not event_origin:
+        if (end_time != -1 and (self._convert_to_posix_time(self._now()) >= end_time)) or not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
             raise BadRequest
         if start_time == "now":
-            start_time = self.__now_posix(self.__now())
+            start_time = self._convert_to_posix_time(self._now())
         log.debug("SchedulerService:create_interval_timer start_time: %s interval: %s end_time: %s event_origin: %s" %(start_time, interval, end_time, event_origin))
         interval_timer = IonObject("IntervalTimer", {"start_time": start_time, "interval": interval, "end_time": end_time,
                                                      "event_origin": event_origin, "event_subtype": event_subtype})

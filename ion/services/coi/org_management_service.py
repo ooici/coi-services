@@ -433,8 +433,8 @@ class OrgManagementService(BaseOrgManagementService):
 
                 #Automatically reject the proposal if the exipration request is greater than 12 hours from now or 0
                 cur_time = int(get_ion_ts())
-                expiration = cur_time +  ( 12 * 60 * 60 * 1000 ) # 12 hours from now
-                if sap.expiration == 0 or sap.expiration > expiration:
+                expiration = int(cur_time +  ( 12 * 60 * 60 * 1000 )) # 12 hours from now
+                if int(sap.expiration) == 0 or int(sap.expiration) > expiration:
                     #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
                     provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
 
@@ -487,7 +487,7 @@ class OrgManagementService(BaseOrgManagementService):
         return negotiation.proposals[-1]
 
 
-    def find_org_negotiations(self, org_id='', proposal_type='', negotiation_status=''):
+    def find_org_negotiations(self, org_id='', proposal_type='', negotiation_status=-1):
         """Returns a list of negotiations for an Org. An optional proposal_type can be supplied
         or else all proposals will be returned. An optional negotiation_status can be supplied
         or else all proposals will be returned. Will throw a not NotFound exception
@@ -506,7 +506,7 @@ class OrgManagementService(BaseOrgManagementService):
         if proposal_type != '':
             neg_list = [neg for neg in neg_list if neg.proposals[0].type_ == proposal_type]
 
-        if negotiation_status != '':
+        if negotiation_status > -1:
             neg_list = [neg for neg in neg_list if neg.negotiation_status == negotiation_status]
 
         return neg_list
@@ -532,7 +532,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         return neg_list
 
-    def find_user_negotiations(self, actor_id='', org_id='', proposal_type='', negotiation_status=''):
+    def find_user_negotiations(self, actor_id='', org_id='', proposal_type='', negotiation_status=-1):
         """Returns a list of negotiations for a specified Actor. All negotiations for all Orgs will be returned
         unless an org_id is specified. An optional proposal_type can be supplied
         or else all proposals will be returned. An optional negotiation_status can be provided
@@ -561,7 +561,7 @@ class OrgManagementService(BaseOrgManagementService):
         if proposal_type != '':
             neg_list = [neg for neg in neg_list if neg.proposals[0].type_ == proposal_type]
 
-        if negotiation_status != '':
+        if negotiation_status > -1:
             neg_list = [neg for neg in neg_list if neg.negotiation_status == negotiation_status]
 
         return neg_list
@@ -963,7 +963,7 @@ class OrgManagementService(BaseOrgManagementService):
         else:
             exclusive = False
 
-        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource_id, exclusive, sap.expiration)
+        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource_id, exclusive, int(sap.expiration))
 
         #Create association between the Commitment and the Negotiation objects
         self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
@@ -990,7 +990,7 @@ class OrgManagementService(BaseOrgManagementService):
         res_commitment = IonObject(OT.ResourceCommitment, resource_id=resource_id, exclusive=exclusive)
 
         commitment = IonObject(RT.Commitment, name='', provider=org_id, consumer=actor_id, commitment=res_commitment,
-             description='Resource Commitment', expiration=expiration)
+             description='Resource Commitment', expiration=str(expiration))
 
         commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
         commitment._id = commitment_id
@@ -1050,7 +1050,7 @@ class OrgManagementService(BaseOrgManagementService):
                         continue
 
                     #If the expiration is not 0 make sure it has not expired
-                    if ( actor_id is None or com.consumer == actor_id) and (( com.expiration == 0 ) or (com.expiration > 0 and cur_time < com.expiration)):
+                    if ( actor_id is None or com.consumer == actor_id) and (( int(com.expiration) == 0 ) or (int(com.expiration) > 0 and cur_time < int(com.expiration))):
                         return True
 
         except Exception, e:
@@ -1081,7 +1081,7 @@ class OrgManagementService(BaseOrgManagementService):
 
                     #If the expiration is not 0 make sure it has not expired
                     if ( actor_id is None or actor_id == com.consumer )  and com.commitment.exclusive and\
-                       com.expiration > 0 and cur_time < com.expiration:
+                       int(com.expiration) > 0 and cur_time < int(com.expiration):
                         return True
 
         except Exception, e:
