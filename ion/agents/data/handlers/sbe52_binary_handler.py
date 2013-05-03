@@ -239,7 +239,7 @@ class SBE52BinaryCTDParser(object):
             out['records'].append(line)
             line = f.read(11)
         # after 'ff'*11 marker, next 8 bytes are start/end times
-        out['start'],out['end'] = struct.unpack('<ii',f.read(8))
+        out['start'],out['end'] = struct.unpack('>II',f.read(8))
         log.trace('read profile [%d-%d] %d records',out['start'],out['end'],len(out['records']))
         return out
 
@@ -303,95 +303,7 @@ class SBE52BinaryCTDParser(object):
         # can't use struct.unpack once for the whole field -- these fields are not typical 2, 4 or 8-byte widths
         out = 0
         for char in data[:-1]:
-            out+=struct.unpack('<B',char)[0]
+            out+=struct.unpack('>B',char)[0]
             out*=256
-        out+=struct.unpack('<B',data[-1])[0]
+        out+=struct.unpack('>B',data[-1])[0]
         return out
-
-
-
-
-
-
-
-
-
-
-
-################################# OLD STUFF BELOW....
-
-class ExternalDatasetParser(object):
-    """ define interface for any ExternalDataset Parser """
-    def __init__(self, url=None):
-        if not url:
-            raise HYPMException('Must provide a filename')
-        self.f = open(url, 'r')
-    def read_next_data(self):
-        raise Exception("must be implemented by subclass")
-    def close(self):
-        if not self.f.closed:
-            self.f.close()
-
-class SBE52_Hex_Parser(ExternalDatasetParser):
-    """ implement common utility for parsing hex fields in SBE52 files """
-    def __init__(self, url, field_positions, eof_marker):
-        '''
-        @param url:
-        @param start_position:
-        @param field_positions: dict of param name to list of 2 int values, char position of start and end of field with that name
-        @param eof_marker:
-        @return:
-        '''
-        super(SBE52_Hex_Parser,self).__init__(url)
-        self.field_positions = field_positions
-        self.eof_marker = eof_marker
-
-    def _parse_field(self, name, line):
-        return int(line[self.field_positions[name][0]:self.field_positions[name][1]], 16)
-    def _parse_line(self, line):
-        out = dict()
-        for field in self.field_positions:
-            pos = self.field_positions[field]
-            out[field] = int( line[pos[0]:pos[1]], 16 )
-        return out
-    def _parse_times(self, line):
-        return ( int(line[0:4], 16), int(line[4:8], 16) )
-    def _parse_file(self):
-        values = []
-        line = self.f.readline()
-        while line!=self.eof_marker:
-            values.append(self._parse_line(line))
-        line = self.f.readline()
-        start_time, end_time = self._parse_times(line)
-        delta_time = end_time - start_time
-        for i in xrange(len(values)):
-            time = start_time + i*delta_time
-            values[i]['time'] = time
-        return values
-
-    def read_next_data(self):
-        values = self._parse_file()
-        # change from list of dicts to dict of lists
-        return { key: [ value[key] for value in values ] for key in self.field_positions }
-
-DEFAULT_ACM_FIELDS = {  'VelA': (0, 2),
-                        'VelB': (2,4),
-                        'VelC': (4,6),
-                        'VelD': (6,8),
-                        'Mx': (8,10),
-                        'My': (10,12),
-                        'Mz': (12,14),
-                        'Pitch': (14,16),
-                        'Roll': (16,18)   }
-
-DEFAULT_ACM_EOF_MARKER = 'ffffffffffffffffffffffffffffffffffff'
-class SBE52_ACM_Parser(SBE52_Hex_Parser):
-    def __init__(self, url, start_position=0):
-        super(SBE52_ACM_Parser,self).__init__(url, DEFAULT_ACM_FIELDS, DEFAULT_ACM_EOF_MARKER)
-        line = self.f.readline()
-        bytes_per_record = int(line[0:4], 16)
-        if bytes_per_record!=18:
-            raise HYPMException('data product expects 9 uint16 values, file expected have 18 bytes per record')
-        self.number_of_records = int(line[4:8], 16)
-        if start_position:
-            self.f.seek(start_position)
