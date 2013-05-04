@@ -252,20 +252,16 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
     return ia_client
 
-@attr('HARDWARE', group='sa')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
-class TestInstrumentAgent(IonIntegrationTestCase):
+
+class InstrumentAgentTest():
     """
     Test cases for instrument agent class. Functions in this class provide
     instrument agent integration tests and provide a tutorial on use of
     the agent setup and interface.
     """
     
-    ############################################################################
-    # Setup, teardown.
-    ############################################################################
-        
-    def setUp(self):
+    def _setup(self):
+
         """
         Set up driver integration support.
         Start port agent, add port agent cleanup.
@@ -283,23 +279,23 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         log.info('log delimiter: %s', DELIM)
         log.info('work dir: %s', WORK_DIR)
         self._support = DriverIntegrationTestSupport(None,
-                                                     None,
-                                                     DEV_ADDR,
-                                                     DEV_PORT,
-                                                     DATA_PORT,
-                                                     CMD_PORT,
-                                                     PA_BINARY,
-                                                     DELIM,
-                                                     WORK_DIR)
-        
+            None,
+            DEV_ADDR,
+            DEV_PORT,
+            DATA_PORT,
+            CMD_PORT,
+            PA_BINARY,
+            DELIM,
+            WORK_DIR)
+
         # Start port agent, add stop to cleanup.
         self._start_pagent()
-        self.addCleanup(self._support.stop_pagent)    
-        
+        self.addCleanup(self._support.stop_pagent)
+
         # Start container.
         log.info('Staring capability container.')
         self._start_container()
-        
+
         # Bring up services in a deploy file (no need to message)
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
@@ -2030,3 +2026,20 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             raw_sizes.append(rdt['raw'].size)
         raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
         self.assertTrue(any(raw_sizes_greater_than_one))
+
+
+@attr('HARDWARE', group='sa')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
+class TestInstrumentAgent(IonIntegrationTestCase, InstrumentAgentTest):
+
+    ############################################################################
+    # Setup, teardown.
+    ############################################################################
+
+    def setUp(self):
+        self._setup()
+
+
+
+
+
