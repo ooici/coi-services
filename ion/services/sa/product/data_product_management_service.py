@@ -623,8 +623,9 @@ class DataProductManagementService(BaseDataProductManagementService):
         #get the dataset size
         ret = self._get_product_dataset_size(data_product_id)
         extended_product.computed.product_download_size_estimated = ret
+        extended_product.computed.stored_data_size = ret
         if ret.value > 0:
-            extended_product.computed.stored_data_size = int(ret.value * 1048576 )  #covert to bytes fo this attribute
+            extended_product.computed.stored_data_size.value = int(ret.value * 1048576 )  #covert to bytes fo this attribute
 
 
         # divide up the active and past user subscriptions
