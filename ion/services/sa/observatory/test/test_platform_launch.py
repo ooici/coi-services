@@ -6,6 +6,9 @@
 @author  Carlos Rueda, Maurice Manning, Ian Katz
 @brief   Test cases for launching and shutting down a platform agent network
 """
+from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue, ComputedDictValue
+from ion.services.sa.test.helpers import any_old
+from pyon.ion.resource import RT
 
 __author__ = 'Carlos Rueda, Maurice Manning, Ian Katz'
 __license__ = 'Apache 2.0'
@@ -25,9 +28,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_8_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_platform_device_extended_attributes
 
-from interface.objects import ComputedIntValue, ComputedValueAvailability, ComputedListValue
-from ion.services.sa.test.helpers import any_old
-from pyon.ion.resource import RT
+
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import instruments_dict
@@ -120,7 +121,15 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self._run_commands()
 
     def test_platform_device_extended_attributes(self):
-        p_root = self._create_small_hierarchy()
+
+        hierarchy_will_fail = True # according to my tests...
+
+        if hierarchy_will_fail:
+            p_root = self._create_small_hierarchy()
+        else:
+            instr_keys = ["SBE37_SIM_01", "SBE37_SIM_02", ]
+            p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
+
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
 
@@ -134,27 +143,29 @@ class TestPlatformLaunch(BaseIntTestPlatform):
             "power_status_roll_up": ComputedIntValue,
             "data_status_roll_up": ComputedIntValue,
             "location_status_roll_up": ComputedIntValue,
-            "aggregated_status": ComputedIntValue,
+            "child_device_status": ComputedDictValue,
+            "rsn_network_child_device_status": ComputedDictValue,
+            "rsn_network_rollup": ComputedDictValue,
         }
 
         for attr, thetype in extended_device_datatypes.iteritems():
+            self.assertIn(attr, p_extended.computed)
             self.assertIsInstance(getattr(p_extended.computed, attr),
                                   thetype,
                                   "Computed attribute %s is not %s" % (attr, thetype))
 
 
 
-        for retval in [p_extended.computed.communications_status_roll_up,
-                       p_extended.computed.data_status_roll_up,
-                       p_extended.computed.power_status_roll_up,
-                       p_extended.computed.power_status_roll_up,
-                       #p_extended.computed.rsn_network_child_device_status,
-                       #p_extended.computed.rsn_network_rollup,
-                       ]:
-            self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status)
+
+        for attr in ["communications_status_roll_up",
+                     "data_status_roll_up",
+                     "power_status_roll_up",
+                     "power_status_roll_up",
+                     ]:
+            retval = getattr(p_extended.computed, attr)
+            self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status, "platform computed.%s was not PROVIDED" % attr)
 
 
-        print "aggregated status:", p_extended.aggregated_status
         print "communications_status_roll_up", p_extended.computed.communications_status_roll_up
         print "data_status_roll_up", p_extended.computed.data_status_roll_up
         print "location_status_roll_up", p_extended.computed.location_status_roll_up
@@ -181,28 +192,30 @@ class TestPlatformLaunch(BaseIntTestPlatform):
             "power_status_roll_up": ComputedIntValue,
             "data_status_roll_up": ComputedIntValue,
             "location_status_roll_up": ComputedIntValue,
-            "aggregated_status": ComputedIntValue,
-            "platform_status": ComputedListValue,
-            "instrument_status": ComputedListValue,
+            "platform_status": ComputedDictValue,
+            "instrument_status": ComputedDictValue,
+            "site_status": ComputedDictValue,
             "platform_station_sites": ComputedListValue,
             "platform_assembly_sites": ComputedListValue,
             "platform_component_sites": ComputedListValue,
             "instrument_sites": ComputedListValue,
         }
         for attr, thetype in extended_site_datatypes.iteritems():
+            self.assertIn(attr, ps_extended.computed)
             self.assertIsInstance(getattr(ps_extended.computed, attr),
                                   thetype,
                                   "Computed attribute %s is not %s" % (attr, thetype))
 
 
 
-        for retval in [ps_extended.computed.communications_status_roll_up,
-                       ps_extended.computed.data_status_roll_up,
-                       ps_extended.computed.power_status_roll_up,
-                       ps_extended.computed.power_status_roll_up,
-                       #ps_extended.computed.rsn_network_child_device_status,
-                       #ps_extended.computed.rsn_network_rollup,
+        for attr in ["communications_status_roll_up",
+                     "data_status_roll_up",
+                     "power_status_roll_up",
+                     "power_status_roll_up",
         ]:
-            self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status)
+            retval = getattr(ps_extended.computed, attr)
+            self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status, "site computed.%s was not PROVIDED" % attr)
+
+        #if True: self.fail(ps_extended.computed)
 
         self._run_shutdown_commands()

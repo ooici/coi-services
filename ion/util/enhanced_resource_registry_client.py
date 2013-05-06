@@ -19,7 +19,6 @@ TEST_LOCALLY=False
 #TEST_LOCALLY=True
 
 
-
 class EnhancedResourceRegistryClient(object):
     """
     This class provides enhanced resource registy client functionality by wrapping the "real" client.
@@ -97,7 +96,6 @@ class EnhancedResourceRegistryClient(object):
         log.debug("done init")
 
 
-
     def __getattr__(self, item):
         """
         anything we can't puzzle out gets passed along to the real RR client
@@ -156,6 +154,7 @@ class EnhancedResourceRegistryClient(object):
 
         return resource_id
 
+
     def read(self, resource_id='', specific_type=None):
         """
         update a single object of the predefined type
@@ -175,6 +174,7 @@ class EnhancedResourceRegistryClient(object):
             self._add_resource_to_cache(specific_type, resource_obj)
 
         return resource_obj
+
 
     def read_mult(self, resource_ids=None, specific_type=None):
         if None is resource_ids:
@@ -230,7 +230,6 @@ class EnhancedResourceRegistryClient(object):
         return self.RR.update(resource_obj)
 
 
-
     def retire(self, resource_id='', specific_type=None):
         """
         alias for LCS retire -- the default "delete operation" in ION
@@ -246,6 +245,7 @@ class EnhancedResourceRegistryClient(object):
         self.RR.retire(resource_id)
 
         return
+
 
     def delete(self, resource_id):
 
@@ -273,7 +273,6 @@ class EnhancedResourceRegistryClient(object):
         self.RR.delete(resource_id)
 
 
-
     def delete_association(self, subject_id='', association_type='', object_id=''):
         """
         delete an association
@@ -290,6 +289,7 @@ class EnhancedResourceRegistryClient(object):
                                         object=object_id)
         self.RR.delete_association(assoc)
 
+
     def find_resource_by_name(self, resource_type, name, id_only=False):
         rsrcs = self.find_resources_by_name(resource_type, name, id_only)
 
@@ -301,6 +301,7 @@ class EnhancedResourceRegistryClient(object):
         else:
             raise NotFound("Expected 1 %s with name '%s', got %d" %
                            (resource_type, name, len(rsrcs)))
+
 
     def find_resources_by_name(self, resource_type, name, id_only=False):
         assert name
@@ -319,6 +320,7 @@ class EnhancedResourceRegistryClient(object):
             return [obj._id for obj in objs]
         else:
             return objs
+
 
     def find_subjects(self, subject_type='', predicate='', object='', id_only=False):
         assert subject_type != ''
@@ -403,7 +405,9 @@ class EnhancedResourceRegistryClient(object):
             return self.read_mult(object_ids)
 
 
-    def find_subject(self, subject_type, predicate, object, id_only=False):
+    def find_subject(self, subject_type='', predicate='', object='', id_only=False):
+        assert subject_type != ''
+        assert predicate != ''
         object_id, object_type = self._extract_id_and_type(object)
 
         objs  = self.find_subjects(subject_type=subject_type,
@@ -421,7 +425,7 @@ class EnhancedResourceRegistryClient(object):
                            (subject_type, object_type, str(object_id)))
 
 
-    def find_object(self, subject, predicate, object_type, id_only=False):
+    def find_object(self, subject, predicate, object_type='', id_only=False):
         subject_id, subject_type = self._extract_id_and_type(subject)
 
         objs = self.find_objects(subject=subject_id,
@@ -437,6 +441,7 @@ class EnhancedResourceRegistryClient(object):
         else:
             raise NotFound("Expected 1 %s as object of %s '%s'" %
                             (object_type, subject_type, str(subject_id)))
+
 
     def delete_object_associations(self, subject_id='', association_type=''):
         """
@@ -572,6 +577,7 @@ class EnhancedResourceRegistryClient(object):
         elif predicate in self._cached_predicates:
             del self._cached_predicates[predicate]
 
+
     def clear_cached_resource(self, resource_type=None):
         if None is resource_type:
             self._cached_resources = {}
@@ -586,6 +592,7 @@ class EnhancedResourceRegistryClient(object):
         log.trace("name is %s: '%s'" % (type(name).__name__, name))
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
 
     def _extract_id_and_type(self, id_or_obj):
         """
@@ -607,6 +614,7 @@ class EnhancedResourceRegistryClient(object):
 
 
         return the_id, the_type
+
 
     def _build_predicate_list(self):
         """
@@ -748,6 +756,7 @@ class EnhancedResourceRegistryClient(object):
         ret["PRED.predicate"] = ipred
 
         return ret
+
 
     def _make_dynamic_assign_function(self, item):
         inputs = self._parse_function_name_for_subj_pred_obj("assign function w/pred",
@@ -947,6 +956,7 @@ class EnhancedResourceRegistryClient(object):
         ret = freeze()
         return ret
 
+
     def _make_dynamic_find_subjects_function(self, item):
         inputs = self._parse_function_name_for_subj_pred_obj("find subjects w/pred function",
                                                              item,
@@ -979,6 +989,7 @@ class EnhancedResourceRegistryClient(object):
 
         ret = freeze()
         return ret
+
 
     def _make_dynamic_find_object_function(self, item):
         inputs = self._parse_function_name_for_subj_pred_obj("find object w/pred function",
@@ -1013,6 +1024,7 @@ class EnhancedResourceRegistryClient(object):
         ret = freeze()
         return ret
 
+
     def _make_dynamic_find_subject_function(self, item):
         inputs = self._parse_function_name_for_subj_pred_obj("find subject w/pred function",
                                                              item,
@@ -1044,8 +1056,6 @@ class EnhancedResourceRegistryClient(object):
 
         ret = freeze()
         return ret
-
-
 
 
 
@@ -1083,6 +1093,7 @@ class EnhancedResourceRegistryClient(object):
         ret = freeze()
         return ret
 
+
     def _make_dynamic_find_subject_ids_function(self, item):
         inputs = self._parse_function_name_for_subj_pred_obj("find subject_ids w/pred function",
                                                              item,
@@ -1116,6 +1127,7 @@ class EnhancedResourceRegistryClient(object):
         ret = freeze()
         return ret
 
+
     def _make_dynamic_find_object_id_function(self, item):
         inputs = self._parse_function_name_for_subj_pred_obj("find object_id w/pred function",
                                                              item,
@@ -1148,6 +1160,7 @@ class EnhancedResourceRegistryClient(object):
 
         ret = freeze()
         return ret
+
 
     def _make_dynamic_find_subject_id_function(self, item):
         inputs = self._parse_function_name_for_subj_pred_obj("find subject_id w/pred function",
