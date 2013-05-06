@@ -1337,6 +1337,11 @@ class OrgManagementService(BaseOrgManagementService):
                 if member_assoc:
                     request.user_id = member_assoc[0]._id
                     request.name = member_assoc[0].name
+                else:
+                    # probably an enroll request, therefore they aren't in the members list. look up by userinfo
+                    user_info = self.clients.resource_registry.read(actor_assoc[0].o)
+                    request.user_id = user_info._id
+                    request.name = user_info.name
 
             ret_list.append(request)
 
