@@ -121,6 +121,28 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         self.pubsub_management.deactivate_subscription(subscription_id)
         self.pubsub_management.delete_subscription(subscription_id)
         
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.array([None,None,None])
+        self.assertTrue(rdt['time'] is None)
+        
+        rdt['time'] = np.array([None, 1, 2])
+        self.assertEquals(rdt['time'][0], rdt.fill_value('time'))
+
+
+        stream_def_obj = self.pubsub_management.read_stream_definition(stream_def_id)
+        rdt = RecordDictionaryTool(stream_definition=stream_def_obj)
+        rdt['time'] = np.arange(20)
+        rdt['temp'] = np.arange(20)
+
+
+        granule = rdt.to_granule()
+        rdt = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_equal(rdt['time'], np.arange(20))
+        np.testing.assert_array_equal(rdt['temp'], np.arange(20))
+
+        
+    def test_filter(self):
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict', id_only=True)
         filtered_stream_def_id = self.pubsub_management.create_stream_definition('filtered', parameter_dictionary_id=pdict_id, available_fields=['time', 'temp'])
         self.addCleanup(self.pubsub_management.delete_stream_definition, filtered_stream_def_id)
         rdt = RecordDictionaryTool(stream_definition_id=filtered_stream_def_id)
@@ -139,12 +161,6 @@ class RecordDictionaryIntegrationTest(IonIntegrationTestCase):
         for k,v in rdt.iteritems():
             self.assertTrue(np.array_equal(rdt[k], rdt2[k]))
         
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.array([None,None,None])
-        self.assertTrue(rdt['time'] is None)
-        
-        rdt['time'] = np.array([None, 1, 2])
-        self.assertEquals(rdt['time'][0], rdt.fill_value('time'))
 
 
     def test_rdt_param_funcs(self):
