@@ -503,12 +503,19 @@ class OOILoader(object):
         series_rd = code + series
         agent_name = row['Agent Code']
 
+        if len(series) != 1:
+            log.warn("Ignoring Series row %s-%s", code, series)
+            return
+
         entry = dict(
             agent_name=agent_name,
             connection=row['Connection'],
             driver=row['Driver'] == "Yes",
             tier1=row['Tier 1'] == "Yes"
             )
+        series_objs = self.get_type_assets("series")
+        if series_rd not in series_objs:
+            log.warn("Series %s not existing anymore", series_rd)
         self._add_object_attribute('series',
                                    series_rd, None, None, **entry)
         if agent_name and agent_name != "NA":
@@ -679,6 +686,12 @@ class OOILoader(object):
             # Parse override date if available or set to SAF date
             inst_obj['SAF_deploy_date'] = self._parse_date(inst_obj.get('First Deployment Date', None), DEFAULT_MAX_DATE)
             inst_obj['deploy_date'] = inst_obj['SAF_deploy_date']
+
+        # Check all series are in spreadsheet
+        series_objs = self.get_type_assets("series")
+        for series_id, series_obj in series_objs.iteritems():
+            if series_obj.get("tier1", None) is None:
+                log.warn("Series %s appears not in mapping spreadsheet - inconsistency?!", series_id)
 
     def get_marine_io(self, ooi_rd_str):
         ooi_rd = OOIReferenceDesignator(ooi_rd_str)
@@ -934,6 +947,12 @@ class OOILoader(object):
         report_lines.append((1, "    Instruments (postponed): %s" % self._asset_counts["insti"]))
         ser_list = self._get_unique(deploy_instruments, "series")
         report_lines.append((0, "  Instrument models (unique): %s (%s)" % (len(ser_list), ",".join(ser_list))))
+        ser_list = self._get_unique(deploy_instruments, "series", "rtia", True)
+        report_lines.append((0, "  Instrument models (RT inst agent): %s (%s)" % (len(ser_list), ",".join(ser_list))))
+        ser_list = self._get_unique(deploy_instruments, "series", "rtda", True)
+        report_lines.append((0, "  Instrument models (RT data agent): %s (%s)" % (len(ser_list), ",".join(ser_list))))
+
+
         agent_list = self._get_unique(deploy_instruments, "iatype", "rtia", True)
         report_lines.append((0, "  Instrument agent types: %s (%s)" % (len(agent_list), ",".join(agent_list))))
         agent_list = self._get_unique(deploy_instruments, "iatype", "ia_ready", True)
@@ -951,6 +970,8 @@ class OOILoader(object):
             report_lines.append((1, "    %s: %s (%s)" % (patype, len(series), ",".join(series))))
 
         self.asset_report = report_lines
+        self.deploy_platforms = deploy_platforms
+        self.deploy_instruments = deploy_instruments
 
     def _get_unique(self, dict_obj, key, fkey=None, fval=None, sort=True, count=False):
         vals = set()
