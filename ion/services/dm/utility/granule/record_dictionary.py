@@ -147,7 +147,7 @@ class RecordDictionaryTool(object):
                 try:
                     doc = svm.read_value(document_key)
                 except NotFound:
-                    log.info('Reference Document for %s not found', document_key)
+                    log.debug('Reference Document for %s not found', document_key)
                     continue
                 if context.lookup_value in doc:
                     self[lv] = doc[context.lookup_value]
