@@ -122,13 +122,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
 
     def test_platform_device_extended_attributes(self):
 
-        hierarchy_will_fail = True # according to my tests...
-
-        if hierarchy_will_fail:
-            p_root = self._create_small_hierarchy()
-        else:
-            instr_keys = ["SBE37_SIM_01", "SBE37_SIM_02", ]
-            p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
+        instr_keys = ["SBE37_SIM_01", "SBE37_SIM_02", ]
+        p_root = self._set_up_platform_hierarchy_with_some_instruments(instr_keys)
 
         self._start_platform(p_root)
         self.addCleanup(self._stop_platform, p_root)
@@ -216,6 +211,21 @@ class TestPlatformLaunch(BaseIntTestPlatform):
             retval = getattr(ps_extended.computed, attr)
             self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status, "site computed.%s was not PROVIDED" % attr)
 
-        #if True: self.fail(ps_extended.computed)
+        all_vals = ""
+        for attr, computedvalue in ps_extended.computed.__dict__.iteritems():
+            all_vals = "%s: " % all_vals
+
+            if hasattr(computedvalue, "__dict__"):
+                all_vals = "%s {" % all_vals
+                for k, v in computedvalue.__dict__.iteritems():
+                    all_vals = "%s%s: %s, " % (all_vals, k, v)
+                all_vals = "%s}, " % all_vals
+            else:
+                all_vals = "%s"
+
+            all_vals = "%s}, " % all_vals
+
+        print "\n%s\n" % all_vals
+        #if True: self.fail(all_vals)
 
         self._run_shutdown_commands()

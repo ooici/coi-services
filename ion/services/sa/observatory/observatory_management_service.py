@@ -775,7 +775,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def _get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        """Returns an InstrumentDeviceExtension object containing additional related information
+        """Returns a site extension object containing common information, plus some helper objects
 
         @param site_id    str
         @param ext_associations    dict
@@ -827,16 +827,23 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
-        return extended_site, RR2, None
+        this_device_id = None
+        try:
+            this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
+        except NotFound:
+            pass
+
+        return extended_site, RR2, this_device_id
 
 
-    def _get_site_extension_plus(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        # the "plus" means "plus all sub-site objects"
-        log.debug("Beginning _get_site_extension_plus( )")
 
-        extended_site, RR2, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+    def _augment_platformsite_extension(self, extended_site, RR2, platform_device_id):
+
         if not RR2.has_cached_prediate(PRED.hasDevice):
             RR2.cache_predicate(PRED.hasDevice)
+
+        site_id = extended_site._id
 
         log.debug("beginning related resources crawl for subsites")
         finder = RelatedResourcesCrawler()
@@ -855,6 +862,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         subsite_ids = list(subsite_ids)
         log.debug("converting retrieved ids to objects = %s" % subsite_ids)
         subsite_objs = RR2.read_mult(subsite_ids)
+
+        log.debug("building tree of child devices from site")
+        all_child_inst_devices = []
+        all_child_plat_devices = []
+        device_of_site = {}
+        for s_id in subsite_ids:
+            try:
+                device_of_site[s_id] = RR2.find_instrument_device_id_of_instrument_site_using_has_device(s_id)
+                all_child_inst_devices.append(device_of_site[s_id])
+            except NotFound:
+                pass
+
+            try:
+                device_of_site[s_id] = RR2.find_platform_device_id_of_platform_site_using_has_device(s_id)
+                all_child_plat_devices.append(device_of_site[s_id])
+            except NotFound:
+                pass
+
 
         # filtered subsites
         def fs(resource_type, filter_fn):
@@ -875,31 +900,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.platform_assembly_sites  = clv(pfs(lambda s: "PlatformAssemblySite" == s.alt_resource_type))
         extended_site.computed.instrument_sites         = clv(ifs(lambda _: True))
 
-        log.debug("building tree of child devices from site")
-        all_child_inst_devices = []
-        all_child_plat_devices = []
-        device_of_site = {}
-        for s_id in subsite_ids:
-            try:
-                device_of_site[s_id] = RR2.find_instrument_device_id_of_instrument_site_using_has_device(s_id)
-                all_child_inst_devices.append(device_of_site[s_id])
-            except NotFound:
-                pass
 
-            try:
-                device_of_site[s_id] = RR2.find_platform_device_id_of_platform_site_using_has_device(s_id)
-                all_child_plat_devices.append(device_of_site[s_id])
-            except NotFound:
-                pass
-
-
-        this_device_id = None
-        try:
-            this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
-        except NotFound:
-            pass
-        log.debug("Reading status for device '%s'", this_device_id)
-        child_agg_status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(this_device_id,
+        log.debug("Reading status for device '%s'", platform_device_id)
+        child_agg_status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
                                                                                                        extended_site.computed,
                                                                                                        all_child_inst_devices + all_child_plat_devices)
         # key -> deviceID becomes key -> device status
@@ -925,40 +928,69 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.platform_status   = compute_status_dict(dict([(x._id, x._id) for x in extended_site.platform_devices]))
         extended_site.computed.site_status       = compute_status_dict(device_of_site)
 
-        return extended_site, RR2, subsite_objs
+
+
+        return extended_site, RR2
 
     # TODO: will remove this one
     def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, _, _ = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        # make a very basic determination of what to do
+        site_type = self.RR2.read(site_id)._get_type()
+
+        if RT.InstrumentSite == site_type:
+            return self.get_instrument_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
+
     def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
+
         return extended_site
 
 
     def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
 
     def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
     def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
 
     def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
 
-        # no subsites of instrument, so shortcut
-        extended_site.computed.platform_station_sites = []
-        extended_site.computed.platform_component_sites = []
-        extended_site.computed.platform_assembly_sites = []
-        extended_site.computed.instrument_sites = []
+        extended_site, RR2, inst_device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        def clv():
+            return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
+
+        def cld():
+            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED, value={})
+
+        extended_site.computed.platform_station_sites   = clv()
+        extended_site.computed.platform_component_sites = clv()
+        extended_site.computed.platform_assembly_sites  = clv()
+        extended_site.computed.instrument_sites         = clv()
+        extended_site.computed.instrument_status        = cld()
+        extended_site.computed.platform_status          = cld()
+        extended_site.computed.site_status              = cld()
+
+        log.debug("Reading status for device '%s'", inst_device_id)
+        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
+                                                                                    extended_site.computed,
+                                                                                    None)
 
         return extended_site
 
