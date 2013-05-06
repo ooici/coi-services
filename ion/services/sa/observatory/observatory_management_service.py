@@ -827,14 +827,14 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
-        return extended_site, RR2
+        return extended_site, RR2, None
 
 
     def _get_site_extension_plus(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
         # the "plus" means "plus all sub-site objects"
         log.debug("Beginning _get_site_extension_plus( )")
 
-        extended_site, RR2 = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
         if not RR2.has_cached_prediate(PRED.hasDevice):
             RR2.cache_predicate(PRED.hasDevice)
 
