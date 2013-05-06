@@ -6,6 +6,7 @@ from ion.util.agent_launcher import AgentLauncher
 from ion.services.sa.instrument.agent_configuration_builder import InstrumentAgentConfigurationBuilder, \
     PlatformAgentConfigurationBuilder
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
+from ion.util.related_resources_crawler import RelatedResourcesCrawler
 from ion.util.resource_lcs_policy import AgentPolicy, ResourceLCSPolicy, ModelPolicy, DevicePolicy
 
 __author__ = 'Maurice Manning, Ian Katz, Michael Meisinger'
@@ -20,7 +21,7 @@ import time
 from ooi.logging import log
 
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError, Unauthorized
+from pyon.core.exception import Inconsistent,BadRequest, NotFound, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
 from pyon.util.ion_time import IonTime
 from pyon.public import LCE
@@ -1547,9 +1548,8 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             user_id=user_id)
 
         #retrieve the aggregate status for the instrument
-        self.agent_status_builder.add_device_aggregate_status_to_resource_extension(instrument_device_id,
-                                                                             'aggstatus',
-                                                                             extended_instrument)
+        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
+                                                                                    extended_instrument.computed)
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
 
         # add UI details for deployments in same order as deployments
@@ -1644,6 +1644,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an PlatformDeviceExtension object containing additional related information
         """
+
+        RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
+
         if not platform_device_id:
             raise BadRequest("The platform_device_id parameter is empty")
 
@@ -1656,10 +1659,15 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_exclude=ext_exclude,
             user_id=user_id)
 
+        log.debug('get_platform_device_extension  platform_device_id: %s', platform_device_id)
+        log.debug('get_platform_device_extension  extended_platform: %s', extended_platform)
+
+
+        log.debug("Generating model object lists")
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id
         lookup = dict([(rt, {}) for rt in [RT.PlatformDevice, RT.InstrumentDevice]])
-        for a in self.RR.find_associations(predicate=PRED.hasModel, id_only=False):
+        for a in RR2.find_associations(predicate=PRED.hasModel, id_only=False):
             if a.st in lookup:
                 lookup[a.st][a.s] = a.o
 
@@ -1678,23 +1686,50 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         extended_platform.platform_models   = retrieve_model_objs(extended_platform.platforms,
                                                                   RT.PlatformDevice)
 
-        self.agent_status_builder.add_platform_device_aggregate_status_to_resource_extension(platform_device_id,
-                                                                                             extended_platform)
+
+        log.debug("Finding all related devices with resource crawler")
+        # use the related resources crawler to get ALL sub-devices
+        finder = RelatedResourcesCrawler()
+        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
+        full_crawllist = [RT.InstrumentDevice, RT.PlatformDevice]
+        search_down = get_assns({PRED.hasDevice: (True, False)}, full_crawllist)
+
+        # the searches return a list of association objects, so compile all the ids by extracting them
+        subdevice_ids = set([])
+
+        # we want only those IDs that are not the input resource id
+        for a in search_down(platform_device_id, -1):
+            if a.o != platform_device_id:
+                subdevice_ids.add(a.o)
+        log.debug("Found %s child devices in tree", len(subdevice_ids))
+        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
+                                                                                    extended_platform.computed,
+                                                                                    list(subdevice_ids))
+
+
+        log.debug("Building network rollups")
         rollx_builder = RollXBuilder(self)
 
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
         net_stats, ancestors = rollx_builder.get_network_hierarchy(top_platformnode_id,
-                                                                   lambda x: self.agent_status_builder.get_aggregate_status_of_device(x, "aggstatus"))
-        extended_platform.computed.rsn_network_child_device_status = net_stats
+                                                                   lambda x: self.agent_status_builder.get_aggregate_status_of_device(x))
+        extended_platform.computed.rsn_network_child_device_status = ComputedDictValue(value=net_stats,
+                                                                                       status=ComputedValueAvailability.PROVIDED)
+
         parent_node_device_ids = rollx_builder.get_parent_network_nodes(platform_device_id)
-        if not parent_node_device_ids:
-            extended_platform.computed.rsn_network_rollup = StatusType.STATUS_UNKNOWN
+
+        if 0 == len(parent_node_device_ids):
+            # todo, just the current network status?
+            extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
+                                                                              reason="Could not find parent network node")
         else:
-            parent_node_statuses = [self.agent_status_builder.get_status_of_device(x, "aggstatus") for x in parent_node_device_ids]
+            parent_node_statuses = [self.agent_status_builder.get_status_of_device(x) for x in parent_node_device_ids]
             rollup_values = {}
             for key, _ in parent_node_statuses[0].iteritems():
                 rollup_values[key] = self.agent_status_builder._crush_status_list([ns[key] for ns in parent_node_statuses])
-            extended_platform.computed.rsn_network_rollup = rollup_values
+
+            extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
+                                                                             value=rollup_values)
 
         # add UI details for deployments
         extended_platform.deployment_info = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=describe_deployments(extended_platform.deployments, self.clients))
