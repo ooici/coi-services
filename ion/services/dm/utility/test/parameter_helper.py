@@ -570,6 +570,7 @@ class ParameterHelper(object):
 
     def create_simple_qc(self):
         contexts = {}
+        types_manager = TypesManager(self.dataset_management,None,None)
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
@@ -579,11 +580,11 @@ class ParameterHelper(object):
         temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
+        temp_ctxt.qc_contexts = types_manager.make_qc_functions('temp','TEMPWAT',lambda *args, **kwargs : None)
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        types_manager = TypesManager(self.dataset_management,None,None)
         ctxt_id, pc = types_manager.make_grt_qc('temp', 'TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
         contexts['temp_qc'] = pc, ctxt_id
