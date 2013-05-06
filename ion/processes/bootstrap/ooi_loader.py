@@ -66,7 +66,7 @@ class OOILoader(object):
                        'MAP:Arrays',
                        'MAP:Sites',
                        'MAP:Subsites',
-                       'MAP:NTypes',
+                       'MAP:NodeType',
                        'MAP:Nodes',
                        'MAP:PlatformAgents',
                        'MAP:Series',
@@ -483,7 +483,7 @@ class OOILoader(object):
         self._add_object_attribute('nodetype',
             ooi_rd[9:11], 'array_list', ooi_rd[:2], value_is_list=True, list_dup_ok=True)
 
-    def _parse_NTypes(self, row):
+    def _parse_NodeType(self, row):
         code = row['Code']
         name = row['Name']
 
@@ -711,19 +711,18 @@ class OOILoader(object):
 
             # Set instrument connection info based on node platform agent connection and instrument agent
             series_obj = series_objs[inst_rd.series_rd]
-            #agent_name =
 
             node_id = inst_rd.node_rd
             node_obj = node_objs[node_id]
-            pagent_type = node_obj.get('platform_agent_type', "")
-            pagent_obj = pagent_objs.get(pagent_type, None)
-            if pagent_obj:
-                instrument_agent_rt = pagent_obj['rt_data_path'] == "Direct"
-                data_agent_rt = pagent_obj['rt_data_path'] == "File Transfer"
-                data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial"
-                inst_obj['instrument_agent_rt'] = instrument_agent_rt
-                inst_obj['data_agent_rt'] = data_agent_rt
-                inst_obj['data_agent_recovery'] = data_agent_recovery
+            pagent_type = node_obj['platform_agent_type']
+            pagent_obj = pagent_objs[pagent_type]
+
+            instrument_agent_rt = (pagent_obj['rt_data_path'] == "Direct") and series_obj['ia_exists']
+            data_agent_rt = (pagent_obj['rt_data_path'] == "File Transfer") and series_obj['dart_exists']
+            data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial" or not (series_obj['ia_exists'] or series_obj['dart_exists'])
+            inst_obj['ia_rt_data'] = instrument_agent_rt
+            inst_obj['da_rt'] = data_agent_rt
+            inst_obj['da_pr'] = data_agent_recovery
 
         # Check all series are in spreadsheet
         for series_id, series_obj in series_objs.iteritems():
@@ -892,10 +891,9 @@ class OOILoader(object):
                 for inst_id in isite_by_node.get(node_id, []):
                     inst_obj = inst_objs[inst_id]
                     inst_rd = OOIReferenceDesignator(inst_id)
-                    series_obj = series_objs[inst_rd.series_rd]
-                    deploy_date = inst_obj.get('deploy_date', DEFAULT_MAX_DATE)
                     patype = node_objs[node_id]['platform_agent_type']
-                    pagent_obj = pagent_objs.get(patype, None)
+                    deploy_date = inst_obj.get('deploy_date', DEFAULT_MAX_DATE)
+                    series_obj = series_objs[inst_rd.series_rd]
                     iatype = series_obj.get('ia_code', None)
                     instagent_obj = instagent_objs[iatype] if iatype else None
                     di_dict = dict(
@@ -903,16 +901,16 @@ class OOILoader(object):
                         patype=patype,
                         series_patype=patype + ":" + inst_rd.series_rd,
                         iatype=iatype,
-                        rtia=inst_obj['instrument_agent_rt'] if pagent_obj['rt_data_path'] == "Direct" else False,
+                        iart=inst_obj['ia_rt_data'],
                         ia_ready=instagent_obj['present'] if iatype else False,
-                        rtda=inst_obj['data_agent_rt'] if pagent_obj['rt_data_path'] == "File Transfer" else False,
-                        prda=inst_obj['data_agent_recovery'] if pagent_obj['full_data_acquisition'] == "Post Deployment" else False,
+                        dart=inst_obj['da_rt'],
+                        dapr=inst_obj['da_pr'],
                         )
                     qualifiers = []
-                    if di_dict['rtia']: qualifiers.append("IA")
-                    if di_dict['rtda']: qualifiers.append("DA-RT")
-                    if di_dict['prda']: qualifiers.append("DA-POST")
-                    if iatype and di_dict['rtia'] and not di_dict['ia_ready']: qualifiers.append("IA_NOT_READY")
+                    if di_dict['iart']: qualifiers.append("IA")
+                    if di_dict['dart']: qualifiers.append("DA_RT")
+                    if di_dict['dapr']: qualifiers.append("DA_POST")
+                    if iatype and di_dict['iart'] and not di_dict['ia_ready']: qualifiers.append("IA_NOT_READY")
 
                     if not end_date or deploy_date <= end_date:
                         deploy_instruments[inst_id] = di_dict
