@@ -186,9 +186,8 @@ class AgentStreamPublisher(object):
 
             log.info('Outgoing granule: %s',
                      ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
-            g = rdt.to_granule(data_producer_id=self._agent.resource_id)
-            g.connection_id = self._connection_ID.hex
-            g.connection_index = self._connection_index[stream_name]
+            g = rdt.to_granule(data_producer_id=self._agent.resource_id, connection_id=self._connection_ID.hex,
+                    connection_index=str(self._connection_index[stream_name]))
             
             publisher.publish(g)
             log.info('Instrument agent %s published data granule on stream %s.',
