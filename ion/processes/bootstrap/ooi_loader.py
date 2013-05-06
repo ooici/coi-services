@@ -8,6 +8,7 @@ import csv
 import datetime
 import os.path
 import re
+import requests
 
 from pyon.public import log, iex
 from ion.core.ooiref import OOIReferenceDesignator
@@ -18,10 +19,11 @@ from ion.util.xlsparser import XLSParser
 DEFAULT_MAX_DATE = datetime.datetime(2020, 1, 1)
 
 class OOILoader(object):
-    def __init__(self, process, container=None, asset_path=None):
+    def __init__(self, process, container=None, asset_path=None, mapping_path=None):
         self.process = process
         self.container = container or self.process.container
         self.asset_path = asset_path
+        self.mapping_path = mapping_path or self.asset_path + "/OOIResourceMappings.xlsx"
         self._extracted = False
 
     def extract_ooi_assets(self):
@@ -61,15 +63,14 @@ class OOILoader(object):
                        'DataProductSpreadsheet',
                        'AllSensorTypeCounts',
                        # Tabs from the mapping spreadsheet
-                       'Arrays',
-                       'Sites',
-                       'Subsites',
-                       'NTypes',
-                       'Nodes',
-                       'PlatformAgents',
-                       'Series',
-                       'InstAgents',
-                       'InstAvail',
+                       'MAP:Arrays',
+                       'MAP:Sites',
+                       'MAP:Subsites',
+                       'MAP:NTypes',
+                       'MAP:Nodes',
+                       'MAP:PlatformAgents',
+                       'MAP:Series',
+                       'MAP:InstAgents',
         ]
 
         # Holds the object representations of parsed OOI assets by type
@@ -79,38 +80,47 @@ class OOILoader(object):
         self.warnings = []
         self.csv_files = None
 
-        # Load OOIResourceMappings.xlsx
-        mapping_file = self.asset_path + "/OOIResourceMappings.xlsx"
-        if os.path.exists(mapping_file):
-            with open(mapping_file, "rb") as f:
-                preload_doc_str = f.read()
-                log.debug("Loaded %s mapping file, size=%s", mapping_file, len(preload_doc_str))
-                xls_parser = XLSParser()
-                self.csv_files = xls_parser.extract_csvs(preload_doc_str)
+        # Load OOI asset mapping spreadsheet
+        if self.mapping_path.startswith('http'):
+            contents = requests.get(self.mapping_path).content
+            length = len(contents)
+            log.info("Loaded mapping spreadsheet from URL %s, size=%s", self.mapping_path, length)
+            csv_docs = XLSParser().extract_csvs(contents)
+            self.csv_files = csv_docs
+
+        elif self.mapping_path.endswith(".xlsx"):
+            # Load from load xlsx file (default OOIResourceMappings.xlsx)
+            if os.path.exists(self.mapping_path):
+                with open(self.mapping_path, "rb") as f:
+                    preload_doc_str = f.read()
+                    log.info("Loaded %s mapping file, size=%s", self.mapping_path, len(preload_doc_str))
+                    xls_parser = XLSParser()
+                    self.csv_files = xls_parser.extract_csvs(preload_doc_str)
 
         for category in categories:
-            row_do, row_skip = 0, 0
+            row_do = 0
 
-            catfunc = getattr(self, "_parse_%s" % category)
-            filename = "%s/%s.csv" % (self.asset_path, category)
-            log.debug("Loading category %s from file %s", category, filename)
-            try:
-                if category in self.csv_files:
-                    csv_doc = self.csv_files[category]
-                    reader = csv.DictReader(csv_doc, delimiter=',')
-                    filename = mapping_file + ":" + category
-                else:
+            if category.startswith("MAP:"):
+                category = category[4:]
+                csv_doc = self.csv_files[category]
+                reader = csv.DictReader(csv_doc, delimiter=',')
+            else:
+                filename = "%s/%s.csv" % (self.asset_path, category)
+                log.debug("Loading category %s from file %s", category, filename)
+                try:
                     csvfile = open(filename, "rb")
                     for i in xrange(9):
                         # Skip the first rows, because they are garbage
                         csvfile.readline()
-                    reader = csv.DictReader(csvfile, delimiter=',')
+                    csv_doc = csvfile.read()
+                    reader = csv.DictReader(csv_doc.splitlines(), delimiter=',')
+                except IOError as ioe:
+                    log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
 
-                for row in reader:
-                    row_do += 1
-                    catfunc(row)
-            except IOError as ioe:
-                log.warn("OOI asset file %s error: %s" % (filename, str(ioe)))
+            catfunc = getattr(self, "_parse_%s" % category)
+            for row in reader:
+                row_do += 1
+                catfunc(row)
 
             log.debug("Loaded assets %s: %d rows read" % (category, row_do))
 
@@ -501,30 +511,41 @@ class OOILoader(object):
         code = row['Class Code']
         series = row['Series']
         series_rd = code + series
-        agent_name = row['Agent Code']
+        ia_code = row['IA Code']
+        dart_code = row['DA RT Code']
+        dapr_code = row['DA PR Code']
+        ia_exists = row['IA'] == "Yes"
+        dart_exists = row['DA RT'] == "Yes"
+        dapr_exists = row['DA PR'] == "Yes"
+        first_avail = row['First Availability']
 
         if len(series) != 1:
             log.warn("Ignoring Series row %s-%s", code, series)
             return
 
         entry = dict(
-            agent_name=agent_name,
             connection=row['Connection'],
-            driver=row['Driver'] == "Yes",
-            tier1=row['Tier 1'] == "Yes"
+            ia_code=ia_code if ia_exists else "",
+            dart_code=dart_code if dart_exists else "",
+            dapr_code=dapr_code if dapr_exists else "",
+            ia_exists=ia_exists,
+            dart_exists=dart_exists,
+            dapr_exists=dapr_exists,
+            tier1=row['Tier 1'] == "Yes",
+            first_avail=self._parse_date(first_avail, DEFAULT_MAX_DATE) if first_avail else DEFAULT_MAX_DATE
             )
         series_objs = self.get_type_assets("series")
         if series_rd not in series_objs:
             log.warn("Series %s not existing anymore", series_rd)
         self._add_object_attribute('series',
                                    series_rd, None, None, **entry)
-        if agent_name and agent_name != "NA":
+        if ia_exists and ia_code and ia_code != "NA":
             self._add_object_attribute('instagent',
-                                       agent_name, None, None,
+                                       ia_code, None, None,
                                        inst_class=code,
                                        tier1=row['Tier 1'] == "Yes")
             self._add_object_attribute('instagent',
-                                       agent_name, 'series_list', series_rd, value_is_list=True, list_dup_ok=True)
+                                       ia_code, 'series_list', series_rd, value_is_list=True, list_dup_ok=True)
 
     def _parse_InstAgents(self, row):
         agent_code = row['Agent Code']
@@ -533,19 +554,6 @@ class OOILoader(object):
                                    active=row['Active'] == "Yes",
                                    present=row['Present'] == "Yes")
 
-    def _parse_InstAvail(self, row):
-        node_code = row['Node Code']
-        inst_class = row['Instrument Class']
-        inst_series = row['Instrument Series']
-        inst_deploy = row['First Deployment Date']
-
-        series_rd = inst_class + inst_series
-        node_series = node_code + "-" + series_rd
-
-        if series_rd and inst_deploy:
-            deploy_date = self._parse_date(inst_deploy, DEFAULT_MAX_DATE)
-            self._add_object_attribute('nodeseries',
-                                       node_series, 'deploy_date', deploy_date)
 
     # ---- Post-processing and validation ----
 
@@ -622,12 +630,15 @@ class OOILoader(object):
         return res_date
 
     def _post_process(self):
-        nodes = self.get_type_assets('node')
+        node_objs = self.get_type_assets("node")
         nodetypes = self.get_type_assets('nodetype')
         subsites = self.get_type_assets('subsite')
         osites = self.get_type_assets('osite')
         sites = self.get_type_assets('site')
         ssites = self.get_type_assets('ssite')
+        inst_objs = self.get_type_assets("instrument")
+        series_objs = self.get_type_assets("series")
+        pagent_objs = self.get_type_assets("platformagent")
 
         # Make sure all node types have a name
         for code, obj in nodetypes.iteritems():
@@ -661,17 +672,26 @@ class OOILoader(object):
             osite.update(bbox)
             osite['rd'] = site_rd_list[0]
 
-        # Make sure all nodes have a name and geospatial coordinates
-        for ooi_rd, obj in nodes.iteritems():
-            if not obj.get('name', None):
-                name = subsites[ooi_rd[:8]]['name'] + " - " + nodetypes[ooi_rd[9:11]]['name']
-                obj['name'] = name
-            if not obj.get('latitude', None):
+        # Post-process "node" objects:
+        # - Make sure all nodes have a name, geospatial coordinates and platform agent connection info
+        # - Convert available node First Deploy Date and override date into datetime objects
+        for node_id, node_obj in node_objs.iteritems():
+            if not node_obj.get('name', None):
+                name = subsites[node_id[:8]]['name'] + " - " + nodetypes[node_id[9:11]]['name']
+                node_obj['name'] = name
+            if not node_obj.get('latitude', None):
                 pass
 
-        # Convert available node First Deploy Date and override date into datetime objects
-        node_objs = self.get_type_assets("node")
-        for node_id, node_obj in node_objs.iteritems():
+            pagent_type = node_obj.get('platform_agent_type', "")
+            pagent_obj = pagent_objs.get(pagent_type, None)
+            if pagent_obj:
+                instrument_agent_rt = pagent_obj['rt_data_path'] == "Direct"
+                data_agent_rt = pagent_obj['rt_data_path'] == "File Transfer"
+                data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial"
+                node_obj['instrument_agent_rt'] = instrument_agent_rt
+                node_obj['data_agent_rt'] = data_agent_rt
+                node_obj['data_agent_recovery'] = data_agent_recovery
+
             if 'deployment_start' not in node_obj:
                 log.warn("Node %s appears not in mapping spreadsheet - inconsistency?!", node_id)
                 # Parse SAF date
@@ -680,18 +700,36 @@ class OOILoader(object):
             # Parse override date if available or set to SAF date
             node_obj['deploy_date'] = self._parse_date(node_obj.get('deployment_start', None), node_obj['SAF_deploy_date'])
 
-        # Convert available instrument First Deploy Date into datetime objects
-        inst_objs = self.get_type_assets("instrument")
+        # Post-process "instrument" objects:
+        # - Set connection info based on platform platform agent
+        # - Convert available instrument First Deploy Date into datetime objects
         for inst_id, inst_obj in inst_objs.iteritems():
+            inst_rd = OOIReferenceDesignator(inst_id)
             # Parse override date if available or set to SAF date
             inst_obj['SAF_deploy_date'] = self._parse_date(inst_obj.get('First Deployment Date', None), DEFAULT_MAX_DATE)
             inst_obj['deploy_date'] = inst_obj['SAF_deploy_date']
 
+            # Set instrument connection info based on node platform agent connection and instrument agent
+            series_obj = series_objs[inst_rd.series_rd]
+            #agent_name =
+
+            node_id = inst_rd.node_rd
+            node_obj = node_objs[node_id]
+            pagent_type = node_obj.get('platform_agent_type', "")
+            pagent_obj = pagent_objs.get(pagent_type, None)
+            if pagent_obj:
+                instrument_agent_rt = pagent_obj['rt_data_path'] == "Direct"
+                data_agent_rt = pagent_obj['rt_data_path'] == "File Transfer"
+                data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial"
+                inst_obj['instrument_agent_rt'] = instrument_agent_rt
+                inst_obj['data_agent_rt'] = data_agent_rt
+                inst_obj['data_agent_recovery'] = data_agent_recovery
+
         # Check all series are in spreadsheet
-        series_objs = self.get_type_assets("series")
         for series_id, series_obj in series_objs.iteritems():
             if series_obj.get("tier1", None) is None:
                 log.warn("Series %s appears not in mapping spreadsheet - inconsistency?!", series_id)
+
 
     def get_marine_io(self, ooi_rd_str):
         ooi_rd = OOIReferenceDesignator(ooi_rd_str)
@@ -715,8 +753,6 @@ class OOILoader(object):
         return ",".join(marine_ios)
 
     def delete_ooi_assets(self):
-        res_ids = []
-
         ooi_asset_types = ['InstrumentModel',
                            'PlatformModel',
                            'Observatory',
@@ -775,8 +811,8 @@ class OOILoader(object):
         nodetype_objs = self.get_type_assets("nodetype")
         inst_objs = self.get_type_assets("instrument")
         series_objs = self.get_type_assets("series")
-        nodeseries_objs = self.get_type_assets("nodeseries")
         instagent_objs = self.get_type_assets("instagent")
+        pagent_objs = self.get_type_assets("platformagent")
 
         deploy_platforms = {}
         platform_children = {}
@@ -811,7 +847,6 @@ class OOILoader(object):
             nodetype_obj = nodetype_objs[ooi_id[9:11]]
             nodetype_obj["deploy_date"] = min(ooi_obj['deploy_date'], nodetype_obj.get("deploy_date", None) or DEFAULT_MAX_DATE)
 
-
         deploy_platform_list = deploy_platforms.values()
         deploy_platform_list.sort(key=lambda obj: [obj['deploy_date'], obj['name']])
 
@@ -819,7 +854,6 @@ class OOILoader(object):
         # - Adjust instrument deployment dates to minimum of parent node (platform) date
         inst_by_node = {}
         isite_by_node = {}
-        pagent_objs = self.get_type_assets("platformagent")
         for inst_id, inst_obj in inst_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_id = ooi_rd.node_rd
@@ -835,36 +869,16 @@ class OOILoader(object):
             isite_by_node[node_id].append(inst_id)
 
             # Find possible override instrument deploy date from InstAvail tab
-            nodeseries_obj = nodeseries_objs.get(node_id + "-" + ooi_rd.series_rd, None)
-            if nodeseries_obj:
-                inst_obj['deploy_date'] = max(inst_obj['deploy_date'], nodeseries_obj['deploy_date'])
+            series_obj = series_objs[ooi_rd.series_rd]
+            series_first_avail = series_obj.get("first_avail", None)
+
+            if series_first_avail:
+                inst_obj['deploy_date'] = max(inst_obj['deploy_date'], series_first_avail)
             else:
                 inst_obj['deploy_date'] = DEFAULT_MAX_DATE  # If not in override, ignore
-            #time_delta = inst_obj['deploy_date'] - node_deploy_date
-            #if 0 < time_delta.days < 40:
-            #    log.warn("Instrument %s first deploy date %s very close after node %s date %s",
-            #             inst_id, inst_obj['deploy_date'], node_id, node_deploy_date)
             inst_obj['deploy_date'] = max(inst_obj['deploy_date'], node_deploy_date)
-            series_obj = series_objs[ooi_rd.series_rd]
             series_obj["deploy_date"] = min(inst_obj['deploy_date'], series_obj.get("deploy_date", None) or DEFAULT_MAX_DATE)
 
-        # Set data recovery mode etc in nodes and instruments
-        for ooi_id, ooi_obj in node_objs.iteritems():
-            pagent_type = ooi_obj.get('platform_agent_type', "")
-            pagent_obj = pagent_objs.get(pagent_type, None)
-            if pagent_obj:
-                instrument_agent_rt = pagent_obj['rt_data_path'] == "Direct"
-                data_agent_rt = pagent_obj['rt_data_path'] == "File Transfer"
-                data_agent_recovery = pagent_obj['rt_data_acquisition'] == "Partial"
-                ooi_obj['instrument_agent_rt'] = instrument_agent_rt
-                ooi_obj['data_agent_rt'] = data_agent_rt
-                ooi_obj['data_agent_recovery'] = data_agent_recovery
-
-                for inst in isite_by_node.get(ooi_id, []):
-                    inst_obj = inst_objs[inst]
-                    inst_obj['instrument_agent_rt'] = instrument_agent_rt
-                    inst_obj['data_agent_rt'] = data_agent_rt
-                    inst_obj['data_agent_recovery'] = data_agent_recovery
 
         # Compose the report
         report_lines.append((0, "OOI ASSET REPORT - DEPLOYMENT UNTIL %s" % end_date.strftime('%Y-%m-%d') if end_date else "PROGRAM END"))
@@ -882,10 +896,9 @@ class OOILoader(object):
                     deploy_date = inst_obj.get('deploy_date', DEFAULT_MAX_DATE)
                     patype = node_objs[node_id]['platform_agent_type']
                     pagent_obj = pagent_objs.get(patype, None)
-                    iatype = series_obj.get('agent_name', None)
+                    iatype = series_obj.get('ia_code', None)
                     instagent_obj = instagent_objs[iatype] if iatype else None
                     di_dict = dict(
-                        #inst_obj=inst_obj,
                         series=inst_rd.series_rd,
                         patype=patype,
                         series_patype=patype + ":" + inst_rd.series_rd,

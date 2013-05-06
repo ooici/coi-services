@@ -24,6 +24,7 @@
     Options:
       ui_path= override location to get UI preload files (default is path + '/ui_assets')
       assets= override location to get OOI asset file (default is path + '/ooi_assets')
+      assetmappings= override location for OOI mapping spreadsheet (default is GoogleDoc)
       attachments= override location to get file attachments (default is path)
       ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
       ooiexclude= one or more categories to NOT import in the OOI import
@@ -101,6 +102,9 @@ TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidHlIX1J6e
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
+
+# URL of the mapping spreadsheet for OOI assets
+OOI_MAPPING_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdFVUeDdoUTU0b0NFQ1dCVDhuUjY0THc&output=xls"
 
 # The preload spreadsheets (tabs) in the order they should be loaded
 DEFAULT_CATEGORIES = [
@@ -232,6 +236,8 @@ class IONLoader(ImmediateProcess):
         self.asset_path = config.get("assets", self.path + "/ooi_assets")
         default_ui_path = self.path if self.path.startswith('http') else self.path + "/ui_assets"
 
+        self.assetmapping_path = config.get("assetmappings", OOI_MAPPING_DOC)
+
         self.ui_path = config.get("ui_path", default_ui_path)
         if self.ui_path=='default':
             self.ui_path = TESTED_UI_ASSETS
@@ -246,7 +252,7 @@ class IONLoader(ImmediateProcess):
 
         # External loader tools
         self.ui_loader = UILoader(self)
-        self.ooi_loader = OOILoader(self, asset_path=self.asset_path)
+        self.ooi_loader = OOILoader(self, asset_path=self.asset_path, mapping_path=self.assetmapping_path)
         self.resource_ds = DatastoreManager.get_datastore_instance(DataStore.DS_RESOURCES, DataStore.DS_PROFILE.RESOURCES)
 
         log.info("IONLoader: {op=%s, path=%s}", op, self.path)
