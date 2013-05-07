@@ -16,6 +16,7 @@ from interface.services.coi.iorg_management_service import BaseOrgManagementServ
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
 from interface.objects import MarineFacilityOrgExtension
+from collections import defaultdict
 
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
@@ -1318,6 +1319,8 @@ class OrgManagementService(BaseOrgManagementService):
         assoc_list = self.clients.resource_registry.find_associations(predicate=PRED.hasInfo, id_only=False)
 
         ret_list = []
+        followup_list = defaultdict(list)
+
         for neg in negotiations:
 
             request = IonObject(OT.OrgUserNegotiationRequest, ts_updated=neg.ts_updated, negotiation_id=neg._id,
@@ -1338,12 +1341,21 @@ class OrgManagementService(BaseOrgManagementService):
                     request.user_id = member_assoc[0]._id
                     request.name = member_assoc[0].name
                 else:
-                    # probably an enroll request, therefore they aren't in the members list. look up by userinfo
-                    user_info = self.clients.resource_registry.read(actor_assoc[0].o)
-                    request.user_id = user_info._id
-                    request.name = user_info.name
+                    followup_list[actor_assoc[0].o].append(request)
 
             ret_list.append(request)
+
+        # assign names/user_ids to any requests that weren't in the members list, likely enroll requests
+        if len(followup_list):
+            user_infos = self.clients.resource_registry.read_mult(followup_list.keys())
+            udict = {}
+            for u in user_infos:
+                udict[u._id] = u
+
+            for k, v in followup_list.iteritems():
+                for request in v:
+                    request.user_id = k
+                    request.name    = udict[k].name
 
         return ret_list
 
