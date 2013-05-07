@@ -1807,6 +1807,7 @@ Reason: %s
             newrow['platform_model_id'] = node_id[9:11] + "_PM"
             newrow['contact_ids'] = ''
             newrow['network_parent_id'] = ""
+            newrow['lcstate'] = "PLANNED_AVAILABLE"
 
             if not self._match_filter([node_id[:2]]):
                 continue
@@ -1903,6 +1904,7 @@ Reason: %s
             else:
                 newrow['platform_device_id'] = node_id + "_PD"
             newrow['contact_ids'] = ''
+            newrow['lcstate'] = "PLANNED_AVAILABLE"
 
             if not self._match_filter(ooi_id[:2]):
                 continue
@@ -2025,6 +2027,7 @@ Reason: %s
                 newrow['platform_model_ids'] = ','.join(node_types)
                 newrow['org_ids'] = self.ooi_loader.get_org_ids(ooi_obj.get('array_list', None))
                 newrow['stream_configurations'] = ""
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
                 if not self._match_filter(ooi_obj.get('array_list', None)):
                     continue
@@ -2115,6 +2118,7 @@ Reason: %s
                 series_list = [sid for sid in series_list if self._get_resource_obj(sid)]
                 newrow['instrument_model_ids'] = ",".join(series_list)
                 newrow['stream_configurations'] = ""
+                newrow['lcstate'] = "DEPLOYED_AVAILABLE"
 
                 if not self._match_filter(ooi_id[:2]):
                     continue
