@@ -468,6 +468,9 @@ class TestIntDataProcessManagementServiceMultiOut(IonIntegrationTestCase):
         #-------------------------------
         extended_process_definition = self.dataprocessclient.get_data_process_definition_extension(ctd_L0_all_dprocdef_id)
         self.assertEqual(1, len(extended_process_definition.data_processes))
+        self.assertEqual(1, len(extended_process_definition.data_products))
+        self.assertEqual(3, len(extended_process_definition.data_products[0]))
+
         log.debug("test_createDataProcess: extended_process_definition  %s", str(extended_process_definition))
 
         extended_process = self.dataprocessclient.get_data_process_extension(ctd_l0_all_data_process_id)
