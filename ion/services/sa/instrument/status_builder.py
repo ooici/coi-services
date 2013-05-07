@@ -67,7 +67,7 @@ class AgentStatusBuilder(object):
 
         return h_agent, ""
 
-
+    # child_device_ids is None for instruments, a list for platforms
     def add_device_rollup_statuses_to_computed_attributes(self, device_id, extension_computed, child_device_ids=None):
 
         # denote "no agent" appropriately
