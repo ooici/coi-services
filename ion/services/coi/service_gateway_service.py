@@ -43,6 +43,7 @@ GATEWAY_ERROR = 'GatewayError'
 GATEWAY_ERROR_EXCEPTION = 'Exception'
 GATEWAY_ERROR_MESSAGE = 'Message'
 GATEWAY_ERROR_TRACE = 'Trace'
+GATEWAY_ERROR_NEEDLOGIN = 'NeedLogin'
 
 
 DEFAULT_EXPIRY = '0'
@@ -364,8 +365,12 @@ def build_error_response(e):
     result = {
         GATEWAY_ERROR_EXCEPTION : exec_name,
         GATEWAY_ERROR_MESSAGE : str(e.message),
-        GATEWAY_ERROR_TRACE : full_error
+        GATEWAY_ERROR_TRACE : full_error,
+        GATEWAY_ERROR_NEEDLOGIN : False
     }
+
+    if isinstance(e, Unauthorized) and 'expired' in str(e):
+        result[GATEWAY_ERROR_NEEDLOGIN] = True
 
     if request.args.has_key(RETURN_MIMETYPE_PARAM):
         return_mimetype = str(request.args[RETURN_MIMETYPE_PARAM])
