@@ -68,29 +68,22 @@ class AgentStatusBuilder(object):
         return h_agent, ""
 
     # child_device_ids is None for instruments, a list for platforms
-    def add_device_rollup_statuses_to_computed_attributes(self, device_id, extension_computed, child_device_ids=None):
+    def add_device_rollup_statuses_to_computed_attributes(self, device_id,
+                                                          extension_computed,
+                                                          child_device_ids=None):
 
-        # denote "no agent" appropriately
+
         h_agent, reason = self.get_device_agent(device_id)
         if None is h_agent:
             self.set_status_computed_attributes_notavailable(extension_computed, reason)
+            return
 
-            if hasattr(extension_computed, "child_device_status"):
-                extension_computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                                                           reason=reason)
-            return None
-
-        # no rolling up necessary for instruments (no child_device_ids list)
         if None is child_device_ids:
-            this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
-            self.set_status_computed_attributes(extension_computed, this_status,
-                                                ComputedValueAvailability.PROVIDED)
             return None
 
-        # if child device ids is not none, the developer had better be giving us a list
+        # if it's not none, the developer had better be giving us a list
         assert isinstance(child_device_ids, list)
 
-        # read child agg status
         child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
         log.debug('add_device_rollup_statuses_to_computed_attributes child_agg_status : %s', child_agg_status)
 
