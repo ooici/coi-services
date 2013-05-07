@@ -98,7 +98,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidHlIX1J6eTRLMzZkcWlRdktOWEwxblE&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdGotRnl2dDRicW1uekhmMWQ4d25fM0E&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -2707,11 +2707,12 @@ Reason: %s
             newrow['coordinate_system'] = 'OOI_SUBMERGED_CS'
             newrow['context_type'] = 'CabledNodeDeploymentContext'
 
+            # TODO: If RSN primary node (past), activate and set to DEPLOYED
+
             self._load_Deployment(newrow)
             row_count += 1
 
         # II. Instrument deployments (RSN and cabled EA only)
-        # TODO: Cabled EA instruments
         for inst_id, inst_obj in inst_objs.iteritems():
             ooi_rd = OOIReferenceDesignator(inst_id)
             node_obj = node_objs[ooi_rd.node_rd]
