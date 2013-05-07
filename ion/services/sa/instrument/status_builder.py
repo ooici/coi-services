@@ -69,12 +69,20 @@ class AgentStatusBuilder(object):
 
 
     def add_device_rollup_statuses_to_computed_attributes(self, device_id, extension_computed, child_device_ids=None):
-        if None is child_device_ids:
-            child_device_ids = []
+
 
         h_agent, reason = self.get_device_agent(device_id)
         if None is h_agent:
             self.set_status_computed_attributes_notavailable(extension_computed, reason)
+            return
+
+        #retrieve the platform status from the platform agent
+        this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
+        log.debug("this_status is %s", this_status)
+
+        if None is child_device_ids:
+            self.set_status_computed_attributes(extension_computed, this_status,
+                                                ComputedValueAvailability.PROVIDED)
             return
 
 
