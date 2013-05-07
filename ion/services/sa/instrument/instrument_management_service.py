@@ -1553,7 +1553,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
 
         # add UI details for deployments in same order as deployments
-        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients)
+        extended_instrument.deployment_info = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=describe_deployments(extended_instrument.deployments, self.clients))
 
         return extended_instrument
 
@@ -1725,16 +1725,14 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         else:
             parent_node_statuses = [self.agent_status_builder.get_status_of_device(x) for x in parent_node_device_ids]
             rollup_values = {}
-            for astkey, astname in AggregateStatusType._str_map.iteritems():
-                log.debug("collecting all %s values to crush", astname)
-                single_type_list = [nodestat.get(astkey, StatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
-                rollup_values[astkey] = self.agent_status_builder._crush_status_list(single_type_list)
+            for key, _ in parent_node_statuses[0].iteritems():
+                rollup_values[key] = self.agent_status_builder._crush_status_list([ns[key] for ns in parent_node_statuses])
 
             extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
                                                                              value=rollup_values)
 
         # add UI details for deployments
-        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients)
+        extended_platform.deployment_info = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=describe_deployments(extended_platform.deployments, self.clients))
         return extended_platform
 
     def get_data_product_parameters_set(self, resource_id=''):

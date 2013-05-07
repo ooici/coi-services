@@ -44,9 +44,6 @@ class RollXBuilder(object):
 
 
     def get_parent_network_nodes(self, site_id):
-        """
-        return the parent nodes of this network node, including the given node
-        """
         if not self.RR2.has_cached_prediate(PRED.hasNetworkParent):
             self.RR2.cache_predicate(PRED.hasNetworkParent)
 
