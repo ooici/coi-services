@@ -68,31 +68,29 @@ class AgentStatusBuilder(object):
         return h_agent, ""
 
 
-    def add_device_rollup_statuses_to_computed_attributes(self, device_id, extension_computed, child_device_ids=None):
-
 
         h_agent, reason = self.get_device_agent(device_id)
         if None is h_agent:
             self.set_status_computed_attributes_notavailable(extension_computed, reason)
-            return
-
-        #retrieve the platform status from the platform agent
-        this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
-        log.debug("this_status is %s", this_status)
+            return None
 
         if None is child_device_ids:
+            this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
             self.set_status_computed_attributes(extension_computed, this_status,
                                                 ComputedValueAvailability.PROVIDED)
-            return
+            return None
 
+        # if it's not none, the developer had better be giving us a list
+        assert isinstance(child_device_ids, list)
 
         child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
-        log.debug('get_platform_device_extension child_agg_status : %s', child_agg_status)
+        log.debug('add_device_rollup_statuses_to_computed_attributes child_agg_status : %s', child_agg_status)
 
         # get child agg status if we can set child_device_status
         if child_agg_status and hasattr(extension_computed, "child_device_status"):
+            crushed = dict([(k, self._crush_status_dict(v)) for k, v in child_agg_status.iteritems()])
             extension_computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                                                       value=child_agg_status)
+                                                                       value=crushed)
 
         #retrieve the platform status from the platform agent
         this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
@@ -166,7 +164,7 @@ class AgentStatusBuilder(object):
     def get_status_of_device(self, device_id):
         status, _ = self._get_status_of_device(device_id)
         if None is status:
-            status = DeviceStatusType.STATUS_UNKNOWN
+            status = {}
         return status
 
 
