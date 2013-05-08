@@ -10,6 +10,7 @@ from ion.services.dm.utility.granule import RecordDictionaryTool
 from pyon.container.cc import Container
 from pyon.ion.stream import StandaloneStreamPublisher
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 import time
 import numpy as np
 
@@ -585,18 +586,6 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
-        ctxt_id, pc = types_manager.make_grt_qc('temp', 'TEMPWAT')
-        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
-        contexts['temp_qc'] = pc, ctxt_id
-        
-        ctxt_id, pc = types_manager.make_spike_qc('temp', 'TEMPWAT')
-        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
-        contexts['temp_spike_qc'] = pc, ctxt_id
-        
-        ctxt_id, pc = types_manager.make_stuckvalue_qc('temp', 'TEMPWAT')
-        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
-        contexts['temp_stuck_qc'] = pc, ctxt_id
-
         return contexts
 
     def create_simple_qc_pdict(self):
@@ -606,9 +595,9 @@ class ParameterHelper(object):
         self.create_stuck_value_test_function()
         contexts = self.create_simple_qc()
         context_ids = [i[1] for i in contexts.itervalues()]
-        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_qc'][0]))
-        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_spike_qc'][0]))
-        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_stuck_qc'][0]))
+        context_ids.extend(contexts['temp'][0].qc_contexts)
+        for qc_context in contexts['temp'][0].qc_contexts:
+            context_ids.extend(types_manager.get_lookup_value_ids(DatasetManagementService.get_parameter_context(qc_context)))
         pdict_id = self.dataset_management.create_parameter_dictionary('simple_qc', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 

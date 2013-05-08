@@ -8,6 +8,7 @@ from pyon.container.cc import Container
 from pyon.core.exception import BadRequest, NotFound
 from pyon.public import CFG, RT
 from pyon.util.memoize import memoize_lru
+from pyon.util.log import log
 
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 
@@ -198,7 +199,7 @@ class TypesManager(object):
         if res_obj:
             return res_obj[0]._id, AbstractFunction.load(res_obj[0].parameter_function)
         else:
-            raise KeyError('global_range_test was never loaded')
+            raise KeyError('%s was never loaded' % name)
 
     def find_grt(self):
         return self.find_function('global_range_test')
@@ -212,27 +213,33 @@ class TypesManager(object):
     def find_trend_test(self):
         return self.find_function("dataqc_polytrendtest")
 
+    def find_gradient_test(self):
+        return self.find_function('dataqc_gradienttest')
+
     def make_qc_functions(self, name, data_product, registration_function):
         contexts = []
-        ctxt_id, pc = self.make_grt_qc(name,data_product)
-        contexts.append(ctxt_id)
-        registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
-        ctxt_id, pc = self.make_spike_qc(name,data_product)
-        contexts.append(ctxt_id)
-        registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
-        ctxt_id, pc = self.make_stuckvalue_qc(name,data_product)
-        contexts.append(ctxt_id)
-        registration_function(ctxt_id,ctxt_id,ParameterContextResource(parameter_context=pc.dump()))
-        ctxt_id, pc = self.make_trendtest_qc(name, data_product)
-        contexts.append(ctxt_id)
-        registration_function(ctxt_id, ctxt_id, ParameterContextResource(parameter_context=pc.dump()))
+
+        qc_factories = [
+                        self.make_grt_qc,
+                        self.make_spike_qc,
+                        self.make_stuckvalue_qc,
+                        #self.make_trendtest_qc, # Not supported
+                        ]
+
+        for factory in qc_factories:
+            try:
+                ctxt_id, pc = factory(name,data_product)
+            except KeyError as e:
+                log.error(e.message)
+                continue
+            contexts.append(ctxt_id)
+            registration_function(ctxt_id, ctxt_id, ParameterContextResource(parameter_context=pc.dump()))
 
         return contexts
 
     @classmethod
     def dp_name(cls, data_product):
         return re.sub(r'_L[0-9]+','',data_product)
-
 
     def make_grt_qc(self, name, data_product):
         pfunc_id, pfunc = self.find_grt() 
@@ -289,22 +296,27 @@ class TypesManager(object):
     def make_trendtest_qc(self, name, data_product):
 
         pfunc_id, pfunc = self.find_trend_test()
-        ti_id, ti_name = self.get_lookup_value('LV_trend_$designator_%s||time_interval' % data_product)
-        poly_id, poly_name = self.get_lookup_value('LV_trend_$designator_%s||polynomial_order' % data_product)
-        std_id, std_name = self.get_lookup_value('LV_trend_$designator_%s||standard_deviation' % data_product)
 
-        '["dat","t","ord_n","ntsd"]'
-        pmap = {'dat': name, 't': ti_name, 'ord_n': poly_name, 'ntsd': std_name }
+        time_id, time_name = self.get_lookup_value('LV_trend_$designator_%s||time_interval' % data_product)
+        order_id, order_name = self.get_lookup_value('LV_trend_$designator_%s||polynomial_order' % data_product)
+        dev_id, dev_name = self.get_lookup_value('LV_trend_$designator_%s||standard_deviation' % data_product)
+
+        pmap = {"dat":name ,"t":time_name,"ord_n":order_name,"ntsd":dev_name}
+
         pfunc.param_map = pmap
-        pfunc.lookup_values = [t_id, poly_id, std_id]
+        pfunc.lookup_values = [time_id, order_id, dev_id]
         dp_name = self.dp_name(data_product)
-        pc = ParameterContext(name='%s_trndtst_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc, value_encoding='|i1'))
+        pc = ParameterContext(name='%s_trndtst_qc' % dp_name.lower(), param_type=ParameterFunctionType(pfunc,value_encoding='|i1'))
         pc.uom = '1'
         pc.ooi_short_name = '%s_TRNDTST_QC' % dp_name
         pc.description = 'The OOI Trend Test quality control algorithm generates flags on data values within a time series where a significant fraction of the variability in the time series can be explained by a drift, where the drift is assumed to be a polynomial of specified order.'
-
         ctxt_id = self.dataset_management.create_parameter_context(name='%s_trndtst_qc' % dp_name.lower(), parameter_type='function', parameter_context=pc.dump(), parameter_function_id=pfunc_id, ooi_short_name=pc.ooi_short_name, units='1', value_encoding='int8', description=pc.description)
         return ctxt_id, pc
+
+#    def make_gradient_test_qc(self, name, data_product):
+#        pfunc_id, pfunc = self.find_gradient_test()
+        
+
 
 
 
