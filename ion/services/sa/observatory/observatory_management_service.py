@@ -975,24 +975,25 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
         extended_site, RR2, inst_device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
 
-        def clv():
-            return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=[])
+        log.debug("Reading status for device '%s'", inst_device_id)
+        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
+                                                                                    extended_site.computed,
+                                                                                    None)
+        def clv(value=None):
+            if value is None: value = []
+            return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=value)
 
-        def cld():
-            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED, value={})
+        def cld(value=None):
+            if value is None: value = {}
+            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED, value=value)
 
         extended_site.computed.platform_station_sites   = clv()
         extended_site.computed.platform_component_sites = clv()
         extended_site.computed.platform_assembly_sites  = clv()
         extended_site.computed.instrument_sites         = clv()
-        extended_site.computed.instrument_status        = cld()
         extended_site.computed.platform_status          = cld()
         extended_site.computed.site_status              = cld()
-
-        log.debug("Reading status for device '%s'", inst_device_id)
-        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
-                                                                                    extended_site.computed,
-                                                                                    None)
+        extended_site.computed.instrument_status        = cld()
 
         return extended_site
 
