@@ -829,6 +829,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
+        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients)
+
         this_device_id = None
         try:
             this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
