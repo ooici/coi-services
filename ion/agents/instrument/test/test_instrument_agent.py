@@ -2061,8 +2061,12 @@ class InstrumentAgentTest():
         retval = self._ia_client.get_schema()
         log.info('Agent schema received: %s',str(retval))
 
+        #print '##################################'
+        #print json.dumps(json.loads(retval.agent_schema),indent=4)
+        #print '##################################'
+
         self.assertIsInstance(retval.agent_schema, str)
-        #self.assertIsInstance(retval.resource_schema, str)
+        self.assertIsInstance(retval.resource_schema, str)
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.

@@ -296,7 +296,8 @@ class InstrumentAgent(ResourceAgent):
         """
         """
         schema = get_schema()
-        schema['streams'] = copy.deepcopy(self.aparam_set_streams)
+        if self.aparam_streams != {}:
+            schema['parameters']['streams']['valid_values'] = [copy.deepcopy(self.aparam_streams)]
         return json.dumps(schema)
     
     ##############################################################
@@ -466,6 +467,7 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_get_resource_schema(self, *args, **kwargs):
         result = self._dvr_client.cmd_dvr('get_config_metadata')
+        result = result or ''
         return (None, result)
 
     ##############################################################
