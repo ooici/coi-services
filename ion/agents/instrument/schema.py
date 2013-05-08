@@ -161,6 +161,20 @@ AGENT_SCHEMA_V1 = {
                 "args" : [],
                 "kwargs" : {}
             },
+        InstrumentAgentCapability.GO_DIRECT_ACCESS :
+            {
+                "display_name" : "Direct Access",
+                "description" : "Activate direct access mode.",
+                "args" : [],
+                "kwargs" : {}
+            },
+        InstrumentAgentCapability.GO_COMMAND :
+            {
+                "display_name" : "Go Command",
+                "description" : "Deactivate direct access mode.",
+                "args" : [],
+                "kwargs" : {}
+            },
         InstrumentAgentCapability.RESET :
             {
                 "display_name" : "Reset",
