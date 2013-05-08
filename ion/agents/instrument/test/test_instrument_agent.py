@@ -90,6 +90,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_schema
 """
 
 ###############################################################################
@@ -124,7 +125,7 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -2026,6 +2027,50 @@ class InstrumentAgentTest():
             raw_sizes.append(rdt['raw'].size)
         raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
         self.assertTrue(any(raw_sizes_greater_than_one))
+
+    def test_schema(self):
+        """
+        test_schema
+        Test agent get_schema command. Transition to intialized and
+        query for agent and resource schema json.
+        """
+
+        # We start in uninitialized state.
+        # In this state there is no driver process.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
+        # Initialize the agent.
+        # The agent is spawned with a driver config, but you can pass one in
+        # optinally with the initialize command. This validates the driver
+        # config, launches a driver process and connects to it via messaging.
+        # If successful, we switch to the inactive state.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
+
+        retval = self._ia_client.get_schema()
+        log.info('Agent schema received: %s',str(retval))
+
+        self.assertIsInstance(retval.agent_schema, str)
+        #self.assertIsInstance(retval.resource_schema, str)
+
+        # Reset the agent. This causes the driver messaging to be stopped,
+        # the driver process to end and switches us back to uninitialized.
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
 
 
 @attr('HARDWARE', group='sa')
