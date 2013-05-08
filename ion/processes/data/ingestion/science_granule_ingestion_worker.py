@@ -147,20 +147,19 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
     def evaluate_qc(self, rdt, dataset_id):
         if self.qc_enabled:
             for field in rdt.fields:
-                if not field.endswith('_qc'):
+                if not field.endswith('glblrng_qc'):
                     continue
                 try:
                     values = rdt[field]
                     if values is not None:
                         if not all(values):
-                            topology = np.nonzero(values)
-                            first_occurrence = topology[0][0]
-                            ts = rdt[rdt.temporal_parameter][first_occurrence]
-                            self.flag_qc_parameter(dataset_id, field, ts, {})
+                            topology = np.where(values==0)
+                            timestamps = rdt[rdt.temporal_parameter][topology[0]]
+                            self.flag_qc_parameter(dataset_id, field, timestamps.tolist(), {})
                 except:
                     continue
-    def flag_qc_parameter(self, dataset_id, parameter, temporal_value, configuration):
-        self.qc_publisher.publish_event(origin=dataset_id, qc_parameter=parameter, temporal_value=temporal_value, configuration=configuration)
+    def flag_qc_parameter(self, dataset_id, parameter, temporal_values, configuration):
+        self.qc_publisher.publish_event(origin=dataset_id, qc_parameter=parameter, temporal_values=temporal_values, configuration=configuration)
 
     def update_connection_index(self, connection_id, connection_index):
         self.connection_id = connection_id
