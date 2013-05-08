@@ -76,3 +76,8 @@ Reload OOI assets, filter to only Global Papa:
 
 Load OOI assets based on a preload script file
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader cfg=res/preload/r2_ioc/config/ooi_load_config.yml
+
+Loading Instrument specific resources (requires BETA):
+======================================
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=CTDBP attachments=res/preload/r2_ioc/attachments
+> bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=PREST attachments=res/preload/r2_ioc/attachments
