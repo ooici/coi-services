@@ -11,7 +11,8 @@ def trend_parser(document):
     '''
     This parser YIELDS a document per call or until it's done
     The format for the document is CSV in this table format
-    Array,Instrument Class,Reference Designator,Data Product,Time interval length in days,Polynomial order, Standard deviation reduction factor (nstd)
+    Array,Instrument Class,Reference Designator,Data Products,Time interval length in days,Polynomial order,Standard deviation reduction factor (nstd)
+    
 
     Document Schema:
         array:
@@ -24,7 +25,7 @@ def trend_parser(document):
             origin: Reference Designator
             type: String
         data_product_in:
-            origin: Data Product
+            origin: Data Products
             type: String
         time_interval:
             origin: Time interval length in days
