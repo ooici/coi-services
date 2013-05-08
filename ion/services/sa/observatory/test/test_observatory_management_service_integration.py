@@ -706,8 +706,8 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_org.members))
         self.assertEqual(1, len(extended_org.open_requests))
 
-#        self.assertTrue(len(extended_site.deployments)>0)
-#        self.assertEqual(len(extended_site.deployments), len(extended_site.deployment_info))
+        self.assertTrue(len(extended_site.deployments)>0)
+        self.assertEqual(len(extended_site.deployments), len(extended_site.deployment_info))
 
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
