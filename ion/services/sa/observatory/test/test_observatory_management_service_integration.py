@@ -22,6 +22,7 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 from interface.services.dm.idataset_management_service import DatasetManagementServiceClient
 from pyon.core.governance import get_actor_header
 from nose.plugins.attrib import attr
+from interface.objects import ComputedValueAvailability
 
 from ion.services.sa.test.helpers import any_old
 
@@ -597,22 +598,25 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.RR2.create_association(pcs_id, PRED.hasSite, ins_id)
 
         extended_obs = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
-        self.assertEqual([pss_obj], extended_obs.computed.platform_station_sites)
-        self.assertEqual([pas_obj], extended_obs.computed.platform_assembly_sites)
-        self.assertEqual([pcs_obj], extended_obs.computed.platform_component_sites)
-        self.assertEqual([ins_obj], extended_obs.computed.instrument_sites)
+        self.assertEqual([pss_obj], extended_obs.computed.platform_station_sites.value)
+        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.computed.platform_station_sites.status)
+        self.assertEqual([pas_obj], extended_obs.computed.platform_assembly_sites.value)
+        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.computed.platform_assembly_sites.status)
+        self.assertEqual([pcs_obj], extended_obs.computed.platform_component_sites.value)
+        self.assertEqual(ComputedValueAvailability.PROVIDED, extended_obs.computed.platform_component_sites.status)
+        self.assertEqual([ins_obj], extended_obs.computed.instrument_sites.value)
 
         extended_pss = self.OMS.get_observatory_site_extension(obs_id, user_id=12345)
-        self.assertEqual([pas_obj], extended_pss.computed.platform_assembly_sites)
-        self.assertEqual([pcs_obj], extended_pss.computed.platform_component_sites)
-        self.assertEqual([ins_obj], extended_pss.computed.instrument_sites)
+        self.assertEqual([pas_obj], extended_pss.computed.platform_assembly_sites.value)
+        self.assertEqual([pcs_obj], extended_pss.computed.platform_component_sites.value)
+        self.assertEqual([ins_obj], extended_pss.computed.instrument_sites.value)
 
         extended_pas = self.OMS.get_observatory_site_extension(pas_id, user_id=12345)
-        self.assertEqual([pcs_obj], extended_pas.computed.platform_component_sites)
-        self.assertEqual([ins_obj], extended_pas.computed.instrument_sites)
+        self.assertEqual([pcs_obj], extended_pas.computed.platform_component_sites.value)
+        self.assertEqual([ins_obj], extended_pas.computed.instrument_sites.value)
 
         extended_pcs = self.OMS.get_platform_component_site_extension(pcs_id, user_id=12345)
-        self.assertEqual([ins_obj], extended_pcs.computed.instrument_sites)
+        self.assertEqual([ins_obj], extended_pcs.computed.instrument_sites.value)
 
 
     #@unittest.skip("in development...")
@@ -689,7 +693,7 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         # Get the extended Org
         #--------------------------------------------------------------------------------
         #test the extended resource
-        extended_org = self.org_management_service.get_marine_facility_extension(stuff.org_id)
+        extended_org = self.OMS.get_marine_facility_extension(stuff.org_id)
         log.debug("test_observatory_org_extended: extended_org:  %s ", str(extended_org))
         #self.assertEqual(2, len(extended_org.instruments_deployed) )
         #self.assertEqual(1, len(extended_org.platforms_not_deployed) )
@@ -703,11 +707,11 @@ class TestObservatoryManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(1, len(extended_org.open_requests))
 
         self.assertTrue(len(extended_site.deployments)>0)
-        self.assertEqual(len(extended_site.deployments), len(extended_site.deployment_info.value))
+        self.assertEqual(len(extended_site.deployments), len(extended_site.deployment_info))
 
         #test the extended resource of the ION org
         ion_org_id = self.org_management_service.find_org()
-        extended_org = self.org_management_service.get_marine_facility_extension(ion_org_id._id, user_id=12345)
+        extended_org = self.OMS.get_marine_facility_extension(ion_org_id._id, user_id=12345)
         log.debug("test_observatory_org_extended: extended_ION_org:  %s ", str(extended_org))
         self.assertEqual(1, len(extended_org.members))
         self.assertEqual(0, extended_org.number_of_platforms)
