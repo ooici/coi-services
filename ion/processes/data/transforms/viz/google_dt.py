@@ -140,6 +140,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
                 continue
 
+            # If it's a QC parameter ignore it
+            if field.endswith('_qc'):
+                continue
+
             # Handle string type or if its an unknown type, convert to string
             if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):
                 data_description.append((field, 'string', field ))
