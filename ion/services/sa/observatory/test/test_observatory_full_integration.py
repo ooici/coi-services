@@ -55,10 +55,16 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Check lcstates for select OOI resources: Some PLANNED, some INTEGRATED, some DEPLOYED
 
-        # See if primary nodes are already deployed, in particular CE04OSHY-PN01C
+        # See if Deployment for primary nodes is already active and in DEPLOYED lcstate, in particular CE04OSHY-PN01C
 
 
         # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
+
+        # Set CE04OSHY-LV01C device to DEVELOPED state
+
+        # Set CE04OSHY-LV01C device to INTEGRATED state
+
+        # Set CE04OSHY-LV01C device to DEPLOYED state
 
         # Set CE04OSHY-LV01C Deployment to DEPLOYED state
 
@@ -66,10 +72,18 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # (optional) Start CE04OSHY-LV01C platform agent with simulator
 
+        # Set DataProduct for CE04OSHY-LV01C platform to DEPLOYED state
+
+        # Check events for CE04OSHY-LV01C platform
+
 
         # Check existing CE04OSBP-LJ01C Deployment (PLANNED lcstate)
 
         # Set CE04OSBP-LJ01C Deployment to DEPLOYED state
+
+        # Update description and other attributes for CE04OSBP-LJ01C device resource
+
+        # Create attachment (JPG image) for CE04OSBP-LJ01C device resource
 
         # Activate Deployment for CE04OSBP-LJ01C
 
@@ -80,6 +94,12 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Check existing RSN instrument CE04OSBP-LJ01C-06-CTDBPO108 Deployment (PLANNED lcstate)
 
+        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to DEVELOPED state
+
+        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to INTEGRATED state
+
+        # Set CE04OSBP-LJ01C-06-CTDBPO108 device to DEPLOYED state
+
         # Set CE04OSBP-LJ01C-06-CTDBPO108 Deployment to DEPLOYED state
 
         # Activate Deployment for CE04OSBP-LJ01C-06-CTDBPO108 instrument
@@ -88,6 +108,8 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # (optional) Start CE04OSBP-LJ01C-06-CTDBPO108 instrument agent with simulator
 
+        # Set all DataProducts for CE04OSBP-LJ01C-06-CTDBPO108 to DEPLOYED state
+
 
         # (optional) Create a substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a comparable device
 
@@ -95,8 +117,12 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # (optional) Set first CE04OSBP-LJ01C-06-CTDBPO108 Deployment to INTEGRATED state
 
+        # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to INTEGRATED state
+
 
         # (optional) Create a third Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a same device from first deployment
+
+        # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to DEPLOYED state
 
         # (optional) Activate this third deployment - check second deployment is deactivated
 
@@ -110,7 +136,13 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         # Deactivate Deployment for GP05MOAS-GL001
 
 
-        # Create a Deployment for same glider device same site GP05MOAS-GL001
+        # Create a new Deployment resource X without any assignment
+
+        # Assign Deployment X to site GP05MOAS-GL001
+
+        # Assign Deployment X to first device for GP05MOAS-GL001
+
+        # Set GP05MOAS-GL001 Deployment to PLANNED state
 
         # Set second GP05MOAS-GL001 Deployment to DEPLOYED
 
@@ -119,13 +151,45 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         # Deactivate second Deployment for GP05MOAS-GL001
 
 
+        # Set several CE01ISSM-RI002-* instrument devices to DEVELOPED state
+
         # Assemble several CE01ISSM-RI002-* instruments to a CG CE01ISSM-RI002 component platform
 
+        # Set several CE01ISSM-RI002-* instrument devices to INTEGRATED state
+
         # Assemble CE01ISSM-RI002 platform to CG CE01ISSM-LM001 station platform
+
+        # Set CE01ISSM-RI002 component device to INTEGRATED state
+
+        # Set CE01ISSM-LM001 station device to INTEGRATED state
+
+        # Set CE01ISSM-LM001 station device to DEPLOYED state (children maybe too?)
 
         # Set CE01ISSM-LM001 Deployment to DEPLOYED
 
         # Activate CE01ISSM-LM001 platform assembly deployment
+
+
+        # Dectivate CE01ISSM-LM001 platform assembly deployment
+
+        # Set CE01ISSM-LM001 Deployment to INTEGRATED state
+
+        # Set CE01ISSM-LM001 station device to INTEGRATED state
+
+        # Set CE01ISSM-RI002 component device to INTEGRATED state
+
+        # Set CE01ISSM-RI002 component device to INTEGRATED state
+
+        # Disassemble CE01ISSM-RI002 platform from CG CE01ISSM-LM001 station platform
+
+        # Disassemble all CE01ISSM-RI002-* instruments from a CG CE01ISSM-RI002 component platform
+
+
+        # Retire instrument one for CE01ISSM-RI002-*
+
+        # Retire device one for CE01ISSM-RI002
+
+        # Retire device one for CE01ISSM-LM001
 
 
         # Add a new instrument agent
