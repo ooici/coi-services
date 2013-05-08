@@ -24,7 +24,7 @@ from ion.util.geo_utils import GeoUtils
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, StatusType, ComputedListValue, ComputedDictValue
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue
 from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum
 from collections import defaultdict
 
@@ -884,7 +884,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             except NotFound:
                 pass
 
-
         # filtered subsites
         def fs(resource_type, filter_fn):
             both = lambda s: ((resource_type == s._get_type()) and filter_fn(s))
@@ -904,37 +903,30 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.platform_assembly_sites  = clv(pfs(lambda s: "PlatformAssemblySite" == s.alt_resource_type))
         extended_site.computed.instrument_sites         = clv(ifs(lambda _: True))
 
-
-        log.debug("Reading status for device '%s'", platform_device_id)
-        child_agg_status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
-                                                                                                       extended_site.computed,
-                                                                                                       all_child_inst_devices + all_child_plat_devices)
-        # key -> deviceID becomes key -> device status
-        def compute_status_dict(key_to_device_dict):
-            ret = {}
-            if not isinstance(child_agg_status, dict):
-                return ComputedDictValue(reason="Top platform's child_agg_status is '%s'" % type(child_agg_status).__name__)
-
-            for k, v in key_to_device_dict.iteritems():
-                if not type("") == type(v):
-                    raise BadRequest("attempted to compute_status_dict with type(v) = %s : %s" % (type(v), v))
-                if v in child_agg_status:
-                    ret[k] = self.agent_status_builder._crush_status_dict(child_agg_status[v])
-                else:
-                    log.warn("Status for device '%s' of key '%s' not found in parent platform's child_agg_status", k, v)
-                    ret[k] = StatusType.STATUS_UNKNOWN
-
-            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                     value=ret)
-
-        log.debug("Building instrument and platform status dicts")
-        extended_site.computed.instrument_status = compute_status_dict(dict([(x._id, x._id) for x in extended_site.instrument_devices]))
-        extended_site.computed.platform_status   = compute_status_dict(dict([(x._id, x._id) for x in extended_site.platform_devices]))
-        extended_site.computed.site_status       = compute_status_dict(device_of_site)
-
-
+        self._add_rollups_and_child_statuses_to_extension(extended_site,
+                                                          platform_device_id,
+                                                          all_child_inst_devices + all_child_plat_devices,
+                                                          device_of_site)
 
         return extended_site, RR2
+
+
+    def _add_rollups_and_child_statuses_to_extension(self, extension_obj, device_id, child_device_ids, device_of_site=None):
+
+        log.debug("Reading status for device '%s'", device_id)
+        child_agg_status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(device_id,
+                                                                                                       extension_obj.computed,
+                                                                                                       child_device_ids)
+
+        def csd(device_id_map):
+            return self.agent_status_builder.compute_status_dict(child_agg_status, device_id_map)
+
+        log.debug("Building instrument and platform status dicts")
+        extension_obj.computed.instrument_status = csd(dict([(x._id, x._id) for x in extension_obj.instrument_devices]))
+        extension_obj.computed.platform_status   = csd(dict([(x._id, x._id) for x in extension_obj.platform_devices]))
+        extension_obj.computed.site_status       = csd(device_of_site)
+
+
 
     # TODO: will remove this one
     def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
@@ -1166,8 +1158,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
         extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
 
-        # Status computation
-        from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+
 
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id (model)
@@ -1190,23 +1181,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
 
 
-        s_unknown = StatusType.STATUS_UNKNOWN
-
-        # initialize computed attributes
-        extended_org.computed.instrument_status = [s_unknown] * len(extended_org.instruments)
-        extended_org.computed.platform_status   = [s_unknown] * len(extended_org.platforms)
-        extended_org.computed.site_status       = [s_unknown] * len(extended_org.sites)
-
-        # shortcut constructor for default value
-        def status_unknown():
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
-
-        extended_org.computed.communications_status_roll_up = status_unknown()
-        extended_org.computed.power_status_roll_up          = status_unknown()
-        extended_org.computed.data_status_roll_up           = status_unknown()
-        extended_org.computed.location_status_roll_up       = status_unknown()
-        extended_org.computed.aggregated_status             = status_unknown()
-
 
         # calculate computed attributes
         try:
@@ -1222,10 +1196,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             log.exception("Computed attribute failed for org %s" % org_id)
 
 
-        # shortcut constructor for computed int value
-        def short_status_rollup(key):
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                value=status_rollups.get(org_id, {}).get(key, s_unknown))
 
         extended_org.computed.communications_status_roll_up = short_status_rollup("comms")
         extended_org.computed.power_status_roll_up          = short_status_rollup("power")

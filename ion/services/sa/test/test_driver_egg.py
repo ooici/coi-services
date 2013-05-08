@@ -30,7 +30,7 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
+from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum, ComputedStringValue
 
 

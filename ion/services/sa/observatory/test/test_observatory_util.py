@@ -11,7 +11,7 @@ from pyon.util.unit_test import IonUnitTestCase
 from ion.services.sa.observatory.mockutil import MockUtil
 from ion.services.sa.observatory.observatory_util import ObservatoryUtil
 
-from interface.objects import StatusType, DeviceStatusType, DeviceCommsType
+from interface.objects import DeviceStatusType, DeviceCommsType
 
 
 @attr('UNIT', group='saob')
@@ -257,37 +257,37 @@ class TestObservatoryUtil(IonUnitTestCase):
         # ID_1 power warning
         self.mu.load_mock_events(self.event_list2)
         status_rollups = self.obs_util.get_status_roll_ups('ID_1', RT.InstrumentDevice)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('PD_1', RT.PlatformDevice)
-        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('IS_1', RT.InstrumentSite)
         self.assertIn('IS_1', status_rollups)
-        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('PS_1', RT.PlatformSite)
         self.assertIn('PS_1', status_rollups)
         self.assertIn('IS_1', status_rollups)
-        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING)
 
         # ID_1 power+comms warning
         self.mu.load_mock_events(self.event_list3)
         status_rollups = self.obs_util.get_status_roll_ups('ID_1', RT.InstrumentDevice)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('PD_1', RT.PlatformDevice)
-        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('IS_1', RT.InstrumentSite)
         self.assertEquals(len(status_rollups), 6)
         self.assertIn('IS_1', status_rollups)
         self.assertIn('ID_1', status_rollups)
-        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('PS_1', RT.PlatformSite)
         self.assertEquals(len(status_rollups), 6)
@@ -295,10 +295,10 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.assertIn('PD_1', status_rollups)
         self.assertIn('IS_1', status_rollups)
         self.assertIn('ID_1', status_rollups)
-        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
         self._assert_status(status_rollups, 'PD_1')
-        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('Sub_1', RT.Subsite)
         self.assertIn('Sub_1', status_rollups)
@@ -306,11 +306,11 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.assertIn('PD_1', status_rollups)
         self.assertIn('IS_1', status_rollups)
         self.assertIn('ID_1', status_rollups)
-        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Sub_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
         self._assert_status(status_rollups, 'PD_1')
-        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
 
         status_rollups = self.obs_util.get_status_roll_ups('Obs_1', RT.Observatory)
         self.assertIn('Obs_1', status_rollups)
@@ -319,12 +319,12 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.assertIn('PD_1', status_rollups)
         self.assertIn('IS_1', status_rollups)
         self.assertIn('ID_1', status_rollups)
-        self._assert_status(status_rollups, 'Obs_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Obs_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Sub_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
         self._assert_status(status_rollups, 'PD_1')
-        self._assert_status(status_rollups, 'IS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'ID_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'IS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'ID_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
 
     def test_get_status_roll_ups_platform_warn(self):
         self.mu.load_mock_resources(self.res_list)
@@ -339,7 +339,7 @@ class TestObservatoryUtil(IonUnitTestCase):
 
         status_rollups = self.obs_util.get_status_roll_ups('PD_1', RT.PlatformDevice)
         #log.warn("status %s" % status_rollups)
-        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
         self._assert_status(status_rollups, 'ID_1')
 
         status_rollups = self.obs_util.get_status_roll_ups('IS_1', RT.InstrumentSite)
@@ -355,8 +355,8 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.assertIn('PD_1', status_rollups)
         self.assertIn('IS_1', status_rollups)
         self.assertIn('ID_1', status_rollups)
-        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
         self._assert_status(status_rollups, 'IS_1')
         self._assert_status(status_rollups, 'ID_1')
 
@@ -366,9 +366,9 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.assertIn('PD_1', status_rollups)
         self.assertIn('IS_1', status_rollups)
         self.assertIn('ID_1', status_rollups)
-        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Sub_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
         self._assert_status(status_rollups, 'IS_1')
         self._assert_status(status_rollups, 'ID_1')
 
@@ -379,15 +379,15 @@ class TestObservatoryUtil(IonUnitTestCase):
         self.assertIn('PD_1', status_rollups)
         self.assertIn('IS_1', status_rollups)
         self.assertIn('ID_1', status_rollups)
-        self._assert_status(status_rollups, 'Obs_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'Sub_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'PS_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
-        self._assert_status(status_rollups, 'PD_1', agg=StatusType.STATUS_WARNING, power=StatusType.STATUS_WARNING, comms=StatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Obs_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'Sub_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PS_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
+        self._assert_status(status_rollups, 'PD_1', agg=DeviceStatusType.STATUS_WARNING, power=DeviceStatusType.STATUS_WARNING, comms=DeviceStatusType.STATUS_WARNING)
         self._assert_status(status_rollups, 'IS_1')
         self._assert_status(status_rollups, 'ID_1')
 
-    def _assert_status(self, status_rollups, res_id=None, agg=StatusType.STATUS_OK, loc=StatusType.STATUS_OK,
-                       data=StatusType.STATUS_OK, comms=StatusType.STATUS_OK, power=StatusType.STATUS_OK):
+    def _assert_status(self, status_rollups, res_id=None, agg=DeviceStatusType.STATUS_OK, loc=DeviceStatusType.STATUS_OK,
+                       data=DeviceStatusType.STATUS_OK, comms=DeviceStatusType.STATUS_OK, power=DeviceStatusType.STATUS_OK):
         res_status = status_rollups[res_id] if res_id else status_rollups
         self.assertEquals(len(res_status), 5)
 #        #self.assertEquals(res_status['agg'], agg)

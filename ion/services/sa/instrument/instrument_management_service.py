@@ -39,7 +39,7 @@ from ion.util.qa_doc_parser import QADocParser
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ComputedListValue, StatusType, ProcessDefinition, ComputedDictValue
+from interface.objects import AttachmentType, ComputedValueAvailability, ComputedListValue, DeviceStatusType, ProcessDefinition, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
@@ -1783,7 +1783,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             rollup_values = {}
             for astkey, astname in AggregateStatusType._str_map.iteritems():
                 log.debug("collecting all %s values to crush", astname)
-                single_type_list = [nodestat.get(astkey, StatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
+                single_type_list = [nodestat.get(astkey, DeviceStatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
                 rollup_values[astkey] = self.agent_status_builder._crush_status_list(single_type_list)
 
             extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,

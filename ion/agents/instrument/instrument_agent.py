@@ -53,7 +53,7 @@ from ion.agents.agent_alert_manager import AgentAlertManager
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
 from interface.objects import StreamAlertType
-from interface.objects import AgentCommand, StatusType, DeviceStatusType, AggregateStatusType
+from interface.objects import AgentCommand, DeviceStatusType, AggregateStatusType
 
 class InstrumentAgentState(BaseEnum):
     POWERED_DOWN = ResourceAgentState.POWERED_DOWN
