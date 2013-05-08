@@ -334,7 +334,10 @@ AGENT_SCHEMA_V1 = {
     "alert_defs" : ALERTS
     }
 
-def get_schemna():
+def get_schema():
+    return AGENT_SCHEMA_V1
+
+def get_schema_json():
     return json.dumps(AGENT_SCHEMA_V1)
     
 def pp_schema():

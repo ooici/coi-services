@@ -50,7 +50,6 @@ from ion.agents.instrument.direct_access.direct_access_server import SessionClos
 from ion.agents.agent_stream_publisher import AgentStreamPublisher
 from ion.agents.agent_alert_manager import AgentAlertManager
 
-
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
 from interface.objects import StreamAlertType
@@ -113,6 +112,8 @@ class ResourceInterfaceCapability(BaseEnum):
     PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
     GET_RESOURCE_STATE = ResourceAgentEvent.GET_RESOURCE_STATE
     EXECUTE_RESOURCE = ResourceAgentEvent.EXECUTE_RESOURCE
+
+from ion.agents.instrument.schema import get_schema
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -290,6 +291,13 @@ class InstrumentAgent(ResourceAgent):
                 result.append('execute_resource')
 
         return result
+
+    def _get_agent_schema(self):
+        """
+        """
+        schema = get_schema()
+        schema['streams'] = copy.deepcopy(self.aparam_set_streams)
+        return json.dumps(schema)
     
     ##############################################################
     # Agent interface.
