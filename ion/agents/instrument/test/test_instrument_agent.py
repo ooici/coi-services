@@ -1206,10 +1206,6 @@ class InstrumentAgentTest():
         mode. Verify ResourceAgentResourceStateEvents are publsihed.
         """
         
-        from memory_profiler import memory_usage
-        print '###############'
-        print str(memory_usage(-1))
-        
         # Start data subscribers.
         self._start_data_subscribers(3, 10)
         self.addCleanup(self._stop_data_subscribers)    
@@ -1239,14 +1235,8 @@ class InstrumentAgentTest():
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
 
-        print '###############'
-        print str(memory_usage(-1))
-        
         gevent.sleep(15)
 
-        print '###############'
-        print str(memory_usage(-1))
-        
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
  
@@ -1263,10 +1253,6 @@ class InstrumentAgentTest():
 
         self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertGreaterEqual(len(self._raw_samples_received), 10)
-
-        print '###############'
-        print str(memory_usage(-1))
-
 
     def test_capabilities(self):
         """
@@ -2102,6 +2088,7 @@ class InstrumentAgentTest():
         # https://pypi.python.org/pypi/memory_profiler
         
         mfile = open('memuse.txt','w')
+        
         from memory_profiler import memory_usage
         
         def report_memuse():            
