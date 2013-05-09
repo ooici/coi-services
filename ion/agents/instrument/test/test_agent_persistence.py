@@ -556,11 +556,34 @@ class TestAgentPersistence(IonIntegrationTestCase):
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
 
-    @unittest.skip('')
+    #@unittest.skip('')
     def test_agent_rparam_persistence(self):
         """
         test_agent_rparam_persistence
         Verify ability to restore device configuration.
+        ### Original values:
+        {'TA0': -0.0002572242, 'OUTPUTSV': False, 'NAVG': 0}
+        
+        ### Values after set:
+        {'TA0': -0.0005144484, 'OUTPUTSV': True, 'NAVG': 1}
+
+        ### Restore config:
+        {'PTCA1': 0.6603433, 'WBOTC': 1.2024e-05, 'PCALDATE': [12, 8, 2005],
+        'STORETIME': False, 'CPCOR': 9.57e-08, 'PTCA2': 0.00575649,
+        'OUTPUTSV': True, 'SAMPLENUM': 0, 'TCALDATE': [8, 11, 2005],
+        'OUTPUTSAL': False, 'TA2': -9.717158e-06, 'POFFSET': 0.0,
+        'INTERVAL': 19733, 'SYNCWAIT': 0, 'CJ': 3.339261e-05,
+        'CI': 0.0001334915, 'CH': 0.1417895, 'TA0': -0.0005144484,
+        'TA1': 0.0003138936, 'NAVG': 1, 'TA3': 2.138735e-07, '
+        RCALDATE': [8, 11, 2005], 'CG': -0.987093, 'CTCOR': 3.25e-06, '
+        PTCB0': 24.6145, 'PTCB1': -0.0009, 'PTCB2': 0.0,
+        'CCALDATE': [8, 11, 2005], 'PA0': 5.916199, 'PA1': 0.4851819,
+        'PA2': 4.596432e-07, 'SYNCMODE': False, 'PTCA0': 276.2492,
+        'TXREALTIME': True, 'RTCA2': -3.022745e-08, 'RTCA1': 1.686132e-06,
+        'RTCA0': 0.9999862}
+        
+        ### Of which we have:
+        {'TA0': -0.0005144484, 'OUTPUTSV': True, 'NAVG': 1}        
         """
 
         self._start_agent()
@@ -606,9 +629,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
         retval = self._ia_client.get_resource(params)
         orig_params = retval
 
-        print '################# original values:'
-        print str(retval)
-
         new_params = {
             SBE37Parameter.OUTPUTSV : not orig_params[SBE37Parameter.OUTPUTSV],
             SBE37Parameter.NAVG : orig_params[SBE37Parameter.NAVG] + 1,
@@ -617,10 +637,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
 
         self._ia_client.set_resource(new_params)
         retval = self._ia_client.get_resource(params)
-
-        print '################# values after set:'
-        print str(retval)
-
         
         self.assertEqual(retval[SBE37Parameter.OUTPUTSV],
                          new_params[SBE37Parameter.OUTPUTSV])
@@ -630,7 +646,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     new_params[SBE37Parameter.TA0])*.01
         self.assertAlmostEqual(retval[SBE37Parameter.TA0],
                                new_params[SBE37Parameter.TA0], delta=delta)
-
 
         # Now stop and restart the agent.
         self._stop_agent()
@@ -649,13 +664,9 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     gevent.sleep(1)
         except gevent.Timeout:
             fail("Could not restore agent state to COMMAND.")
-
         
         # Verify the parameters have been restored as needed.
         retval = self._ia_client.get_resource(params)
-
-        print '################# values after restart:'
-        print str(retval)
 
         self._ia_client.set_resource(new_params)
         retval = self._ia_client.get_resource(params)
@@ -669,8 +680,6 @@ class TestAgentPersistence(IonIntegrationTestCase):
         self.assertAlmostEqual(retval[SBE37Parameter.TA0],
                                new_params[SBE37Parameter.TA0], delta=delta)
 
-        
-        
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
