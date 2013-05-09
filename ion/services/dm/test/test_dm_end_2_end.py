@@ -356,42 +356,6 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt_out['salinity'], np.array([30.935132729668283]))
 
 
-    def test_qc_events(self):
-        ph = ParameterHelper(self.dataset_management, self.addCleanup)
-        pdict_id = ph.create_qc_pdict()
-        stream_def_id = self.pubsub_management.create_stream_definition('qc stream def', parameter_dictionary_id=pdict_id)
-        self.addCleanup(self.pubsub_management.delete_stream_definition, stream_def_id)
-
-        stream_id, route = self.pubsub_management.create_stream('qc stream', exchange_point=self.exchange_point_name, stream_definition_id=stream_def_id)
-        self.addCleanup(self.pubsub_management.delete_stream, stream_id)
-
-        ingestion_config_id = self.get_ingestion_config()
-        dataset_id = self.create_dataset(pdict_id)
-        config = DotDict()
-
-        self.ingestion_management.persist_data_stream(stream_id=stream_id, ingestion_configuration_id=ingestion_config_id, dataset_id=dataset_id, config=config)
-        self.addCleanup(self.ingestion_management.unpersist_data_stream, stream_id, ingestion_config_id)
-
-        publisher = StandaloneStreamPublisher(stream_id, route)
-        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(10)
-        rdt['temp'] = np.arange(10) * 3
-
-        verified = Event()
-        def verification(event, *args, **kwargs):
-            self.assertEquals(event.qc_parameter, 'temp_qc')
-            self.assertEquals(event.temporal_value, 7)
-            verified.set()
-
-        es = EventSubscriber(event_type=OT.ParameterQCEvent, origin=dataset_id, callback=verification, auto_delete=True)
-        es.start()
-        self.addCleanup(es.stop)
-
-        publisher.publish(rdt.to_granule())
-        self.assertTrue(verified.wait(10))
-
-
-
     def test_lookup_values_ingest_replay(self):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_lookups()

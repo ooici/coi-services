@@ -90,6 +90,8 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_schema
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_streaming_memuse
 """
 
 ###############################################################################
@@ -124,7 +126,7 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -1204,6 +1206,10 @@ class InstrumentAgentTest():
         mode. Verify ResourceAgentResourceStateEvents are publsihed.
         """
         
+        from memory_profiler import memory_usage
+        print '###############'
+        print str(memory_usage(-1))
+        
         # Start data subscribers.
         self._start_data_subscribers(3, 10)
         self.addCleanup(self._stop_data_subscribers)    
@@ -1232,8 +1238,14 @@ class InstrumentAgentTest():
 
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
+
+        print '###############'
+        print str(memory_usage(-1))
         
         gevent.sleep(15)
+
+        print '###############'
+        print str(memory_usage(-1))
         
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
@@ -1251,6 +1263,10 @@ class InstrumentAgentTest():
 
         self._async_raw_sample_result.get(timeout=CFG.endpoint.receive.timeout)
         self.assertGreaterEqual(len(self._raw_samples_received), 10)
+
+        print '###############'
+        print str(memory_usage(-1))
+
 
     def test_capabilities(self):
         """
@@ -2027,6 +2043,109 @@ class InstrumentAgentTest():
         raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
         self.assertTrue(any(raw_sizes_greater_than_one))
 
+    def test_schema(self):
+        """
+        test_schema
+        Test agent get_schema command. Transition to intialized and
+        query for agent and resource schema json.
+        """
+
+        # We start in uninitialized state.
+        # In this state there is no driver process.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
+        # Initialize the agent.
+        # The agent is spawned with a driver config, but you can pass one in
+        # optinally with the initialize command. This validates the driver
+        # config, launches a driver process and connects to it via messaging.
+        # If successful, we switch to the inactive state.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
+
+        retval = self._ia_client.get_schema()
+        log.info('Agent schema received: %s',str(retval))
+
+        #print '##################################'
+        #print json.dumps(json.loads(retval.agent_schema),indent=4)
+        #print '##################################'
+
+        self.assertIsInstance(retval.agent_schema, str)
+        self.assertIsInstance(retval.resource_schema, str)
+
+        # Reset the agent. This causes the driver messaging to be stopped,
+        # the driver process to end and switches us back to uninitialized.
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+
+    @unittest.skip('A manual test for memory use and leaks.')
+    def test_streaming_memuse(self):
+        """
+        test_streaming_memuse
+        Report the memory used by the interpreter process running this
+        test for an extended period of time. For debugging.
+        """
+        # Using memory_profiler for this test.
+        # https://pypi.python.org/pypi/memory_profiler
+        
+        mfile = open('memuse.txt','w')
+        from memory_profiler import memory_usage
+        
+        def report_memuse():            
+            mem_use = memory_usage(-1)[0]
+            log.info("CURRENT MEMORY USAGE: %f", mem_use)
+            mfile.write('%f\n' % mem_use)
+        
+        report_memuse()
+
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+    
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+        
+        for x in range(1800):
+            gevent.sleep(1)
+            report_memuse()
+            
+
+        cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
+        retval = self._ia_client.execute_resource(cmd)
+ 
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+
+        report_memuse()
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})

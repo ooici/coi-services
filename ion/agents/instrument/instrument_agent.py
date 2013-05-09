@@ -50,7 +50,6 @@ from ion.agents.instrument.direct_access.direct_access_server import SessionClos
 from ion.agents.agent_stream_publisher import AgentStreamPublisher
 from ion.agents.agent_alert_manager import AgentAlertManager
 
-
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
 from interface.objects import StreamAlertType
@@ -93,6 +92,7 @@ class InstrumentAgentEvent(BaseEnum):
     PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
     LOST_CONNECTION = ResourceAgentEvent.LOST_CONNECTION
     AUTORECONNECT = ResourceAgentEvent.AUTORECONNECT
+    GET_RESOURCE_SCHEMA = ResourceAgentEvent.GET_RESOURCE_SCHEMA
 
 class InstrumentAgentCapability(BaseEnum):
     INITIALIZE = ResourceAgentEvent.INITIALIZE
@@ -112,6 +112,8 @@ class ResourceInterfaceCapability(BaseEnum):
     PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
     GET_RESOURCE_STATE = ResourceAgentEvent.GET_RESOURCE_STATE
     EXECUTE_RESOURCE = ResourceAgentEvent.EXECUTE_RESOURCE
+
+from ion.agents.instrument.schema import get_schema
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -289,6 +291,14 @@ class InstrumentAgent(ResourceAgent):
                 result.append('execute_resource')
 
         return result
+
+    def _get_agent_schema(self):
+        """
+        """
+        schema = get_schema()
+        if self.aparam_streams != {}:
+            schema['parameters']['streams']['valid_values'] = [copy.deepcopy(self.aparam_streams)]
+        return json.dumps(schema)
     
     ##############################################################
     # Agent interface.
@@ -454,6 +464,11 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_done(self, *args, **kwargs):
         return (ResourceAgentState.COMMAND, None)
+
+    def _handler_get_resource_schema(self, *args, **kwargs):
+        result = self._dvr_client.cmd_dvr('get_config_metadata')
+        result = result or ''
+        return (None, result)
 
     ##############################################################
     # UNINITIALIZED event handlers.
@@ -1042,6 +1057,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # IDLE state event handlers.
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.RESET, self._handler_idle_reset)
@@ -1050,6 +1066,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
  
         # STOPPED state event handlers.
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.RESET, self._handler_stopped_reset)
@@ -1059,6 +1076,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
   
         # COMMAND state event handlers.
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.RESET, self._handler_command_reset)
@@ -1073,6 +1091,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
         
         # STREAMING state event handlers.
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
@@ -1083,6 +1102,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
         
         # TEST state event handlers.
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1092,6 +1112,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
         
         # CALIBRATE state event handlers.
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1101,6 +1122,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
                 
         # BUSY state event handlers.
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1110,6 +1132,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # DIRECT_ACCESS state event handlers.
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1118,6 +1141,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # LOST_CONNECTION state event handlers.
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_lost_connection_enter)
@@ -1128,6 +1152,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # ACTIVE_UNKNOWN state event handlers.
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GO_ACTIVE, self._handler_active_unknown_go_active)
@@ -1137,6 +1162,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
     ##############################################################
     # Start and stop driver.

@@ -6,12 +6,10 @@ from pyon.public import log, PRED, RT
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 
-import numpy as np
 import ntplib
 from datetime import datetime
 
 import StringIO
-import time
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
 from ion.core.process.transform import TransformStreamPublisher, TransformEventListener, TransformStreamListener
 
@@ -20,7 +18,11 @@ from interface.services.coi.iresource_registry_service import ResourceRegistrySe
 from pyon.event.event import EventSubscriber
 from interface.services.dm.idata_retriever_service import DataRetrieverServiceProcessClient
 from interface.services.dm.idataset_management_service import DatasetManagementServiceProcessClient
-from interface.services.dm.ipubsub_management_service import PubsubManagementServiceProcessClient
+
+import time
+from pyon.util.containers import get_ion_ts
+from ion.util.time_utils import TimeUtils
+
 
 # Matplotlib related imports
 # Need try/catch because of weird import error
@@ -246,12 +248,12 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
             else:
                 graph_data[varname].extend(vardict[varname])
 
-        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(graph_data, stream_definition_id, fileName, resolution=resolution)
+        out_granule = VizTransformMatplotlibGraphsAlgorithm.render_graphs(rdt, graph_data, stream_definition_id, fileName, resolution=resolution)
 
         return out_granule
 
     @classmethod
-    def render_graphs(cls, graph_data, stream_definition_id, fileName = None, resolution = None):
+    def render_graphs(cls, rdt, graph_data, stream_definition_id, fileName = None, resolution = None):
         # init Matplotlib with passsed parameters
         x_res = y_res = 100 # some default in case nothing is provided
         if resolution:
@@ -353,8 +355,9 @@ class VizTransformMatplotlibGraphsAlgorithm(SimpleGranuleTransformFunction):
         out_rdt["content_type"] = ["image/png"]
 
         #print " >>>>>>>>>> OUT_IMAGE_NAME : ", out_rdt['image_name']
-
         #out_rdt["graph_image_param_dict"] = np.array([out_dict])
+        out_rdt["viz_timestamp"] = TimeUtils.ts_to_units(rdt.context(rdt.temporal_parameter).uom, time.time())
+
         return out_rdt.to_granule()
 
 

@@ -69,7 +69,14 @@ class PortAgentType(BaseEnum):
     What type of port agent are we running?  ethernet, serial, digi etc...
     """
     ETHERNET = 'ethernet'
+    BOTPT = "botpt"
 
+class ObservatoryType(BaseEnum):
+    """
+    What type of port agent are we running?  ethernet, serial, digi etc...
+    """
+    STANDARD = 'standard'
+    MULTI = 'multi'
 
 class PortAgentProcess(object):
     """
@@ -339,14 +346,20 @@ class UnixPortAgentProcess(PortAgentProcess):
         self._config = config
         self._timeout = timeout
         self._test_mode = test_mode
-
+        
         # Verify our configuration is correct
 
+        self._observatory_type = config.get("observatory_type", ObservatoryType.STANDARD)
         self._device_addr = config.get("device_addr")
         self._device_port = config.get("device_port")
+        self._device_tx_port = config.get("device_tx_port")
+        self._device_rx_port = config.get("device_rx_port")
         self._binary_path = config.get("binary_path", "port_agent")
         self._command_port = config.get("command_port");
         self._pa_addr = config.get("port_agent_addr");
+        """
+        DHE: need to be able to retrieve multiple data ports here
+        """
         self._data_port = config.get("data_port");
         self._log_level = config.get("log_level");
         self._type = config.get("type", PortAgentType.ETHERNET)
@@ -357,21 +370,30 @@ class UnixPortAgentProcess(PortAgentProcess):
         if not self._device_addr:
             raise PortAgentMissingConfig("missing config: device_addr")
 
-        if not self._device_port:
-            raise PortAgentMissingConfig("missing config: device_port")
+        if PortAgentType.BOTPT == self._type: 
+            if not self._device_tx_port:
+                raise PortAgentMissingConfig("missing config: device_tx_port (BOTPT)")
+            if not self._device_rx_port:
+                raise PortAgentMissingConfig("missing config: device_rx_port (BOTPT)")
+        elif PortAgentType.ETHERNET == self._type: 
+            if not self._device_port:
+                raise PortAgentMissingConfig("missing config: device_port (ETHERNET)")
+        else:  
+            raise PortAgentLaunchException("unknown port agent type: %s" % self._type)
 
         if not self._command_port:
             raise PortAgentMissingConfig("missing config: command_port")
 
-        if not self._data_port:
-            raise PortAgentMissingConfig("missing config: data_port")
+        if ObservatoryType.MULTI == self._observatory_type:
+            if not self._data_port:
+                raise PortAgentMissingConfig("missing config: data_port")
+        else:
+            if not self._data_port:
+                raise PortAgentMissingConfig("missing config: data_port")
 
         if not self._binary_path:
             raise PortAgentMissingConfig("missing config: binary_path")
 
-        if not self._type == PortAgentType.ETHERNET:
-            raise PortAgentLaunchException("unknown port agent type: %s" % self._type)
-        
         self._tmp_config = self.get_config();
         
     def get_config(self):
@@ -385,7 +407,10 @@ class UnixPortAgentProcess(PortAgentProcess):
         temp.write("log_dir %s\n" % (PROCESS_BASE_DIR))
         temp.write("pid_dir %s\n" % (PROCESS_BASE_DIR))
         temp.write("data_dir %s\n" % (PROCESS_BASE_DIR))
-        temp.write("instrument_type tcp\n")
+        if PortAgentType.BOTPT == self._type:
+            temp.write("instrument_type botpt\n")
+        else:
+            temp.write("instrument_type tcp\n")
         temp.write("instrument_data_port %d\n" % (self._device_port) )
         temp.write("instrument_addr %s\n" % (self._device_addr) )
         temp.write("data_port %d\n" % (self._data_port) )

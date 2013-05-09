@@ -49,7 +49,7 @@ class IndexManagementService(BaseIndexManagementService):
             res.set(es(*args,**kwargs))
         spawn(async_call,es,*args,**kwargs)
         try:
-            retval = res.get(timeout=10)
+            retval = res.get(timeout=CFG.get_safe('server.elasticsearch.timeout', 10))
         except Timeout:
             raise exceptions.Timeout("Call to ElasticSearch timed out.")
         return retval

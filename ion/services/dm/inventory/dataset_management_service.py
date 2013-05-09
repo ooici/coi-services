@@ -157,18 +157,13 @@ class DatasetManagementService(BaseDatasetManagementService):
                 return np.dtype(obj['__np__'])
             return {k:cls.numpy_walk(v) for k,v in obj.iteritems()}
         if isinstance(obj,list):
-            return [i for i in obj]
+            return map(cls.numpy_walk, obj)
         if isinstance(obj, tuple):
-            return tuple((i for i in obj))
+            return tuple(map(cls.numpy_walk, obj))
         return obj
 
 
     def create_parameter_context(self, name='', parameter_context=None, description='', reference_urls=None, parameter_type='', internal_name='', value_encoding='', code_report='', units='', fill_value='', display_name='', parameter_function_id='', parameter_function_map='', standard_name='', ooi_short_name='', precision=''):
-        res, _ = self.clients.resource_registry.find_resources(restype=RT.ParameterContext, name=name, id_only=False)
-        if len(res):
-            for r in res:
-                if r.name == name and self._compare_pc(r.parameter_context, parameter_context):
-                    return r._id
         
         validate_true(name, 'Name field may not be empty')
         validate_is_instance(parameter_context, dict, 'parameter_context field is not dictable.')

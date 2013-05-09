@@ -1569,9 +1569,36 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def get_operational_state(self, taskable_resource_id):   # from Device
+
+        resource_agent_state_labels = {
+            'RESOURCE_AGENT_STATE_POWERED_DOWN': 'POWERED DOWN',
+            'RESOURCE_AGENT_STATE_UNINITIALIZED':'UNINITIALIZED',
+            'RESOURCE_AGENT_STATE_INACTIVE': 'INACTIVE',
+            'RESOURCE_AGENT_STATE_IDLE': 'IDLE',
+            'RESOURCE_AGENT_STATE_STOPPED': 'STOPPED',
+            'RESOURCE_AGENT_STATE_COMMAND': 'COMMAND',
+            'RESOURCE_AGENT_STATE_STREAMING': 'STREAMING',
+            'RESOURCE_AGENT_STATE_TEST': 'TEST',
+            'RESOURCE_AGENT_STATE_CALIBRATE': 'CALIBRATE',
+            'RESOUCE_AGENT_STATE_DIRECT_ACCESS': 'DIRECT ACCESS',
+            'RESOURCE_AGENT_STATE_BUSY': 'BUSY',
+            'RESOURCE_AGENT_STATE_LOST_CONNECTION': 'LOST CONNECTION',
+        }
+
+
         ia_client, ret = self.agent_status_builder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
         if ia_client:
-            ret.value = ia_client.get_agent_state()
+            state = ia_client.get_agent_state()
+            if resource_agent_state_labels.has_key(state):
+                ret.value = resource_agent_state_labels[ ia_client.get_agent_state() ]
+            else:
+                ret.value = 'UNKNOWN'
+                log.warn('get_operational_state  get_agent_state returned invalid state type: %s', state)
+
+        else:
+            ret.value = 'UNKNOWN'
+            ret.status = ComputedValueAvailability.NOTAVAILABLE
+
         return ret
 
 

@@ -24,6 +24,7 @@ from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryC
 from pyon.util.context import LocalContextMixin
 
 from pyon.util.int_test import IonIntegrationTestCase
+from pyon.util.breakpoint import breakpoint
 
 class FakeProcess(LocalContextMixin):
     """
@@ -74,4 +75,5 @@ class DMTestCase(IonIntegrationTestCase):
         data_product_id = self.data_product_management.create_data_product(dp, stream_definition_id=stream_def_id)
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
         return data_product_id
+
 

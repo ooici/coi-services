@@ -15,6 +15,9 @@ from interface.services.dm.ipubsub_management_service import PubsubManagementSer
 
 import numpy as np
 import ntplib
+import time
+from pyon.util.containers import get_ion_ts
+from ion.util.time_utils import TimeUtils
 
 from ion.core.process.transform import TransformDataProcess
 
@@ -140,6 +143,10 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if hasattr(rdt.context(field),'visible') and not rdt.context(field).visible:
                 continue
 
+            # If it's a QC parameter ignore it
+            if field.endswith('_qc'):
+                continue
+
             # Handle string type or if its an unknown type, convert to string
             if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):
                 data_description.append((field, 'string', field ))
@@ -192,9 +199,9 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                     "data_content" : data_table_content}
 
         out_rdt["google_dt_components"] = np.array([out_dict])
+        out_rdt["viz_timestamp"] = TimeUtils.ts_to_units(rdt.context(rdt.temporal_parameter).uom, time.time())
 
         log.debug('Google DT transform: Sending a granule')
-
         out_granule = out_rdt.to_granule()
 
         return out_granule
