@@ -81,15 +81,26 @@ class IngestionManagementService(BaseIngestionManagementService):
         for queue in ingestion_config.queues:
             # Make the subscription from the stream to this queue
             queue_name = queue.name + '_' + dataset_id
-            subscription_id = self.clients.pubsub_management.create_subscription(name=queue_name, stream_ids=[stream_id], exchange_name=queue_name)
-            self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
+            # Check for existing subscription ids
             
-            # Associate the subscription with the ingestion config which ensures no dangling resources
-            self.clients.resource_registry.create_association(
-                subject=ingestion_config._id,
-                predicate=PRED.hasSubscription,
-                object=subscription_id
-            )
+            subscription_ids, _ = self.clients.resource_registry.find_objects(subject=ingestion_config._id, predicate=PRED.hasSubscription, id_only=True)
+            subscription_id = [i for i in subscription_ids if len(self.clients.resource_registry.find_associations(subject=i, object=stream_id))]
+            if not subscription_id:
+                subscription_id = self.clients.pubsub_management.create_subscription(name=queue_name, stream_ids=[stream_id], exchange_name=queue_name)
+                # Associate the subscription with the ingestion config which ensures no dangling resources
+                self.clients.resource_registry.create_association(
+                    subject=ingestion_config._id,
+                    predicate=PRED.hasSubscription,
+                    object=subscription_id
+                )
+
+            else:
+                subscription_id = subscription_id[0] 
+
+            subscription = self.clients.pubsub_management.read_subscription(subscription_id=subscription_id)
+            if not subscription.activated:
+                self.clients.pubsub_management.activate_subscription(subscription_id=subscription_id)
+            
             self._existing_dataset(stream_id, dataset_id)
             self.launch_worker(queue_name, config)
 
@@ -126,10 +137,25 @@ class IngestionManagementService(BaseIngestionManagementService):
                 if process.process_id.startswith('ingestion_worker'):
                     self.clients.process_dispatcher.cancel_process(process._id)
 
+    def suspend_data_stream(self, stream_id='', ingestion_configuration_id=''):
+        subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
+
+        self.clients.pubsub_management.unpersist_stream(stream_id)
+
+        for i in xrange(len(subscriptions)):
+            subscription = subscriptions[i]
+            # Check if this subscription is the one with the stream_id
+
+            if len(self.clients.resource_registry.find_associations(subject=subscription, object=stream_id))>0: # this subscription has this stream
+                self.kill_worker(subscription)
+
+
+        datasets, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Dataset,predicate=PRED.hasStream,object=stream_id,id_only=True)
+        for dataset_id in datasets:
+            self.clients.dataset_management.remove_stream(dataset_id, stream_id)
+
 
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
-
-
         subscriptions, assocs = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
 
         self.clients.pubsub_management.unpersist_stream(stream_id)
@@ -142,7 +168,9 @@ class IngestionManagementService(BaseIngestionManagementService):
             if len(self.clients.resource_registry.find_associations(subject=subscription, object=stream_id))>0: # this subscription has this stream
                 self.kill_worker(subscription)
 
-                self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription)
+                subscription_obj = self.clients.pubsub_management.read_subscription(subscription_id=subscription)
+                if subscription_obj.activated:
+                    self.clients.pubsub_management.deactivate_subscription(subscription_id=subscription)
                 self.clients.resource_registry.delete_association(assoc)
                 self.clients.pubsub_management.delete_subscription(subscription)
 

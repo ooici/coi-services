@@ -496,6 +496,39 @@ class TestDMEnd2End(IonIntegrationTestCase):
         subscriber.stop()
 
 
+    def test_ingestion_pause(self):
+        ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
+        ingestion_config_id = self.get_ingestion_config()
+        self.start_ingestion(ctd_stream_id, dataset_id)
+
+        rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
+        rdt['time'] = np.arange(10)
+
+        publisher = StandaloneStreamPublisher(ctd_stream_id, route)
+        monitor = DatasetMonitor(dataset_id)
+        publisher.publish(rdt.to_granule())
+        self.assertTrue(monitor.event.wait(10))
+        granule = self.data_retriever.retrieve(dataset_id)
+
+        self.ingestion_management.suspend_data_stream(ctd_stream_id, ingestion_configuration_id=ingestion_config_id)
+
+        monitor.event.clear()
+        rdt['time'] = np.arange(10,20)
+        publisher.publish(rdt.to_granule())
+        self.assertFalse(monitor.event.wait(1))
+
+        self.ingestion_management.persist_data_stream(ctd_stream_id, dataset_id=dataset_id, ingestion_configuration_id=ingestion_config_id)
+
+        self.assertTrue(monitor.event.wait(10))
+
+        gevent.sleep(3)
+        granule = self.data_retriever.retrieve(dataset_id)
+        rdt2 = RecordDictionaryTool.load_from_granule(granule)
+        np.testing.assert_array_almost_equal(rdt2['time'], np.arange(20))
+
+        self.stop_ingestion(ctd_stream_id)
+
+
     def test_retrieve_and_transform(self):
         # Make a simple dataset and start ingestion, pretty standard stuff.
         ctd_stream_id, route, stream_def_id, dataset_id = self.make_simple_dataset()
