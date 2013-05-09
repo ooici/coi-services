@@ -104,7 +104,6 @@ class ReplayProcess(BaseReplayProcess):
         uom = coverage.get_parameter_context(temporal_variable).uom
         
         units = TimeUtils.ts_to_units(uom, timeval)
-        print units
 
         idx = TimeUtils.get_relative_time(coverage, units)
         return idx
@@ -136,10 +135,8 @@ class ReplayProcess(BaseReplayProcess):
 
         elif not (start_time is None and end_time is None):
             if start_time is not None:
-                print 'Start'
                 start_time = cls.get_time_idx(coverage,start_time)
             if end_time is not None:
-                print 'End'
                 end_time = cls.get_time_idx(coverage,end_time)
 
             slice_ = slice(start_time,end_time,stride_time)

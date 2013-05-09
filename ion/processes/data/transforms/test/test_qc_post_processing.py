@@ -43,6 +43,8 @@ class TestQCPostProcessing(DMTestCase):
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         svm = StoredValueManager(self.container)
         svm.stored_value_cas('grt_QCTEST_TEMPWAT', {'grt_min_value':-2., 'grt_max_value':40.})
+        svm.stored_value_cas('svt_QCTEST_TEMPWAT', {'svt_resolution':0.001, 'svt_n': 4})
+        svm.stored_value_cas('spike_QCTEST_TEMPWAT', {'acc': 0.1, 'spike_n':5, 'spike_l':5})
 
         dp_id = self.create_data_product('qc data product', stream_def_id=stream_def_id)
         self.data_product_management.activate_data_product_persistence(dp_id)
@@ -58,13 +60,11 @@ class TestQCPostProcessing(DMTestCase):
             ph.publish_rdt_to_data_product(dp_id, rdt)
             dataset_monitor.event.wait(10)
 
-            rdt = RecordDictionaryTool.load_from_granule(self.data_retriever.retrieve_last_data_points(dataset_id, 3600))
-            np.testing.assert_array_almost_equal(rdt['tempwat_glblrng_qc'], [0] + [1]*3599)
             
         return dataset_id
 
     
-    def process_execution(self, temp_vector, qc_params):
+    def process_execution(self, temp_vector, qc_params, bad_times):
         with self.assertRaises(BadRequest):
             self.process_dispatcher.schedule_process(self.process_definition_id, process_id=self.process_id)
 
@@ -78,7 +78,7 @@ class TestQCPostProcessing(DMTestCase):
         flagged = Event()
         def cb(event, *args, **kwargs):
             times = event.temporal_values
-            self.assertEquals(times,[2208988800])
+            self.assertEquals(times,bad_times)
             flagged.set()
 
         event_subscriber = EventSubscriber(event_type=OT.ParameterQCEvent, origin=dataset_id, callback=cb, auto_delete=True) 
@@ -88,14 +88,24 @@ class TestQCPostProcessing(DMTestCase):
 
         self.assertTrue(flagged.wait(10))
 
-    def test_grt_qc_processing(self):
+    def test_glblrng_qc_processing(self):
         def temp_vector(size):
             return [41] + [39]*(size-1)
-        self.process_execution(temp_vector, ['glblrng_qc'])
+        self.process_execution(temp_vector, ['glblrng_qc'], [2208988800])
+
+    def test_stuckvl_qc_processing(self):
+        def temp_vector(size):
+            assert size>7
+            return [20] * 6 + range(size-6)
+
+        self.process_execution(temp_vector, ['stuckvl_qc'], range(2208988800, 2208988806))
 
     def test_spketst_qc_processing(self):
-        pass
+        def temp_vector(size):
+            assert size > 8
+            return [-1, 3, 40, -1, 1, -6, -6, 1] + [5]*(size-8)
 
+        self.process_execution(temp_vector, ['spketst_qc'], [2208988802])
 
 
 
