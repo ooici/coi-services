@@ -33,7 +33,7 @@ class TestQCPostProcessing(DMTestCase):
         self.process_id = self.process_dispatcher.create_process(self.process_definition_id)
 
 
-    def make_large_dataset(self):
+    def make_large_dataset(self, temp_vector):
         ph = ParameterHelper(self.dataset_management, self.addCleanup)
         pdict_id = ph.create_simple_qc_pdict()
 
@@ -54,7 +54,7 @@ class TestQCPostProcessing(DMTestCase):
             dataset_monitor = DatasetMonitor(dataset_id)
             rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
             rdt['time'] = np.arange(2208988800+(i*3600), 2208988800+((i+1)*3600))
-            rdt['temp'] = [41] + [39] * 3599
+            rdt['temp'] = temp_vector(3600)
             ph.publish_rdt_to_data_product(dp_id, rdt)
             dataset_monitor.event.wait(10)
 
@@ -64,16 +64,16 @@ class TestQCPostProcessing(DMTestCase):
         return dataset_id
 
     
-    def test_qc_post_processing(self):
+    def process_execution(self, temp_vector, qc_params):
         with self.assertRaises(BadRequest):
             self.process_dispatcher.schedule_process(self.process_definition_id, process_id=self.process_id)
-        dataset_id = self.make_large_dataset()
+
+        dataset_id = self.make_large_dataset(temp_vector)
         config = DotDict()
         config.process.dataset_id = dataset_id
         config.process.start_time = 0
         config.process.end_time = 3600
-        config.process.qc_parameters = ['glblrng_qc']
-
+        config.process.qc_parameters = qc_params
 
         flagged = Event()
         def cb(event, *args, **kwargs):
@@ -87,6 +87,15 @@ class TestQCPostProcessing(DMTestCase):
         self.process_dispatcher.schedule_process(self.process_definition_id, process_id=self.process_id, configuration=config)
 
         self.assertTrue(flagged.wait(10))
+
+    def test_grt_qc_processing(self):
+        def temp_vector(size):
+            return [41] + [39]*(size-1)
+        self.process_execution(temp_vector, ['glblrng_qc'])
+
+    def test_spketst_qc_processing(self):
+        pass
+
 
 
 

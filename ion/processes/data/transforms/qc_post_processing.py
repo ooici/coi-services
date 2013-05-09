@@ -44,22 +44,16 @@ class QCPostProcessing(ImmediateProcess):
         self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
 
         for st,et in self.chop(int(start_time),int(end_time)):
-            print 'st: ', st
-            print 'et: ', et
-            print 'chopping'
             granule = data_retriever.retrieve(dataset_id, query={'start_time':st, 'end_time':et})
             rdt = RecordDictionaryTool.load_from_granule(granule)
             qc_fields = [i for i in rdt.fields if any([i.endswith(j) for j in qc_params])]
             for field in qc_fields:
-                print 'Looking at: ', field
                 val = rdt[field]
-                print val
                 if val is None:
                     continue
                 if not np.all(val):
                     indexes = np.where(val==0)
                     timestamps = rdt[rdt.temporal_parameter][indexes[0]]
-                    print "Timestamps: ", timestamps
                     self.flag_qc_parameter(dataset_id, field, timestamps.tolist(),{})
 
 
