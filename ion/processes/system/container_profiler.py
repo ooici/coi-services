@@ -6,6 +6,7 @@ __author__ = 'Michael Meisinger'
 
 import datetime
 import gevent
+import gc
 import os.path
 import pprint
 import time
@@ -28,6 +29,8 @@ class ContainerProfiler(StandaloneProcess):
 
         self.profile_persist = bool(self.CFG.get_safe("process.containerprofiler.profile_persist", True))
 
+        self.profile_gc = bool(self.CFG.get_safe("process.containerprofiler.profile_gc", True))
+
         self.profile_filename = self.CFG.get_safe("process.containerprofiler.profile_filename", None)
         if not self.profile_filename:
             dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
@@ -48,6 +51,8 @@ class ContainerProfiler(StandaloneProcess):
 
         while not self.quit_event.wait(timeout=profile_interval):
             try:
+                if self.profile_gc:
+                    gc.collect()
                 profile = ContainerProfiler.get_profile()
                 new_stats = []
 
