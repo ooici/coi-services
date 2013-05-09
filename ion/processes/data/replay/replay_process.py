@@ -152,6 +152,9 @@ class ReplayProcess(BaseReplayProcess):
         else:
             fields = rdt.fields
 
+        if slice_.start == slice_.stop and slice_.start is not None:
+            log.warning('Requested empty set of data.  %s', slice_)
+            return rdt
         for field in fields:
             log.trace( 'Slice is %s' , slice_)
             try:

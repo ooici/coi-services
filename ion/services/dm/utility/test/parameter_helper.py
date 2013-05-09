@@ -132,13 +132,11 @@ class ParameterHelper(object):
         contexts['time'] = (t_ctxt, t_ctxt_id)
 
         lat_ctxt = ParameterContext('lat', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.), fill_value=-9999)
-        lat_ctxt.axis = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
         lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump())
         contexts['lat'] = lat_ctxt, lat_ctxt_id
 
         lon_ctxt = ParameterContext('lon', param_type=SparseConstantType(base_type=ConstantType(value_encoding='float64'), fill_value=-9999.), fill_value=-9999)
-        lon_ctxt.axis = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
         lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump())
         contexts['lon'] = lon_ctxt, lon_ctxt_id
@@ -302,13 +300,11 @@ class ParameterHelper(object):
         contexts['time'] = (t_ctxt, t_ctxt_id)
 
         lat_ctxt = ParameterContext('lat', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        lat_ctxt.axis = AxisTypeEnum.LAT
         lat_ctxt.uom = 'degree_north'
         lat_ctxt_id = self.dataset_management.create_parameter_context(name='lat', parameter_context=lat_ctxt.dump())
         contexts['lat'] = lat_ctxt, lat_ctxt_id
 
         lon_ctxt = ParameterContext('lon', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
-        lon_ctxt.axis = AxisTypeEnum.LON
         lon_ctxt.uom = 'degree_east'
         lon_ctxt_id = self.dataset_management.create_parameter_context(name='lon', parameter_context=lon_ctxt.dump())
         contexts['lon'] = lon_ctxt, lon_ctxt_id
@@ -463,7 +459,6 @@ class ParameterHelper(object):
 
 
         lat_lookup_ctxt = ParameterContext('lat_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
-        lat_lookup_ctxt.axis = AxisTypeEnum.LAT
         lat_lookup_ctxt.uom = 'degree_north'
         lat_lookup_ctxt.lookup_value = 'lat'
         lat_lookup_ctxt.document_key = ''
@@ -473,7 +468,6 @@ class ParameterHelper(object):
         
 
         lon_lookup_ctxt = ParameterContext('lon_lookup', param_type=ConstantType(QuantityType(value_encoding=np.dtype('float32'))), fill_value=-9999)
-        lon_lookup_ctxt.axis = AxisTypeEnum.LON
         lon_lookup_ctxt.uom = 'degree_east'
         lon_lookup_ctxt.lookup_value = 'lon'
         lon_lookup_ctxt.document_key = ''
