@@ -18,7 +18,7 @@ from pyon.agent.agent import ResourceAgentEvent
 from pyon.agent.agent import ResourceAgentState
 from pyon.agent.agent import ResourceAgentStreamStatus
 from pyon.util.containers import get_ion_ts
-from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_resource_commitments
+from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
 from pyon.public import IonObject
 
@@ -49,7 +49,6 @@ from ion.agents.instrument.direct_access.direct_access_server import DirectAcces
 from ion.agents.instrument.direct_access.direct_access_server import SessionCloseReasons
 from ion.agents.agent_stream_publisher import AgentStreamPublisher
 from ion.agents.agent_alert_manager import AgentAlertManager
-
 
 # MI imports
 from ion.core.includes.mi import DriverAsyncEvent
@@ -93,6 +92,7 @@ class InstrumentAgentEvent(BaseEnum):
     PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
     LOST_CONNECTION = ResourceAgentEvent.LOST_CONNECTION
     AUTORECONNECT = ResourceAgentEvent.AUTORECONNECT
+    GET_RESOURCE_SCHEMA = ResourceAgentEvent.GET_RESOURCE_SCHEMA
 
 class InstrumentAgentCapability(BaseEnum):
     INITIALIZE = ResourceAgentEvent.INITIALIZE
@@ -112,6 +112,8 @@ class ResourceInterfaceCapability(BaseEnum):
     PING_RESOURCE = ResourceAgentEvent.PING_RESOURCE
     GET_RESOURCE_STATE = ResourceAgentEvent.GET_RESOURCE_STATE
     EXECUTE_RESOURCE = ResourceAgentEvent.EXECUTE_RESOURCE
+
+from ion.agents.instrument.schema import get_schema
 
 class InstrumentAgent(ResourceAgent):
     """
@@ -289,6 +291,14 @@ class InstrumentAgent(ResourceAgent):
                 result.append('execute_resource')
 
         return result
+
+    def _get_agent_schema(self):
+        """
+        """
+        schema = get_schema()
+        if self.aparam_streams != {}:
+            schema['parameters']['streams']['valid_values'] = [copy.deepcopy(self.aparam_streams)]
+        return json.dumps(schema)
     
     ##############################################################
     # Agent interface.
@@ -302,34 +312,122 @@ class InstrumentAgent(ResourceAgent):
     # common device agent class, then relocate to the parent class and share
     def check_resource_operation_policy(self, process, message, headers):
         '''
-        This function is used for governance validation for certain agent operations.
+        Inst Operators must have a shared commitment to call set_resource(), execute_resource() or ping_resource()
+        Org Managers and Observatory Operators do not have to have a commitment to call set_resource(), execute_resource() or ping_resource()
+        However, an actor cannot call these if someone else has an exclusive commitment
+        Agent policy is fully documented on confluence
         @param msg:
         @param headers:
         @return:
         '''
+
 
         try:
             gov_values = GovernanceHeaderValues(headers, resource_id_required=False)
         except Inconsistent, ex:
             return False, ex.message
 
-        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
-                        [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+        log.debug("check_resource_operation_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
+
+        resource_name = process.resource_type if process.resource_type is not None else process.name
+
+        coms = get_valid_resource_commitments(gov_values.resource_id)
+        if coms is None:
+            log.debug('commitments: None')
+        else:
+            log.debug('commitment count: %d', len(coms))
+
+        if coms is None and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+            [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
             return True, ''
 
         if not has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
-                            INSTRUMENT_OPERATOR_ROLE):
+            [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE, INSTRUMENT_OPERATOR_ROLE]):
             return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
-                          % (process.name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                          % (resource_name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
                              self._get_process_org_governance_name())
 
-        com = get_resource_commitments(gov_values.resource_id, gov_values.actor_id)
-        if com is None:
-            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s' \
-                % (process.name, gov_values.op, gov_values.actor_id,
-                   self.resource_id)
+        if coms is None:
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource %s'\
+                          % (resource_name, gov_values.op, gov_values.actor_id,
+                             self.resource_id)
+
+
+        actor_has_shared_commitment = False
+
+        #Iterrate over commitments and look to see if actor or others have an exclusive access
+        for com in coms:
+            log.debug("checking commitments: actor_id: %s exclusive: %s",com.consumer,  str(com.commitment.exclusive))
+
+            if com.consumer == gov_values.actor_id:
+                actor_has_shared_commitment = True
+
+            if com.commitment.exclusive and com.consumer == gov_values.actor_id:
+                return True, ''
+
+            if com.commitment.exclusive and com.consumer != gov_values.actor_id:
+                return False, '%s(%s) has been denied since another user %s has acquired the resource exclusively' % (resource_name, gov_values.op, com.consumer)
+
+
+
+        if not actor_has_shared_commitment and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), INSTRUMENT_OPERATOR_ROLE):
+            return False, '%s(%s) has been denied since the user %s does not have the %s role for Org %s'\
+                          % (resource_name, gov_values.op, gov_values.actor_id, INSTRUMENT_OPERATOR_ROLE,
+                             self._get_process_org_governance_name())
 
         return True, ''
+
+
+
+    def check_agent_operation_policy(self, process, message, headers):
+        """
+        Inst Operators must have an exclusive commitment to call set_agent(), execute_agent() or ping_agent()
+        Org Managers and Observatory Operators do not have to have a commitment to call set_agent(), execute_agent() or ping_agent()
+        However, an actor cannot call these if someone else has an exclusive commitment
+        Agent policy is fully documented on confluence
+
+        @param process:
+        @param message:
+        @param headers:
+        @return:
+        """
+        try:
+            gov_values = GovernanceHeaderValues(headers=headers, process=process)
+        except Inconsistent, ex:
+            return False, ex.message
+
+        log.debug("check_agent_operation_policy: actor info: %s %s %s", gov_values.actor_id, gov_values.actor_roles, gov_values.resource_id)
+
+        resource_name = process.resource_type if process.resource_type is not None else process.name
+
+        coms = get_valid_resource_commitments(gov_values.resource_id)
+        if coms is None:
+            log.debug('commitments: None')
+        else:
+            log.debug('commitment count: %d', len(coms))
+
+        if coms is None and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(),
+            [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+            return True, ''
+
+        if coms is None and has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), INSTRUMENT_OPERATOR_ROLE):
+            return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (resource_name, gov_values.op, gov_values.actor_id)
+
+        #TODO - this commitment might not be with the right Org - may have to relook at how this is working in R3.
+        #Iterrate over commitments and look to see if actor or others have an exclusive access
+        for com in coms:
+
+            log.debug("checking commitments: actor_id: %s exclusive: %s",com.consumer,  str(com.commitment.exclusive))
+            if com.commitment.exclusive and com.consumer == gov_values.actor_id:
+                return True, ''
+
+            if com.commitment.exclusive and com.consumer != gov_values.actor_id:
+                return False, '%s(%s) has been denied since another user %s has acquired the resource exclusively' % (resource_name, gov_values.op, com.consumer)
+
+        if has_org_role(gov_values.actor_roles ,self._get_process_org_governance_name(), [ORG_MANAGER_ROLE, OBSERVATORY_OPERATOR_ROLE]):
+            return True, ''
+
+        return False, '%s(%s) has been denied since the user %s has not acquired the resource exclusively' % (resource_name, gov_values.op, gov_values.actor_id)
 
     ##############################################################
     # Resource interface and common resource event handlers.
@@ -366,6 +464,11 @@ class InstrumentAgent(ResourceAgent):
 
     def _handler_done(self, *args, **kwargs):
         return (ResourceAgentState.COMMAND, None)
+
+    def _handler_get_resource_schema(self, *args, **kwargs):
+        result = self._dvr_client.cmd_dvr('get_config_metadata')
+        result = result or ''
+        return (None, result)
 
     ##############################################################
     # UNINITIALIZED event handlers.
@@ -778,6 +881,7 @@ class InstrumentAgent(ResourceAgent):
         """
         if self._enable_persistence:
             self._set_state('rparams', val)
+            self._flush_state()
         try:
             event_data = {
                 'config' : val
@@ -953,6 +1057,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GO_ACTIVE, self._handler_inactive_go_active)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.INACTIVE, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # IDLE state event handlers.
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.RESET, self._handler_idle_reset)
@@ -961,6 +1066,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.IDLE, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
  
         # STOPPED state event handlers.
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.RESET, self._handler_stopped_reset)
@@ -970,6 +1076,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.STOPPED, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
   
         # COMMAND state event handlers.
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.RESET, self._handler_command_reset)
@@ -984,6 +1091,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.COMMAND, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
         
         # STREAMING state event handlers.
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.RESET, self._handler_streaming_reset)
@@ -994,6 +1102,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.STREAMING, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
         
         # TEST state event handlers.
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1003,6 +1112,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.TEST, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
         
         # CALIBRATE state event handlers.
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1012,6 +1122,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.CALIBRATE, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
                 
         # BUSY state event handlers.
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1021,6 +1132,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.DONE, self._handler_done)
         self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.BUSY, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # DIRECT_ACCESS state event handlers.
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE, self._handler_get_resource)
@@ -1029,6 +1141,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
         self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.LOST_CONNECTION, self._handler_connection_lost_driver_event)
+        self._fsm.add_handler(ResourceAgentState.DIRECT_ACCESS, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # LOST_CONNECTION state event handlers.
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.ENTER, self._handler_lost_connection_enter)
@@ -1039,6 +1152,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.LOST_CONNECTION, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
         # ACTIVE_UNKNOWN state event handlers.
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GO_ACTIVE, self._handler_active_unknown_go_active)
@@ -1048,6 +1162,7 @@ class InstrumentAgent(ResourceAgent):
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_CAPABILITIES, self._handler_get_resource_capabilities)
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_STATE, self._handler_get_resource_state)
         self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.PING_RESOURCE, self._handler_ping_resource)
+        self._fsm.add_handler(ResourceAgentState.ACTIVE_UNKNOWN, ResourceAgentEvent.GET_RESOURCE_SCHEMA, self._handler_get_resource_schema)
 
     ##############################################################
     # Start and stop driver.

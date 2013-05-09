@@ -72,7 +72,7 @@ class RSNPlatformDriver(PlatformDriver):
         """
         PlatformDriver.__init__(self, pnode, event_callback)
 
-        # CIOMSClient instance created by connect()
+        # CIOMSClient instance created by connect() and destroyed by disconnect():
         self._rsn_oms = None
 
         # external event listener: we can instantiate this here as the the
@@ -117,14 +117,13 @@ class RSNPlatformDriver(PlatformDriver):
         self._assert_rsn_oms()
         try:
             retval = self._rsn_oms.hello.ping()
-        except Exception, e:
-            raise PlatformConnectionException(msg="Cannot ping %s" % str(e))
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot ping: %s" % str(e))
 
         if retval is None or retval.upper() != "PONG":
             raise PlatformConnectionException(msg="Unexpected ping response: %r" % retval)
 
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("%r: ping completed: response: %s" %(self._platform_id, retval))
+        log.debug("%r: ping completed: response: %s", self._platform_id, retval)
 
         return "PONG"
 
@@ -160,7 +159,11 @@ class RSNPlatformDriver(PlatformDriver):
         """
         """
         self._assert_rsn_oms()
-        retval = self._rsn_oms.get_platform_metadata(self._platform_id)
+        try:
+            retval = self._rsn_oms.get_platform_metadata(self._platform_id)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot get_platform_metadata: %s" % str(e))
+
         log.debug("get_platform_metadata = %s", retval)
 
         if not self._platform_id in retval:
@@ -192,8 +195,11 @@ class RSNPlatformDriver(PlatformDriver):
         attrs_ntp = [(attr_id, ion_ts_2_ntp(from_time))
                      for (attr_id, from_time) in attrs]
 
-        retval = self._rsn_oms.get_platform_attribute_values(self._platform_id,
-                                                             attrs_ntp)
+        try:
+            retval = self._rsn_oms.get_platform_attribute_values(self._platform_id,
+                                                                 attrs_ntp)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot get_platform_attribute_values: %s" % str(e))
 
         if not self._platform_id in retval:
             raise PlatformException("Unexpected: response does not include "
@@ -239,10 +245,10 @@ class RSNPlatformDriver(PlatformDriver):
             if not attr_def:
                 error_vals[attr_name] = InvalidResponse.ATTRIBUTE_NAME
                 log.warn("Attribute %s not in associated platform %s",
-                    attr_name, self._platform_id)
+                         attr_name, self._platform_id)
                 continue
 
-            type = attr_def.get('type', None)
+            type_ = attr_def.get('type', None)
             units = attr_def.get('units', None)
             min_val = attr_def.get('min_val', None)
             max_val = attr_def.get('max_val', None)
@@ -259,7 +265,7 @@ class RSNPlatformDriver(PlatformDriver):
             #
             # TODO the following value-related checks are minimal
             #
-            if type in ["float", "int"]:
+            if type_ in ["float", "int"]:
                 if min_val and float(attr_value) < float(min_val):
                     error_vals[attr_name] = InvalidResponse.ATTRIBUTE_VALUE_OUT_OF_RANGE
                     log.warn(
@@ -303,7 +309,11 @@ class RSNPlatformDriver(PlatformDriver):
             attrs = attrs_dict.items()
 
         # ok, now make the request to RSN OMS:
-        retval = self._rsn_oms.set_platform_attribute_values(self._platform_id, attrs)
+        try:
+            retval = self._rsn_oms.set_platform_attribute_values(self._platform_id, attrs)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot set_platform_attribute_values: %s" % str(e))
+
         log.debug("set_platform_attribute_values = %s", retval)
 
         if not self._platform_id in retval:
@@ -392,9 +402,14 @@ class RSNPlatformDriver(PlatformDriver):
 
         self._assert_rsn_oms()
 
-        response = self._rsn_oms.connect_instrument(self._platform_id, port_id, instrument_id, attributes)
+        try:
+            response = self._rsn_oms.connect_instrument(self._platform_id,
+                                                        port_id, instrument_id, attributes)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot connect_instrument: %s" % str(e))
+
         log.debug("%r: connect_instrument response: %s",
-            self._platform_id, response)
+                  self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
         port_dic = self._verify_port_id_in_response(port_id, dic_plat)
@@ -416,7 +431,12 @@ class RSNPlatformDriver(PlatformDriver):
 
         self._assert_rsn_oms()
 
-        response = self._rsn_oms.disconnect_instrument(self._platform_id, port_id, instrument_id)
+        try:
+            response = self._rsn_oms.disconnect_instrument(self._platform_id,
+                                                           port_id, instrument_id)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot disconnect_instrument: %s" % str(e))
+
         log.debug("%r: disconnect_instrument response: %s",
                   self._platform_id, response)
 
@@ -438,9 +458,13 @@ class RSNPlatformDriver(PlatformDriver):
 
         self._assert_rsn_oms()
 
-        response = self._rsn_oms.get_connected_instruments(self._platform_id, port_id)
+        try:
+            response = self._rsn_oms.get_connected_instruments(self._platform_id, port_id)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot get_connected_instruments: %s" % str(e))
+
         log.debug("%r: port_id=%r: get_connected_instruments response: %s",
-            self._platform_id, port_id, response)
+                  self._platform_id, port_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
         port_dic = self._verify_port_id_in_response(port_id, dic_plat)
@@ -453,9 +477,13 @@ class RSNPlatformDriver(PlatformDriver):
 
         self._assert_rsn_oms()
 
-        response = self._rsn_oms.turn_on_platform_port(self._platform_id, port_id)
+        try:
+            response = self._rsn_oms.turn_on_platform_port(self._platform_id, port_id)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot turn_on_platform_port: %s" % str(e))
+
         log.debug("%r: turn_on_platform_port response: %s",
-            self._platform_id, response)
+                  self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
         self._verify_port_id_in_response(port_id, dic_plat)
@@ -468,9 +496,13 @@ class RSNPlatformDriver(PlatformDriver):
 
         self._assert_rsn_oms()
 
-        response = self._rsn_oms.turn_off_platform_port(self._platform_id, port_id)
+        try:
+            response = self._rsn_oms.turn_off_platform_port(self._platform_id, port_id)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot turn_off_platform_port: %s" % str(e))
+
         log.debug("%r: turn_off_platform_port response: %s",
-            self._platform_id, response)
+                  self._platform_id, response)
 
         dic_plat = self._verify_platform_id_in_response(response)
         self._verify_port_id_in_response(port_id, dic_plat)
@@ -484,14 +516,22 @@ class RSNPlatformDriver(PlatformDriver):
         """
         Registers given url for all event types.
         """
-        result = self._rsn_oms.register_event_listener(url, [])
+        try:
+            result = self._rsn_oms.register_event_listener(url, [])
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot register_event_listener: %s" % str(e))
+
         log.info("register_event_listener url=%r returned: %s", url, result)
 
     def _unregister_event_listener(self, url):
         """
         Unregisters given url for all event types.
         """
-        result = self._rsn_oms.unregister_event_listener(url, [])
+        try:
+            result = self._rsn_oms.unregister_event_listener(url, [])
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot unregister_event_listener: %s" % str(e))
+
         log.info("unregister_event_listener url=%r returned: %s", url, result)
 
     def _start_event_dispatch(self):
@@ -536,7 +576,11 @@ class RSNPlatformDriver(PlatformDriver):
         """
         log.debug("%r: get_checksum...", self._platform_id)
         self._assert_rsn_oms()
-        response = self._rsn_oms.get_checksum(self._platform_id)
+        try:
+            response = self._rsn_oms.get_checksum(self._platform_id)
+        except Exception as e:
+            raise PlatformConnectionException(msg="Cannot get_checksum: %s" % str(e))
+
         dic_plat = self._verify_platform_id_in_response(response)
         log.debug("%r: get_checksum... dic_plat=%s" % (self._platform_id, dic_plat))
         return dic_plat  # note: return the dic for the platform
@@ -609,7 +653,6 @@ class RSNPlatformDriver(PlatformDriver):
 
         return super(RSNPlatformDriver, self).get(*args, **kwargs)
 
-
     ##############################################################
     # EXECUTE
     ##############################################################
@@ -675,12 +718,15 @@ class RSNPlatformDriver(PlatformDriver):
         if attributes is None:
             raise FSMError('connect_instrument: missing attributes argument')
 
-        result = self.connect_instrument(port_id, instrument_id, attributes)
-        next_state = None
+        try:
+            result = self.connect_instrument(port_id, instrument_id, attributes)
+            return None, result
 
-        return next_state, result
+        except PlatformConnectionException as e:
+            return self._connection_lost(RSNPlatformDriverEvent.CONNECT_INSTRUMENT,
+                                         args, kwargs, e)
 
-    def _handler_disconnected_connect_instrument(self, *args, **kwargs):
+    def _handler_connected_disconnect_instrument(self, *args, **kwargs):
         """
         """
         if log.isEnabledFor(logging.TRACE):  # pragma: no cover
@@ -696,8 +742,13 @@ class RSNPlatformDriver(PlatformDriver):
         if instrument_id is None:
             raise FSMError('disconnect_instrument: missing instrument_id argument')
 
-        result = self.disconnect_instrument(port_id, instrument_id)
-        next_state = None
+        try:
+            result = self.disconnect_instrument(port_id, instrument_id)
+            next_state = None
+
+        except PlatformConnectionException as e:
+            return self._connection_lost(RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT,
+                                         args, kwargs, e)
 
         return next_state, result
 
@@ -713,10 +764,13 @@ class RSNPlatformDriver(PlatformDriver):
         if port_id is None:
             raise FSMError('turn_on_port: missing port_id argument')
 
-        result = self.turn_on_port(port_id)
-        next_state = None
+        try:
+            result = self.turn_on_port(port_id)
+            return None, result
 
-        return next_state, result
+        except PlatformConnectionException as e:
+            return self._connection_lost(RSNPlatformDriverEvent.TURN_ON_PORT,
+                                         args, kwargs, e)
 
     def _handler_connected_turn_off_port(self, *args, **kwargs):
         """
@@ -730,10 +784,13 @@ class RSNPlatformDriver(PlatformDriver):
         if port_id is None:
             raise FSMError('turn_off_port: missing port_id argument')
 
-        result = self.turn_off_port(port_id)
-        next_state = None
+        try:
+            result = self.turn_off_port(port_id)
+            return None, result
 
-        return next_state, result
+        except PlatformConnectionException as e:
+            return self._connection_lost(RSNPlatformDriverEvent.TURN_OFF_PORT,
+                                         args, kwargs, e)
 
     def _handler_connected_check_sync(self, *args, **kwargs):
         """
@@ -743,10 +800,13 @@ class RSNPlatformDriver(PlatformDriver):
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
 
-        result = self._check_sync()
-        next_state = None
+        try:
+            result = self._check_sync()
+            return None, result
 
-        return next_state, result
+        except PlatformConnectionException as e:
+            return self._connection_lost(RSNPlatformDriverEvent.CHECK_SYNC,
+                                         args, kwargs, e)
 
     ##############################################################
     # RSN Platform driver FSM setup
@@ -766,7 +826,7 @@ class RSNPlatformDriver(PlatformDriver):
 
         # CONNECTED state event handlers we add in this class:
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.CONNECT_INSTRUMENT, self._handler_connected_connect_instrument)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_disconnected_connect_instrument)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.DISCONNECT_INSTRUMENT, self._handler_connected_disconnect_instrument)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_ON_PORT, self._handler_connected_turn_on_port)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.TURN_OFF_PORT, self._handler_connected_turn_off_port)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, RSNPlatformDriverEvent.CHECK_SYNC, self._handler_connected_check_sync)

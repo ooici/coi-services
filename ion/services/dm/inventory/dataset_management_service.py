@@ -157,9 +157,9 @@ class DatasetManagementService(BaseDatasetManagementService):
                 return np.dtype(obj['__np__'])
             return {k:cls.numpy_walk(v) for k,v in obj.iteritems()}
         if isinstance(obj,list):
-            return [i for i in obj]
+            return map(cls.numpy_walk, obj)
         if isinstance(obj, tuple):
-            return tuple((i for i in obj))
+            return tuple(map(cls.numpy_walk, obj))
         return obj
 
 

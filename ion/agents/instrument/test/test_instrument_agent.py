@@ -90,10 +90,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_test
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_states_special
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_lost_connection
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_autoreconnect
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_connect_failed
-bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_get_set_alerts
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_schema
 """
 
 ###############################################################################
@@ -128,7 +125,7 @@ IA_MOD = 'ion.agents.instrument.instrument_agent'
 IA_CLS = 'InstrumentAgent'
 
 # A seabird driver.
-DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.0-py2.7.egg'
+DRV_URI = 'http://sddevrepo.oceanobservatories.org/releases/seabird_sbe37smb_ooicore-0.1.1-py2.7.egg'
 DRV_MOD = 'mi.instrument.seabird.sbe37smb.ooicore.driver'
 DRV_CLS = 'SBE37Driver'
 
@@ -256,20 +253,16 @@ def start_instrument_agent_process(container, stream_config={}, resource_id=IA_R
 
     return ia_client
 
-@attr('HARDWARE', group='sa')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
-class TestInstrumentAgent(IonIntegrationTestCase):
+
+class InstrumentAgentTest():
     """
     Test cases for instrument agent class. Functions in this class provide
     instrument agent integration tests and provide a tutorial on use of
     the agent setup and interface.
     """
     
-    ############################################################################
-    # Setup, teardown.
-    ############################################################################
-        
-    def setUp(self):
+    def _setup(self):
+
         """
         Set up driver integration support.
         Start port agent, add port agent cleanup.
@@ -287,23 +280,23 @@ class TestInstrumentAgent(IonIntegrationTestCase):
         log.info('log delimiter: %s', DELIM)
         log.info('work dir: %s', WORK_DIR)
         self._support = DriverIntegrationTestSupport(None,
-                                                     None,
-                                                     DEV_ADDR,
-                                                     DEV_PORT,
-                                                     DATA_PORT,
-                                                     CMD_PORT,
-                                                     PA_BINARY,
-                                                     DELIM,
-                                                     WORK_DIR)
-        
+            None,
+            DEV_ADDR,
+            DEV_PORT,
+            DATA_PORT,
+            CMD_PORT,
+            PA_BINARY,
+            DELIM,
+            WORK_DIR)
+
         # Start port agent, add stop to cleanup.
         self._start_pagent()
-        self.addCleanup(self._support.stop_pagent)    
-        
+        self.addCleanup(self._support.stop_pagent)
+
         # Start container.
         log.info('Staring capability container.')
         self._start_container()
-        
+
         # Bring up services in a deploy file (no need to message)
         log.info('Staring deploy services.')
         self.container.start_rel_from_url('res/deploy/r2deploy.yml')
@@ -2034,336 +2027,68 @@ class TestInstrumentAgent(IonIntegrationTestCase):
             raw_sizes.append(rdt['raw'].size)
         raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
         self.assertTrue(any(raw_sizes_greater_than_one))
-                
-    def test_lost_connection(self):
+
+    def test_schema(self):
         """
-        test_lost_connection
+        test_schema
+        Test agent get_schema command. Transition to intialized and
+        query for agent and resource schema json.
         """
-        
-        # Set up a subscriber to collect command events.
-        self._start_event_subscriber('ResourceAgentConnectionLostErrorEvent', 1)
-        self.addCleanup(self._stop_event_subscriber)    
-        
-        # Start in uninitialized.
+
+        # We start in uninitialized state.
+        # In this state there is no driver process.
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-    
+        
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
         # Initialize the agent.
+        # The agent is spawned with a driver config, but you can pass one in
+        # optinally with the initialize command. This validates the driver
+        # config, launches a driver process and connects to it via messaging.
+        # If successful, we switch to the inactive state.
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.INACTIVE)
 
-        # Activate.
-        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.IDLE)
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
 
-        # Go into command mode.
-        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        retval = self._ia_client.get_schema()
+        log.info('Agent schema received: %s',str(retval))
 
-        # Start streaming.
-        cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
-        retval = self._ia_client.execute_resource(cmd)
-        
-        # Wait for a while, collect some samples.
-        gevent.sleep(10)
-        
-        # Blow the port agent out from under the agent.
-        self._support.stop_pagent()
-        
-        # Loop until we resyncronize to LOST_CONNECTION/DISCONNECTED.
-        # Test will timeout if this dosn't occur.
-        while True:
-            state = self._ia_client.get_agent_state()
-            if state == ResourceAgentState.LOST_CONNECTION:
-                break
-            else:
-                gevent.sleep(1)
-        
-        # Verify the driver has transitioned to disconnected
-        while True:
-            state = self._ia_client.get_resource_state()
-            if state == DriverConnectionState.DISCONNECTED:
-                break
-            else:
-                gevent.sleep(1)
+        #print '##################################'
+        #print json.dumps(json.loads(retval.agent_schema),indent=4)
+        #print '##################################'
 
-        # Make sure the lost connection error event arrives.
-        self._async_event_result.get(timeout=CFG.endpoint.receive.timeout)                        
-        self.assertEqual(len(self._events_received), 1)        
+        self.assertIsInstance(retval.agent_schema, str)
+        self.assertIsInstance(retval.resource_schema, str)
 
+        # Reset the agent. This causes the driver messaging to be stopped,
+        # the driver process to end and switches us back to uninitialized.
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
-    def test_autoreconnect(self):
-        """
-        test_autoreconnect
-        """
-        # Set up a subscriber to collect command events.
-        self._start_event_subscriber('ResourceAgentConnectionLostErrorEvent', 1)
-        self.addCleanup(self._stop_event_subscriber)    
-        
-        # Start in uninitialized.
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-    
-        # Initialize the agent.
-        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
-
-        # Activate.
-        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.IDLE)
-
-        # Go into command mode.
-        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
 
 
-        def poll_func(test):
-            cmd = AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE)
-            while True:
-                try:
-                    gevent.sleep(.5)
-                    test._ia_client.execute_resource(cmd)
-                except IonException:
-                    break
-                
-            while True:
-                try:
-                    gevent.sleep(.5)
-                    test._ia_client.execute_resource(cmd)
-                    break
-                except IonException:
-                    pass
-                
-        timeout = gevent.Timeout(240)
-        timeout.start()
-        try:
+@attr('HARDWARE', group='sa')
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
+class TestInstrumentAgent(IonIntegrationTestCase, InstrumentAgentTest):
 
-            # Start the command greenlet and let poll for a bit.
-            gl = gevent.spawn(poll_func, self)        
-            gevent.sleep(20)
-        
-            # Blow the port agent out from under the agent.
-            self._support.stop_pagent()
+    ############################################################################
+    # Setup, teardown.
+    ############################################################################
 
-            # Wait for a while, the supervisor is restarting the port agent.
-            gevent.sleep(5)
-            self._support.start_pagent()
-            
-            # Wait for the device to connect and start sampling again.
-            gl.join()
-            gl = None
-            timeout.cancel()
-            
-        except (Exception, gevent.Timeout) as ex:
-            if gl:
-                gl.kill()
-                gl = None
-            self.fail('Could not reconnect to device: '+str(ex))
-
-    def test_connect_failed(self):
-        """
-        test_connect_failed
-        """
-        # Stop the port agent.
-        self._support.stop_pagent()
-        
-        # Sleep a bit.
-        gevent.sleep(3)
-        
-        # Start in uninitialized.
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-    
-        # Initialize the agent.
-        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
-
-        # Activate. This should fail because there is no port agent to connect to.
-        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
-        with self.assertRaises(ResourceError):
-            retval = self._ia_client.execute_agent(cmd)
-            
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
-
-    def test_get_set_alerts(self):
-        """
-        test_get_set_alerts
-        Test specific of get/set alerts, including using result of get to
-        set later.
-        """
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-
-        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.INACTIVE)
-
-        retval = self._ia_client.get_agent(['alerts'])['alerts']
-        self.assertItemsEqual(retval, [])
-
-        alert_def1 = {
-            'name' : 'temp_warning_interval',
-            'stream_name' : 'parsed',
-            'description' : 'Temperature is above normal range.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'temp',
-            'lower_bound' : None,
-            'lower_rel_op' : None,
-            'upper_bound' : 10.5,
-            'upper_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
-        
-        alert_def2 = {
-            'name' : 'temp_alarm_interval',
-            'stream_name' : 'parsed',
-            'description' : 'Temperature is way above normal range.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
-            'value_id' : 'temp',
-            'lower_bound' : None,
-            'lower_rel_op' : None,
-            'upper_bound' : 15.5,
-            'upper_rel_op' : '<',
-            'alert_class' : 'IntervalAlert'
-        }
+    def setUp(self):
+        self._setup()
 
 
-        """
-        Interval alerts are returned from get like this:
-        (value and status fields describe state of the alert)
-        {
-        'name': 'temp_warning_interval',
-        'stream_name': 'parsed',
-        'description': 'Temperature is above normal range.',
-        'alert_type': 1,
-        'aggregate_type': 2,
-        'value_id': 'temp',
-        'lower_bound': None,
-        'lower_rel_op': None,
-        'upper_bound': 10.5,
-        'upper_rel_op': '<',
-        'alert_class': 'IntervalAlert',
 
-        'status': None,
-        'value': None
-        }
-        """
-        
-        alert_def3 = {
-            'name' : 'late_data_warning',
-            'stream_name' : 'parsed',
-            'description' : 'Expected data has not arrived.',
-            'alert_type' : StreamAlertType.WARNING,
-            'aggregate_type' : AggregateStatusType.AGGREGATE_COMMS,
-            'time_delta' : 180,
-            'alert_class' : 'LateDataAlert'
-        }
 
-        """
-        Late data alerts are returned from get like this:
-        (value and status fields describe state of the alert)
-        {
-        'name': 'late_data_warning',
-        'stream_name': 'parsed',
-        'description': 'Expected data has not arrived.',
-        'alert_type': 1,
-        'aggregate_type': 1,
-        'value_id': None,
-        'time_delta': 180,
-        'alert_class': 'LateDataAlert',
-        
-        'status': None,
-        'value': None
-        }
-        """
-        
-        """
-        [
-            {'status': None,
-            'alert_type': 1,
-            'name': 'temp_warning_interval',
-            'upper_bound': 10.5,
-            'lower_bound': None,
-            'aggregate_type': 2,
-            'alert_class': 'IntervalAlert',
-            'value': None,
-            'value_id': 'temp',
-            'lower_rel_op': None,
-            'upper_rel_op': '<',
-            'description': 'Temperature is above normal range.'},
-            {'status': None,
-            'alert_type': 1,
-            'name': 'temp_alarm_interval',
-            'upper_bound': 15.5,
-            'lower_bound': None,
-            'aggregate_type': 2,
-            'alert_class': 'IntervalAlert',
-            'value': None,
-            'value_id': 'temp',
-            'lower_rel_op': None,
-            'upper_rel_op': '<',
-            'description': 'Temperature is way above normal range.'},
-            {'status': None,
-             'stream_name': 'parsed',
-             'alert_type': 1,
-             'name': 'late_data_warning',
-             'aggregate_type': 1,
-             'alert_class': 'LateDataAlert',
-             'value': None,
-             'time_delta': 180,
-             'description': 'Expected data has not arrived.'}
-        ]
-        """
-        
-        orig_alerts = [alert_def1, alert_def2, alert_def3]
-        self._ia_client.set_agent({'alerts' : orig_alerts})
-    
-        retval = self._ia_client.get_agent(['alerts'])['alerts']
-        self.assertTrue(len(retval)==3)
-        alerts = retval
 
-        self._ia_client.set_agent({'alerts' : ['clear']})        
-        retval = self._ia_client.get_agent(['alerts'])['alerts']
-        self.assertItemsEqual(retval, [])
-
-        self._ia_client.set_agent({'alerts' : alerts})
-        retval = self._ia_client.get_agent(['alerts'])['alerts']
-        self.assertTrue(len(retval)==3)
-        
-        count = 0
-        for x in retval:
-            x.pop('status')
-            x.pop('value')
-            for y in orig_alerts:
-                if x['name'] == y['name']:
-                    count += 1
-                    self.assertItemsEqual(x.keys(), y.keys())
-        self.assertEquals(count, 3)
-        
-        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-        retval = self._ia_client.execute_agent(cmd)
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
-        

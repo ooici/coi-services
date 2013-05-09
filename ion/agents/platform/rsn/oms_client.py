@@ -26,11 +26,10 @@ class CIOMSClient(object):
 
     See https://confluence.oceanobservatories.org/display/CIDev/CI-OMS+interface
 
-    Note that a preliminary implementation of the real OMS interface used
-    "handlers" for grouping operations (for example, "ping" is actually a
-    method of the "hello" handler). Here we define all operations at the
-    base level. As a simple mechanism to emulate the "handler" mechanism,
-    corresponding properties are defined as `self`.
+    Note that the real OMS interface uses "handlers" for grouping operations
+    (for example, "ping" is a method of the "hello" handler). Here we define
+    all operations at the base level. As a simple mechanism to emulate the
+    "handler" mechanism, corresponding properties are defined as `self`.
     """
 
     @property
@@ -39,6 +38,18 @@ class CIOMSClient(object):
 
     @property
     def config(self):
+        return self
+
+    @property
+    def attr(self):
+        return self
+
+    @property
+    def event(self):
+        return self
+
+    @property
+    def port(self):
         return self
 
     def ping(self):

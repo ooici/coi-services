@@ -38,6 +38,7 @@ from ion.agents.data.handlers.handler_utils import list_file_info, calculate_ite
 import struct
 import time
 from ooi.logging import log
+import os
 
 # 2 days @ 1 record/sec
 MAX_RECORDS_PER_GRANULE=2*24*60*60
@@ -150,6 +151,7 @@ class SBE52BinaryDataHandler(BaseDataHandler):
 
         for f in new_flst:
             try:
+                size = os.stat(f[0]).st_size
                 try:
                     #find the new data check index in config
                     index = -1
@@ -177,8 +179,10 @@ class SBE52BinaryDataHandler(BaseDataHandler):
 
 # TODO: record files already read for future additions...
 #                    #update new data check with the latest file position
-#                    if 'set_new_data_check' in config and index > -1:
-#                        config['set_new_data_check'][index] = (f[0], f[1], f[2], file_pos)
+                    if 'set_new_data_check' in config and index > -1:
+                        # WRONG: should only record this after file finished parsing,
+                        # but may not have another yield at that point to trigger update
+                        config['set_new_data_check'][index] = (f[0], f[1], f[2], size)
 
                     yield g
 
@@ -203,10 +207,11 @@ class SBE52BinaryCTDParser(object):
     _record_index = 0
     _upload_time = time.time()
 
-    def __init__(self, url, *a, **b):
+    def __init__(self, url=None, open_file=None, parse_after=0, *a, **b):
         """ raise exception if file does not meet spec, or is too large to read into memory """
         self._profiles = []
-        with open(url, 'rb') as f:
+        self._parse_after = parse_after
+        with open_file or open(url, 'rb') as f:
             f.seek(0,2)
             size = f.tell()
             if size>MAX_INMEMORY_SIZE:
@@ -214,9 +219,10 @@ class SBE52BinaryCTDParser(object):
             f.seek(0)
             profile = self._read_profile(f)
             while profile:
-                self._profiles.append(profile)
+                if profile['end']>self._parse_after:
+                    self._profiles.append(profile)
                 profile = self._read_profile(f)
-        log.debug('parsed %s, found %d profiles', url, len(self._profiles))
+        log.debug('parsed %s, found %d usable profiles', url, len(self._profiles))
 
     def _read_profile(self, f):
         line = f.read(11)
@@ -233,7 +239,7 @@ class SBE52BinaryCTDParser(object):
             out['records'].append(line)
             line = f.read(11)
         # after 'ff'*11 marker, next 8 bytes are start/end times
-        out['start'],out['end'] = struct.unpack('<ii',f.read(8))
+        out['start'],out['end'] = struct.unpack('>II',f.read(8))
         log.trace('read profile [%d-%d] %d records',out['start'],out['end'],len(out['records']))
         return out
 
@@ -253,15 +259,17 @@ class SBE52BinaryCTDParser(object):
         last_index = min(max_count+self._record_index,len(records))
         while self._record_index<last_index:
             data = records[self._record_index]
-            record = {
-                'upload_time': self._upload_time,
-                'time': self._interpolate_time(self._record_index,start,end,len(records)),
-                'conductivity': self._get_conductivity(data),
-                'temp': self._get_temperature(data),
-                'pressure': self._get_pressure(data),
-                'oxygen': self._get_oxygen(data)
-            }
-            out.append(record)
+            time = self._interpolate_time(self._record_index,start,end,len(records))
+            if time>self._parse_after:
+                record = {
+                    'upload_time': self._upload_time,
+                    'time': time,
+                    'conductivity': self._get_conductivity(data),
+                    'temp': self._get_temperature(data),
+                    'pressure': self._get_pressure(data),
+                    'oxygen': self._get_oxygen(data)
+                }
+                out.append(record)
             self._record_index+=1
 
         if self._record_index==len(records):
@@ -292,100 +300,10 @@ class SBE52BinaryCTDParser(object):
         return float(raw)/divisor - offset
 
     def _unpack_int(self, data):
-        # can't use struct.unpack -- these fields are not typical 2, 4 or 8-byte widths
+        # can't use struct.unpack once for the whole field -- these fields are not typical 2, 4 or 8-byte widths
         out = 0
         for char in data[:-1]:
-#            out+=char
-            out+=struct.unpack('<B',char)[0]
+            out+=struct.unpack('>B',char)[0]
             out*=256
-#        out+=data[-1]
-        out+=struct.unpack('<B',data[-1])[0]
+        out+=struct.unpack('>B',data[-1])[0]
         return out
-
-
-
-
-
-
-
-
-
-
-
-################################# OLD STUFF BELOW....
-
-class ExternalDatasetParser(object):
-    """ define interface for any ExternalDataset Parser """
-    def __init__(self, url=None):
-        if not url:
-            raise HYPMException('Must provide a filename')
-        self.f = open(url, 'r')
-    def read_next_data(self):
-        raise Exception("must be implemented by subclass")
-    def close(self):
-        if not self.f.closed:
-            self.f.close()
-
-class SBE52_Hex_Parser(ExternalDatasetParser):
-    """ implement common utility for parsing hex fields in SBE52 files """
-    def __init__(self, url, field_positions, eof_marker):
-        '''
-        @param url:
-        @param start_position:
-        @param field_positions: dict of param name to list of 2 int values, char position of start and end of field with that name
-        @param eof_marker:
-        @return:
-        '''
-        super(SBE52_Hex_Parser,self).__init__(url)
-        self.field_positions = field_positions
-        self.eof_marker = eof_marker
-
-    def _parse_field(self, name, line):
-        return int(line[self.field_positions[name][0]:self.field_positions[name][1]], 16)
-    def _parse_line(self, line):
-        out = dict()
-        for field in self.field_positions:
-            pos = self.field_positions[field]
-            out[field] = int( line[pos[0]:pos[1]], 16 )
-        return out
-    def _parse_times(self, line):
-        return ( int(line[0:4], 16), int(line[4:8], 16) )
-    def _parse_file(self):
-        values = []
-        line = self.f.readline()
-        while line!=self.eof_marker:
-            values.append(self._parse_line(line))
-        line = self.f.readline()
-        start_time, end_time = self._parse_times(line)
-        delta_time = end_time - start_time
-        for i in xrange(len(values)):
-            time = start_time + i*delta_time
-            values[i]['time'] = time
-        return values
-
-    def read_next_data(self):
-        values = self._parse_file()
-        # change from list of dicts to dict of lists
-        return { key: [ value[key] for value in values ] for key in self.field_positions }
-
-DEFAULT_ACM_FIELDS = {  'VelA': (0, 2),
-                        'VelB': (2,4),
-                        'VelC': (4,6),
-                        'VelD': (6,8),
-                        'Mx': (8,10),
-                        'My': (10,12),
-                        'Mz': (12,14),
-                        'Pitch': (14,16),
-                        'Roll': (16,18)   }
-
-DEFAULT_ACM_EOF_MARKER = 'ffffffffffffffffffffffffffffffffffff'
-class SBE52_ACM_Parser(SBE52_Hex_Parser):
-    def __init__(self, url, start_position=0):
-        super(SBE52_ACM_Parser,self).__init__(url, DEFAULT_ACM_FIELDS, DEFAULT_ACM_EOF_MARKER)
-        line = self.f.readline()
-        bytes_per_record = int(line[0:4], 16)
-        if bytes_per_record!=18:
-            raise HYPMException('data product expects 9 uint16 values, file expected have 18 bytes per record')
-        self.number_of_records = int(line[4:8], 16)
-        if start_position:
-            self.f.seek(start_position)

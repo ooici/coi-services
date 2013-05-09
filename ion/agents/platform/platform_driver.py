@@ -16,7 +16,7 @@ import logging
 
 from ion.agents.platform.platform_driver_event import DriverEvent
 from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
-from ion.agents.platform.exceptions import PlatformException
+from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import PlatformDriverException
 
 from pyon.agent.common import BaseEnum
@@ -214,7 +214,9 @@ class PlatformDriver(object):
         this verification completes OK.
 
         @retval "PONG"
-        @raise PlatformConnectionException
+
+        @raise PlatformConnectionException  If the connection to the external
+               platform is lost.
         """
         raise NotImplementedError()  #pragma: no cover
 
@@ -232,6 +234,9 @@ class PlatformDriver(object):
         @retval {attrName : [(attrValue, timestamp), ...], ...}
                 dict indexed by attribute name with list of (value, timestamp)
                 pairs. Timestamps in same format as from_time.
+
+        @raise PlatformConnectionException  If the connection to the external
+               platform is lost.
         """
         raise NotImplementedError()  #pragma: no cover
 
@@ -249,6 +254,8 @@ class PlatformDriver(object):
                 integer number, the millis in UNIX epoch" to
                 align with description of pyon's get_ion_ts function.
 
+        @raise PlatformConnectionException  If the connection to the external
+               platform is lost.
         """
         #
         # TODO Any needed alignment with the instrument case?
@@ -259,20 +266,19 @@ class PlatformDriver(object):
         """
         Executes the given command.
         Subclasses can override to execute particular commands or delegate to
-        this base implementation to handle common commands.
+        its super class. However, note that this base class raises
+        NotImplementedError.
 
         @param cmd     command
         @param args    command's args
         @param kwargs  command's kwargs
 
         @return  result of the execution
+
+        @raise PlatformConnectionException  If the connection to the external
+               platform is lost.
         """
-
-        # TODO any actual case to be handled in this base class?
-        result = "!! TODO !!: result of execute: cmd=%s args=%s kwargs=%s" % (
-                 cmd, str(args), str(kwargs))
-
-        return result
+        raise NotImplementedError()  # pragma: no cover
 
     def get(self, *args, **kwargs):
         """
@@ -284,10 +290,11 @@ class PlatformDriver(object):
         @param kwargs  get's kwargs
 
         @return  result of the retrieval.
-        """
 
-        raise PlatformException('get: Invalid arguments: args=%s kwargs=%s' % (
-                                args, kwargs))
+        @raise PlatformConnectionException  If the connection to the external
+               platform is lost.
+        """
+        raise NotImplementedError()  # pragma: no cover
 
     def destroy(self):
         """
@@ -302,8 +309,7 @@ class PlatformDriver(object):
 
         @param driver_event a DriverEvent object.
         """
-        log.debug("platform driver=%r: notify driver_event=%s",
-            self._platform_id, driver_event)
+        log.debug("%r: _notify_driver_event: %s", self._platform_id, driver_event)
 
         assert isinstance(driver_event, DriverEvent)
 
@@ -316,7 +322,9 @@ class PlatformDriver(object):
         driver.
 
         @return SHA1 hash value as string of hexadecimal digits.
-        @raise PlatformConnectionException
+
+        @raise PlatformConnectionException  If the connection to the external
+               platform is lost.
         """
         raise NotImplementedError()  #pragma: no cover
 
@@ -325,6 +333,55 @@ class PlatformDriver(object):
         Returns the current FSM state.
         """
         return self._fsm.get_current_state()
+
+    #####################################################################
+    # Supporting method for handling connection lost in CONNECT handlers
+    #####################################################################
+
+    def _connection_lost(self, cmd, args, kwargs, exc=None):
+        """
+        Supporting method to be called by any CONNECTED handler right after
+        detecting that the connection with the external platform device has
+        been lost. It does a regular disconnect() and notifies the agent about
+        the lost connection. Note that the call to disconnect() itself may
+        throw some additional exception very likely caused by the fact that
+        the connection is lost--this exception is just logged out but ignored.
+
+        All parameters are for logging purposes.
+
+        @param cmd     string indicating the command that was attempted
+        @param args    args of the command that was attempted
+        @param kwargs  kwargs of the command that was attempted
+        @param exc     associated exception (if any),
+
+        @return (next_state, result) suitable as the return of the FSM
+                handler where the connection lost was detected. The
+                next_state will always be PlatformDriverState.DISCONNECTED.
+        """
+        log.debug("%r: (LC) _connection_lost: cmd=%s, args=%s, kwargs=%s, exc=%s",
+                  self._platform_id, cmd, args, kwargs, exc)
+
+        # NOTE I have this import here as a quick way to avoid circular imports
+        # (note that platform_agent also imports elements in this module)
+        # TODO better to move some basic definitions to separate modules.
+        from ion.agents.platform.platform_agent import PlatformAgentEvent
+
+        result = None
+        try:
+            result = self.disconnect()
+
+        except Exception as e:
+            # just log a message
+            log.debug("%r: (LC) ignoring exception while calling disconnect upon"
+                      " lost connection: %s", self._platform_id, e)
+
+        # in any case, notify the agent about the lost connection and
+        # transition to DISCONNECTED:
+        self._notify_driver_event(AsyncAgentEvent(PlatformAgentEvent.LOST_CONNECTION))
+
+        next_state = PlatformDriverState.DISCONNECTED
+
+        return next_state, result
 
     ##############################################################
     # FSM event handlers.
@@ -383,14 +440,31 @@ class PlatformDriver(object):
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
 
-        result = self.connect()
-        next_state = PlatformDriverState.CONNECTED
+        self.connect()
+        result = next_state = PlatformDriverState.CONNECTED
 
         return next_state, result
 
-    ##############################################################
+    def _handler_disconnected_disconnect(self, *args, **kwargs):
+        """
+        We allow the DISCONNECT event in DISCONNECTED state for convenience,
+        in particular it facilitates the overall handling of the connection_lost
+        event, which is processed by a subsequent call to disconnect from the
+        platform agent. The handler here does nothing.
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        return None, None
+
+    ###########################################################################
     # CONNECTED event handlers.
-    ##############################################################
+    # Except for the explicit disconnect and connection_lost handlers, the
+    # CONNECTED handlers (here and in subclasses) should directly catch any
+    # PlatformConnectionException to call _connection_lost.
+    ###########################################################################
 
     def _handler_connected_disconnect(self, *args, **kwargs):
         """
@@ -405,6 +479,26 @@ class PlatformDriver(object):
 
         return next_state, result
 
+    def _handler_connected_connection_lost(self, *args, **kwargs):
+        """
+        The connection was lost (as opposed to a normal disconnect request).
+        Here we do the regular disconnect but also notify the platform agent
+        about the lost connection.
+
+        NOTE: this handler in the FSM is provided in case there is a need to
+        directly trigger the associated transition along with the associated
+        notification to the agent. However, the typical case is that a CONNECTED
+        handler dealing with commands will catch any PlatformConnectionException
+        to call _connection_lost directly.
+        """
+        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+            log.trace("%r/%s args=%s kwargs=%s" % (
+                      self._platform_id, self.get_driver_state(),
+                      str(args), str(kwargs)))
+
+        # just use our supporting method:
+        return self._connection_lost(PlatformDriverEvent.CONNECTION_LOST, args, kwargs)
+
     def _handler_connected_ping(self, *args, **kwargs):
         """
         """
@@ -413,15 +507,12 @@ class PlatformDriver(object):
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
 
-        result = None
         try:
             result = self.ping()
-            next_state = None
-        except PlatformConnectionException as e:
-            next_state = PlatformDriverState.DISCONNECTED
-            log.error("Ping failed", e)
+            return None, result
 
-        return next_state, result
+        except PlatformConnectionException as e:
+            return self._connection_lost(PlatformDriverEvent.PING, args, kwargs, e)
 
     def _handler_connected_get(self, *args, **kwargs):
         """
@@ -431,8 +522,12 @@ class PlatformDriver(object):
                       self._platform_id, self.get_driver_state(),
                       str(args), str(kwargs)))
 
-        result = self.get(*args, **kwargs)
-        return None, result
+        try:
+            result = self.get(*args, **kwargs)
+            return None, result
+
+        except PlatformConnectionException as e:
+            return self._connection_lost(PlatformDriverEvent.GET, args, kwargs, e)
 
     def _handler_connected_set(self, *args, **kwargs):
         """
@@ -446,10 +541,12 @@ class PlatformDriver(object):
         if attrs is None:
             raise FSMError('set_attribute_values: missing attrs argument')
 
-        result = self.set_attribute_values(attrs)
-        next_state = None
+        try:
+            result = self.set_attribute_values(attrs)
+            return None, result
 
-        return next_state, result
+        except PlatformConnectionException as e:
+            return self._connection_lost(PlatformDriverEvent.SET, args, kwargs, e)
 
     def _handler_connected_execute(self, *args, **kwargs):
         """
@@ -462,10 +559,12 @@ class PlatformDriver(object):
         if len(args) == 0:
             raise FSMError('execute_resource: missing resource_cmd argument')
 
-        result = self.execute(*args, **kwargs)
-        next_state = None
+        try:
+            result = self.execute(*args, **kwargs)
+            return None, result
 
-        return next_state, result
+        except PlatformConnectionException as e:
+            return self._connection_lost(PlatformDriverEvent.EXECUTE, args, kwargs, e)
 
     ##############################################################
     # Platform driver FSM setup
@@ -495,10 +594,11 @@ class PlatformDriver(object):
 
         # DISCONNECTED state event handlers:
         self._fsm.add_handler(PlatformDriverState.DISCONNECTED, PlatformDriverEvent.CONNECT, self._handler_disconnected_connect)
+        self._fsm.add_handler(PlatformDriverState.DISCONNECTED, PlatformDriverEvent.DISCONNECT, self._handler_disconnected_disconnect)
 
         # CONNECTED state event handlers:
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.DISCONNECT, self._handler_connected_disconnect)
-        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECTION_LOST, self._handler_connected_disconnect)
+        self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.CONNECTION_LOST, self._handler_connected_connection_lost)
 
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.PING, self._handler_connected_ping)
         self._fsm.add_handler(PlatformDriverState.CONNECTED, PlatformDriverEvent.GET, self._handler_connected_get)

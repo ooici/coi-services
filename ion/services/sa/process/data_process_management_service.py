@@ -719,6 +719,25 @@ class DataProcessManagementService(BaseDataProcessManagementService):
                 if hasattr(att, 'content'):
                     delattr(att, 'content')
 
+        data_process_ids = set()
+        for dp in extended_data_process_definition.data_processes:
+            data_process_ids.add(dp._id)
+
+        #create the list of output data_products from the data_processes that is aligned
+        products_map = {}
+        objects, associations = self.clients.resource_registry.find_objects_mult(subjects=list(data_process_ids), id_only=False)
+        for obj,assoc in zip(objects,associations):
+            # if this is a hasOutputProduct association...
+            if assoc.p == PRED.hasOutputProduct:
+                #collect the set of output products from each data process in a map
+                if not products_map.has_key(assoc.s):
+                    products_map[assoc.s] = [assoc.o]
+                else:
+                    products_map[assoc.s].append(assoc.o)
+        #now set up the final list to align
+        extended_data_process_definition.data_products = []
+        for dp in extended_data_process_definition.data_processes:
+            extended_data_process_definition.data_products.append( products_map[dp._id] )
 
         return extended_data_process_definition
 

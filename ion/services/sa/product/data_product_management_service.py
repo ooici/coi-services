@@ -609,16 +609,24 @@ class DataProductManagementService(BaseDataProductManagementService):
                     delattr(att, 'content')
 
         #extract the list of upstream data products from the provenance results
-        dp_list = []
-        for key, value in extended_product.computed.provenance.value.iteritems():
-            for producer_id, dataprodlist in value['inputs'].iteritems():
-                for dataprod in dataprodlist:
-                    dp_list.append( self.clients.resource_registry.read(dataprod) )
-        extended_product.provenance_product_list = list ( set(dp_list) ) #remove dups in list
+#        dp_list = []
+#        for key, value in extended_product.computed.provenance.value.iteritems():
+#            for producer_id, dataprodlist in value['inputs'].iteritems():
+#                for dataprod in dataprodlist:
+#                    dp_list.append( self.clients.resource_registry.read(dataprod) )
+#        extended_product.provenance_product_list = list ( set(dp_list) ) #remove dups in list
 
         #set the data_ingestion_datetime from get_data_datetime
         if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
             extended_product.data_ingestion_datetime =  extended_product.computed.data_datetime.value[1]
+
+        #get the dataset size
+        ret = self._get_product_dataset_size(data_product_id)
+        extended_product.computed.product_download_size_estimated = ret
+        extended_product.computed.stored_data_size = ret
+        if ret.value > 0:
+            extended_product.computed.stored_data_size.value = int(ret.value * 1048576 )  #covert to bytes fo this attribute
+
 
         # divide up the active and past user subscriptions
         active = []
@@ -682,7 +690,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 #        return ret
 
 
-    def get_product_download_size_estimated(self, data_product_id=''):
+    def _get_product_dataset_size(self, data_product_id=''):
         # Returns the size of the full data product if downloaded/presented in a given presentation form
         ret = IonObject(OT.ComputedIntValue)
         ret.value = 0
@@ -700,31 +708,13 @@ class DataProductManagementService(BaseDataProductManagementService):
         return ret
 
 
-    def get_stored_data_size(self, data_product_id=''):
-        # Returns the storage size occupied by the data content of the resource, in bytes.
-        ret = IonObject(OT.ComputedIntValue)
-        ret.value = 0
-        try:
-            dataset_id = self._get_dataset_id(data_product_id)
-            size_in_bytes = self.clients.dataset_management.dataset_size(dataset_id, in_bytes=True)
-            ret.status = ComputedValueAvailability.PROVIDED
-            ret.value = size_in_bytes
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "Dataset for this Data Product could not be located"
-        except Exception as e:
-            raise e
-
-        return ret
-
-
     def get_data_contents_updated(self, data_product_id=''):
         # the datetime when the contents of the data were last modified in any way.
         # This is distinct from modifications to the data product attributes
         ret = IonObject(OT.ComputedStringValue)
         ret.value = ""
         ret.status = ComputedValueAvailability.NOTAVAILABLE
-        ret.reason = "FIXME. also, should datetime be stored as a string?"
+        ret.reason = "Currently need to retrieve form the coverage"
 
         return ret
 
@@ -781,36 +771,23 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def get_provenance(self, data_product_id=''):
         # Provides an audit trail for modifications to the original data
+        ret = IonObject(OT.ComputedDictValue)
+        ret.status = ComputedValueAvailability.NOTAVAILABLE
+        ret.reason = "Provenance not currently used."
 
         ret = IonObject(OT.ComputedDictValue)
 
-        try:
-            ret.value = self.get_data_product_provenance(data_product_id)
-            ret.status = ComputedValueAvailability.PROVIDED
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "Error in DataProuctMgmtService:get_data_product_provenance"
-        except Exception as e:
-            raise e
+#        try:
+#            ret.value = self.get_data_product_provenance(data_product_id)
+#            ret.status = ComputedValueAvailability.PROVIDED
+#        except NotFound:
+#            ret.status = ComputedValueAvailability.NOTAVAILABLE
+#            ret.reason = "Error in DataProuctMgmtService:get_data_product_provenance"
+#        except Exception as e:
+#            raise e
 
         return ret
 
-
-    def get_number_active_subscriptions(self, data_product_id=''):
-        # The number of current subscriptions to the data
-        # Returns the storage size occupied by the data content of the resource, in bytes.
-        ret = IonObject(OT.ComputedIntValue)
-        ret.value = 0
-        try:
-            ret.status = ComputedValueAvailability.PROVIDED
-            raise NotFound #todo: ret.value = ???
-        except NotFound:
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
-            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
-        except Exception as e:
-            raise e
-
-        return ret
 
 
     def get_active_user_subscriptions(self, data_product_id=''):
@@ -827,21 +804,6 @@ class DataProductManagementService(BaseDataProductManagementService):
             raise e
 
         return ret
-
-#    def get_past_user_subscriptions(self, data_product_id=''):
-#        # Provides information for users who have in the past acquired this data product, but for which that acquisition was terminated
-#        ret = IonObject(OT.ComputedListValue)
-#        ret.value = []
-#        try:
-#            ret.status = ComputedValueAvailability.PROVIDED
-#            raise NotFound #todo: ret.value = ???
-#        except NotFound:
-#            ret.status = ComputedValueAvailability.NOTAVAILABLE
-#            ret.reason = "FIXME: this message should say why the calculation couldn't be done"
-#        except Exception as e:
-#            raise e
-#
-#        return ret
 
 
     def get_last_granule(self, data_product_id=''):
@@ -869,6 +831,8 @@ class DataProductManagementService(BaseDataProductManagementService):
             retval = {}
             for k,v in rdt.iteritems():
                 if hasattr(rdt.context(k),'visible') and not rdt.context(k).visible:
+                    continue
+                if k.endswith('_qc') and not k.endswith('glblrng_qc'):
                     continue
                 element = np.atleast_1d(rdt[k]).flatten()[0]
                 if element == rdt._pdict.get_context(k).fill_value:

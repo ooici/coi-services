@@ -19,7 +19,7 @@ from pyon.util.memoize import memoize_lru
 from ion.util.stored_values import StoredValueManager
 
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
-from interface.objects import Granule
+from interface.objects import Granule, StreamDefinition
 
 from coverage_model import ParameterDictionary, ConstantType, ConstantRangeType, get_value_class, SimpleDomainSet, QuantityType, Span, SparseConstantType
 from coverage_model.parameter_functions import ParameterFunctionException
@@ -32,17 +32,17 @@ import time
 
 class RecordDictionaryTool(object):
     """
-    A record dictionary is a key/value store which contains records for a particular dataset. The keys are specified by 
-    a parameter dictionary which map to the fields in the dataset, the data types for the records as well as metadata about 
-    the fields. Each field in a record dictionary must contain the same number of records. A record can consist of a scalar 
-    value (typically a NumPy scalar) or it may contain an array or dictionary of values. The data type for each field is 
-    determined by the parameter dictionary. The length of the first assignment dictates the allowable size for the RDT - 
-    see the Tip below
+    A record dictionary is a key/value store which contains records for a particular dataset. The keys are specified by
+    a parameter dictionary which map to the fields in the dataset, the data types for the records as well as metadata
+    about the fields. Each field in a record dictionary must contain the same number of records. A record can consist of
+    a scalar value (typically a NumPy scalar) or it may contain an array or dictionary of values. The data type for each
+    field is determined by the parameter dictionary. The length of the first assignment dictates the allowable size for
+    the RDT - see the Tip below
 
-    The record dictionary can contain an instance of the parameter dictionary itself or it may contain a reference to one 
-    by use of a stream definition. A stream definition is a resource persisted by the resource registry and contains the 
-    parameter dictionary. When the record dictionary is constructed the client will specify either a stream definition 
-    identifier or a parameter dictionary.
+    The record dictionary can contain an instance of the parameter dictionary itself or it may contain a reference to
+    one by use of a stream definition. A stream definition is a resource persisted by the resource registry and contains
+    the parameter dictionary. When the record dictionary is constructed the client will specify either a stream
+    definition identifier or a parameter dictionary.
 
     ParameterDictionaries are inherently large and congest message traffic through RabbitMQ, therefore it is preferred 
     to use stream definitions in lieu of parameter dictionaries directly.
@@ -57,11 +57,12 @@ class RecordDictionaryTool(object):
     _available_fields   = None
     _creation_timestamp = None
     _stream_config      = {}
+    _definition         = None
     connection_id       = ''
     connection_index    = ''
 
 
-    def __init__(self,param_dictionary=None, stream_definition_id='', locator=None):
+    def __init__(self,param_dictionary=None, stream_definition_id='', locator=None, stream_definition=None):
         """
         """
         if type(param_dictionary) == dict:
@@ -70,14 +71,19 @@ class RecordDictionaryTool(object):
         elif isinstance(param_dictionary,ParameterDictionary):
             self._pdict = param_dictionary
         
-        elif stream_definition_id:
-            stream_def_obj = RecordDictionaryTool.read_stream_def(stream_definition_id)
+        elif stream_definition_id or stream_definition:
+            if stream_definition:
+                if not isinstance(stream_definition,StreamDefinition):
+                    raise BadRequest('Improper StreamDefinition object')
+                self._definition = stream_definition
+
+            stream_def_obj = stream_definition or RecordDictionaryTool.read_stream_def(stream_definition_id)
             pdict = stream_def_obj.parameter_dictionary
             self._available_fields = stream_def_obj.available_fields or None
             self._stream_config = stream_def_obj.stream_configuration
             self._pdict = ParameterDictionary.load(pdict)
             self._stream_def = stream_definition_id
-        
+
         else:
             raise BadRequest('Unable to create record dictionary with improper ParameterDictionary')
         
@@ -147,23 +153,19 @@ class RecordDictionaryTool(object):
                 try:
                     doc = svm.read_value(document_key)
                 except NotFound:
-                    log.info('Reference Document for %s not found', document_key)
+                    log.debug('Reference Document for %s not found', document_key)
                     continue
                 if context.lookup_value in doc:
                     self[lv] = doc[context.lookup_value]
 
     @classmethod
     def load_from_granule(cls, g):
-        if isinstance(g.param_dictionary, str):
-            instance = cls(stream_definition_id=g.param_dictionary, locator=g.locator)
-            stream_def_obj = RecordDictionaryTool.read_stream_def(g.param_dictionary)
-            pdict = stream_def_obj.parameter_dictionary
-            instance._available_fields = stream_def_obj.available_fields or None
-            instance._pdict = ParameterDictionary.load(pdict)
-        
+        if g.stream_definition_id:
+            instance = cls(stream_definition_id=g.stream_definition_id, locator=g.locator)
+        elif g.stream_definition:
+            instance = cls(stream_definition=g.stream_definition, locator=g.locator)
         else:
             instance = cls(param_dictionary=g.param_dictionary, locator=g.locator)
-            instance._pdict = ParameterDictionary.load(g.param_dictionary)
         
        
         if g.domain:
@@ -194,7 +196,12 @@ class RecordDictionaryTool(object):
             else:
                 granule.record_dictionary[self._pdict.ord_from_key(key)] = None
         
-        granule.param_dictionary = self._stream_def or self._pdict.dump()
+        granule.param_dictionary = {} if self._stream_def else self._pdict.dump()
+        if self._definition:
+            granule.stream_definition = self._definition
+        else:
+            granule.stream_definition = None
+            granule.stream_definition_id = self._stream_def
         granule.locator = self._locator
         granule.domain = self.domain.shape
         granule.data_producer_id=data_producer_id

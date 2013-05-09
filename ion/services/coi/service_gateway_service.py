@@ -641,14 +641,18 @@ def create_attachment():
         if keywords_str.strip():
             keywords = [str(x.strip()) for x in keywords_str.split(',')]
 
+        created_by           = data_params.get('attachment_created_by', 'unknown user')
+        modified_by          = data_params.get('attachment_modified_by', 'unknown user')
+
         # build attachment
-        attachment         = Attachment(name=str(data_params['attachment_name']),
-                                        description=str(data_params['attachment_description']),
-                                        attachment_type=int(data_params['attachment_type']),
-                                        content_type=str(data_params['attachment_content_type']),
-                                        keywords=keywords,
-                                        created_by=ion_actor_id,
-                                        content=content)
+        attachment           = Attachment(name=str(data_params['attachment_name']),
+                                          description=str(data_params['attachment_description']),
+                                          attachment_type=int(data_params['attachment_type']),
+                                          content_type=str(data_params['attachment_content_type']),
+                                          keywords=keywords,
+                                          created_by=created_by,
+                                          modified_by=modified_by,
+                                          content=content)
 
         rr_client = ResourceRegistryServiceProcessClient(node=Container.instance.node, process=service_gateway_instance)
         ret = rr_client.create_attachment(resource_id=resource_id, attachment=attachment, headers=headers)

@@ -182,17 +182,17 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                     description     = data_process_definition.description,
                     temporal_domain = tdom.dump(),
                     spatial_domain  = sdom.dump())
-                data_product_id = self.clients.data_product_management.create_data_product(data_product_obj, stream_definition_id=stream_definition_id)
+                data_product_id = self.clients.data_product_management.create_data_product(data_product_obj, stream_definition_id=stream_definition_id, timeout=30)
 
 
                 # Persist if necessary - handle the last step of the workflow differently
                 if wf_step == workflow_definition.workflow_steps[-1]:
                     if persist_workflow_data_product:
-                        self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
+                        self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id, timeout=30)
                 else:
                     # Persist intermediate steps independently
                     if wf_step.persist_process_output_data:
-                        self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id)
+                        self.clients.data_product_management.activate_data_product_persistence(data_product_id=data_product_id, timeout=30)
 
 
                 #Associate the intermediate data products with the workflow
@@ -209,8 +209,8 @@ class WorkflowManagementService(BaseWorkflowManagementService):
                 data_process_definition_id=data_process_definition._id,
                 in_data_product_ids = [data_process_input_dp_id],
                 out_data_product_ids = output_data_products.values(),
-                configuration=process_config)
-            self.clients.data_process_management.activate_data_process(data_process_id)
+                configuration=process_config, timeout=30)
+            self.clients.data_process_management.activate_data_process(data_process_id, timeout=30)
 
             #Track the the data process with an association to the workflow
             self.clients.resource_registry.create_association(workflow_id, PRED.hasDataProcess, data_process_id )
@@ -246,8 +246,8 @@ class WorkflowManagementService(BaseWorkflowManagementService):
         #Iterate through all of the data process associates and deactivate and delete them
         process_ids,_ = self.clients.resource_registry.find_objects(workflow_id, PRED.hasDataProcess, RT.DataProcess, True)
         for pid in process_ids:
-            self.clients.data_process_management.deactivate_data_process(pid)
-            self.clients.data_process_management.delete_data_process(pid)
+            self.clients.data_process_management.deactivate_data_process(pid, timeout=30)
+            self.clients.data_process_management.delete_data_process(pid, timeout=30)
             aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDataProcess, pid)
             if aid:
                 self.clients.resource_registry.delete_association(aid[0])
@@ -260,13 +260,13 @@ class WorkflowManagementService(BaseWorkflowManagementService):
 
             try:
                 #This may fail if the dat data product was not persisted - which is ok.
-                self.clients.data_product_management.suspend_data_product_persistence(dp_id)
+                self.clients.data_product_management.suspend_data_product_persistence(dp_id, timeout=30)
             except Exception, e:
                 log.warn(e.message)
                 pass
 
             if delete_data_products:
-                self.clients.data_product_management.delete_data_product(dp_id)
+                self.clients.data_product_management.delete_data_product(dp_id, timeout=30)
 
             aid = self.clients.resource_registry.find_associations(workflow_id, PRED.hasDataProduct, dp_id)
             if aid:

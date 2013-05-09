@@ -32,7 +32,7 @@ class Logger(object):
             import logging
             import os
             log = logging.getLogger('oms_simulator')
-            level_expr = "logging.%s" % os.getenv("oms_simulator.loglevel", "WARN")
+            level_expr = "logging.%s" % os.getenv("oms_simulator_loglevel", "WARN")
             print "oms_simulator: setting log level to: %s" % level_expr
             try:
                 level = eval(level_expr)

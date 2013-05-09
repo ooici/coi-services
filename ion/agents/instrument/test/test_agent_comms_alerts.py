@@ -236,17 +236,15 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
             'stream_config' : self._stream_config,
             'agent'         : {'resource_id': IA_RESOURCE_ID},
             'test_mode' : True,
-            'forget_past' : False,
-            'enable_persistence' : True,
+            'forget_past' : True,
+            'enable_persistence' : False,
             'aparam_alerts_config' : [state_alert_def, command_alert_def]
         }
 
         self._ia_client = None
-        self._ia_pid = '8989'
+        self._ia_pid = None
         
         self.addCleanup(self._verify_agent_reset)
-        self.addCleanup(self.container.state_repository.put_state,
-                        self._ia_pid, {})
 
     ###############################################################################
     # Port agent helpers.
@@ -323,12 +321,11 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
         container_client = ContainerAgentClient(node=self.container.node,
             name=self.container.name)
         
-        pid = container_client.spawn_process(name=IA_NAME,
+        self._ia_pid = container_client.spawn_process(name=IA_NAME,
             module=IA_MOD,
             cls=IA_CLS,
-            config=self._agent_config,
-            process_id=self._ia_pid)
-        log.info('Started instrument agent pid=%s.', str(pid))
+            config=self._agent_config)
+        log.info('Started instrument agent pid=%s.', str(self._ia_pid))
         
         # Start a resource agent client to talk with the instrument agent.
         self._ia_client = None
@@ -342,7 +339,8 @@ class TestAgentCommsAlerts(IonIntegrationTestCase):
             container_client = ContainerAgentClient(node=self.container.node,
                 name=self.container.name)
             container_client.terminate_process(self._ia_pid)
-        
+            self._ia_pid = None
+            
         if self._ia_client:
             self._ia_client = None
 

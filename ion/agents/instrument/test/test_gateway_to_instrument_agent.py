@@ -15,13 +15,14 @@ from mock import patch
 
 from pyon.public import log, CFG
 from nose.plugins.attrib import attr
+from pyon.util.int_test import IonIntegrationTestCase
 
 import pyon.core.exception as pyex
 from pyon.core.bootstrap import IonObject
 from pyon.core.exception import BadRequest
 from pyon.core.object import IonObjectSerializer
 from pyon.agent.agent import ResourceAgentClient
-from ion.agents.instrument.test.test_instrument_agent import TestInstrumentAgent, IA_RESOURCE_ID
+from ion.agents.instrument.test.test_instrument_agent import InstrumentAgentTest, IA_RESOURCE_ID
 
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
 
@@ -31,7 +32,7 @@ from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_E
 @attr('HARDWARE', group='mi')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
-class TestInstrumentAgentViaGateway(TestInstrumentAgent):
+class TestInstrumentAgentViaGateway(IonIntegrationTestCase, InstrumentAgentTest):
     """
     Test cases for accessing the instrument agent class through the service gateway. This class is an extension of the
     class which tests the instrument agent in general. Essentially uses everything in the parent class, except accesses
@@ -40,7 +41,7 @@ class TestInstrumentAgentViaGateway(TestInstrumentAgent):
 
     def setUp(self):
 
-        super(TestInstrumentAgentViaGateway, self).setUp()
+        self._setup()
 
         # Override a resource agent client to talk with the instrument agent through the Service Gateway.
         self._ia_client = None

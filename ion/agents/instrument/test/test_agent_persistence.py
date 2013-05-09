@@ -459,7 +459,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     self.assertItemsEqual(x.keys(), y.keys())
         self.assertEqual(count, 3)
        
-    @unittest.skip('Fails on buildbot, reason unknown.')
+    #@unittest.skip('Fails on buildbot, reason unknown.')
     def test_agent_state_persistence(self):
         """
         test_agent_state_persistence
@@ -511,8 +511,18 @@ class TestAgentPersistence(IonIntegrationTestCase):
         gevent.sleep(15)
         self._start_agent()
 
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.COMMAND)
+        timeout = gevent.Timeout(240)
+        timeout.start()
+        try:
+            while True:                
+                state = self._ia_client.get_agent_state()
+                if state == ResourceAgentState.COMMAND:
+                    timeout.cancel()
+                    break
+                else:
+                    gevent.sleep(1)
+        except gevent.Timeout:
+            fail("Could not restore agent state to COMMAND.")
 
         cmd = AgentCommand(command=ResourceAgentEvent.PAUSE)
         retval = self._ia_client.execute_agent(cmd)
@@ -521,11 +531,21 @@ class TestAgentPersistence(IonIntegrationTestCase):
 
         # Now stop and restart the agent.
         self._stop_agent()
-        gevent.sleep(3)
+        gevent.sleep(15)
         self._start_agent()
 
-        state = self._ia_client.get_agent_state()
-        self.assertEqual(state, ResourceAgentState.STOPPED)
+        timeout = gevent.Timeout(240)
+        timeout.start()
+        try:
+            while True:                
+                state = self._ia_client.get_agent_state()
+                if state == ResourceAgentState.STOPPED:
+                    timeout.cancel()
+                    break
+                else:
+                    gevent.sleep(1)
+        except gevent.Timeout:
+            fail("Could not restore agent state to STOPPED.")
 
         # Reset the agent. This causes the driver messaging to be stopped,
         # the driver process to end and switches us back to uninitialized.

@@ -71,7 +71,7 @@ class AgentConfigurationBuilder(object):
 
     def _resources_to_cache(self):
         return [#RT.StreamDefinition,
-                #RT.ParameterDictionary,
+                RT.ParameterDictionary,
                 #RT.ParameterContext,
                 ]
 

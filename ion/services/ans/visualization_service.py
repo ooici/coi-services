@@ -47,7 +47,7 @@ class VisualizationService(BaseVisualizationService):
     def on_init(self):
 
         self.create_workflow_timeout = get_safe(self.CFG, 'create_workflow_timeout', 60)
-        self.terminate_workflow_timeout = get_safe(self.CFG, 'terminate_workflow_timeout', 30)
+        self.terminate_workflow_timeout = get_safe(self.CFG, 'terminate_workflow_timeout', 60)
         self.monitor_timeout = get_safe(self.CFG, 'user_queue_monitor_timeout', 300)
         self.monitor_queue_size = get_safe(self.CFG, 'user_queue_monitor_size', 100)
 

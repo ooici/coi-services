@@ -10,6 +10,7 @@ from ion.services.dm.utility.granule import RecordDictionaryTool
 from pyon.container.cc import Container
 from pyon.ion.stream import StandaloneStreamPublisher
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
+from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 import time
 import numpy as np
 
@@ -570,6 +571,7 @@ class ParameterHelper(object):
 
     def create_simple_qc(self):
         contexts = {}
+        types_manager = TypesManager(self.dataset_management,None,None)
         t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
         t_ctxt.uom = 'seconds since 1900-01-01'
         t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
@@ -579,22 +581,10 @@ class ParameterHelper(object):
         temp_ctxt = ParameterContext('temp', param_type=QuantityType(value_encoding=np.dtype('float32')), fill_value=-9999)
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
+        temp_ctxt.qc_contexts = types_manager.make_qc_functions('temp','TEMPWAT',lambda *args, **kwargs : None)
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
-
-        types_manager = TypesManager(self.dataset_management,None,None)
-        ctxt_id, pc = types_manager.make_grt_qc('temp', 'TEMPWAT')
-        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
-        contexts['temp_qc'] = pc, ctxt_id
-        
-        ctxt_id, pc = types_manager.make_spike_qc('temp', 'TEMPWAT')
-        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
-        contexts['temp_spike_qc'] = pc, ctxt_id
-        
-        ctxt_id, pc = types_manager.make_stuckvalue_qc('temp', 'TEMPWAT')
-        self.addCleanup(self.dataset_management.delete_parameter_context, ctxt_id)
-        contexts['temp_stuck_qc'] = pc, ctxt_id
 
         return contexts
 
@@ -605,9 +595,9 @@ class ParameterHelper(object):
         self.create_stuck_value_test_function()
         contexts = self.create_simple_qc()
         context_ids = [i[1] for i in contexts.itervalues()]
-        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_qc'][0]))
-        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_spike_qc'][0]))
-        context_ids.extend( types_manager.get_lookup_value_ids(contexts['temp_stuck_qc'][0]))
+        context_ids.extend(contexts['temp'][0].qc_contexts)
+        for qc_context in contexts['temp'][0].qc_contexts:
+            context_ids.extend(types_manager.get_lookup_value_ids(DatasetManagementService.get_parameter_context(qc_context)))
         pdict_id = self.dataset_management.create_parameter_dictionary('simple_qc', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 

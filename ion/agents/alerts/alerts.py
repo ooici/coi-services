@@ -59,16 +59,15 @@ class BaseAlert(object):
                 "display_name" : "Alert Type",
                 "description" : "Severity type of the alert.",
                 "required" : True,
-                "type" : "int",
+                "type" : "enum",
                 "string_map" : StreamAlertType._str_map,
                 "value_map" : StreamAlertType._value_map
-            
             },
             "aggregate_type" : {
                 "display_name" : "Aggregate Type",
                 "description" : "Functional type of the alert for aggregate status.",
-                "required" : False,
-                "type" : "int",        
+                "required" : True,
+                "type" : "enum",
                 "string_map" : AggregateStatusType._str_map,
                 "value_map" : AggregateStatusType._value_map
                 },
@@ -182,7 +181,8 @@ class StreamAlert(BaseAlert):
                 "display_name" : "Stream Name",
                 "description" : "Name of the stream this alert listens on.",
                 "required" : True,
-                "type" : "str"
+                "type" : "str",
+                "valid_values" : ["/parameters/streams/keys"]                
             }
         }
 
@@ -218,7 +218,8 @@ class StreamValueAlert(StreamAlert):
             "display_name" : "Value ID",
             "description" : "Name of data value field within stream.",
             "required" : True,
-            "type" : "str"                
+            "type" : "str",                
+            "valid_values" : ["/parameters/streams/key/values"]                
         }
     }
     
@@ -286,7 +287,7 @@ class IntervalAlert(StreamValueAlert):
             "descritpion" : "Name of class implementing alert.",
             "required" : True,
             "type" : "str",
-            "value" : "IntervalAlert"
+            "valid_values" : ["IntervalAlert"]
             }            
         }
 
@@ -476,14 +477,15 @@ class LateDataAlert(StreamAlert):
             "display_name" : "Time Delta",
             "description" : "Wait time for new data to arrive on the stream.",
             "required" : True,
-            "type" : "float"
+            "type" : "float",
+            "min_value" : 0.0
         },
         "class_name" : {
             "display_name" : "Alert Class Name",
             "descritpion" : "Name of class implementing alert.",
             "required" : True,
             "type" : "str",
-            "value" : "LateDataAlert"
+            "valid_values" : ["LateDataAlert"]
         }            
     }
     
@@ -554,20 +556,22 @@ class StateAlert(BaseAlert):
             "display_name" : "Alert States",
             "description" : "List of states that trigger the alert.",
             "required" : True,
-            "type" : ["str"],
+            "type" : "list",
+            "valid_values" : ["/states/keys+"]
             },
         "clear_states" : {
             "display_name" : "Clear State",
             "description" : "List of states that clear the alert.",
             "required" : True,
-            "type" : ["str"],
+            "type" : "list",
+            "valid_values" : ["/states/keys+"]
         },
         "class_name" : {
             "display_name" : "Alert Class Name",
             "descritpion" : "Name of class implementing alert.",
             "type" : "str",
             "required" : True,
-            "value" : "StateAlert"
+            "valid_values" : ["StateAlert"]
         }
     }
     
@@ -578,6 +582,7 @@ class StateAlert(BaseAlert):
         retval['display_name'] = 'State Alert'
         retval['description'] = 'Alert triggered by specified states.'
         retval['type']['value']['type'] = "str"        
+        retval['type']['value']['valid_values'] = ["/states/keys"]        
         return retval
     
     def __init__(self, name=None, description=None, alert_type=None, resource_id=None,
@@ -640,19 +645,21 @@ class CommandErrorAlert(BaseAlert):
             "description" : "Execute agent command whos failure triggers the alert.",
             "required" : True,
             "type" : "str",
+            "valid_values" : ["/commands/keys"]
             },
         "clear_states" : {
             "display_name" : "Clear State",
             "description" : "List of states that clear the alert.",
             "required" : True,
-            "type" : ["str"],
+            "type" : "list",
+            "valid_values" : ["/states/keys+"],
         },
         "class_name" : {
             "display_name" : "Alert Class Name",
             "descritpion" : "Name of class implementing alert.",
             "type" : "str",
             "required" : True,
-            "value" : "CommandErrorAlert"
+            "valid_values" : ["CommandErrorAlert"]
         }
         
     }
@@ -664,6 +671,7 @@ class CommandErrorAlert(BaseAlert):
         retval['display_name'] = 'Command Alert'
         retval['description'] = 'Alert triggered by specified command errors.'
         retval['type']['value']['type'] = "str"                
+        retval['type']['value']['valid_values'] = ["/commands/keys"]                
         return retval
     
     
@@ -721,11 +729,15 @@ class CommandErrorAlert(BaseAlert):
             self.publish_alert()
     
 def get_alerts_schema():
+        
+    return {
+        "IntervalAlert" :    IntervalAlert.get_schema(),
+        "LateDataAlert"     : LateDataAlert.get_schema(),
+        "StateAlert"        : StateAlert.get_schema(),
+        "CommandErrorAlert" : CommandErrorAlert.get_schema()
+        }
+
+
     
-    return [
-        IntervalAlert.get_schema(),
-        LateDataAlert.get_schema(),
-        StateAlert.get_schema(),
-        CommandErrorAlert.get_schema()
-        ]
+    
     

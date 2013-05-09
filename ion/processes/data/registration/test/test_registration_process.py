@@ -62,7 +62,8 @@ class RegistrationProcessTest(IonIntegrationTestCase):
             if n.nodeType != 3:
                 parameters.append(str(n.childNodes[0].nodeValue))
         cov_params = [key for key in cov.list_parameters()]
-        self.assertEquals(parameters, cov_params)
+        for p in parameters:
+            self.assertIn(p, cov_params)
         cov.close()
 
     def _make_dataset(self):

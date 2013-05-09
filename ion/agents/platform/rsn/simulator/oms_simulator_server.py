@@ -26,58 +26,134 @@ from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.util.network_util import NetworkUtil
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 from threading import Thread
+import time
+import sys
+
+
+class CIOMSSimulatorWithExit(CIOMSSimulator):
+    """
+    Adds some special methods for coordination from integration tests:
+
+    exit_simulator: to exit the simulator process.
+
+    exit_inactivity: to make the simulator shutdown itself after a period of
+                     inactivity.
+    """
+
+    def __init__(self, oss):
+        CIOMSSimulator.__init__(self)
+        self._oss = oss
+
+        # for inactivity checking
+        self._last_activity = time.time()
+        self._inactivity_period = None
+
+    def exit_simulator(self):
+        log.info("exit_simulator called. event_generator=%s; %s listeners registered",
+                 self._event_generator, len(self._reg_event_listeners))
+        if self._event_generator:
+            self._event_generator.stop()
+            self._event_generator = None
+
+        def call_exit():
+            time.sleep(4)
+            self._oss.shutdown()
+            quit()
+
+        Thread(target=call_exit).start()
+        return "Will exit in a couple of secs"
+
+    def exit_inactivity(self, inactivity_period):
+        if self._inactivity_period is None:
+            # first call.
+            self._inactivity_period = inactivity_period
+            check_idle = Thread(target=self._check_inactivity)
+            check_idle.setDaemon(True)
+            check_idle.start()
+            log.info("started check_inactivity thread: inactivity_period=%.1f",
+                     inactivity_period)
+        else:
+            self._inactivity_period = inactivity_period
+            log.info("updated inactivity_period=%.1f", inactivity_period)
+
+    def _enter(self):
+        self._last_activity = time.time()
+        super(CIOMSSimulatorWithExit, self)._enter()
+
+    def _check_inactivity(self):
+        ip = self._inactivity_period
+        warn_per = 30 if ip >= 60 else 10 if ip >= 30 else 5
+        while self._oss._running:
+            inactive = time.time() - self._last_activity
+
+            if inactive >= self._inactivity_period:
+                log.warn("%.1f secs of inactivity. Exiting...", inactive)
+                self._oss.shutdown()
+                quit()
+
+            elif inactive >= warn_per and int(inactive) % warn_per == 0:
+                log.warn("%.1f secs of inactivity", inactive)
+
+            time.sleep(1)
 
 
 class CIOMSSimulatorServer(object):
     """
-    Dispatches an CIOMSSimulator with a SimpleXMLRPCServer. Normally,
-    this is intended to be run outside of pyon.
+    Dispatches an CIOMSSimulator with a SimpleXMLRPCServer.
+    Intended to be run outside of pyon.
     """
 
-    def __init__(self, host, port, thread=False):
+    def __init__(self, host, port, inactivity_period=None):
         """
+        Creates a SimpleXMLRPCServer and starts a Thread where serve_forever
+        is called on the server.
+
         @param host   Hostname for the service
         @param port   Port for the service
-        @param thread If True, a thread is launched to call serve_forever on
-                      the server. Do not use this within a pyon-dominated
-                      environment because of gevent monkey patching
-                      behavior that doesn't play well with threading.Thread
-                      (you'll likely see the thread blocked). By default False.
         """
-        self._sim = CIOMSSimulator()
+        self._running = True
+        self._sim = CIOMSSimulatorWithExit(self)
+
+        ser = NetworkUtil.serialize_network_definition(self._sim._ndef)
+        log.debug("network serialization:\n   %s" % ser.replace('\n', '\n   '))
+        log.debug("network.get_map() = %s\n" % self._sim.config.get_platform_map())
+
         self._server = SimpleXMLRPCServer((host, port), allow_none=True)
         self._server.register_introspection_functions()
         self._server.register_instance(self._sim, allow_dotted_names=True)
+
+        log.info("Methods:\n\t%s", "\n\t".join(self._server.system_listMethods()))
+
+        self._check_pyon()
+
+        runnable = Thread(target=self._server.serve_forever)
+        runnable.setDaemon(True)
+        runnable.start()
+
         log.info("OMS simulator xmlrpc server listening on %s:%s ..." % (host, port))
-        if thread:
-            self._check_pyon()
-            runnable = Thread(target=self._server.serve_forever)
-            runnable.start()
-            log.info("started thread.")
-        else:
-            self._server.serve_forever()
 
-    @property
-    def methods(self):
-        return self._server.system_listMethods()
-
-    @property
-    def oms_simulator(self):
-        return self._sim
+        if inactivity_period:
+            self._sim.exit_inactivity(inactivity_period)
 
     def shutdown(self):
-        log.info("_server.shutdown called.")
+        log.info("RNS OMS simulator exiting...")
+        self._running = False
         if self._sim:
             self._sim = None
             self._server.shutdown()
             self._server = None
+
+    def wait_until_shutdown(self):
+        while self._running:
+            time.sleep(1)
+
+        self.shutdown()
 
     @staticmethod
     def _check_pyon():
         """
         Prints a warning message if pyon is detected.
         """
-        import sys
         if 'pyon' in sys.modules:
             m = "!! WARNING: pyon in sys.modules !!"
             s = "!" * len(m)
@@ -91,7 +167,7 @@ if __name__ == "__main__":  # pragma: no cover
     DEFAULT_PORT = 7700
 
     import argparse
-    import sys
+    import signal
 
     parser = argparse.ArgumentParser(description="OMS Simulator server")
     parser.add_argument("-H", "--host",
@@ -100,29 +176,22 @@ if __name__ == "__main__":  # pragma: no cover
     parser.add_argument("-P", "--port",
                         help="port (default: %s)" % DEFAULT_PORT,
                         default=DEFAULT_PORT)
+    parser.add_argument("-i", "--inactivity",
+                        help="inactivity period check in secs (no check by default)")
 
     opts = parser.parse_args()
 
     host = opts.host
     port = int(opts.port)
+    inactivity_period = int(opts.inactivity) if opts.inactivity else None
 
-    oss = CIOMSSimulatorServer(host, port, thread=True)
-    sim = oss.oms_simulator
+    oss = CIOMSSimulatorServer(host, port, inactivity_period)
 
-    ser = NetworkUtil.serialize_network_definition(sim._ndef)
-    log.info("network serialization:\n   %s" % ser.replace('\n', '\n   '))
-    log.info("network.get_map() = %s\n" % sim.config.get_platform_map())
+    def handler(signum, frame):
+        log.info("\n--SIGINT--")
+        oss.shutdown()
+        quit()
 
-    log.info("Methods:\n\t%s", "\n\t".join(oss.methods))
+    signal.signal(signal.SIGINT, handler)
 
-    log.info("Listening on %s:%s", host, port)
-    log.info("Enter ^D to exit")
-    try:
-        sys.stdin.read()
-    except KeyboardInterrupt:
-        pass
-    except Exception, e:
-        # likely not associated with a terminal
-        pass
-    log.info("\nExiting")
-    oss.shutdown()
+    oss.wait_until_shutdown()

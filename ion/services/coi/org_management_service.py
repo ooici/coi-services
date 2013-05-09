@@ -15,7 +15,6 @@ from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, Negoti
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
-from interface.objects import MarineFacilityOrgExtension
 
 
 #Supported Negotiations - perhaps move these to data at some point if there are more negotiation types and/or remove
@@ -433,8 +432,8 @@ class OrgManagementService(BaseOrgManagementService):
 
                 #Automatically reject the proposal if the exipration request is greater than 12 hours from now or 0
                 cur_time = int(get_ion_ts())
-                expiration = cur_time +  ( 12 * 60 * 60 * 1000 ) # 12 hours from now
-                if sap.expiration == 0 or sap.expiration > expiration:
+                expiration = int(cur_time +  ( 12 * 60 * 60 * 1000 )) # 12 hours from now
+                if int(sap.expiration) == 0 or int(sap.expiration) > expiration:
                     #Automatically accept the proposal for exclusive access if it is not already acquired exclusively
                     provider_accept_sap = Negotiation.create_counter_proposal(negotiation, ProposalStatusEnum.REJECTED, ProposalOriginatorEnum.PROVIDER)
 
@@ -487,7 +486,7 @@ class OrgManagementService(BaseOrgManagementService):
         return negotiation.proposals[-1]
 
 
-    def find_org_negotiations(self, org_id='', proposal_type='', negotiation_status=''):
+    def find_org_negotiations(self, org_id='', proposal_type='', negotiation_status=-1):
         """Returns a list of negotiations for an Org. An optional proposal_type can be supplied
         or else all proposals will be returned. An optional negotiation_status can be supplied
         or else all proposals will be returned. Will throw a not NotFound exception
@@ -506,7 +505,7 @@ class OrgManagementService(BaseOrgManagementService):
         if proposal_type != '':
             neg_list = [neg for neg in neg_list if neg.proposals[0].type_ == proposal_type]
 
-        if negotiation_status != '':
+        if negotiation_status > -1:
             neg_list = [neg for neg in neg_list if neg.negotiation_status == negotiation_status]
 
         return neg_list
@@ -532,7 +531,7 @@ class OrgManagementService(BaseOrgManagementService):
 
         return neg_list
 
-    def find_user_negotiations(self, actor_id='', org_id='', proposal_type='', negotiation_status=''):
+    def find_user_negotiations(self, actor_id='', org_id='', proposal_type='', negotiation_status=-1):
         """Returns a list of negotiations for a specified Actor. All negotiations for all Orgs will be returned
         unless an org_id is specified. An optional proposal_type can be supplied
         or else all proposals will be returned. An optional negotiation_status can be provided
@@ -561,7 +560,7 @@ class OrgManagementService(BaseOrgManagementService):
         if proposal_type != '':
             neg_list = [neg for neg in neg_list if neg.proposals[0].type_ == proposal_type]
 
-        if negotiation_status != '':
+        if negotiation_status > -1:
             neg_list = [neg for neg in neg_list if neg.negotiation_status == negotiation_status]
 
         return neg_list
@@ -963,7 +962,7 @@ class OrgManagementService(BaseOrgManagementService):
         else:
             exclusive = False
 
-        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource_id, exclusive, sap.expiration)
+        commitment_id = self.create_resource_commitment(sap.provider, sap.consumer, sap.resource_id, exclusive, int(sap.expiration))
 
         #Create association between the Commitment and the Negotiation objects
         self.clients.resource_registry.create_association(sap.negotiation_id, PRED.hasContract, commitment_id)
@@ -990,7 +989,7 @@ class OrgManagementService(BaseOrgManagementService):
         res_commitment = IonObject(OT.ResourceCommitment, resource_id=resource_id, exclusive=exclusive)
 
         commitment = IonObject(RT.Commitment, name='', provider=org_id, consumer=actor_id, commitment=res_commitment,
-             description='Resource Commitment', expiration=expiration)
+             description='Resource Commitment', expiration=str(expiration))
 
         commitment_id, commitment_rev = self.clients.resource_registry.create(commitment)
         commitment._id = commitment_id
@@ -1050,7 +1049,7 @@ class OrgManagementService(BaseOrgManagementService):
                         continue
 
                     #If the expiration is not 0 make sure it has not expired
-                    if ( actor_id is None or com.consumer == actor_id) and (( com.expiration == 0 ) or (com.expiration > 0 and cur_time < com.expiration)):
+                    if ( actor_id is None or com.consumer == actor_id) and (( int(com.expiration) == 0 ) or (int(com.expiration) > 0 and cur_time < int(com.expiration))):
                         return True
 
         except Exception, e:
@@ -1081,7 +1080,7 @@ class OrgManagementService(BaseOrgManagementService):
 
                     #If the expiration is not 0 make sure it has not expired
                     if ( actor_id is None or actor_id == com.consumer )  and com.commitment.exclusive and\
-                       com.expiration > 0 and cur_time < com.expiration:
+                       int(com.expiration) > 0 and cur_time < int(com.expiration):
                         return True
 
         except Exception, e:
@@ -1174,171 +1173,4 @@ class OrgManagementService(BaseOrgManagementService):
         return False
 
 
-
-
-    #-----------------------------------------------
-    #  COMPUTED RESOURCES
-    #-----------------------------------------------
-    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        """Returns an MarineFacilityOrgExtension object containing additional related information
-
-        @param org_id    str
-        @param ext_associations    dict
-        @param ext_exclude    list
-        @retval observatory    ObservatoryExtension
-        @throws BadRequest    A parameter is missing
-        @throws NotFound    An object with the specified observatory_id does not exist
-        """
-
-        if not org_id:
-            raise BadRequest("The org_id parameter is empty")
-
-        extended_resource_handler = ExtendedResourceContainer(self)
-
-        extended_org = extended_resource_handler.create_extended_resource_container(
-            extended_resource_type=OT.MarineFacilityOrgExtension,
-            resource_id=org_id,
-            computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
-            ext_associations=ext_associations,
-            ext_exclude=ext_exclude,
-            user_id=user_id,
-            negotiation_status=NegotiationStatusEnum.OPEN)
-
-
-        #Fill out service request information for requesting data products
-        extended_org.data_products_request.service_name = 'resource_registry'
-        extended_org.data_products_request.service_operation = 'find_objects'
-        extended_org.data_products_request.request_parameters = {
-            'subject': org_id,
-            'predicate': 'hasResource',
-            'object_type': 'DataProduct',
-            'id_only': False,
-            'limit': 10,
-            'skip': 0
-            }
-
-        # set org members from the ION org
-        ion_org = self.find_org()
-        if org_id == ion_org._id:
-
-            # clients.resource_registry may return us the container's resource_registry instance
-            self._rr = self.clients.resource_registry
-            log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
-
-            actors_list = self.find_enrolled_users(org_id)
-            log.debug("get_marine_facility_extension: actors_list:  %s ", str(actors_list))
-            for actor in actors_list:
-                log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
-                user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
-                if user_info_objs:
-                    log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
-                    extended_org.members.append( user_info_objs[0] )
-
-
-        #Convert Negotiations to OrgUserNegotiationRequest
-        extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
-        extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
-
-        # Status computation
-        from ion.services.sa.observatory.observatory_util import ObservatoryUtil
-
-        # lookup all hasModel predicates
-        # lookup is a 2d associative array of [subject type][subject id] -> object id (model)
-        lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
-        for a in self.clients.resource_registry.find_associations(predicate=PRED.hasModel, id_only=False):
-            if a.st in lookup:
-                lookup[a.st][a.s] = a.o
-
-        def retrieve_model_objs(rsrc_list, object_type):
-            # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
-            # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
-            #  look up all the model ids, then create the proper output
-            model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
-            model_uniq = list(set([m for m in model_list if m is not None]))
-            model_objs = self.clients.resource_registry.read_mult(model_uniq)
-            model_dict = dict(zip(model_uniq, model_objs))
-            return [model_dict.get(m) for m in model_list]
-
-        extended_org.instrument_models = retrieve_model_objs(extended_org.instruments, RT.InstrumentDevice)
-        extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
-
-
-        s_unknown = StatusType.STATUS_UNKNOWN
-
-        # initialize computed attributes
-        extended_org.computed.instrument_status = [s_unknown] * len(extended_org.instruments)
-        extended_org.computed.platform_status   = [s_unknown] * len(extended_org.platforms)
-        extended_org.computed.site_status       = [s_unknown] * len(extended_org.sites)
-
-        # shortcut constructor for default value
-        def status_unknown():
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
-
-        extended_org.computed.communications_status_roll_up = status_unknown()
-        extended_org.computed.power_status_roll_up          = status_unknown()
-        extended_org.computed.data_status_roll_up           = status_unknown()
-        extended_org.computed.location_status_roll_up       = status_unknown()
-        extended_org.computed.aggregated_status             = status_unknown()
-
-
-        # calculate computed attributes
-        try:
-            outil = ObservatoryUtil(self)
-            status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
-            extended_org.computed.instrument_status = [status_rollups.get(idev._id, {}).get("agg", s_unknown)
-                                                       for idev in extended_org.instruments]
-            extended_org.computed.platform_status   = [status_rollups.get(pdev._id, {}).get("agg", s_unknown)
-                                                       for pdev in extended_org.platforms]
-            extended_org.computed.site_status       = [status_rollups.get(site._id, {}).get("agg", s_unknown)
-                                                       for site in extended_org.sites]
-        except Exception as ex:
-            log.exception("Computed attribute failed for org %s" % org_id)
-
-
-        # shortcut constructor for computed int value
-        def short_status_rollup(key):
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                                    value=status_rollups.get(org_id, {}).get(key, s_unknown))
-
-        extended_org.computed.communications_status_roll_up = short_status_rollup("comms")
-        extended_org.computed.power_status_roll_up          = short_status_rollup("power")
-        extended_org.computed.data_status_roll_up           = short_status_rollup("data")
-        extended_org.computed.location_status_roll_up       = short_status_rollup("loc")
-        extended_org.computed.aggregated_status             = short_status_rollup("agg")
-
-
-        return extended_org
-
-
-    def _convert_negotiations_to_requests(self, extended_marine_facility=None, negotiations=None):
-        assert isinstance(extended_marine_facility, MarineFacilityOrgExtension)
-        assert isinstance(negotiations, list)
-
-        #Get all associations for user info
-        assoc_list = self.clients.resource_registry.find_associations(predicate=PRED.hasInfo, id_only=False)
-
-        ret_list = []
-        for neg in negotiations:
-
-            request = IonObject(OT.OrgUserNegotiationRequest, ts_updated=neg.ts_updated, negotiation_id=neg._id,
-                negotiation_type=NegotiationTypeEnum._str_map[neg.negotiation_type],
-                negotiation_status=NegotiationStatusEnum._str_map[neg.negotiation_status],
-                originator=ProposalOriginatorEnum._str_map[neg.proposals[-1].originator],
-                request_type=neg.proposals[-1].type_,
-                description=neg.description, reason=neg.reason,
-                org_id=neg.proposals[-1].provider)
-
-            # since this is a proxy for the Negotiation object, simulate its id to help the UI deal with it
-            request._id = neg._id
-
-            actor_assoc = [ a for a in assoc_list if a.s == neg.proposals[-1].consumer ]
-            if actor_assoc:
-                member_assoc = [ m for m in extended_marine_facility.members if m._id == actor_assoc[0].o ]
-                if member_assoc:
-                    request.user_id = member_assoc[0]._id
-                    request.name = member_assoc[0].name
-
-            ret_list.append(request)
-
-        return ret_list
 

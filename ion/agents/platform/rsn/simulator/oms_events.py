@@ -156,6 +156,7 @@ class EventGenerator(object):
         else:
             from threading import Thread
             self._runnable = Thread(target=self._run)
+            self._runnable.setDaemon(True)
             log.debug("!!!! EventGenerator: pyon not detected: using Thread")
 
     def generate_and_notify_event(self):
