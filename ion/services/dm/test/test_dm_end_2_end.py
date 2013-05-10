@@ -510,14 +510,15 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.assertTrue(monitor.event.wait(10))
         granule = self.data_retriever.retrieve(dataset_id)
 
-        self.ingestion_management.suspend_data_stream(ctd_stream_id, ingestion_configuration_id=ingestion_config_id)
+
+        self.ingestion_management.pause_data_stream(ctd_stream_id, ingestion_config_id)
 
         monitor.event.clear()
         rdt['time'] = np.arange(10,20)
         publisher.publish(rdt.to_granule())
         self.assertFalse(monitor.event.wait(1))
 
-        self.ingestion_management.persist_data_stream(ctd_stream_id, dataset_id=dataset_id, ingestion_configuration_id=ingestion_config_id)
+        self.ingestion_management.resume_data_stream(ctd_stream_id, ingestion_config_id)
 
         self.assertTrue(monitor.event.wait(10))
 

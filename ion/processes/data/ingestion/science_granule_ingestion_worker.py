@@ -14,9 +14,12 @@ from pyon.ion.event import EventSubscriber
 from pyon.public import log, RT, PRED, CFG, OT
 from ion.services.dm.inventory.dataset_management_service import DatasetManagementService
 from interface.objects import Granule
-from ion.core.process.transform import TransformStreamListener
+from ion.core.process.transform import TransformStreamListener, TransformStreamProcess
 from ion.util.time_utils import TimeUtils
 from ion.util.stored_values import StoredValueManager
+from interface.services.dm.iingestion_worker import BaseIngestionWorker
+from pyon.ion.stream import StreamSubscriber
+from gevent.coros import RLock
 
 from coverage_model.parameter_values import SparseConstantValue
 from coverage_model import SparseConstantType
@@ -35,11 +38,13 @@ from gevent.queue import Queue
 REPORT_FREQUENCY=100
 MAX_RETRY_TIME=3600
 
-class ScienceGranuleIngestionWorker(TransformStreamListener):
+class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker):
     CACHE_LIMIT=CFG.get_safe('container.ingestion_cache',5)
 
     def __init__(self, *args,**kwargs):
-        super(ScienceGranuleIngestionWorker, self).__init__(*args, **kwargs)
+        TransformStreamListener.__init__(self, *args, **kwargs)
+        BaseIngestionWorker.__init__(self, *args, **kwargs)
+
         #--------------------------------------------------------------------------------
         # Ingestion Cache
         # - Datasets
@@ -54,8 +59,17 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         # unique ID to identify this worker in log msgs
         self._id = uuid.uuid1()
 
+
+
     def on_start(self): #pragma no cover
-        super(ScienceGranuleIngestionWorker,self).on_start()
+        TransformStreamProcess.on_start(self)
+        self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
+        self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.receive_callback)
+        self.thread_lock = RLock()
+        BaseIngestionWorker.on_start(self)
+        self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id, process=self)
+        self.add_endpoint(self._rpc_server)
+
         self.event_publisher = EventPublisher(OT.DatasetModified)
         self.stored_value_manager = StoredValueManager(self.container)
 
@@ -68,16 +82,50 @@ class ScienceGranuleIngestionWorker(TransformStreamListener):
         self.qc_publisher = EventPublisher(event_type=OT.ParameterQCEvent)
         self.connection_id = ''
         self.connection_index = None
-
+        
+        self.start_listener()
 
     def on_quit(self): #pragma no cover
-        super(ScienceGranuleIngestionWorker, self).on_quit()
+        if self.subscriber_thread:
+            self.stop_listener()
         for stream, coverage in self._coverages.iteritems():
             try:
                 coverage.close(timeout=5)
             except:
                 log.exception('Problems closing the coverage')
+        self._coverages.clear()
+        TransformStreamListener.on_quit(self)
+        BaseIngestionWorker.on_quit(self)
+
     
+    def start_listener(self):
+        self.thread_lock.acquire()
+        self.subscriber_thread = self._process.thread_manager.spawn(self.subscriber.listen, thread_name='%s-subscriber' % self.id)
+        self.thread_lock.release()
+
+    def stop_listener(self):
+        self.thread_lock.acquire()
+        self.subscriber.close()
+        self.subscriber_thread.join(timeout=10)
+        for stream, coverage in self._coverages.iteritems():
+            try:
+                coverage.close(timeout=5)
+            except:
+                log.exception('Problems closing the coverage')
+        self._coverages.clear()
+        self.subscriber_thread = None
+        self.thread_lock.release()
+
+    def pause(self):
+        if self.subscriber_thread is not None:
+            self.stop_listener()
+
+
+    def resume(self):
+        if self.subscriber_thread is None:
+            self.start_listener()
+
+
     def _add_lookups(self, event, *args, **kwargs):
         if event.origin == self.input_product:
             if isinstance(event.reference_keys, list):
