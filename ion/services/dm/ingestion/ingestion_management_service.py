@@ -12,6 +12,7 @@ from interface.objects import IngestionConfiguration, IngestionQueue, ProcessSch
 from pyon.core.exception import BadRequest
 from pyon.util.log import log
 from pyon.util.containers import DotDict
+from interface.services.dm.iingestion_worker import IngestionWorkerClient
 
 
 class IngestionManagementService(BaseIngestionManagementService):
@@ -125,8 +126,39 @@ class IngestionManagementService(BaseIngestionManagementService):
             for process in self.clients.resource_registry.find_objects(subject=xn_obj, predicate=PRED.hasIngestionWorker, id_only=False)[0]:
                 if process.process_id.startswith('ingestion_worker'):
                     self.clients.process_dispatcher.cancel_process(process._id)
+    
+    def pause_worker(self, subscription_id):
+        for client in self.ingestion_worker_rpc(subscription_id):
+            client.pause()
 
+    def resume_worker(self, subscription_id):
+        for client in self.ingestion_worker_rpc(subscription_id):
+            client.resume()
 
+    def ingestion_worker_rpc(self, subscription_id):
+        for xn_obj in self.clients.resource_registry.find_subjects(object=subscription_id, predicate=PRED.hasSubscription, id_only=False)[0]:
+            for process in self.clients.resource_registry.find_objects(subject=xn_obj, predicate=PRED.hasIngestionWorker, id_only=False)[0]:
+                if process.process_id.startswith('ingestion_worker'):
+                    rpc_client = IngestionWorkerClient(to_name=process.process_id)
+                    yield rpc_client
+
+    def pause_data_stream(self, stream_id='', ingestion_configuration_id=''):
+        subscription_ids = self.get_subscriptions(stream_id, ingestion_configuration_id)
+        for sub_id in subscription_ids:
+            self.pause_worker(sub_id)
+
+    
+    def resume_data_stream(self, stream_id='', ingestion_configuration_id=''):
+        subscription_ids = self.get_subscriptions(stream_id, ingestion_configuration_id)
+        for sub_id in subscription_ids:
+            self.resume_worker(sub_id)
+
+    def get_subscriptions(self, stream_id='', ingestion_configuration_id=''):
+        sub_ids, _ = self.clients.resource_registry.find_objects(subject=ingestion_configuration_id, predicate=PRED.hasSubscription, id_only=True)
+        sub2_ids, _ = self.clients.resource_registry.find_subjects(object=stream_id, predicate=PRED.hasStream, id_only=True, subject_type=RT.Subscription)
+        return [i for i in sub_ids if i in sub2_ids]
+
+    
     def unpersist_data_stream(self, stream_id='', ingestion_configuration_id=''):
 
 
