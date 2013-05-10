@@ -6,6 +6,7 @@ __license__ = 'Apache 2.0'
 import types
 from pyon.core.exception import BadRequest, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
+from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from pyon.public import log, OT
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
@@ -30,7 +31,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     system resources. Uses a datastore instance for resource object persistence.
     """
     def on_init(self):
-        self.resource_registry = self.container.resource_registry
+        self.resource_registry = ResourceRegistryServiceWrapper(self.container.resource_registry, self)
 
         # For easier interactive debugging
         self.dss = None
@@ -42,9 +43,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     @mask_couch_error
     def create(self, object=None):
-        ctx = self.get_context()
-        ion_actor_id = ctx.get('ion-actor-id', None) if ctx else None
-        return self.resource_registry.create(object=object, actor_id=ion_actor_id)
+        return self.resource_registry.create(object=object)
 
     @mask_couch_error
     def read(self, object_id='', rev_id=''):
