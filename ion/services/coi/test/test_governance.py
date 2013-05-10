@@ -1048,14 +1048,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
         self.assertEqual(len(actors),0)
 
         #Check the get extended marine facility to check on the open and closed negotiations when called by normal user
-        #ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=actor_user_id, headers=actor_header)
-
-        #print ext_mf
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=actor_user_id, headers=actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 0)
+        self.assertEqual(len(ext_mf.open_requests), 0)
 
         #Check the get extended marine facility to check on the open and closed negotiations when called by privledged user
-        #ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=self.system_actor._id, headers=self.system_actor_header)
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=self.system_actor._id, headers=self.system_actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 1)
+        self.assertEqual(len(ext_mf.open_requests), 1)
 
-        #print ext_mf
 
         #Manager approves proposal
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
@@ -1075,6 +1076,18 @@ class TestGovernanceInt(IonIntegrationTestCase):
             sap = IonObject(OT.EnrollmentProposal,consumer=actor_id, provider=org2_id )
             neg_id = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: not is_enrolled',cm.exception.message)
+
+
+        #Check the get extended marine facility to check on the open and closed negotiations when called by normal user
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=actor_user_id, headers=actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 0)
+        self.assertEqual(len(ext_mf.open_requests), 0)
+
+        #Check the get extended marine facility to check on the open and closed negotiations when called by privledged user
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=self.system_actor._id, headers=self.system_actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 2)
+        self.assertEqual(len(ext_mf.open_requests), 0)
+
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
 
