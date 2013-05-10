@@ -1163,8 +1163,6 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
         #Convert Negotiations to OrgUserNegotiationRequest
-        extended_org.open_requests  = self.clients.org_management.find_org_negotiations(org_id)
-        extended_org.closed_requests  = self.clients.org_management.find_org_closed_negotiations(org_id)
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
         extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
 
