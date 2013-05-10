@@ -332,8 +332,7 @@ class RecordDictionaryTool(object):
                 retval = pfv[:]
                 return retval
             except ParameterFunctionException:
-                from traceback import format_exc
-                log.info(format_exc())
+                log.info('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
                 return None
         else:
             return None
