@@ -1559,7 +1559,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.instrument_device_extension.rollup')
 
         # add UI details for deployments in same order as deployments
-        extended_instrument.deployment_info = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=describe_deployments(extended_instrument.deployments, self.clients))
+        extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients)
         if t:
             t.complete_step('ims.instrument_device_extension.deploy')
             stats.add(t)
@@ -1577,10 +1577,43 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
 
     def get_operational_state(self, taskable_resource_id):   # from Device
-        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
+
+        resource_agent_state_labels = {
+            'RESOURCE_AGENT_STATE_POWERED_DOWN': 'POWERED DOWN',
+            'RESOURCE_AGENT_STATE_UNINITIALIZED':'UNINITIALIZED',
+            'RESOURCE_AGENT_STATE_INACTIVE': 'INACTIVE',
+            'RESOURCE_AGENT_STATE_IDLE': 'IDLE',
+            'RESOURCE_AGENT_STATE_STOPPED': 'STOPPED',
+            'RESOURCE_AGENT_STATE_COMMAND': 'COMMAND',
+            'RESOURCE_AGENT_STATE_STREAMING': 'STREAMING',
+            'RESOURCE_AGENT_STATE_TEST': 'TEST',
+            'RESOURCE_AGENT_STATE_CALIBRATE': 'CALIBRATE',
+            'RESOUCE_AGENT_STATE_DIRECT_ACCESS': 'DIRECT ACCESS',
+            'RESOURCE_AGENT_STATE_BUSY': 'BUSY',
+            'RESOURCE_AGENT_STATE_LOST_CONNECTION': 'LOST CONNECTION',
+        }
+
+        retval = IonObject(OT.ComputedStringValue)
+        ia_client, _ = self.agent_status_builder.get_device_agent(taskable_resource_id)
         if ia_client:
-            ret.value = ia_client.get_agent_state()
-        return ret
+            try:
+                state = ia_client.get_agent_state()
+                if resource_agent_state_labels.has_key(state):
+                    retval.value = resource_agent_state_labels[ state ]
+                else:
+                    retval.value = 'UNKNOWN'
+                    log.warn('get_operational_state  get_agent_state returned invalid state type: %s', state)
+
+            except Exception as e:
+                retval.value = 'UNKNOWN'
+                retval.status = ComputedValueAvailability.NOTAVAILABLE
+                log.warn('get_operational_state  get_agent_state returned exception: %s', e)
+
+        else:
+            retval.value = 'UNKNOWN'
+            retval.status = ComputedValueAvailability.NOTAVAILABLE
+
+        return retval
 
 
     def get_uptime(self, device_id):
@@ -1742,8 +1775,10 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         else:
             parent_node_statuses = [self.agent_status_builder.get_status_of_device(x) for x in parent_node_device_ids]
             rollup_values = {}
-            for key, _ in parent_node_statuses[0].iteritems():
-                rollup_values[key] = self.agent_status_builder._crush_status_list([ns[key] for ns in parent_node_statuses])
+            for astkey, astname in AggregateStatusType._str_map.iteritems():
+                log.debug("collecting all %s values to crush", astname)
+                single_type_list = [nodestat.get(astkey, StatusType.STATUS_UNKNOWN) for nodestat in parent_node_statuses]
+                rollup_values[astkey] = self.agent_status_builder._crush_status_list(single_type_list)
 
             extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
                                                                              value=rollup_values)
@@ -1751,7 +1786,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             t.complete_step('ims.platform_device_extension.crush')
 
         # add UI details for deployments
-        extended_platform.deployment_info = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=describe_deployments(extended_platform.deployments, self.clients))
+        extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients)
         if t:
             t.complete_step('ims.platform_device_extension.deploy')
             stats.add(t)

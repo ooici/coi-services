@@ -832,6 +832,8 @@ class DataProductManagementService(BaseDataProductManagementService):
             for k,v in rdt.iteritems():
                 if hasattr(rdt.context(k),'visible') and not rdt.context(k).visible:
                     continue
+                if k.endswith('_qc') and not k.endswith('glblrng_qc'):
+                    continue
                 element = np.atleast_1d(rdt[k]).flatten()[0]
                 if element == rdt._pdict.get_context(k).fill_value:
                     retval[k] = '%s: Empty' % k

@@ -68,6 +68,7 @@ from interface.objects import StreamAlertType, AggregateStatusType
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_config_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_state_persistence
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_rparam_persistence
 """
 
 ###############################################################################
@@ -554,3 +555,135 @@ class TestAgentPersistence(IonIntegrationTestCase):
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
+
+    #@unittest.skip('')
+    def test_agent_rparam_persistence(self):
+        """
+        test_agent_rparam_persistence
+        Verify ability to restore device configuration.
+        ### Original values:
+        {'TA0': -0.0002572242, 'OUTPUTSV': False, 'NAVG': 0}
+        
+        ### Values after set:
+        {'TA0': -0.0005144484, 'OUTPUTSV': True, 'NAVG': 1}
+
+        ### Restore config:
+        {'PTCA1': 0.6603433, 'WBOTC': 1.2024e-05, 'PCALDATE': [12, 8, 2005],
+        'STORETIME': False, 'CPCOR': 9.57e-08, 'PTCA2': 0.00575649,
+        'OUTPUTSV': True, 'SAMPLENUM': 0, 'TCALDATE': [8, 11, 2005],
+        'OUTPUTSAL': False, 'TA2': -9.717158e-06, 'POFFSET': 0.0,
+        'INTERVAL': 19733, 'SYNCWAIT': 0, 'CJ': 3.339261e-05,
+        'CI': 0.0001334915, 'CH': 0.1417895, 'TA0': -0.0005144484,
+        'TA1': 0.0003138936, 'NAVG': 1, 'TA3': 2.138735e-07, '
+        RCALDATE': [8, 11, 2005], 'CG': -0.987093, 'CTCOR': 3.25e-06, '
+        PTCB0': 24.6145, 'PTCB1': -0.0009, 'PTCB2': 0.0,
+        'CCALDATE': [8, 11, 2005], 'PA0': 5.916199, 'PA1': 0.4851819,
+        'PA2': 4.596432e-07, 'SYNCMODE': False, 'PTCA0': 276.2492,
+        'TXREALTIME': True, 'RTCA2': -3.022745e-08, 'RTCA1': 1.686132e-06,
+        'RTCA0': 0.9999862}
+        
+        ### Of which we have:
+        {'TA0': -0.0005144484, 'OUTPUTSV': True, 'NAVG': 1}        
+        """
+
+        self._start_agent()
+
+        # We start in uninitialized state.
+        # In this state there is no driver process.
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        
+        # Ping the agent.
+        retval = self._ia_client.ping_agent()
+        log.info(retval)
+
+        # Initialize the agent.
+        # The agent is spawned with a driver config, but you can pass one in
+        # optinally with the initialize command. This validates the driver
+        # config, launches a driver process and connects to it via messaging.
+        # If successful, we switch to the inactive state.
+        cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.INACTIVE)
+
+        # Ping the driver proc.
+        retval = self._ia_client.ping_resource()
+        log.info(retval)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.IDLE)
+
+        cmd = AgentCommand(command=ResourceAgentEvent.RUN)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.COMMAND)
+
+        params = [
+            SBE37Parameter.OUTPUTSV,
+            SBE37Parameter.NAVG,
+            SBE37Parameter.TA0
+        ]
+        retval = self._ia_client.get_resource(params)
+        orig_params = retval
+
+        new_params = {
+            SBE37Parameter.OUTPUTSV : not orig_params[SBE37Parameter.OUTPUTSV],
+            SBE37Parameter.NAVG : orig_params[SBE37Parameter.NAVG] + 1,
+            SBE37Parameter.TA0 : orig_params[SBE37Parameter.TA0] * 2
+        }
+
+        self._ia_client.set_resource(new_params)
+        retval = self._ia_client.get_resource(params)
+        
+        self.assertEqual(retval[SBE37Parameter.OUTPUTSV],
+                         new_params[SBE37Parameter.OUTPUTSV])
+        self.assertEqual(retval[SBE37Parameter.NAVG],
+                         new_params[SBE37Parameter.NAVG])
+        delta = max(retval[SBE37Parameter.TA0],
+                    new_params[SBE37Parameter.TA0])*.01
+        self.assertAlmostEqual(retval[SBE37Parameter.TA0],
+                               new_params[SBE37Parameter.TA0], delta=delta)
+
+        # Now stop and restart the agent.
+        self._stop_agent()
+        gevent.sleep(15)
+        self._start_agent()
+
+        timeout = gevent.Timeout(240)
+        timeout.start()
+        try:
+            while True:                
+                state = self._ia_client.get_agent_state()
+                if state == ResourceAgentState.COMMAND:
+                    timeout.cancel()
+                    break
+                else:
+                    gevent.sleep(1)
+        except gevent.Timeout:
+            fail("Could not restore agent state to COMMAND.")
+        
+        # Verify the parameters have been restored as needed.
+        retval = self._ia_client.get_resource(params)
+
+        self._ia_client.set_resource(new_params)
+        retval = self._ia_client.get_resource(params)
+        
+        self.assertEqual(retval[SBE37Parameter.OUTPUTSV],
+                         new_params[SBE37Parameter.OUTPUTSV])
+        self.assertEqual(retval[SBE37Parameter.NAVG],
+                         new_params[SBE37Parameter.NAVG])
+        delta = max(retval[SBE37Parameter.TA0],
+                    new_params[SBE37Parameter.TA0])*.01
+        self.assertAlmostEqual(retval[SBE37Parameter.TA0],
+                               new_params[SBE37Parameter.TA0], delta=delta)
+
+        # Reset the agent. This causes the driver messaging to be stopped,
+        # the driver process to end and switches us back to uninitialized.
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
+        retval = self._ia_client.execute_agent(cmd)
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        

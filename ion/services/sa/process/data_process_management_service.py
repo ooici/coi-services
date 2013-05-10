@@ -789,7 +789,7 @@ class DataProcessManagementService(BaseDataProcessManagementService):
 
 
     def get_operational_state(self, taskable_resource_id):   # from Device
-        retval =  OT.ComputedStringValue
+        retval = IonObject(OT.ComputedStringValue)
         retval.value = ''
         retval.status = ComputedValueAvailability.NOTAVAILABLE
         return retval

@@ -1494,6 +1494,7 @@ class IONLoader(ImmediateProcess):
             log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
             return
         res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
+
         svc_client = self._get_service_client("dataset_management")
         reference_designator = row['reference_designator']
         available_fields = row['available_fields']
@@ -1511,6 +1512,11 @@ class IONLoader(ImmediateProcess):
                 available_fields = available_fields or None,
             headers=self._get_system_actor_headers())
         self._register_id(row[COL_ID], res_id, res_obj)
+
+        # Set alt_ids so that resource can be found in incremental preload runs
+        sdef = self.container.resource_registry.read(res_id)
+        sdef.alt_ids = ['PRE:'+row[COL_ID]]
+        self.container.resource_registry.update(sdef)
 
     def _load_StreamDefinition_OOI(self):
         pass
@@ -1573,6 +1579,7 @@ Reason: %s
             pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
                                                                       temporal_context=temporal_parameter_name,
                                                                       headers=self._get_system_actor_headers())
+            # Set alt_ids so that resource can be found in incremental preload runs
             pdict = self.container.resource_registry.read(pdict_id)
             pdict.alt_ids = ['PRE:'+row[COL_ID]]
             self.container.resource_registry.update(pdict)
@@ -1618,6 +1625,7 @@ Reason: %s
 
         func_id = dataset_management.create_parameter_function(name=name, parameter_function=func.dump(),
                                                                description=descr, headers=self._get_system_actor_headers())
+        # Set alt_ids so that resource can be found in incremental preload runs
         func_obj = self.container.resource_registry.read(func_id)
         func_obj.alt_ids=['PRE:'+row[COL_ID]]
         self.container.resource_registry.update(func_obj)

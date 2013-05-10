@@ -25,6 +25,8 @@ from interface.services.sa.iobservatory_management_service import BaseObservator
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
 from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, StatusType, ComputedListValue, ComputedDictValue
+from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum
+from collections import defaultdict
 
 from ion.util.related_resources_crawler import RelatedResourcesCrawler
 
@@ -775,7 +777,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
     def _get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        """Returns an InstrumentDeviceExtension object containing additional related information
+        """Returns a site extension object containing common information, plus some helper objects
 
         @param site_id    str
         @param ext_associations    dict
@@ -827,16 +829,25 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.instrument_models = retrieve_model_objs(extended_site.instrument_devices, RT.InstrumentDevice)
         extended_site.platform_models   = retrieve_model_objs(extended_site.platform_devices, RT.PlatformDevice)
 
-        return extended_site, RR2, None
+        extended_site.deployment_info = describe_deployments(extended_site.deployments, self.clients)
+
+        this_device_id = None
+        try:
+            this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
+        except NotFound:
+            pass
+
+        return extended_site, RR2, this_device_id
 
 
-    def _get_site_extension_plus(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        # the "plus" means "plus all sub-site objects"
-        log.debug("Beginning _get_site_extension_plus( )")
 
-        extended_site, RR2, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+    def _augment_platformsite_extension(self, extended_site, RR2, platform_device_id):
+
         if not RR2.has_cached_prediate(PRED.hasDevice):
             RR2.cache_predicate(PRED.hasDevice)
+
+        site_id = extended_site._id
 
         log.debug("beginning related resources crawl for subsites")
         finder = RelatedResourcesCrawler()
@@ -855,6 +866,24 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         subsite_ids = list(subsite_ids)
         log.debug("converting retrieved ids to objects = %s" % subsite_ids)
         subsite_objs = RR2.read_mult(subsite_ids)
+
+        log.debug("building tree of child devices from site")
+        all_child_inst_devices = []
+        all_child_plat_devices = []
+        device_of_site = {}
+        for s_id in subsite_ids:
+            try:
+                device_of_site[s_id] = RR2.find_instrument_device_id_of_instrument_site_using_has_device(s_id)
+                all_child_inst_devices.append(device_of_site[s_id])
+            except NotFound:
+                pass
+
+            try:
+                device_of_site[s_id] = RR2.find_platform_device_id_of_platform_site_using_has_device(s_id)
+                all_child_plat_devices.append(device_of_site[s_id])
+            except NotFound:
+                pass
+
 
         # filtered subsites
         def fs(resource_type, filter_fn):
@@ -875,31 +904,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.platform_assembly_sites  = clv(pfs(lambda s: "PlatformAssemblySite" == s.alt_resource_type))
         extended_site.computed.instrument_sites         = clv(ifs(lambda _: True))
 
-        log.debug("building tree of child devices from site")
-        all_child_inst_devices = []
-        all_child_plat_devices = []
-        device_of_site = {}
-        for s_id in subsite_ids:
-            try:
-                device_of_site[s_id] = RR2.find_instrument_device_id_of_instrument_site_using_has_device(s_id)
-                all_child_inst_devices.append(device_of_site[s_id])
-            except NotFound:
-                pass
 
-            try:
-                device_of_site[s_id] = RR2.find_platform_device_id_of_platform_site_using_has_device(s_id)
-                all_child_plat_devices.append(device_of_site[s_id])
-            except NotFound:
-                pass
-
-
-        this_device_id = None
-        try:
-            this_device_id = RR2.find_object(site_id, predicate=PRED.hasDevice, id_only=True)
-        except NotFound:
-            pass
-        log.debug("Reading status for device '%s'", this_device_id)
-        child_agg_status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(this_device_id,
+        log.debug("Reading status for device '%s'", platform_device_id)
+        child_agg_status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
                                                                                                        extended_site.computed,
                                                                                                        all_child_inst_devices + all_child_plat_devices)
         # key -> deviceID becomes key -> device status
@@ -925,40 +932,70 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.platform_status   = compute_status_dict(dict([(x._id, x._id) for x in extended_site.platform_devices]))
         extended_site.computed.site_status       = compute_status_dict(device_of_site)
 
-        return extended_site, RR2, subsite_objs
+
+
+        return extended_site, RR2
 
     # TODO: will remove this one
     def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, _, _ = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        # make a very basic determination of what to do
+        site_type = self.RR2.read(site_id)._get_type()
+
+        if RT.InstrumentSite == site_type:
+            return self.get_instrument_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
+
     def get_observatory_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
+
         return extended_site
 
 
     def get_platform_station_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
 
     def get_platform_assembly_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
     def get_platform_component_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, RR2, subsite_objs = self._get_site_extension_plus(site_id, ext_associations, ext_exclude, user_id)
+        extended_site, RR2, device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+        self._augment_platformsite_extension(extended_site, RR2, device_id)
         return extended_site
 
 
     def get_instrument_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
-        extended_site, _ = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
 
-        # no subsites of instrument, so shortcut
-        extended_site.computed.platform_station_sites = []
-        extended_site.computed.platform_component_sites = []
-        extended_site.computed.platform_assembly_sites = []
-        extended_site.computed.instrument_sites = []
+        extended_site, RR2, inst_device_id = self._get_site_extension(site_id, ext_associations, ext_exclude, user_id)
+
+        log.debug("Reading status for device '%s'", inst_device_id)
+        self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(inst_device_id,
+                                                                                    extended_site.computed,
+                                                                                    None)
+        def clv(value=None):
+            if value is None: value = []
+            return ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=value)
+
+        def cld(value=None):
+            if value is None: value = {}
+            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED, value=value)
+
+        extended_site.computed.platform_station_sites   = clv()
+        extended_site.computed.platform_component_sites = clv()
+        extended_site.computed.platform_assembly_sites  = clv()
+        extended_site.computed.instrument_sites         = clv()
+        extended_site.computed.platform_status          = cld()
+        extended_site.computed.site_status              = cld()
+        extended_site.computed.instrument_status        = cld()
 
         return extended_site
 
@@ -1062,3 +1099,188 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             extended_deployment.platform_models.append( model_map[model_id] )
 
         return extended_deployment
+
+
+
+
+    #-----------------------------------------------
+    #  COMPUTED RESOURCES
+    #-----------------------------------------------
+    def get_marine_facility_extension(self, org_id='', ext_associations=None, ext_exclude=None, user_id=''):
+        """Returns an MarineFacilityOrgExtension object containing additional related information
+
+        @param org_id    str
+        @param ext_associations    dict
+        @param ext_exclude    list
+        @retval observatory    ObservatoryExtension
+        @throws BadRequest    A parameter is missing
+        @throws NotFound    An object with the specified observatory_id does not exist
+        """
+
+        if not org_id:
+            raise BadRequest("The org_id parameter is empty")
+
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        extended_org = extended_resource_handler.create_extended_resource_container(
+            extended_resource_type=OT.MarineFacilityOrgExtension,
+            resource_id=org_id,
+            computed_resource_type=OT.MarineFacilityOrgComputedAttributes,
+            ext_associations=ext_associations,
+            ext_exclude=ext_exclude,
+            user_id=user_id,
+            negotiation_status=NegotiationStatusEnum.OPEN)
+
+
+        #Fill out service request information for requesting data products
+        extended_org.data_products_request.service_name = 'resource_registry'
+        extended_org.data_products_request.service_operation = 'find_objects'
+        extended_org.data_products_request.request_parameters = {
+            'subject': org_id,
+            'predicate': 'hasResource',
+            'object_type': 'DataProduct',
+            'id_only': False,
+            'limit': 10,
+            'skip': 0
+        }
+
+        # set org members from the ION org
+        ion_org = self.clients.org_management.find_org()
+        if org_id == ion_org._id:
+
+            # clients.resource_registry may return us the container's resource_registry instance
+            self._rr = self.clients.resource_registry
+            log.debug("get_marine_facility_extension: self._rr:  %s ", str(self._rr))
+
+            actors_list = self.clients.org_management.find_enrolled_users(org_id)
+            log.debug("get_marine_facility_extension: actors_list:  %s ", str(actors_list))
+            for actor in actors_list:
+                log.debug("get_marine_facility_extension: actor:  %s ", str(actor))
+                user_info_objs, _ = self._rr.find_objects(subject=actor._id, predicate=PRED.hasInfo, object_type=RT.UserInfo, id_only=False)
+                if user_info_objs:
+                    log.debug("get_marine_facility_extension: user_info_obj  %s ", str(user_info_objs[0]))
+                    extended_org.members.append( user_info_objs[0] )
+
+
+        #Convert Negotiations to OrgUserNegotiationRequest
+        extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
+        extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
+
+        # Status computation
+        from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+
+        # lookup all hasModel predicates
+        # lookup is a 2d associative array of [subject type][subject id] -> object id (model)
+        lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
+        for a in self.clients.resource_registry.find_associations(predicate=PRED.hasModel, id_only=False):
+            if a.st in lookup:
+                lookup[a.st][a.s] = a.o
+
+        def retrieve_model_objs(rsrc_list, object_type):
+            # rsrc_list is devices that need models looked up.  object_type is the resource type (a device)
+            # not all devices have models (represented as None), which kills read_mult.  so, extract the models ids,
+            #  look up all the model ids, then create the proper output
+            model_list = [lookup[object_type].get(r._id) for r in rsrc_list]
+            model_uniq = list(set([m for m in model_list if m is not None]))
+            model_objs = self.clients.resource_registry.read_mult(model_uniq)
+            model_dict = dict(zip(model_uniq, model_objs))
+            return [model_dict.get(m) for m in model_list]
+
+        extended_org.instrument_models = retrieve_model_objs(extended_org.instruments, RT.InstrumentDevice)
+        extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
+
+
+        s_unknown = StatusType.STATUS_UNKNOWN
+
+        # initialize computed attributes
+        extended_org.computed.instrument_status = [s_unknown] * len(extended_org.instruments)
+        extended_org.computed.platform_status   = [s_unknown] * len(extended_org.platforms)
+        extended_org.computed.site_status       = [s_unknown] * len(extended_org.sites)
+
+        # shortcut constructor for default value
+        def status_unknown():
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
+
+        extended_org.computed.communications_status_roll_up = status_unknown()
+        extended_org.computed.power_status_roll_up          = status_unknown()
+        extended_org.computed.data_status_roll_up           = status_unknown()
+        extended_org.computed.location_status_roll_up       = status_unknown()
+        extended_org.computed.aggregated_status             = status_unknown()
+
+
+        # calculate computed attributes
+        try:
+            outil = ObservatoryUtil(self)
+            status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
+            extended_org.computed.instrument_status = [status_rollups.get(idev._id, {}).get("agg", s_unknown)
+                                                       for idev in extended_org.instruments]
+            extended_org.computed.platform_status   = [status_rollups.get(pdev._id, {}).get("agg", s_unknown)
+                                                       for pdev in extended_org.platforms]
+            extended_org.computed.site_status       = [status_rollups.get(site._id, {}).get("agg", s_unknown)
+                                                       for site in extended_org.sites]
+        except Exception as ex:
+            log.exception("Computed attribute failed for org %s" % org_id)
+
+
+        # shortcut constructor for computed int value
+        def short_status_rollup(key):
+            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
+                value=status_rollups.get(org_id, {}).get(key, s_unknown))
+
+        extended_org.computed.communications_status_roll_up = short_status_rollup("comms")
+        extended_org.computed.power_status_roll_up          = short_status_rollup("power")
+        extended_org.computed.data_status_roll_up           = short_status_rollup("data")
+        extended_org.computed.location_status_roll_up       = short_status_rollup("loc")
+        extended_org.computed.aggregated_status             = short_status_rollup("agg")
+
+
+        return extended_org
+
+
+    def _convert_negotiations_to_requests(self, extended_marine_facility=None, negotiations=None):
+        assert isinstance(extended_marine_facility, MarineFacilityOrgExtension)
+        assert isinstance(negotiations, list)
+
+        #Get all associations for user info
+        assoc_list = self.clients.resource_registry.find_associations(predicate=PRED.hasInfo, id_only=False)
+
+        ret_list = []
+        followup_list = defaultdict(list)
+
+        for neg in negotiations:
+
+            request = IonObject(OT.OrgUserNegotiationRequest, ts_updated=neg.ts_updated, negotiation_id=neg._id,
+                negotiation_type=NegotiationTypeEnum._str_map[neg.negotiation_type],
+                negotiation_status=NegotiationStatusEnum._str_map[neg.negotiation_status],
+                originator=ProposalOriginatorEnum._str_map[neg.proposals[-1].originator],
+                request_type=neg.proposals[-1].type_,
+                description=neg.description, reason=neg.reason,
+                org_id=neg.proposals[-1].provider)
+
+            # since this is a proxy for the Negotiation object, simulate its id to help the UI deal with it
+            request._id = neg._id
+
+            actor_assoc = [ a for a in assoc_list if a.s == neg.proposals[-1].consumer ]
+            if actor_assoc:
+                member_assoc = [ m for m in extended_marine_facility.members if m._id == actor_assoc[0].o ]
+                if member_assoc:
+                    request.user_id = member_assoc[0]._id
+                    request.name = member_assoc[0].name
+                else:
+                    followup_list[actor_assoc[0].o].append(request)
+
+            ret_list.append(request)
+
+        # assign names/user_ids to any requests that weren't in the members list, likely enroll requests
+        if len(followup_list):
+            user_infos = self.clients.resource_registry.read_mult(followup_list.keys())
+            udict = {}
+            for u in user_infos:
+                udict[u._id] = u
+
+            for k, v in followup_list.iteritems():
+                for request in v:
+                    request.user_id = k
+                    request.name    = udict[k].name
+
+        return ret_list

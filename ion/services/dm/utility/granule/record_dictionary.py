@@ -153,7 +153,7 @@ class RecordDictionaryTool(object):
                 try:
                     doc = svm.read_value(document_key)
                 except NotFound:
-                    log.info('Reference Document for %s not found', document_key)
+                    log.debug('Reference Document for %s not found', document_key)
                     continue
                 if context.lookup_value in doc:
                     self[lv] = doc[context.lookup_value]
@@ -317,6 +317,8 @@ class RecordDictionaryTool(object):
         """
         Get an item by nick name from the record dictionary.
         """
+        if not self._shp:
+            return None
         if self._available_fields and name not in self._available_fields:
             raise KeyError(name)
         if self._rd[name] is not None:
@@ -329,13 +331,10 @@ class RecordDictionaryTool(object):
             try:
                 pfv = get_value_class(ptype, self.domain)
                 pfv._pval_callback = self._pval_callback
-                retval = pfv[:]
-                return retval
+                return pfv[:]
             except ParameterFunctionException:
                 log.info('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
-                return None
-        else:
-            return None
+        return None
 
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """

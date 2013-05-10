@@ -25,6 +25,7 @@ from interface.services.coi.iexchange_management_service import ExchangeManageme
 from interface.services.coi.ipolicy_management_service import PolicyManagementServiceProcessClient
 from interface.services.cei.ischeduler_service import SchedulerServiceProcessClient
 from interface.services.coi.isystem_management_service import SystemManagementServiceProcessClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceProcessClient
 from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from interface.objects import AgentCommand, ProposalOriginatorEnum, ProposalStatusEnum, NegotiationStatusEnum, ComputedValueAvailability
 from ion.agents.instrument.direct_access.direct_access_server import DirectAccessTypes
@@ -33,7 +34,7 @@ from ion.processes.bootstrap.load_system_policy import LoadSystemPolicy
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE, ION_MANAGER, get_system_actor, get_system_actor_header
 from pyon.core.governance import get_actor_header, get_web_authentication_actor
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
-from pyon.net.endpoint import RPCClient, BidirectionalEndpointUnit
+from pyon.net.endpoint import RPCClient, BidirClientChannel
 
 from ion.services.sa.test.test_find_related_resources import ResourceHelper
 
@@ -329,7 +330,7 @@ class TestGovernanceHeaders(IonIntegrationTestCase):
         '''
 
         #Get function pointer to send function
-        old_send = BidirectionalEndpointUnit._send
+        old_send = BidirClientChannel._send
 
         # make new send to patch on that duplicates send
         def patched_send(*args, **kwargs):
@@ -345,7 +346,7 @@ class TestGovernanceHeaders(IonIntegrationTestCase):
             return old_send(*args, **kwargs)
 
         # patch it into place with auto-cleanup to try to interogate the message headers
-        patcher = patch('pyon.net.endpoint.BidirectionalEndpointUnit._send', patched_send)
+        patcher = patch('pyon.net.endpoint.BidirClientChannel._send', patched_send)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -485,6 +486,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         self.sys_management = SystemManagementServiceProcessClient(node=self.container.node, process=process)
 
+        self.obs_client = ObservatoryManagementServiceProcessClient(node=self.container.node, process=process)
 
 
         #Get info on the ION System Actor
@@ -934,6 +936,10 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Build the message headers used with this user
         actor_header = get_actor_header(actor_id)
 
+        #Get the associated user id
+        user_info = IonObject(RT.UserInfo, name='Test User')
+        actor_user_id = self.id_client.create_user_info(actor_id=actor_id, user_info=user_info, headers=actor_header)
+
         #Attempt to enroll a user anonymously - should not be allowed
         with self.assertRaises(Unauthorized) as cm:
             self.org_client.enroll_member(self.ion_org._id,actor_id, headers=self.anonymous_actor_headers)
@@ -985,12 +991,15 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(negotiations),1)
 
-        negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=self.system_actor_header)
+        negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=actor_header)
         self.assertEqual(len(negotiations),1)
+
+        #Build the Service Agreement Proposal for enrollment request
+        sap2 = IonObject(OT.EnrollmentProposal,consumer=actor_id, provider=org2_id )
 
         #User tried proposing an enrollment again - this should fail
         with self.assertRaises(BadRequest) as cm:
-            self.org_client.negotiate(sap, headers=actor_header )
+            self.org_client.negotiate(sap2, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: not is_enroll_negotiation_open',cm.exception.message)
 
         #Manager trys to reject the proposal but incorrectly
@@ -1032,11 +1041,22 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(negotiations),2)
 
-        negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=self.system_actor_header)
+        negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=actor_header)
         self.assertEqual(len(negotiations),2)
 
         actors = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(actors),0)
+
+        #Check the get extended marine facility to check on the open and closed negotiations when called by normal user
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=actor_user_id, headers=actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 0)
+        self.assertEqual(len(ext_mf.open_requests), 0)
+
+        #Check the get extended marine facility to check on the open and closed negotiations when called by privledged user
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=self.system_actor._id, headers=self.system_actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 1)
+        self.assertEqual(len(ext_mf.open_requests), 1)
+
 
         #Manager approves proposal
         negotiations = self.org_client.find_org_negotiations(org2_id, proposal_type=OT.EnrollmentProposal,
@@ -1056,6 +1076,18 @@ class TestGovernanceInt(IonIntegrationTestCase):
             sap = IonObject(OT.EnrollmentProposal,consumer=actor_id, provider=org2_id )
             neg_id = self.org_client.negotiate(sap, headers=actor_header )
         self.assertIn('A precondition for this request has not been satisfied: not is_enrolled',cm.exception.message)
+
+
+        #Check the get extended marine facility to check on the open and closed negotiations when called by normal user
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=actor_user_id, headers=actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 0)
+        self.assertEqual(len(ext_mf.open_requests), 0)
+
+        #Check the get extended marine facility to check on the open and closed negotiations when called by privledged user
+        ext_mf = self.obs_client.get_marine_facility_extension(org_id=org2_id,user_id=self.system_actor._id, headers=self.system_actor_header)
+        self.assertEqual(len(ext_mf.closed_requests), 2)
+        self.assertEqual(len(ext_mf.open_requests), 0)
+
 
         gevent.sleep(self.SLEEP_TIME)  # Wait for events to be published
 
@@ -1188,7 +1220,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
         negotiations = self.org_client.find_org_negotiations(org2_id, headers=self.system_actor_header)
         self.assertEqual(len(negotiations),1)
 
-        negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=self.system_actor_header)
+        negotiations = self.org_client.find_user_negotiations(actor_id, org2_id, headers=actor_header)
         self.assertEqual(len(negotiations),1)
 
         actors = self.org_client.find_enrolled_users(org2_id, headers=self.system_actor_header)
@@ -1814,14 +1846,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Anonymous get extended is allowed, but internal agent status should be unavailable
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=self.anonymous_actor_headers)
         self.assertEqual(extended_inst._id, inst_obj_id)
-        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.NOTAVAILABLE)
-        #self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.NOTAVAILABLE)
+        self.assertIn('InstrumentDevice(get_agent) has been denied',extended_inst.computed.communications_status_roll_up.reason)
 
         #Org member get extended is allowed, but internal agent status should be unavailable
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
         self.assertEqual(extended_inst._id, inst_obj_id)
-        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.NOTAVAILABLE)
-        #self.assertEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.NOTAVAILABLE)
+        self.assertIn('InstrumentDevice(get_agent) has been denied',extended_inst.computed.communications_status_roll_up.reason)
 
 
         #Grant the role of Instrument Operator to the user
@@ -1842,9 +1874,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Instrument Operator role get extended is allowed and contain agent status information
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
         self.assertEqual(extended_inst._id, inst_obj_id)
-        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.PROVIDED)
-        self.assertNotEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
-
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.PROVIDED)
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.reason, None)
 
         #This agent operation should now be allowed for a user that is an Instrument Operator
         retval = ia_client.get_agent_state(headers=actor_header)
@@ -2041,9 +2072,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
         #Org Manager role get extended is allowed and contain agent status information
         extended_inst = self.ims_client.get_instrument_device_extension(inst_obj_id, headers=actor_header)
         self.assertEqual(extended_inst._id, inst_obj_id)
-        self.assertEqual(extended_inst.computed.aggregated_status.status, ComputedValueAvailability.PROVIDED)
-        self.assertNotEqual(extended_inst.computed.aggregated_status.reason, 'The requester does not have the proper role to access the status of this instrument agent')
-
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.status, ComputedValueAvailability.PROVIDED)
+        self.assertEqual(extended_inst.computed.communications_status_roll_up.reason, None)
 
         #Now reset the agent for checking operation based policy
         #The reset command should now be allowed for the Org Manager

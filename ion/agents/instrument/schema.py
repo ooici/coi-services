@@ -98,7 +98,7 @@ DRIVER_CONFIG = {
             "required" : False,
             "type" : "str"     
         },
-        "comms_config" : COMMS_CONFIG
+        "comms_config" : "/command_args/comms_config"
     }
 }
 
@@ -114,7 +114,7 @@ AGENT_SCHEMA_V1 = {
                     [
                         {
                             "required" : False,
-                            "type" : DRIVER_CONFIG
+                            "type" : "/command_args/driver_config"
                         }
                     ],
                 "kwargs" : {}
@@ -161,6 +161,20 @@ AGENT_SCHEMA_V1 = {
                 "args" : [],
                 "kwargs" : {}
             },
+        InstrumentAgentCapability.GO_DIRECT_ACCESS :
+            {
+                "display_name" : "Direct Access",
+                "description" : "Activate direct access mode.",
+                "args" : [],
+                "kwargs" : {}
+            },
+        InstrumentAgentCapability.GO_COMMAND :
+            {
+                "display_name" : "Go Command",
+                "description" : "Deactivate direct access mode.",
+                "args" : [],
+                "kwargs" : {}
+            },
         InstrumentAgentCapability.RESET :
             {
                 "display_name" : "Reset",
@@ -175,7 +189,8 @@ AGENT_SCHEMA_V1 = {
                 "display_name" : "Data Streams",
                 "description" : "Data streams and fields published by agent.",
                 "visibility" : "READ_ONLY",
-                "type" : {
+                "type" : "dict",
+                "valid_values" : [{
                     "key" : {
                         "display_name" : "Stream Name",
                         "discription" : "Data stream published by agent.",
@@ -184,51 +199,65 @@ AGENT_SCHEMA_V1 = {
                     "value" : {
                         "display_name" : "Field Names",
                         "discription" : "List of data fields published by agent on the stream.",
-                        "type" : ["str"]                                        
+                        "type" : "list",
+                        "valid_values" : [
+                            "str"
+                            ]
                     }
-                }
+                }]
             },
         "pubrate" :
             {
                 "display_name" : "Stream Publication Rate",
                 "description" : "Delay in seconds between stream granule publicaitons.",
                 "visibility" : "READ_WRITE",
-                "type" : {
+                "type" : "dict",
+                "valid_values" : [{
                     "key" : {
                         "display_name" : "Stream Name",
                         "description" : "A valid stream name published by this agent.",
-                        "type" : "str"
-                        },
+                        "type" : "str",
+                        "valid_values" : [
+                            "/parameters/streams/keys"
+                            ]
+                    },
                     "value" : {
                         "display_name" : "Publication Rate",
                         "description" : "Nonnegative publication rate in seconds.",
                         "type" : "float",
-                        "minimum" : 0.0
-                        }
+                        "minimum" : 0.0                        
                     }
-                },
+                }]
+            },
         "alerts" :
             {
                 "display_name" : "Agent Alerts.",
                 "description" : "Definition and status of agent alerts.",
                 "visibility" : "READ_WRITE",
-                "type" : ["dict"],
+                "type" : "list",
+                "valid_values" : [
+                    "/alert_defs/values*",
+                    "'set', /alert_defs/values*",
+                    "'add', /alert_defs/values+",
+                    "'remove', /parameters/alerts/alert_name+",
+                    "'clear'"
+                    ],
                 "set_options" : {
                     "set" : {
-                        "description" : "Reset all alerts to the new definitions.",
-                        "type" : ["set", "dict"],
+                        "display_name" : "Set",
+                        "description" : "Reset all alerts to the new definitions."
                     },
                     "add" : {
-                        "description" : "Add alerts to the existing set.",
-                        "type" : ["add", "dict"],
+                        "display_name" : "Add",
+                        "description" : "Add alerts to the existing set."
                     },
                     "remove" : {
-                        "description" : "Remove alerts with the supplied names.",
-                        "type" : ["remove", "str"],
+                        "display_name" : "Remove",
+                        "description" : "Remove alerts with the supplied names."
                     },
                     "clear" : {
-                        "description" : "Clear all alerts.",
-                        "type" : ["clear"]
+                        "display_name" : "Clear",
+                        "description" : "Clear all alerts."
                     }
                 }
             },
@@ -237,20 +266,20 @@ AGENT_SCHEMA_V1 = {
                 "display_name" : "Aggregate Status.",
                 "description" : "Aggregate status of agent functions.",
                 "visibility" : "READ_ONLY",
-                "type" : {
+                "type" : "dict",
+                "valid_values" :[{
                     "key" : {
-                        "type" : "int",
+                        "type" : "enum",
                         "string_map" : AggregateStatusType._str_map,
                         "value_map" : AggregateStatusType._value_map
-                    },
+                        },
                     "value" : {
-                        "type" : "int",
+                        "type" : "enum",
                         "string_map" : DeviceStatusType._str_map,
                         "value_map" : DeviceStatusType._value_map
-                    }
+                        }                    
+                    }]
                 }
-            
-            }
         },
     "states" : {
         InstrumentAgentState.UNINITIALIZED : {
@@ -298,10 +327,17 @@ AGENT_SCHEMA_V1 = {
             "description" : "The agent is connected but resource state is unknown."
             },
         },
-    "alerts" : ALERTS
+    "command_args" : {
+        "driver_config" : DRIVER_CONFIG,
+        "comms_config" : COMMS_CONFIG
+        },
+    "alert_defs" : ALERTS
     }
 
-def get_schemna():
+def get_schema():
+    return AGENT_SCHEMA_V1
+
+def get_schema_json():
     return json.dumps(AGENT_SCHEMA_V1)
     
 def pp_schema():

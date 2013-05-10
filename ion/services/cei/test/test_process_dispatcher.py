@@ -1215,8 +1215,7 @@ class ProcessDispatcherEEAgentIntTest(ProcessDispatcherServiceIntTest):
         self._send_node_state("engine2", node2_id)
         self._start_eeagent(node2_id)
 
-        self.waiter.await_state_event(pid, ProcessStateEnum.RUNNING)
-        self.waiter.await_state_event(process_mapped_pid, ProcessStateEnum.RUNNING)
+        self.waiter.await_many_state_events([pid, process_mapped_pid], ProcessStateEnum.RUNNING)
 
         # spawn another process. it should start immediately.
 
