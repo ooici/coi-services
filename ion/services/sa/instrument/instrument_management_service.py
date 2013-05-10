@@ -47,7 +47,9 @@ from ion.services.sa.observatory.observatory_management_service import INSTRUMEN
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role
 from pyon.core.governance import has_valid_shared_resource_commitment, is_resource_owner
 from ion.services.sa.observatory.deployment_util import describe_deployments
+from ooi.timer import Timer,Accumulator
 
+stats = Accumulator(persist=True)
 
 class InstrumentManagementService(BaseInstrumentManagementService):
     """
@@ -366,11 +368,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             config = config_builder.prepare()
         except:
             self._stop_port_agent(instrument_agent_instance_obj.port_agent_config)
-            raise
+            log.error('failed to launch', exc_info=True)
+            raise ServerError('failed to launch')
 
         process_id = launcher.launch(config, config_builder._get_process_definition()._id)
         if not process_id:
-            raise ServerError("Launched instrument agent instance return process_id='%s'" % process_id)
+            raise ServerError("Launched instrument agent instance but no process_id")
         config_builder.record_launch_parameters(config, process_id)
 
         self.record_instrument_producer_activation(config_builder._get_device()._id, instrument_agent_instance_id)
@@ -1533,7 +1536,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadRequest    A parameter is missing
         @throws NotFound    An object with the specified instrument_device_id does not exist
         """
-
+        t = Timer() if stats.is_log_enabled() else None
         if not instrument_device_id:
             raise BadRequest("The instrument_device_id parameter is empty")
 
@@ -1546,15 +1549,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
             user_id=user_id)
-
+        if t:
+            t.complete_step('ims.instrument_device_extension.container')
         #retrieve the aggregate status for the instrument
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(instrument_device_id,
                                                                                     extended_instrument.computed)
         log.debug('get_instrument_device_extension  extended_instrument.computed: %s', extended_instrument.computed)
+        if t:
+            t.complete_step('ims.instrument_device_extension.rollup')
 
         # add UI details for deployments in same order as deployments
         extended_instrument.deployment_info = describe_deployments(extended_instrument.deployments, self.clients)
-
+        if t:
+            t.complete_step('ims.instrument_device_extension.deploy')
+            stats.add(t)
         return extended_instrument
 
 
@@ -1669,7 +1677,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         d = datetime(1,1,1) + sec
 
         ret.value = "%s days, %s hours, %s minutes" %(d.day-1, d.hour, d.minute)
-        log.debug("Returning the computed attribute for uptime with value: %s", ret.value)
+        log.trace("Returning the computed attribute for uptime with value: %s", ret.value)
         return ret
 
     #functions for INSTRUMENT computed attributes -- currently bogus values returned
@@ -1677,6 +1685,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_platform_device_extension(self, platform_device_id='', ext_associations=None, ext_exclude=None, user_id=''):
         """Returns an PlatformDeviceExtension object containing additional related information
         """
+        t = Timer() if stats.is_log_enabled() else None
 
         RR2 = EnhancedResourceRegistryClient(self.clients.resource_registry)
 
@@ -1691,16 +1700,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             ext_associations=ext_associations,
             ext_exclude=ext_exclude,
             user_id=user_id)
+        if t:
+            t.complete_step('ims.platform_device_extension.create')
 
-        log.debug('get_platform_device_extension  platform_device_id: %s', platform_device_id)
-        log.debug('get_platform_device_extension  extended_platform: %s', extended_platform)
-
-
-        log.debug("Generating model object lists")
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id
         lookup = dict([(rt, {}) for rt in [RT.PlatformDevice, RT.InstrumentDevice]])
-        for a in RR2.find_associations(predicate=PRED.hasModel, id_only=False):
+        associations = RR2.find_associations(predicate=PRED.hasModel, id_only=False)
+        if t:
+            t.complete_step('ims.platform_device_extension.assoc')
+        for a in associations:
             if a.st in lookup:
                 lookup[a.st][a.s] = a.o
 
@@ -1718,14 +1727,18 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                   RT.InstrumentDevice)
         extended_platform.platform_models   = retrieve_model_objs(extended_platform.platforms,
                                                                   RT.PlatformDevice)
+        if t:
+            t.complete_step('ims.platform_device_extension.index')
 
-
-        log.debug("Finding all related devices with resource crawler")
         # use the related resources crawler to get ALL sub-devices
         finder = RelatedResourcesCrawler()
         get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
+        if t:
+            t.complete_step('ims.platform_device_extension.crawl')
         full_crawllist = [RT.InstrumentDevice, RT.PlatformDevice]
         search_down = get_assns({PRED.hasDevice: (True, False)}, full_crawllist)
+        if t:
+            t.complete_step('ims.platform_device_extension.down')
 
         # the searches return a list of association objects, so compile all the ids by extracting them
         subdevice_ids = set([])
@@ -1734,21 +1747,25 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         for a in search_down(platform_device_id, -1):
             if a.o != platform_device_id:
                 subdevice_ids.add(a.o)
-        log.debug("Found %s child devices in tree", len(subdevice_ids))
+        log.trace("Found %s child devices in tree", len(subdevice_ids))
         self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
                                                                                     extended_platform.computed,
                                                                                     list(subdevice_ids))
+        if t:
+            t.complete_step('ims.platform_device_extension.status')
 
-
-        log.debug("Building network rollups")
         rollx_builder = RollXBuilder(self)
-
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
+        if t:
+            t.complete_step('ims.platform_device_extension.top')
         net_stats, ancestors = rollx_builder.get_network_hierarchy(top_platformnode_id,
                                                                    lambda x: self.agent_status_builder.get_aggregate_status_of_device(x))
+        if t:
+            t.complete_step('ims.platform_device_extension.hierarchy')
         extended_platform.computed.rsn_network_child_device_status = ComputedDictValue(value=net_stats,
                                                                                        status=ComputedValueAvailability.PROVIDED)
-
+        if t:
+            t.complete_step('ims.platform_device_extension.nodes')
         parent_node_device_ids = rollx_builder.get_parent_network_nodes(platform_device_id)
 
         if 0 == len(parent_node_device_ids):
@@ -1765,15 +1782,20 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
             extended_platform.computed.rsn_network_rollup = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
                                                                              value=rollup_values)
+        if t:
+            t.complete_step('ims.platform_device_extension.crush')
 
         # add UI details for deployments
         extended_platform.deployment_info = describe_deployments(extended_platform.deployments, self.clients)
+        if t:
+            t.complete_step('ims.platform_device_extension.deploy')
+            stats.add(t)
         return extended_platform
 
     def get_data_product_parameters_set(self, resource_id=''):
         # return the set of data product with the processing_level_code as the key to identify
         ret = IonObject(OT.ComputedDictValue)
-        log.debug("get_data_product_parameters_set: resource_id is %s ", str(resource_id))
+        log.debug("get_data_product_parameters_set: resource_id is %s ", resource_id)
         if not resource_id:
             raise BadRequest("The resource_id parameter is empty")
 
@@ -1782,7 +1804,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
                                                                           PRED.hasOutputProduct,
                                                                           RT.DataProduct,
                                                                           True)
-        log.debug("get_data_product_parameters_set: data_product_ids is %s ", str(data_product_ids))
+        log.debug("get_data_product_parameters_set: data_product_ids is %s ", data_product_ids)
         if not data_product_ids:
             ret.status = ComputedValueAvailability.NOTAVAILABLE
         else:

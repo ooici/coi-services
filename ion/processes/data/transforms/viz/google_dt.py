@@ -113,7 +113,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             return None
 
         fields = []
-        if config and config['parameters']:
+        if config and config['parameters'] and len(config['parameters']) > 0:
             fields = config['parameters']
         else:
             fields = rdt.fields

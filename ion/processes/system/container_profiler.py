@@ -7,12 +7,12 @@ __author__ = 'Michael Meisinger'
 import datetime
 import gevent
 import gc
+import os
 import os.path
 import pprint
 import time
 try:
     import psutil
-    import memory_profiler
 except ImportError as ie:
     print "psutil or memory_profiler not available"
 
@@ -47,14 +47,13 @@ class ContainerProfiler(StandaloneProcess):
         self.quit_event.set()
 
     def _profiler_loop(self, profile_interval):
-        pass
         log.debug("Starting ContainerProfiler loop worker: %s interval=%s" , self.id,  profile_interval)
 
         while not self.quit_event.wait(timeout=profile_interval):
             try:
                 if self.profile_gc:
                     gc.collect()
-                profile = ContainerProfiler.get_profile()
+                profile = ContainerProfiler.get_stats()
                 new_stats = []
 
                 for k, v in profile.iteritems():
@@ -62,7 +61,7 @@ class ContainerProfiler(StandaloneProcess):
                         v = float(v)
                         new_stats.append(("cont_stats.%s" % k, v))
                     except TypeError as te:
-                        if isinstance(v, object):
+                        if hasattr(v, "__dict__"):
                             for k1, v1 in v.__dict__.iteritems():
                                 new_stats.append(("cont_stats.%s.%s" % (k, k1), float(getattr(v, k1))))
                         elif hasattr(v, "__iter__"):
@@ -79,11 +78,12 @@ class ContainerProfiler(StandaloneProcess):
                     with open(self.profile_filename, "a") as f:
                         if is_new:
                             headers = ",".join([l for (l,v) in new_stats])
-                            f.write("time,")
+                            f.write("time,ts,")
                             f.write(headers)
                             f.write("\n")
                         values = ",".join([str(v) for (l,v) in new_stats])
-                        f.write("%s," % time.time())
+                        ts = time.time()
+                        f.write("%s,%s," % (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)), ts))
                         f.write(values)
                         f.write("\n")
                 else:
@@ -94,12 +94,15 @@ class ContainerProfiler(StandaloneProcess):
                 log.exception("Unexpected exception during profiling")
 
     @classmethod
-    def get_profile(cls):
+    def get_stats(cls):
+        proc = psutil.Process(os.getpid())
         profile = dict(
-            cpu_times = psutil.cpu_times(),
-            cpu_percent = psutil.cpu_percent(interval=0.1),
-            virtual_memory = psutil.virtual_memory(),
-            swap_memory = psutil.swap_memory(),
-            memory_usage = memory_profiler.memory_usage(-1)[0]
+            #vm_cput = psutil.cpu_times(),  # dict
+            vm_cpu = psutil.cpu_percent(),
+            vm_mem = psutil.virtual_memory(), # dict
+            #swap = psutil.swap_memory(),
+            #proc_cput = proc.get_cpu_times(),
+            proc_cpu = proc.get_cpu_percent(),
+            proc_mem = proc.get_memory_info(),
         )
         return profile
