@@ -1585,21 +1585,27 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'RESOURCE_AGENT_STATE_LOST_CONNECTION': 'LOST CONNECTION',
         }
 
-
-        ia_client, ret = self.agent_status_builder.obtain_agent_calculation(taskable_resource_id, OT.ComputedStringValue)
+        retval = IonObject(OT.ComputedStringValue)
+        ia_client, _ = self.agent_status_builder.get_device_agent(taskable_resource_id)
         if ia_client:
-            state = ia_client.get_agent_state()
-            if resource_agent_state_labels.has_key(state):
-                ret.value = resource_agent_state_labels[ ia_client.get_agent_state() ]
-            else:
-                ret.value = 'UNKNOWN'
-                log.warn('get_operational_state  get_agent_state returned invalid state type: %s', state)
+            try:
+                state = ia_client.get_agent_state()
+                if resource_agent_state_labels.has_key(state):
+                    retval.value = resource_agent_state_labels[ state ]
+                else:
+                    retval.value = 'UNKNOWN'
+                    log.warn('get_operational_state  get_agent_state returned invalid state type: %s', state)
+
+            except Exception as e:
+                retval.value = 'UNKNOWN'
+                retval.status = ComputedValueAvailability.NOTAVAILABLE
+                log.warn('get_operational_state  get_agent_state returned exception: %s', e)
 
         else:
-            ret.value = 'UNKNOWN'
-            ret.status = ComputedValueAvailability.NOTAVAILABLE
+            retval.value = 'UNKNOWN'
+            retval.status = ComputedValueAvailability.NOTAVAILABLE
 
-        return ret
+        return retval
 
 
     def get_uptime(self, device_id):

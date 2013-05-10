@@ -317,6 +317,8 @@ class RecordDictionaryTool(object):
         """
         Get an item by nick name from the record dictionary.
         """
+        if not self._shp:
+            return None
         if self._available_fields and name not in self._available_fields:
             raise KeyError(name)
         if self._rd[name] is not None:
@@ -333,7 +335,7 @@ class RecordDictionaryTool(object):
                 return retval
             except ParameterFunctionException:
                 from traceback import format_exc
-                log.info(format_exc())
+                log.debug(format_exc())
                 return None
         else:
             return None

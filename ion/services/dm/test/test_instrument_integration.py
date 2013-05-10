@@ -136,6 +136,7 @@ class TestInstrumentIntegration(DMTestCase):
 
         for i in xrange(10):
             agent_client.execute_resource(AgentCommand(command=SBE37ProtocolEvent.ACQUIRE_SAMPLE))
+            monitor.event.clear()
             monitor.event.wait(10)
             monitor.event.clear()
 
