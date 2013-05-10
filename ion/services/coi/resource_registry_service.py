@@ -43,9 +43,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
 
     @mask_couch_error
     def create(self, object=None):
-        ctx = self.get_context()
-        ion_actor_id = ctx.get('ion-actor-id', None) if ctx else None
-        return self.resource_registry.create(object=object, actor_id=ion_actor_id)
+        return self.resource_registry.create(object=object)
 
     @mask_couch_error
     def read(self, object_id='', rev_id=''):
