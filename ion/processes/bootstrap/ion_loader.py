@@ -1650,7 +1650,11 @@ Reason: %s
         dataset_management = self._get_service_client('dataset_management')
         
         #validate unit of measure
+        # allow google doc to include more maintainable "key: value, key: value" instead of python "{ 'key': 'value', 'key': 'value' }"
+        pmap = pmap if pmap.startswith('{') else repr(parse_dict(pmap))
 
+        if pfid and ptype!='function':
+            log.warn('Parameter %s (%s) has type %s, did not expect function %s', row['ID'], name, ptype, pfid)
         #validate parameter type
         try:
             tm = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
