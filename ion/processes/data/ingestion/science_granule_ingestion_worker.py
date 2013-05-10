@@ -62,10 +62,23 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
 
 
     def on_start(self): #pragma no cover
+        #--------------------------------------------------------------------------------
+        # Explicit on_start
+        #--------------------------------------------------------------------------------
+
+        # Skip TransformStreamListener and go to StreamProcess to avoid the subscriber being created
+        # We want explicit management of the thread and subscriber object for ingestion
+
         TransformStreamProcess.on_start(self)
+        
         self.queue_name = self.CFG.get_safe('process.queue_name',self.id)
         self.subscriber = StreamSubscriber(process=self, exchange_name=self.queue_name, callback=self.receive_callback)
         self.thread_lock = RLock()
+        
+        #--------------------------------------------------------------------------------
+        # Normal on_start after this point
+        #--------------------------------------------------------------------------------
+
         BaseIngestionWorker.on_start(self)
         self._rpc_server = self.container.proc_manager._create_listening_endpoint(from_name=self.id, process=self)
         self.add_endpoint(self._rpc_server)
@@ -99,22 +112,22 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
 
     
     def start_listener(self):
-        self.thread_lock.acquire()
-        self.subscriber_thread = self._process.thread_manager.spawn(self.subscriber.listen, thread_name='%s-subscriber' % self.id)
-        self.thread_lock.release()
+        # We use a lock here to prevent possible race conditions from starting multiple listeners and coverage clobbering
+        with self.thread_lock:
+            self.subscriber_thread = self._process.thread_manager.spawn(self.subscriber.listen, thread_name='%s-subscriber' % self.id)
 
     def stop_listener(self):
-        self.thread_lock.acquire()
-        self.subscriber.close()
-        self.subscriber_thread.join(timeout=10)
-        for stream, coverage in self._coverages.iteritems():
-            try:
-                coverage.close(timeout=5)
-            except:
-                log.exception('Problems closing the coverage')
-        self._coverages.clear()
-        self.subscriber_thread = None
-        self.thread_lock.release()
+        # Avoid race conditions with coverage operations (Don't start a listener at the same time as closing one)
+        with self.thread_lock:
+            self.subscriber.close()
+            self.subscriber_thread.join(timeout=10)
+            for stream, coverage in self._coverages.iteritems():
+                try:
+                    coverage.close(timeout=5)
+                except:
+                    log.exception('Problems closing the coverage')
+            self._coverages.clear()
+            self.subscriber_thread = None
 
     def pause(self):
         if self.subscriber_thread is not None:
