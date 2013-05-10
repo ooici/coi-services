@@ -33,7 +33,7 @@ class TestDynamicParameters(DMTestCase):
         rdt = RecordDictionaryTool(stream_definition_id=self.stream_def_id)
         rdt['time'] = np.arange(10)
         rdt['temp'] = [10] * 10
-        rdt['coefficient'] = [2] * 10
+        rdt['cc_coefficient'] = [2] * 10
         dataset_id = self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id)
         dataset_monitor = DatasetMonitor(dataset_id)
         self.ph.publish_rdt_to_data_product(data_product_id, rdt)

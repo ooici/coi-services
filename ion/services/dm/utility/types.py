@@ -160,7 +160,7 @@ class TypesManager(object):
         return ctxt_id, placeholder
 
     def get_cc_value(self, value):
-        placeholder = value.replace('CC_','')
+        placeholder = value.lower()
         pc = ParameterContext(name=placeholder, param_type=SparseConstantType(value_encoding='float64'), fill_value=-9999.)
         pc.uom = '1'
         ctxt_id = self.dataset_management.create_parameter_context(name=placeholder, parameter_context=pc.dump())
