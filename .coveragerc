@@ -15,18 +15,11 @@ omit =
     */port_agent_helper*
     */logger_process*
     */observatory/constraint*
+    */parameter_yaml_IO*
+    */granule_utils*
+    */transforms/poll*
+    */oms_simulator_server*
+    */cgsn_simulator*
+    */load_csv*
 [html]
 directory = coverage_results
-omit =
-    */test/*
-    */core/containerui*
-    */shell_utils*
-    */cei/*
-    */bootstrap/*loader*
-    */util/*datastore*
-    */example*
-    */agent_cmd_util*
-    */port_agent_packet*
-    */port_agent_helper*
-    */logger_process*
-    */observatory/constraint*
