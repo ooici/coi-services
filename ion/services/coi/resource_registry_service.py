@@ -6,6 +6,7 @@ __license__ = 'Apache 2.0'
 import types
 from pyon.core.exception import BadRequest, ServerError
 from pyon.ion.resource import ExtendedResourceContainer
+from pyon.ion.resregistry import ResourceRegistryServiceWrapper
 from pyon.public import log, OT
 
 from interface.services.coi.iresource_registry_service import BaseResourceRegistryService
@@ -30,7 +31,7 @@ class ResourceRegistryService(BaseResourceRegistryService):
     system resources. Uses a datastore instance for resource object persistence.
     """
     def on_init(self):
-        self.resource_registry = self.container.resource_registry
+        self.resource_registry = ResourceRegistryServiceWrapper(self.container.resource_registry, self)
 
         # For easier interactive debugging
         self.dss = None
