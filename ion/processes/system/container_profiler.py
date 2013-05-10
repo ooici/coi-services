@@ -12,8 +12,9 @@ import pprint
 import time
 try:
     import psutil
+    import memory_profiler
 except ImportError as ie:
-    print "psutil is not available"
+    print "psutil or memory_profiler not available"
 
 from pyon.public import log, iex, StandaloneProcess, RT
 
@@ -99,5 +100,6 @@ class ContainerProfiler(StandaloneProcess):
             cpu_percent = psutil.cpu_percent(interval=0.1),
             virtual_memory = psutil.virtual_memory(),
             swap_memory = psutil.swap_memory(),
+            memory_usage = memory_profiler.memory_usage(-1)[0]
         )
         return profile
