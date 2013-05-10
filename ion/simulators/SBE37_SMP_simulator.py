@@ -15,14 +15,18 @@ import getopt
 import select
 import os
 
-port = 4001  # Default port to run on.
-connection_count = 0
-log_file = "unassigned"
+### default values defined below (b/c class is not yet defined)
+#default_port = 4001       # TCP port to run on.
+#default_message_rate = 5  # 5 sec between messages when streaming
+#default_sim=SBE37_random
 
-class sbe37(asyncore.dispatcher_with_send):
+########### BASE class here handles SBE37 behaviors
+########### see below for subclasses that provide different data values
+
+class SBE37(asyncore.dispatcher_with_send):
     buf = ""
-    count = 8
-    time_set_at = time.time() 
+    next_send = None
+    time_set_at = time.time()
     out_buffer = ""
     allowable_baud_rates = ['600', '1200', '2400', '4800', '9600', '19200', '38400']
     baud_rate = '9600'
@@ -81,14 +85,17 @@ class sbe37(asyncore.dispatcher_with_send):
     months = ['BAD PROGRAMMER MONTH', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     save = ""
 
-    def __init__(self, socket, thread):
+    def __init__(self, socket, thread, streaming_rate, connection_id):
         self.socket = socket
         self.socket.settimeout(0.0)
         self.thread = thread
+        self.streaming_rate = streaming_rate
+        self.max_sleep = streaming_rate/2. if streaming_rate<4 else 2.
+        self.connection_id = connection_id
         self.handle_read()
 
     def handle_error(self, request, client_address):
-        print str(request) + str(client_address) + " Do I ever get called by anything?"
+        print "%3d *** dispatcher reports error: %s %s" % (self.connection_id,client_address,request)
 
     def get_current_time_startlater(self):
         #current_time = datetime.datetime.strptime(self.date + " " + self.time, "%m%d%y %H%M%S") + datetime.timedelta( seconds=( int(time.time()) - self.time_set_at) )
@@ -134,8 +141,8 @@ class sbe37(asyncore.dispatcher_with_send):
                     ret += c
 
         except AttributeError:
-            print "CLOSING"
-            log_file.close()
+            print "%3d *** closing connection" % self.connection_id
+#            log_file.close()
             self.socket.close()
             self.thread.exit()
         except:
@@ -144,20 +151,20 @@ class sbe37(asyncore.dispatcher_with_send):
 
         if data:
             data = data.lower()
-            print "IN  [" + repr(data) + "]"
-            if log_file.closed == False:
-                log_file.write("IN  [" + repr(data) + "]\n")
+            print "%3d <-- %s"%(self.connection_id,data.strip())
+#            if log_file.closed == False:
+#                log_file.write("IN  [" + repr(data) + "]\n")
         return data
  
     def send_data(self, data, debug):
 
         try:
-            print "OUT [" + repr(data) + "]"
+            print "%3d --> %s"%(self.connection_id,data.strip())
             self.socket.send(data)
-            if log_file.closed == False:
-                log_file.write("OUT  [" + repr(data) + "]\n")
-        except:
-            print "*** send_data FAILED [" + debug + "] had an exception sending [" + data + "]"
+#            if log_file.closed == False:
+#                log_file.write("OUT  [" + repr(data) + "]\n")
+        except Exception,e:
+            print "%3d *** send_data FAILED [%s] had an exception sending [%s]: %s" % (self.connection_id,debug,data,e)
 
     def handle_read(self):
         while True:
@@ -176,19 +183,27 @@ class sbe37(asyncore.dispatcher_with_send):
             data = self.get_data()
 
             if self.logging == True:
-                self.count += 1
-                time.sleep(0.1)
-                if self.count > 25:
-                    self.count = 1
-                    if lag > 0:
-                        rnd_lag_val = int(random.uniform(0, 99))
-                        print "LAG RND VAL = " + str(rnd_lag_val)
-                        if lag > rnd_lag_val:
-                            print "SLEEP EXTRA " + str(sec)
-			    time.sleep(sec)
-                    if self.tx_real_time:
-                        self.send_data('\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
-                    #self.send_data('\r\n#{:8.4f},{:8.5f},{:9.3f},{:9.4f},{:9.3f}'.format(random.uniform(10,30), random.uniform(0.03, 0.07), random.uniform(-5, -9), random.uniform(0.18, 0.36), random.uniform(1400, 1500)) + ', ' + self.get_current_time_startlater() + '\r\n', 'MAIN LOGGING LOOP')
+                if not self.next_send:
+                    time.sleep(0.1)
+                else:
+                    # sleep longer to use less CPU time when multiple simulators are running until it is about time to transmit
+                    remaining = self.next_send - time.time()
+                    send_now = False
+                    if remaining>self.max_sleep:
+                        time.sleep(self.max_sleep) # worst case: 2sec latency handling command while in streaming mode
+                    elif remaining>0.1:
+                        time.sleep(remaining - 0.1) # sleep off most of remaining time (< max_sleep)
+                    else:
+                        if remaining>0:
+                            time.sleep(remaining)
+                        self.next_send += self.streaming_rate
+                        send_now = True
+
+                    if send_now and self.tx_real_time:
+                        a,b,c,d,e = self.generate_data_values()
+                        t = self.get_current_time_startlater()
+                        msg = '\r\n#{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}, {}\r\n'.format(a,b,c,d,e,t)
+                        self.send_data(msg, 'MAIN LOGGING LOOP')
 
                 # Need to handle commands that are not in the blessed list #
                 if data:
@@ -197,7 +212,6 @@ class sbe37(asyncore.dispatcher_with_send):
                         locked = False
 
                         self.knock_count += 1
-                        print "KNOCK COUNT = " + str(self.knock_count)
 
                         if self.knock_count >= 5:
                             self.send_data('\r\nS>\r\n', 'NEW')
@@ -208,24 +222,13 @@ class sbe37(asyncore.dispatcher_with_send):
                         if self.knock_count == 3:
                             self.send_data('\x00SBE 37-SM\r\n', 'NEW')
                             self.send_data('S>', 'NEW')
-                            
-                        #time.sleep(1)
 
-                    elif command_args[0] in ['ds', 'dc', 'ts', 'tsr', 'slt', 'sltr', 'qs', 'stop', '\r\n', '\n\r']:
-                        """
-                        print "GOT A PERMITTED COMMAND " + command_args[0] + "\n"
-                        """
-                    else:
+                    elif command_args[0] not in ['ds', 'dc', 'ts', 'tsr', 'slt', 'sltr', 'qs', 'stop', '\r\n', '\n\r']:
                         self.send_data('cmd not allowed while logging\n', 'non-permitted command')
                         data = None
 
             if data:
                 handled = True
-                if data.rstrip('\r').rstrip('\n') != "":
-                    if (data.replace('\r','').replace('\n','') != ""):
-                        '''
-                        self.send_data("[" + data.replace('\r','').replace('\n','') + "\r\n]", 'ECHO COMMAND BACK TO SENDER')
-                        '''
                 command_args = string.splitfields(data.rstrip('\r\n'), "=")
 
                 if command_args[0] == 'baud':
@@ -395,8 +398,10 @@ class sbe37(asyncore.dispatcher_with_send):
                 elif command_args[0] == 'txrealtime':
                     if command_args[1] == 'y':
                         self.tx_real_time = True
+#                        self.next_send = time.time() + self.streaming_rate
                     elif command_args[1] == 'n':
                         self.tx_real_time = False
+                        self.next_send = None
                     else:
                         self.send_data("***ERROR IT WAS A Y/N QUESTION*** " + command_args[1] + "\r\n", 'txrealtime line 1')
 
@@ -406,6 +411,7 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.locked = True
                     self.knock_count = 0
                     handled = False
+                    self.next_send = time.time() + self.streaming_rate
 
                 elif data[0] == '\r':
                     #self.send_data('SBE 37-SMP\r\n', '\\ x1b line 1')
@@ -470,30 +476,16 @@ class sbe37(asyncore.dispatcher_with_send):
                 elif command_args[0] == 'stop':
                     self.start_later = False
                     self.logging = False
-                    print "really got stop command\r\n"
                     self.send_data('S>\r\n', 'SPECIAL STOP PROMPT')
                     handled = False
 
-                elif command_args[0] == 'ts':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                elif command_args[0] in ('ts', 'tss', 'tsson', 'slt', 'sl'):
+                    a,b,c,d,e = self.generate_data_values()
+                    t = self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6]
+                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}, %s\r\n'.format(a,b,c,d,e,t), command_args[0] + ' line 1')
 
-                elif command_args[0] == 'tsr':
-                    self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'tsr line 1')
-
-                elif command_args[0] == 'tss':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-
-                elif command_args[0] == 'tsson':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-
-                elif command_args[0] == 'slt':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
-
-                elif command_args[0] == 'sltr':
-                    self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), 'sltr line 1')
-
-                elif command_args[0] == 'sl':
-                    self.send_data('\r\n{:.4f},{:.5f}, {:.3f},   {:.4f}, {:.3f}'.format(random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0), random.uniform(0.1, 40.0), random.uniform(1505, 1507)) + ', ' + self.date[2:4] + ' ' + self.months[int(self.date[0:2])] + ' 20' + self.date[4:6] + ', ' + self.time[0:2] + ':' + self.time[2:4] + ':' + self.time[4:6] + '\r\n', 'ts line 1') 
+                elif command_args[0] in ('tsr','stlr'):
+                    self.send_data('{:9.1f}, {:9.3f}, {:7.1f}\r\n'.format(random.uniform(200000, 500000), random.uniform(2000, 3000), random.uniform(-200, -300)), command_args[0] + ' line 1')
 
                 elif command_args[0] == 'syncmode':
                     if command_args[1] == 'y':
@@ -829,15 +821,16 @@ class sbe37(asyncore.dispatcher_with_send):
                     self.send_data("\r\nS>", 'default command prompt')
                 #------------------------------------------------------------------#
 
- 
-class sbe37_server(asyncore.dispatcher):
-
-    def __init__(self, host, port):
+class SBE37_server(asyncore.dispatcher):
+    def __init__(self, sim_class, host, port, rate):
         asyncore.dispatcher.__init__(self)
+        self.connection_count = 0
+        self.sim_class = sim_class
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.set_reuse_addr()
         self.bind((host, port))
         self.listen(5)
+        self.message_rate = rate
 
     def handle_accept(self):
         pair = self.accept()
@@ -845,80 +838,107 @@ class sbe37_server(asyncore.dispatcher):
             pass
         else:
             sock, addr = pair
-            global connection_count
-            global log_file
+            self.connection_count += 1 # not threadsafe -- could wind up with two threads and same count value
+            print '%3d *** new connection from %r' % (self.connection_count,addr)
             try:
-                name = str(os.getppid()) + "." +repr(addr).replace('(','').replace(')','').replace(' ','').replace("'",'')
-                log_file = open("/tmp/" + name, 'w')
-            except:
-                print "could not open log file " + repr(addr)
-            connection_count += 1
-            print str(connection_count) + ' Incoming connection from %s' % repr(addr)
-            try:
-                thread.start_new_thread(sbe37, (sock, thread))
-            except:
-                print "exception starting new thread\r\n"
-
-def port_usage():
-    print "The port flag takes a int value > 1000\n"
+                thread.start_new_thread(self.sim_class, (sock, thread, self.message_rate, self.connection_count))
+            except Exception, e:
+                print "%3d *** exception starting thread: %s"%(self.connection_count,e)
 
 def usage():
     print "SBE37-SMP Simulator:\n"
     print "This program simulates a SBE37-SMP sensor deployed by \nbeing connected to a MOXA NPort 5410 Serial Device Server."
     print "Available options are:"
     print "  -h, --help    : Displays this message"
-    print "  -p, --port=   : Sets the port to listen on (default = " + str(port) + ")."
-    print "  -l, --lag=    : Sets what percent of time it will lag (0-99)."
-    print "  -s, --sec=    : Sets how long it will lag in seconds."
-    print
+    print "  -p, --port=   : Sets the port to listen on (>1024, default = %s)." % default_port
 
 def get_opts():
+    opts, args = getopt.getopt(sys.argv[1:], "c:p:h", ["class=", "port=", "rate="])
 
-    global lag
-    global sec
-    lag = 0
-    sec = 0
-
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "p:h:l:s", ["help", "port=", "lag=", "sec="])
-    except getopt.GetoptError, err:
-        print str(err)
-        sys.exit()
-    
+    out={'rate':default_message_rate,'port':default_port,'simulator':SBE37_random}
     for o, a in opts:
-        if o in ("-h", "--help"):
-            usage()
-            sys.exit()
+        if o in ("-c", "--class"):
+            out['simulator'] = getattr(sys.modules[__name__],a)
+        if o in ("-r", "--rate"):
+            out['message_rate'] = int(a)
         elif o in ("-p", "--port"):
-            try: 
-                global port
-                port = int(a)
-            except:
-                port_usage()
-                sys.exit()
-            if port < 1000:
-                port_usage()
-                sys.exit()
-        elif o in ("-l", "--lag"):
-            lag = int(a)
-        elif o in ("-s", "--sec"):
-            sec = int(a)
+            out['port'] = int(a)
         else:
-            assert False, "unhandled option"
+            print 'unknown option: '+o
+    return out
 
-
-
-if __name__ == '__main__':
-    get_opts()
-
-    print "\nStarting simulator on port " + str(port) + ".\n"
-
-    server = sbe37_server('', port)
-
+def main():
+    try:
+        args = get_opts()
+    except Exception as e:
+        print 'Exception: %s'%e
+        usage()
+        sys.exit()
+    print 'using args: %r'%args
+    SBE37_server(sim_class=args['simulator'], host='', port=args['port'], rate=args['rate'])
     try:
         asyncore.loop()
     except:
         sys.exit() # Be silent when ^c pressed
+
+################################################################################################
+##
+## THESE CLASSES generate different sample values for the simulator
+#
+# return tuple of: temperature, conductivity, pressure, salinity, sound velocity
+
+class SBE37_random(SBE37):
+    def generate_data_values(self):
+        return ( random.uniform(-10.0, 100.0), random.uniform(0.0, 100.0), random.uniform(0.0, 1000.0),
+                 random.uniform(0.1, 40.0), random.uniform(1505, 1507))
+
+class SBE37_High(SBE37):
+    def generate_data_values(self):
+        return ( random.uniform(45.0, 100.0), random.uniform(50.0, 100.0), random.uniform(500.0, 1000.0), random.uniform(20.05, 40.0), random.uniform(1506.0, 1507.0))
+
+class SBE37_Low(SBE37):
+    def generate_data_values(self):
+        return ( random.uniform(-10.0, 45.0), random.uniform(0.0, 50.0), random.uniform(0.0, 500.0), random.uniform(0.1, 20.05), random.uniform(1505.0, 1506.0))
+
+import math
+
+def my_sin(time, Amin, Amax):
+    sin_val = math.sin(time)
+    range = Amax - Amin
+    adj_sin = (sin_val + 1.0) * range/2.0 + Amin
+    return adj_sin
+
+# vary as sine wave over time
+class SBE37_sine(SBE37):
+    sinwave_time = 0.0
+    def generate_data_values(self):
+        self.sinwave_time += 0.2
+        return ( my_sin(self.sinwave_time, -10.0, 100.0), my_sin(self.sinwave_time, 0.0, 100.0), my_sin(self.sinwave_time, 0.0, 1000.0), my_sin(self.sinwave_time, 0.1, 40.0), my_sin(self.sinwave_time, 1505, 1507))
+
+# narrower, valid range to help ensure density can be calculated
+class SBE37_midrange(SBE37):
+    sinwave_time = 0.0
+    def generate_data_values(self):
+        self.sinwave_time += 0.2
+        return ( my_sin(self.sinwave_time, 5.0, 15.0), my_sin(self.sinwave_time, 2.5, 4.5), my_sin(self.sinwave_time, 2000.0, 4000.0), my_sin(self.sinwave_time, 0.1, 40.0), my_sin(self.sinwave_time, 1505, 1507))
+
+#> Valid ranges for conductivity are 0-7 S/m. Typical values we've seen off the Oregon coast are ~35 mS/cm, which converts to ~3.5 S/m.
+#>
+#> Valid ranges for temperature are -2-40 deg_C. Typical values we've seen off the Oregon coast are between 5 and 20 deg_C. 12 deg_C would be absolutely reasonable.
+#>
+#> Valid ranges for pressure are 0-7000 dbar. Really, just choose a depth.
+#>
+#> I would recommend the simulator produce at C of 3.5 S/m, a T of 12 deg_C and a depth of 10 dbar. Apply sine wave functions with some small fraction of random white noise and let it rip.
+#>
+
+################################################################################################
+
+default_port = 4001       # TCP port to run on.
+default_message_rate = 5  # 5 sec between messages when streaming
+default_sim=SBE37_random
+
+if __name__ == '__main__':
+    main()
 
 
 
