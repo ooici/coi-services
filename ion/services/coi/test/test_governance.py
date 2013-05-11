@@ -2324,8 +2324,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Clean up
-        self.org_client.release_commitment(commitment_id)
-        self.ims_client.force_delete_instrument_device(inst_dev_id, headers=inst_operator_actor_header)
+        self.org_client.release_commitment(commitment_id, headers=inst_operator_actor_header)
+        self.ims_client.force_delete_instrument_device(inst_dev_id, headers=self.system_actor_header)
 
         self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
         self.rr_client.delete(member_actor_id)
