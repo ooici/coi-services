@@ -321,7 +321,7 @@ class OrgManagementService(BaseOrgManagementService):
 
 
         #Finally remove the association to the Org
-        aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, user_role)
+        aid = self.clients.resource_registry.get_association(org, PRED.hasRole, user_role)
         if not aid:
             raise NotFound("The role association between the specified Org (%s) and UserRole (%s) is not found" %
                            (org_id, user_role.name))
