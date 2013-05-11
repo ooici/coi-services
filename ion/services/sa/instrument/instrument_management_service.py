@@ -39,7 +39,7 @@ from ion.util.qa_doc_parser import QADocParser
 
 from ion.agents.port.port_agent_process import PortAgentProcess
 
-from interface.objects import AttachmentType, ComputedValueAvailability, ComputedListValue, DeviceStatusType, ProcessDefinition, ComputedDictValue
+from interface.objects import AttachmentType, ComputedValueAvailability, ProcessDefinition, ComputedDictValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 
 from interface.services.sa.iinstrument_management_service import BaseInstrumentManagementService
@@ -1625,51 +1625,52 @@ class InstrumentManagementService(BaseInstrumentManagementService):
     def get_uptime(self, device_id):
         ia_client, ret = self.agent_status_builder.obtain_agent_calculation(device_id, OT.ComputedStringValue)
 
-        if ia_client:
-            # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
-            # The Instrument Agent publishes events of a particular type, ResourceAgentStateEvent, and origin_type. So we query the events db for those.
+        if not ia_client:
+            return self._convert_to_string(ret, 0)
 
-            #----------------------------------------------------------------------------------------------
-            # Check whether it is a platform or an instrument
-            #----------------------------------------------------------------------------------------------
-            device = self.RR.read(device_id)
+        # Find events in the event repo that were published when changes of state occurred for the instrument or the platform
+        # The Instrument Agent publishes events of a particular type, ResourceAgentStateEvent, and origin_type. So we query the events db for those.
 
-            #----------------------------------------------------------------------------------------------
-            # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
-            # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
-            #----------------------------------------------------------------------------------------------
-            event_state = ''
-            not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
+        #----------------------------------------------------------------------------------------------
+        # Check whether it is a platform or an instrument
+        #----------------------------------------------------------------------------------------------
+        device = self.RR.read(device_id)
 
-            if device.type_ == 'InstrumentDevice':
-                event_state = ResourceAgentState.STREAMING
-            elif device.type_ == 'PlatformDevice':
-                event_state = 'PLATFORM_AGENT_STATE_MONITORING'
+        #----------------------------------------------------------------------------------------------
+        # These below are the possible new event states while taking the instrument off streaming mode or the platform off monitoring mode
+        # This is info got from possible actions to wind down the instrument or platform that one can take in the UI when the device is already streaming/monitoring
+        #----------------------------------------------------------------------------------------------
+        event_state = ''
+        not_streaming_states = [ResourceAgentState.COMMAND, ResourceAgentState.INACTIVE, ResourceAgentState.UNINITIALIZED]
 
-            #----------------------------------------------------------------------------------------------
-            # Get events associated with device from the events db
-            #----------------------------------------------------------------------------------------------
-            log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent events for the following event_state: %s",device_id, device.type_, event_state)
-            event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
+        if device.type_ == 'InstrumentDevice':
+            event_state = ResourceAgentState.STREAMING
+        elif device.type_ == 'PlatformDevice':
+            event_state = 'PLATFORM_AGENT_STATE_MONITORING'
 
-            recent_events = [tuple[2] for tuple in event_tuples]
+        #----------------------------------------------------------------------------------------------
+        # Get events associated with device from the events db
+        #----------------------------------------------------------------------------------------------
+        log.debug("For uptime, we are checking the device with id: %s, type_: %s, and searching recent events for the following event_state: %s",device_id, device.type_, event_state)
+        event_tuples = self.container.event_repository.find_events(origin=device_id, event_type='ResourceAgentStateEvent', descending=True)
 
-            #----------------------------------------------------------------------------------------------
-            # We assume below that the events have been sorted in time, with most recent events first in the list
-            #----------------------------------------------------------------------------------------------
-            for evt in recent_events:
-                log.debug("Got a recent event with event_state: %s", evt.state)
+        recent_events = [tuple[2] for tuple in event_tuples]
 
-                if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
-                    current_time = get_ion_ts() # this is in milliseconds
-                    log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
-                    return self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
-                elif evt.state in not_streaming_states:
-                    log.debug("Got a most recent event state that means instrument is not streaming anymore: %s", evt.state)
-                    # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
-                    return self._convert_to_string(ret, 0)
+        #----------------------------------------------------------------------------------------------
+        # We assume below that the events have been sorted in time, with most recent events first in the list
+        #----------------------------------------------------------------------------------------------
+        for evt in recent_events:
+            log.debug("Got a recent event with event_state: %s", evt.state)
 
-        return self._convert_to_string(ret, 0)
+            if evt.state == event_state: # "RESOURCE_AGENT_STATE_STREAMING"
+                current_time = get_ion_ts() # this is in milliseconds
+                log.debug("Got most recent streaming event with ts_created:  %s. Got the current time: %s", evt.ts_created, current_time)
+                return self._convert_to_string(ret, int(current_time)/1000 - int(evt.ts_created)/1000 )
+            elif evt.state in not_streaming_states:
+                log.debug("Got a most recent event state that means instrument is not streaming anymore: %s", evt.state)
+                # The instrument has been recently shut down. This has happened recently and no need to look further whether it was streaming earlier
+                return self._convert_to_string(ret, 0)
+
 
     def _convert_to_string(self, ret, value):
         """
@@ -1760,6 +1761,17 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.platform_device_extension.status')
 
+        statuses, reason = self.agent_status_builder.get_cumulative_status_dict(platform_device_id)
+
+        def csl(device_id_list):
+            return self.agent_status_builder.compute_status_list(statuses, device_id_list)
+
+        log.debug("Building instrument and platform status dicts")
+        extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
+        extended_platform.computed.platform_status   = csl([dev._id for dev in extended_platform.platforms])
+
+
+        log.debug("Building network rollups")
         rollx_builder = RollXBuilder(self)
         top_platformnode_id = rollx_builder.get_toplevel_network_node(platform_device_id)
         if t:

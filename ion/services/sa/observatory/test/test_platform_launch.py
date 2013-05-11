@@ -180,7 +180,8 @@ class TestPlatformLaunch(BaseIntTestPlatform):
             "power_status_roll_up": ComputedIntValue,
             "data_status_roll_up": ComputedIntValue,
             "location_status_roll_up": ComputedIntValue,
-            "child_device_status": ComputedDictValue,
+            "platform_status": ComputedListValue,
+            "instrument_status": ComputedListValue,
             "rsn_network_child_device_status": ComputedDictValue,
             "rsn_network_rollup": ComputedDictValue,
         }
@@ -200,7 +201,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
                      "power_status_roll_up",
                      ]:
             retval = getattr(p_extended.computed, attr)
-            self.assertEqual(ComputedValueAvailability.PROVIDED, retval.status, "platform computed.%s was not PROVIDED" % attr)
+            self.assertEqual(ComputedValueAvailability.PROVIDED,
+                             retval.status,
+                             "platform computed.%s was not PROVIDED: %s" % (attr, retval.reason))
 
 
         print "communications_status_roll_up", p_extended.computed.communications_status_roll_up
@@ -229,9 +232,9 @@ class TestPlatformLaunch(BaseIntTestPlatform):
             "power_status_roll_up": ComputedIntValue,
             "data_status_roll_up": ComputedIntValue,
             "location_status_roll_up": ComputedIntValue,
-            "platform_status": ComputedDictValue,
-            "instrument_status": ComputedDictValue,
-            "site_status": ComputedDictValue,
+            "platform_status": ComputedListValue,
+            "instrument_status": ComputedListValue,
+            "site_status": ComputedListValue,
             "platform_station_sites": ComputedListValue,
             "platform_assembly_sites": ComputedListValue,
             "platform_component_sites": ComputedListValue,
