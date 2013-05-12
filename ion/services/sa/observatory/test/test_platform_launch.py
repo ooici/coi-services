@@ -24,6 +24,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_hierarchy
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_single_platform_with_an_instrument
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_instrument_first_then_platform
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_2_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_13_platforms_and_8_instruments
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_launch.py:TestPlatformLaunch.test_platform_device_extended_attributes
@@ -33,9 +34,11 @@ __license__ = 'Apache 2.0'
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import instruments_dict
 
+from pyon.agent.agent import ResourceAgentState
+
 from unittest import skip
 from mock import patch
-from pyon.public import CFG
+from pyon.public import log, CFG
 
 
 @patch.dict(CFG, {'endpoint': {'receive': {'timeout': 180}}})
@@ -93,6 +96,45 @@ class TestPlatformLaunch(BaseIntTestPlatform):
         self.addCleanup(self._stop_platform, p_root)
 
         self._run_commands()
+
+    def test_instrument_first_then_platform(self):
+        #
+        # An instrument is launched first (including its associated port
+        # agent), then its parent platform is launched. This test verifies
+        # that the platform is able to detect the child is already running to
+        # continue operating normally.
+        # See PlatformAgent._launch_instrument_agent
+        #
+
+        # create instrument but do not start associated port agent ...
+        instr_key = 'SBE37_SIM_01'
+        i_obj = self._create_instrument(instr_key, start_port_agent=False)
+
+        # ... because the following also starts the port agent:
+        ia_client = self._start_instrument(i_obj)
+        self.addCleanup(self._stop_instrument, i_obj)
+
+        # verify instrument is in UNINITIALIZED:
+        instr_state = ia_client.get_agent_state()
+        log.debug("instrument state: %s", instr_state)
+        self.assertEquals(ResourceAgentState.UNINITIALIZED, instr_state)
+
+        # set up platform with that instrument:
+        p_root = self._set_up_single_platform_with_some_instruments([instr_key])
+
+        # start the platform:
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+
+        self._run_startup_commands()
+
+        # verify the instrument has moved to COMMAND by the platform:
+        instr_state = ia_client.get_agent_state()
+        log.debug("instrument state: %s", instr_state)
+        self.assertEquals(ResourceAgentState.COMMAND, instr_state)
+
+        # done
+        self._run_shutdown_commands()
 
     def test_13_platforms_and_2_instruments(self):
         #
