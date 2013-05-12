@@ -77,7 +77,6 @@ from gevent.event import AsyncResult
 
 from ion.agents.platform.test.helper import HelperTestMixin
 
-from ion.agents.platform.rsn.simulator.oms_simulator import CIOMSSimulator
 from ion.agents.platform.rsn.oms_client_factory import CIOMSClientFactory
 from ion.agents.platform.rsn.oms_util import RsnOmsUtil
 from ion.agents.platform.util.network_util import NetworkUtil
@@ -105,11 +104,11 @@ from ion.agents.instrument.driver_int_test_support import DriverIntegrationTestS
 # oms_uri: This indicates the URI to connect to the RSN OMS server endpoint.
 # By default, this value is "launchsimulator" meaning that the simulator is
 # launched as an external process for each test. This default is appropriate
-# for the buildbots. For local testing, the OMS environment variable can be
-# used to indicate a different RSN OMS server endpoint. Some aliases for
-# the "oms_uri" parameter include "embsimulator" (instantiates the simulator
-# class directly) and "localsimulator" (assumes the simulator is already running
-# as an external process, locally) and others. See oms_uri_aliases.yml.
+# in general and in particular for the buildbots. For local testing, the OMS
+# environment variable can be used to indicate a different RSN OMS server endpoint.
+# Some aliases for the "oms_uri" parameter include "embsimulator" (instantiates
+# the simulator class directly) and "localsimulator" (assumes the simulator is
+# already running as an external process, locally) and others. See oms_uri_aliases.yml.
 oms_uri = os.getenv('OMS', "launchsimulator")
 
 # initialization of the driver configuration. See setUp for possible update
@@ -687,21 +686,23 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
     # instrument
     #################################################################
 
-    def _set_up_pre_environment_for_instrument(self, instr_info):
+    def _set_up_pre_environment_for_instrument(self, instr_info, start_port_agent=True):
         """
         Based on test_instrument_agent.py
 
-        Basically, this method launches a port agent and then completes the
-        instrument driver configuration used to properly set up a particular
-        instrument agent.
+        Basically, this method prepares and returns an instrument driver
+        configuration taking care of first launching a port agent if so
+        indicated.
 
-        @param instr_info  A value in instruments_dict
+        @param instr_info        A value in instruments_dict
+        @param start_port_agent  Should the port agent be started?
+                                 True by default.
+
         @return instrument_driver_config
         """
 
         import sys
         from ion.agents.instrument.driver_process import DriverProcessType
-        from ion.agents.instrument.driver_process import ZMQEggDriverProcess
 
         # A seabird driver.
         DRV_URI = SBE37_EGG
@@ -711,61 +712,58 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         WORK_DIR = '/tmp/'
         DELIM = ['<<', '>>']
 
+        DEV_ADDR  = instr_info['DEV_ADDR']
+        DEV_PORT  = instr_info['DEV_PORT']
+        CMD_PORT  = instr_info['CMD_PORT']
+        DATA_PORT = instr_info['DATA_PORT']
+        PA_BINARY = instr_info['PA_BINARY']
+
         instrument_driver_config = {
             'dvr_egg' : DRV_URI,
             'dvr_mod' : DRV_MOD,
             'dvr_cls' : DRV_CLS,
             'workdir' : WORK_DIR,
-            'process_type' : None
+            'process_type' : (DriverProcessType.EGG,)
         }
 
-        # Launch from egg or a local MI repo.
-        LAUNCH_FROM_EGG=True
-
-        if LAUNCH_FROM_EGG:
+        if start_port_agent:
             # Dynamically load the egg into the test path
+            from ion.agents.instrument.driver_process import ZMQEggDriverProcess
             launcher = ZMQEggDriverProcess(instrument_driver_config)
             egg = launcher._get_egg(DRV_URI)
             if not egg in sys.path: sys.path.insert(0, egg)
-            instrument_driver_config['process_type'] = (DriverProcessType.EGG,)
 
-        else:
-            mi_repo = os.getcwd() + os.sep + 'extern' + os.sep + 'mi_repo'
-            if not mi_repo in sys.path: sys.path.insert(0, mi_repo)
-            instrument_driver_config['process_type'] = (DriverProcessType.PYTHON_MODULE,)
-            instrument_driver_config['mi_repo'] = mi_repo
+            support = DriverIntegrationTestSupport(None,
+                                                   None,
+                                                   DEV_ADDR,
+                                                   DEV_PORT,
+                                                   DATA_PORT,
+                                                   CMD_PORT,
+                                                   PA_BINARY,
+                                                   DELIM,
+                                                   WORK_DIR)
 
-        DEV_ADDR  = instr_info['DEV_ADDR']
-        DEV_PORT  = instr_info['DEV_PORT']
-        DATA_PORT = instr_info['DATA_PORT']
-        CMD_PORT  = instr_info['CMD_PORT']
-        PA_BINARY = instr_info['PA_BINARY']
+            # Start port agent, add stop to cleanup.
+            port = support.start_pagent()
+            log.info('Port agent started at port %i', port)
+            self.addCleanup(support.stop_pagent)
 
-        support = DriverIntegrationTestSupport(None,
-                                               None,
-                                               DEV_ADDR,
-                                               DEV_PORT,
-                                               DATA_PORT,
-                                               CMD_PORT,
-                                               PA_BINARY,
-                                               DELIM,
-                                               WORK_DIR)
+            # Configure instrument driver to use port agent port number.
+            instrument_driver_config['comms_config'] = {
+                'addr':     'localhost',
+                'port':     port,
+                'cmd_port': CMD_PORT
+            }
 
-        # Start port agent, add stop to cleanup.
-        port = support.start_pagent()
-        log.info('Port agent started at port %i', port)
-        self.addCleanup(support.stop_pagent)
-
-        # Configure instrument driver to use port agent port number.
-        instrument_driver_config['comms_config'] = {
-            'addr':     'localhost',
-            'port':     port,
-            'cmd_port': CMD_PORT
-        }
+        # else: do NOT include any 'comms_config' in instrument_driver_config
+        # so IMS.start_instrument_agent_instance will start the port agent
+        # for us (see call in _start_instrument).
+        # NOTE: this depends on current "hacky" logic in that IMS method.
 
         return instrument_driver_config
 
-    def _make_instrument_agent_structure(self, instr_key, org_obj, agent_config=None):
+    def _make_instrument_agent_structure(self, instr_key, org_obj, agent_config=None,
+                                         start_port_agent=True):
         if None is agent_config: agent_config = {}
 
         instr_info = instruments_dict[instr_key]
@@ -819,7 +817,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
             'alert_class' : 'LateDataAlert'
         }
 
-        instrument_driver_config = self._set_up_pre_environment_for_instrument(instr_info)
+        instrument_driver_config = self._set_up_pre_environment_for_instrument(
+            instr_info, start_port_agent=start_port_agent)
+        log.debug("_set_up_pre_environment_for_instrument: %s", instrument_driver_config)
 
         port_agent_config = {
             'device_addr':     instr_info['DEV_ADDR'],
@@ -911,11 +911,14 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         return i_obj
 
-    def _create_instrument(self, instr_key):
+    def _create_instrument(self, instr_key, start_port_agent=True):
         """
         The main method to create an instrument configuration.
 
-        @param instr_key  A key in instruments_dict
+        @param instr_key         A key in instruments_dict
+        @param start_port_agent  Should the port agent be started?
+                                 True by default.
+
         @return instrument_driver_config
         """
 
@@ -924,13 +927,14 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         instr_info = instruments_dict[instr_key]
 
-        log.debug("_create_instrument: creating instrument %r: %s",
-                  instr_key, instr_info)
+        log.debug("_create_instrument: creating instrument %r: %s, start_port_agent=%s",
+                  instr_key, instr_info, start_port_agent)
 
         org_obj = any_old(RT.Org)
 
         log.debug("making the structure for an instrument agent")
-        i_obj = self._make_instrument_agent_structure(instr_key, org_obj)
+        i_obj = self._make_instrument_agent_structure(instr_key, org_obj,
+                                                      start_port_agent=start_port_agent)
 
         self._setup_instruments[instr_key] = i_obj
 
@@ -1018,13 +1022,17 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         return p_obj
 
-    def _set_up_single_platform_with_some_instruments(self, instr_keys):
+    def _set_up_single_platform_with_some_instruments(self, instr_keys,
+                                                      start_port_agent=True):
         """
         Sets up single platform with some instruments
 
         @param instr_keys  Keys of the instruments to be assigned.
                            Must be keys in instruments_dict in
                            base_test_platform_agent_with_rsn
+
+        @param start_port_agent  Should the port agents be started?
+                                 True by default.
 
         @return p_root for subsequent termination
         """
@@ -1036,12 +1044,17 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         # create and assign instruments:
         for instr_key in instr_keys:
-            i_obj = self._create_instrument(instr_key)
+            # create only if not already created:
+            if instr_key in self._setup_instruments:
+                i_obj = self._setup_instruments[instr_key]
+            else:
+                i_obj = self._create_instrument(instr_key, start_port_agent=start_port_agent)
             self._assign_instrument_to_platform(i_obj, p_root)
 
         return p_root
 
-    def _set_up_platform_hierarchy_with_some_instruments(self, instr_keys):
+    def _set_up_platform_hierarchy_with_some_instruments(self, instr_keys,
+                                                         start_port_agent=True):
         """
         Sets up a multiple-level platform hierarchy with instruments associated
         to some of the platforms.
@@ -1074,6 +1087,9 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                            Must be keys in instruments_dict in
                            base_test_platform_agent_with_rsn
 
+        @param start_port_agent  Should the port agents be started?
+                                 True by default.
+
         @return p_root for subsequent termination
         """
 
@@ -1105,13 +1121,21 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
         start_time = time.time()
 
         i_objs = []
+        created = 0
         for instr_key in instr_keys:
-            i_obj = self._create_instrument(instr_key)
-            i_objs.append(i_obj)
-            log.debug("instrument created = %r (%s)",
-                      i_obj.instrument_agent_instance_id, instr_key)
+            # create only if not already created:
+            if instr_key in self._setup_instruments:
+                i_obj = self._setup_instruments[instr_key]
+                log.debug("instrument was already created = %r (%s)",
+                          i_obj.instrument_agent_instance_id, instr_key)
+            else:
+                i_obj = self._create_instrument(instr_key, start_port_agent=start_port_agent)
+                i_objs.append(i_obj)
+                log.debug("instrument created = %r (%s)",
+                          i_obj.instrument_agent_instance_id, instr_key)
+                created += 1
 
-        log.info("%d instruments created. Took %.3f secs.", len(instr_keys), time.time() - start_time)
+        log.info("%d instruments created. Took %.3f secs.", created, time.time() - start_time)
 
         #####################################
         # assign the instruments
@@ -1217,6 +1241,84 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
                     "platform_id=%r: Exception in IMS.stop_platform_agent_instance with "
                     "platform_agent_instance_id = %r. Perhaps already dead.",
                     p_obj.platform_id, p_obj.platform_agent_instance_id)
+
+    #################################################################
+    # start / stop instrument
+    #################################################################
+
+    def _start_instrument(self, i_obj):
+        """
+        Starts the given instrument waiting for it to transition to the
+        UNINITIALIZED state.
+
+        More in concrete the sequence of steps here are:
+        - prepares subscriber to receive the UNINITIALIZED state transition
+        - launches the instrument process
+        - waits for the start of the process
+        - waits for the transition to the UNINITIALIZED state
+
+        @return ResourceAgentClient object
+        """
+        ##############################################################
+        # prepare to receive the UNINITIALIZED state transition:
+        async_res = AsyncResult()
+
+        def consume_event(evt, *args, **kwargs):
+            log.debug("Got ResourceAgentStateEvent %s from origin %r", evt.state, evt.origin)
+            if evt.state == ResourceAgentState.UNINITIALIZED:
+                async_res.set(evt)
+
+        # start subscriber:
+        sub = EventSubscriber(event_type="ResourceAgentStateEvent",
+                              origin=i_obj.instrument_device_id,
+                              callback=consume_event)
+        sub.start()
+        log.info("registered event subscriber to wait for state=%r from origin %r",
+                 ResourceAgentState.UNINITIALIZED, i_obj.instrument_device_id)
+        self._event_subscribers.append(sub)
+        sub._ready_event.wait(timeout=EVENT_TIMEOUT)
+
+        ##############################################################
+        # now start the instrument:
+        agent_instance_id = i_obj.instrument_agent_instance_id
+        log.debug("about to call start_instrument_agent_instance with id=%s", agent_instance_id)
+        i_obj.pid = self.IMS.start_instrument_agent_instance(instrument_agent_instance_id=agent_instance_id)
+        log.debug("start_instrument_agent_instance returned pid=%s", i_obj.pid)
+
+        #wait for start
+        agent_instance_obj = self.IMS.read_instrument_agent_instance(agent_instance_id)
+        gate = ProcessStateGate(self.PDC.read_process,
+                                agent_instance_obj.agent_process_id,
+                                ProcessStateEnum.RUNNING)
+        self.assertTrue(gate.await(90), "The instrument agent instance did not spawn in 90 seconds")
+
+        # Start a resource agent client to talk with the agent.
+        ia_client = ResourceAgentClient(i_obj.instrument_device_id,
+                                        name=agent_instance_obj.agent_process_id,
+                                        process=FakeProcess())
+        log.debug("got instrument agent client %s", str(ia_client))
+
+        ##############################################################
+        # wait for the UNINITIALIZED event:
+        from pyon.public import CFG
+        async_res.get(timeout=CFG.endpoint.receive.timeout)
+
+        return ia_client
+
+    def _stop_instrument(self, i_obj):
+        try:
+            self.IMS.stop_instrument_agent_instance(i_obj.instrument_agent_instance_id)
+        except:
+            if log.isEnabledFor(logging.TRACE):
+                log.exception(
+                    "instrument_id=%r: Exception in IMS.stop_instrument_agent_instance with "
+                    "instrument_agent_instance_id = %r",
+                    i_obj.instrument_id, i_obj.instrument_agent_instance_id)
+            else:
+                log.warn(
+                    "instrument_id=%r: Exception in IMS.stop_instrument_agent_instance with "
+                    "instrument_agent_instance_id = %r. Perhaps already dead.",
+                    i_obj.instrument_id, i_obj.instrument_agent_instance_id)
 
     #################################################################
     # misc convenience methods
