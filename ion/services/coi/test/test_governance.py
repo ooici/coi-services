@@ -1102,6 +1102,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_i = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgNegotiationInitiatedEvent)
         self.assertEquals(len(events_i), 2)
 
+        ret = self.org_client.is_enrolled(org_id=org2_id, actor_id=actor_id, headers=self.system_actor_header)
+        self.assertEquals(ret, True)
+
+        self.org_client.cancel_member_enrollment(org_id=org2_id, actor_id=actor_id, headers=self.system_actor_header)
+
+        ret = self.org_client.is_enrolled(org_id=org2_id, actor_id=actor_id, headers=self.system_actor_header)
+        self.assertEquals(ret, False)
+
     @attr('LOCOINT')
     @attr('ROLE')
     @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
@@ -1680,6 +1688,14 @@ class TestGovernanceInt(IonIntegrationTestCase):
         events_i = self.event_repo.find_events(origin=org2_id, event_type=OT.OrgNegotiationInitiatedEvent)
         self.assertEquals(len(events_i), 4)
 
+        ret = self.org_client.is_resource_shared(org_id=org2_id, resource_id=ia_list[0]._id, headers=self.system_actor_header )
+        self.assertEquals(ret, True)
+
+        #So unshare the resource
+        self.org_client.unshare_resource(org_id=org2_id, resource_id=ia_list[0]._id, headers=self.system_actor_header  )
+
+        ret = self.org_client.is_resource_shared(org_id=org2_id, resource_id=ia_list[0]._id, headers=self.system_actor_header )
+        self.assertEquals(ret, False)
 
 
     def start_instrument_direct_access(self, ia_client, actor_header):
@@ -2324,8 +2340,8 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
 
         #Clean up
-        self.org_client.release_commitment(commitment_id)
-        self.ims_client.force_delete_instrument_device(inst_dev_id, headers=inst_operator_actor_header)
+        self.org_client.release_commitment(commitment_id, headers=inst_operator_actor_header)
+        self.ims_client.force_delete_instrument_device(inst_dev_id, headers=self.system_actor_header)
 
         self.id_client.delete_actor_identity(inst_operator_actor_id,headers=self.system_actor_header )
         self.rr_client.delete(member_actor_id)
