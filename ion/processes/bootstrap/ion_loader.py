@@ -1776,6 +1776,23 @@ Reason: %s
                 ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id,
                     headers=headers)
 
+
+        ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None\
+
+        #link child platform to parent platfrom
+        if ass_id:
+            log.debug('_load_PlatformDevice platform_device_id:  %s',  ass_id  )
+            log.debug('_load_PlatformDevice _get_resource_obj(ass_id):  %s',  self._get_resource_obj(ass_id)   )
+            log.debug('_load_PlatformDevice self.resource_ids[ass_id]:  %s',  self.resource_ids[ass_id]   )
+            if self.bulk:
+                parent_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[COL_ID])
+                self._create_association(parent_obj, PRED.hasDevice, device_obj)
+            else:
+                ims_client.assign_platform_device_to_platform_device(child_platform_device_id=res_id, platform_device_id=self.resource_ids[ass_id])
+
+
+
         oms_client = self._get_service_client("observatory_management")
         network_parent_id = row.get("network_parent_id", None)
         if network_parent_id:
