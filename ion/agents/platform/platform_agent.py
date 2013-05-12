@@ -21,7 +21,7 @@ from pyon.agent.agent import ResourceAgentClient
 
 from pyon.event.event import EventSubscriber
 
-from pyon.core.exception import BadRequest, Inconsistent
+from pyon.core.exception import NotFound, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
@@ -1197,9 +1197,13 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_platform_agent(self, subplatform_id):
         """
-        Launches a sub-platform agent, creates ResourceAgentClient,
-        waits until the sub-platform transitions to UNINITIALIZED state,
+        Launches a sub-platform agent (f not already running) and waits until
+        the sub-platform transitions to UNINITIALIZED state.
+        It creates corresponding ResourceAgentClient,
         and publishes device_added event.
+
+        The mechanism to detect whether the sub-platform agent is already
+        running is by simply trying to create a ResourceAgentClient to it.
 
         @param subplatform_id Platform ID
         """
@@ -1211,30 +1215,66 @@ class PlatformAgent(ResourceAgent):
 
         assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
 
-        # prepare to wait for the UNINITIALIZED state; this is done before the
-        # launch below to avoid potential race condition
-        asyn_res, subscriber = self._prepare_await_state(sub_resource_id,
-                                                         PlatformAgentState.UNINITIALIZED)
+        # first, is the agent already running?
+        pa_client = None  # assume it's not.
+        pid = None
+        try:
+            # try to connect:
+            pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
+            # it is actually running.
 
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r: launching sub-platform agent %r: CFG=%s",
-                      self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
+            # get PID:
+            # TODO is there a more public method to get the pid?
+            pid = ResourceAgentClient._get_agent_process_id(sub_resource_id)
+
+        except NotFound:
+            # not running.
+            pass
+
+        if pa_client:
+            #
+            # agent process already running.
+            #
+            # TODO if any, what kind of state check should be done? For the
+            # moment don't do any state verification.
+            state = pa_client.get_agent_state()
+            log.debug("%r: [LL] sub-platform agent already running=%r, "
+                      "sub_resource_id=%s, state=%s",
+                      self._platform_id, subplatform_id, sub_resource_id, state)
         else:
-            log.debug("%r: launching sub-platform agent %r", self._platform_id, subplatform_id)
+            #
+            # agent process NOT running.
+            #
+            log.debug("%r: [LL] sub-platform agent NOT running=%r, sub_resource_id=%s",
+                      self._platform_id, subplatform_id, sub_resource_id)
 
-        pid = self._launcher.launch_platform(subplatform_id, sub_agent_config)
-        log.debug("%r: DONE launching sub-platform agent %r", self._platform_id, subplatform_id)
+            # prepare to wait for the UNINITIALIZED state; this is done before the
+            # launch below to avoid potential race condition
+            asyn_res, subscriber = self._prepare_await_state(sub_resource_id,
+                                                             PlatformAgentState.UNINITIALIZED)
 
-        pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
+            if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+                log.trace("%r: launching sub-platform agent %r: CFG=%s",
+                          self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
+            else:
+                log.debug("%r: launching sub-platform agent %r", self._platform_id, subplatform_id)
+
+            pid = self._launcher.launch_platform(subplatform_id, sub_agent_config)
+            log.debug("%r: DONE launching sub-platform agent %r", self._platform_id, subplatform_id)
+
+            # create resource agent client:
+            pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
+
+            # wait until UNINITIALIZED:
+            self._await_state(asyn_res, subscriber)
+
+        # here, sub-platform agent process is running.
 
         self._pa_clients[subplatform_id] = DotDict(pa_client=pa_client,
                                                    pid=pid,
                                                    resource_id=sub_resource_id)
 
-        # wait until UNINITIALIZED:
-        self._await_state(asyn_res, subscriber)
-
-        # all ready, publish device_added:
+        # publish device_added:
         self._status_manager.publish_device_added_event(sub_resource_id)
 
     def _execute_platform_agent(self, a_client, cmd, sub_id):
@@ -1747,8 +1787,12 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_instrument_agent(self, instrument_id):
         """
-        Launches an instrument agent, creates ResourceAgentClient,
-        and publishes a device_added event.
+        Launches an instrument agent (f not already running).
+        It creates corresponding ResourceAgentClient,
+        and publishes device_added event.
+
+        The mechanism to detect whether the instrument agent is already
+        running is by simply trying to create a ResourceAgentClient to it.
 
         @param instrument_id
         """
@@ -1760,18 +1804,53 @@ class PlatformAgent(ResourceAgent):
 
         assert i_resource_id, "agent.resource_id must be present for child %r" % instrument_id
 
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r: launching instrument agent %r: CFG=%s",
-                      self._platform_id, instrument_id, self._pp.pformat(i_CFG))
+        # first, is the agent already running?
+        ia_client = None
+        pid = None
+        try:
+            # try to connect
+            ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
+            # it is running.
+
+            # get PID:
+            # TODO is there a more public method to get the pid?
+            pid = ResourceAgentClient._get_agent_process_id(i_resource_id)
+
+        except NotFound:
+            # not running.
+            pass
+
+        if ia_client:
+            #
+            # agent process already running.
+            #
+            # TODO if any, what kind of state check should be done? For the
+            # moment we don't do any state verification.
+            state = ia_client.get_agent_state()
+            log.debug("%r: [LL] instrument agent already running=%r, "
+                      "i_resource_id=%s, state=%s",
+                      self._platform_id, instrument_id, i_resource_id, state)
         else:
-            log.debug("%r: launching instrument agent %r", self._platform_id, instrument_id)
+            #
+            # agent process NOT running.
+            #
+            log.debug("%r: [LL] instrument agent NOT running=%r, i_resource_id=%s",
+                      self._platform_id, instrument_id, i_resource_id)
 
-        pid = self._launcher.launch_instrument(instrument_id, i_CFG)
+            if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+                log.trace("%r: launching instrument agent %r: CFG=%s",
+                          self._platform_id, instrument_id, self._pp.pformat(i_CFG))
+            else:
+                log.debug("%r: launching instrument agent %r", self._platform_id, instrument_id)
 
-        ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
+            pid = self._launcher.launch_instrument(instrument_id, i_CFG)
 
-        state = ia_client.get_agent_state()
-        assert ResourceAgentState.UNINITIALIZED == state
+            ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
+
+            state = ia_client.get_agent_state()
+            assert ResourceAgentState.UNINITIALIZED == state
+
+        # here, instrument agent process is running.
 
         self._ia_clients[instrument_id] = DotDict(ia_client=ia_client,
                                                   pid=pid,
