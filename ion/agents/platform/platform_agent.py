@@ -1430,9 +1430,16 @@ class PlatformAgent(ResourceAgent):
 
             try:
                 self._execute_platform_agent(pa_client, cmd, subplatform_id)
-            except:
-                err_msg = "%r: exception executing command %r in subplatform %r" % (
-                          self._platform_id, command, subplatform_id)
+
+            except FSMStateError as e:
+                err_msg = "%r: subplatform %r: FSMStateError for command %r: %s" % (
+                          self._platform_id, subplatform_id, command, e)
+                log.warn(err_msg)
+                return err_msg
+
+            except Exception as e:
+                err_msg = "%r: exception executing command %r in subplatform %r: %s" % (
+                          self._platform_id, command, subplatform_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -1444,9 +1451,9 @@ class PlatformAgent(ResourceAgent):
                               self._platform_id, expected_state, state)
                     log.error(err_msg)
                     return err_msg
-            except:
-                err_msg = "%r: exception while calling get_agent_state to subplatform %r" % (
-                          self._platform_id, subplatform_id)
+            except Exception as e:
+                err_msg = "%r: exception while calling get_agent_state to subplatform %r: %s" % (
+                          self._platform_id, subplatform_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -1918,15 +1925,21 @@ class PlatformAgent(ResourceAgent):
             ia_client = self._ia_clients[instrument_id].ia_client
 
             try:
-                retval = self._execute_instrument_agent(ia_client, cmd,
-                                                        instrument_id)
-            except:
-                err_msg = "%r: exception executing command %r in instrument %r" % (
-                          self._platform_id, command, instrument_id)
+                self._execute_instrument_agent(ia_client, cmd,
+                                               instrument_id)
+            except FSMStateError as e:
+                err_msg = "%r: instrument %r: FSMStateError for command %r: %s" % (
+                          self._platform_id, instrument_id, command, e)
+                log.warn(err_msg)
+                return err_msg
+
+            except Exception as e:
+                err_msg = "%r: exception executing command %r in instrument %r: %s" % (
+                          self._platform_id, command, instrument_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
-            # verify state:
+            # verify expected_state if given:
             try:
                 state = ia_client.get_agent_state()
                 if expected_state and expected_state != state:
@@ -1935,9 +1948,9 @@ class PlatformAgent(ResourceAgent):
                     log.error(err_msg)
                     return err_msg
 
-            except:
-                err_msg = "%r: exception while calling get_agent_state to instrument %r" % (
-                          self._platform_id, instrument_id)
+            except Exception as e:
+                err_msg = "%r: exception while calling get_agent_state to instrument %r: %s" % (
+                          self._platform_id, instrument_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
