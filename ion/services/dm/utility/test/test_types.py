@@ -152,9 +152,9 @@ class TestTypes(PyonTestCase):
         self.rdt_to_granule(context,['hi'] * 20)
         self.cov_io(context, ['hi'] * 20)
 
-    def test_array_type(self):
+    def test_plain_array_type(self):
         ptype      = 'array<quantity>'
-        encoding   = 'int32'
+        encoding   = ''
         fill_value = 'empty'
 
         context = self.get_context(ptype, encoding, fill_value)
@@ -167,6 +167,31 @@ class TestTypes(PyonTestCase):
         testval = np.array([None] * 20)
         for i in xrange(20):
             testval[i] = [1,2,3]
+
+        self.rdt_to_granule(context, [[1,2,3]] * 20, testval)
+        self.cov_io(context, testval)
+
+    def test_array_type(self):
+        ptype      = 'array<quantity>'
+        encoding   = 'int32'
+        fill_value = '-9999'
+
+        context = self.get_context(ptype, encoding, fill_value)
+        paramval = self.get_pval(context)
+
+
+        #TODO: Fill value not supported
+        #--------------------------------------------------------------------------------
+        #paramval[:] = [context.fill_value] * 20
+        #[self.assertEquals(paramval[i], context.fill_value) for i in xrange(20)]
+        #--------------------------------------------------------------------------------
+        paramval[:] = [[1,2,3]] * 20
+        np.testing.assert_array_equal(paramval[:], np.array([1,2,3]*20).reshape(20,3))
+        # None not supported
+        #testval = np.array([None] * 20)
+        #for i in xrange(20):
+        #    testval[i] = [1,2,3]
+        testval = np.array([1,2,3]*20).reshape(20,3)
 
         self.rdt_to_granule(context, [[1,2,3]] * 20, testval)
         self.cov_io(context, testval)
