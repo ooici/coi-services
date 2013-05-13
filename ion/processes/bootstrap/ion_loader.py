@@ -1777,7 +1777,7 @@ Reason: %s
                     headers=headers)
 
 
-        ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None\
+        ass_id = row.get("platform_device_id", None)
 
         #link child platform to parent platfrom
         if ass_id:
