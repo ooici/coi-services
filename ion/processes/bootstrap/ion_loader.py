@@ -2,8 +2,9 @@
 
 """Process that loads ION resources via service calls based on definitions in spreadsheets using loader functions.
     @see https://confluence.oceanobservatories.org/display/CIDev/R2+System+Preload
+    @see https://github.com/ooici/coi-services/blob/master/README_DEMO
 
-    Examples:
+    Examples (see also README_DEMO linked above):
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=master scenario=R2_DEMO
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path=res/preload/r2_ioc/R2PreloadedResources.xlsx scenario=R2_DEMO
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load path="https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls" scenario=R2_DEMO
@@ -22,17 +23,20 @@
       bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=deleteooi
 
     Options:
-      ui_path= override location to get UI preload files (default is path + '/ui_assets')
-      assets= override location to get OOI asset file (default is path + '/ooi_assets')
-      assetmappings= override location for OOI mapping spreadsheet (default is GoogleDoc)
-      attachments= override location to get file attachments (default is path)
-      ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
-      ooiexclude= one or more categories to NOT import in the OOI import
-      ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
       bulk= if True, uses RR bulk insert operations to load, not service calls
       debug= if True, allows a few shortcuts to perform faster loads
-      exportui= if True, writes interface/ui_specs.json with UI object
       cfg= Path to a preload config file that allows scripted preload runs with defined params
+      path= override location (dir, GoogleDoc or XLSX file) for preload rows (default is TESTED_DOC; "master" is recognized)
+      attachments= override location to get file attachments (default is path)
+      ui_path= override location to get UI preload files (default is path + '/ui_assets')
+      assets= override location to get OOI asset file (default is path + '/ooi_assets')
+      categories= list of categories to import
+      excludecategories= list of categories to NOT import
+      assetmappings= override location for OOI mapping spreadsheet (default is GoogleDoc)
+      ooifilter= one or comma separated list of CE,CP,GA,GI,GP,GS,ES to limit ooi resource import
+      ooiexclude= synonymous to excludecategories. Don't use
+      ooiuntil= datetime of latest planned deployment date to consider for data product etc import mm/dd/yyyy
+      exportui= if True, writes interface/ui_specs.json with UI object
 
     TODO:
       support attachments using HTTP URL
@@ -182,20 +186,24 @@ class IONLoader(ImmediateProcess):
 
         # initialize these here instead of on_start
         # to support using IONLoader as a utility -- not just as a process
-        self.obj_classes = {}     # Cache of class for object types
-        self.resource_ids = {}    # Holds a mapping of preload IDs to internal resource ids
-        self.resource_objs = {}   # Holds a mapping of preload IDs to the actual resource objects
-        self.existing_resources = None
-        self.unknown_fields = {} # track unknown fields so we only warn once
-        self.constraint_defs = {} # alias -> value for refs, since not stored in DB
-        self.contact_defs = {} # alias -> value for refs, since not stored in DB
-        self.stream_config = {} # name -> obj for StreamConfiguration objects, used by *AgentInstance
-        self.alerts = {} # id -> alert definition dict
-        self.external_dataset_producer_id = {} # keep producer ID for later use by AgentInstance
-        self.object_definitions = None
+        self._init_preload()
 
         # process to use for RPC communications (override to use as utility, default to use as process)
         self.rpc_sender = self
+
+    def _init_preload(self):
+        self.obj_classes = {}           # Cache of class for object types
+        self.object_definitions = None  # Dict of preload rows before processing
+        self.unknown_fields = {}        # track unknown fields so we only warn once
+
+        self.resource_ids = {}          # Holds a mapping of preload IDs to internal resource ids
+        self.resource_objs = {}         # Holds a mapping of preload IDs to the actual resource objects
+
+        self.constraint_defs = {}       # alias -> value for refs, since not stored in DB
+        self.contact_defs = {}          # alias -> value for refs, since not stored in DB
+        self.stream_config = {}         # name -> obj for StreamConfiguration objects, used by *AgentInstance
+        self.alerts = {}                # id -> alert definition dict
+        self.external_dataset_producer_id = {}  # keep producer ID for later use by AgentInstance
 
     def on_start(self):
         cfg = self.CFG.get("cfg", None)
@@ -205,6 +213,8 @@ class IONLoader(ImmediateProcess):
             load_sequence = self.preload_cfg["load_sequence"]
             for num, step_cfg in enumerate(load_sequence):
                 log.info("Executing preload step %s '%s'", num, step_cfg['name'])
+                if num > 0:
+                    self._init_preload()
                 docstr = step_cfg.get("docstring", None)
                 if docstr:
                     log.debug("Explanation: "+ docstr)
@@ -222,7 +232,6 @@ class IONLoader(ImmediateProcess):
         """
         One "run" of preload with one set of config arguments.
         """
-
         # Main operation to perform this run.
         op = config.get("op", None)
 
@@ -260,21 +269,22 @@ class IONLoader(ImmediateProcess):
         # Perform operations
         if op == "load":
             scenarios = config.get("scenario", None)
-            if not scenarios:
-                raise iex.BadRequest("Must provide scenarios to load: scenario=sc1,sc2,...")
-            log.debug("Scenarios: %s", scenarios)
+            log.debug("Scenario: %s", scenarios)
 
             category_csv = config.get("categories", None)
             self.categories = category_csv.split(",") if category_csv else DEFAULT_CATEGORIES
+            ooiexclude = config.get("ooiexclude", '')
+            if ooiexclude:
+                log.warn("ooiexclude is DEPRECATED. Use excludecategories= instead")
+            self.excludecategories = config.get("excludecategories", ooiexclude)  # Don't import the listed categories
+            if self.excludecategories:
+                self.excludecategories = self.excludecategories.split(',')
 
             self.loadooi = config.get("loadooi", False)    # Import OOI asset data
             self.loadui = config.get("loadui", False)      # Import UI asset data
             self.update = config.get("update", False)      # Support update to existing resources
             self.bulk = config.get("bulk", False)          # Use bulk insert where available
             self.ooifilter = config.get("ooifilter", None) # Filter OOI import to RD prefixes (e.g. array "CE,GP")
-            self.ooiexclude = config.get("ooiexclude", '') # Don't import the listed categories
-            if self.ooiexclude:
-                self.ooiexclude = self.ooiexclude.split(',')
 
             if self.loadooi:
                 self.ooi_loader.extract_ooi_assets()
@@ -289,7 +299,7 @@ class IONLoader(ImmediateProcess):
             # Load existing resources by preload ID
             self._prepare_incremental()
 
-            scenarios = scenarios.split(',')
+            scenarios = scenarios.split(',') if scenarios else []
             self.load_ion(scenarios)
 
         elif op == "parseooi":
@@ -328,9 +338,8 @@ class IONLoader(ImmediateProcess):
         #
         if self.object_definitions:
             log.info("Object definitions already provided, NOT loading from path")
-        else:
+        elif scenarios:
             # but here is the normal, expected use-case
-            #
             log.info("Loading preload data from: %s", self.path)
 
             # Fetch the spreadsheet directly from a URL (from a GoogleDocs published spreadsheet)
@@ -340,6 +349,9 @@ class IONLoader(ImmediateProcess):
                 self._read_xls_file(scenarios)
             else:
                 self._read_csv_files(scenarios)
+        else:
+            self.object_definitions = {}
+            log.info("No scenarios provided, not loading preload rows")
 
     def _read_http(self, scenarios):
         """ read from google doc or similar HTTP XLS document """
@@ -430,9 +442,9 @@ class IONLoader(ImmediateProcess):
 
         log.debug("Found %s previously preloaded resources", len(res_objs))
 
-        self.existing_resources = dict(zip(res_preload_ids, res_objs))
+        existing_resources = dict(zip(res_preload_ids, res_objs))
 
-        if len(self.existing_resources) != len(res_objs):
+        if len(existing_resources) != len(res_objs):
             raise iex.BadRequest("Stored preload IDs are NOT UNIQUE!!! Cannot link to old resources")
 
         res_id_mapping = dict(zip(res_preload_ids, res_ids))
@@ -468,14 +480,18 @@ class IONLoader(ImmediateProcess):
             index += 1
             self.bulk_objects = {}      # This keeps objects to be bulk inserted/updated at the end of a category
 
+            if category in self.excludecategories:
+                continue
+
             # First load all OOI assets for this category
-            if self.loadooi and category not in self.ooiexclude:
+            if self.loadooi:
                 catfunc_ooi = getattr(self, "_load_%s_OOI" % category, None)
                 if catfunc_ooi:
                     log.debug('Loading OOI assets for %s', category)
                     catfunc_ooi()
                 if t:
                     t.complete_step('preload.%s.catfunc' % category)
+
             # Now load entries from preload spreadsheet top to bottom where scenario matches
             if category not in self.object_definitions or not self.object_definitions[category]:
                 log.debug('no rows for category: %s', category)
@@ -488,7 +504,7 @@ class IONLoader(ImmediateProcess):
 
                 try:
                     self.load_row(category, row)
-                except:
+                except Exception:
                     log.error('error loading %s row: %r', category, row, exc_info=True)
                     raise
 
@@ -517,8 +533,13 @@ class IONLoader(ImmediateProcess):
 
     def _finalize_bulk(self, category):
         res = self.resource_ds.create_mult(self.bulk_objects.values(), allow_ids=True)
-        log.debug("Bulk stored %d resource objects/associations into resource registry", len(res))
+
         num_objects = len([1 for obj in self.bulk_objects.values() if obj.type_ != "Association"])
+        num_assoc = len(self.bulk_objects) - num_objects
+        num_existing = len([1 for obj in self.bulk_objects.values() if hasattr(obj, "_rev")])
+
+        log.debug("Bulk stored %d resource objects, %d associations in resource registry (%s updates)", num_objects, num_assoc, num_existing)
+
         self.bulk_objects.clear()
         return num_objects
 
@@ -1777,21 +1798,15 @@ Reason: %s
                     headers=headers)
 
 
-        ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None\
-
-        #link child platform to parent platfrom
+        # link child platform to parent platfrom
+        ass_id = row["platform_device_id"]
         if ass_id:
-            log.debug('_load_PlatformDevice platform_device_id:  %s',  ass_id  )
-            log.debug('_load_PlatformDevice _get_resource_obj(ass_id):  %s',  self._get_resource_obj(ass_id)   )
-            log.debug('_load_PlatformDevice self.resource_ids[ass_id]:  %s',  self.resource_ids[ass_id]   )
             if self.bulk:
                 parent_obj = self._get_resource_obj(ass_id)
                 device_obj = self._get_resource_obj(row[COL_ID])
                 self._create_association(parent_obj, PRED.hasDevice, device_obj)
             else:
                 ims_client.assign_platform_device_to_platform_device(child_platform_device_id=res_id, platform_device_id=self.resource_ids[ass_id])
-
-
 
         oms_client = self._get_service_client("observatory_management")
         network_parent_id = row.get("network_parent_id", None)
@@ -1807,9 +1822,20 @@ Reason: %s
         self._resource_advance_lcs(row, res_id, "PlatformDevice")
 
     def _load_PlatformDevice_ext(self, row):
-        # HACK: This is to set the network parent after creating the device
+        # HACK: This is to set the device or network parent after creating the device
         headers = self._get_op_headers(row)
         res_id = self._get_resource_id(row[COL_ID])
+
+        ims_client = self._get_service_client("instrument_management")
+        ass_id = row.get("platform_device_id", None)
+        if ass_id:
+            if self.bulk:
+                parent_obj = self._get_resource_obj(ass_id)
+                device_obj = self._get_resource_obj(row[COL_ID])
+                self._create_association(parent_obj, PRED.hasDevice, device_obj)
+            else:
+                ims_client.assign_platform_device_to_platform_device(child_platform_device_id=res_id, platform_device_id=self.resource_ids[ass_id])
+
         oms_client = self._get_service_client("observatory_management")
         network_parent_id = row.get("network_parent_id", None)
         if network_parent_id:
@@ -1836,6 +1862,7 @@ Reason: %s
             newrow['platform_model_id'] = node_id[9:11] + "_PM"
             newrow['contact_ids'] = ''
             newrow['network_parent_id'] = ""
+            newrow['platform_device_id'] = ""
             newrow['lcstate'] = "PLANNED_AVAILABLE"
 
             if not self._match_filter([node_id[:2]]):
