@@ -1797,9 +1797,8 @@ Reason: %s
                 ims_client.assign_platform_model_to_platform_device(self.resource_ids[ass_id], res_id,
                     headers=headers)
 
-
-        # link child platform to parent platfrom
-        ass_id = row["platform_device_id"]
+        #link child platform to parent platfrom
+        ass_id = row.get("platform_device_id", None)
         if ass_id:
             if self.bulk:
                 parent_obj = self._get_resource_obj(ass_id)
@@ -2561,7 +2560,7 @@ Reason: %s
                 source_obj = self._get_resource_obj(source_id)
                 self._create_association(dp_obj, PRED.hasSource, source_obj)
             else:
-                svc_client.assign_data_product_source(dp_id, source_id, headers=headers, timeout=300)
+                svc_client.assign_data_product_source(dp_id, source_id, headers=headers, timeout=500)
 
         # Create data product assignment
         if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
@@ -2582,7 +2581,7 @@ Reason: %s
                 self._create_association(dp_obj, PRED.hasDataProducer, data_producer_obj)
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
-                svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=300)
+                svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=500)
 
     def _load_DataProductLink_OOI(self):
         node_objs = self.ooi_loader.get_type_assets("node")
