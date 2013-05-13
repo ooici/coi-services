@@ -179,6 +179,8 @@ class TestTypes(PyonTestCase):
         context = self.get_context(ptype, encoding, fill_value)
         paramval = self.get_pval(context)
 
+        self.assertEquals(context.param_type.inner_encoding, 'int32')
+
 
         #TODO: Fill value not supported
         #--------------------------------------------------------------------------------
