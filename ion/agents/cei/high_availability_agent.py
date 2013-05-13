@@ -57,21 +57,6 @@ class HighAvailabilityAgent(SimpleResourceAgent):
             log.error(msg)
             return
 
-        policy_name = self.CFG.get_safe("highavailability.policy.name")
-        if policy_name is None:
-            msg = "HA service requires a policy name at CFG.highavailability.policy.name"
-            raise Exception(msg)
-        try:
-            policy.policy_map[policy_name.lower()]
-            self.policy = policy_name.lower()
-        except KeyError:
-            raise Exception("HA Service doesn't support '%s' policy" % policy_name)
-
-        policy_parameters = self.CFG.get_safe("highavailability.policy.parameters")
-
-        self.policy_interval = self.CFG.get_safe("highavailability.policy.interval",
-                DEFAULT_INTERVAL)
-
         cfg = self.CFG.get_safe("highavailability")
 
         # use default PD name as the sole PD if none are provided in config
@@ -88,6 +73,23 @@ class HighAvailabilityAgent(SimpleResourceAgent):
         self.service_id, self.service_name = self._register_service()
         self.policy_event = Event()
 
+        stored_policy = self._stored_policy
+        if stored_policy != {}:
+            policy_name = stored_policy.get('name')
+            policy_parameters = stored_policy.get('parameters')
+            self._validate_policy_name(policy_name)
+            self.policy_name = policy_name.lower()
+            self.policy_parameters = policy_parameters
+        else:
+
+            policy_name = self.CFG.get_safe("highavailability.policy.name")
+            self._validate_policy_name(policy_name)
+            self.policy_name = policy_name.lower()
+            self.policy_parameters = self.CFG.get_safe("highavailability.policy.parameters")
+
+        self.policy_interval = self.CFG.get_safe("highavailability.policy.interval",
+                DEFAULT_INTERVAL)
+
         self.logprefix = "HA Agent (%s): " % self.service_name
 
         self.control = HAProcessControl(self.pds[0],
@@ -95,8 +97,8 @@ class HighAvailabilityAgent(SimpleResourceAgent):
             self.policy_event.set, logprefix=self.logprefix)
 
         self.core = HighAvailabilityCore(cfg, self.control,
-                self.pds, self.policy, process_definition_id=self.process_definition_id,
-                parameters=policy_parameters,
+                self.pds, self.policy_name, process_definition_id=self.process_definition_id,
+                parameters=self.policy_parameters,
                 process_configuration=self.process_configuration,
                 aggregator_config=aggregator_config, name=self.service_name)
 
@@ -242,15 +244,47 @@ class HighAvailabilityAgent(SimpleResourceAgent):
                 log.warn("%sFailed to apply policy. Will retry later.",
                     self.logprefix, exc_info=True)
 
+    def _validate_policy_name(self, policy_name):
+        if policy_name is None:
+            msg = "HA service requires a policy name at CFG.highavailability.policy.name"
+            raise Exception(msg)
+        try:
+            policy.policy_map[policy_name.lower()]
+        except KeyError:
+            raise Exception("HA Service doesn't support '%s' policy" % policy_name)
+
+    @property
+    def _policy_dict(self):
+        policy_dict = {
+            'name': self.core.policy_type,
+            'parameters': self.core.policy.parameters
+        }
+        return policy_dict
+
+    @property
+    def _stored_policy(self):
+        service = self.container.resource_registry.read(self.service_id)
+        return service.policy
+
     def _apply_policy(self):
 
         self.core.apply_policy()
 
         try:
             new_service_state = _core_hastate_to_service_state(self.core.status())
+            new_policy = self._policy_dict
             service = self.container.resource_registry.read(self.service_id)
+
+            update_service = False
             if service.state != new_service_state:
                 service.state = new_service_state
+                update_service = True
+
+            if service.policy != new_policy:
+                service.policy = new_policy
+                update_service = True
+
+            if update_service is True:
                 self.container.resource_registry.update(service)
         except Exception:
             log.warn("%sProblem when updating Service state", self.logprefix, exc_info=True)
