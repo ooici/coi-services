@@ -10,7 +10,7 @@ from pyon.core.exception import BadRequest
 from pyon.public import RT, PRED, OT, IonObject, log
 
 from interface.objects import DeviceStatusType, DeviceCommsType
-from interface.objects import ComputedValueAvailability, StatusType
+from interface.objects import ComputedValueAvailability
 
 
 class ObservatoryUtil(object):
@@ -321,15 +321,15 @@ class ObservatoryUtil(object):
             raise BadRequest("Unsupported resource type: %s", res_type)
 
     def _compute_status(self, device_id, device_events):
-        status = dict(power=StatusType.STATUS_OK, comms=StatusType.STATUS_OK,
-            data=StatusType.STATUS_OK, loc=StatusType.STATUS_OK)
+        status = dict(power=DeviceStatusType.STATUS_OK, comms=DeviceStatusType.STATUS_OK,
+            data=DeviceStatusType.STATUS_OK, loc=DeviceStatusType.STATUS_OK)
         dev_events = device_events.get(device_id, [])
         for event in dev_events:
             event_type = event._get_type()
             if event_type == OT.DeviceStatusEvent and event.status == DeviceStatusType.STATUS_WARNING:
-                status['power'] = StatusType.STATUS_WARNING
+                status['power'] = DeviceStatusType.STATUS_WARNING
             elif event_type == OT.DeviceCommsEvent and event.state == DeviceCommsType.DATA_DELIVERY_INTERRUPTION:
-                status['comms'] = StatusType.STATUS_WARNING
+                status['comms'] = DeviceStatusType.STATUS_WARNING
             # @TODO data, loc
 
         status['agg'] = self._consolidate_status(status.values())
@@ -339,22 +339,22 @@ class ObservatoryUtil(object):
         """Intelligently merge statuses with current value"""
 
         # Any critical means all critical
-        if StatusType.STATUS_CRITICAL in statuses:
-            return StatusType.STATUS_CRITICAL
+        if DeviceStatusType.STATUS_CRITICAL in statuses:
+            return DeviceStatusType.STATUS_CRITICAL
 
         # Any warning means all warning
-        if StatusType.STATUS_WARNING in statuses:
-            return StatusType.STATUS_WARNING
+        if DeviceStatusType.STATUS_WARNING in statuses:
+            return DeviceStatusType.STATUS_WARNING
 
         # Any unknown is fine unless some are ok -- then it's a warning
-        if StatusType.STATUS_OK in statuses:
-            if StatusType.STATUS_UNKNOWN in statuses and warn_if_unknown:
-                return StatusType.STATUS_WARNING
+        if DeviceStatusType.STATUS_OK in statuses:
+            if DeviceStatusType.STATUS_UNKNOWN in statuses and warn_if_unknown:
+                return DeviceStatusType.STATUS_WARNING
             else:
-                return StatusType.STATUS_OK
+                return DeviceStatusType.STATUS_OK
 
         # 0 results are OK, 0 or more are unknown
-        return StatusType.STATUS_UNKNOWN
+        return DeviceStatusType.STATUS_UNKNOWN
 
     def _rollup_statuses(self, status_list):
         """For a list of child status dicts, compute the rollup statuses"""
