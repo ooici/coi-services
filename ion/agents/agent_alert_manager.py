@@ -36,7 +36,7 @@ class AgentAlertManager(object):
         agent.aparam_set_aggstatus = self.aparam_set_aggstatus
     
     def process_alerts(self, **kwargs):
-        
+
         for a in self._agent.aparam_alerts:
             a.eval_alert(**kwargs)
 
@@ -60,18 +60,19 @@ class AgentAlertManager(object):
 
                 #get the current value for this aggregate status
                 current_agg_state = updated_status[ a._aggregate_type ]
-                if a._status:
-                    # this alert is not 'tripped' so the status is OK
-                    #check behavior here. if there are any unknowns then set to agg satus to unknown?
-                    if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
-                        updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
+                if a._status is not None:
+                    if a._status is True:
+                        # this alert is not 'tripped' so the status is OK
+                        #check behavior here. if there are any unknowns then set to agg satus to unknown?
+                        if current_agg_state is DeviceStatusType.STATUS_UNKNOWN:
+                            updated_status[ a._aggregate_type ]  = DeviceStatusType.STATUS_OK
 
-                else:
-                    #the alert is active, either a warning or an alarm
-                    if a._alert_type is StreamAlertType.ALARM:
-                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
-                    elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
-                        updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
+                    elif a._status is False:
+                        #the alert is active, either a warning or an alarm
+                        if a._alert_type is StreamAlertType.ALARM:
+                            updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_CRITICAL
+                        elif  a._alert_type is StreamAlertType.WARNING and current_agg_state is not DeviceStatusType.STATUS_CRITICAL:
+                            updated_status[ a._aggregate_type ] = DeviceStatusType.STATUS_WARNING
 
         #compare old state with new state and publish alerts for any agg status that has changed.
         for aggregate_type in AggregateStatusType._str_map.keys():
