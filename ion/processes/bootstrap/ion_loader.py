@@ -519,7 +519,7 @@ class IONLoader(ImmediateProcess):
                 # should we assert that num_bulk==row_count??
                 log.info("bulk loaded category %s: %d rows, %s bulk", category, row_count, num_bulk)
                 if t:
-                    t.complete_step('preload.%s.bulk_load'%category)
+                    t.complete_step('preload.%s.bulk_load' % category)
             else:
                 log.info("loaded category %s (%d/%d): %d rows", category, index, count, row_count)
             if t:
