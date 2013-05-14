@@ -36,31 +36,38 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
 
     def find_object_by_name(self, name, resource_type):
         objects,_ = self.container.resource_registry.find_resources(resource_type)
-        self.assertGreaterEqual(len(objects), 1)
-        filtered_objs = [obj for obj in objects if obj.name == name]
-        self.assertEquals(len(filtered_objs), 1)
+        self.assertTrue(len(objects) >= 1)
+#        filtered_objs = [obj for obj in objects if obj.name == name]
+        filtered_objs = []
+        for obj in objects:
+            if obj.name==name:
+                filtered_objs.append(obj)
+        self.assertEquals(len(filtered_objs), 1, msg='Found %d objects with name %s'%(len(filtered_objs),name))
         return filtered_objs[0]
 
     def test_use_case(self):
         # setUp() has already started the container and performed the preload
-        self.assert_dataset_loaded('Test External CTD Dataset') # make sure we have the ExternalDataset resources
+#        self.assert_dataset_loaded('Test External CTD Dataset') # make sure we have the ExternalDataset resources
+        self.assert_dataset_loaded('Unit Test SMB37')           # association changed -- now use device name
         self.do_listen_for_incoming()                           # listen for any data being received from the dataset
         self.do_read_dataset()                                  # call services to load dataset
         self.assert_data_received()                             # check that data was received as expected
         self.do_shutdown()
 
     def assert_dataset_loaded(self, name):
-        self.external_dataset = self.find_object_by_name(name, RT.ExternalDataset)
+#        self.external_dataset = self.find_object_by_name(name, RT.ExternalDataset)
+        self.device = self.find_object_by_name(name, RT.InstrumentDevice)
         rr = self.container.resource_registry
-        obj,_ = rr.find_objects(subject=self.external_dataset._id, predicate=PRED.hasAgentInstance, object_type=RT.ExternalDatasetAgentInstance)
+        obj,_ = rr.find_objects(subject=self.device._id, predicate=PRED.hasAgentInstance, object_type=RT.ExternalDatasetAgentInstance)
         self.agent_instance = obj[0]
         obj,_ = rr.find_objects(object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=self.agent_instance._id)
         self.agent = obj[0]
         stream_definition_id = self.agent_instance.dataset_driver_config['dh_cfg']['stream_def'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['stream_def']
         self.stream_definition = rr.read(stream_definition_id)
-        data_producer_id = self.agent_instance.dataset_driver_config['dh_cfg']['data_producer_id'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['data_producer_id']
-        self.data_producer = rr.read(data_producer_id) #subject="", predicate="", object_type="", assoc="", id_only=False)
-        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.external_dataset._id)
+#        data_producer_id = self.agent_instance.dataset_driver_config['dh_cfg']['data_producer_id'] if 'dh_cfg' in self.agent_instance.dataset_driver_config else self.agent_instance.dataset_driver_config['data_producer_id']
+#        self.data_producer = rr.read(data_producer_id) #subject="", predicate="", object_type="", assoc="", id_only=False)
+#        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.external_dataset._id)
+        self.data_product = rr.read_object(object_type=RT.DataProduct, predicate=PRED.hasOutputProduct, subject=self.device._id)
         ids,_ = rr.find_objects(self.data_product._id, PRED.hasStream, RT.Stream, id_only=True)
         self.stream_id = ids[0]
         self.route = self.pubsub.read_stream_route(self.stream_id)
@@ -86,7 +93,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         def cb2(*args, **kwargs):
             self.dataset_modified.set()
             # TODO: event isn't using the ExternalDataset, but a different ID for a Dataset
-        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb2, origin=self.external_dataset._id)
+        es = EventSubscriber(event_type=OT.DatasetModified, callback=cb2, origin=self.device._id)
         es.start()
         self.addCleanup(es.stop)
 
@@ -97,7 +104,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         # should i wait for process (above) to start
         # before launching client (below)?
         #
-        self.client = ResourceAgentClient(self.external_dataset._id, process=FakeProcess())
+        self.client = ResourceAgentClient(self.device._id, process=FakeProcess())
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.INITIALIZE))
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.GO_ACTIVE))
         self.client.execute_agent(AgentCommand(command=ResourceAgentEvent.RUN))
@@ -115,7 +122,7 @@ class TestPreloadThenLoadDataset(IonIntegrationTestCase):
         self.assertAlmostEqual(309.77, rdt['pressure'][0], delta=0.01)
         self.assertAlmostEqual(37.9848, rdt['conductivity'][0], delta=0.01)
         self.assertAlmostEqual(9.5163, rdt['temp'][0], delta=0.01)
-        self.assertAlmostEqual(1500353102, rdt['time'][0], delta=1)
+        self.assertAlmostEqual(1318219097, rdt['time'][0], delta=1)
 
     def do_shutdown(self):
         self.dams.stop_external_dataset_agent_instance(self.agent_instance._id)
