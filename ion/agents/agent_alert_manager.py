@@ -176,7 +176,7 @@ class AgentAlertManager(object):
     def stop_all(self):
         """
         """
-        [a.stop for a in self._agent.aparam_alerts]
+        [a.stop() for a in self._agent.aparam_alerts]
         
     def aparam_set_aggstatus(self, params):
         return -1
