@@ -1777,7 +1777,7 @@ Reason: %s
                     headers=headers)
 
 
-        ass_id = row["platform_device_id"]# if 'platform_device_id' in row else None\
+        ass_id = row.get("platform_device_id", None)
 
         #link child platform to parent platfrom
         if ass_id:
@@ -2520,7 +2520,7 @@ Reason: %s
                 source_obj = self._get_resource_obj(source_id)
                 self._create_association(dp_obj, PRED.hasSource, source_obj)
             else:
-                svc_client.assign_data_product_source(dp_id, source_id, headers=headers, timeout=300)
+                svc_client.assign_data_product_source(dp_id, source_id, headers=headers, timeout=500)
 
         # Create data product assignment
         if input_res_id and (restype=='InstrumentDevice' or restype=='PlatformDevice' or restype=='ExternalDataset'):
@@ -2541,23 +2541,27 @@ Reason: %s
                 self._create_association(dp_obj, PRED.hasDataProducer, data_producer_obj)
                 self._create_association(data_producer_obj, PRED.hasParent, parent_obj)
             else:
-                svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=300)
+                svc_client.assign_data_product(input_res_id, dp_id, headers=headers, timeout=500)
 
     def _load_DataProductLink_OOI(self):
         node_objs = self.ooi_loader.get_type_assets("node")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
+
+        def create_dp_link(dp_id, source_id="", res_type=""):
+            newrow = {}
+            newrow['data_product_id'] = dp_id
+            newrow['input_resource_id'] = source_id if res_type else ""
+            newrow['resource_type'] = res_type
+            newrow['source_resource_id'] = source_id
+            self._load_DataProductLink(newrow, do_bulk=self.bulk)
 
         # I. Platform data product links
         for node_id, node_obj in node_objs.iteritems():
             if not self._before_cutoff(node_obj):
                 continue
 
-            newrow = {}
-            newrow['data_product_id'] = node_id + "_DPPDP"
-            newrow['input_resource_id'] = node_id + "_PD"
-            newrow['resource_type'] = 'PlatformDevice'
-            newrow['source_resource_id'] = node_id + "_PD"
-            self._load_DataProductLink(newrow, do_bulk=self.bulk)
+            create_dp_link(node_id + "_DPPDP", node_id + "_PD", 'PlatformDevice')
+            create_dp_link(node_id + "_DPPDP", node_id)
 
         # II. Instrument data product links
         for inst_id, inst_obj in inst_objs.iteritems():
@@ -2569,37 +2573,18 @@ Reason: %s
             if not self._match_filter(inst_id[:2]):
                 continue
 
-            newrow = {}
-            newrow['data_product_id'] = inst_id + "_DPIDP"
-            newrow['input_resource_id'] = inst_id + "_ID"
-            newrow['resource_type'] = 'InstrumentDevice'
-            newrow['source_resource_id'] = inst_id + "_ID"
-            self._load_DataProductLink(newrow, do_bulk=self.bulk)
+            create_dp_link(inst_id + "_DPIDP", inst_id + "_ID", 'InstrumentDevice')
+            create_dp_link(inst_id + "_DPIDP", inst_id)
 
-            newrow = {}
-            newrow['data_product_id'] = inst_id + "_DPIDR"
-            newrow['input_resource_id'] = inst_id + "_ID"
-            newrow['resource_type'] = 'InstrumentDevice'
-            newrow['source_resource_id'] = inst_id + "_ID"
-            self._load_DataProductLink(newrow, do_bulk=self.bulk)
+            create_dp_link(inst_id + "_DPIDR", inst_id + "_ID", 'InstrumentDevice')
+            create_dp_link(inst_id + "_DPIDR", inst_id)
 
-            # TODO: Step (3) from data product
-            #newrow = {}
-            #newrow['data_product_id'] = inst_id + "_DPISP"
-            #newrow['input_resource_id'] = inst_id + "_ID"
-            #newrow['resource_type'] = 'InstrumentDevice'
-            #self._load_DataProductLink(newrow, do_bulk=self.bulk)
+            # TODO: Engineering data
 
             data_product_list = inst_obj.get('data_product_list', [])
             for dp_id in data_product_list:
-                newrow = {}
-                newrow['data_product_id'] = inst_id + "_" + dp_id + "_DPID"
-                #newrow['input_resource_id'] = inst_id + "_ID"
-                newrow['input_resource_id'] = ""
-                newrow['resource_type'] = 'InstrumentDevice'
-                newrow['source_resource_id'] = inst_id + "_ID"
-
-                self._load_DataProductLink(newrow, do_bulk=self.bulk)
+                create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID")
+                create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id)
 
     def _load_Attachment(self, row):
         res_id = self.resource_ids[row["resource_id"]]

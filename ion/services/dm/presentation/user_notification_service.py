@@ -611,6 +611,8 @@ class UserNotificationService(BaseUserNotificationService):
             summary = "%s lifecycle state change: %s_%s" % (event.origin_type, event.lcstate, event.availability)
         elif "ResourceModifiedEvent" in event_types:
             summary = "%s modified: %s" % (event.origin_type, event.sub_type)
+        elif "ResourceIssueReportedEvent" in event_types:
+            summary = "Issue created: %s" % (event.description)
 
         elif "ResourceAgentStateEvent" in event_types:
             summary = "%s agent state change: %s" % (event.origin_type, event.state)
@@ -650,6 +652,7 @@ class UserNotificationService(BaseUserNotificationService):
             summary = "%s commitment created in Org: '%s'" % (event.commitment_type, event.org_name)
         elif "ResourceCommitmentReleasedEvent" in event_types:
             summary = "%s commitment released in Org: '%s'" % (event.commitment_type, event.org_name)
+
 
 #        if event.description and summary:
 #            summary = summary + ". " + event.description

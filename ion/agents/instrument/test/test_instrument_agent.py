@@ -2029,6 +2029,7 @@ class InstrumentAgentTest():
         raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
         self.assertTrue(any(raw_sizes_greater_than_one))
 
+    @unittest.skip('Deprecated.')
     def test_schema(self):
         """
         test_schema
