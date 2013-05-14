@@ -31,6 +31,7 @@ interrupt/resume state:
 - upon restart, the agent reads the memento and passes to the new poller
 """
 from ooi.logging import log
+from ooi.reflection import EggCache
 from pyon.util.containers import get_safe
 from pyon.core.exception import InstDriverError
 from pyon.core.exception import InstStateError
@@ -48,6 +49,9 @@ from pyon.ion.stream import StandaloneStreamPublisher
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from coverage_model import ParameterDictionary
 
+# TODO: make unique for multiple processes on same VM
+import os
+EGG_CACHE=EggCache('/tmp/eggs%d'%os.getpid())
 
 class Poller(object):
     """ abstract class to show API needed for plugin poller objects """
@@ -88,13 +92,13 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
             raise
         self._dvr_client = self
     def _stop_driver(self):
+        self.stop_sampling()
         self._dvr_client = None
     def _handler_streaming_execute_resource(self, command, *args, **kwargs):
         """
         Handler for execute_resource command in streaming state.
         Delegates to InstrumentAgent._handler_observatory_execute_resource
         """
-        log.info("_handler_streaming_execute_resource")
         if command == DriverEvent.ACQUIRE_SAMPLE or command == DriverEvent.STOP_AUTOSAMPLE:
             return self._handler_execute_resource(command, *args, **kwargs)
         else:
@@ -119,12 +123,12 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
 
     def _validate_driver_config(self):
         out = True
-        for key in 'stream_id', 'stream_route', 'poller.module', 'poller.class', 'parser.module', 'parser.class', 'parameter_dict':
+        for key in 'stream_id', 'stream_route', 'poller', 'parser', 'parameter_dict':
             if key not in self._dvr_config:
                 log.error('missing key: %s',key)
                 out = False
         if get_safe(self._dvr_config, 'max_records', 100)<1:
-            log.error('max_rate=%d, must be at least 1', self.max_records)
+            log.error('max_records=%d, must be at least 1 or unset (default 100)', self.max_records)
             out = False
         return out
 
@@ -138,45 +142,38 @@ class TwoDelegateDatasetAgent(InstrumentAgent):
         - publish info
         """
         log.debug('using configuration: %s', config)
-        try:
-            self.config = config
-            self.max_records = get_safe(config, 'max_records', 100)
-            stream_id = config['stream_id']
-            stream_route_param = config['stream_route']
-            stream_route = IonObject(OT.StreamRoute, stream_route_param)
-            self.publisher = StandaloneStreamPublisher(stream_id=stream_id, stream_route=stream_route)
+        self.config = config
+        self.max_records = get_safe(config, 'max_records', 100)
+        stream_id = config['stream_id']
+        stream_route_param = config['stream_route']
+        stream_route = IonObject(OT.StreamRoute, stream_route_param)
+        self.publisher = StandaloneStreamPublisher(stream_id=stream_id, stream_route=stream_route)
+        self.parameter_dictionary = ParameterDictionary.load(config['parameter_dict'])
+        self.time_field = self.parameter_dictionary.get_temporal_context()
+        self.latest_granule_time = get_safe(config, 'last_time', 0)
 
-            poller_module_name = config['poller.module']
-            poller_class_name = config['poller.class']
-            poller_module = __import__(poller_module_name, fromlist=[poller_class_name])
-            self.poller_class = getattr(poller_module, poller_class_name)
+    def _create_plugin(self, config, args=[], kwargs={}):
+        uri = config['uri']
+        egg_name = uri.split('/')[-1] if uri.startswith('http') else uri
+        egg_repo = uri[0:len(uri)-len(egg_name)-1] if uri.startswith('http') else None
+        module_name = config['module']
+        class_name = config['class']
+        return EGG_CACHE.get_object(class_name, module_name, egg_name, egg_repo, args, kwargs)
 
-            parser_module_name = config['parser.module']
-            parser_class_name = config['parser.class']
-            parser_module = __import__(parser_module_name, fromlist=[parser_class_name])
-            self.parser_class = getattr(parser_module, parser_class_name)
-            self.parameter_dictionary = ParameterDictionary.load(config['parameter_dict'])
-            self.time_field = self.parameter_dictionary.get_temporal_context()
-            self.latest_granule_time = get_safe(config, 'last_time', 0)
-        except:
-            log.error('problem in agent configuration', exc_info=True)
-            raise
     def start_sampling(self):
-        log.debug('start_sampling')
         if self._poller:
-            log.error('already polling')
             raise InstStateError('already polling')
-        try:
-            memento = self._get_state('poller_state')
-            self._poller = self.poller_class(self.config, memento, self.poller_callback, self.exception_callback)
-            self._poller.start()
-        except:
-            log.error('exception starting poller', exc_info=True)
-            raise
+        memento = self._get_state('poller_state')
+        config = self.config['poller']
+        log.trace('poller config: %r', config)
+        self._poller = self._create_plugin(config, args=[config['config'], memento, self.poller_callback, self.exception_callback])
+        self._poller.start()
+
     def poller_callback(self, file_like_object, state_memento):
         log.debug('poller found data to parse')
         try:
-            parser = self.parser_class(open_file=file_like_object, parse_after=self.latest_granule_time)
+            config = self.config['parser']
+            parser = self._create_plugin(config, kwargs=dict(open_file=file_like_object, parse_after=self.latest_granule_time))
             records = parser.get_records(max_count=self.max_records)
             log.trace('have %d records', len(records))
             while records:
