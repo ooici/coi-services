@@ -1258,8 +1258,7 @@ class InstrumentAgent(ResourceAgent):
         # Enable this when new eggs have read-only startup parameters ready.
         
         rparams = self._get_state('rparams')
-        print '############################'
-        print 'restoring rparams:' + str(rparams)
+        log.info('restoring rparams: %s', str(rparams))
         if rparams:
             startup_config = self._dvr_config.get('startup_config', None)
             if not startup_config:
