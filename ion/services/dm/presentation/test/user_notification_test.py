@@ -64,7 +64,6 @@ class FakeProcess(LocalContextMixin):
 class UserNotificationTest(PyonTestCase):
     def setUp(self):
 
-
         mock_clients = self._create_service_mock('user_notification')
         self.user_notification = UserNotificationService()
         self.user_notification.clients = mock_clients
@@ -289,8 +288,11 @@ class UserNotificationEventsTest(PyonTestCase):
         dict(et='ResourceModifiedEvent', o='ID_1', ot='InstrumentDevice', st='CREATE',
             attr=dict(mod_type=1)),
 
+        dict(et='ResourceIssueReportedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
+            attr=dict()),
+
         dict(et='ResourceSharedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
-            attr=dict(resource_id="ResID_1", org_name="Org_Name")),
+             attr=dict(resource_id="ResID_1", org_name="Org_Name")),
 
         dict(et='ResourceUnsharedEvent', o='ID_1', ot='Org', st='InstrumentDevice',
             attr=dict(resource_id="ResID_1", org_name="Org_Name")),
