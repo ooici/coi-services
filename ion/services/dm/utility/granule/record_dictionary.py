@@ -333,7 +333,7 @@ class RecordDictionaryTool(object):
                 pfv._pval_callback = self._pval_callback
                 return pfv[:]
             except ParameterFunctionException:
-                log.info('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
+                log.debug('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
         return None
 
     def iteritems(self):
