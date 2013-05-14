@@ -47,15 +47,16 @@ class AgentAlertManager(object):
         
     def _update_aggstatus(self, aggregate_type, new_status):
         """
-        Called to set a new status value for an aggstatus type.
+        Called by this manager to set a new status value for an aggstatus type.
 
         Here the method simple assigns the new value and publishes a
         DeviceAggregateStatusEvent event. This is the standard behavior
-        for InstrumentAgents (this method was introduced for refactoring
-        purposes -- no changes in functionality at all).
+        for InstrumentAgents (this method was introduced for refactoring and
+        integration purposes -- no changes in functionality at all).
 
         This method can be overwritten as appropriate, in particular the
-        handling is a bit different for PlatformAgents.
+        handling is a bit different for platform agents,
+        which also handle other statuses (child status and rollup status).
 
         @param aggregate_type    type of status to be updated
         @param new_status        The new status value
