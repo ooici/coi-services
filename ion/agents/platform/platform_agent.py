@@ -34,7 +34,7 @@ from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
-#-from ion.agents.agent_alert_manager import AgentAlertManager
+from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
@@ -136,6 +136,22 @@ class PlatformAgentCapability(BaseEnum):
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
 
 
+class PlatformAgentAlertManager(AgentAlertManager):
+    """
+    Overwrites _update_aggstatus and do appropriate handling.
+    """
+    def _update_aggstatus(self, aggregate_type, new_status):
+        """
+        Called to set a new status value for an aggstatus type.
+        Note that an update to an aggstatus in a platform does not trigger
+        any event publication by itself. Rather, this update may cascade to
+        an update of the corresponding rollup_status, in which case an event
+        does get published. StatusManager takes care of that handling.
+        """
+        log.debug("%r: _update_aggstatus called", self._agent._platform_id)
+        self._agent._status_manager.set_aggstatus(aggregate_type, new_status)
+
+
 class PlatformAgent(ResourceAgent):
     """
     Platform resource agent.
@@ -212,9 +228,16 @@ class PlatformAgent(ResourceAgent):
         # List of current alarm objects.
         self.aparam_alerts = []
 
+        # The get/set helpers are set by AgentAlertManager.
+        self.aparam_get_alerts = None
+        self.aparam_set_alerts = None
+
         # dict of aggregate statuses for the platform itself (depending on its
         # own attributes and ports)
         self.aparam_aggstatus = {}
+
+        # Agent alert manager.
+        self._aam = None
 
         # dict of aggregate statuses for all descendants (immediate children
         # and all their descendants)
@@ -237,19 +260,12 @@ class PlatformAgent(ResourceAgent):
         # State when lost.
         self._state_when_lost = None
 
-        # Agent alert manager.
-        self._aam = None
-
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
         self._pp = pprint.PrettyPrinter()
 
     def on_init(self):
-        
-        #- Set up alert manager.
-        #- self._aam = AgentAlertManager(self)
-        
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
@@ -272,14 +288,17 @@ class PlatformAgent(ResourceAgent):
     def on_start(self):
         """
         - Validates the given configuration and does related preparations.
-        - Starts event subscribers
+        - creates AgentAlertManager and StatusManager
         - Children agents (platforms and instruments) are launched here (in a
-          separate greenlet) if that's the mode of operation.
+          separate greenlet).
         """
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running: on_start called.')
 
         self._validate_configuration()
+
+        # Set up alert manager.
+        self._aam = PlatformAgentAlertManager(self)
 
         # create StatusManager now that we have all needed elements:
         self._status_manager = StatusManager(self)
@@ -450,7 +469,6 @@ class PlatformAgent(ResourceAgent):
 
         finally:
             super(PlatformAgent, self).on_quit()
-            #- self._aam.stop_all()
 
     def _do_quit(self):
         """
@@ -462,6 +480,8 @@ class PlatformAgent(ResourceAgent):
         log.info("%r: PlatformAgent: executing quit secuence", self._platform_id)
 
         self._status_manager.destroy()
+
+        self._aam.stop_all()
 
         self._bring_to_uninitialized_state(recursion=False)
 
@@ -2999,37 +3019,10 @@ class PlatformAgent(ResourceAgent):
         return next_state, result
 
     ##############################################################
-    # Agent parameter functions.
-    ##############################################################
-
-    def aparam_set_aggstatus(self, params):
-        """
-        Sets the "aggstatus" for a particular status name.
-
-        @params a dict indicating the status value for each desired status type
-        """
-
-        # TODO align the return codes with the expected API for
-        # aparam_set_xxx  (which is not very clear from looking at
-        # InstrumentAgent or ResourceAgent at this moment).
-
-        if not isinstance(params, dict):
-            return -1
-
-        log.debug("%r: aparam_set_aggstatus: params=%s",
-                  self._platform_id, params)
-
-        for status_name, status in params.iteritems():
-            retval = self._status_manager.set_aggstatus(status_name, status)
-            if retval != 0:
-                return retval
-
-        return 0
-
-    ##############################################################
     # Base class overrides for state and cmd error alerts.
     ##############################################################
 
+    # TODO incoporate the following as appropriate
     """
     Some version of this code needs to be placed wherever a sample arrives
     for publication.
@@ -3049,13 +3042,15 @@ class PlatformAgent(ResourceAgent):
                                          value=value, value_id=value_id)
     """    
 
-    #- def _on_state_enter(self, state):
-    #-     self._aam.process_alerts(state=state)
-    #-
-    #- def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
-    #-     self._aam.process_alerts(command=execute_cmd, command_success=False)
-    #-     super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
-    #-                                                    kwargs, ex)
+    def _on_state_enter(self, state):
+        if self._aam:
+            self._aam.process_alerts(state=state)
+
+    def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
+        if self._aam:
+            self._aam.process_alerts(command=execute_cmd, command_success=False)
+        super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
+                                                     kwargs, ex)
 
     ##############################################################
     # FSM setup.

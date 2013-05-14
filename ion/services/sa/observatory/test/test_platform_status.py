@@ -22,6 +22,7 @@ __license__ = 'Apache 2.0'
 from pyon.public import log
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
+from ion.agents.platform.status_manager import formatted_statuses
 
 from pyon.event.event import EventPublisher
 from pyon.event.event import EventSubscriber
@@ -158,13 +159,53 @@ class Test(BaseIntTestPlatform):
         """
         self._last_checked_status = (status_name, status)
 
-        rollup_status = self._pa_client.get_agent(['rollup_status'])['rollup_status']
+        rollup_status = self._get_all_root_statuses()[2]
 
         retrieved_status = rollup_status[status_name]
         self.assertEquals(status, retrieved_status,
                           "Expected: %s, Got: %s" % (
                           DeviceStatusType._str_map[status],
                           DeviceStatusType._str_map[retrieved_status]))
+
+    def _get_all_root_statuses(self):
+        resp = self._pa_client.get_agent(['aggstatus', 'child_agg_status', 'rollup_status'])
+
+        aggstatus        = resp['aggstatus']
+        child_agg_status = resp['child_agg_status']
+        rollup_status    = resp['rollup_status']
+
+        log.debug("All root statuses:\n%s",
+                  formatted_statuses(aggstatus, child_agg_status, rollup_status))
+
+        return aggstatus, child_agg_status, rollup_status
+
+    def _verify_statuses(self, statuses, status_values):
+        """
+        Verifies that each given status is equal any of the given status_values.
+        """
+        for status_name in AggregateStatusType._str_map.keys():
+            retrieved_status = statuses[status_name]
+            self.assertIn(retrieved_status, status_values,
+                          "For %s, expected one of: %s, got: %s" % (
+                          AggregateStatusType._str_map[status_name],
+                          [DeviceStatusType._str_map[sv] for sv in status_values],
+                          DeviceStatusType._str_map[retrieved_status]))
+
+    def _verify_initial_statuses(self, aggstatus, child_agg_status, rollup_status):
+        """
+        verifies:
+        - all aggstatus OK
+        - all child agg status OK or UNKNOWN
+        - all rollup_status are OK
+        """
+
+        self._verify_statuses(aggstatus, [DeviceStatusType.STATUS_OK])
+
+        for one_child_agg_status in child_agg_status.itervalues():
+            self._verify_statuses(one_child_agg_status,
+                                  [DeviceStatusType.STATUS_OK, DeviceStatusType.STATUS_UNKNOWN])
+
+        self._verify_statuses(rollup_status, [DeviceStatusType.STATUS_OK])
 
     def test_platform_status_small_network_3(self):
         #
@@ -175,10 +216,8 @@ class Test(BaseIntTestPlatform):
         #       LJ01B
         #       MJ01B
         #
-        # The updates are triggered from:
-        #  - direct event publications done on behalf of the leaf platforms;
-        #  - via set_agent on a leaf platform to set its "aggstatus",
-        #    which will trigger update at the publication from the root.
+        # The updates are triggered from direct event publications done on
+        # behalf of the leaf platforms.
 
         # create the network:
         p_objs = {}
@@ -201,11 +240,18 @@ class Test(BaseIntTestPlatform):
         self._run()
 
         #####################################################################
+        # get all root statuses
+        aggstatus, child_agg_status, rollup_status = self._get_all_root_statuses()
+
+        #####################################################################
+        # before any updates in this test verify initial statuses:
+        self._verify_initial_statuses(aggstatus, child_agg_status, rollup_status)
+
+        #####################################################################
         # verify the root platform has set its aparam_child_agg_status with
         # all its descendant nodes:
         all_origins = [p_obj.platform_device_id for p_obj in p_objs.values()]
         all_origins.remove(p_root.platform_device_id)
-        child_agg_status = self._pa_client.get_agent(['child_agg_status'])['child_agg_status']
         all_origins = sorted(all_origins)
         child_agg_status_keys = sorted(child_agg_status.keys())
         self.assertEquals(all_origins, child_agg_status_keys)
@@ -217,15 +263,13 @@ class Test(BaseIntTestPlatform):
         # to the root to have the corresponding status updated:
 
         # Note:
-        #  - every device in the network starts in STATUS_UNKNOWN
+        #  - at this point every device in the network has status STATUS_OK.
         #  - we only test cases that trigger an actual change in the root (so
         #    we get the corresponding events for confirmation), so make sure
         #    there are NO consecutive calls to _wait_root_event_and_verify with
         #    the same expected status!
         #  - the root statuses are updated *ONLY* because of status updates
-        #    in their two children. When other elements are considered (in
-        #    particular, platform attributes), then these tests will need to be
-        #    adjusted.
+        #    in their two children.
 
         # -------------------------------------------------------------------
         # start the only event subscriber for this test:
@@ -286,58 +330,21 @@ class Test(BaseIntTestPlatform):
         # not verifying that via reception of event because there's no
         # such event to be published. We verify this with explicit call to
         # the agent to get its rollup_status dict:
-        # rollup_status = self._pa_client.get_agent(['rollup_status'])['rollup_status']
-        # self.assertEquals(rollup_status[AggregateStatusType.AGGREGATE_COMMS],
-        #                   DeviceStatusType.STATUS_OK)
         self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
                                     DeviceStatusType.STATUS_OK)
 
         # -------------------------------------------------------------------
         # MJ01B publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
-        self._expect_from_root(1)
+        self._expect_from_root(0)
         self._publish_for_child(p_MJ01B,
                                 AggregateStatusType.AGGREGATE_COMMS,
                                 DeviceStatusType.STATUS_UNKNOWN)
 
         # now, both children are in STATUS_UNKNOWN (from point of view of the
-        # root), so confirm root gets updated to STATUS_UNKNOWN;
-        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
-                                         DeviceStatusType.STATUS_UNKNOWN)
-
-        #####################################################################
-        # trigger some status updates from a leaf platform using set_agent
-        # on its aggstatus:
-
-        # the aggstatus to set on on the leaf:
-        # note that, since everything is in STATUS_UNKNOWN, each new value here
-        # will cause an update of the rollup status on the root ...
-        aggstatus = {
-            AggregateStatusType.AGGREGATE_COMMS:    DeviceStatusType.STATUS_OK,
-            AggregateStatusType.AGGREGATE_DATA:     DeviceStatusType.STATUS_CRITICAL,
-            AggregateStatusType.AGGREGATE_LOCATION: DeviceStatusType.STATUS_WARNING,
-            AggregateStatusType.AGGREGATE_POWER:    DeviceStatusType.STATUS_OK,
-        }
-
-        # ... so we should get len(aggstatus) publications from the root:
-        self._expect_from_root(len(aggstatus))
-
-        # get client to leaf and set aggstatus:
-        client_MJ01B = self._create_resource_agent_client(p_MJ01B.platform_device_id)
-        client_MJ01B.set_agent({'aggstatus': aggstatus})
-
-        # verify that the aggstatus itself was set on the leaf platform:
-        retval = client_MJ01B.get_agent(['aggstatus'])['aggstatus']
-        for k in aggstatus:
-            self.assertIn(k, retval)
-            self.assertEquals(aggstatus[k], retval[k])
-
-        # verify the propagation to root's rollup status:
-        self._wait_root_event()
-
-        rollup_status = self._pa_client.get_agent(['rollup_status'])['rollup_status']
-        for k in aggstatus:
-            self.assertIn(k, rollup_status)
-            self.assertEquals(aggstatus[k], rollup_status[k])
+        # root); but the platform itself remains in OK, so we again verify
+        # this via get_agent as there is no event to be published:
+        self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
+                                    DeviceStatusType.STATUS_OK)
 
         #####################################################################
         # done
@@ -399,11 +406,18 @@ class Test(BaseIntTestPlatform):
         self._run()
 
         #####################################################################
+        # get all root statuses
+        aggstatus, child_agg_status, rollup_status = self._get_all_root_statuses()
+
+        #####################################################################
+        # before any updates in this test verify initial statuses:
+        self._verify_initial_statuses(aggstatus, child_agg_status, rollup_status)
+
+        #####################################################################
         # verify the root platform has set its aparam_child_agg_status with
         # all its descendant nodes:
         all_origins = [p_obj.platform_device_id for p_obj in p_objs.values()]
         all_origins.remove(p_root.platform_device_id)
-        child_agg_status = self._pa_client.get_agent(['child_agg_status'])['child_agg_status']
         all_origins = sorted(all_origins)
         child_agg_status_keys = sorted(child_agg_status.keys())
         self.assertEquals(all_origins, child_agg_status_keys)
@@ -437,20 +451,6 @@ class Test(BaseIntTestPlatform):
         # confirm root gets updated to STATUS_OK
         self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
                                          DeviceStatusType.STATUS_OK)
-
-        # -------------------------------------------------------------------
-        # -------------------------------------------------------------------
-        # SF01A publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
-        self._expect_from_root(1)
-        self._publish_for_child(p_SF01A,
-                                AggregateStatusType.AGGREGATE_COMMS,
-                                DeviceStatusType.STATUS_UNKNOWN)
-
-        # now, all descendants are back in STATUS_UNKNOWN, so confirm root
-        # gets updated to STATUS_UNKNOWN
-        self._wait_root_event()
-        self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
-                                    DeviceStatusType.STATUS_UNKNOWN)
 
         #####################################################################
         # done
@@ -500,12 +500,19 @@ class Test(BaseIntTestPlatform):
         self._run()
 
         #####################################################################
+        # get all root statuses
+        aggstatus, child_agg_status, rollup_status = self._get_all_root_statuses()
+
+        #####################################################################
+        # before any updates in this test verify initial statuses:
+        self._verify_initial_statuses(aggstatus, child_agg_status, rollup_status)
+
+        #####################################################################
         # verify the root platform has set its aparam_child_agg_status with
         # all its descendant nodes (including the instrument):
         all_origins = [p_obj.platform_device_id for p_obj in p_objs.values()]
         all_origins.remove(p_root.platform_device_id)
         all_origins.append(i_obj.instrument_device_id)
-        child_agg_status = self._pa_client.get_agent(['child_agg_status'])['child_agg_status']
         all_origins = sorted(all_origins)
         child_agg_status_keys = sorted(child_agg_status.keys())
         self.assertEquals(all_origins, child_agg_status_keys)
@@ -539,19 +546,6 @@ class Test(BaseIntTestPlatform):
         # confirm root gets updated to STATUS_OK
         self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_COMMS,
                                          DeviceStatusType.STATUS_OK)
-
-        # -------------------------------------------------------------------
-        # instrument publishes a STATUS_UNKNOWN for AGGREGATE_COMMS
-        self._expect_from_root(1)
-        self._publish_for_child(i_obj,
-                                AggregateStatusType.AGGREGATE_COMMS,
-                                DeviceStatusType.STATUS_UNKNOWN)
-
-        # now, all descendants are back in STATUS_UNKNOWN, so confirm root
-        # gets updated to STATUS_UNKNOWN
-        self._wait_root_event()
-        self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
-                                    DeviceStatusType.STATUS_UNKNOWN)
 
         #####################################################################
         # done

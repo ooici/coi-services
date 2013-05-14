@@ -37,12 +37,34 @@ class AgentAlertManager(object):
     
     def process_alerts(self, **kwargs):
 
+        log.debug("process_alerts: aparam_alerts=%s; kwargs=%s", self._agent.aparam_alerts, kwargs)
+
         for a in self._agent.aparam_alerts:
             a.eval_alert(**kwargs)
 
         # update the aggreate status for this device
         self._process_aggregate_alerts()
         
+    def _update_aggstatus(self, aggregate_type, new_status):
+        """
+        Called to set a new status value for an aggstatus type.
+
+        Here the method simple assigns the new value and publishes a
+        DeviceAggregateStatusEvent event. This is the standard behavior
+        for InstrumentAgents (this method was introduced for refactoring
+        purposes -- no changes in functionality at all).
+
+        This method can be overwritten as appropriate, in particular the
+        handling is a bit different for PlatformAgents.
+
+        @param aggregate_type    type of status to be updated
+        @param new_status        The new status value
+        """
+
+        old_status = self._agent.aparam_aggstatus[aggregate_type]
+        self._agent.aparam_aggstatus[aggregate_type] = new_status
+        self._publish_agg_status_event(aggregate_type, new_status, old_status)
+
     def _process_aggregate_alerts(self):
         """
         loop thru alerts list and retrieve status of any alert that contributes to the aggregate status and update the state
@@ -77,24 +99,23 @@ class AgentAlertManager(object):
         #compare old state with new state and publish alerts for any agg status that has changed.
         for aggregate_type in AggregateStatusType._str_map.keys():
             if updated_status[aggregate_type] != self._agent.aparam_aggstatus[aggregate_type]:
-                old_status = self._agent.aparam_aggstatus[aggregate_type]
-                self._agent.aparam_aggstatus[aggregate_type] = updated_status[aggregate_type]
-                self._publish_agg_status_event(aggregate_type, self._agent.aparam_aggstatus[aggregate_type], old_status)
-
-        return
+                self._update_aggstatus(aggregate_type, updated_status[aggregate_type])
 
     def _publish_agg_status_event(self, status_type, new_status, old_status):
         """
         Publish resource config change event.
         """
+
+        evt_out = dict(event_type='DeviceAggregateStatusEvent',
+                       origin_type=self._agent.__class__.ORIGIN_TYPE,
+                       origin=self._agent.resource_id,
+                       status_name=status_type,
+                       status=new_status,
+                       prev_status=old_status)
+        log.debug("_publish_agg_status_event publishing: %s", evt_out)
+
         try:
-            self._agent._event_publisher.publish_event(
-                event_type='DeviceAggregateStatusEvent',
-                origin_type=self._agent.__class__.ORIGIN_TYPE,
-                origin=self._agent.resource_id,
-                status_name=status_type,
-                status=new_status,
-                prev_status=old_status)
+            self._agent._event_publisher.publish_event(**evt_out)
         except Exception as exc:
             log.error('Agent %s could not publish aggregate status change event. Exception message: %s',
                 self._agent._proc_name, exc.message)
