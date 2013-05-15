@@ -90,6 +90,8 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         default_precision = 5
 
         rdt = RecordDictionaryTool.load_from_granule(input)
+
+
         data_description = []
         # Buid a local precisions and fill value dictionary to use for parsing data correctly
 
@@ -113,10 +115,8 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             return None
 
         fields = []
-        if config and config['parameters'] and len(config['parameters']) > 0:
-            fields = config['parameters']
-        else:
-            fields = rdt.fields
+        fields = rdt.fields
+
 
         # if time was null or missing, do not process
         if 'time' not in rdt: return None
@@ -127,11 +127,12 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         data_description.append(('time','number','time'))
 
         for field in fields:
+
             if field == rdt.temporal_parameter:
                 continue
 
             # If a config block was passed, consider only the params listed in it
-            if config and config['parameters']:
+            if config and 'parameters' in config and len(config['parameters']) > 0:
                 if not field in config['parameters']:
                     continue
 

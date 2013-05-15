@@ -19,7 +19,7 @@ from interface.objects import Parser, DataProducer, InstrumentProducerContext, E
 from ion.util.stored_values import StoredValueManager
 from interface.objects import AttachmentType
 from collections import deque
-
+import logging
 from ooi.timer import Timer, Accumulator
 stats = Accumulator(persist=True)
 
@@ -593,25 +593,20 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
 
     def create_external_dataset_agent(self, external_dataset_agent=None, external_dataset_model_id=''):
         # Persist ExternalDatasetAgent object and return object _id as OOI id
-        external_dataset_agent_id = self.RR2.create(external_dataset_agent, RT.ExternalDatasetAgent)
+        agent_id = self.RR2.create(external_dataset_agent, RT.ExternalDatasetAgent)
         if external_dataset_model_id:
-            self.RR2.assign_external_dataset_model_to_external_dataset_agent_with_has_model(external_dataset_model_id,
-                                                                                            external_dataset_agent_id)
+            self.RR2.assign_external_dataset_model_to_external_dataset_agent_with_has_model(external_dataset_model_id, agent_id)
 
         # Create the process definition to launch the agent
         process_definition = ProcessDefinition()
-        process_definition.executable['module']= external_dataset_agent.handler_module
-        process_definition.executable['class'] = external_dataset_agent.handler_class
-#        process_definition.executable['module']='ion.agents.instrument.instrument_agent'
-#        process_definition.executable['class'] = 'InstrumentAgent'
+        process_definition.executable['module']= 'ion.agents.data.simple_dataset_agent'
+        process_definition.executable['class'] = 'TwoDelegateDatasetAgent'
         process_definition_id = self.clients.process_dispatcher.create_process_definition(process_definition=process_definition)
-        log.debug("create_external_dataset_agent: create_process_definition id %s"  +  str(process_definition_id))
+        log.debug("external_dataset_agent has process definition id %s", process_definition_id)
 
         #associate the agent and the process def
-        self.RR2.assign_process_definition_to_external_dataset_agent_with_has_process_definition(process_definition_id,
-                                                                                                 external_dataset_agent_id)
-
-        return external_dataset_agent_id
+        self.RR2.assign_process_definition_to_external_dataset_agent_with_has_process_definition(process_definition_id, agent_id)
+        return agent_id
 
     def update_external_dataset_agent(self, external_dataset_agent=None):
         # Overwrite ExternalDataAgent object
@@ -678,8 +673,12 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #def read_subject(self, subject_type="", predicate="", object="", assoc="", id_only=False):
 
         dataset_agent_instance_obj = self.clients.resource_registry.read(external_dataset_agent_instance_id)
-        ext_dataset_id = self.clients.resource_registry.read_subject(subject_type=RT.ExternalDataset, predicate=PRED.hasAgentInstance, object=external_dataset_agent_instance_id, id_only=True)
-        ext_dataset_model_id = self.clients.resource_registry.read_object(subject=ext_dataset_id, predicate=PRED.hasModel, object_type=RT.ExternalDatasetModel, id_only=True)
+        try:
+            source_id = self.clients.resource_registry.read_subject(subject_type=RT.ExternalDataset, predicate=PRED.hasAgentInstance, object=external_dataset_agent_instance_id, id_only=True)
+        except NotFound:
+            source_id = self.clients.resource_registry.read_subject(subject_type=RT.InstrumentDevice, predicate=PRED.hasAgentInstance, object=external_dataset_agent_instance_id, id_only=True)
+
+#        ext_dataset_model_id = self.clients.resource_registry.read_object(subject=ext_dataset_id, predicate=PRED.hasModel, object_type=RT.ExternalDatasetModel, id_only=True)
         ext_dataset_agent_id = self.clients.resource_registry.read_object(object_type=RT.ExternalDatasetAgent, predicate=PRED.hasAgentDefinition, subject=external_dataset_agent_instance_id, id_only=True)
         process_definition_id = self.clients.resource_registry.read_object(subject=ext_dataset_agent_id, predicate=PRED.hasProcessDefinition, object_type=RT.ProcessDefinition, id_only=True)
 
@@ -694,15 +693,15 @@ class DataAcquisitionManagementService(BaseDataAcquisitionManagementService):
         #    out_streams['parsed'] = self.clients.resource_registry.read_object(product_id, PRED.hasStream, RT.Stream, True)
 
         # INSTEAD FOR NOW ENFORCE ONLY ONE DATA PRODUCT
-        data_product_id = self.clients.resource_registry.read_object(ext_dataset_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
+        data_product_id = self.clients.resource_registry.read_object(source_id, PRED.hasOutputProduct, RT.DataProduct, id_only=True)
         stream_id = self.clients.resource_registry.read_object(data_product_id, PRED.hasStream, RT.Stream, id_only=True)
 
         stream_def_obj = self.clients.pubsub_management.read_stream_definition(stream_id=stream_id)
         route = self.clients.pubsub_management.read_stream_route(stream_id)
 
-        log.info('stream def: %r', { key: getattr(stream_def_obj, key) for key in stream_def_obj._schema })
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug('stream def: %r', { key: getattr(stream_def_obj, key) for key in stream_def_obj._schema })
         dataset_agent_instance_obj.dataset_agent_config['driver_config']['parameter_dict'] = stream_def_obj.parameter_dictionary
-        dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
         dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_id'] = stream_id
         dataset_agent_instance_obj.dataset_agent_config['driver_config']['stream_route'] = { key: getattr(route, key) for key in route._schema }
 
