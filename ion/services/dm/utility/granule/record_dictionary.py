@@ -331,14 +331,10 @@ class RecordDictionaryTool(object):
             try:
                 pfv = get_value_class(ptype, self.domain)
                 pfv._pval_callback = self._pval_callback
-                retval = pfv[:]
-                return retval
+                return pfv[:]
             except ParameterFunctionException:
-                from traceback import format_exc
-                log.debug(format_exc())
-                return None
-        else:
-            return None
+                log.debug('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
+        return None
 
     def iteritems(self):
         """ D.iteritems() -> an iterator over the (key, value) items of D """

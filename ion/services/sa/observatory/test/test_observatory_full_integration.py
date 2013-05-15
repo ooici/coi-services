@@ -25,7 +25,8 @@ from nose.plugins.attrib import attr
 from interface.objects import ComputedValueAvailability
 from ion.processes.bootstrap.ion_loader import TESTED_DOC, IONLoader
 from pyon.util.ion_time import IonTime
-
+from pyon.container.cc import Container
+from pyon.datastore.datastore import DataStore
 from ion.services.sa.test.helpers import any_old
 
 
@@ -124,6 +125,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
         CE04OSHY_LV01C_deployment = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSHY-LV01C_DEP')
+        #self.dump_deployment(CE04OSHY_LV01C_deployment._id)
         self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, 'PLANNED')
         log.debug('test_observatory  retrieve RSN node CE04OSHY-LV01C Deployment:  %s', CE04OSHY_LV01C_deployment)
 
@@ -145,10 +147,20 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Activate Deployment for CE04OSHY-LV01C
         self.OMS.activate_deployment(CE04OSHY_LV01C_deployment._id)
+        log.debug('---------    activate_deployment CE04OSHY_LV01C_deployment -------------- ')
+        self.dump_deployment(CE04OSHY_LV01C_deployment._id)
+        self.validate_deployment_activated(CE04OSHY_LV01C_deployment._id)
 
         # (optional) Start CE04OSHY-LV01C platform agent with simulator
 
         # Set DataProduct for CE04OSHY-LV01C platform to DEPLOYED state
+        output_data_product_ids, assns =self.RR.find_objects(subject=CE04OSHY_LV01C_device._id, predicate=PRED.hasOutputProduct, id_only=True)
+        if output_data_product_ids:
+            #self.assertEquals(len(child_devs), 3)
+            for output_data_product_id in output_data_product_ids:
+                log.debug('DataProduct for CE04OSHY-LV01C platform:  %s', output_data_product_id)
+                self.transition_lcs_then_verify(resource_id=output_data_product_id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+
 
         # Check events for CE04OSHY-LV01C platform
 
@@ -174,8 +186,10 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         # (optional) Start CE04OSBP-LJ01C platform agent
 
 
+        log.debug('--------- ------------------------------------------------------------------------------------------------------------ -------------- ')
         # Check existing RSN instrument CE04OSBP-LJ01C-06-CTDBPO108 Deployment (PLANNED lcstate)
         CE04OSBP_LJ01C_06_CTDBPO108_deploy = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSBP-LJ01C-06-CTDBPO108_DEP')
+        self.dump_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
         self.assertEquals(CE04OSBP_LJ01C_06_CTDBPO108_deploy.lcstate, 'PLANNED')
 
         # Set CE04OSBP-LJ01C-06-CTDBPO108 device to DEVELOPED state
@@ -192,7 +206,9 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_deploy._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
 
         # Activate Deployment for CE04OSBP-LJ01C-06-CTDBPO108 instrument
+        log.debug('---------    activate_deployment CE04OSBP-LJ01C-06-CTDBPO108 deployment -------------- ')
         self.OMS.activate_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+        self.validate_deployment_activated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
 
         # (optional) Add/register CE04OSBP-LJ01C-06-CTDBPO108 instrument agent to parent agent
 
@@ -210,22 +226,40 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         deploy_id_2 = self.create_basic_deployment(name='CE04OSBP-LJ01C-06-CTDBPO108_DEP2', description='substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a comparable device')
         self.IMS.deploy_instrument_device(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_2)
         self.OMS.deploy_instrument_site(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_2)
+        self.dump_deployment(deploy_id_2)
 
         # (optional) Activate this second deployment - check first deployment is deactivated
-        #self.OMS.activate_deployment(deploy_id_2)
-        #todo: check first deployment is deactivated
+        self.OMS.deactivate_deployment(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+        self.validate_deployment_deactivated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
+
+
+        log.debug('Activate deployment deploy_id_2')
+        self.dump_deployment(deploy_id_2)
+        self.OMS.activate_deployment(deploy_id_2)
+        self.validate_deployment_deactivated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
 
         # (optional) Set first CE04OSBP-LJ01C-06-CTDBPO108 Deployment to INTEGRATED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_deploy._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
 
         # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to INTEGRATED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.INTEGRATE, verify='INTEGRATED')
 
 
         # (optional) Create a third Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with a same device from first deployment
+        deploy_id_3 = self.create_basic_deployment(name='CE04OSBP-LJ01C-06-CTDBPO108_DEP3', description='substitute Deployment for site CE04OSBP-LJ01C-06-CTDBPO108 with same device as first')
+        self.IMS.deploy_instrument_device(instrument_device_id=GP03FLMB_RI001_10_CTDMOG999_ID_idevice._id, deployment_id=deploy_id_3)
+        self.OMS.deploy_instrument_site(instrument_site_id=CE04OSBP_LJ01C_06_CTDBPO108_isite._id, deployment_id=deploy_id_3)
+        self.dump_deployment(deploy_id_3)
+
 
         # Set first CE04OSBP-LJ01C-06-CTDBPO108 device to DEPLOYED state
+        self.transition_lcs_then_verify(resource_id=CE04OSBP_LJ01C_06_CTDBPO108_device._id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
 
         # (optional) Activate this third deployment - check second deployment is deactivated
-
+        log.debug('Activate deployment deploy_id_3')
+        self.dump_deployment(deploy_id_3)
+        self.OMS.activate_deployment(deploy_id_3)
+        #todo: check second deployment is deactivated
 
         # Check that glider GP05MOAS-GL001 assembly is defined by OOI preload (3 instruments)
         GP05MOAS_GL001_device = self.retrieve_ooi_asset(namespace='PRE', alt_id='GP05MOAS-GL001_PD')
@@ -260,6 +294,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Set second GP05MOAS-GL001 Deployment to DEPLOYED
         self.transition_lcs_then_verify(resource_id=x_deploy_id, new_lcs_state=LCE.DEPLOY, verify='DEPLOYED')
+        self.dump_deployment(x_deploy_id)
 
         # Activate second Deployment for GP05MOAS-GL001
         #self.OMS.activate_deployment(x_deploy_id)
@@ -339,3 +374,45 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
             context=IonObject(OT.CabledNodeDeploymentContext),
             constraint_list=[temporal_bounds])
         return self.OMS.create_deployment(deployment_obj)
+
+    def validate_deployment_activated(self, deployment_id=''):
+        site_id, device_id = self.get_deployment_ids(deployment_id)
+        assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=site_id)
+        self.assertEquals(len(assocs), 1)
+
+    def validate_deployment_deactivated(self, deployment_id=''):
+        site_id, device_id = self.get_deployment_ids(deployment_id)
+        assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=site_id)
+        self.assertEquals(len(assocs), 0)
+
+    def dump_deployment(self, deployment_id=''):
+        #site_id, device_id = self.get_deployment_ids(deployment_id)
+        resource_list,_ = self.RR.find_subjects(predicate=PRED.hasDeployment, object=deployment_id, id_only=True)
+        resource_list.append(deployment_id)
+        resources = self.RR.read_mult(resource_list )
+        log.debug('---------   dump_deployment  ---------------')
+        for resource in resources:
+            log.debug('resource: %s ', resource)
+        log.debug('---------   dump_deployment  end  ---------------')
+
+
+        #assocs = self.container.resource_registry.find_assoctiations(anyside=deployment_id)
+#        assocs = Container.instance.resource_registry.find_assoctiations(anyside=deployment_id)
+#        log.debug('---------   dump_deployment  ---------------')
+#        for assoc in assocs:
+#            log.debug('SUBJECT: %s      PREDICATE: %s OBJET: %s', assoc.s, assoc.p, assoc.o)
+#        log.debug('---------   dump_deployment  end  ---------------')
+
+
+    def get_deployment_ids(self, deployment_id=''):
+        devices = []
+        sites = []
+        idevice_list,_ = self.RR.find_subjects(RT.InstrumentDevice, PRED.hasDeployment, deployment_id, id_only=True)
+        pdevice_list,_ = self.RR.find_subjects(RT.PlatformDevice, PRED.hasDeployment, deployment_id, id_only=True)
+        devices = idevice_list + pdevice_list
+        self.assertEquals(len(devices), 1)
+        isite_list,_ = self.RR.find_subjects(RT.InstrumentSite, PRED.hasDeployment, deployment_id, id_only=True)
+        psite_list,_ = self.RR.find_subjects(RT.PlatformSite, PRED.hasDeployment, deployment_id, id_only=True)
+        sites = isite_list + psite_list
+        self.assertEquals(len(sites), 1)
+        return sites[0], devices[0]

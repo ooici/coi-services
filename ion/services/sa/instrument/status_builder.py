@@ -7,11 +7,11 @@
 from ooi.logging import log
 from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import IonObject
-from pyon.core.exception import NotFound, Unauthorized
+from pyon.core.exception import NotFound, Unauthorized, BadRequest
 
-
-from interface.objects import ComputedValueAvailability, ComputedIntValue, ComputedDictValue
+from interface.objects import ComputedValueAvailability, ComputedIntValue, ComputedDictValue, ComputedListValue
 from interface.objects import AggregateStatusType, DeviceStatusType
+from pyon.ion.resource import RT, PRED
 
 
 class AgentStatusBuilder(object):
@@ -37,6 +37,7 @@ class AgentStatusBuilder(object):
             if k in values_dict:
                 status = ComputedIntValue(status=availability, value=values_dict[k], reason=reason)
             else:
+                if None is reason: reason = "%s not in %s" % (k, values_dict)
                 status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, reason=reason)
             setattr(computed_attrs, a, status)
 
@@ -67,14 +68,115 @@ class AgentStatusBuilder(object):
 
         return h_agent, ""
 
-    # child_device_ids is None for instruments, a list for platforms
-    def add_device_rollup_statuses_to_computed_attributes(self, device_id,
-                                                          extension_computed,
-                                                          child_device_ids=None):
+
+    def add_child_statuses_to_extension(self, extension_obj, child_agg_status):
+        """
+        Extension_obj is an extension
+        device_id is the primary device
+        child_device_ids is any child device ids -- will be a list, not none
+        device_of_site is a dictionary of site_id -> device_id, indicating that this is a site extension of some kind
+        """
+
+        def csl(device_id_list):
+            return self.compute_status_list(child_agg_status, device_id_list)
+
+        log.debug("Building instrument and platform status dicts")
+        extension_obj.computed.instrument_status = csl([dev._id for dev in extension_obj.instrument_devices])
+        extension_obj.computed.platform_status   = csl([dev._id for dev in extension_obj.platform_devices])
 
 
+    # get a lookup table that includes child_agg_status + the parent device status as dev_id -> {AggStatusType: DeviceStatusType}
+    def get_cumulative_status_dict(self, device_id):
         h_agent, reason = self.get_device_agent(device_id)
+        log.debug("Got h_agent = %s, reason = %s", h_agent, reason)
         if None is h_agent:
+            return None, reason
+
+        # read child agg status
+        try:
+            #retrieve the platform status from the platform agent
+            this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
+            log.debug("this_status for %s is %s", device_id, this_status)
+
+        except Unauthorized, un:
+            return None, un.message
+        except Exception as e:
+            return None, "Error getting status: %s" % e
+
+        one_status = {device_id: this_status}
+
+        try:
+            child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
+            log.debug('get_cumulative_status_dict child_agg_status : %s', child_agg_status)
+
+            if not child_agg_status:
+                child_agg_status = {}
+
+            return dict(child_agg_status.items() + one_status.items()), None
+
+        except Unauthorized, un:
+            return one_status, un.message
+        except Exception as e:
+            return one_status, "Error getting status: %s" % e
+
+
+
+    #return this aggregate status, reason for fail, dict of device_id -> agg status
+    def get_device_rollup_statuses_and_child_agg_status(self, device_id, child_device_ids=None, warn_missing=True):
+
+        master_status_dict, reason = self.get_cumulative_status_dict(device_id)
+
+        log.debug("Got master_status_dict = %s, reason = %s", master_status_dict, reason)
+        if None is master_status_dict:
+            return None, reason, None
+
+        # no rolling up necessary for instruments (no child_device_ids list)
+        if None is child_device_ids:
+            return master_status_dict[device_id], None, None
+
+        # if child device ids is not none, the developer had better be giving us a list
+        assert isinstance(child_device_ids, list)
+
+
+        rollup_statuses = {}
+        # 1. loop through the items in this device status,
+        # 2. append all the statuses of that type from child devices,
+        # 3. crush
+        for stype, svalue in AggregateStatusType._str_map.iteritems():
+            if not device_id in master_status_dict:
+                log.warn("parent device %s not found in master_status_dict", device_id)
+                this_status = {}
+            else:
+                this_status = master_status_dict[device_id]
+
+            one_type_status_list = [this_status.get(stype, DeviceStatusType.STATUS_UNKNOWN)]
+            for child_device_id in child_device_ids:
+                if not child_device_id in master_status_dict:
+                    if warn_missing:
+                        log.warn("Child device '%s' of parent device '%s' not found in master_status_dict",
+                                 child_device_id, device_id)
+                else:
+                    # get the dict of AggregateStatusType -> DeviceStatusType
+                    child_statuses = master_status_dict[child_device_id]
+                    one_type_status_list.append(child_statuses.get(stype, DeviceStatusType.STATUS_UNKNOWN))
+
+            rollup_statuses[stype] = self._crush_status_list(one_type_status_list)
+
+        log.debug("combined_status is %s", rollup_statuses)
+
+        return rollup_statuses, None, master_status_dict
+
+
+
+    # child_device_ids is None for instruments, a list for platforms
+    def add_device_rollup_statuses_to_computed_attributes(self, device_id, extension_computed, child_device_ids=None):
+
+        rollup_statuses, reason, child_agg_status = self.get_device_rollup_statuses_and_child_agg_status(device_id,
+                                                                                                     child_device_ids)
+        log.debug("Got rollup_statuses = %s, reason = %s", rollup_statuses, reason)
+
+        if None is rollup_statuses:
+            log.debug("setting status notavailable")
             self.set_status_computed_attributes_notavailable(extension_computed, reason)
 
             if hasattr(extension_computed, "child_device_status"):
@@ -82,65 +184,31 @@ class AgentStatusBuilder(object):
                                                                            reason=reason)
             return None
 
-        try:
-            # no rolling up necessary for instruments (no child_device_ids list)
-            if None is child_device_ids:
-                #retrieve the instrument status from the instrument agent
-                this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
-                log.debug("this_status is %s", this_status)
-                self.set_status_computed_attributes(extension_computed, this_status,
-                                                    ComputedValueAvailability.PROVIDED)
-                return None
-
-            # if child device ids is not none, the developer had better be giving us a list
-            assert isinstance(child_device_ids, list)
-
-            # read child agg status
-            child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
-            log.debug('add_device_rollup_statuses_to_computed_attributes child_agg_status : %s', child_agg_status)
-
-            # get child agg status if we can set child_device_status
-            if child_agg_status and hasattr(extension_computed, "child_device_status"):
-                crushed = dict([(k, self._crush_status_dict(v)) for k, v in child_agg_status.iteritems()])
-                extension_computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                                                           value=crushed)
-
-            #retrieve the platform status from the platform agent
-            this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
-            log.debug("this_status is %s", this_status)
-
-            rollup_statuses = {}
-            # 1. loop through the items in this device status,
-            # 2. append all the statuses of that type from child devices,
-            # 3. crush
-            for stype, svalue in this_status.iteritems():
-                one_type_status_list = [svalue]
-                for child_device_id in child_device_ids:
-                    if not child_device_id in child_agg_status:
-                        log.warn("Child device '%s' of parent device '%s' not found in child_agg_status from top agent_client",
-                                 child_device_id, device_id)
-                    else:
-                        # get the dict of AggregateStatusType -> DeviceStatusType
-                        child_statuses = child_agg_status[child_device_id]
-                        one_type_status_list.append(child_statuses.get(stype, DeviceStatusType.STATUS_UNKNOWN))
-
-                rollup_statuses[stype] = self._crush_status_list(one_type_status_list)
-
-            log.debug("combined_status is %s", this_status)
+        # no rolling up necessary for instruments (no child_device_ids list)
+        if None is child_device_ids:
             self.set_status_computed_attributes(extension_computed, rollup_statuses,
                                                 ComputedValueAvailability.PROVIDED)
+            return None
 
-            return child_agg_status
+        # get child agg status if we can set child_device_status
+        # todo: split into instrument and platform
+        if child_agg_status and hasattr(extension_computed, "child_device_status"):
+            crushed = dict([(k, self._crush_status_dict(v)) for k, v in child_agg_status.iteritems()])
+            extension_computed.child_device_status = ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
+                                                                       value=crushed)
 
-        except Unauthorized, un:
-            self.set_status_computed_attributes_notavailable(extension_computed, reason=un.message)
+
+        self.set_status_computed_attributes(extension_computed, rollup_statuses,
+                                            ComputedValueAvailability.PROVIDED)
+
+        return child_agg_status
 
     def _crush_status_dict(self, values_dict):
+        log.debug("crushing dict %s", values_dict)
         return self._crush_status_list(values_dict.values())
 
 
     def _crush_status_list(self, values_list):
-
         if DeviceStatusType.STATUS_CRITICAL in values_list:
             status = DeviceStatusType.STATUS_CRITICAL
         elif DeviceStatusType.STATUS_WARNING in values_list:
@@ -150,7 +218,27 @@ class AgentStatusBuilder(object):
         else:
             status = DeviceStatusType.STATUS_UNKNOWN
 
+        log.debug("crushing list %s to value %s", values_list, status)
         return status
+
+
+    #                                               keys becomes aggregate statuses in the same order
+    def compute_status_list(self, child_agg_status, keys):
+        ret = []
+        if not isinstance(child_agg_status, dict):
+            return ComputedListValue(reason="Top platform's child_agg_status is '%s'" % type(child_agg_status).__name__)
+
+        for k in keys:
+            if not type("") == type(k):
+                raise BadRequest("attempted to compute_status_list with type(v) = %s : %s" % (type(k), k))
+            if k in child_agg_status:
+                ret.append(self._crush_status_dict(child_agg_status[k]))
+            else:
+                log.warn("Status for device '%s' not found in parent platform's child_agg_status", k)
+                ret.append(DeviceStatusType.STATUS_UNKNOWN)
+
+        return ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                 value=ret)
 
 
     def obtain_agent_calculation(self, device_id, result_container):
@@ -192,12 +280,3 @@ class AgentStatusBuilder(object):
             return self._crush_status_dict(aggstatus)
 
 
-    def get_device_status_computed_dict(self, device_id):
-        aggstatus, reason = self._get_status_of_device(device_id)
-
-        if None is aggstatus:
-            return ComputedDictValue(status=ComputedValueAvailability.NOTAVAILABLE,
-                                    reason=reason)
-        else:
-            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                    value=aggstatus)

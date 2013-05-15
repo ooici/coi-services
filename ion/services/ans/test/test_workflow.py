@@ -122,7 +122,8 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
 
         assertions = self.assertTrue
 
-        print "Building the workflow definition"
+        log.debug("Building the workflow definition")
+
         workflow_def_obj = IonObject(RT.WorkflowDefinition,
                                      name='Salinity_Test_Workflow',
                                      description='tests a workflow of multiple transform data processes')
@@ -130,7 +131,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         workflow_data_product_name = 'TEST-Workflow_Output_Product' #Set a specific output product name
 
         #-------------------------------------------------------------------------------------------------------------------------
-        print "Adding a transformation process definition for salinity"
+        log.debug( "Adding a transformation process definition for salinity")
         #-------------------------------------------------------------------------------------------------------------------------
 
         ctd_L2_salinity_dprocdef_id = self.create_salinity_data_process_definition()
@@ -140,7 +141,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
         #-------------------------------------------------------------------------------------------------------------------------
-        print "Adding a transformation process definition for salinity doubler"
+        log.debug( "Adding a transformation process definition for salinity doubler")
         #-------------------------------------------------------------------------------------------------------------------------
 
         salinity_doubler_dprocdef_id = self.create_salinity_doubler_data_process_definition()
@@ -148,7 +149,7 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
                                       data_process_definition_id=salinity_doubler_dprocdef_id, )
         workflow_def_obj.workflow_steps.append(workflow_step_obj)
 
-        print "Creating workflow def in the resource registry"
+        log.debug( "Creating workflow def in the resource registry")
         workflow_def_id = self.workflowclient.create_workflow_definition(workflow_def_obj)
 
         aids = self.rrclient.find_associations(workflow_def_id, PRED.hasDataProcessDefinition)
@@ -157,11 +158,11 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         #The list of data product streams to monitor
         data_product_stream_ids = list()
 
-        print "Creating the input data product"
+        log.debug( "Creating the input data product")
         ctd_stream_id, ctd_parsed_data_product_id = self.create_ctd_input_stream_and_data_product()
         data_product_stream_ids.append(ctd_stream_id)
 
-        print "Creating and starting the workflow"
+        log.debug( "Creating and starting the workflow")
         workflow_id, workflow_product_id = self.workflowclient.create_data_process_workflow(workflow_def_id,
                                                                                             ctd_parsed_data_product_id,
                 persist_workflow_data_product=True, output_data_product_name=workflow_data_product_name, timeout=300)
@@ -169,17 +170,18 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
         workflow_output_ids,_ = self.rrclient.find_subjects(RT.Workflow, PRED.hasOutputProduct, workflow_product_id, True)
         assertions(len(workflow_output_ids) == 1 )
 
-        print "persisting the output product"
+        log.debug( "persisting the output product")
         #self.dataproductclient.activate_data_product_persistence(workflow_product_id)
         dataset_ids,_ = self.rrclient.find_objects(workflow_product_id, PRED.hasDataset, RT.Dataset, True)
         assertions(len(dataset_ids) == 1 )
         dataset_id = dataset_ids[0]
 
-        print "Verifying the output data product name matches what was specified in the workflow definition"
+        log.debug( "Verifying the output data product name matches what was specified in the workflow definition")
         workflow_product = self.rrclient.read(workflow_product_id)
         assertions(workflow_product.name.startswith(workflow_data_product_name), 'Nope: %s != %s' % (workflow_product.name, workflow_data_product_name))
 
-        print "Walking the associations to find the appropriate output data streams to validate the messages"
+        log.debug( "Walking the associations to find the appropriate output data streams to validate the messages")
+
         workflow_dp_ids,_ = self.rrclient.find_objects(workflow_id, PRED.hasDataProduct, RT.DataProduct, True)
         assertions(len(workflow_dp_ids) == 2 )
 
@@ -188,27 +190,27 @@ class TestWorkflowManagementIntegration(VisualizationIntegrationTestHelper):
             assertions(len(stream_ids) == 1 )
             data_product_stream_ids.append(stream_ids[0])
 
-        print "data_product_stream_ids: %s" % data_product_stream_ids
+        log.debug( "data_product_stream_ids: %s" % data_product_stream_ids)
 
-        print "Starting the output stream listener to monitor to collect messages"
+        log.debug( "Starting the output stream listener to monitor to collect messages")
         results = self.start_output_stream_and_listen(ctd_stream_id, data_product_stream_ids)
 
-        print "results::: %s" % results
+        log.debug( "results::: %s" % results)
 
-        print "Stopping the workflow processes"
+        log.debug( "Stopping the workflow processes")
         self.workflowclient.terminate_data_process_workflow(workflow_id, False, timeout=250)  # Should test true at some point
 
-        print "Making sure the Workflow object was removed"
+        log.debug( "Making sure the Workflow object was removed")
         objs, _ = self.rrclient.find_resources(restype=RT.Workflow)
         assertions(len(objs) == 0)
 
-        print "Validating the data from each of the messages along the way"
+        log.debug( "Validating the data from each of the messages along the way")
         self.validate_messages(results)
 
-        print "Checking to see if dataset id = %s, was persisted, and that it can be retrieved...." % dataset_id
+        log.debug( "Checking to see if dataset id = %s, was persisted, and that it can be retrieved...." % dataset_id)
         self.validate_data_ingest_retrieve(dataset_id)
 
-        print "Cleaning up to make sure delete is correct."
+        log.debug( "Cleaning up to make sure delete is correct.")
         self.workflowclient.delete_workflow_definition(workflow_def_id)
 
         workflow_def_ids,_ = self.rrclient.find_resources(restype=RT.WorkflowDefinition)

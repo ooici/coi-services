@@ -40,7 +40,7 @@ from pyon.agent.agent import ResourceAgentClient, ResourceAgentState
 from pyon.agent.agent import ResourceAgentEvent
 import unittest, os
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool
-from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StatusType, StreamConfiguration
+from interface.objects import Granule, DeviceStatusType, DeviceCommsType, StreamConfiguration
 from interface.objects import AgentCommand, ProcessDefinition, ProcessStateEnum
 from interface.objects import UserInfo, NotificationRequest
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue, ComputedDictValue, ComputedListValue, ComputedEventListValue
@@ -210,7 +210,7 @@ class TestActivateInstrumentIntegration(IonIntegrationTestCase):
         log.debug("extended_data_product.computed: %s", extended_data_product.computed)
 
         # Verify that computed attributes exist for the extended instrument
-        self.assertIsInstance(extended_data_product.computed.product_download_size_estimated, ComputedIntValue)
+        self.assertIsInstance(extended_data_product.computed.product_download_size_estimated, ComputedFloatValue)
         self.assertIsInstance(extended_data_product.computed.number_active_subscriptions, ComputedIntValue)
         self.assertIsInstance(extended_data_product.computed.data_url, ComputedStringValue)
         self.assertIsInstance(extended_data_product.computed.stored_data_size, ComputedIntValue)

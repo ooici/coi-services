@@ -11,7 +11,7 @@ from pyon.util.log import log
 from pyon.event.event import EventPublisher
 from pyon.util.containers import is_basic_identifier, get_ion_ts, create_basic_identifier
 from pyon.core.governance.negotiation import Negotiation
-from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability, ComputedIntValue, StatusType, NegotiationTypeEnum
+from interface.objects import ProposalStatusEnum, ProposalOriginatorEnum, NegotiationStatusEnum, ComputedValueAvailability, ComputedIntValue, NegotiationTypeEnum
 from interface.services.coi.iorg_management_service import BaseOrgManagementService
 from pyon.core.governance import ORG_MANAGER_ROLE, ORG_MEMBER_ROLE
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE
@@ -321,7 +321,7 @@ class OrgManagementService(BaseOrgManagementService):
 
 
         #Finally remove the association to the Org
-        aid = self.clients.resource_registry.get_association(org, PRED.hasMembership, user_role)
+        aid = self.clients.resource_registry.get_association(org, PRED.hasRole, user_role)
         if not aid:
             raise NotFound("The role association between the specified Org (%s) and UserRole (%s) is not found" %
                            (org_id, user_role.name))

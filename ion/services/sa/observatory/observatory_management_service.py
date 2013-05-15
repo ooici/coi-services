@@ -24,7 +24,7 @@ from ion.util.geo_utils import GeoUtils
 from interface.services.sa.iobservatory_management_service import BaseObservatoryManagementService
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_process_management_service import DataProcessManagementServiceClient
-from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, StatusType, ComputedListValue, ComputedDictValue
+from interface.objects import OrgTypeEnum, ComputedValueAvailability, ComputedIntValue, ComputedListValue, ComputedDictValue, AggregateStatusType, DeviceStatusType
 from interface.objects import MarineFacilityOrgExtension, NegotiationStatusEnum, NegotiationTypeEnum, ProposalOriginatorEnum
 from collections import defaultdict
 
@@ -841,14 +841,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
 
 
 
-
-    def _augment_platformsite_extension(self, extended_site, RR2, platform_device_id):
-
-        if not RR2.has_cached_prediate(PRED.hasDevice):
-            RR2.cache_predicate(PRED.hasDevice)
-
-        site_id = extended_site._id
-
+    def _get_hierarchy_devices_sites(self, a_site_id, RR2):
         log.debug("beginning related resources crawl for subsites")
         finder = RelatedResourcesCrawler()
         get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasSite])
@@ -859,8 +852,8 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         subsite_ids = set([])
 
         # we want only those IDs that are not the input resource id
-        for a in search_down(site_id, -1):
-            if a.o != site_id:
+        for a in search_down(a_site_id, -1):
+            if a.o != a_site_id:
                 subsite_ids.add(a.o)
 
         subsite_ids = list(subsite_ids)
@@ -884,11 +877,60 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             except NotFound:
                 pass
 
+        return subsite_objs, all_child_inst_devices, all_child_plat_devices, device_of_site
+
+
+    def _get_root_platforms(self, RR2, platform_device_list):
+        # get all relevant assocation objects
+        filter_fn = lambda a: a.o in platform_device_list
+
+        # get child -> parent dict
+        lookup = dict([(a.o, a.s) for a in RR2.filter_cached_associations(PRED.hasDevice, filter_fn)])
+
+        # root platforms have no parent, or a parent that's not in our list
+        return [r for r in platform_device_list if (r not in lookup or (lookup[r] not in platform_device_list))]
+
+
+    def _augment_platformsite_extension(self, extended_site, RR2, platform_device_id):
+        log.debug("_augment_platformsite_extension")
+        if not RR2.has_cached_prediate(PRED.hasDevice):
+            RR2.cache_predicate(PRED.hasDevice)
+
+        site_id = extended_site._id
+
+
+        # prepare to make a lot of rollups
+        site_object_dict, site_children = self.outil.get_child_sites(parent_site_id=site_id, id_only=False)
+        log.debug("Found these site children: %s", site_children.keys())
+        all_device_statuses = self._get_master_status_table(RR2, site_children.keys())
+        log.debug("Found all device statuses: %s", all_device_statuses)
+
+        log.debug("generating site status rollup")
+        site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s._id for s in extended_site.sites])
+        extended_site.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                               value=site_status)
+
+        log.debug("generating instrument status rollup") # (is easy)
+        inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k._id, {}))
+                       for k in extended_site.instrument_devices]
+        extended_site.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                                     value=inst_status)
+
+        log.debug("generating platform status rollup")
+        plat_status = self._get_platform_rollup_list(RR2, all_device_statuses, [s._id for s in extended_site.platform_devices])
+        extended_site.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                                   value=plat_status)
+
+        log.debug("generating rollup of this site")
+        site_aggregate = self._get_site_rollup_dict(RR2, all_device_statuses, site_id)
+        self.agent_status_builder.set_status_computed_attributes(extended_site.computed,
+                                                                 site_aggregate,
+                                                                 ComputedValueAvailability.PROVIDED)
 
         # filtered subsites
         def fs(resource_type, filter_fn):
             both = lambda s: ((resource_type == s._get_type()) and filter_fn(s))
-            return filter(both, subsite_objs)
+            return filter(both, site_object_dict.values())
 
         def pfs(filter_fn):
             return fs(RT.PlatformSite, filter_fn)
@@ -905,36 +947,10 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_site.computed.instrument_sites         = clv(ifs(lambda _: True))
 
 
-        log.debug("Reading status for device '%s'", platform_device_id)
-        child_agg_status = self.agent_status_builder.add_device_rollup_statuses_to_computed_attributes(platform_device_id,
-                                                                                                       extended_site.computed,
-                                                                                                       all_child_inst_devices + all_child_plat_devices)
-        # key -> deviceID becomes key -> device status
-        def compute_status_dict(key_to_device_dict):
-            ret = {}
-            if not isinstance(child_agg_status, dict):
-                return ComputedDictValue(reason="Top platform's child_agg_status is '%s'" % type(child_agg_status).__name__)
-
-            for k, v in key_to_device_dict.iteritems():
-                if not type("") == type(v):
-                    raise BadRequest("attempted to compute_status_dict with type(v) = %s : %s" % (type(v), v))
-                if v in child_agg_status:
-                    ret[k] = self.agent_status_builder._crush_status_dict(child_agg_status[v])
-                else:
-                    log.warn("Status for device '%s' of key '%s' not found in parent platform's child_agg_status", k, v)
-                    ret[k] = StatusType.STATUS_UNKNOWN
-
-            return ComputedDictValue(status=ComputedValueAvailability.PROVIDED,
-                                     value=ret)
-
-        log.debug("Building instrument and platform status dicts")
-        extended_site.computed.instrument_status = compute_status_dict(dict([(x._id, x._id) for x in extended_site.instrument_devices]))
-        extended_site.computed.platform_status   = compute_status_dict(dict([(x._id, x._id) for x in extended_site.platform_devices]))
-        extended_site.computed.site_status       = compute_status_dict(device_of_site)
-
-
-
         return extended_site, RR2
+
+
+
 
     # TODO: will remove this one
     def get_site_extension(self, site_id='', ext_associations=None, ext_exclude=None, user_id=''):
@@ -1131,6 +1147,9 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
             user_id=user_id,
             negotiation_status=NegotiationStatusEnum.OPEN)
 
+        RR2 = EnhancedResourceRegistryClient(self.RR)
+        RR2.cache_predicate(PRED.hasModel)
+        RR2.cache_predicate(PRED.hasDevice)
 
         #Fill out service request information for requesting data products
         extended_org.data_products_request.service_name = 'resource_registry'
@@ -1166,13 +1185,12 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.open_requests = self._convert_negotiations_to_requests(extended_org, extended_org.open_requests)
         extended_org.closed_requests = self._convert_negotiations_to_requests(extended_org, extended_org.closed_requests)
 
-        # Status computation
-        from ion.services.sa.observatory.observatory_util import ObservatoryUtil
+
 
         # lookup all hasModel predicates
         # lookup is a 2d associative array of [subject type][subject id] -> object id (model)
         lookup = dict([(rt, {}) for rt in [RT.InstrumentDevice, RT.PlatformDevice]])
-        for a in self.clients.resource_registry.find_associations(predicate=PRED.hasModel, id_only=False):
+        for a in RR2.filter_cached_associations(PRED.hasModel, lambda assn: assn.st in lookup):
             if a.st in lookup:
                 lookup[a.st][a.s] = a.o
 
@@ -1189,52 +1207,117 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         extended_org.instrument_models = retrieve_model_objs(extended_org.instruments, RT.InstrumentDevice)
         extended_org.platform_models = retrieve_model_objs(extended_org.platforms, RT.PlatformDevice)
 
+        log.debug("time to make the rollups")
+        _, site_children = self.outil.get_child_sites(org_id=org_id, id_only=False)
+        all_device_statuses = self._get_master_status_table(RR2, site_children.keys())
 
-        s_unknown = StatusType.STATUS_UNKNOWN
+        log.debug("site status rollup")
+        site_status = self._get_site_rollup_list(RR2, all_device_statuses, [s._id for s in extended_org.sites])
+        extended_org.computed.site_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                              value=site_status)
 
-        # initialize computed attributes
-        extended_org.computed.instrument_status = [s_unknown] * len(extended_org.instruments)
-        extended_org.computed.platform_status   = [s_unknown] * len(extended_org.platforms)
-        extended_org.computed.site_status       = [s_unknown] * len(extended_org.sites)
+        log.debug("instrument status rollup") # (is easy)
+        inst_status = [self.agent_status_builder._crush_status_dict(all_device_statuses.get(k._id, {}))
+                       for k in extended_org.instruments]
+        extended_org.computed.instrument_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                                    value=inst_status)
 
-        # shortcut constructor for default value
-        def status_unknown():
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED, value=StatusType.STATUS_UNKNOWN)
+        log.debug("platform status rollup")
+        plat_status = self._get_platform_rollup_list(RR2, all_device_statuses, [s._id for s in extended_org.platforms])
+        extended_org.computed.platform_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED,
+                                                                  value=plat_status)
 
-        extended_org.computed.communications_status_roll_up = status_unknown()
-        extended_org.computed.power_status_roll_up          = status_unknown()
-        extended_org.computed.data_status_roll_up           = status_unknown()
-        extended_org.computed.location_status_roll_up       = status_unknown()
-        extended_org.computed.aggregated_status             = status_unknown()
+        log.debug("rollup of this org includes all found devices")
+        org_aggregate = {}
+        for k, v in AggregateStatusType._str_map.iteritems():
+            aggtype_list = [a.get(k, DeviceStatusType.STATUS_UNKNOWN) for a in all_device_statuses.values()]
+            org_aggregate[k] = self.agent_status_builder._crush_status_list(aggtype_list)
 
-
-        # calculate computed attributes
-        try:
-            outil = ObservatoryUtil(self)
-            status_rollups = outil.get_status_roll_ups(org_id, extended_org.resource._get_type())
-            extended_org.computed.instrument_status = [status_rollups.get(idev._id, {}).get("agg", s_unknown)
-                                                       for idev in extended_org.instruments]
-            extended_org.computed.platform_status   = [status_rollups.get(pdev._id, {}).get("agg", s_unknown)
-                                                       for pdev in extended_org.platforms]
-            extended_org.computed.site_status       = [status_rollups.get(site._id, {}).get("agg", s_unknown)
-                                                       for site in extended_org.sites]
-        except Exception as ex:
-            log.exception("Computed attribute failed for org %s" % org_id)
-
-
-        # shortcut constructor for computed int value
-        def short_status_rollup(key):
-            return ComputedIntValue(status=ComputedValueAvailability.PROVIDED,
-                value=status_rollups.get(org_id, {}).get(key, s_unknown))
-
-        extended_org.computed.communications_status_roll_up = short_status_rollup("comms")
-        extended_org.computed.power_status_roll_up          = short_status_rollup("power")
-        extended_org.computed.data_status_roll_up           = short_status_rollup("data")
-        extended_org.computed.location_status_roll_up       = short_status_rollup("loc")
-        extended_org.computed.aggregated_status             = short_status_rollup("agg")
-
-
+        self.agent_status_builder.set_status_computed_attributes(extended_org.computed,
+                                                                 org_aggregate,
+                                                                 ComputedValueAvailability.PROVIDED)
         return extended_org
+
+
+    # return a table of device statuses for all given device ids
+    def _get_master_status_table(self, RR2, site_tree_ids):
+        platformdevice_tree_ids = []
+        for s in site_tree_ids:
+            platformdevice_tree_ids   += RR2.find_objects(s, PRED.hasDevice, RT.PlatformDevice, True)
+
+        plat_roots = self._get_root_platforms(RR2, platformdevice_tree_ids)
+
+        # build id -> aggstatus lookup table
+        master_status_table = {}
+        for plat_root_id in plat_roots:
+            agg_status, _ = self.agent_status_builder.get_cumulative_status_dict(plat_root_id)
+            if None is agg_status:
+                log.warn("Can't get agg status for platform %s, ignoring", plat_root_id)
+            else:
+                for k, v in agg_status.iteritems():
+                    master_status_table[k] = v
+
+        return master_status_table
+
+
+    # based on ALL the site ids in this tree, return a site rollup list corresponding to each site in the site_id_list
+    def _get_site_rollup_list(self, RR2, master_status_table, site_id_list):
+
+        # get rollup for each site
+        master_status_rollup_list = []
+        for s in site_id_list:
+            _, underlings = self.outil.get_child_sites(parent_site_id=s, id_only=True)
+            master_status_rollup_list.append(self.agent_status_builder._crush_status_dict(
+                self._get_site_rollup_dict(RR2, master_status_table, s)))
+
+        return master_status_rollup_list
+
+    # based on return a site rollup dict corresponding to a site in the site_id_list
+    def _get_site_rollup_dict(self, RR2, master_status_table, site_id):
+
+        log.debug("_get_site_rollup_dict for site %s", site_id)
+        _, underlings = self.outil.get_child_sites(parent_site_id=site_id, id_only=True)
+        site_aggregate = {}
+        all_site_ids = underlings.keys()
+        all_device_ids = []
+        for s in all_site_ids:
+            all_device_ids += RR2.find_objects(s, PRED.hasDevice, RT.PlatformDevice, True)
+            all_device_ids += RR2.find_objects(s, PRED.hasDevice, RT.InstrumentDevice, True)
+
+        log.debug("Calculating cumulative rollup values for all_device_ids = %s", all_device_ids)
+        for k, v in AggregateStatusType._str_map.iteritems():
+            aggtype_list = [master_status_table.get(d, {}).get(k, DeviceStatusType.STATUS_UNKNOWN) for d in all_device_ids]
+            log.trace("aggtype_list for %s is %s", v, zip(all_device_ids, aggtype_list))
+            site_aggregate[k] = self.agent_status_builder._crush_status_list(aggtype_list)
+
+        return site_aggregate
+
+
+
+    def _get_platform_rollup_list(self, RR2, master_status_table, platform_id_list):
+        finder = RelatedResourcesCrawler()
+        get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
+        full_crawllist = [RT.InstrumentDevice, RT.PlatformDevice]
+        search_down = get_assns({PRED.hasDevice: (True, False)}, full_crawllist)
+
+
+        # get rollup for each platform device
+        master_status_rollup_list = []
+
+        for p in platform_id_list:
+
+            # the searches return a list of association objects, so compile all the ids by extracting them
+            underlings = set([])
+            # we want only those IDs that are not the input resource id
+            for a in search_down(p, -1):
+                underlings.add(a.o)
+            underlings.add(p)
+
+            master_status_rollup_list.append(self.agent_status_builder._crush_status_list(
+                [self.agent_status_builder._crush_status_dict(master_status_table.get(k, {})) for k in underlings]
+            ))
+
+        return master_status_rollup_list
 
 
     def _convert_negotiations_to_requests(self, extended_marine_facility=None, negotiations=None):

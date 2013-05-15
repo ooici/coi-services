@@ -23,7 +23,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
-from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StatusType, StreamConfiguration
+from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StreamConfiguration
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 
 from pyon.public import RT, PRED, CFG, OT
@@ -227,7 +227,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 #                         extended_instrument.computed.communications_status_roll_up.status)
 #        self.assertEqual(ComputedValueAvailability.PROVIDED,
 #                         extended_instrument.computed.data_status_roll_up.status)
-#        self.assertEqual(StatusType.STATUS_OK,
+#        self.assertEqual(DeviceStatusType.STATUS_OK,
 #                        extended_instrument.computed.data_status_roll_up.value)
 #        self.assertEqual(ComputedValueAvailability.PROVIDED,
 #                         extended_instrument.computed.location_status_roll_up.status)

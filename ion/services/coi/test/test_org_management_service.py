@@ -153,8 +153,11 @@ class TestOrgManagementServiceInt(IonIntegrationTestCase):
         user_role = self.org_management_service.find_org_role_by_name(org_id, ORG_MANAGER_ROLE)
         self.assertNotEqual(user_role, None)
 
-        #find_org = self.org_management_service.remove_user_role(org_id, ORG_MANAGER_ROLE)
-        #self.assertEqual(find_org, True)
+        self.org_management_service.remove_user_role(org_id, ORG_MANAGER_ROLE)
+        with self.assertRaises(BadRequest) as cm:
+            user_role = self.org_management_service.find_org_role_by_name(org_id, ORG_MANAGER_ROLE)
+        self.assertIn("The User Role 'ORG_MANAGER' does not exist for this Org", cm.exception.message)
+
 
         with self.assertRaises(BadRequest):
             self.org_management_service.delete_org()

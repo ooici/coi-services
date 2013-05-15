@@ -468,7 +468,7 @@ class BulkIngestBase(object):
             'test_mode': True
         }
 
-        _ia_pid = self.container.spawn_process(
+        self._ia_pid = self.container.spawn_process(
             name=self.EDA_NAME,
             module=self.EDA_MOD,
             cls=self.EDA_CLS,
@@ -490,9 +490,9 @@ class BulkIngestBase(object):
     def stop_agent(self):
         cmd = AgentCommand(command=DriverEvent.STOP_AUTOSAMPLE)
         self._ia_client.execute_resource(cmd)
-
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         self._ia_client.execute_agent(cmd)
+        self.container.terminate_process(self._ia_pid)
 
     def start_listener(self, dataset_id=''):
         dataset_modified = Event()

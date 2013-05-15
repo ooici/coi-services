@@ -21,7 +21,7 @@ from pyon.agent.agent import ResourceAgentClient
 
 from pyon.event.event import EventSubscriber
 
-from pyon.core.exception import BadRequest, Inconsistent
+from pyon.core.exception import NotFound, Inconsistent
 
 from pyon.core.governance import ORG_MANAGER_ROLE, GovernanceHeaderValues, has_org_role, get_valid_resource_commitments, ION_MANAGER
 from ion.services.sa.observatory.observatory_management_service import INSTRUMENT_OPERATOR_ROLE, OBSERVATORY_OPERATOR_ROLE
@@ -34,7 +34,7 @@ from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
-#-from ion.agents.agent_alert_manager import AgentAlertManager
+from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
@@ -136,6 +136,22 @@ class PlatformAgentCapability(BaseEnum):
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
 
 
+class PlatformAgentAlertManager(AgentAlertManager):
+    """
+    Overwrites _update_aggstatus and do appropriate handling.
+    """
+    def _update_aggstatus(self, aggregate_type, new_status):
+        """
+        Called to set a new status value for an aggstatus type.
+        Note that an update to an aggstatus in a platform does not trigger
+        any event publication by itself. Rather, this update may cascade to
+        an update of the corresponding rollup_status, in which case an event
+        does get published. StatusManager takes care of that handling.
+        """
+        log.debug("%r: _update_aggstatus called", self._agent._platform_id)
+        self._agent._status_manager.set_aggstatus(aggregate_type, new_status)
+
+
 class PlatformAgent(ResourceAgent):
     """
     Platform resource agent.
@@ -212,9 +228,16 @@ class PlatformAgent(ResourceAgent):
         # List of current alarm objects.
         self.aparam_alerts = []
 
+        # The get/set helpers are set by AgentAlertManager.
+        self.aparam_get_alerts = None
+        self.aparam_set_alerts = None
+
         # dict of aggregate statuses for the platform itself (depending on its
         # own attributes and ports)
         self.aparam_aggstatus = {}
+
+        # Agent alert manager.
+        self._aam = None
 
         # dict of aggregate statuses for all descendants (immediate children
         # and all their descendants)
@@ -237,19 +260,12 @@ class PlatformAgent(ResourceAgent):
         # State when lost.
         self._state_when_lost = None
 
-        # Agent alert manager.
-        self._aam = None
-
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
         self._pp = pprint.PrettyPrinter()
 
     def on_init(self):
-        
-        #- Set up alert manager.
-        #- self._aam = AgentAlertManager(self)
-        
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
@@ -272,14 +288,17 @@ class PlatformAgent(ResourceAgent):
     def on_start(self):
         """
         - Validates the given configuration and does related preparations.
-        - Starts event subscribers
+        - creates AgentAlertManager and StatusManager
         - Children agents (platforms and instruments) are launched here (in a
-          separate greenlet) if that's the mode of operation.
+          separate greenlet).
         """
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running: on_start called.')
 
         self._validate_configuration()
+
+        # Set up alert manager.
+        self._aam = PlatformAgentAlertManager(self)
 
         # create StatusManager now that we have all needed elements:
         self._status_manager = StatusManager(self)
@@ -450,7 +469,6 @@ class PlatformAgent(ResourceAgent):
 
         finally:
             super(PlatformAgent, self).on_quit()
-            #- self._aam.stop_all()
 
     def _do_quit(self):
         """
@@ -462,6 +480,8 @@ class PlatformAgent(ResourceAgent):
         log.info("%r: PlatformAgent: executing quit secuence", self._platform_id)
 
         self._status_manager.destroy()
+
+        self._aam.stop_all()
 
         self._bring_to_uninitialized_state(recursion=False)
 
@@ -1197,9 +1217,13 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_platform_agent(self, subplatform_id):
         """
-        Launches a sub-platform agent, creates ResourceAgentClient,
-        waits until the sub-platform transitions to UNINITIALIZED state,
+        Launches a sub-platform agent (f not already running) and waits until
+        the sub-platform transitions to UNINITIALIZED state.
+        It creates corresponding ResourceAgentClient,
         and publishes device_added event.
+
+        The mechanism to detect whether the sub-platform agent is already
+        running is by simply trying to create a ResourceAgentClient to it.
 
         @param subplatform_id Platform ID
         """
@@ -1211,30 +1235,66 @@ class PlatformAgent(ResourceAgent):
 
         assert sub_resource_id, "agent.resource_id must be present for child %r" % subplatform_id
 
-        # prepare to wait for the UNINITIALIZED state; this is done before the
-        # launch below to avoid potential race condition
-        asyn_res, subscriber = self._prepare_await_state(sub_resource_id,
-                                                         PlatformAgentState.UNINITIALIZED)
+        # first, is the agent already running?
+        pa_client = None  # assume it's not.
+        pid = None
+        try:
+            # try to connect:
+            pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
+            # it is actually running.
 
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r: launching sub-platform agent %r: CFG=%s",
-                      self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
+            # get PID:
+            # TODO is there a more public method to get the pid?
+            pid = ResourceAgentClient._get_agent_process_id(sub_resource_id)
+
+        except NotFound:
+            # not running.
+            pass
+
+        if pa_client:
+            #
+            # agent process already running.
+            #
+            # TODO if any, what kind of state check should be done? For the
+            # moment don't do any state verification.
+            state = pa_client.get_agent_state()
+            log.debug("%r: [LL] sub-platform agent already running=%r, "
+                      "sub_resource_id=%s, state=%s",
+                      self._platform_id, subplatform_id, sub_resource_id, state)
         else:
-            log.debug("%r: launching sub-platform agent %r", self._platform_id, subplatform_id)
+            #
+            # agent process NOT running.
+            #
+            log.debug("%r: [LL] sub-platform agent NOT running=%r, sub_resource_id=%s",
+                      self._platform_id, subplatform_id, sub_resource_id)
 
-        pid = self._launcher.launch_platform(subplatform_id, sub_agent_config)
-        log.debug("%r: DONE launching sub-platform agent %r", self._platform_id, subplatform_id)
+            # prepare to wait for the UNINITIALIZED state; this is done before the
+            # launch below to avoid potential race condition
+            asyn_res, subscriber = self._prepare_await_state(sub_resource_id,
+                                                             PlatformAgentState.UNINITIALIZED)
 
-        pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
+            if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+                log.trace("%r: launching sub-platform agent %r: CFG=%s",
+                          self._platform_id, subplatform_id, self._pp.pformat(sub_agent_config))
+            else:
+                log.debug("%r: launching sub-platform agent %r", self._platform_id, subplatform_id)
+
+            pid = self._launcher.launch_platform(subplatform_id, sub_agent_config)
+            log.debug("%r: DONE launching sub-platform agent %r", self._platform_id, subplatform_id)
+
+            # create resource agent client:
+            pa_client = self._create_resource_agent_client(subplatform_id, sub_resource_id)
+
+            # wait until UNINITIALIZED:
+            self._await_state(asyn_res, subscriber)
+
+        # here, sub-platform agent process is running.
 
         self._pa_clients[subplatform_id] = DotDict(pa_client=pa_client,
                                                    pid=pid,
                                                    resource_id=sub_resource_id)
 
-        # wait until UNINITIALIZED:
-        self._await_state(asyn_res, subscriber)
-
-        # all ready, publish device_added:
+        # publish device_added:
         self._status_manager.publish_device_added_event(sub_resource_id)
 
     def _execute_platform_agent(self, a_client, cmd, sub_id):
@@ -1390,9 +1450,16 @@ class PlatformAgent(ResourceAgent):
 
             try:
                 self._execute_platform_agent(pa_client, cmd, subplatform_id)
-            except:
-                err_msg = "%r: exception executing command %r in subplatform %r" % (
-                          self._platform_id, command, subplatform_id)
+
+            except FSMStateError as e:
+                err_msg = "%r: subplatform %r: FSMStateError for command %r: %s" % (
+                          self._platform_id, subplatform_id, command, e)
+                log.warn(err_msg)
+                return err_msg
+
+            except Exception as e:
+                err_msg = "%r: exception executing command %r in subplatform %r: %s" % (
+                          self._platform_id, command, subplatform_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -1404,9 +1471,9 @@ class PlatformAgent(ResourceAgent):
                               self._platform_id, expected_state, state)
                     log.error(err_msg)
                     return err_msg
-            except:
-                err_msg = "%r: exception while calling get_agent_state to subplatform %r" % (
-                          self._platform_id, subplatform_id)
+            except Exception as e:
+                err_msg = "%r: exception while calling get_agent_state to subplatform %r: %s" % (
+                          self._platform_id, subplatform_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -1747,8 +1814,12 @@ class PlatformAgent(ResourceAgent):
 
     def _launch_instrument_agent(self, instrument_id):
         """
-        Launches an instrument agent, creates ResourceAgentClient,
-        and publishes a device_added event.
+        Launches an instrument agent (f not already running).
+        It creates corresponding ResourceAgentClient,
+        and publishes device_added event.
+
+        The mechanism to detect whether the instrument agent is already
+        running is by simply trying to create a ResourceAgentClient to it.
 
         @param instrument_id
         """
@@ -1760,18 +1831,53 @@ class PlatformAgent(ResourceAgent):
 
         assert i_resource_id, "agent.resource_id must be present for child %r" % instrument_id
 
-        if log.isEnabledFor(logging.TRACE):  # pragma: no cover
-            log.trace("%r: launching instrument agent %r: CFG=%s",
-                      self._platform_id, instrument_id, self._pp.pformat(i_CFG))
+        # first, is the agent already running?
+        ia_client = None
+        pid = None
+        try:
+            # try to connect
+            ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
+            # it is running.
+
+            # get PID:
+            # TODO is there a more public method to get the pid?
+            pid = ResourceAgentClient._get_agent_process_id(i_resource_id)
+
+        except NotFound:
+            # not running.
+            pass
+
+        if ia_client:
+            #
+            # agent process already running.
+            #
+            # TODO if any, what kind of state check should be done? For the
+            # moment we don't do any state verification.
+            state = ia_client.get_agent_state()
+            log.debug("%r: [LL] instrument agent already running=%r, "
+                      "i_resource_id=%s, state=%s",
+                      self._platform_id, instrument_id, i_resource_id, state)
         else:
-            log.debug("%r: launching instrument agent %r", self._platform_id, instrument_id)
+            #
+            # agent process NOT running.
+            #
+            log.debug("%r: [LL] instrument agent NOT running=%r, i_resource_id=%s",
+                      self._platform_id, instrument_id, i_resource_id)
 
-        pid = self._launcher.launch_instrument(instrument_id, i_CFG)
+            if log.isEnabledFor(logging.TRACE):  # pragma: no cover
+                log.trace("%r: launching instrument agent %r: CFG=%s",
+                          self._platform_id, instrument_id, self._pp.pformat(i_CFG))
+            else:
+                log.debug("%r: launching instrument agent %r", self._platform_id, instrument_id)
 
-        ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
+            pid = self._launcher.launch_instrument(instrument_id, i_CFG)
 
-        state = ia_client.get_agent_state()
-        assert ResourceAgentState.UNINITIALIZED == state
+            ia_client = self._create_resource_agent_client(instrument_id, i_resource_id)
+
+            state = ia_client.get_agent_state()
+            assert ResourceAgentState.UNINITIALIZED == state
+
+        # here, instrument agent process is running.
 
         self._ia_clients[instrument_id] = DotDict(ia_client=ia_client,
                                                   pid=pid,
@@ -1839,15 +1945,21 @@ class PlatformAgent(ResourceAgent):
             ia_client = self._ia_clients[instrument_id].ia_client
 
             try:
-                retval = self._execute_instrument_agent(ia_client, cmd,
-                                                        instrument_id)
-            except:
-                err_msg = "%r: exception executing command %r in instrument %r" % (
-                          self._platform_id, command, instrument_id)
+                self._execute_instrument_agent(ia_client, cmd,
+                                               instrument_id)
+            except FSMStateError as e:
+                err_msg = "%r: instrument %r: FSMStateError for command %r: %s" % (
+                          self._platform_id, instrument_id, command, e)
+                log.warn(err_msg)
+                return err_msg
+
+            except Exception as e:
+                err_msg = "%r: exception executing command %r in instrument %r: %s" % (
+                          self._platform_id, command, instrument_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
-            # verify state:
+            # verify expected_state if given:
             try:
                 state = ia_client.get_agent_state()
                 if expected_state and expected_state != state:
@@ -1856,9 +1968,9 @@ class PlatformAgent(ResourceAgent):
                     log.error(err_msg)
                     return err_msg
 
-            except:
-                err_msg = "%r: exception while calling get_agent_state to instrument %r" % (
-                          self._platform_id, instrument_id)
+            except Exception as e:
+                err_msg = "%r: exception while calling get_agent_state to instrument %r: %s" % (
+                          self._platform_id, instrument_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -2907,37 +3019,10 @@ class PlatformAgent(ResourceAgent):
         return next_state, result
 
     ##############################################################
-    # Agent parameter functions.
-    ##############################################################
-
-    def aparam_set_aggstatus(self, params):
-        """
-        Sets the "aggstatus" for a particular status name.
-
-        @params a dict indicating the status value for each desired status type
-        """
-
-        # TODO align the return codes with the expected API for
-        # aparam_set_xxx  (which is not very clear from looking at
-        # InstrumentAgent or ResourceAgent at this moment).
-
-        if not isinstance(params, dict):
-            return -1
-
-        log.debug("%r: aparam_set_aggstatus: params=%s",
-                  self._platform_id, params)
-
-        for status_name, status in params.iteritems():
-            retval = self._status_manager.set_aggstatus(status_name, status)
-            if retval != 0:
-                return retval
-
-        return 0
-
-    ##############################################################
     # Base class overrides for state and cmd error alerts.
     ##############################################################
 
+    # TODO incoporate the following as appropriate
     """
     Some version of this code needs to be placed wherever a sample arrives
     for publication.
@@ -2957,13 +3042,15 @@ class PlatformAgent(ResourceAgent):
                                          value=value, value_id=value_id)
     """    
 
-    #- def _on_state_enter(self, state):
-    #-     self._aam.process_alerts(state=state)
-    #-
-    #- def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
-    #-     self._aam.process_alerts(command=execute_cmd, command_success=False)
-    #-     super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
-    #-                                                    kwargs, ex)
+    def _on_state_enter(self, state):
+        if self._aam:
+            self._aam.process_alerts(state=state)
+
+    def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
+        if self._aam:
+            self._aam.process_alerts(command=execute_cmd, command_success=False)
+        super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
+                                                     kwargs, ex)
 
     ##############################################################
     # FSM setup.

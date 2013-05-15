@@ -15,6 +15,7 @@ from ion.services.dm.utility.granule_utils import RecordDictionaryTool
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ion.util.time_utils import TimeUtils
 from ion.util.geo_utils import GeoUtils
+from ion.services.dm.utility.granule_utils import time_series_domain
 
 from interface.services.sa.idata_product_management_service import BaseDataProductManagementService
 from interface.objects import DataProduct, DataProductVersion
@@ -620,12 +621,12 @@ class DataProductManagementService(BaseDataProductManagementService):
         if extended_product.computed.data_datetime.status == ComputedValueAvailability.PROVIDED :
             extended_product.data_ingestion_datetime =  extended_product.computed.data_datetime.value[1]
 
-        #get the dataset size
-        ret = self._get_product_dataset_size(data_product_id)
-        extended_product.computed.product_download_size_estimated = ret
-        extended_product.computed.stored_data_size = ret
-        if ret.value > 0:
-            extended_product.computed.stored_data_size.value = int(ret.value * 1048576 )  #covert to bytes fo this attribute
+        #get the dataset size in MB
+        extended_product.computed.product_download_size_estimated = self._get_product_dataset_size(data_product_id)
+        #covert to bytes for stored_data_size attribute
+        extended_product.computed.stored_data_size.value = int(extended_product.computed.product_download_size_estimated.value * 1048576)
+        extended_product.computed.stored_data_size.status = extended_product.computed.product_download_size_estimated.status
+        extended_product.computed.stored_data_size.reason = extended_product.computed.product_download_size_estimated.reason
 
 
         # divide up the active and past user subscriptions
@@ -692,7 +693,7 @@ class DataProductManagementService(BaseDataProductManagementService):
 
     def _get_product_dataset_size(self, data_product_id=''):
         # Returns the size of the full data product if downloaded/presented in a given presentation form
-        ret = IonObject(OT.ComputedIntValue)
+        ret = IonObject(OT.ComputedFloatValue)
         ret.value = 0
         try:
             dataset_id = self._get_dataset_id(data_product_id)
