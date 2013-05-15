@@ -265,7 +265,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(data_product_data._id, "")
         self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
         self.assertEqual(len(data_product_data.associations['StreamDefinition'].resources), 2)
-        self.assertEqual(len(data_product_data.associations['Dataset'].resources), 2)
+        self.assertEqual(len(data_product_data.associations['Dataset'].resources), 0)
         self.assertEqual(len(data_product_data.associations['StreamDefinition'].associated_resources), 0)
         self.assertEqual(len(data_product_data.associations['Dataset'].associated_resources), 0)
 
@@ -278,7 +278,7 @@ class TestDataProductManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(data_product_data.type_, OT.DataProductPrepareSupport)
         self.assertEqual(len(data_product_data.associations['StreamDefinition'].resources), 2)
 
-        self.assertEqual(len(data_product_data.associations['Dataset'].resources), 2)
+        self.assertEqual(len(data_product_data.associations['Dataset'].resources), 1)
 
         self.assertEqual(len(data_product_data.associations['StreamDefinition'].associated_resources), 1)
         self.assertEqual(data_product_data.associations['StreamDefinition'].associated_resources[0].s, dp_id)
