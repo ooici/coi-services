@@ -37,7 +37,8 @@ class AgentStatusBuilder(object):
             if k in values_dict:
                 status = ComputedIntValue(status=availability, value=values_dict[k], reason=reason)
             else:
-                status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, reason="%s not in %s" % (k, values_dict))
+                if None is reason: reason = "%s not in %s" % (k, values_dict)
+                status = ComputedIntValue(status=ComputedValueAvailability.NOTAVAILABLE, reason=reason)
             setattr(computed_attrs, a, status)
 
 
@@ -93,24 +94,30 @@ class AgentStatusBuilder(object):
 
         # read child agg status
         try:
-            child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
-            log.debug('get_cumulative_status_dict child_agg_status : %s', child_agg_status)
-
             #retrieve the platform status from the platform agent
             this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
             log.debug("this_status for %s is %s", device_id, this_status)
-
-            if not child_agg_status:
-                child_agg_status = {}
-
-            child_agg_status[device_id] = this_status
-
-            return child_agg_status, None
 
         except Unauthorized, un:
             return None, un.message
         except Exception as e:
             return None, "Error getting status: %s" % e
+
+        one_status = {device_id: this_status}
+
+        try:
+            child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
+            log.debug('get_cumulative_status_dict child_agg_status : %s', child_agg_status)
+
+            if not child_agg_status:
+                child_agg_status = {}
+
+            return dict(child_agg_status.items() + one_status.items()), None
+
+        except Unauthorized, un:
+            return one_status, un.message
+        except Exception as e:
+            return one_status, "Error getting status: %s" % e
 
 
 
@@ -166,9 +173,10 @@ class AgentStatusBuilder(object):
 
         rollup_statuses, reason, child_agg_status = self.get_device_rollup_statuses_and_child_agg_status(device_id,
                                                                                                      child_device_ids)
-
+        log.debug("Got rollup_statuses = %s, reason = %s", rollup_statuses, reason)
 
         if None is rollup_statuses:
+            log.debug("setting status notavailable")
             self.set_status_computed_attributes_notavailable(extension_computed, reason)
 
             if hasattr(extension_computed, "child_device_status"):

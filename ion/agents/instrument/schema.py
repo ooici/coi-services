@@ -189,22 +189,7 @@ AGENT_SCHEMA_V1 = {
                 "display_name" : "Data Streams",
                 "description" : "Data streams and fields published by agent.",
                 "visibility" : "READ_ONLY",
-                "type" : "dict",
-                "valid_values" : [{
-                    "key" : {
-                        "display_name" : "Stream Name",
-                        "discription" : "Data stream published by agent.",
-                        "type" : "str"                    
-                     },
-                    "value" : {
-                        "display_name" : "Field Names",
-                        "discription" : "List of data fields published by agent on the stream.",
-                        "type" : "list",
-                        "valid_values" : [
-                            "str"
-                            ]
-                    }
-                }]
+                "type" : "dict"
             },
         "pubrate" :
             {
@@ -342,3 +327,82 @@ def get_schema_json():
     
 def pp_schema():
     print json.dumps(AGENT_SCHEMA_V1, indent=4)
+    
+    
+    
+"""
+The following is an example of the schema returned by a driver:
+
+Config: {u'commands': {u'DRIVER_EVENT_ACQUIRE_STATUS': {u'arguments': {},
+                                                u'display_name': u'acquire status',
+                                                u'return': {},
+                                                u'timeout': 10},
+               u'DRIVER_EVENT_CLOCK_SYNC': {u'arguments': {},
+                                            u'display_name': u'sync clock',
+                                            u'return': {},
+                                            u'timeout': 10},
+               u'DRIVER_EVENT_START_AUTOSAMPLE': {u'arguments': {},
+                                                  u'display_name': u'start autosample',
+                                                  u'return': {},
+                                                  u'timeout': 10},
+               u'DRIVER_EVENT_STOP_AUTOSAMPLE': {u'arguments': {},
+                                                 u'display_name': u'stop autosample',
+                                                 u'return': {},
+                                                 u'timeout': 10},
+               u'PROTOCOL_EVENT_GET_CONFIGURATION': {u'arguments': {},
+                                                     u'display_name': u'get configuration data',
+                                                     u'return': {},
+                                                     u'timeout': 10},
+               u'PROTOCOL_EVENT_GET_EVENT_COUNTER': {u'arguments': {},
+                                                     u'display_name': u'get event counter',
+                                                     u'return': {},
+                                                     u'timeout': 10},
+               u'PROTOCOL_EVENT_GET_HARDWARE': {u'arguments': {},
+                                                u'display_name': u'get hardware data',
+                                                u'return': {},
+                                                u'timeout': 10},
+               u'PROTOCOL_EVENT_GET_STATUS': {u'arguments': {},
+                                              u'display_name': u'get status data',
+                                              u'return': {},
+                                              u'timeout': 10},
+               u'PROTOCOL_EVENT_SAMPLE_REFERENCE_OSCILLATOR': {u'arguments': {},
+                                                               u'display_name': u'sample reference oscillator',
+                                                               u'return': {},
+                                                               u'timeout': 10},
+               u'PROTOCOL_EVENT_TEST_EEPROM': {u'arguments': {},
+                                               u'display_name': u'test eeprom',
+                                               u'return': {},
+                                               u'timeout': 10}},
+ u'driver': {u'vendor_sw_compatible': True},
+ u'parameters': {u'batterytype': {u'direct_access': True,
+                                  u'display_name': u'battery type',
+                                  u'get_timeout': 10,
+                                  u'set_timeout': 10,
+                                  u'startup': True,
+                                  u'value': {u'default': 1, u'type': u'int'},
+                                  u'visibility': u'IMMUTABLE'},
+                 u'enablealerts': {u'direct_access': True,
+                                   u'display_name': u'enable alerts',
+                                   u'get_timeout': 10,
+                                   u'set_timeout': 10,
+                                   u'startup': True,
+                                   u'value': {u'default': 1,
+                                              u'type': u'bool'},
+                                   u'visibility': u'IMMUTABLE'},
+                 u'sampleperiod': {u'direct_access': True,
+                                   u'display_name': u'sample period',
+                                   u'get_timeout': 10,
+                                   u'set_timeout': 10,
+                                   u'startup': True,
+                                   u'value': {u'default': 15,
+                                              u'type': u'int'},
+                                   u'visibility': u'READ_WRITE'},
+                 u'time': {u'direct_access': False,
+                           u'display_name': u'instrument time',
+                           u'get_timeout': 10,
+                           u'set_timeout': 10,
+                           u'startup': False,
+                           u'value': {u'type': u'string'},
+                           u'visibility': u'READ_ONLY'}}}
+                           
+"""

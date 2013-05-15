@@ -50,7 +50,7 @@ class AgentStreamPublisher(object):
 
         self._construct_streams(stream_info)
         self._construct_publishers(stream_info)
-        agent.aparam_get_set_streams = self.aparam_set_streams
+        agent.aparam_set_streams = self.aparam_set_streams
         
     def _construct_streams(self, stream_info):
         for (stream_name, config) in stream_info.iteritems():

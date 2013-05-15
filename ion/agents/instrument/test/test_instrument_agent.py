@@ -92,6 +92,7 @@ bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_ag
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_data_buffering
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_schema
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_streaming_memuse
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_instrument_agent.py:TestInstrumentAgent.test_capabilities_new
 """
 
 ###############################################################################
@@ -1326,8 +1327,59 @@ class InstrumentAgentTest():
                 res_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_PAR]
 
             return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
-             
-        
+
+        def verify_schema(caps_list):
+            
+            dd_list = ['display_name','description']
+            ddt_list = ['display_name','description','type']
+            ddvt_list = ['display_name','description','visibility','type']
+            ddak_list = ['display_name','description','args','kwargs']
+            stream_list = ['raw', 'parsed']            
+            
+            for x in caps_list:
+                if x.cap_type == CapabilityType.AGT_CMD:
+                    keys = x.schema.keys()
+                    for y in ddak_list:
+                        self.assertIn(y, keys)
+                    
+                elif x.cap_type == CapabilityType.AGT_PAR:
+                        if x.name != 'example':
+                            keys = x.schema.keys()
+                            for y in ddvt_list:
+                                self.assertIn(y, keys)
+                        
+                elif x.cap_type == CapabilityType.RES_CMD:
+                    pass
+                
+                elif x.cap_type == CapabilityType.RES_IFACE:
+                    pass
+                
+                elif x.cap_type == CapabilityType.RES_PAR:
+                    pass
+                
+                elif x.cap_type == CapabilityType.AGT_STATES:
+                    for (k,v) in x.schema.iteritems():
+                        keys = v.keys()
+                        for y in dd_list:
+                            self.assertIn(y, keys)
+                
+                elif x.cap_type == CapabilityType.ALERT_DEFS:
+                    for (k,v) in x.schema.iteritems():
+                        keys = v.keys()
+                        for y in ddt_list:
+                            self.assertIn(y, keys)
+                
+                elif x.cap_type == CapabilityType.AGT_CMD_ARGS:
+                    for (k,v) in x.schema.iteritems():
+                        keys = v.keys()
+                        for y in ddt_list:
+                            self.assertIn(y, keys)
+                
+                elif x.cap_type == CapabilityType.AGT_STREAMS:
+                    keys = x.schema.keys()
+                    for y in stream_list:
+                        self.assertIn(y, keys)
+                
         ##################################################################
         # UNINITIALIZED
         ##################################################################
@@ -1364,7 +1416,7 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
-                
+                                
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         
@@ -1409,6 +1461,9 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
+        
+        # Check all the agent capabilities carry schema information.
+        verify_schema(retval)        
         
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
         retval = self._ia_client.execute_agent(cmd)
@@ -2029,6 +2084,7 @@ class InstrumentAgentTest():
         raw_sizes_greater_than_one = [z>1 for z in raw_sizes]
         self.assertTrue(any(raw_sizes_greater_than_one))
 
+    @unittest.skip('Deprecated.')
     def test_schema(self):
         """
         test_schema
@@ -2133,6 +2189,124 @@ class InstrumentAgentTest():
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
 
         report_memuse()
+
+    def test_capabilities_new(self):
+        """
+        test_capabilities
+        Test the ability to retrieve agent and resource parameter and command
+        capabilities in various system states.
+        """
+
+        agt_cmds_all = [
+            ResourceAgentEvent.INITIALIZE,
+            ResourceAgentEvent.RESET,
+            ResourceAgentEvent.GO_ACTIVE,
+            ResourceAgentEvent.GO_INACTIVE,
+            ResourceAgentEvent.RUN,
+            ResourceAgentEvent.CLEAR,
+            ResourceAgentEvent.PAUSE,
+            ResourceAgentEvent.RESUME,
+            ResourceAgentEvent.GO_COMMAND,
+            ResourceAgentEvent.GO_DIRECT_ACCESS           
+        ]
+        
+        agt_pars_all = ['example',
+                        'alerts',
+                        'streams',
+                        'pubrate',
+                        'aggstatus'
+                        ]
+        
+        res_cmds_all =[
+            SBE37ProtocolEvent.ACQUIRE_STATUS,
+            SBE37ProtocolEvent.TEST,
+            SBE37ProtocolEvent.ACQUIRE_SAMPLE,
+            SBE37ProtocolEvent.START_AUTOSAMPLE,
+            SBE37ProtocolEvent.STOP_AUTOSAMPLE,
+            SBE37ProtocolEvent.ACQUIRE_CONFIGURATION,
+        ]
+        
+        res_iface_all = [
+            'get_resource',
+            'set_resource',
+            'execute_resource',
+            'ping_resource',
+            'get_resource_state'            
+            ]
+        
+        res_cmds_iface_all = list(res_cmds_all)
+        res_cmds_iface_all.extend(res_iface_all)
+        
+        res_pars_all = PARAMS.keys()
+        
+        
+        def sort_caps(caps_list):
+            agt_cmds = []
+            agt_pars = []
+            res_cmds = []
+            res_iface = []
+            res_pars = []
+            
+            if len(caps_list)>0 and isinstance(caps_list[0], AgentCapability):
+                agt_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_CMD]
+                agt_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.AGT_PAR]
+                res_cmds = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_CMD]
+                res_iface = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_IFACE]
+                res_pars = [x.name for x in caps_list if x.cap_type==CapabilityType.RES_PAR]
+            
+            elif len(caps_list)>0 and isinstance(caps_list[0], dict):
+                agt_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_CMD]
+                agt_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.AGT_PAR]
+                res_cmds = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_CMD]
+                res_iface = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_IFACE]
+                res_pars = [x['name'] for x in caps_list if x['cap_type']==CapabilityType.RES_PAR]
+
+            return agt_cmds, agt_pars, res_cmds, res_iface, res_pars
+             
+        
+        ##################################################################
+        # UNINITIALIZED
+        ##################################################################
+        
+        state = self._ia_client.get_agent_state()
+        self.assertEqual(state, ResourceAgentState.UNINITIALIZED)        
+        
+        # Get exposed capabilities in current state.
+        retval = self._ia_client.get_capabilities()
+        
+        print '#################'
+        for x in retval:
+            print str(x)
+        
+        
+        """
+        # Validate capabilities for state UNINITIALIZED.
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
+        
+        agt_cmds_uninitialized = [
+            ResourceAgentEvent.INITIALIZE
+        ]
+                        
+        self.assertItemsEqual(agt_cmds, agt_cmds_uninitialized)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, [])
+        self.assertItemsEqual(res_pars, [])
+        
+        # Get exposed capabilities in all states.
+        retval = self._ia_client.get_capabilities(False)        
+
+        # Validate all capabilities as read from state UNINITIALIZED.
+        agt_cmds, agt_pars, res_cmds, res_iface, res_pars = sort_caps(retval)
+       
+        res_cmds_iface_uninitialized_all = res_iface_all
+       
+        self.assertItemsEqual(agt_cmds, agt_cmds_all)
+        self.assertItemsEqual(agt_pars, agt_pars_all)
+        self.assertItemsEqual(res_cmds, [])
+        self.assertItemsEqual(res_iface, res_iface_all)
+        self.assertItemsEqual(res_pars, [])
+        """     
 
 @attr('HARDWARE', group='sa')
 @patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})

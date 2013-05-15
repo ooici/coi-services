@@ -661,7 +661,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
                     timeout.cancel()
                     break
                 else:
-                    gevent.sleep(1)
+                    gevent.sleep(3)
         except gevent.Timeout:
             fail("Could not restore agent state to COMMAND.")
         

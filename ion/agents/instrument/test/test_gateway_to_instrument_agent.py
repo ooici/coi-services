@@ -26,11 +26,11 @@ from ion.agents.instrument.test.test_instrument_agent import InstrumentAgentTest
 
 from ion.services.coi.service_gateway_service import GATEWAY_RESPONSE, GATEWAY_ERROR, GATEWAY_ERROR_MESSAGE, GATEWAY_ERROR_EXCEPTION
 
-# bin/nosetests -s -v ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway.test_initialize
+# bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_gateway_to_instrument_agent.py:TestInstrumentAgentViaGateway.test_initialize
 
 
 @attr('HARDWARE', group='mi')
-@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 60}}})
+@patch.dict(CFG, {'endpoint':{'receive':{'timeout': 120}}})
 @unittest.skipIf(os.getenv('CEI_LAUNCH_TEST', False),'Not integrated for CEI')
 class TestInstrumentAgentViaGateway(IonIntegrationTestCase, InstrumentAgentTest):
     """
@@ -160,6 +160,7 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
             "agentId": resource_id,
             "agentOp": op,
 #            "expiry": 0,
+            "timeout": 300,
             "params": {
                 "timeout": timeout,
                 "command": agent_cmd_params
@@ -178,6 +179,7 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
             "agentId": resource_id,
             "agentOp": op,
             "expiry": 0,
+            "timeout": 300,
             "params": {
                 "params" : params
             }
@@ -191,6 +193,7 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
             "agentId": resource_id,
             "agentOp": op,
             "expiry": 0,
+            "timeout": 300,
             "params": {
                 'params' : params
             }
@@ -204,6 +207,7 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
             "agentId": resource_id,
             "agentOp": op,
             "expiry": 0,
+            "timeout": 300,
             "params": {
                 'current_state' : current_state
             }
@@ -217,6 +221,7 @@ class ResourceAgentViaServiceGateway(ResourceAgentClient):
             "agentId": resource_id,
             "agentOp": op,
             "expiry": 0,
+            "timeout": 300,
             "params": {}
         }}
 
