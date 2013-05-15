@@ -990,6 +990,8 @@ class PlatformAgent(ResourceAgent):
             # separate values and timestamps:
             vals, timestamps = zip(*param_value)
 
+            self._dispatch_value_alerts(stream_name, param_name, vals)
+
             # Use fill_value in context to replace any None values:
             param_ctx = param_dict.get_context(param_name)
             if param_ctx:
@@ -1052,6 +1054,21 @@ class PlatformAgent(ResourceAgent):
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",
                           self._platform_id, stream_name)
+
+    def _dispatch_value_alerts(self, stream_name, param_name, vals):
+        """
+        Dispatches alerts related with the values that were just generated.
+        Note: for convenience at the moment, the AgentAlertManager.process_alerts
+        call is done for each value in the vals list. A future version may include
+        a more elaborated algorithm to analyze the sequence for alert purposes.
+        """
+        for value in vals:
+            if value is not None:
+                log.trace('%r: to call process_alerts: stream_name=%r '
+                          'value_id=%r value=%s',
+                          self._platform_id, stream_name, param_name, value)
+                self._aam.process_alerts(stream_name=stream_name,
+                                         value=value, value_id=param_name)
 
     def _handle_external_event_driver_event(self, driver_event):
 
@@ -3021,26 +3038,6 @@ class PlatformAgent(ResourceAgent):
     ##############################################################
     # Base class overrides for state and cmd error alerts.
     ##############################################################
-
-    # TODO incoporate the following as appropriate
-    """
-    Some version of this code needs to be placed wherever a sample arrives
-    for publication.
-
-       # If the sample event is encoded, load it back to a dict.
-        if isinstance(val, str):
-            val = json.loads(val)
-
-        self._asp.on_sample(val)
-        try:
-            stream_name = val['stream_name']
-            values = val['values']
-            for v in values:
-                value = v['value']
-                value_id = v['value_id']
-                self._aam.process_alerts(stream_name=stream_name,
-                                         value=value, value_id=value_id)
-    """    
 
     def _on_state_enter(self, state):
         if self._aam:
