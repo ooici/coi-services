@@ -176,7 +176,7 @@ class DemoStreamAlertTransform(TransformStreamListener, TransformEventListener, 
             log.debug("Couldn't cancel")
 
     def now_utc(self):
-        return time.mktime(datetime.datetime.utcnow().timetuple())
+        return time.time()
 
     def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
         '''
