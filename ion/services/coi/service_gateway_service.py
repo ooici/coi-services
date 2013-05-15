@@ -8,8 +8,9 @@ from flask import Flask, request, abort
 from gevent.wsgi import WSGIServer
 
 from pyon.public import IonObject, Container, OT
+from pyon.core.object import IonObjectBase
 from pyon.core.exception import NotFound, Inconsistent, BadRequest, Unauthorized
-from pyon.core.registry import getextends, is_ion_object_dict
+from pyon.core.registry import getextends, is_ion_object_dict, issubtype
 from pyon.core.governance import DEFAULT_ACTOR_ID, get_role_message_headers, find_roles_by_actor
 from pyon.core.governance.negotiation import Negotiation
 from pyon.event.event import EventSubscriber
@@ -528,8 +529,23 @@ def create_ion_object(object_params):
 def set_object_field(obj, field, field_val):
     if isinstance(field_val, dict) and field != 'kwargs':
         sub_obj = getattr(obj, field)
-        if isinstance(sub_obj, dict):
+
+        if isinstance(sub_obj, IonObjectBase):
+
+            if field_val.has_key('type_') and field_val['type_'] != sub_obj.type_:
+
+                if issubtype(field_val['type_'] ,sub_obj.type_):
+                    sub_obj = IonObject(field_val['type_'])
+                    setattr(obj, field, sub_obj)
+                else:
+                    raise Inconsistent("Unable to walk the field %s as an IonObject since the types don't match: %s %s", field, sub_obj.type_, field_val['type_'] )
+
+            for sub_field in field_val:
+                set_object_field(sub_obj, sub_field, field_val.get(sub_field))
+
+        elif isinstance(sub_obj, dict):
             setattr(obj, field, field_val)
+
         else:
             for sub_field in field_val:
                 set_object_field(sub_obj, sub_field, field_val.get(sub_field))
