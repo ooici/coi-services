@@ -88,6 +88,7 @@ from ion.services.cei.process_dispatcher_service import ProcessStateGate
 import os
 import time
 import copy
+import pprint
 
 from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 
@@ -322,6 +323,8 @@ class BaseIntTestPlatform(IonIntegrationTestCase, HelperTestMixin):
 
         # instruments that have been set up: instr_key: i_obj
         self._setup_instruments = {}
+
+        self._pp = pprint.PrettyPrinter()
 
     #################################################################
     # data subscribers handling
