@@ -2107,9 +2107,9 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #Test access precondition to deny get_current_state commands but allow all others
         pre_func1 =\
-        """def precondition_func(process, msg, headers):
+        """def precondition_func(process, message, headers):
             from pyon.agent.agent import ResourceAgentEvent
-            if msg['command'].command == ResourceAgentEvent.RESET:
+            if message['command'].command == ResourceAgentEvent.RESET:
                 return False, 'ResourceAgentEvent.RESET is being denied'
             else:
                 return True, ''

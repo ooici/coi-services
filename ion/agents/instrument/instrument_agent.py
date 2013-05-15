@@ -310,6 +310,17 @@ class InstrumentAgent(ResourceAgent):
 
     #TODO - When/If the Instrument and Platform agents are dervied from a
     # common device agent class, then relocate to the parent class and share
+
+    def check_if_direct_access_mode(self, message, headers):
+        try:
+            state = self._fsm.get_current_state()
+            if state == ResourceAgentState.DIRECT_ACCESS:
+                return False, "This operation is unavailable while the agent is in the Direct Access state"
+        except Exception, e:
+            log.warning("Could not determine the state of the agent:", e.message)
+
+        return True
+
     def check_resource_operation_policy(self, process, message, headers):
         '''
         Inst Operators must have a shared commitment to call set_resource(), execute_resource() or ping_resource()
