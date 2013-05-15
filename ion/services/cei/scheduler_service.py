@@ -25,7 +25,7 @@ class SchedulerService(BaseSchedulerService):
         self._no_reschedule = False
 
     def on_start(self):
-        if CFG.get_safe("process.start_mode") == "RESTART":
+        if CFG.get_safe("process.start_mode") == "RESTART" or CFG.get_safe("bootmode") == "restart":
             self.on_system_restart()
         self.pub = EventPublisher(event_type="TimerEvent")
 
