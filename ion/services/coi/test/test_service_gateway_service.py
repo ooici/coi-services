@@ -55,11 +55,18 @@ TEMPORAL_DOMAIN = {'1':u"♣ Temporal Domain ♥",
                    '2Ĕ':u"A test data product Ĕ ∆",
                    3:{'1':u"♣ Temporal Domain ♥", '2Ĕ':u"A test data product Ĕ ∆",
                    4:[u"♣ Temporal Domain ♥", {1:u'one','2Ĕ':u"A test data product Ĕ ∆"}]}}
+
+POLICY_NAME = "Test_Policy"
+POLICY_DESCRIPTION =  "Test Policy creation which includes an internal object"
+POLICY_RULE = "THIS RULE IS FALSE"
+
 def convert_unicode(data):
     if isinstance(data, unicode):
         return str(data.encode('utf8'))
     elif isinstance(data, collections.Mapping):
         return dict(map(convert_unicode, data.iteritems()))
+    elif isinstance(data, basestring):  # Need to check for a string first because a string is also a collections.Iterable
+        return data
     elif isinstance(data, collections.Iterable):
         return type(data)(map(convert_unicode, data))
     else:
@@ -197,6 +204,41 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.check_response_headers(response)
         return response
 
+    def create_policy_resource(self):
+
+
+        policy_create_request = {  "serviceRequest": {
+            "serviceName": "resource_registry",
+            "serviceOp": "create",
+            "params": {
+                "object": {
+                    "definition": {},
+                    "name": POLICY_NAME,
+                    "description": POLICY_DESCRIPTION,
+                    "lcstate": "DRAFT",
+                    "required": True,
+                    "enabled": True,
+                    "type_": "Policy",
+                    "policy_type": {
+                        "policy_rule" : POLICY_RULE,
+                        "service_name": "user_notification",
+                        "type_": "ServiceAccessPolicy"
+                    }
+                }
+
+            }
+        }
+        }
+
+        response = self.test_app.post('/ion-service/resource_registry/create', {'payload': simplejson.dumps(policy_create_request) })
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+        response_data = response.json['data'][GATEWAY_RESPONSE]
+        self.assertEqual(len(response_data), 2 )
+        policy_id = convert_unicode(response_data[0])
+        return policy_id
+
+
 
     @attr('SMOKE')
     def test_anonymous_resource_registry_operations_through_gateway(self):
@@ -290,6 +332,57 @@ class TestServiceGatewayServiceInt(IonIntegrationTestCase):
         self.assertIn(GATEWAY_ERROR, response.json['data'])
         self.assertIn('does not exist', response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_MESSAGE])
         self.assertIsNotNone(response.json['data'][GATEWAY_ERROR][GATEWAY_ERROR_TRACE])
+
+
+        #Now try creating a policy object which has an internal object of a different type
+        policy_id = self.create_policy_resource()
+
+        policy_read_request = {  "serviceRequest": {
+            "serviceName": "resource_registry",
+            "serviceOp": "read",
+            "params": {
+                "object_id": policy_id
+            }
+        }
+        }
+
+        response = self.test_app.post('/ion-service/resource_registry/read', {'payload': simplejson.dumps(policy_read_request) })
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+
+        policy_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
+
+        #Verify the the name and description fields containing unicode characters match all the way through couch and the messaging
+        self.assertEqual(policy_obj['name'], convert_unicode(POLICY_NAME))
+        self.assertEqual(policy_obj['description'], convert_unicode(POLICY_DESCRIPTION))
+        self.assertEqual(policy_obj['policy_type']['policy_rule'], convert_unicode(POLICY_RULE))
+
+
+        updated_policy_rule = policy_obj['policy_type']['policy_rule'] + '---Updated!!'
+
+        #modify some fields in the data for testing update
+        policy_obj['policy_type']['policy_rule'] = updated_policy_rule
+
+        policy_update_request = {
+            "serviceRequest": {
+                "serviceName": "resource_registry",
+                "serviceOp": "update",
+                "params": {
+                    "object": policy_obj
+                }
+            }
+        }
+
+        response = self.test_app.post('/ion-service/resource_registry/update', {'payload': simplejson.dumps(policy_update_request) })
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+
+        response = self.test_app.post('/ion-service/resource_registry/read', {'payload': simplejson.dumps(policy_read_request) })
+        self.check_response_headers(response)
+        self.assertIn(GATEWAY_RESPONSE, response.json['data'])
+
+        updated_policy_obj = convert_unicode(response.json['data'][GATEWAY_RESPONSE])
+        self.assertEqual(updated_policy_obj['policy_type']['policy_rule'], updated_policy_rule )
 
 
         #Now testing the generic get_resource_extension with optional user_id parameter

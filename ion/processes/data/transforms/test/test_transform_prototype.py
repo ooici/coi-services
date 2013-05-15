@@ -56,7 +56,7 @@ class TransformPrototypeIntTest(IonIntegrationTestCase):
             xpi.delete()
 
     def now_utc(self):
-        return time.mktime(datetime.utcnow().timetuple())
+        return time.time()
 
     def _create_interval_timer_with_end_time(self,timer_interval= None, end_time = None ):
         '''

@@ -76,4 +76,7 @@ class DMTestCase(IonIntegrationTestCase):
         self.addCleanup(self.data_product_management.delete_data_product, data_product_id)
         return data_product_id
 
+    def activate_data_product(self, data_product_id):
+        self.data_product_management.activate_data_product_persistence(data_product_id)
+        self.addCleanup(self.data_product_management.suspend_data_product_persistence, data_product_id)
 

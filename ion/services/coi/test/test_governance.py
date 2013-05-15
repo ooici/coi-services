@@ -1843,7 +1843,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #This agent operation should not be allowed for a user that is not an Instrument Operator
         with self.assertRaises(Unauthorized) as cm:
-            params = SBE37Parameter.ALL
+            params = [SBE37Parameter.ALL]
             retval = ia_client.get_resource(params, headers=actor_header)
         self.assertIn('InstrumentDevice(get_resource) has been denied',cm.exception.message)
 
@@ -1884,7 +1884,7 @@ class TestGovernanceInt(IonIntegrationTestCase):
 
         #This operation should now be allowed with the Instrument Operator role
         with self.assertRaises(Conflict) as cm:
-            params = SBE37Parameter.ALL
+            params = [SBE37Parameter.ALL]
             retval = ia_client.get_resource(params, headers=actor_header)
 
         #Instrument Operator role get extended is allowed and contain agent status information
