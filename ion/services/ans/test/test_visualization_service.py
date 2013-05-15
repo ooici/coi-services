@@ -5,6 +5,7 @@ __license__ = 'Apache 2.0'
 
 import unittest, os
 import gevent
+import simplejson
 from mock import patch
 import logging
 from pyon.net.endpoint import Subscriber
@@ -307,7 +308,11 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         ctd_sim_pid = self.start_sinusoidal_input_stream_process(ctd_stream_id)
 
         vis_params ={}
-        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id, visualization_parameters=vis_params)
+        vis_token_resp = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id, visualization_parameters=simplejson.dumps(vis_params))
+        print ">>>>>>>>>>>>>>>>>>> vis_token_resp : ", vis_token_resp
+
+        import ast
+        vis_token = ast.literal_eval(vis_token_resp)["rt_query_token"]
 
         result = gevent.event.AsyncResult()
 
@@ -371,13 +376,13 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Start up a number of requests - and queues - to start accumulating messages. THe test will not clean them up
         #but instead check to see if the monitoring thread will.
-        bad_vis_token1 = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+        bad_vis_token1 = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
 
-        bad_vis_token2 = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+        bad_vis_token2 = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
 
-        bad_vis_token3 = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+        bad_vis_token3 = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
 
-        vis_token = self.vis_client.initiate_realtime_visualization(data_product_id=ctd_parsed_data_product_id)
+        vis_token = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
 
         #Get the default exchange space
         exchange = self.container.ex_manager.default_xs.exchange
@@ -464,8 +469,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Turning off after everything - since it is more representative of an always on stream of data!
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
+        viz_params={'query_type': 'google_dt'}
         # Use the data product to test the data retrieval and google dt generation capability of the vis service
-        vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id)
+        vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
 
         # validate the returned data
         self.validate_vis_service_google_dt_results(vis_data)
@@ -484,8 +490,9 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         #Turning off after everything - since it is more representative of an always on stream of data!
         self.process_dispatcher.cancel_process(ctd_sim_pid) # kill the ctd simulator process - that is enough data
 
+        viz_params={'query_type': 'mpl_image'}
         # Use the data product to test the data retrieval and google dt generation capability of the vis service
-        vis_data = self.vis_client.get_visualization_image(ctd_parsed_data_product_id)
+        vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
 
         # validate the returned data
         self.validate_vis_service_mpl_graphs_results(vis_data)
