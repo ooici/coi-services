@@ -267,7 +267,7 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         @throws BadReqeust if the incoming name already exists
         """
 
-        instrument_agent_instance_id = self.RR2.create(instrument_agent_instance, RT.InstrumentAgentInstance)
+        instrument_agent_instance_id = self.create_instrument_agent_instance_(instrument_agent_instance)
 
         if instrument_agent_id:
             self.assign_instrument_agent_to_instrument_agent_instance(instrument_agent_id, instrument_agent_instance_id)
@@ -279,6 +279,16 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return instrument_agent_instance_id
 
+    def create_instrument_agent_instance_(self, instrument_agent_instance=None):
+        """
+        create a new instance
+        @param instrument_agent_instance the object to be created as a resource
+        @retval instrument_agent_instance_id the id of the new object
+        @throws BadRequest if the incoming _id field is set
+        @throws BadReqeust if the incoming name already exists
+        """
+
+        return self.RR2.create(instrument_agent_instance, RT.InstrumentAgentInstance)
 
     def update_instrument_agent_instance(self, instrument_agent_instance=None):
         """
@@ -1897,6 +1907,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'unassign_instrument_model_from_instrument_device', { "instrument_model_id":  "$(instrument_model_id)",
                                                                 "instrument_device_id":  instrument_device_id })
 
+        #There can be multiple instruments to a platform
+        resource_data.associations['SensorDevice'].multiple_associations = True
+
         #Fill out service request information for assigning a sensor
         extended_resource_handler.set_service_requests(resource_data.associations['SensorDevice'].assign_request, 'instrument_management',
             'assign_sensor_device_to_instrument_device', { "sensor_device_id":  "$(sensor_device_id)",
@@ -1910,6 +1923,54 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         return resource_data
 
+    def prepare_instrument_agent_instance_support(self, instrument_agent_instance_id=''):
+        """
+        Returns the object containing the data to create/update an instrument agent instance resource
+        """
+
+        #TODO - does this have to be filtered by Org ( is an Org parameter needed )
+        extended_resource_handler = ExtendedResourceContainer(self)
+
+        resource_data = extended_resource_handler.create_prepare_resource_support(instrument_agent_instance_id, OT.InstrumentAgentInstancePrepareSupport)
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.create_request, 'instrument_management',
+            'create_instrument_agent_instance', { "instrument_agent_instance":  "$(instrument_agent_instance)" })
+
+        #Fill out service request information for creating a instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.update_request, 'instrument_management',
+            'update_instrument_agent_instance', { "instrument_agent_instance":  "$(instrument_agent_instance)" })
+
+        #Fill out service request information for starting an instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.start_request, 'instrument_management',
+            'start_instrument_agent_instance', { "instrument_agent_instance_id":  "$(instrument_agent_instance_id)" })
+
+        #Fill out service request information for starting an instrument agent instance
+        extended_resource_handler.set_service_requests(resource_data.stop_request, 'instrument_management',
+            'stop_instrument_agent_instance', { "instrument_agent_instance_id":  "$(instrument_agent_instance_id)" })
+
+        #Fill out service request information for assigning a InstrumentDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request, 'instrument_management',
+            'assign_instrument_agent_instance_to_instrument_device', { "instrument_device_id":  "$(instrument_device_id)",
+                                                              "instrument_agent_instance_id":  instrument_agent_instance_id })
+
+        #Fill out service request information for unassigning a InstrumentDevice
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].unassign_request, 'instrument_management',
+            'unassign_instrument_agent_instance_to_instrument_device', { "instrument_device_id":  "$(instrument_device_id)",
+                                                                  "instrument_agent_instance_id":  instrument_agent_instance_id })
+
+        #Fill out service request information for assigning a InstrumentAgent
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgent'].assign_request, 'instrument_management',
+            'assign_instrument_agent_to_instrument_agent_instance', { "instrument_agent_id":  "$(instrument_agent_id)",
+                                                           "instrument_agent_instance_id":  instrument_agent_instance_id })
+
+        #Fill out service request information for unassigning a InstrumentAgent
+        extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgent'].unassign_request, 'instrument_management',
+            'unassign_instrument_agent_to_instrument_agent_instance', { "instrument_agent_id":  "$(instrument_agent_id)",
+                                                               "instrument_agent_instance_id":  instrument_agent_instance_id })
+
+
+        return resource_data
 
     def prepare_platform_device_support(self, platform_device_id=''):
         """
@@ -1920,7 +1981,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         extended_resource_handler = ExtendedResourceContainer(self)
 
         resource_data = extended_resource_handler.create_prepare_resource_support(platform_device_id, OT.PlatformDevicePrepareSupport)
-
 
         #Fill out service request information for creating a platform device
         extended_resource_handler.set_service_requests(resource_data.create_request, 'instrument_management',
@@ -1940,6 +2000,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         extended_resource_handler.set_service_requests(resource_data.associations['PlatformModel'].unassign_request, 'instrument_management',
             'unassign_platform_model_from_platform_device', {  "platform_model_id":  "$(platform_model_id)",
                                                              "platform_device_id":  platform_device_id})
+
+        #There can be multiple instruments to a platform
+        resource_data.associations['InstrumentDevice'].multiple_associations = True
 
         #Fill out service request information for assigning an instrument
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request, 'instrument_management',

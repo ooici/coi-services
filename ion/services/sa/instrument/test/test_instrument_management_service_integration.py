@@ -26,7 +26,7 @@ from interface.services.sa.idata_acquisition_management_service import DataAcqui
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StreamConfiguration
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 
-from pyon.public import RT, PRED, CFG, OT
+from pyon.public import RT, PRED, CFG, OT, LCE
 from nose.plugins.attrib import attr
 from ooi.logging import log
 import unittest, simplejson
@@ -742,6 +742,12 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
         sensor_model_id, _ =               self.RR.create(any_old(RT.SensorModel))
 
+        instrument_device2_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
+        instrument_device3_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
+
+        platform_device2_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
+        sensor_device2_id, _ =              self.RR.create(any_old(RT.SensorDevice))
+
         #stuff we associate to
         data_producer_id, _      = self.RR.create(any_old(RT.DataProducer))
         org_id, _ =                self.RR.create(any_old(RT.Org))
@@ -759,6 +765,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(instrument_device_id, PRED.hasDevice, sensor_device_id)
         self.RR.create_association(org_id, PRED.hasResource, instrument_device_id)
 
+        self.RR.create_association(instrument_device2_id, PRED.hasModel, instrument_model_id)
+        self.RR.create_association(org_id, PRED.hasResource, instrument_device2_id)
+
 
         instrument_model_id #is only a target
 
@@ -773,13 +782,29 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
         self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
+        self.RR.create_association(platform_device2_id, PRED.hasModel, platform_model_id)
+        self.RR.create_association(platform_device2_id, PRED.hasDevice, instrument_device2_id)
+
         platform_model_id #is only a target
 
         #sensor_device
         self.RR.create_association(sensor_device_id, PRED.hasModel, sensor_model_id)
         self.RR.create_association(sensor_device_id, PRED.hasDevice, instrument_device_id)
 
+        self.RR.create_association(sensor_device2_id, PRED.hasModel, sensor_model_id)
+        self.RR.create_association(sensor_device2_id, PRED.hasDevice, instrument_device2_id)
+
         sensor_model_id #is only a target
+
+        #set lcstate - used for testing prepare - not setting all to DEVELOP, only some
+        self.RR.execute_lifecycle_transition(instrument_agent_id, LCE.DEVELOP)
+        self.RR.execute_lifecycle_transition(instrument_device_id, LCE.DEVELOP)
+        self.RR.execute_lifecycle_transition(instrument_device2_id, LCE.DEVELOP)
+        self.RR.execute_lifecycle_transition(platform_device_id, LCE.DEVELOP)
+        self.RR.execute_lifecycle_transition(platform_device2_id, LCE.DEVELOP)
+        self.RR.execute_lifecycle_transition(platform_agent_id, LCE.DEVELOP)
+
+
 
         #create a parsed product for this instrument output
         tdom, sdom = time_series_domain()
@@ -833,8 +858,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(instrument_data.associations['InstrumentAgent'].associated_resources), 1)
         self.assertEqual(instrument_data.associations['InstrumentAgent'].associated_resources[0].o, instrument_model_id)
         self.assertEqual(instrument_data.associations['InstrumentAgent'].associated_resources[0].s, instrument_agent_id)
-        self.assertEqual(len(instrument_data.associations['SensorDevice'].resources), 1)
-        self.assertEqual(instrument_data.associations['SensorDevice'].resources[0]._id, sensor_device_id)
+        self.assertEqual(len(instrument_data.associations['SensorDevice'].resources), 0)
 
 
 
@@ -864,6 +888,41 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(instrument_data.associations['InstrumentModel'].assign_request.request_parameters['instrument_device_id'], instrument_device_id)
 
 
+        #test prepare for create of instrument agent instance
+        instrument_agent_data = self.IMS.prepare_instrument_agent_instance_support()
+
+        #print 'Update results'
+        #print simplejson.dumps(instrument_agent_data, default=ion_object_encoder, indent=2)
+
+        self.assertEqual(instrument_agent_data._id, '')
+        self.assertEqual(instrument_agent_data.type_, OT.InstrumentAgentInstancePrepareSupport)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentDevice'].resources), 1)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentAgent'].resources), 1)
+        self.assertEqual(instrument_agent_data.associations['InstrumentAgent'].resources[0]._id, instrument_agent_id)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentDevice'].associated_resources), 0)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentAgent'].associated_resources), 0)
+
+
+        #test prepare for update of instrument agent instance to see if it is associated with the instrument that was created
+        instrument_agent_data = self.IMS.prepare_instrument_agent_instance_support(instrument_agent_instance_id=instrument_agent_instance_id)
+
+        #print 'Update results'
+        #print simplejson.dumps(instrument_agent_data, default=ion_object_encoder, indent=2)
+
+        self.assertEqual(instrument_agent_data._id, instrument_agent_instance_id)
+        self.assertEqual(instrument_agent_data.type_, OT.InstrumentAgentInstancePrepareSupport)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentDevice'].resources), 2)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentAgent'].resources), 1)
+        self.assertEqual(instrument_agent_data.associations['InstrumentAgent'].resources[0]._id, instrument_agent_id)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentDevice'].associated_resources), 1)
+        self.assertEqual(instrument_agent_data.associations['InstrumentDevice'].associated_resources[0].s, instrument_device_id)
+        self.assertEqual(instrument_agent_data.associations['InstrumentDevice'].associated_resources[0].o, instrument_agent_instance_id)
+        self.assertEqual(len(instrument_agent_data.associations['InstrumentAgent'].associated_resources), 1)
+        self.assertEqual(instrument_agent_data.associations['InstrumentAgent'].associated_resources[0].o, instrument_agent_id)
+        self.assertEqual(instrument_agent_data.associations['InstrumentAgent'].associated_resources[0].s, instrument_agent_instance_id)
+        self.assertEqual(instrument_agent_data.associations['InstrumentAgent'].assign_request.request_parameters['instrument_agent_instance_id'], instrument_agent_instance_id)
+
+
         #test prepare for update of data product to see if it is associated with the instrument that was created
         data_product_data = self.DP.prepare_data_product_support(data_product_id1)
 
@@ -880,16 +939,18 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         self.assertEqual(len(data_product_data.associations['Dataset'].associated_resources), 0)
 
-        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].resources), 1)
+        self.assertEqual(len(data_product_data.associations['InstrumentDevice'].resources), 2)
 
         self.assertEqual(len(data_product_data.associations['InstrumentDevice'].associated_resources), 1)
         self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].s, instrument_device_id)
         self.assertEqual(data_product_data.associations['InstrumentDevice'].associated_resources[0].o, data_product_id1)
 
-        self.assertEqual(len(data_product_data.associations['PlatformDevice'].resources), 1)
+        self.assertEqual(len(data_product_data.associations['PlatformDevice'].resources), 2)
 
 
         platform_data = self.IMS.prepare_platform_device_support()
+
+        #print simplejson.dumps(platform_data, default=ion_object_encoder, indent=2)
 
         self.assertEqual(platform_data._id, '')
         self.assertEqual(platform_data.type_, OT.PlatformDevicePrepareSupport)
@@ -901,8 +962,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.assertEqual(len(platform_data.associations['PlatformAgent'].associated_resources), 1)
         self.assertEqual(platform_data.associations['PlatformAgent'].associated_resources[0].o, platform_model_id)
         self.assertEqual(platform_data.associations['PlatformAgent'].associated_resources[0].s, platform_agent_id)
-        self.assertEqual(len(platform_data.associations['InstrumentDevice'].resources), 1)
-        self.assertEqual(platform_data.associations['InstrumentDevice'].resources[0]._id, instrument_device_id)
+        self.assertEqual(len(platform_data.associations['InstrumentDevice'].resources), 0)
 
         platform_data = self.IMS.prepare_platform_device_support(platform_device_id)
 
@@ -936,14 +996,18 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR2.pluck(instrument_device_id)
         self.RR2.pluck(platform_agent_id)
         self.RR2.pluck(sensor_device_id)
+        self.RR2.pluck(sensor_device2_id)
         self.IMS.force_delete_instrument_agent(instrument_agent_id)
         self.IMS.force_delete_instrument_model(instrument_model_id)
         self.IMS.force_delete_instrument_device(instrument_device_id)
+        self.IMS.force_delete_instrument_device(instrument_device2_id)
         self.IMS.force_delete_platform_agent_instance(platform_agent_instance_id)
         self.IMS.force_delete_platform_agent(platform_agent_id)
         self.IMS.force_delete_platform_device(platform_device_id)
+        self.IMS.force_delete_platform_device(platform_device2_id)
         self.IMS.force_delete_platform_model(platform_model_id)
         self.IMS.force_delete_sensor_device(sensor_device_id)
+        self.IMS.force_delete_sensor_device(sensor_device2_id)
         self.IMS.force_delete_sensor_model(sensor_model_id)
 
         #stuff we associate to
