@@ -1747,6 +1747,12 @@ class InstrumentManagementService(BaseInstrumentManagementService):
         if t:
             t.complete_step('ims.platform_device_extension.index')
 
+#        # add portals, sites related to platforms
+        if extended_platform.platforms and not extended_platform.portals:
+            extended_platform.portals = RR2.find_objects(object_type=RT.InstrumentSite, predicate=PRED.hasSite, subject=extended_platform.platforms[0]._id)
+            if extended_platform.portals:
+                log.warn('compound association failed, manual workaround found %d portals', len(extended_platform.portals))
+
         # use the related resources crawler to get ALL sub-devices
         finder = RelatedResourcesCrawler()
         get_assns = finder.generate_related_resources_partial(RR2, [PRED.hasDevice])
@@ -1775,11 +1781,9 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         def csl(device_id_list):
             return self.agent_status_builder.compute_status_list(statuses, device_id_list)
-
         log.debug("Building instrument and platform status dicts")
         extended_platform.computed.instrument_status = csl([dev._id for dev in extended_platform.instrument_devices])
         extended_platform.computed.platform_status   = csl([dev._id for dev in extended_platform.platforms])
-
 
         log.debug("Building network rollups")
         rollx_builder = RollXBuilder(self)
