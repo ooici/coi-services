@@ -440,10 +440,14 @@ class LoadSystemPolicy(ImmediateProcess):
 
             <Condition>
                 <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                        </Apply>
                         <ActionAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
                     </Apply>
                 </Apply>
             </Condition>
@@ -562,13 +566,18 @@ class LoadSystemPolicy(ImmediateProcess):
 
             <Condition>
                 <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                        </Apply>
                         <ActionAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
                     </Apply>
                 </Apply>
             </Condition>
+
 
 
         </Rule> '''
@@ -736,10 +745,14 @@ class LoadSystemPolicy(ImmediateProcess):
 
             <Condition>
                 <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:not">
-                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-equal">
-                        <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+
+                    <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-at-least-one-member-of">
+                        <Apply FunctionId="urn:oasis:names:tc:xacml:1.0:function:string-bag">
+                            <AttributeValue DataType="http://www.w3.org/2001/XMLSchema#string">DELETE</AttributeValue>
+                        </Apply>
                         <ActionAttributeDesignator
-                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb" DataType="http://www.w3.org/2001/XMLSchema#string"/>
+                             AttributeId="urn:oasis:names:tc:xacml:1.0:action:action-verb"
+                             DataType="http://www.w3.org/2001/XMLSchema#string"/>
                     </Apply>
                 </Apply>
             </Condition>
@@ -1394,4 +1407,28 @@ LCS
             'Call the check_agent_operation_policy operation in the Platform Agent',
             policy_text, headers=sa_user_header)
 
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='get_resource',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='set_resource',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='execute_resource',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.InstrumentDevice, op='get_capabilities',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='get_resource',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='set_resource',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='execute_resource',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
+
+        pol_id = policy_client.add_process_operation_precondition_policy(process_name=RT.PlatformDevice, op='get_capabilities',
+            policy_content='check_if_direct_access_mode', headers=sa_user_header )
 

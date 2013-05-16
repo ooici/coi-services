@@ -34,7 +34,7 @@ from ion.agents.platform.platform_driver_event import StateChangeDriverEvent
 from ion.agents.platform.platform_driver_event import AsyncAgentEvent
 from ion.agents.platform.exceptions import CannotInstantiateDriverException
 from ion.agents.platform.util.network_util import NetworkUtil
-#-from ion.agents.agent_alert_manager import AgentAlertManager
+from ion.agents.agent_alert_manager import AgentAlertManager
 
 from ion.agents.platform.platform_driver import PlatformDriverEvent, PlatformDriverState
 
@@ -136,6 +136,22 @@ class PlatformAgentCapability(BaseEnum):
     STOP_MONITORING           = PlatformAgentEvent.STOP_MONITORING
 
 
+class PlatformAgentAlertManager(AgentAlertManager):
+    """
+    Overwrites _update_aggstatus and do appropriate handling.
+    """
+    def _update_aggstatus(self, aggregate_type, new_status):
+        """
+        Called to set a new status value for an aggstatus type.
+        Note that an update to an aggstatus in a platform does not trigger
+        any event publication by itself. Rather, this update may cascade to
+        an update of the corresponding rollup_status, in which case an event
+        does get published. StatusManager takes care of that handling.
+        """
+        log.debug("%r: _update_aggstatus called", self._agent._platform_id)
+        self._agent._status_manager.set_aggstatus(aggregate_type, new_status)
+
+
 class PlatformAgent(ResourceAgent):
     """
     Platform resource agent.
@@ -212,9 +228,16 @@ class PlatformAgent(ResourceAgent):
         # List of current alarm objects.
         self.aparam_alerts = []
 
+        # The get/set helpers are set by AgentAlertManager.
+        self.aparam_get_alerts = None
+        self.aparam_set_alerts = None
+
         # dict of aggregate statuses for the platform itself (depending on its
         # own attributes and ports)
         self.aparam_aggstatus = {}
+
+        # Agent alert manager.
+        self._aam = None
 
         # dict of aggregate statuses for all descendants (immediate children
         # and all their descendants)
@@ -237,19 +260,12 @@ class PlatformAgent(ResourceAgent):
         # State when lost.
         self._state_when_lost = None
 
-        # Agent alert manager.
-        self._aam = None
-
         log.info("PlatformAgent constructor complete.")
 
         # for debugging purposes
         self._pp = pprint.PrettyPrinter()
 
     def on_init(self):
-        
-        #- Set up alert manager.
-        #- self._aam = AgentAlertManager(self)
-        
         super(PlatformAgent, self).on_init()
         log.trace("on_init")
 
@@ -272,14 +288,17 @@ class PlatformAgent(ResourceAgent):
     def on_start(self):
         """
         - Validates the given configuration and does related preparations.
-        - Starts event subscribers
+        - creates AgentAlertManager and StatusManager
         - Children agents (platforms and instruments) are launched here (in a
-          separate greenlet) if that's the mode of operation.
+          separate greenlet).
         """
         super(PlatformAgent, self).on_start()
         log.info('platform agent is running: on_start called.')
 
         self._validate_configuration()
+
+        # Set up alert manager.
+        self._aam = PlatformAgentAlertManager(self)
 
         # create StatusManager now that we have all needed elements:
         self._status_manager = StatusManager(self)
@@ -450,7 +469,6 @@ class PlatformAgent(ResourceAgent):
 
         finally:
             super(PlatformAgent, self).on_quit()
-            #- self._aam.stop_all()
 
     def _do_quit(self):
         """
@@ -462,6 +480,8 @@ class PlatformAgent(ResourceAgent):
         log.info("%r: PlatformAgent: executing quit secuence", self._platform_id)
 
         self._status_manager.destroy()
+
+        self._aam.stop_all()
 
         self._bring_to_uninitialized_state(recursion=False)
 
@@ -612,6 +632,17 @@ class PlatformAgent(ResourceAgent):
 
     #TODO - When/If the Instrument and Platform agents are dervied from a
     # common device agent class, then relocate to the parent class and share
+
+    def check_if_direct_access_mode(self, message, headers):
+        try:
+            state = self._fsm.get_current_state()
+            if state == ResourceAgentState.DIRECT_ACCESS:
+                return False, "This operation is unavailable while the agent is in the Direct Access state"
+        except Exception, e:
+            log.warning("Could not determine the state of the agent:", e.message)
+
+        return True
+
     def check_resource_operation_policy(self, process, message, headers):
         '''
         Inst Operators must have a shared commitment to call set_resource(), execute_resource() or ping_resource()
@@ -970,6 +1001,8 @@ class PlatformAgent(ResourceAgent):
             # separate values and timestamps:
             vals, timestamps = zip(*param_value)
 
+            self._dispatch_value_alerts(stream_name, param_name, vals)
+
             # Use fill_value in context to replace any None values:
             param_ctx = param_dict.get_context(param_name)
             if param_ctx:
@@ -1032,6 +1065,21 @@ class PlatformAgent(ResourceAgent):
         except:
             log.exception("%r: Platform agent could not publish data on stream %s.",
                           self._platform_id, stream_name)
+
+    def _dispatch_value_alerts(self, stream_name, param_name, vals):
+        """
+        Dispatches alerts related with the values that were just generated.
+        Note: for convenience at the moment, the AgentAlertManager.process_alerts
+        call is done for each value in the vals list. A future version may include
+        a more elaborated algorithm to analyze the sequence for alert purposes.
+        """
+        for value in vals:
+            if value is not None:
+                log.trace('%r: to call process_alerts: stream_name=%r '
+                          'value_id=%r value=%s',
+                          self._platform_id, stream_name, param_name, value)
+                self._aam.process_alerts(stream_name=stream_name,
+                                         value=value, value_id=param_name)
 
     def _handle_external_event_driver_event(self, driver_event):
 
@@ -1430,9 +1478,16 @@ class PlatformAgent(ResourceAgent):
 
             try:
                 self._execute_platform_agent(pa_client, cmd, subplatform_id)
-            except:
-                err_msg = "%r: exception executing command %r in subplatform %r" % (
-                          self._platform_id, command, subplatform_id)
+
+            except FSMStateError as e:
+                err_msg = "%r: subplatform %r: FSMStateError for command %r: %s" % (
+                          self._platform_id, subplatform_id, command, e)
+                log.warn(err_msg)
+                return err_msg
+
+            except Exception as e:
+                err_msg = "%r: exception executing command %r in subplatform %r: %s" % (
+                          self._platform_id, command, subplatform_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -1444,9 +1499,9 @@ class PlatformAgent(ResourceAgent):
                               self._platform_id, expected_state, state)
                     log.error(err_msg)
                     return err_msg
-            except:
-                err_msg = "%r: exception while calling get_agent_state to subplatform %r" % (
-                          self._platform_id, subplatform_id)
+            except Exception as e:
+                err_msg = "%r: exception while calling get_agent_state to subplatform %r: %s" % (
+                          self._platform_id, subplatform_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -1918,15 +1973,21 @@ class PlatformAgent(ResourceAgent):
             ia_client = self._ia_clients[instrument_id].ia_client
 
             try:
-                retval = self._execute_instrument_agent(ia_client, cmd,
-                                                        instrument_id)
-            except:
-                err_msg = "%r: exception executing command %r in instrument %r" % (
-                          self._platform_id, command, instrument_id)
+                self._execute_instrument_agent(ia_client, cmd,
+                                               instrument_id)
+            except FSMStateError as e:
+                err_msg = "%r: instrument %r: FSMStateError for command %r: %s" % (
+                          self._platform_id, instrument_id, command, e)
+                log.warn(err_msg)
+                return err_msg
+
+            except Exception as e:
+                err_msg = "%r: exception executing command %r in instrument %r: %s" % (
+                          self._platform_id, command, instrument_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
-            # verify state:
+            # verify expected_state if given:
             try:
                 state = ia_client.get_agent_state()
                 if expected_state and expected_state != state:
@@ -1935,9 +1996,9 @@ class PlatformAgent(ResourceAgent):
                     log.error(err_msg)
                     return err_msg
 
-            except:
-                err_msg = "%r: exception while calling get_agent_state to instrument %r" % (
-                          self._platform_id, instrument_id)
+            except Exception as e:
+                err_msg = "%r: exception while calling get_agent_state to instrument %r: %s" % (
+                          self._platform_id, instrument_id, e)
                 log.exception(err_msg) #, exc_Info=True)
                 return err_msg
 
@@ -2986,63 +3047,18 @@ class PlatformAgent(ResourceAgent):
         return next_state, result
 
     ##############################################################
-    # Agent parameter functions.
-    ##############################################################
-
-    def aparam_set_aggstatus(self, params):
-        """
-        Sets the "aggstatus" for a particular status name.
-
-        @params a dict indicating the status value for each desired status type
-        """
-
-        # TODO align the return codes with the expected API for
-        # aparam_set_xxx  (which is not very clear from looking at
-        # InstrumentAgent or ResourceAgent at this moment).
-
-        if not isinstance(params, dict):
-            return -1
-
-        log.debug("%r: aparam_set_aggstatus: params=%s",
-                  self._platform_id, params)
-
-        for status_name, status in params.iteritems():
-            retval = self._status_manager.set_aggstatus(status_name, status)
-            if retval != 0:
-                return retval
-
-        return 0
-
-    ##############################################################
     # Base class overrides for state and cmd error alerts.
     ##############################################################
 
-    """
-    Some version of this code needs to be placed wherever a sample arrives
-    for publication.
+    def _on_state_enter(self, state):
+        if self._aam:
+            self._aam.process_alerts(state=state)
 
-       # If the sample event is encoded, load it back to a dict.
-        if isinstance(val, str):
-            val = json.loads(val)
-
-        self._asp.on_sample(val)
-        try:
-            stream_name = val['stream_name']
-            values = val['values']
-            for v in values:
-                value = v['value']
-                value_id = v['value_id']
-                self._aam.process_alerts(stream_name=stream_name,
-                                         value=value, value_id=value_id)
-    """    
-
-    #- def _on_state_enter(self, state):
-    #-     self._aam.process_alerts(state=state)
-    #-
-    #- def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
-    #-     self._aam.process_alerts(command=execute_cmd, command_success=False)
-    #-     super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
-    #-                                                    kwargs, ex)
+    def _on_command_error(self, cmd, execute_cmd, args, kwargs, ex):
+        if self._aam:
+            self._aam.process_alerts(command=execute_cmd, command_success=False)
+        super(PlatformAgent, self)._on_command_error(cmd, execute_cmd, args,
+                                                     kwargs, ex)
 
     ##############################################################
     # FSM setup.

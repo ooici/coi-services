@@ -331,10 +331,10 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         if self._ia_client is None:
             return
 
-        state = self._ia_client.get_agent_state()
+        state = self._ia_client.get_agent_state(timeout=120)
         if state != ResourceAgentState.UNINITIALIZED:
             cmd = AgentCommand(command=ResourceAgentEvent.RESET)
-            retval = self._ia_client.execute_agent(cmd)
+            retval = self._ia_client.execute_agent(cmd,timeout=300)
             
     ###############################################################################
     # Event helpers.
@@ -388,12 +388,15 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
 
         stream_name = 'parsed'
         param_dict_name = 'ctd_parsed_param_dict'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        pd_id = dataset_management.read_parameter_dictionary_by_name(
+                    param_dict_name, id_only=True,timeout=120)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name,
+                    parameter_dictionary_id=pd_id)
+        pd = pubsub_client.read_stream_definition(stream_def_id,timeout=120).parameter_dictionary
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
-                                                stream_definition_id=stream_def_id)
+                                                stream_definition_id=stream_def_id,
+                                                timeout=120)
         stream_config = dict(stream_route=stream_route,
                                  routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
@@ -404,12 +407,15 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
 
         stream_name = 'raw'
         param_dict_name = 'ctd_raw_param_dict'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
-        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
+        pd_id = dataset_management.read_parameter_dictionary_by_name(
+            param_dict_name, id_only=True,timeout=120)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name,
+                        parameter_dictionary_id=pd_id,timeout=120)
+        pd = pubsub_client.read_stream_definition(stream_def_id,timeout=120).parameter_dictionary
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
-                                                stream_definition_id=stream_def_id)
+                                                stream_definition_id=stream_def_id,
+                                                timeout=120)
         stream_config = dict(stream_route=stream_route,
                                  routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
@@ -455,8 +461,8 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         sub = StandaloneStreamSubscriber(exchange_name, recv_data)
         sub.start()
         self._data_subscribers.append(sub)
-        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-        pubsub_client.activate_subscription(sub_id)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id],timeout=120)
+        pubsub_client.activate_subscription(sub_id,timeout=120)
         sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
         
         stream_name = 'raw'
@@ -468,8 +474,8 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
         sub = StandaloneStreamSubscriber(exchange_name, recv_raw_data)
         sub.start()
         self._data_subscribers.append(sub)
-        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id])
-        pubsub_client.activate_subscription(sub_id)
+        sub_id = pubsub_client.create_subscription(name=exchange_name, stream_ids=[stream_id],timeout=120)
+        pubsub_client.activate_subscription(sub_id,timeout=120)
         sub.subscription_id = sub_id # Bind the subscription to the standalone subscriber (easier cleanup, not good in real practice)
 
     def _purge_queue(self, queue):
@@ -481,10 +487,10 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
             pubsub_client = PubsubManagementServiceClient()
             if hasattr(subscriber,'subscription_id'):
                 try:
-                    pubsub_client.deactivate_subscription(subscriber.subscription_id)
+                    pubsub_client.deactivate_subscription(subscriber.subscription_id,timeout=120)
                 except:
                     pass
-                pubsub_client.delete_subscription(subscriber.subscription_id)
+                pubsub_client.delete_subscription(subscriber.subscription_id,timeout=120)
             subscriber.stop()
 
     ###############################################################################
@@ -695,18 +701,23 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
                 try:
                     gevent.sleep(.5)
                     test._ia_client.execute_resource(cmd)
-                except IonException:
+                except IonException as ex:
+                    # This exception could be ResourceException (broken pipe)
+                    # Timeout or Conflict
+                    log.info('#### pre shutdown exception: %s, %s', str(type(ex)), str(ex))
                     break
-                
+                    
             while True:
                 try:
                     gevent.sleep(.5)
                     test._ia_client.execute_resource(cmd)
+                    log.info('#### post shutdown got new sample.')
                     break
-                except IonException:
-                    pass
+                except IonException as ex:
+                    # This should be conflict.
+                    log.info('#### post shutdown exception: %s, %s', str(type(ex)), str(ex))
                 
-        timeout = gevent.Timeout(240)
+        timeout = gevent.Timeout(300)
         timeout.start()
         try:
 
@@ -718,7 +729,7 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
             self._support.stop_pagent()
 
             # Wait for a while, the supervisor is restarting the port agent.
-            gevent.sleep(5)
+            gevent.sleep(10)
             self._support.start_pagent()
             
             # Wait for the device to connect and start sampling again.
@@ -730,7 +741,8 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
             if gl:
                 gl.kill()
                 gl = None
-            self.fail('Could not reconnect to device: '+str(ex))
+            self.fail(('Could not reconnect to device: %s,  %s',
+                      str(type(ex)), str(ex)))
 
     def test_connect_failed(self):
         """

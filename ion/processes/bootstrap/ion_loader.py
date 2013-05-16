@@ -103,7 +103,7 @@ CANDIDATE_UI_ASSETS = 'https://userexperience.oceanobservatories.org/database-ex
 MASTER_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdG82NHZfSEJJOGdQTkgzb05aRjkzMEE&output=xls"
 
 ### the URL below should point to a COPY of the master google spreadsheet that works with this version of the loader
-TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AttCeOvLP6XMdGotRnl2dDRicW1uekhmMWQ4d25fM0E&output=xls"
+TESTED_DOC = "https://docs.google.com/spreadsheet/pub?key=0AgkUKqO5m-ZidDc3aUdXb3VNWXE1dEdrWklhYXpOZUE&output=xls"
 #
 ### while working on changes to the google doc, use this to run test_loader.py against the master spreadsheet
 #TESTED_DOC=MASTER_DOC
@@ -117,6 +117,7 @@ DEFAULT_CATEGORIES = [
     'Contact',                          # in memory only - all scenarios loaded
     'User',
     'Org',
+    #'Policy',
     'UserRole',                         # no resource - association only
     'CoordinateSystem',                 # in memory only - all scenarios loaded
     'ParameterFunctions',
@@ -135,12 +136,12 @@ DEFAULT_CATEGORIES = [
     'PlatformAgent',
     'PlatformAgentInstance',
     'InstrumentAgent',
+    'InstrumentDevice',
     'ExternalDataProvider',
     'ExternalDatasetModel',
     'ExternalDataset',
     'ExternalDatasetAgent',
     'ExternalDatasetAgentInstance',
-    'InstrumentDevice',
     'InstrumentAgentInstance',
     'DataProduct',
     'TransformFunction',
@@ -1005,6 +1006,72 @@ class IONLoader(ImmediateProcess):
         start = str(calendar.timegm(time.strptime(row['start'], format)))
         end = str(calendar.timegm(time.strptime(row['end'], format)))
         return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
+
+
+    def _load_Policy(self, row):
+        if not self.CFG.get_safe("system.load_policy", False):
+            return
+
+        policy_obj = self._create_object_from_row("Policy", row, "p/")
+
+        pms_client = self._get_service_client("policy_management")
+        #headers = self._get_op_headers(row)
+
+        policy_type	= row['policy_type']
+        preconditions = row['preconditions']
+        policy_rule	= row['policy_rule']
+        service_name = row['service_name']
+        process_name = row['process_name']
+        resource_id = row.get('resource_id', None)
+
+        # Create various types of policy
+        if policy_type == "CommonServiceAccessPolicy":
+            policy_id = pms_client.create_common_service_access_policy(
+                policy_name=policy_obj.name,
+                description=policy_obj.description,
+                policy_rule=policy_rule or policy_obj.definition,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "ServiceAccessPolicy" and service_name:
+            policy_id = pms_client.create_service_access_policy(
+                service_name=service_name,
+                policy_name=policy_obj.name,
+                description=policy_obj.description,
+                policy_rule=policy_rule or policy_obj.definition,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "ProcessOperationPreconditionPolicy" and process_name:
+            policy_id = pms_client.add_process_operation_precondition_policy(
+                process_name=process_name,
+                op="",
+                preconditions=preconditions,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "OperationPreconditionPolicy":
+            policy_id = pms_client.add_operation_precondition_policy(
+                process_name=process_name,
+                op="",
+                preconditions=preconditions,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "ResourceAccessPolicy" and resource_id:
+            policy_id = pms_client.create_resource_access_policy(
+                resource_id=resource_id,
+                policy_name=policy_obj.name,
+                description=policy_obj.description,
+                policy_rule=policy_rule or policy_obj.definition,
+                headers=self._get_system_actor_headers())
+
+        elif policy_type == "Policy":
+            policy_id = pms_client.create_policy(
+                policy=policy_obj,
+                headers=self._get_system_actor_headers())
+
+        self._register_id(row[COL_ID], policy_id, policy_obj)
+
+        # If needed for policy:
+        #self._resource_assign_org(row, policy_id)
+
 
     def _load_User(self, row):
         self.row_count += 1
@@ -2382,7 +2449,7 @@ Reason: %s
 
         model = self._get_resource_id(row['model'])
         params = parse_dict(row['parameters'])
-        sampling = getattr(objects.DatasetDescriptionDataSamplingEnum, row['data_sampling'])
+        sampling = getattr(objects.DatasetDescriptionDataSamplingEnum, row['data_sampling'] if row['data_sampling'] else 'NONE')
         descriptor = objects.DatasetDescription(data_sampling=sampling, parameters=params)
         dataset = IonObject(RT.ExternalDataset, name=row['name'], description=row['description'], dataset_description=descriptor,
             contact=contact, alt_ids=['PRE:'+row[COL_ID]], lcstate=row[COL_LCSTATE])
@@ -2396,7 +2463,7 @@ Reason: %s
     def _load_ExternalDatasetAgent(self, row):
         self.row_count += 1
         agent = self._create_object_from_row(RT.ExternalDatasetAgent, row, 'eda/')
-        model = self._get_resource_id(row['dataset_model'])
+        model = self._get_resource_id(row['model'])
         id = self._get_service_client('data_acquisition_management').create_external_dataset_agent(external_dataset_agent=agent, external_dataset_model_id=model)
         agent._id = id
         self._register_id(row['ID'], id, agent)
@@ -2411,66 +2478,52 @@ Reason: %s
         self.row_count += 1
         name = row['name']
         description = row['description']
-        dataset = self._get_resource_obj(row['dataset'])
+        source_id = self._get_resource_id(row['source'])
+
         streamdef_id = self._get_resource_id(row['streamdef'])
         agent = self._get_resource_obj(row['agent'])
         agent_config = parse_dict(row['agent_config'])
         driver_config = parse_dict(row['driver_config'])
-        pubrate = row['records_per_granule']
 
-#        handler_module = agent.handler_module
-#        handler_class = agent.handler_class
 
         # NOTE: unit tests show additional keys in this configuration
         # but some are handler-specific, others seem just for testing
         # TODO: come back and look again when trying to start this process
         driver_config.update( {
-            'dvr_mod' : row['handler_module'],
-            'dvr_cls' : row['handler_class'],
-#            'dh_cfg': {
-                # ExternalDatasetAgent only
-                'parser_mod': row['parser_module'],
-                'parser_cls': row['parser_class'],
-                # TwoDelegateDatasetAgent
-                'parser.module': row['parser_module'],
-                'parser.class': row['parser_class'],
-                'poller.module': row['poller_module'],
-                'poller.class': row['poller_class'],
-                #'TESTING':True,
+                'parser': {
+                    'uri': row['parser_uri'],
+                    'module': row['parser_module'],
+                    'class': row['parser_class'],
+                    'config': parse_dict(row['parser_config']),
+                },
+                'poller': {
+                    'uri': row['poller_uri'],
+                    'module': row['poller_module'],
+                    'class': row['poller_class'],
+                    'config': parse_dict(row['poller_config']),
+                },
                 'stream_def': streamdef_id,
-#                'stream_id':stream_id,
-#                'param_dictionary':pdict.dump(),
-                'data_producer_id':self.external_dataset_producer_id[dataset._id],
-                'max_records': int(pubrate),
-#                'debug-dh-cfg': 'abc'
-#                }
+#                'data_producer_id':self.external_dataset_producer_id[dataset_id],
+                'max_records': int(row['records_per_granule']),
             } )
         agent_config.update( {
             'driver_config' : driver_config,
             'stream_config' : { },
-            'agent'         : {'resource_id': dataset._id},
+            'agent'         : {'resource_id': source_id},
         } )
 
         agent_instance = IonObject(RT.ExternalDatasetAgentInstance,  name=name, description=description,
-            handler_module=agent.handler_module, handler_class=agent.handler_class,
             dataset_driver_config=driver_config, dataset_agent_config=agent_config)
 
         client = self._get_service_client('data_acquisition_management')
         instance_id = client.create_external_dataset_agent_instance(external_dataset_agent_instance=agent_instance,
-            external_dataset_agent_id=agent._id, external_dataset_id=dataset._id)
+            external_dataset_agent_id=agent._id, external_dataset_id=source_id)
 
     def _load_InstrumentAgentInstance(self, row):
         startup_config = parse_dict(row['startup_config'])
         pubrate = row['publish_rate']
 
         alerts = [ self.alerts[id.strip()] for id in row['alerts'].split(',') ] if row['alerts'].strip() else []
-#        if row['alerts']:
-#            for id in row['alerts'].split(','):
-#                copy = dict(self.alerts[id.strip()])
-#                copy['kwargs']['stream_name'] = row['cfg/stream_name']
-#                alerts.append(copy)
-
-        #        alerts_config  = parse_dict(row['alerts'])
 
         # define complicated attributes
         agent_config = {

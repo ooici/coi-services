@@ -90,6 +90,7 @@ class AgentStatusBuilder(object):
         h_agent, reason = self.get_device_agent(device_id)
         log.debug("Got h_agent = %s, reason = %s", h_agent, reason)
         if None is h_agent:
+<<<<<<< Updated upstream
             return None, reason
 
         # read child agg status
@@ -97,6 +98,16 @@ class AgentStatusBuilder(object):
             #retrieve the platform status from the platform agent
             this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
             log.debug("this_status for %s is %s", device_id, this_status)
+=======
+            self.set_status_computed_attributes_notavailable(extension_computed, reason)
+            return None
+
+        if None is child_device_ids:
+            this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
+            self.set_status_computed_attributes(extension_computed, this_status,
+                                                ComputedValueAvailability.PROVIDED)
+            return None
+>>>>>>> Stashed changes
 
         except Unauthorized, un:
             return None, un.message
@@ -104,10 +115,6 @@ class AgentStatusBuilder(object):
             return None, "Error getting status: %s" % e
 
         one_status = {device_id: this_status}
-
-        # we're done if the agent doesn't support child_agg_status
-        if not "child_agg_status" in [c.name for c in h_agent.get_capabilities()]:
-            return one_status, None
 
         try:
             child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']

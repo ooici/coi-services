@@ -60,9 +60,6 @@ class StatusManager(object):
     @see https://confluence.oceanobservatories.org/display/CIDev/Platform+agent+statuses
     """
 
-    # TODO aparam_aggstatus is considered in initialization and rollup
-    # updates but no
-
     def __init__(self, pa):
         """
         Initializes all status parameters according to the immediate
@@ -213,46 +210,28 @@ class StatusManager(object):
 
     def set_aggstatus(self, status_name, status):
         """
-        Sets a particular "agg_status" for the platform itself.
+        Sets a particular "aggstatus" for the platform itself.
         The rollup status is updated and an event is published if that rollup
         status changed.
 
         @param status_name   the particular status category (AggregateStatusType)
         @param status        the status value (DeviceStatusType)
-
-        @return -1 if the status_name or the status value is invalid, or the
-                   new value is equal to the old one.
-                 0 otherwise.
         """
 
-        # TODO align the return codes with the expected API for
-        # aparam_set_xxx  (which is not very clear from looking at
-        # InstrumentAgent or ResourceAgent at this moment).
+        assert status_name in AggregateStatusType._str_map
+        assert status in DeviceStatusType._str_map
+
+        log.debug("%r: set_aggstatus: %s <- %s",
+                  self._platform_id,
+                  AggregateStatusType._str_map[status_name],
+                  DeviceStatusType._str_map[status])
 
         with self._lock:
-
-            if not status_name in AggregateStatusType._str_map:
-                log.warn("%r: set_aggstatus: unrecognized status_name=%r",
-                         self._platform_id, status_name)
-                return -1
-
-            if not status in DeviceStatusType._str_map:
-                log.warn("%r: set_aggstatus: unrecognized status value=%r",
-                         self._platform_id, status)
-                return -1
-
-            old_aggstatus = self.aparam_aggstatus[status_name]
-            if old_aggstatus == status:
-                # no change, nothing to do.
-                return -1
-
             # do the update:
             self.aparam_aggstatus[status_name] = status
 
             # update aparam_rollup_status:
             self._update_rollup_status_and_publish(status_name)
-
-            return 0
 
     #-------------------------------------------------------------------
     # supporting methods related with device_added, device_removed events
@@ -647,3 +626,42 @@ Published event: AGGREGATE_COMMS -> STATUS_CRITICAL
 
         logfun("%r: event published triggered by event from child %r: %s",
                self._platform_id, child_origin, msg)
+
+
+#----------------------------------
+# some utilities
+
+def formatted_statuses(aggstatus, child_agg_status, rollup_status):  # pragma: no cover
+    """
+    returns a string with formatted statuses like so:
+
+                           aggstatus : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+    12977248dd594e0ca4048bfbd28cfb56 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+    a583e69d83e549088764757d7beaa9a4 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+    6c9ed2a39e2b426890e14de986c48db9 : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+    42301443895f4f038845f772c4af437d : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+                       rollup_status : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+    """
+
+    msg = ""
+
+    # aggstatus:
+    vs = dict((AggregateStatusType._str_map[k2],
+               "%-16s" % DeviceStatusType._str_map[v2]) for
+              (k2, v2) in aggstatus.items())
+    msg += "%40s : %s\n" % ("aggstatus", vs)
+
+    # child_agg_status:
+    for k, v in child_agg_status.iteritems():
+        vs = dict((AggregateStatusType._str_map[k2],
+                   "%-16s" % DeviceStatusType._str_map[v2]) for
+                  (k2, v2) in v.items())
+        msg += "%40s : %s\n" % (k, vs)
+
+    # rollup_status:
+    vs = dict((AggregateStatusType._str_map[k2],
+               "%-16s" % DeviceStatusType._str_map[v2]) for
+              (k2, v2) in rollup_status.items())
+    msg += "%40s : %s\n" % ("rollup_status", vs)
+
+    return msg

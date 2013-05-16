@@ -25,6 +25,7 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_execute_resource
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_resource_states
 # bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_lost_connection_and_reconnect
+# bin/nosetests -sv ion/agents/platform/test/test_platform_agent_with_rsn.py:TestPlatformAgent.test_alerts
 #
 
 
@@ -36,7 +37,11 @@ from interface.objects import AgentCommand
 from interface.objects import CapabilityType
 from interface.objects import AgentCapability
 
+from interface.objects import StreamAlertType, AggregateStatusType
+
 from pyon.core.exception import Conflict
+
+from pyon.event.event import EventSubscriber
 
 from ion.agents.platform.platform_agent import PlatformAgentState
 from ion.agents.platform.platform_agent import PlatformAgentEvent
@@ -47,6 +52,7 @@ from ion.agents.platform.rsn.rsn_platform_driver import RSNPlatformDriverEvent
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 
 from gevent import sleep
+from gevent.event import AsyncResult
 from mock import patch
 from pyon.public import CFG
 
@@ -781,3 +787,126 @@ class TestPlatformAgent(BaseIntTestPlatform):
         self._go_inactive()
         self._reset()
         self._shutdown()
+
+    def test_alerts(self):
+
+        def start_DeviceStatusAlertEvent_subscriber(value_id, sub_type):
+            """
+            @return async_event_result  Use it to wait for the expected event
+            """
+            event_type = "DeviceStatusAlertEvent"
+
+            async_event_result = AsyncResult()
+
+            def consume_event(evt, *args, **kwargs):
+                log.info('DeviceStatusAlertEvent_subscriber received evt: %s', str(evt))
+                if evt.type_ != event_type or \
+                   evt.value_id != value_id or \
+                   evt.sub_type != sub_type:
+                    return
+
+                async_event_result.set(evt)
+
+            kwargs = dict(event_type=event_type,
+                          callback=consume_event,
+                          origin=self.p_root.platform_device_id,
+                          sub_type=sub_type)
+
+            sub = EventSubscriber(**kwargs)
+            sub.start()
+            log.info("registered DeviceStatusAlertEvent subscriber: %s", kwargs)
+
+            self._event_subscribers.append(sub)
+            sub._ready_event.wait(timeout=CFG.endpoint.receive.timeout)
+
+            return async_event_result
+
+        self._create_network_and_start_root_platform()
+
+        self._assert_state(PlatformAgentState.UNINITIALIZED)
+        self._ping_agent()
+
+        self._initialize()
+
+        retval = self._pa_client.get_agent(['alerts'])['alerts']
+        self.assertEquals([], retval, "No alerts must have been defined here")
+
+        # define some alerts:
+        # NOTE: see ion/agents/platform/rsn/simulator/oms_values.py for the
+        # sinusoidal waveforms that are generated; here we depend on those
+        # ranges to indicate the upper_bounds for these alarms; for example,
+        # input_voltage fluctuates within -500.0 to +500, so we specify
+        # upper_bound = 400.0 to see the alert being published.
+        alert_defs = [
+            {
+                'name'           : 'input_voltage_warning_interval',
+                'stream_name'    : 'parsed',
+                'value_id'       : 'input_voltage',
+                'description'    : 'input_voltage is above normal range.',
+                'alert_type'     : StreamAlertType.WARNING,
+                'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+                'lower_bound'    : None,
+                'lower_rel_op'   : None,
+                'upper_bound'    : 400.0,
+                'upper_rel_op'   : '<',
+                'alert_class'    : 'IntervalAlert'
+            }, {
+                'name'           : 'input_bus_current_warning_interval',
+                'stream_name'    : 'parsed',
+                'value_id'       : 'input_bus_current',
+                'description'    : 'input_bus_current is above normal range.',
+                'alert_type'     : StreamAlertType.WARNING,
+                'aggregate_type' : AggregateStatusType.AGGREGATE_DATA,
+                'lower_bound'    : None,
+                'lower_rel_op'   : None,
+                'upper_bound'    : 200.0,
+                'upper_rel_op'   : '<',
+                'alert_class'    : 'IntervalAlert'
+            }]
+
+        self._pa_client.set_agent({'alerts' : alert_defs})
+
+        retval = self._pa_client.get_agent(['alerts'])['alerts']
+        log.debug('alerts: %s', self._pp.pformat(retval))
+        self.assertEquals(2, len(retval), "must have 2 alerts defined here")
+
+        self._go_active()
+        self._run()
+
+        #################################################################
+        # prepare to receive alert publications:
+        # note: as the values for the above streams fluctuate we should get
+        # both WARNING and ALL_CLEAR events:
+
+        async_event_result1 = start_DeviceStatusAlertEvent_subscriber(
+            value_id="input_voltage",
+            sub_type=StreamAlertType._str_map[StreamAlertType.WARNING])
+
+        async_event_result2 = start_DeviceStatusAlertEvent_subscriber(
+            value_id="input_bus_current",
+            sub_type=StreamAlertType._str_map[StreamAlertType.WARNING])
+
+        async_event_result3 = start_DeviceStatusAlertEvent_subscriber(
+            value_id="input_voltage",
+            sub_type=StreamAlertType._str_map[StreamAlertType.ALL_CLEAR])
+
+        async_event_result4 = start_DeviceStatusAlertEvent_subscriber(
+            value_id="input_bus_current",
+            sub_type=StreamAlertType._str_map[StreamAlertType.ALL_CLEAR])
+
+        self._start_resource_monitoring()
+
+        # wait for the expected DeviceStatusAlertEvent events:
+        async_event_result1.get(timeout=30)
+        async_event_result2.get(timeout=30)
+        async_event_result3.get(timeout=30)
+        async_event_result4.get(timeout=30)
+
+        self._stop_resource_monitoring()
+
+        #####################
+        # done
+        self._go_inactive()
+        self._reset()
+        self._shutdown()
+

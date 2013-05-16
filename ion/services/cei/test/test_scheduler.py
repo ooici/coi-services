@@ -15,6 +15,7 @@ import time
 import math
 from pyon.public import log
 import unittest
+import calendar
 import os
 
 class FakeProcess(LocalContextMixin):
@@ -43,7 +44,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         pass
 
     def now_utc(self):
-        return time.mktime(datetime.datetime.utcnow().timetuple())
+        return time.time()
 
     def test_create_interval_timer(self):
         # create the interval timer resource
@@ -316,7 +317,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.addCleanup(sub.stop)
 
         # Expires in one days
-        expires = time.mktime((datetime.datetime.utcnow() + timedelta(days=2)).timetuple())
+        expires = calendar.timegm((datetime.datetime.utcnow() + timedelta(days=2)).timetuple())
         self.tod_sent_time = datetime.datetime.utcnow()
         id = self.ssclient.create_time_of_day_timer(times_of_day=times_of_day, expires=expires, event_origin=event_origin, event_subtype="")
         self.interval_timer_sent_time = datetime.datetime.utcnow()
@@ -365,7 +366,7 @@ class TestSchedulerService(IonIntegrationTestCase):
         self.addCleanup(sub.stop)
 
         # Expires in 3 days
-        expires = time.mktime((datetime.datetime.utcnow() + timedelta(days=3)).timetuple())
+        expires = calendar.timegm((datetime.datetime.utcnow() + timedelta(days=3)).timetuple())
         self.tod_sent_time = datetime.datetime.utcnow()
         id = self.ssclient.create_time_of_day_timer(times_of_day=times_of_day, expires=expires, event_origin=event_origin, event_subtype="")
         self.interval_timer_sent_time = datetime.datetime.utcnow()
@@ -396,7 +397,7 @@ class TestSchedulerService(IonIntegrationTestCase):
 
         # Expires before the first event
         time_delta = timedelta(days=1) + timedelta(seconds=-(abs(expire_sec*2)))   # Notice the minus sign. It expires before the first event
-        expires = time.mktime((now + time_delta).timetuple())
+        expires = calendar.timegm((now + time_delta).timetuple())
         self.tod_sent_time = datetime.datetime.utcnow()
         with self.assertRaises(BadRequest):
             id = self.ssclient.create_time_of_day_timer(times_of_day=times_of_day, expires=expires, event_origin=event_origin, event_subtype="")

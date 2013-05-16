@@ -107,7 +107,7 @@ class VisualizationService(BaseVisualizationService):
         log.debug('Exiting user_vis_queue_monitor')
 
 
-    def initiate_realtime_visualization(self, data_product_id='', visualization_parameters=None, callback=""):
+    def initiate_realtime_visualization_data(self, data_product_id='', visualization_parameters=None, callback=""):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
         with the request that will be required for subsequent requests when polling data.
         
@@ -121,10 +121,14 @@ class VisualizationService(BaseVisualizationService):
         """
         log.debug( "initiate_realtime_visualization Vis worker: %s " , self.id)
 
+        # Load the visualization_parameter, which is passed as  string in to its representative dict
         query = None
+        vp = None
         if visualization_parameters:
-            if visualization_parameters.has_key('query'):
-                query=visualization_parameters['query']
+            vp = simplejson.loads(visualization_parameters)
+            if vp:
+                if vp.has_key('query'):
+                    query=vp['query']
 
         # Perform a look up to check and see if the DP is indeed a realtime GDT stream
         if not data_product_id:
@@ -133,7 +137,6 @@ class VisualizationService(BaseVisualizationService):
         
         if not data_product:
             raise NotFound("Data product %s does not exist" % data_product_id)
-
 
         #Look for a workflow which is already executing for this data product
         workflow_ids, _ = self.clients.resource_registry.find_subjects(subject_type=RT.Workflow, predicate=PRED.hasInputProduct, object=data_product_id)
@@ -178,10 +181,11 @@ class VisualizationService(BaseVisualizationService):
         # after the queue has been created it is safe to activate the subscription
         self.clients.pubsub_management.activate_subscription(subscription_id)
 
+        ret_dict = {'rt_query_token': query_token}
         if callback == "":
-            return query_token
+            return simplejson.dumps(ret_dict)
         else:
-            return callback + "(\"" + query_token + "\")"
+            return callback + "(\"" + simplejson.dumps(ret_dict) + "\")"
 
 
 
@@ -283,8 +287,6 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
         log.debug( "get_realtime_visualization_data Vis worker: %s", self.id)
-
-        log.debug("Query token : " + query_token + " CB : " + callback + "TQX : " + tqx)
 
         reqId = 0
         # If a reqId was passed in tqx, extract it
@@ -412,8 +414,23 @@ class VisualizationService(BaseVisualizationService):
                 log.exception(e)
 
 
-
     def get_visualization_data(self, data_product_id='', visualization_parameters=None, callback='', tqx=""):
+
+        vp_dict = simplejson.loads(visualization_parameters)
+
+        # The visualization parameters must contain a query type. Based on this the processing methods will be chosen
+        if (vp_dict['query_type'] == 'metadata'):
+            return self._get_data_product_metadata(data_product_id, callback)
+
+        if (vp_dict['query_type'] == 'google_dt'):
+            return self._get_google_dt(data_product_id, vp_dict, callback, tqx)
+
+        if (vp_dict['query_type'] == 'mpl_image'):
+            return self._get_visualization_image(data_product_id, vp_dict, callback)
+
+
+
+    def _get_google_dt(self, data_product_id='', visualization_parameters=None, callback='', tqx=""):
         """Retrieves the data for the specified DP
 
         @param data_product_id    str
@@ -501,9 +518,6 @@ class VisualizationService(BaseVisualizationService):
             else:
                 return callback + "(\"" + empty_gdt.ToJSonResponse(req_id = reqId) + "\")"
 
-        # Need the parameter dictionary for the precision entry
-        #rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
-
         # send the granule through the transform to get the google datatable
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
         gdt_stream_def = self.clients.pubsub_management.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
@@ -557,7 +571,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def get_visualization_image(self, data_product_id='', visualization_parameters=None, callback=''):
+    def _get_visualization_image(self, data_product_id='', visualization_parameters=None, callback=''):
 
         # Error check
         if not data_product_id:
@@ -633,7 +647,7 @@ class VisualizationService(BaseVisualizationService):
 
 
 
-    def get_data_product_metadata(self, data_product_id="", callback=""):
+    def _get_data_product_metadata(self, data_product_id="", callback=""):
 
         dp_meta_data = {}
         if not data_product_id:

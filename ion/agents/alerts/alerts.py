@@ -141,14 +141,14 @@ class BaseAlert(object):
         }
         
         if self._status:
-            event_data['sub_type'] = 'ALL_CLEAR'
+            event_data['sub_type'] = StreamAlertType._str_map[StreamAlertType.ALL_CLEAR]
             event_data['description'] = 'The alert is cleared.'
             
         elif self._alert_type == StreamAlertType.WARNING:
-            event_data['sub_type'] = 'WARNING'
+            event_data['sub_type'] = StreamAlertType._str_map[StreamAlertType.WARNING]
         
-        elif self._alert_type == StreamAlertType.ALERT:
-            event_data['sub_type'] = 'ALERT'
+        elif self._alert_type == StreamAlertType.ALARM:
+            event_data['sub_type'] = StreamAlertType._str_map[StreamAlertType.ALARM]
 
         return event_data
 
@@ -157,6 +157,7 @@ class BaseAlert(object):
         Publishes the alert to ION.
         """
         event_data = self.make_event_data()
+        log.trace("publishing alert: %s", event_data)
         pub = EventPublisher()
         pub.publish_event(**event_data)
 
