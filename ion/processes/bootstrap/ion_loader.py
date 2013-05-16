@@ -659,7 +659,7 @@ class IONLoader(ImmediateProcess):
         else:
             raise KeyError(alias_id)
 
-    def _get_resource_obj(self, res_id):
+    def _get_resource_obj(self, res_id, silent=False):
         """Returns a resource object from one of the memory locations for given preload or internal ID"""
         if self.bulk and res_id in self.bulk_objects:
             return self.bulk_objects[res_id]
@@ -671,7 +671,8 @@ class IONLoader(ImmediateProcess):
             if alias_ids:
                 return self.resource_objs[alias_ids[0]]
 
-        log.debug("_get_resource_obj(): No object found for '%s'", res_id)
+        if not silent:
+            log.debug("_get_resource_obj(): No object found for '%s'", res_id)
         return None
 
     def _get_alt_id(self, res_obj, prefix):
@@ -1741,7 +1742,7 @@ Reason: %s
         self._register_id(row[COL_ID], pdict_id, pdict)
 
     def _load_StreamDefinition(self, row):
-        if not row['parameter_dictionary'] and row['parameter_dictionary'] not in self.resource_ids:
+        if not row['parameter_dictionary'] or row['parameter_dictionary'] not in self.resource_ids:
             log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
             return
 
@@ -1801,7 +1802,10 @@ Reason: %s
         mapping = {}
         for assoc in assocs_filtered:
             pdict = self._get_resource_obj(assoc.s)
-            pdef = self._get_resource_obj(assoc.o)
+            pdef = self._get_resource_obj(assoc.o, True)
+            if pdef is None:
+                #log.debug("Ignoring ParameterContext %s - no preload ID (QC param)", assoc.o)
+                continue
             pdef_aliases = [aid[4:] for aid in pdef.alt_ids if aid.startswith("PRE:")]
             if len(pdef_aliases) != 1:
                 log.warn("No preload IDs found for ParameterContext: %s", pdef.alt_ids)
@@ -1812,9 +1816,10 @@ Reason: %s
             mapping[pdict.name].append(pdef_alias)
         return mapping
 
-    def __load_StreamDefinition_OOI(self):
+    def _load_StreamDefinition_OOI(self):
         """Loads both ParameterDictionary and StreamDefinition for derived OOI science data products"""
         series_objs = self.ooi_loader.get_type_assets("series")
+        instagent_objs = self.ooi_loader.get_type_assets("instagent")
 
         dp_list, dp_set, science_pd_set = self._get_science_data_products()
 
@@ -1825,27 +1830,35 @@ Reason: %s
             if obj.type_ == "ParameterDictionary":
                 pdef_by_name[obj.name] = obj
 
-        #from pyon.util.breakpoint import breakpoint
-        #breakpoint(locals())
+        #from pyon.util.breakpoint import breakpoint; breakpoint(locals())
 
         for dp_combo in science_pd_set:
             series_rd, dp_class, dp_level = dp_combo.split("_")
             series_obj = series_objs[series_rd]
             ia_code = series_obj["ia_code"]
-            iagent_res_obj = self._get_resource_obj("IA_" + ia_code) if ia_code else None
-            if iagent_res_obj:
+            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
+            ia_enabled = series_obj.get("ia_exists", False) and instagent_objs[series_obj["ia_code"]]["active"]
+            if ia_enabled and iagent_res_obj:
                 parsed_scfg = iagent_res_obj.stream_configurations[1]
                 parsed_pdict_name = parsed_scfg.parameter_dictionary_name
 
                 # Get Parsed ParamDictionary
                 parsed_pdict_obj = pdef_by_name[parsed_pdict_name]
 
+                param_list = ["PD7"]
+                params = pdict_map[parsed_pdict_name]
+                for param in params:
+                    param_obj = self._get_resource_obj(param)
+                    dp_identifier = param_obj.ooi_short_name
+                    if dp_identifier.startswith(dp_class) and not dp_identifier.endswith("QC"):
+                        param_list.append(param)
+
                 # Create a new preload row for a derived DataProduct paramdict
                 science_pdict_name = "science_" + dp_combo
                 newrow = {}
                 newrow[COL_ID] = "PDICT_" + dp_combo
                 newrow['name'] = science_pdict_name
-                newrow['parameter_ids'] = ""    # This is a subset of the parsed param IDs coming from SAF
+                newrow['parameter_ids'] = ",".join(param_list)
                 newrow['temporal_parameter'] = "PD7"
                 newrow['parameters'] = "unused"
                 newrow['SKIP'] = ""
@@ -1858,7 +1871,7 @@ Reason: %s
                 newrow['sdef/name'] = "%s %s %s" % (series_rd, dp_class, dp_level)
                 newrow['sdef/description'] = "Generated stream definition"
                 newrow['param_dict_name'] = science_pdict_name
-                newrow['parameter_dictionary'] = ""
+                newrow['parameter_dictionary'] = "PDICT_" + dp_combo
                 newrow['available_fields'] = ""
                 newrow['reference_designator'] = ""    # THIS SHOULD NOT BE HERE
                 self._load_StreamDefinition(newrow)
@@ -2618,6 +2631,7 @@ Reason: %s
         return mapping
 
     def _load_DataProduct_OOI(self):
+        """DataProducts and DataProductLink"""
         node_objs = self.ooi_loader.get_type_assets("node")
         inst_objs = self.ooi_loader.get_type_assets("instrument")
         instagent_objs = self.ooi_loader.get_type_assets("instagent")
@@ -2674,7 +2688,7 @@ Reason: %s
                 continue
 
             ia_code = series_obj["ia_code"]
-            iagent_res_obj = self._get_resource_obj("IA_" + ia_code) if ia_code else None
+            iagent_res_obj = self._get_resource_obj("IA_" + ia_code, True) if ia_code else None
             log.debug("Generating DataProducts for %s from %s", inst_id, ia_code if ia_code else "DEFAULT")
 
             const_id1 = ''
@@ -2794,14 +2808,23 @@ Reason: %s
                 newrow['contact_ids'] = ''
                 newrow['geo_constraint_id'] = const_id1
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
-                newrow['stream_def_id'] = ''
-                newrow['parent'] = ''
+                newrow['parent'] = ''   # TODO: Need to set this
                 newrow['persist_data'] = 'False'
+                strdef_id = "StreamDef_%s_%s" % (ooi_rd.series_rd, dp_id)
+                if self._get_resource_obj(strdef_id, True):
+                    newrow['stream_def_id'] = strdef_id
 
-                self._load_DataProduct(newrow, do_bulk=self.bulk)
+                    self._load_DataProduct(newrow)
 
-                create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID")
-                create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id)
+                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID", do_bulk=False)
+                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id, do_bulk=False)
+                else:
+                    newrow['stream_def_id'] = ''
+
+                    self._load_DataProduct(newrow, do_bulk=self.bulk)
+
+                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID")
+                    create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id)
 
     def _load_DataProductLink(self, row, do_bulk=False):
         self.row_count += 1
