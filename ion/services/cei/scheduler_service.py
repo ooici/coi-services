@@ -308,11 +308,12 @@ class SchedulerService(BaseSchedulerService):
             raise BadRequest
 
     def create_interval_timer(self, start_time="", interval=0, end_time="", event_origin="", event_subtype=""):
-        if (end_time != -1 and (time.time() >= end_time)) or not event_origin:
-            print end_time
-            print self._convert_to_posix_time(self._now( ))
+        if (end_time != -1 and (time.time() >= end_time)):
+            log.error('end_time != -1 or start_time < end_time')
+            raise BadRequest('end_time != -1 or start_time < end_time')
+        if not event_origin:
             log.error("SchedulerService.create_interval_timer: event_origin is not set")
-            raise BadRequest
+            raise BadRequest("SchedulerService.create_interval_timer: event_origin is not set")
         if start_time == "now":
             start_time = time.time()
         log.debug("SchedulerService:create_interval_timer start_time: %s interval: %s end_time: %s event_origin: %s" %(start_time, interval, end_time, event_origin))
