@@ -16,13 +16,14 @@ import gevent
 import numpy
 import simplejson
 import base64
+import ast
 
 from interface.objects import Granule
-from ion.services.dm.utility.granule.taxonomy import TaxyTool
 from ion.services.dm.utility.granule.record_dictionary import RecordDictionaryTool
 from pyon.util.containers import get_safe
 from seawater.gibbs import SP_from_cndr
 from seawater.gibbs import cte
+import ion.services.ans.gviz_api as gviz_api
 
 
 class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
@@ -414,13 +415,14 @@ class VisualizationIntegrationTestHelper(IonIntegrationTestCase):
         assertions = self.assertTrue
 
         assertions(results)
-        gdt_str = (results.lstrip("google.visualization.Query.setResponse(")).rstrip(")")
-
-        assertions(len(gdt_str) > 0)
+        assertions(gviz_api.DataTable(results))
 
         return
 
-    def validate_vis_service_mpl_graphs_results(self, results):
+    def validate_vis_service_mpl_graphs_results(self, results_str):
+
+        # convert incoming string to dict
+        results = ast.literal_eval(results_str)
 
         assertions = self.assertTrue
         assertions(results)

@@ -14,6 +14,7 @@ from pyon.ion.event import EventPublisher
 from pyon.public import OT, RT,PRED
 from pyon.util.arg_check import validate_is_not_none
 from pyon.ion.event import EventSubscriber
+from pyon.util.log import log
 import numpy as np
 
 class QCPostProcessing(SimpleProcess):
@@ -47,8 +48,10 @@ class QCPostProcessing(SimpleProcess):
         self.event_subscriber.stop()
     
     def _event_callback(self, *args, **kwargs):
+        log.info('QC Post Processing Triggered')
         dataset_ids, _ = self.resource_registry.find_resources(restype=RT.Dataset, id_only=True)
         for dataset_id in dataset_ids:
+            log.info('QC Post Processing for dataset %s', dataset_id)
             self.process(dataset_id)
 
     def process(self, dataset_id, start_time=0, end_time=0):
