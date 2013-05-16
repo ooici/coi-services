@@ -116,6 +116,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
         self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
 
+        self.RR.create_association(instrument_site_id, PRED.hasDevice, instrument_device_id)
         self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
         self.RR.create_association(platform_site_id, PRED.hasSite, instrument_site_id)
 
@@ -202,6 +203,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         extended_platform = self.IMS.get_platform_device_extension(platform_device_id)
 
         self.assertEqual(1, len(extended_platform.portals))
+        self.assertEqual(1, len(extended_platform.portal_instruments))
+        self.assertEqual(1, len(extended_platform.computed.portal_status.value))
         self.assertEqual(1, len(extended_platform.instrument_devices))
         self.assertEqual(instrument_device_id, extended_platform.instrument_devices[0]._id)
         self.assertEqual(1, len(extended_platform.instrument_models))

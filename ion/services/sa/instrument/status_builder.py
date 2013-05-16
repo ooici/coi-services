@@ -88,8 +88,9 @@ class AgentStatusBuilder(object):
     # get a lookup table that includes child_agg_status + the parent device status as dev_id -> {AggStatusType: DeviceStatusType}
     def get_cumulative_status_dict(self, device_id):
         h_agent, reason = self.get_device_agent(device_id)
-        log.debug("Got h_agent = %s, reason = %s", h_agent, reason)
+        log.trace("Got h_agent = %s, reason = %s", h_agent, reason)
         if None is h_agent:
+            log.warn('no agent for device %s, reason=%s', device_id, reason)
             return None, reason
 
         # read child agg status
@@ -97,31 +98,25 @@ class AgentStatusBuilder(object):
             #retrieve the platform status from the platform agent
             this_status = h_agent.get_agent(['aggstatus'])['aggstatus']
             log.debug("this_status for %s is %s", device_id, this_status)
-
-        except Unauthorized, un:
-            return None, un.message
         except Exception as e:
+            log.warn("failed to get status for device %s", device_id, exc_info=True)
             return None, "Error getting status: %s" % e
 
-        one_status = {device_id: this_status}
+        out_status = {device_id: this_status}
 
         # we're done if the agent doesn't support child_agg_status
         if not "child_agg_status" in [c.name for c in h_agent.get_capabilities()]:
-            return one_status, None
+            return out_status, None
 
         try:
             child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
             log.debug('get_cumulative_status_dict child_agg_status : %s', child_agg_status)
-
-            if not child_agg_status:
-                child_agg_status = {}
-
-            return dict(child_agg_status.items() + one_status.items()), None
-
-        except Unauthorized, un:
-            return one_status, un.message
+            if child_agg_status:
+                out_status += child_agg_status
+            return out_status, None
         except Exception as e:
-            return one_status, "Error getting status: %s" % e
+            log.warn("failed to get status for device %s", device_id, exc_info=True)
+            return out_status, "Error getting child status: %s" % e
 
 
 
