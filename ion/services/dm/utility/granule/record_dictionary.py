@@ -275,7 +275,7 @@ class RecordDictionaryTool(object):
         
         elif self._shp is None or self._dirty_shape:
             if isinstance(vals, np.ndarray):
-                self._shp = vals.shape
+                self._shp = (vals.shape[0],) # Only support 1-d right now
             elif isinstance(vals, list):
                 self._shp = (len(vals),)
             else:
