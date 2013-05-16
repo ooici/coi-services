@@ -125,6 +125,7 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
         # Check existing RSN node CE04OSHY-LV01C Deployment (PLANNED lcstate)
         CE04OSHY_LV01C_deployment = self.retrieve_ooi_asset(namespace='PRE', alt_id='CE04OSHY-LV01C_DEP')
+
         #self.dump_deployment(CE04OSHY_LV01C_deployment._id)
         self.assertEquals(CE04OSHY_LV01C_deployment.lcstate, 'PLANNED')
         log.debug('test_observatory  retrieve RSN node CE04OSHY-LV01C Deployment:  %s', CE04OSHY_LV01C_deployment)
@@ -234,7 +235,8 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
 
         log.debug('Activate deployment deploy_id_2')
-        self.dump_deployment(deploy_id_2)
+        self.get_deployment_ids(deploy_id_2)
+        self.dump_deployment(deploy_id_2, "deploy_id_2")
         self.OMS.activate_deployment(deploy_id_2)
         self.validate_deployment_deactivated(CE04OSBP_LJ01C_06_CTDBPO108_deploy._id)
 
@@ -377,23 +379,28 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
 
     def validate_deployment_activated(self, deployment_id=''):
         site_id, device_id = self.get_deployment_ids(deployment_id)
-        assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=site_id)
+        assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=device_id)
         self.assertEquals(len(assocs), 1)
 
     def validate_deployment_deactivated(self, deployment_id=''):
         site_id, device_id = self.get_deployment_ids(deployment_id)
-        assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=site_id)
+        assocs = self.RR.find_associations(subject=site_id, predicate=PRED.hasDevice, object=device_id)
         self.assertEquals(len(assocs), 0)
 
-    def dump_deployment(self, deployment_id=''):
+    def dump_deployment(self, deployment_id='', name=""):
         #site_id, device_id = self.get_deployment_ids(deployment_id)
         resource_list,_ = self.RR.find_subjects(predicate=PRED.hasDeployment, object=deployment_id, id_only=True)
         resource_list.append(deployment_id)
         resources = self.RR.read_mult(resource_list )
-        log.debug('---------   dump_deployment  ---------------')
+        log.debug('---------   dump_deployment %s summary---------------', name)
+        for resource in resources:
+            log.debug('%s: %s (%s)', resource._get_type(), resource.name, resource._id)
+
+        log.debug('---------   dump_deployment %s full dump ---------------', name)
+
         for resource in resources:
             log.debug('resource: %s ', resource)
-        log.debug('---------   dump_deployment  end  ---------------')
+        log.debug('---------   dump_deployment %s end  ---------------', name)
 
 
         #assocs = self.container.resource_registry.find_assoctiations(anyside=deployment_id)
@@ -410,9 +417,9 @@ class TestObservatoryManagementFullIntegration(IonIntegrationTestCase):
         idevice_list,_ = self.RR.find_subjects(RT.InstrumentDevice, PRED.hasDeployment, deployment_id, id_only=True)
         pdevice_list,_ = self.RR.find_subjects(RT.PlatformDevice, PRED.hasDeployment, deployment_id, id_only=True)
         devices = idevice_list + pdevice_list
-        self.assertEquals(len(devices), 1)
+        self.assertEquals(1, len(devices))
         isite_list,_ = self.RR.find_subjects(RT.InstrumentSite, PRED.hasDeployment, deployment_id, id_only=True)
         psite_list,_ = self.RR.find_subjects(RT.PlatformSite, PRED.hasDeployment, deployment_id, id_only=True)
         sites = isite_list + psite_list
-        self.assertEquals(len(sites), 1)
+        self.assertEquals(1, len(sites))
         return sites[0], devices[0]

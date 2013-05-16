@@ -52,8 +52,8 @@ class DeploymentOperatorFactory(object):
         if OT.CabledInstrumentDeploymentContext == deployment_context_type:
             return new_object_type(self.clients,
                                    deployment_obj,
-                                   allow_children=False,
-                                   include_children=False,
+                                   allow_children=True,
+                                   include_children=True,
                                    RR2=self.RR2)
 
         # single node, with instruments optionally
@@ -61,7 +61,7 @@ class DeploymentOperatorFactory(object):
             return new_object_type(self.clients,
                                    deployment_obj,
                                    allow_children=True,
-                                   include_children=False,
+                                   include_children=True,
                                    RR2=self.RR2)
 
         raise BadRequest("Can't activate deployments of unimplemented context type '%s'" % deployment_context_type)

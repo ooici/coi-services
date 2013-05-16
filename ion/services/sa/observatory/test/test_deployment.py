@@ -410,49 +410,49 @@ class TestDeployment(IonIntegrationTestCase):
                  "port_assignments": port_assignments}))
 
 
-        # set up the deployment
-        # top level stuff always goes into the deployment
-        self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[3])
-        self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[3])
+        log.debug("assigning device/site to %s deployment", deployment_context_type)
+        if OT.RemotePlatformDeploymentContext == deployment_context_type:
+            self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[3])
+            self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[3])
 
-        if OT.CabledInstrumentDeploymentContext == deployment_context_type:
-            self.omsclient.activate_deployment(deployment_id)
-            self.omsclient.deactivate_deployment(deployment_id)
+        elif OT.CabledInstrumentDeploymentContext == deployment_context_type:
+            self.RR2.assign_deployment_to_instrument_device_with_has_deployment(deployment_id, instrument_device_id[1])
+            self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id[1])
 
-        if OT.RemotePlatformDeploymentContext != deployment_context_type:
-            for p in range(3):
-                m = platform_model_at(p)
-                self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[p])
-                self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[p])
+        elif OT.CabledNodeDeploymentContext == deployment_context_type:
+            self.RR2.assign_deployment_to_platform_device_with_has_deployment(deployment_id, platform_device_id[1])
+            self.RR2.assign_deployment_to_platform_site_with_has_deployment(deployment_id, platform_site_id[1])
 
-                for i in range(3):
-                    m = instrument_model_at(p, i)
-                    idx = instrument_at(p, i)
-                    self.RR2.assign_deployment_to_instrument_device_with_has_deployment(deployment_id, instrument_device_id[idx])
-                    self.RR2.assign_deployment_to_instrument_site_with_has_deployment(deployment_id, instrument_site_id[idx])
+        log.debug("activation of %s deployment", deployment_context_type)
+        self.omsclient.activate_deployment(deployment_id)
 
-        #verify the deployment
-        if OT.RemotePlatformDeploymentContext != deployment_context_type:
-            for p in platform_device_id:
-                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_device_using_has_deployment(p))
-            for p in platform_site_id:
-                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_platform_site_using_has_deployment(p))
-            for i in instrument_device_id:
-                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_device_using_has_deployment(i))
-            for i in instrument_site_id:
-                self.assertEqual(deployment_id, self.RR2.find_deployment_id_of_instrument_site_using_has_deployment(i))
-
-        if OT.CabledInstrumentDeploymentContext == deployment_context_type:
-            self.assertRaises(BadRequest, self.omsclient.activate_deployment, deployment_id)
-        else:
-            self.omsclient.activate_deployment(deployment_id)
-
+        log.debug("validation of %s deployment", deployment_context_type)
+        if OT.RemotePlatformDeploymentContext == deployment_context_type:
             # verify proper associations
             for i, d in enumerate(platform_device_id):
                 self.assertEqual(d, self.RR2.find_platform_device_id_of_platform_site_using_has_device(platform_site_id[i]))
 
             for i, d in enumerate(instrument_device_id):
                 self.assertEqual(d, self.RR2.find_instrument_device_id_of_instrument_site_using_has_device(instrument_site_id[i]))
+
+        elif OT.CabledInstrumentDeploymentContext == deployment_context_type:
+            self.assertEqual(instrument_device_id[1],
+                             self.RR2.find_instrument_device_id_of_instrument_site_using_has_device(instrument_site_id[1]))
+
+        elif OT.CabledNodeDeploymentContext == deployment_context_type:
+            expected_platforms = [1]
+            expected_instruments = [3, 4, 5]
+
+            # verify proper associations
+            for i, d in enumerate(platform_device_id):
+                self.assertEqual(i in expected_platforms,
+                                 d in self.RR2.find_platform_device_ids_of_platform_site_using_has_device(platform_site_id[i]))
+
+            for i, d in enumerate(instrument_device_id):
+                self.assertEqual(i in expected_instruments,
+                                 d in self.RR2.find_instrument_device_ids_of_instrument_site_using_has_device(instrument_site_id[i]))
+
+
 
         extended_deployment = self.omsclient.get_deployment_extension(deployment_id)
         log.debug('base_3x3_matchups extended_deployment:  %s', extended_deployment)
