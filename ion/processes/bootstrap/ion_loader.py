@@ -1524,43 +1524,6 @@ class IONLoader(ImmediateProcess):
 
             self._load_InstrumentSite(newrow)
 
-    def _load_StreamDefinition(self, row):
-        if not row['parameter_dictionary'] and row['parameter_dictionary'] not in self.resource_ids:
-            log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
-            return
-
-        self.row_count += 1
-        res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
-
-        svc_client = self._get_service_client("dataset_management")
-        reference_designator = row['reference_designator']
-        available_fields = row['available_fields']
-        if available_fields:
-            available_fields = available_fields.split(',')
-            available_fields = [i.strip() for i in available_fields]
-            for i,field in enumerate(available_fields):
-                if field.startswith('PD') and field in self.resource_objs:
-                    available_fields[i] = self.resource_objs[field].name
-        
-        parameter_dictionary_id = self.resource_ids[row['parameter_dictionary']]
-        svc_client = self._get_service_client("pubsub_management")
-        res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
-                stream_configuration={'reference_designator' : reference_designator} if reference_designator else None,
-                available_fields = available_fields or None,
-            headers=self._get_system_actor_headers())
-        self._register_id(row[COL_ID], res_id, res_obj)
-
-        # Set alt_ids so that resource can be found in incremental preload runs
-        sdef = self.container.resource_registry.read(res_id)
-        sdef.alt_ids = ['PRE:'+row[COL_ID]]
-        self.container.resource_registry.update(sdef)
-
-    def _load_StreamDefinition_OOI(self):
-        pass
-        # TODO: We need streams for
-        # - instrument, platform agents
-        # - All data products
-
     def _conflict_report(self, row_id, name, reason):
         log.warn('''
 ------- Conflict Report -------
@@ -1569,76 +1532,6 @@ Parameter Name: %s
 Reason: %s
 -------------------------------''', row_id, name, reason)
 
-    def _load_ParameterDictionary(self, row):
-        dataset_management = self._get_service_client('dataset_management')
-        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
-        if row['SKIP']:
-            self._conflict_report(row['ID'], row['name'], row['SKIP'])
-            return
-
-        self.row_count += 1
-        name = row['name']
-        definitions = row['parameter_ids'].replace(' ','').split(',')
-        try:
-            if row['temporal_parameter']:
-                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
-            else:
-                temporal_parameter_name = ''
-        except KeyError:
-            temporal_parameter_name = ''
-
-        context_ids = {}
-        for i in definitions:
-            try:
-                res_id = self.resource_ids[i]
-                if res_id not in context_ids:
-                    context_ids[res_id] = 0
-                else:
-                    log.warning('Duplicate: %s (%s)', name, i)
-                context_ids[self.resource_ids[i]] = 0
-                res = self.resource_objs[i]
-                context = ParameterContext.load(res.parameter_context)
-                lookup_values = types_manager.get_lookup_value_ids(context)
-                for val in lookup_values:
-                    context_ids[val] = 0
-                if hasattr(context,'qc_contexts'):
-                    for qc in context.qc_contexts:
-                        if qc not in self.resource_ids:
-                            obj = dataset_management.read_parameter_context(qc)
-                            self._register_id(qc, qc, obj)
-                    definitions.extend(context.qc_contexts)
-            except KeyError:
-                pass
-
-        if not context_ids:
-            log.warning('No valid parameters: %s', row['name'])
-            return
-        try:
-            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
-                                                                      temporal_context=temporal_parameter_name,
-                                                                      headers=self._get_system_actor_headers())
-            # Set alt_ids so that resource can be found in incremental preload runs
-            pdict = self.container.resource_registry.read(pdict_id)
-            pdict.alt_ids = ['PRE:'+row[COL_ID]]
-            self.container.resource_registry.update(pdict)
-        except Exception:
-            log.exception('%s has a problem', row['name'])
-            return
-
-        self._register_id(row[COL_ID], pdict_id, pdict)
-
-    def _load_Parser(self, row):
-        self.row_count += 1
-        name        = row['name']
-        module      = row['parser/module']
-        method      = row['parser/method']
-        config      = row['parser/config']
-        description = row['description']
-
-        data_acquisition = self._get_service_client('data_acquisition_management')
-        parser_id = data_acquisition.create_parser(name=name, module=module, method=method, config=config, description=description)
-        self._register_id(row[COL_ID], parser_id)
-    
     def _load_ParameterFunctions(self, row):
         if row['SKIP']:
             self._conflict_report(row['ID'], row['Name'], row['SKIP'])
@@ -1697,14 +1590,14 @@ Reason: %s
         qc           = row['QC Functions']
 
         dataset_management = self._get_service_client('dataset_management')
-        
+
         #validate unit of measure
         # allow google doc to include more maintainable "key: value, key: value" instead of python "{ 'key': 'value', 'key': 'value' }"
         pmap = pmap if pmap.startswith('{') else repr(parse_dict(pmap))
 
         if pfid and ptype!='function':
             log.warn('Parameter %s (%s) has type %s, did not expect function %s', row['ID'], name, ptype, pfid)
-        #validate parameter type
+            #validate parameter type
         try:
             tm = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
             param_type = tm.get_parameter_type(ptype, encoding,code_set,pfid, pmap)
@@ -1788,6 +1681,202 @@ Reason: %s
                 self._conflict_report(row['ID'], row['Name'], e.message)
                 return
         self._register_id(row[COL_ID], context_id, context_obj)
+
+    def _load_ParameterDictionary(self, row):
+        dataset_management = self._get_service_client('dataset_management')
+        types_manager = TypesManager(dataset_management, self.resource_ids, self.resource_objs)
+        if row['SKIP']:
+            self._conflict_report(row['ID'], row['name'], row['SKIP'])
+            return
+
+        self.row_count += 1
+        name = row['name']
+        definitions = row['parameter_ids'].replace(' ','').split(',')
+        try:
+            if row['temporal_parameter']:
+                temporal_parameter_name = self.resource_objs[row['temporal_parameter']].name
+            else:
+                temporal_parameter_name = ''
+        except KeyError:
+            temporal_parameter_name = ''
+
+        context_ids = {}
+        for i in definitions:
+            try:
+                res_id = self.resource_ids[i]
+                if res_id not in context_ids:
+                    context_ids[res_id] = 0
+                else:
+                    log.warning('Duplicate: %s (%s)', name, i)
+                context_ids[self.resource_ids[i]] = 0
+                res = self.resource_objs[i]
+                context = ParameterContext.load(res.parameter_context)
+                lookup_values = types_manager.get_lookup_value_ids(context)
+                for val in lookup_values:
+                    context_ids[val] = 0
+                if hasattr(context,'qc_contexts'):
+                    for qc in context.qc_contexts:
+                        if qc not in self.resource_ids:
+                            obj = dataset_management.read_parameter_context(qc)
+                            self._register_id(qc, qc, obj)
+                    definitions.extend(context.qc_contexts)
+            except KeyError:
+                pass
+
+        if not context_ids:
+            log.warning('No valid parameters: %s', row['name'])
+            return
+        try:
+            pdict_id = dataset_management.create_parameter_dictionary(name=name, parameter_context_ids=context_ids.keys(),
+                                                                      temporal_context=temporal_parameter_name,
+                                                                      headers=self._get_system_actor_headers())
+            # Set alt_ids so that resource can be found in incremental preload runs
+            pdict = self.container.resource_registry.read(pdict_id)
+            pdict.alt_ids = ['PRE:'+row[COL_ID]]
+            self.container.resource_registry.update(pdict)
+        except Exception:
+            log.exception('%s has a problem', row['name'])
+            return
+
+        self._register_id(row[COL_ID], pdict_id, pdict)
+
+    def _load_StreamDefinition(self, row):
+        if not row['parameter_dictionary'] and row['parameter_dictionary'] not in self.resource_ids:
+            log.error('Stream Definition %s refers to unknown parameter dictionary: %s', row['ID'], row['parameter_dictionary'])
+            return
+
+        self.row_count += 1
+        res_obj = self._create_object_from_row("StreamDefinition", row, "sdef/")
+
+        svc_client = self._get_service_client("dataset_management")
+        reference_designator = row['reference_designator']
+        available_fields = row['available_fields']
+        if available_fields:
+            available_fields = available_fields.split(',')
+            available_fields = [i.strip() for i in available_fields]
+            for i,field in enumerate(available_fields):
+                if field.startswith('PD') and field in self.resource_objs:
+                    available_fields[i] = self.resource_objs[field].name
+        
+        parameter_dictionary_id = self.resource_ids[row['parameter_dictionary']]
+        svc_client = self._get_service_client("pubsub_management")
+        res_id = svc_client.create_stream_definition(name=res_obj.name, parameter_dictionary_id=parameter_dictionary_id,
+                stream_configuration={'reference_designator' : reference_designator} if reference_designator else None,
+                available_fields = available_fields or None,
+            headers=self._get_system_actor_headers())
+        self._register_id(row[COL_ID], res_id, res_obj)
+
+        # Set alt_ids so that resource can be found in incremental preload runs
+        sdef = self.container.resource_registry.read(res_id)
+        sdef.alt_ids = ['PRE:'+row[COL_ID]]
+        self.container.resource_registry.update(sdef)
+
+    def _get_science_data_products(self):
+        dp_list = []
+        dp_type_set = set()
+        dp_combo_set = set()
+
+        inst_objs = self.ooi_loader.get_type_assets("instrument")
+        node_objs = self.ooi_loader.get_type_assets("node")
+        for inst_id, inst_obj in inst_objs.iteritems():
+            ooi_rd = OOIReferenceDesignator(inst_id)
+            node_obj = node_objs[ooi_rd.node_rd]
+
+            if not self._before_cutoff(inst_obj) or not self._before_cutoff(node_obj):
+                continue
+            if not self._match_filter(inst_id[:2]):
+                continue
+
+            data_product_list = inst_obj.get('data_product_list', [])
+            if data_product_list:
+                dp_list.extend([(inst_id, dp_id) for dp_id in data_product_list])
+                dp_type_set.update(data_product_list)
+                dp_combo_set.update(["%s_%s" % (ooi_rd.series_rd, dp_id) for dp_id in data_product_list])
+
+        return dp_list, dp_type_set, dp_combo_set
+
+    def _get_paramdict_param_map(self):
+        assocs = self.container.resource_registry.find_associations(predicate=PRED.hasParameterContext, id_only=False)
+        assocs_filtered = [a for a in assocs if a.st == "ParameterDictionary" and a.ot == "ParameterContext"]
+        mapping = {}
+        for assoc in assocs_filtered:
+            pdict = self._get_resource_obj(assoc.s)
+            pdef = self._get_resource_obj(assoc.o)
+            pdef_aliases = [aid[4:] for aid in pdef.alt_ids if aid.startswith("PRE:")]
+            if len(pdef_aliases) != 1:
+                log.warn("No preload IDs found for ParameterContext: %s", pdef.alt_ids)
+                continue
+            pdef_alias = pdef_aliases[0]
+            if pdict.name not in mapping:
+                mapping[pdict.name] = []
+            mapping[pdict.name].append(pdef_alias)
+        return mapping
+
+    def __load_StreamDefinition_OOI(self):
+        """Loads both ParameterDictionary and StreamDefinition for derived OOI science data products"""
+        series_objs = self.ooi_loader.get_type_assets("series")
+
+        dp_list, dp_set, science_pd_set = self._get_science_data_products()
+
+        pdict_map = self._get_paramdict_param_map()
+
+        pdef_by_name = {}
+        for obj in self.resource_objs.values():
+            if obj.type_ == "ParameterDictionary":
+                pdef_by_name[obj.name] = obj
+
+        #from pyon.util.breakpoint import breakpoint
+        #breakpoint(locals())
+
+        for dp_combo in science_pd_set:
+            series_rd, dp_class, dp_level = dp_combo.split("_")
+            series_obj = series_objs[series_rd]
+            ia_code = series_obj["ia_code"]
+            iagent_res_obj = self._get_resource_obj("IA_" + ia_code) if ia_code else None
+            if iagent_res_obj:
+                parsed_scfg = iagent_res_obj.stream_configurations[1]
+                parsed_pdict_name = parsed_scfg.parameter_dictionary_name
+
+                # Get Parsed ParamDictionary
+                parsed_pdict_obj = pdef_by_name[parsed_pdict_name]
+
+                # Create a new preload row for a derived DataProduct paramdict
+                science_pdict_name = "science_" + dp_combo
+                newrow = {}
+                newrow[COL_ID] = "PDICT_" + dp_combo
+                newrow['name'] = science_pdict_name
+                newrow['parameter_ids'] = ""    # This is a subset of the parsed param IDs coming from SAF
+                newrow['temporal_parameter'] = "PD7"
+                newrow['parameters'] = "unused"
+                newrow['SKIP'] = ""
+                self._load_ParameterDictionary(newrow)
+
+                # Create a StreamDefinition in the same swoop
+                newrow = {}
+                newrow[COL_ID] = "StreamDef_" + dp_combo
+                newrow['org_ids'] = ""
+                newrow['sdef/name'] = "%s %s %s" % (series_rd, dp_class, dp_level)
+                newrow['sdef/description'] = "Generated stream definition"
+                newrow['param_dict_name'] = science_pdict_name
+                newrow['parameter_dictionary'] = ""
+                newrow['available_fields'] = ""
+                newrow['reference_designator'] = ""    # THIS SHOULD NOT BE HERE
+                self._load_StreamDefinition(newrow)
+
+            else:
+                pass
+
+    def _load_Parser(self, row):
+        self.row_count += 1
+        name        = row['name']
+        module      = row['parser/module']
+        method      = row['parser/method']
+        config      = row['parser/config']
+        description = row['description']
+
+        data_acquisition = self._get_service_client('data_acquisition_management')
+        parser_id = data_acquisition.create_parser(name=name, module=module, method=method, config=config, description=description)
+        self._register_id(row[COL_ID], parser_id)
 
     def _load_PlatformDevice(self, row):
         contacts = self._get_contacts(row, field='contact_ids', type='PlatformDevice')
@@ -2567,10 +2656,11 @@ Reason: %s
             newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
             newrow['stream_def_id'] = ''
             newrow['parent'] = ''
-            #self._load_DataProduct(newrow, do_bulk=self.bulk)
+            newrow['persist_data'] = 'False'
+            self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-            #create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
-            #create_dp_link(node_id + "_DPP1", node_id)
+            create_dp_link(node_id + "_DPP1", node_id + "_PD", 'PlatformDevice')
+            create_dp_link(node_id + "_DPP1", node_id)
 
         # II. Instrument data products (raw, parsed, engineering, science L0, L1, L2)
         for inst_id, inst_obj in inst_objs.iteritems():
@@ -2614,6 +2704,7 @@ Reason: %s
                     newrow['contact_ids'] = ''
                     newrow['geo_constraint_id'] = const_id1
                     newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
+                    newrow['persist_data'] = 'False'
 
                     if ia_enabled:
                         sdef_id = sdef_lookup[scfg.parameter_dictionary_name]
@@ -2645,10 +2736,11 @@ Reason: %s
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = 'StreamDef11'        # Hardcoded to preload row value!!
                 newrow['parent'] = ''
-                #self._load_DataProduct(newrow, do_bulk=self.bulk)
+                newrow['persist_data'] = 'False'
+                self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-                #create_dp_link(inst_id + "_DPI0", inst_id + "_ID", 'InstrumentDevice')
-                #create_dp_link(inst_id + "_DPI0", inst_id)
+                create_dp_link(inst_id + "_DPI0", inst_id + "_ID", 'InstrumentDevice')
+                create_dp_link(inst_id + "_DPI0", inst_id)
 
                 # (1) Device Data Product - parsed
                 newrow = {}
@@ -2662,10 +2754,11 @@ Reason: %s
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
                 newrow['parent'] = ''
-                #self._load_DataProduct(newrow, do_bulk=self.bulk)
+                newrow['persist_data'] = 'False'
+                self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-                #create_dp_link(inst_id + "_DPI1", inst_id + "_ID", 'InstrumentDevice')
-                #create_dp_link(inst_id + "_DPI1", inst_id)
+                create_dp_link(inst_id + "_DPI1", inst_id + "_ID", 'InstrumentDevice')
+                create_dp_link(inst_id + "_DPI1", inst_id)
 
             data_product_list = inst_obj.get('data_product_list', [])
             for dp_id in data_product_list:
@@ -2703,11 +2796,12 @@ Reason: %s
                 newrow['coordinate_system_id'] = 'OOI_SUBMERGED_CS'
                 newrow['stream_def_id'] = ''
                 newrow['parent'] = ''
+                newrow['persist_data'] = 'False'
 
-                #self._load_DataProduct(newrow, do_bulk=self.bulk)
+                self._load_DataProduct(newrow, do_bulk=self.bulk)
 
-                #create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID")
-                #create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id)
+                create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id + "_ID")
+                create_dp_link(inst_id + "_" + dp_id + "_DPID", inst_id)
 
     def _load_DataProductLink(self, row, do_bulk=False):
         self.row_count += 1
@@ -2868,7 +2962,14 @@ Reason: %s
                 continue
 
             # Create a TemporalBounds constraint
-            const_id1 = ''
+            constrow = {}
+            const_id1 = node_id + "_constd"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'temporal'
+            constrow['time_format'] = ''
+            constrow['start'] = node_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
+            constrow['end'] = "2054-01-01T0:00:00"
+            self._load_Constraint(constrow)
 
             newrow = {}
             newrow[COL_ID] = node_id + "_DEP"
@@ -2898,7 +2999,14 @@ Reason: %s
                 continue
 
             # Create a TemporalBounds constraint
-            const_id1 = ''
+            constrow = {}
+            const_id1 = inst_id + "_constd"
+            constrow[COL_ID] = const_id1
+            constrow['type'] = 'temporal'
+            constrow['time_format'] = ''
+            constrow['start'] = inst_obj['deploy_date'].strftime(DEFAULT_TIME_FORMAT)
+            constrow['end'] = "2054-01-01T0:00:00"
+            self._load_Constraint(constrow)
 
             newrow = {}
             newrow[COL_ID] = inst_id + "_DEP"
