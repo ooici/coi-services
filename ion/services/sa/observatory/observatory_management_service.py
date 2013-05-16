@@ -135,18 +135,18 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         #Instantiate initial set of User Roles for this marine facility
         instrument_operator_role = IonObject(RT.UserRole,
                                              governance_name=INSTRUMENT_OPERATOR_ROLE,
-                                             name='Observatory Operator',   #previously Instrument Operator
-                                             description='Operate and post events related to Observatory Platforms and Instruments')
+                                             name='Facility Operator',   #previously Instrument Operator
+                                             description='Operate and post events related to Facility Platforms and Instruments')
         self.clients.org_management.add_user_role(org_id, instrument_operator_role)
         observatory_operator_role = IonObject(RT.UserRole,
                                              governance_name=OBSERVATORY_OPERATOR_ROLE,
-                                             name='Observatory Manager',   # previously Observatory Operator
-                                             description='Change Observatory configuration, post Site-related events')
+                                             name='Facility Manager',   # previously Observatory Operator
+                                             description='Change Facility configuration, post Site-related events')
         self.clients.org_management.add_user_role(org_id, observatory_operator_role)
         data_operator_role = IonObject(RT.UserRole,
                                        governance_name=DATA_OPERATOR_ROLE,
-                                       name='Observatory Data Operator',  # previously Data Operator
-                                       description='Manipulate and post events related to Observatory Data products')
+                                       name='Facility Data Operator',  # previously Data Operator
+                                       description='Manipulate and post events related to Facility Data products')
         self.clients.org_management.add_user_role(org_id, data_operator_role)
         
         return org_id
