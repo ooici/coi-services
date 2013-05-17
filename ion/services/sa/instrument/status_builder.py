@@ -4,6 +4,7 @@
 @package  ion.services.sa.instrument.agent_status_builder
 @author   Ian Katz
 """
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ooi.logging import log
 from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import IonObject
@@ -12,7 +13,13 @@ from pyon.core.exception import NotFound, Unauthorized, BadRequest
 from interface.objects import ComputedValueAvailability, ComputedIntValue, ComputedDictValue, ComputedListValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 from pyon.ion.resource import RT, PRED
+from pyon.util.containers import DotDict
 
+# possible ways of determining the type of a device driver
+DriverTypingMethod = DotDict()
+DriverTypingMethod.ByRR = 1
+DriverTypingMethod.ByAgent = 2
+DriverTypingMethod.ByException = 3
 
 class AgentStatusBuilder(object):
 
@@ -22,6 +29,11 @@ class AgentStatusBuilder(object):
         """
         assert process
         self.process = process
+        self.dtm = DriverTypingMethod.ByRR
+        self.RR2 = None
+
+        if DriverTypingMethod.ByRR == self.dtm:
+            self.RR2 = EnhancedResourceRegistryClient(process.clients.resource_registry)
 
 
     def set_status_computed_attributes(self, computed_attrs, values_dict=None, availability=None, reason=None):
@@ -104,9 +116,16 @@ class AgentStatusBuilder(object):
 
         out_status = {device_id: this_status}
 
-        # we're done if the agent doesn't support child_agg_status
-        if not "child_agg_status" in [c.name for c in h_agent.get_capabilities()]:
-            return out_status, None
+        if DriverTypingMethod.ByAgent == self.dtm:
+            # we're done if the agent doesn't support child_agg_status
+            if not "child_agg_status" in [c.name for c in h_agent.get_capabilities()]:
+                return out_status, None
+        elif DriverTypingMethod.ByRR == self.dtm:
+            device_obj = self.RR2.read(device_id)
+            if RT.PlatformDevice != device_obj._get_type():
+                return out_status, None
+        elif DriverTypingMethod.ByException == self.dtm:
+            pass # just let it happen
 
         try:
             child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
