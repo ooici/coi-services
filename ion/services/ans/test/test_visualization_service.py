@@ -494,6 +494,7 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
         # Use the data product to test the data retrieval and google dt generation capability of the vis service
         vis_data = self.vis_client.get_visualization_data(ctd_parsed_data_product_id, simplejson.dumps(viz_params))
 
+        print " >>>>>>>>>>>>>>> type of vis_data : ", type(vis_data)
         # validate the returned data
         self.validate_vis_service_mpl_graphs_results(vis_data)
 

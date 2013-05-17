@@ -107,7 +107,7 @@ class VisualizationService(BaseVisualizationService):
         log.debug('Exiting user_vis_queue_monitor')
 
 
-    def initiate_realtime_visualization_data(self, data_product_id='', visualization_parameters=None, callback=""):
+    def initiate_realtime_visualization_data(self, data_product_id='', visualization_parameters=None):
         """Initial request required to start a realtime chart for the specified data product. Returns a user specific token associated
         with the request that will be required for subsequent requests when polling data.
         
@@ -116,7 +116,6 @@ class VisualizationService(BaseVisualizationService):
         @param data_product_id    str
         @param in_product_type str
         @param query        str
-        @param callback     str
         @throws NotFound    Throws if specified data product id or its visualization product does not exist
         """
         log.debug( "initiate_realtime_visualization Vis worker: %s " , self.id)
@@ -182,15 +181,10 @@ class VisualizationService(BaseVisualizationService):
         self.clients.pubsub_management.activate_subscription(subscription_id)
 
         ret_dict = {'rt_query_token': query_token}
-        if callback == "":
-            return simplejson.dumps(ret_dict)
-        else:
-            return callback + "(\"" + simplejson.dumps(ret_dict) + "\")"
+        return simplejson.dumps(ret_dict)
 
 
-
-
-    def _process_visualization_message(self, messages, callback, reqId):
+    def _process_visualization_message(self, messages):
 
         gdt_description = []
         gdt_content = []
@@ -247,7 +241,6 @@ class VisualizationService(BaseVisualizationService):
 
                         gdt_content.append(varTuple)
 
-
                 #TODO - what to do if this is not a valid visualization message?
 
 
@@ -259,26 +252,16 @@ class VisualizationService(BaseVisualizationService):
                 gdt.LoadData(gdt_content)
 
                 # return the json version of the table
-                if callback == '':
-                    return gdt.ToJSonResponse(req_id = reqId)
-                else:
-                    return callback + "(\"" + gdt.ToJSonResponse(req_id = reqId) + "\")"
+                return gdt.ToJSon()
 
             # Handle case where there is no data for constructing a GDT
             else:
-                if callback == '':
-                    return None
-                else:
-                    return callback + "(\"" + None + "\")"
-
-
-
-
+                return None  #  <<=========
 
         return None
 
 
-    def get_realtime_visualization_data(self, query_token='', callback='', tqx=""):
+    def get_realtime_visualization_data(self, query_token=''):
         """This operation returns a block of visualization data for displaying data product in real time. This operation requires a
         user specific token which was provided from a previous request to the init_realtime_visualization operation.
 
@@ -287,15 +270,6 @@ class VisualizationService(BaseVisualizationService):
         @throws NotFound    Throws if specified query_token or its visualization product does not exist
         """
         log.debug( "get_realtime_visualization_data Vis worker: %s", self.id)
-
-        reqId = 0
-        # If a reqId was passed in tqx, extract it
-        if tqx:
-            tqx_param_list = tqx.split(";")
-            for param in tqx_param_list:
-                key, value = param.split(":")
-                if key == 'reqId':
-                    reqId = value
 
         ret_val = []
         if not query_token:
@@ -314,7 +288,7 @@ class VisualizationService(BaseVisualizationService):
             msgs[x].ack()
 
         # Different messages should get processed differently. Ret val will be decided by the viz product type
-        ret_val = self._process_visualization_message(msgs, callback, reqId)
+        ret_val = self._process_visualization_message(msgs)
 
 
         #TODO - replace as need be to return valid GDT data
@@ -414,28 +388,31 @@ class VisualizationService(BaseVisualizationService):
                 log.exception(e)
 
 
-    def get_visualization_data(self, data_product_id='', visualization_parameters=None, callback='', tqx=""):
+    def get_visualization_data(self, data_product_id='', visualization_parameters=None):
+
+        #    FOR TESTING ONLY
+        #print ">>>>>>>>>>  HERE <<<<<<<<<<<"
+        #raise BadRequest("FOR ERROR TESTING> PLEASE REMOVE LATER")
 
         vp_dict = simplejson.loads(visualization_parameters)
 
         # The visualization parameters must contain a query type. Based on this the processing methods will be chosen
         if (vp_dict['query_type'] == 'metadata'):
-            return self._get_data_product_metadata(data_product_id, callback)
+            return self._get_data_product_metadata(data_product_id)
 
         if (vp_dict['query_type'] == 'google_dt'):
-            return self._get_google_dt(data_product_id, vp_dict, callback, tqx)
+            return self._get_google_dt(data_product_id, vp_dict)
 
         if (vp_dict['query_type'] == 'mpl_image'):
-            return self._get_visualization_image(data_product_id, vp_dict, callback)
+            return self._get_visualization_image(data_product_id, vp_dict)
 
 
 
-    def _get_google_dt(self, data_product_id='', visualization_parameters=None, callback='', tqx=""):
+    def _get_google_dt(self, data_product_id='', visualization_parameters=None):
         """Retrieves the data for the specified DP
 
         @param data_product_id    str
         @param visualization_parameters    str
-        @param callback     str
         @retval jsonp_visualization_data str
         @throws NotFound    object with specified id, query does not exist
         """
@@ -450,16 +427,6 @@ class VisualizationService(BaseVisualizationService):
         use_direct_access = False
         if visualization_parameters == {}:
             visualization_parameters = None
-
-        reqId = 0
-        # If a reqId was passed in tqx, extract it
-        if tqx:
-            tqx_param_list = tqx.split(";")
-            for param in tqx_param_list:
-                key, value = param.split(":")
-                if key == 'reqId':
-                    reqId = value
-
 
         # Extract the parameters. Definitely init first
         query = None
@@ -513,10 +480,7 @@ class VisualizationService(BaseVisualizationService):
 
         # If thereis no data, return an empty dict
         if retrieved_granule is None:
-            if callback == '':
-                return empty_gdt.ToJSonResponse(req_id = reqId)
-            else:
-                return callback + "(\"" + empty_gdt.ToJSonResponse(req_id = reqId) + "\")"
+            return empty_gdt.ToJSon()
 
         # send the granule through the transform to get the google datatable
         gdt_pdict_id = self.clients.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
@@ -524,10 +488,7 @@ class VisualizationService(BaseVisualizationService):
 
         gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(retrieved_granule, params=gdt_stream_def, config=visualization_parameters)
         if gdt_data_granule == None:
-            if callback == '':
-                return empty_gdt.ToJSonResponse(req_id = reqId)
-            else:
-                return callback + "(\"" + empty_gdt.ToJSonResponse(req_id = reqId) + "\")"
+            return empty_gdt.ToJSon()
 
         gdt_rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
         gdt_components = get_safe(gdt_rdt, 'google_dt_components')
@@ -564,14 +525,10 @@ class VisualizationService(BaseVisualizationService):
         gdt.LoadData(gdt_content)
 
         # return the json version of the table
-        if callback == '':
-            return gdt.ToJSonResponse(req_id = reqId)
-        else:
-            return callback + "(\"" + gdt.ToJSonResponse(req_id = reqId) + "\")"
+        return gdt.ToJSon()
 
 
-
-    def _get_visualization_image(self, data_product_id='', visualization_parameters=None, callback=''):
+    def _get_visualization_image(self, data_product_id='', visualization_parameters=None):
 
         # Error check
         if not data_product_id:
@@ -639,15 +596,10 @@ class VisualizationService(BaseVisualizationService):
         # reason for encoding as base64 string is otherwise message pack complains about the bit stream
         ret_dict['image_obj'] = base64.encodestring((get_safe(mpl_rdt, "image_obj"))[0])
 
-        if callback == '':
-            return ret_dict
-        else:
-            return callback + "(" + simplejson.dumps(ret_dict) + ")"
+        return simplejson.dumps(ret_dict)
 
 
-
-
-    def _get_data_product_metadata(self, data_product_id="", callback=""):
+    def _get_data_product_metadata(self, data_product_id=""):
 
         dp_meta_data = {}
         if not data_product_id:
@@ -667,10 +619,5 @@ class VisualizationService(BaseVisualizationService):
         dp_meta_data['time_bounds'] = time_bounds
         dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents(ds_ids[0])['time'][0]
 
-        dp_meta_data_json = simplejson.dumps(dp_meta_data)
-
-        if callback:
-            return callback + "(" + dp_meta_data_json + ")"
-        else:
-            return dp_meta_data_json
+        return simplejson.dumps(dp_meta_data)
 
