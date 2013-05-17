@@ -81,22 +81,6 @@ class AgentStatusBuilder(object):
         return h_agent, ""
 
 
-    def add_child_statuses_to_extension(self, extension_obj, child_agg_status):
-        """
-        Extension_obj is an extension
-        device_id is the primary device
-        child_device_ids is any child device ids -- will be a list, not none
-        device_of_site is a dictionary of site_id -> device_id, indicating that this is a site extension of some kind
-        """
-
-        def csl(device_id_list):
-            return self.compute_status_list(child_agg_status, device_id_list)
-
-        log.debug("Building instrument and platform status dicts")
-        extension_obj.computed.instrument_status = csl([dev._id for dev in extension_obj.instrument_devices])
-        extension_obj.computed.platform_status   = csl([dev._id for dev in extension_obj.platform_devices])
-
-
     # get a lookup table that includes child_agg_status + the parent device status as dev_id -> {AggStatusType: DeviceStatusType}
     def get_cumulative_status_dict(self, device_id):
         h_agent, reason = self.get_device_agent(device_id)
