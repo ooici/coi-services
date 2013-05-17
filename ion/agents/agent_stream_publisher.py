@@ -157,32 +157,36 @@ class AgentStreamPublisher(object):
             publisher = self._publishers[stream_name]
                 
             vals = []
-            for x in range(buf_len):
+            for x in xrange(buf_len):
                 vals.append(self._stream_buffers[stream_name].pop())
     
             data_arrays = {}
-            for x in rdt.fields:
-                data_arrays[x] = [None for y in range(buf_len)]
+            data_arrays[rdt.temporal_parameter] = [None] * len(vals)
 
-            for i in range(buf_len):
-                tomato = vals[i]
-                for (tk, tv) in tomato.iteritems():
-                    if tk == 'values':
-                        for tval_dict in tv:
-                            tval_id = tval_dict['value_id']
-                            if tval_id in rdt:
-                                tval_val = tval_dict['value']
-                                if tval_dict.get('binary', None):
-                                    tval_val = base64.b64decode(tval_val)
-                                data_arrays[tval_id][i] = tval_val
-                                                               
-                    elif tk in rdt:
-                        data_arrays[tk][i] = tv
-                        if tk == 'driver_timestamp':
-                            data_arrays['time'][i] = tv    
-            
+            for i,tomato in enumerate(vals):
+                if 'values' in tomato:
+                    for inner_dict in tomato['values']:
+                        field = inner_dict['value_id']
+                        value = inner_dict['value']
+                        if field not in rdt:
+                            continue
+                        if field not in data_arrays:
+                            data_arrays[field] = [None] * len(vals)
+                        data_arrays[field][i] = value if not inner_dict.get('binary',None) else base64.b64decode(value)
+                for k,v in tomato.iteritems():
+                    if k == 'values' or k not in rdt:
+                        continue
+                    if k not in data_arrays:
+                        data_arrays[k] = [None] * len(vals)
+                    if k == 'driver_timestamp':
+                        data_arrays[rdt.temporal_parameter][i] = v
+                    data_arrays[k][i] = v
+                        
+
+
             for (k,v) in data_arrays.iteritems():
-                rdt[k] = numpy.array(v)
+                if v and any(v):
+                    rdt[k] = numpy.array(v)
 
             log.info('Outgoing granule: %s',
                      ['%s: %s'%(k,v) for k,v in rdt.iteritems()])
@@ -194,11 +198,9 @@ class AgentStreamPublisher(object):
                 self._agent._proc_name, stream_name)
             log.info('Connection id: %s, connection index: %i.',
                      self._connection_ID.hex, self._connection_index[stream_name])
-            
+            self._connection_index[stream_name] += 1
         except:
             log.exception('Instrument agent %s could not publish data on stream %s.',
                 self._agent._proc_name, stream_name)
 
-        else:
-            self._connection_index[stream_name] += 1
             
