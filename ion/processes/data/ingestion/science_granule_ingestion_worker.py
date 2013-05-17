@@ -89,6 +89,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         self.lookup_docs = self.CFG.get_safe('process.lookup_docs',[])
         self.input_product = self.CFG.get_safe('process.input_product','')
         self.qc_enabled = self.CFG.get_safe('process.qc_enabled', True)
+        self.ignore_gaps = self.CFG.get_safe('service.ingestion.ignore_gaps', False)
         self.new_lookups = Queue()
         self.lookup_monitor = EventSubscriber(event_type=OT.ExternalReferencesUpdatedEvent, callback=self._add_lookups, auto_delete=True)
         self.lookup_monitor.start()
@@ -402,10 +403,11 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         #--------------------------------------------------------------------------------
         # Gap Analysis
         #--------------------------------------------------------------------------------
-        gap_found = self.has_gap(rdt.connection_id, rdt.connection_index)
-        if gap_found:
-            log.error('Gap Found!   New connection: (%s,%s)\tOld Connection: (%s,%s)', rdt.connection_id, rdt.connection_index, self.connection_id, self.connection_index)
-            self.gap_coverage(stream_id)
+        if not self.ignore_gaps:
+            gap_found = self.has_gap(rdt.connection_id, rdt.connection_index)
+            if gap_found:
+                log.error('Gap Found!   New connection: (%s,%s)\tOld Connection: (%s,%s)', rdt.connection_id, rdt.connection_index, self.connection_id, self.connection_index)
+                self.gap_coverage(stream_id)
 
 
 
@@ -463,7 +465,7 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         start_index = coverage.num_timesteps - elements
         self.dataset_changed(dataset_id,coverage.num_timesteps,(start_index,start_index+elements))
 
-        if gap_found:
+        if not self.ignore_gaps and gap_found:
             self.splice_coverage(dataset_id, coverage)
 
         self.evaluate_qc(rdt, dataset_id)

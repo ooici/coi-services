@@ -23,6 +23,7 @@ from interface.services.coi.iidentity_management_service import IdentityManageme
 from interface.services.dm.ipubsub_management_service import PubsubManagementServiceClient
 from interface.services.sa.idata_product_management_service import DataProductManagementServiceClient
 from interface.services.sa.idata_acquisition_management_service import DataAcquisitionManagementServiceClient
+from interface.services.sa.iobservatory_management_service import ObservatoryManagementServiceClient
 from interface.objects import ComputedValueAvailability, ProcessDefinition, ProcessStateEnum, StreamConfiguration
 from interface.objects import ComputedIntValue, ComputedFloatValue, ComputedStringValue
 
@@ -56,7 +57,7 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.DAMS = DataAcquisitionManagementServiceClient(node=self.container.node)
         self.DSC  = DatasetManagementServiceClient(node=self.container.node)
         self.PDC  = ProcessDispatcherServiceClient(node=self.container.node)
-
+        self.OMS = ObservatoryManagementServiceClient(node=self.container.node)
         self.RR2 = EnhancedResourceRegistryClient(self.RR)
 
 #    @unittest.skip('this test just for debugging setup')
@@ -75,8 +76,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         instrument_agent_id, _ =           self.RR.create(any_old(RT.InstrumentAgent))
         instrument_model_id, _ =           self.RR.create(any_old(RT.InstrumentModel))
         instrument_device_id, _ =          self.RR.create(any_old(RT.InstrumentDevice))
+        instrument_site_id, _ =            self.RR.create(any_old(RT.InstrumentSite))
         platform_agent_instance_id, _ =    self.RR.create(any_old(RT.PlatformAgentInstance))
         platform_agent_id, _ =             self.RR.create(any_old(RT.PlatformAgent))
+        platform_site_id, _ =              self.RR.create(any_old(RT.PlatformSite))
         platform_device_id, _ =            self.RR.create(any_old(RT.PlatformDevice))
         platform_model_id, _ =             self.RR.create(any_old(RT.PlatformModel))
         sensor_device_id, _ =              self.RR.create(any_old(RT.SensorDevice))
@@ -112,6 +115,10 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.RR.create_association(platform_device_id, PRED.hasModel, platform_model_id)
         self.RR.create_association(platform_device_id, PRED.hasAgentInstance, platform_agent_instance_id)
         self.RR.create_association(platform_device_id, PRED.hasDevice, instrument_device_id)
+
+        self.RR.create_association(instrument_site_id, PRED.hasDevice, instrument_device_id)
+        self.RR.create_association(platform_site_id, PRED.hasDevice, platform_device_id)
+        self.RR.create_association(platform_site_id, PRED.hasSite, instrument_site_id)
 
         platform_model_id #is only a target
 
@@ -195,6 +202,9 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
 
         extended_platform = self.IMS.get_platform_device_extension(platform_device_id)
 
+        self.assertEqual(1, len(extended_platform.portals))
+        self.assertEqual(1, len(extended_platform.portal_instruments))
+        self.assertEqual(1, len(extended_platform.computed.portal_status.value))
         self.assertEqual(1, len(extended_platform.instrument_devices))
         self.assertEqual(instrument_device_id, extended_platform.instrument_devices[0]._id)
         self.assertEqual(1, len(extended_platform.instrument_models))
@@ -250,6 +260,8 @@ class TestInstrumentManagementServiceIntegration(IonIntegrationTestCase):
         self.IMS.force_delete_instrument_device(instrument_device_id)
         self.IMS.force_delete_platform_agent_instance(platform_agent_instance_id)
         self.IMS.force_delete_platform_agent(platform_agent_id)
+        self.OMS.force_delete_instrument_site(instrument_site_id)
+        self.OMS.force_delete_platform_site(platform_site_id)
         self.IMS.force_delete_platform_device(platform_device_id)
         self.IMS.force_delete_platform_model(platform_model_id)
         self.IMS.force_delete_sensor_device(sensor_device_id)
