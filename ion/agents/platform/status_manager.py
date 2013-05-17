@@ -121,8 +121,8 @@ class StatusManager(object):
 
             self._event_subscribers.clear()
             self.aparam_child_agg_status.clear()
-            self.aparam_rollup_status.clear()
-            self.aparam_aggstatus.clear()
+            for status_name in AggregateStatusType._str_map.keys():
+                self.aparam_rollup_status[status_name] = DeviceStatusType.STATUS_UNKNOWN
 
             for origin, es in ess.iteritems():
                 try:
