@@ -106,6 +106,10 @@ class StatusManager(object):
             for origin in pa._children_resource_ids:
                 self._prepare_new_child(origin)
 
+        # diagnostics report on demand:
+        self._diag_sub = None
+        self._start_diagnostics_subscriber()
+
     def destroy(self):
         """
         Terminates the status handling.
@@ -125,12 +129,18 @@ class StatusManager(object):
                 self.aparam_rollup_status[status_name] = DeviceStatusType.STATUS_UNKNOWN
 
             for origin, es in ess.iteritems():
-                try:
-                    es.stop()
+                self._stop_event_subscriber(origin, es)
 
-                except Exception as ex:
-                    log.warn("%r: error stopping event subscriber: origin=%r: %s",
-                             self._platform_id, origin, ex)
+        if self._diag_sub:  # pragma: no cover
+            self._stop_event_subscriber(None, self._diag_sub)
+            self._diag_sub = None
+
+    def _stop_event_subscriber(self, origin, es):
+        try:
+            es.stop()
+        except Exception as ex:
+            log.warn("%r: error stopping event subscriber: origin=%r: %s",
+                     self._platform_id, origin, ex)
 
     def publish_device_added_event(self, sub_resource_id):
         """
@@ -627,9 +637,85 @@ Published event: AGGREGATE_COMMS -> STATUS_CRITICAL
         logfun("%r: event published triggered by event from child %r: %s",
                self._platform_id, child_origin, msg)
 
+    def _start_diagnostics_subscriber(self):  # pragma: no cover
+        """
+        For debugging/diagnostics purposes.
+        Registers a subscriber to DeviceEvent events with origin="command_line"
+        and sub_type="diagnoser" to log the current statuses via log.info.
+        This method does nothing if the logging level is not enabled for INFO
+        for this module.
+
+        From the pycc command line, the event can be sent as indicated in
+        publish_event_for_diagnostics().
+
+        """
+        # TODO perhaps a more visible/official command for diagnostic purposes,
+        # and for resource agents in general should be considered, something
+        # like RESOURCE_AGENT_EVENT_REPORT_DIAGNOSTICS.
+
+        if not log.isEnabledFor(logging.INFO):
+            return
+
+        event_type  = "DeviceEvent"
+        origin      = "command_line"
+        sub_type    = "diagnoser"
+
+        def got_event(evt, *args, **kwargs):
+            if not self._active:
+                log.warn("%r: got_event called but manager has been destroyed",
+                         self._platform_id)
+                return
+
+            if evt.type_ != event_type:
+                log.trace("%r: ignoring event type %r. Only handle %r directly",
+                          self._platform_id, evt.type_, event_type)
+                return
+
+            if evt.sub_type != sub_type:
+                log.trace("%r: ignoring event sub_type %r. Only handle %r",
+                          self._platform_id, evt.sub_type, sub_type)
+                return
+
+            statuses = formatted_statuses(self.aparam_aggstatus,
+                                          self.aparam_child_agg_status,
+                                          self.aparam_rollup_status)
+            log.info("%r: statuses:\n%s\n", self._platform_id, statuses)
+
+        self._diag_sub = EventSubscriber(event_type=event_type,
+                                    origin=origin,
+                                    sub_type=sub_type,
+                                    callback=got_event)
+        self._diag_sub.start()
+
+        log.info("%r: registered diagnostics event subscriber", self._platform_id)
+
 
 #----------------------------------
 # some utilities
+
+def publish_event_for_diagnostics():  # pragma: no cover
+    """
+    Convenient method to do the publication of the event to generate diagnostic
+    information about the statuses kept in each running platform agent.
+
+    ><> from ion.agents.platform.status_manager import publish_event_for_diagnostics
+    ><> publish_event_for_diagnostics()
+
+    and something like the following will be logged out:
+
+    2013-05-16 15:09:06,754 INFO Dummy-360 ion.agents.platform.status_manager:673 'LJ01D': statuses:
+                                   aggstatus : {'AGGREGATE_COMMS': 'STATUS_OK       ', 'AGGREGATE_POWER': 'STATUS_OK       ', 'AGGREGATE_DATA': 'STATUS_OK       ', 'AGGREGATE_LOCATION': 'STATUS_OK       '}
+            09b9091514904d608527f970453da519 : {'AGGREGATE_COMMS': 'STATUS_OK       ', 'AGGREGATE_POWER': 'STATUS_OK       ', 'AGGREGATE_DATA': 'STATUS_OK       ', 'AGGREGATE_LOCATION': 'STATUS_OK       '}
+            7e25d59091464e4f8b042e63df929cb0 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+                               rollup_status : {'AGGREGATE_COMMS': 'STATUS_OK       ', 'AGGREGATE_POWER': 'STATUS_OK       ', 'AGGREGATE_DATA': 'STATUS_OK       ', 'AGGREGATE_LOCATION': 'STATUS_OK       '}
+    """
+
+    from pyon.event.event import EventPublisher
+    ep = EventPublisher()
+    evt = dict(event_type='DeviceEvent', sub_type='diagnoser', origin='command_line')
+    print("publishing: %s" % str(evt))
+    ep.publish_event(**evt)
+
 
 def formatted_statuses(aggstatus, child_agg_status, rollup_status):  # pragma: no cover
     """
