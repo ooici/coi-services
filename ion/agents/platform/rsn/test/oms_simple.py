@@ -21,6 +21,7 @@ __license__ = 'Apache 2.0'
 
 import xmlrpclib
 import sys
+import pprint
 
 # Main program
 if __name__ == "__main__":  # pragma: no cover
@@ -36,6 +37,16 @@ if __name__ == "__main__":  # pragma: no cover
     print '\nconnecting to %r ...' % uri
     proxy = xmlrpclib.ServerProxy(uri, allow_none=True)
     print 'connection established.'
+
+    pp = pprint.PrettyPrinter()
+
+    def format_val(value):
+        prefix = "\t\t"
+        print "\n%s%s" % (prefix, pp.pformat(value).replace("\n", "\n" + prefix))
+
+    def format_err(msg):
+        prefix = "\t\t"
+        print "\n%s%s" % (prefix, msg.replace("\n", "\n" + prefix))
 
     tried = {}
 
@@ -71,19 +82,18 @@ if __name__ == "__main__":  # pragma: no cover
                 print "error getting proxy's method %s: %s: %s" % (method_name, type(e), str(e))
                 return None
 
-    def run(handler_name, method_name, *args):
+    def run(full_method_name, *args):
         """
         Runs a method against the proxy.
 
-        @param handler_name  Name of the handler
-        @param method_name   Method's name
-        @param args          to display method to be called.
+        @param full_method_name
+        @param args
         """
         global tried
 
-        full_method_name = "%s.%s" % (handler_name, method_name)
-
         tried[full_method_name] = ""
+
+        handler_name, method_name = full_method_name.split(".")
 
         # get the method
         method = get_method(handler_name, method_name)
@@ -93,109 +103,280 @@ if __name__ == "__main__":  # pragma: no cover
 
         sargs = ", ".join(["%r" % a for a in args])
 
-        sys.stdout.write("%s(%s) -> " % (full_method_name, sargs))
+        sys.stdout.write("\n%s(%s) -> " % (full_method_name, sargs))
         sys.stdout.flush()
 
         # run method
+        retval, reterr = None, None
         try:
             retval = method(*args)
             tried[full_method_name] = "OK"
-            print "%r" % retval
+            # print "%r" % retval
+            format_val(retval)
         except xmlrpclib.Fault as e:
             if e.faultCode == 8001:
-                retval = "Not found"
+                reterr = "-- NOT FOUND (fault %s)" % e.faultCode
             else:
-                retval = "Fault %d: %s" % (e.faultCode, e.faultString)
+                reterr = "-- Fault %d: %s" % (e.faultCode, e.faultString)
                 # raise
                 # print "Exception: %s: %s" % (type(e), str(e))
                 # tried[full_method_name] = str(e)
 
-            tried[full_method_name] = retval
-            print "%s" % retval
+            tried[full_method_name] = reterr
+            format_err(reterr)
 
-        return retval
+        return retval, reterr
+
+    def verify_entry_in_dict(retval, reterr, entry):
+        if reterr is not None:
+            return retval, reterr
+
+        reterr = None
+        if not isinstance(retval, dict):
+            reterr = "-- expecting a dict with entry %r" % entry
+        elif entry not in retval:
+            reterr = "-- expecting a dict with entry %r" % entry
+        else:
+            retval = retval[entry]
+
+        if reterr:
+            tried[full_method_name] = reterr
+            format_err(reterr)
+
+        return retval, reterr
+
 
     print "Basic verification of the operations:\n"
 
-    run("hello", "ping")
-    run("config", 'get_platform_types')
+    #----------------------------------------------------------------------
+    full_method_name = "hello.ping"
+    retval, reterr = run(full_method_name)
+    if retval and retval.lower() != "pong":
+        error = "expecting 'pong'"
+        tried[full_method_name] = error
+        format_err(error)
 
-    plat_map = run("config", 'get_platform_map')
+    #----------------------------------------------------------------------
+    full_method_name = "config.get_platform_types"
+    retval, reterr = run(full_method_name)
+    if retval and not isinstance(retval, dict):
+        error = "expecting a dict"
+        tried[full_method_name] = error
+        format_err(error)
+
     platform_id = "dummy_platform_id"
-    if plat_map:
-        platform_id = plat_map[0][0]
 
-    run("config", 'get_platform_metadata', platform_id)
-    run("attr", 'get_platform_attributes', platform_id)
-    run("attr", 'get_platform_attribute_values', platform_id, {})
-    run("attr", 'set_platform_attribute_values', platform_id, {})
-    ports = run("config", 'get_platform_ports', platform_id)
+    #----------------------------------------------------------------------
+    full_method_name = "config.get_platform_map"
+    retval, reterr = run(full_method_name)
+    if retval is not None:
+        if isinstance(retval, list):
+            if len(retval):
+                if isinstance(retval[0], (tuple, list)):
+                    platform_id = retval[0][0]
+                else:
+                    reterr = "expecting a list of tuples or lists"
+            else:
+                reterr = "expecting a non-empty list"
+        else:
+            reterr = "expecting a list"
+        if reterr:
+            tried[full_method_name] = reterr
+            format_err(reterr)
+
+    #----------------------------------------------------------------------
+    full_method_name = "config.get_platform_metadata"
+    retval, reterr = run(full_method_name, platform_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
+
+    #----------------------------------------------------------------------
+    full_method_name = "attr.get_platform_attributes"
+    retval, reterr = run(full_method_name, platform_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
+
+    #----------------------------------------------------------------------
+    full_method_name = "attr.get_platform_attribute_values"
+    retval, reterr = run(full_method_name, platform_id, [])
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
+
+    #----------------------------------------------------------------------
+    full_method_name = "attr.set_platform_attribute_values"
+    retval, reterr = run(full_method_name, platform_id, {})
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
 
     port_id = "dummy_port_id"
+
+    #----------------------------------------------------------------------
+    full_method_name = "port.get_platform_ports"
+    retval, reterr = run(full_method_name, platform_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
+    if retval is not None:
+        if isinstance(retval, dict):
+            if len(retval):
+                port_id = retval.keys()[0]
+            else:
+                reterr = "empty dict of ports for platform %r" % platform_id
+        else:
+            reterr = "expecting a dict for platform %r. got: %s" % (platform_id, type(retval))
+        if reterr:
+            tried[full_method_name] = reterr
+            format_err(reterr)
+
     instrument_id = "dummy_instrument_id"
-    run("config", 'connect_instrument', platform_id, port_id, instrument_id, {})
-    run("config", 'disconnect_instrument', platform_id, port_id, instrument_id)
-    run("config", 'get_connected_instruments', platform_id, port_id)
-    run("port", 'turn_on_platform_port', platform_id, port_id)
-    run("port", 'turn_off_platform_port', platform_id, port_id)
 
-    url = "dummy_url_listener"
-    run("event", 'register_event_listener', url)
-    run("event", 'unregister_event_listener', url)
-    run("event", 'get_registered_event_listeners')
+    #----------------------------------------------------------------------
+    full_method_name = "instr.connect_instrument"
+    retval, reterr = run(full_method_name, platform_id, port_id, instrument_id, {})
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
 
-    run("config", 'get_checksum', platform_id)
+    #----------------------------------------------------------------------
+    full_method_name = "instr.get_connected_instruments"
+    retval, reterr = run(full_method_name, platform_id, port_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
 
-    run("event", 'generate_test_event', 'ref_id', 'simulated event', platform_id, 'power')
+    #----------------------------------------------------------------------
+    full_method_name = "instr.disconnect_instrument"
+    retval, reterr = run(full_method_name, platform_id, port_id, instrument_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, platform_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, port_id)
+    retval, reterr = verify_entry_in_dict(retval, reterr, instrument_id)
 
+    #----------------------------------------------------------------------
+    full_method_name = "port.turn_on_platform_port"
+    retval, reterr = run(full_method_name, platform_id, port_id)
+
+    #----------------------------------------------------------------------
+    full_method_name = "port.turn_off_platform_port"
+    retval, reterr = run(full_method_name, platform_id, port_id)
+
+    url = "http://example.net:1234/ci_oms_event_listener"
+
+    #----------------------------------------------------------------------
+    full_method_name = "event.register_event_listener"
+    retval, reterr = run(full_method_name, url)
+    retval, reterr = verify_entry_in_dict(retval, reterr, url)
+
+    #----------------------------------------------------------------------
+    full_method_name = "event.get_registered_event_listeners"
+    retval, reterr = run(full_method_name)
+    retval, reterr = verify_entry_in_dict(retval, reterr, url)
+
+    #----------------------------------------------------------------------
+    full_method_name = "event.unregister_event_listener"
+    retval, reterr = run(full_method_name, url)
+    retval, reterr = verify_entry_in_dict(retval, reterr, url)
+
+    #----------------------------------------------------------------------
+    full_method_name = "config.get_checksum"
+    retval, reterr = run(full_method_name, platform_id)
+
+    #----------------------------------------------------------------------
+    full_method_name = "event.generate_test_event"
+    retval, reterr = run(full_method_name, 'ref_id', 'simulated event', platform_id, 'power')
+
+    #######################################################################
     print("\nSummary of basic verification:")
+    okeys = 0
     for full_method_name, result in sorted(tried.iteritems()):
         print("%20s %-40s: %s" % ("", full_method_name, result))
+        if result == "OK":
+            okeys += 1
+    print("OK methods %d out of %s" % (okeys, len(tried)))
 
 """
 $ date && bin/python ion/agents/platform/rsn/test/oms_simple.py
-Wed May  1 12:20:59 PDT 2013
+Fri May 17 13:53:06 PDT 2013
 
 connecting to 'http://alice:1234@10.180.80.10:9021/' ...
 connection established.
 Basic verification of the operations:
 
-hello.ping() -> 'pong'
-config.get_platform_types() -> Not found
-config.get_platform_map() -> [['Node1A', 'ShoreStation'], ['Node1B', 'ShoreStation'], ['ShoreStation', '']]
-config.get_platform_metadata('Node1A') -> ''
-attr.get_platform_attributes('Node1A') -> Fault 8002: error
-attr.get_platform_attribute_values('Node1A', {}) -> Not found
-attr.set_platform_attribute_values('Node1A', {}) -> Not found
-config.get_platform_ports('Node1A') -> Not found
-config.connect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id', {}) -> Not found
-config.disconnect_instrument('Node1A', 'dummy_port_id', 'dummy_instrument_id') -> Not found
-config.get_connected_instruments('Node1A', 'dummy_port_id') -> Not found
-port.turn_on_platform_port('Node1A', 'dummy_port_id') -> Fault 8002: error
-port.turn_off_platform_port('Node1A', 'dummy_port_id') -> Fault 8002: error
-event.register_event_listener('dummy_url_listener') -> {'dummy_url_listener': 3576425022.469944}
-event.unregister_event_listener('dummy_url_listener') -> {'dummy_url_listener': 3576425022.767337}
-event.get_registered_event_listeners() -> {'23422.jwl': 3576419989.9077272}
-config.get_checksum('Node1A') -> Not found
-event.generate_test_event('ref_id', 'simulated event', 'Node1A', 'power') -> Not found
+
+hello.ping() ->
+		'pong'
+
+config.get_platform_types() ->
+		-- NOT FOUND (fault 8001)
+
+config.get_platform_map() ->
+		[['LPJBox_CI_Ben_Hall', 'ShoreStation'], ['ShoreStation', '']]
+
+config.get_platform_metadata('LPJBox_CI_Ben_Hall') ->
+		''
+
+		-- expecting a dict with entry 'LPJBox_CI_Ben_Hall'
+
+attr.get_platform_attributes('LPJBox_CI_Ben_Hall') ->
+		-- Fault 8002: error
+
+attr.get_platform_attribute_values('LPJBox_CI_Ben_Hall', []) ->
+		-- Fault 8002: error
+
+attr.set_platform_attribute_values('LPJBox_CI_Ben_Hall', {}) ->
+		-- NOT FOUND (fault 8001)
+
+port.get_platform_ports('LPJBox_CI_Ben_Hall') ->
+		{'LPJBox_CI_Ben_Hall': {'0': {'is_on': 'OFF',
+		                              'network': 'ERROR_NOT_IMPLEMENTED'},
+		                        '1': {'is_on': 'OFF',
+		                              'network': 'ERROR_NOT_IMPLEMENTED'},
+		                        '2': {'is_on': 'OFF',
+		                              'network': 'ERROR_NOT_IMPLEMENTED'},
+		                        '3': {'is_on': 'OFF',
+		                              'network': 'ERROR_NOT_IMPLEMENTED'}}}
+
+instr.connect_instrument('LPJBox_CI_Ben_Hall', '1', 'dummy_instrument_id', {}) ->
+		{'LPJBox_CI_Ben_Hall': {'1': {'dummy_instrument_id': {}}}}
+
+instr.get_connected_instruments('LPJBox_CI_Ben_Hall', '1') ->
+		{'LPJBox_CI_Ben_Hall': {'1': {'dummy_instrument_id': {}}}}
+
+instr.disconnect_instrument('LPJBox_CI_Ben_Hall', '1', 'dummy_instrument_id') ->
+		{'LPJBox_CI_Ben_Hall': {'1': {'dummy_instrument_id': 'OK_INSTRUMENT_DISCONNECTED'}}}
+
+port.turn_on_platform_port('LPJBox_CI_Ben_Hall', '1') ->
+		{'LPJBox_CI_Ben_Hall': {'1': 'OK_PORT_TURNED_ON'}}
+
+port.turn_off_platform_port('LPJBox_CI_Ben_Hall', '1') ->
+		{'LPJBox_CI_Ben_Hall': {'1': 'OK_PORT_TURNED_OFF'}}
+
+event.register_event_listener('http://example.net:1234/ci_oms_event_listener') ->
+		{'http://example.net:1234/ci_oms_event_listener': 3577812936.822747}
+
+event.get_registered_event_listeners() ->
+		{'http://example.net:1234/ci_oms_event_listener': 3577812936.822747}
+
+event.unregister_event_listener('http://example.net:1234/ci_oms_event_listener') ->
+		{'http://example.net:1234/ci_oms_event_listener': 3577812937.393182}
+
+config.get_checksum('LPJBox_CI_Ben_Hall') ->
+		-- NOT FOUND (fault 8001)
+
+event.generate_test_event('ref_id', 'simulated event', 'LPJBox_CI_Ben_Hall', 'power') ->
+		True
 
 Summary of basic verification:
-                     attr.get_platform_attribute_values      : Not found
-                     attr.get_platform_attributes            : Fault 8002: error
-                     attr.set_platform_attribute_values      : Not found
-                     config.connect_instrument               : Not found
-                     config.disconnect_instrument            : Not found
-                     config.get_checksum                     : Not found
-                     config.get_connected_instruments        : Not found
+                     attr.get_platform_attribute_values      : -- Fault 8002: error
+                     attr.get_platform_attributes            : -- Fault 8002: error
+                     attr.set_platform_attribute_values      : -- NOT FOUND (fault 8001)
+                     config.get_checksum                     : -- NOT FOUND (fault 8001)
                      config.get_platform_map                 : OK
-                     config.get_platform_metadata            : OK
-                     config.get_platform_ports               : Not found
-                     config.get_platform_types               : Not found
-                     event.generate_test_event               : Not found
+                     config.get_platform_metadata            : -- expecting a dict with entry 'LPJBox_CI_Ben_Hall'
+                     config.get_platform_types               : -- NOT FOUND (fault 8001)
+                     event.generate_test_event               : OK
                      event.get_registered_event_listeners    : OK
                      event.register_event_listener           : OK
                      event.unregister_event_listener         : OK
                      hello.ping                              : OK
-                     port.turn_off_platform_port             : Fault 8002: error
-                     port.turn_on_platform_port              : Fault 8002: error
+                     instr.connect_instrument                : OK
+                     instr.disconnect_instrument             : OK
+                     instr.get_connected_instruments         : OK
+                     port.get_platform_ports                 : OK
+                     port.turn_off_platform_port             : OK
+                     port.turn_on_platform_port              : OK
+OK methods 12 out of 18
 """
