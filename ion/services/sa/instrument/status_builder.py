@@ -115,7 +115,7 @@ class AgentStatusBuilder(object):
             child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
             log.debug('get_cumulative_status_dict child_agg_status : %s', child_agg_status)
             if child_agg_status:
-                out_status += child_agg_status
+                out_status = dict(out_status.items() + child_agg_status.items())
             return out_status, None
         except Exception as e:
             log.warn("failed to get status for device %s", device_id, exc_info=True)
