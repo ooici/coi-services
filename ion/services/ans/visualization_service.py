@@ -605,10 +605,10 @@ class VisualizationService(BaseVisualizationService):
         if not data_product_id:
             raise BadRequest("The data_product_id parameter is missing")
 
-        # get the dataset_id associated with the data_product. Need it to do the data retrieval
+        # get the dataset_id and dataset associated with the data_product. Need it to do the data retrieval
         ds_ids,_ = self.clients.resource_registry.find_objects(data_product_id, PRED.hasDataset, RT.Dataset, True)
 
-        if ds_ids is None or not ds_ids:
+        if not ds_ids:
             log.warn("Specified data_product does not have an associated dataset")
             return None
 
@@ -618,6 +618,16 @@ class VisualizationService(BaseVisualizationService):
         time_bounds = self.clients.dataset_management.dataset_temporal_bounds(ds_ids[0])
         dp_meta_data['time_bounds'] = time_bounds
         dp_meta_data['time_steps'] = self.clients.dataset_management.dataset_extents(ds_ids[0])['time'][0]
+
+        # use the associations to get to the parameter dict
+        parameter_display_names = {}
+        for stream_def in self.clients.resource_registry.find_objects(data_product_id, PRED.hasStreamDefinition, id_only=True)[0]:
+            for pdict in self.clients.resource_registry.find_objects(stream_def, PRED.hasParameterDictionary, id_only=True)[0]:
+                for context in self.clients.resource_registry.find_objects(pdict, PRED.hasParameterContext, id_only=False)[0]:
+                    #display_name = context.display_name
+                    parameter_display_names[context.name] = context.display_name
+
+        dp_meta_data['parameter_display_names'] = parameter_display_names
 
         return simplejson.dumps(dp_meta_data)
 
