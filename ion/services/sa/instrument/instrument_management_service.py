@@ -1954,23 +1954,23 @@ class InstrumentManagementService(BaseInstrumentManagementService):
 
         #Fill out service request information for assigning a InstrumentDevice
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request, 'instrument_management',
-            'assign_instrument_agent_instance_to_instrument_device', { "instrument_device_id":  "$(instrument_device_id)",
-                                                              "instrument_agent_instance_id":  instrument_agent_instance_id })
+            'assign_instrument_agent_instance_to_instrument_device', {"instrument_device_id":  "$(instrument_device_id)",
+                                                                      "instrument_agent_instance_id":  instrument_agent_instance_id })
 
         #Fill out service request information for unassigning a InstrumentDevice
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].unassign_request, 'instrument_management',
-            'unassign_instrument_agent_instance_to_instrument_device', { "instrument_device_id":  "$(instrument_device_id)",
-                                                                  "instrument_agent_instance_id":  instrument_agent_instance_id })
+            'unassign_instrument_agent_instance_from_instrument_device', {"instrument_device_id":  "$(instrument_device_id)",
+                                                                          "instrument_agent_instance_id":  instrument_agent_instance_id })
 
         #Fill out service request information for assigning a InstrumentAgent
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgent'].assign_request, 'instrument_management',
-            'assign_instrument_agent_to_instrument_agent_instance', { "instrument_agent_id":  "$(instrument_agent_id)",
-                                                           "instrument_agent_instance_id":  instrument_agent_instance_id })
+            'assign_instrument_agent_to_instrument_agent_instance', {"instrument_agent_id":  "$(instrument_agent_id)",
+                                                                     "instrument_agent_instance_id":  instrument_agent_instance_id })
 
         #Fill out service request information for unassigning a InstrumentAgent
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentAgent'].unassign_request, 'instrument_management',
-            'unassign_instrument_agent_to_instrument_agent_instance', { "instrument_agent_id":  "$(instrument_agent_id)",
-                                                               "instrument_agent_instance_id":  instrument_agent_instance_id })
+            'unassign_instrument_agent_from_instrument_agent_instance', {"instrument_agent_id":  "$(instrument_agent_id)",
+                                                                         "instrument_agent_instance_id":  instrument_agent_instance_id })
 
 
         return resource_data
