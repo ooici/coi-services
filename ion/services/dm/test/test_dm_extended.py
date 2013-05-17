@@ -38,7 +38,7 @@ class TestDMExtended(DMTestCase):
         # Send it to google_dt transform, verify output
 
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
-        rdt['time'] = np.arange(10)
+        rdt['time'] = np.arange(2208988800, 2208988810)
         rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
         granule = rdt.to_granule()
 
@@ -46,6 +46,25 @@ class TestDMExtended(DMTestCase):
         gdt_stream_def = self.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
 
         gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(granule, params=gdt_stream_def)
+
+        rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
+        testval = {'data_content': [[0.0, 0.0, 1.0, 2.0, 3.0],
+              [1.0, 4.0, 5.0, 6.0, 7.0],
+              [2.0, 8.0, 9.0, 10.0, 11.0],
+              [3.0, 12.0, 13.0, 14.0, 15.0],
+              [4.0, 16.0, 17.0, 18.0, 19.0],
+              [5.0, 20.0, 21.0, 22.0, 23.0],
+              [6.0, 24.0, 25.0, 26.0, 27.0],
+              [7.0, 28.0, 29.0, 30.0, 31.0],
+              [8.0, 32.0, 33.0, 34.0, 35.0],
+              [9.0, 36.0, 37.0, 38.0, 39.0]],
+             'data_description': [('time', 'number', 'time'),
+              ('temp_sample[0]', 'number', 'temp_sample[0]', {'precision': '5'}),
+              ('temp_sample[1]', 'number', 'temp_sample[1]', {'precision': '5'}),
+              ('temp_sample[2]', 'number', 'temp_sample[2]', {'precision': '5'}),
+              ('temp_sample[3]', 'number', 'temp_sample[3]', {'precision': '5'})],
+             'viz_product_type': 'google_dt'}
+        self.assertEquals(rdt['google_dt_components'][0], testval)
 
 
 
@@ -95,6 +114,7 @@ class TestDMExtended(DMTestCase):
         self.assertTrue(dm.event.wait(10))
         dm.event.clear()
 
+
         #--------------------------------------------------------------------------------
         # Retrieve and Verify
         #--------------------------------------------------------------------------------
@@ -103,5 +123,4 @@ class TestDMExtended(DMTestCase):
         rdt = RecordDictionaryTool.load_from_granule(retrieved_granule)
         np.testing.assert_array_equal(rdt['time'], np.array([0,1,2,3]))
         np.testing.assert_array_equal(rdt['temp_sample'], np.array([[0,1,2,3,4],[0,1,2,3,4],[1,m,m,m,m],[5,5,5,5,5]]))
-
-
+        
