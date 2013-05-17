@@ -100,3 +100,9 @@ Loading Instrument specific resources (requires BETA):
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=CTDBP attachments=res/preload/r2_ioc/attachments
 > bin/pycc -x ion.processes.bootstrap.ion_loader.IONLoader op=load scenario=PREST attachments=res/preload/r2_ioc/attachments
 
+
+Datastore work:
+===============
+
+Dump the contents of the resource registry as XLSX file in ./interface/resources_<timestamp>.
+> bin/pycc -x ion.processes.bootstrap.datastore_loader.DatastoreLoader op=dumpres

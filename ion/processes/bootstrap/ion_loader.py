@@ -943,6 +943,31 @@ class IONLoader(ImmediateProcess):
             controw["c/phones"] = "619-555-1212"
             self._load_Contact(controw)
 
+    def _create_geospatial_constraint(self, row):
+        z = row['vertical_direction']
+        if z == 'depth':
+            vmin = float(row['top'])
+            vmax = float(row['bottom'])
+        elif z == 'elevation':
+            vmin = float(row['bottom'])
+            vmax = float(row['top'])
+        else:
+            raise iex.BadRequest('vertical_direction must be "depth" or "elevation", not ' + z)
+        constraint = IonObject("GeospatialBounds",
+                               geospatial_latitude_limit_north=float(row['north']),
+                               geospatial_latitude_limit_south=float(row['south']),
+                               geospatial_longitude_limit_east=float(row['east']),
+                               geospatial_longitude_limit_west=float(row['west']),
+                               geospatial_vertical_min=vmin,
+                               geospatial_vertical_max=vmax)
+        return constraint
+
+    def _create_temporal_constraint(self, row):
+        format = row['time_format'] or DEFAULT_TIME_FORMAT
+        start = str(calendar.timegm(time.strptime(row['start'], format)))
+        end = str(calendar.timegm(time.strptime(row['end'], format)))
+        return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
+
     def _load_Constraint(self, row):
         """
         DEFINITION category. Load and keep IonObject for reference by other categories. No side effects.
@@ -981,32 +1006,6 @@ class IONLoader(ImmediateProcess):
         newrow['m/geospatial_vertical_positive'] = 'down'
 
         self._load_CoordinateSystem(newrow)
-
-    def _create_geospatial_constraint(self, row):
-        z = row['vertical_direction']
-        if z == 'depth':
-            vmin = float(row['top'])
-            vmax = float(row['bottom'])
-        elif z == 'elevation':
-            vmin = float(row['bottom'])
-            vmax = float(row['top'])
-        else:
-            raise iex.BadRequest('vertical_direction must be "depth" or "elevation", not ' + z)
-        constraint = IonObject("GeospatialBounds",
-                               geospatial_latitude_limit_north=float(row['north']),
-                               geospatial_latitude_limit_south=float(row['south']),
-                               geospatial_longitude_limit_east=float(row['east']),
-                               geospatial_longitude_limit_west=float(row['west']),
-                               geospatial_vertical_min=vmin,
-                               geospatial_vertical_max=vmax)
-        return constraint
-
-    def _create_temporal_constraint(self, row):
-        format = row['time_format'] or DEFAULT_TIME_FORMAT
-        start = str(calendar.timegm(time.strptime(row['start'], format)))
-        end = str(calendar.timegm(time.strptime(row['end'], format)))
-        return IonObject("TemporalBounds", start_datetime=start, end_datetime=end)
-
 
     def _load_Policy(self, row):
         if not self.CFG.get_safe("system.load_policy", False):
