@@ -4,6 +4,7 @@
 @package  ion.services.sa.instrument.agent_status_builder
 @author   Ian Katz
 """
+from ion.util.enhanced_resource_registry_client import EnhancedResourceRegistryClient
 from ooi.logging import log
 from pyon.agent.agent import ResourceAgentClient
 from pyon.core.bootstrap import IonObject
@@ -12,7 +13,13 @@ from pyon.core.exception import NotFound, Unauthorized, BadRequest
 from interface.objects import ComputedValueAvailability, ComputedIntValue, ComputedDictValue, ComputedListValue
 from interface.objects import AggregateStatusType, DeviceStatusType
 from pyon.ion.resource import RT, PRED
+from pyon.util.containers import DotDict
 
+# possible ways of determining the type of a device driver
+DriverTypingMethod = DotDict()
+DriverTypingMethod.ByRR = 1
+DriverTypingMethod.ByAgent = 2
+DriverTypingMethod.ByException = 3
 
 class AgentStatusBuilder(object):
 
@@ -22,6 +29,11 @@ class AgentStatusBuilder(object):
         """
         assert process
         self.process = process
+        self.dtm = DriverTypingMethod.ByRR
+        self.RR2 = None
+
+        if DriverTypingMethod.ByRR == self.dtm:
+            self.RR2 = EnhancedResourceRegistryClient(process.clients.resource_registry)
 
 
     def set_status_computed_attributes(self, computed_attrs, values_dict=None, availability=None, reason=None):
@@ -69,22 +81,6 @@ class AgentStatusBuilder(object):
         return h_agent, ""
 
 
-    def add_child_statuses_to_extension(self, extension_obj, child_agg_status):
-        """
-        Extension_obj is an extension
-        device_id is the primary device
-        child_device_ids is any child device ids -- will be a list, not none
-        device_of_site is a dictionary of site_id -> device_id, indicating that this is a site extension of some kind
-        """
-
-        def csl(device_id_list):
-            return self.compute_status_list(child_agg_status, device_id_list)
-
-        log.debug("Building instrument and platform status dicts")
-        extension_obj.computed.instrument_status = csl([dev._id for dev in extension_obj.instrument_devices])
-        extension_obj.computed.platform_status   = csl([dev._id for dev in extension_obj.platform_devices])
-
-
     # get a lookup table that includes child_agg_status + the parent device status as dev_id -> {AggStatusType: DeviceStatusType}
     def get_cumulative_status_dict(self, device_id):
         h_agent, reason = self.get_device_agent(device_id)
@@ -104,9 +100,16 @@ class AgentStatusBuilder(object):
 
         out_status = {device_id: this_status}
 
-        # we're done if the agent doesn't support child_agg_status
-        if not "child_agg_status" in [c.name for c in h_agent.get_capabilities()]:
-            return out_status, None
+        if DriverTypingMethod.ByAgent == self.dtm:
+            # we're done if the agent doesn't support child_agg_status
+            if not "child_agg_status" in [c.name for c in h_agent.get_capabilities()]:
+                return out_status, None
+        elif DriverTypingMethod.ByRR == self.dtm:
+            device_obj = self.RR2.read(device_id)
+            if RT.PlatformDevice != device_obj._get_type():
+                return out_status, None
+        elif DriverTypingMethod.ByException == self.dtm:
+            pass # just let it happen
 
         try:
             child_agg_status = h_agent.get_agent(['child_agg_status'])['child_agg_status']
