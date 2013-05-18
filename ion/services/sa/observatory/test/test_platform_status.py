@@ -575,7 +575,7 @@ class Test(BaseIntTestPlatform):
         #   MJ01C (with 2 instruments)
         #       LJ01D (with 1 instrument)
         #
-        # Once the root platform is launched, it verifies that all its
+        # Right after the root platform is launched, it verifies that all its
         # statuses are updated to OK. Note that this is a scenario in which
         # the updates are not triggered by the event publications done by the
         # instruments because those publications happen at a time when the
@@ -584,6 +584,9 @@ class Test(BaseIntTestPlatform):
         # update the corresponding statuses. This capability was initially
         # added to support UI testing with instruments whose port agents need
         # to be manually launched.
+        #
+        # The test also includes some explicitly triggered updates via
+        # publication on behalf of the instruments.
         #
 
         # create the network:
@@ -625,30 +628,29 @@ class Test(BaseIntTestPlatform):
         # get all root statuses
         aggstatus, child_agg_status, rollup_status = self._get_all_root_statuses()
         # this logs out:
-        # 2013-05-18 07:42:43,593 DEBUG Dummy-1 ion.services.sa.observatory.test.test_platform_status:179 All root statuses:
-        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         c0632f1dfc304357b17667ff3a223c2a : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #         c6f0b965d3c84a9da5eb930a2076230d : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #         fe2019113c444f95a112c56dcf47ba4a : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #         68d6cfc409a64e14a90fc44ae8bf54f7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                    AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        # 3bac82f2fe2f4136a0ebbe4207ab3747 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        # 14c6d93a196d4d2fa4a4ee19ff945888 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        # 51e37e7c8a684f2dbb5dcc0e9cc758a4 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        # 04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                        aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                    rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
 
         publish_event_for_diagnostics()
-        # and this makes the status manager log out (INFO level):
-        # 2013-05-18 08:24:11,722 INFO Dummy-219 ion.agents.platform.status_manager:791 'MJ01C': (a40c6554990846299880faa958197d18) statuses:
+        # this makes the status manager log out:
+        # 2013-05-18 09:17:06,043 INFO Dummy-218 ion.agents.platform.status_manager:792 'MJ01C': (38389854b6664da08178b3b0f1d33797) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         fb7156f50ea141c98827b43685acfdd7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #         fdaf77ed72894296934fc1758221714a : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #         cbef58f19b9f4d568b3175b6816066a1 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
-        #         a1120ad3e1654647812636910eb00d0e : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         3bac82f2fe2f4136a0ebbe4207ab3747 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         14c6d93a196d4d2fa4a4ee19ff945888 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         51e37e7c8a684f2dbb5dcc0e9cc758a4 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #
         #
-        # 2013-05-18 08:24:11,724 INFO Dummy-220 ion.agents.platform.status_manager:791 'LJ01D': (cbef58f19b9f4d568b3175b6816066a1) statuses:
+        # 2013-05-18 09:17:06,045 INFO Dummy-219 ion.agents.platform.status_manager:792 'LJ01D': (14c6d93a196d4d2fa4a4ee19ff945888) status report triggered by diagnostic event:
         #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
-        #         fb7156f50ea141c98827b43685acfdd7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
         #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
 
@@ -665,6 +667,127 @@ class Test(BaseIntTestPlatform):
         #####################################################################
         # all statuses must be OK (in particular for the instrument children
         self._verify_all_statuses_OK(aggstatus, child_agg_status, rollup_status)
+
+        #####################################################################
+        # trigger some status updates from the instruments and do
+        # corresponding verifications against the root platform.
+        # Note that the sub-platform also should get properly updated but
+        # this test doesn't do these verifications.
+
+        self._start_agg_status_event_subscriber(p_root)
+
+        # -------------------------------------------------------------------
+        # instrs[0] publishes a STATUS_CRITICAL for AGGREGATE_COMMS
+        self._expect_from_root(1)
+        self._publish_for_child(instrs[0],
+                                AggregateStatusType.AGGREGATE_COMMS,
+                                DeviceStatusType.STATUS_CRITICAL)
+
+        # confirm root gets updated to STATUS_CRITICAL
+        self._wait_root_event()
+        self._verify_with_get_agent(AggregateStatusType.AGGREGATE_COMMS,
+                                    DeviceStatusType.STATUS_CRITICAL)
+        log.debug("after AGGREGATE_COMMS <- STATUS_CRITICAL on behalf of instr[0]")
+        publish_event_for_diagnostics()
+        # 2013-05-18 09:17:06,111 INFO Dummy-218 ion.agents.platform.status_manager:792 'MJ01C': (38389854b6664da08178b3b0f1d33797) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         3bac82f2fe2f4136a0ebbe4207ab3747 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         14c6d93a196d4d2fa4a4ee19ff945888 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         51e37e7c8a684f2dbb5dcc0e9cc758a4 : STATUS_CRITICAL     STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_CRITICAL     STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #
+        # 2013-05-18 09:17:06,112 INFO Dummy-219 ion.agents.platform.status_manager:792 'LJ01D': (14c6d93a196d4d2fa4a4ee19ff945888) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+
+        # -------------------------------------------------------------------
+        # instrs[0] publishes a STATUS_WARNING for AGGREGATE_DATA
+        self._expect_from_root(1)
+        self._publish_for_child(instrs[0],
+                                AggregateStatusType.AGGREGATE_DATA,
+                                DeviceStatusType.STATUS_WARNING)
+
+        # confirm root gets updated to STATUS_WARNING
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_DATA,
+                                         DeviceStatusType.STATUS_WARNING)
+        log.debug("after AGGREGATE_DATA <- STATUS_WARNING on behalf of instr[0]")
+        publish_event_for_diagnostics()
+        # 2013-05-18 09:17:06,149 INFO Dummy-218 ion.agents.platform.status_manager:792 'MJ01C': (38389854b6664da08178b3b0f1d33797) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         3bac82f2fe2f4136a0ebbe4207ab3747 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         14c6d93a196d4d2fa4a4ee19ff945888 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         51e37e7c8a684f2dbb5dcc0e9cc758a4 : STATUS_CRITICAL     STATUS_WARNING      STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_CRITICAL     STATUS_WARNING      STATUS_OK           STATUS_OK
+        #
+        #
+        # 2013-05-18 09:17:06,150 INFO Dummy-219 ion.agents.platform.status_manager:792 'LJ01D': (14c6d93a196d4d2fa4a4ee19ff945888) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+
+        # -------------------------------------------------------------------
+        # instrs[1] publishes a STATUS_WARNING for AGGREGATE_POWER
+        self._expect_from_root(1)
+        self._publish_for_child(instrs[1],
+                                AggregateStatusType.AGGREGATE_POWER,
+                                DeviceStatusType.STATUS_WARNING)
+
+        # confirm root gets updated to STATUS_WARNING
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_POWER,
+                                         DeviceStatusType.STATUS_WARNING)
+        log.debug("after AGGREGATE_POWER <- STATUS_WARNING on behalf of instr[1]")
+        publish_event_for_diagnostics()
+        # 2013-05-18 09:17:06,186 INFO Dummy-219 ion.agents.platform.status_manager:792 'LJ01D': (14c6d93a196d4d2fa4a4ee19ff945888) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #
+        # 2013-05-18 09:17:06,187 INFO Dummy-218 ion.agents.platform.status_manager:792 'MJ01C': (38389854b6664da08178b3b0f1d33797) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         3bac82f2fe2f4136a0ebbe4207ab3747 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_WARNING
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         14c6d93a196d4d2fa4a4ee19ff945888 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         51e37e7c8a684f2dbb5dcc0e9cc758a4 : STATUS_CRITICAL     STATUS_WARNING      STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_CRITICAL     STATUS_WARNING      STATUS_OK           STATUS_WARNING
+
+        # -------------------------------------------------------------------
+        # instrs[2] publishes a AGGREGATE_LOCATION for STATUS_CRITICAL
+        self._expect_from_root(1)
+        self._publish_for_child(instrs[2],
+                                AggregateStatusType.AGGREGATE_LOCATION,
+                                DeviceStatusType.STATUS_CRITICAL)
+
+        # confirm root gets updated to STATUS_WARNING
+        self._wait_root_event_and_verify(AggregateStatusType.AGGREGATE_LOCATION,
+                                         DeviceStatusType.STATUS_CRITICAL)
+        log.debug("after AGGREGATE_LOCATION <- STATUS_CRITICAL on behalf of instr[2]")
+        publish_event_for_diagnostics()
+        # 2013-05-18 09:17:06,233 INFO Dummy-219 ion.agents.platform.status_manager:792 'LJ01D': (14c6d93a196d4d2fa4a4ee19ff945888) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_CRITICAL     STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_CRITICAL     STATUS_OK
+        #
+        #
+        # 2013-05-18 09:17:06,234 INFO Dummy-218 ion.agents.platform.status_manager:792 'MJ01C': (38389854b6664da08178b3b0f1d33797) status report triggered by diagnostic event:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         3bac82f2fe2f4136a0ebbe4207ab3747 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_WARNING
+        #         04322d41ca9a414e8ef41729fec539b0 : STATUS_OK           STATUS_OK           STATUS_CRITICAL     STATUS_OK
+        #         14c6d93a196d4d2fa4a4ee19ff945888 : STATUS_OK           STATUS_OK           STATUS_CRITICAL     STATUS_OK
+        #         51e37e7c8a684f2dbb5dcc0e9cc758a4 : STATUS_CRITICAL     STATUS_WARNING      STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_CRITICAL     STATUS_WARNING      STATUS_CRITICAL     STATUS_WARNING
 
         #####################################################################
         # Done.
