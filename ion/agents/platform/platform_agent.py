@@ -1322,8 +1322,7 @@ class PlatformAgent(ResourceAgent):
                                                    pid=pid,
                                                    resource_id=sub_resource_id)
 
-        # publish device_added:
-        self._status_manager.publish_device_added_event(sub_resource_id)
+        self._status_manager.subplatform_launched(pa_client, sub_resource_id)
 
     def _execute_platform_agent(self, a_client, cmd, sub_id):
         return self._execute_agent("platform", a_client, cmd, sub_id)
@@ -1911,7 +1910,7 @@ class PlatformAgent(ResourceAgent):
                                                   pid=pid,
                                                   resource_id=i_resource_id)
 
-        self._status_manager.publish_device_added_event(i_resource_id)
+        self._status_manager.instrument_launched(ia_client, i_resource_id)
 
     def _instruments_launch(self):
         """
@@ -2098,7 +2097,7 @@ class PlatformAgent(ResourceAgent):
         """
 
         dd = self._ia_clients[instrument_id]
-        cmd = AgentCommand(ResourceAgentEvent.RESET)
+        cmd = AgentCommand(command=ResourceAgentEvent.RESET)
 
         def reset():
             log.debug("%r: resetting %r", self._platform_id, instrument_id)
