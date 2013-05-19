@@ -18,11 +18,13 @@ __license__ = 'Apache 2.0'
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_3
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5
 # bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_small_network_5_1
+# bin/nosetests -sv ion/services/sa/observatory/test/test_platform_status.py:Test.test_platform_status_launch_instruments_first_2_3
 
 from pyon.public import log
 
 from ion.agents.platform.test.base_test_platform_agent_with_rsn import BaseIntTestPlatform
 from ion.agents.platform.status_manager import formatted_statuses
+from ion.agents.platform.status_manager import publish_event_for_diagnostics
 
 from pyon.event.event import EventPublisher
 from pyon.event.event import EventSubscriber
@@ -191,6 +193,13 @@ class Test(BaseIntTestPlatform):
                           [DeviceStatusType._str_map[sv] for sv in status_values],
                           DeviceStatusType._str_map[retrieved_status]))
 
+    def _verify_children_statuses(self, child_agg_status, status_values):
+        """
+        verifies that all child agg status are equal to any of the given values.
+        """
+        for one_child_agg_status in child_agg_status.itervalues():
+            self._verify_statuses(one_child_agg_status, status_values)
+
     def _verify_initial_statuses(self, aggstatus, child_agg_status, rollup_status):
         """
         verifies:
@@ -198,13 +207,17 @@ class Test(BaseIntTestPlatform):
         - all child agg status OK or UNKNOWN
         - all rollup_status are OK
         """
-
         self._verify_statuses(aggstatus, [DeviceStatusType.STATUS_OK])
+        self._verify_children_statuses(child_agg_status,
+                                       [DeviceStatusType.STATUS_OK, DeviceStatusType.STATUS_UNKNOWN])
+        self._verify_statuses(rollup_status, [DeviceStatusType.STATUS_OK])
 
-        for one_child_agg_status in child_agg_status.itervalues():
-            self._verify_statuses(one_child_agg_status,
-                                  [DeviceStatusType.STATUS_OK, DeviceStatusType.STATUS_UNKNOWN])
-
+    def _verify_all_statuses_OK(self, aggstatus, child_agg_status, rollup_status):
+        """
+        verifies that all statues are OK.
+        """
+        self._verify_statuses(aggstatus, [DeviceStatusType.STATUS_OK])
+        self._verify_children_statuses(child_agg_status, [DeviceStatusType.STATUS_OK])
         self._verify_statuses(rollup_status, [DeviceStatusType.STATUS_OK])
 
     def test_platform_status_small_network_3(self):
@@ -552,3 +565,109 @@ class Test(BaseIntTestPlatform):
         self._go_inactive()
         self._reset()
         self._shutdown()
+
+    def test_platform_status_launch_instruments_first_2_3(self):
+        #
+        # Test of status propagation in a small network of 2 platforms and
+        # 3 instruments, with the instruments launched (including port
+        # agents) before the root platform.
+        #
+        #   MJ01C (with 2 instruments)
+        #       LJ01D (with 1 instrument)
+        #
+        # Once the root platform is launched, it verifies that all its
+        # statuses are updated to OK. Note that this is a scenario in which
+        # the updates are not triggered by the event publications done by the
+        # instruments because those publications happen at a time when the
+        # platform have not been launched yet. Rather, during the launch of
+        # the platforms, they retrieve the statuses of their children to
+        # update the corresponding statuses. This capability was initially
+        # added to support UI testing with instruments whose port agents need
+        # to be manually launched.
+        #
+
+        # create the network:
+        p_objs = {}
+        self.p_root = p_root = self._create_hierarchy("MJ01C", p_objs)
+
+        self.assertEquals(2, len(p_objs))
+        for platform_id in ["MJ01C", "LJ01D"]:
+            self.assertIn(platform_id, p_objs)
+
+        # the sub-platform:
+        p_LJ01D = p_objs["LJ01D"]
+
+        #####################################################################
+        # create and launch instruments/port_agents:
+        instrs = []
+        for instr_key in ["SBE37_SIM_01", "SBE37_SIM_02", "SBE37_SIM_03"]:
+            i_obj = self._create_instrument(instr_key, start_port_agent=False)
+            ia_client = self._start_instrument(i_obj)
+            self.addCleanup(self._stop_instrument, i_obj)
+            instrs.append(i_obj)
+            log.debug("started instrument %s", instr_key)
+
+        #####################################################################
+        # assign instruments to platforms:
+        # 2 instruments to root:
+        self._assign_instrument_to_platform(instrs[0], p_root)
+        self._assign_instrument_to_platform(instrs[1], p_root)
+        # 1 instrument to sub-platform LJ01D:
+        self._assign_instrument_to_platform(instrs[2], p_LJ01D)
+
+        #####################################################################
+        # start up the root platform
+        self._start_platform(p_root)
+        self.addCleanup(self._stop_platform, p_root)
+        log.debug("started root platform")
+
+        #####################################################################
+        # get all root statuses
+        aggstatus, child_agg_status, rollup_status = self._get_all_root_statuses()
+        # this logs out:
+        # 2013-05-18 07:42:43,593 DEBUG Dummy-1 ion.services.sa.observatory.test.test_platform_status:179 All root statuses:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         c0632f1dfc304357b17667ff3a223c2a : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         c6f0b965d3c84a9da5eb930a2076230d : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         fe2019113c444f95a112c56dcf47ba4a : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         68d6cfc409a64e14a90fc44ae8bf54f7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+
+        publish_event_for_diagnostics()
+        # and this makes the status manager log out (INFO level):
+        # 2013-05-18 08:24:11,722 INFO Dummy-219 ion.agents.platform.status_manager:791 'MJ01C': (a40c6554990846299880faa958197d18) statuses:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         fb7156f50ea141c98827b43685acfdd7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         fdaf77ed72894296934fc1758221714a : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         cbef58f19b9f4d568b3175b6816066a1 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #         a1120ad3e1654647812636910eb00d0e : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #
+        #
+        # 2013-05-18 08:24:11,724 INFO Dummy-220 ion.agents.platform.status_manager:791 'LJ01D': (cbef58f19b9f4d568b3175b6816066a1) statuses:
+        #                                            AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        #         fb7156f50ea141c98827b43685acfdd7 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                                aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        #                            rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+
+        #####################################################################
+        # verify the root platform has set its aparam_child_agg_status with
+        # all its descendant nodes (including all instruments):
+        all_origins = [p_obj.platform_device_id for p_obj in p_objs.values()]
+        all_origins.remove(p_root.platform_device_id)
+        all_origins.extend(i_obj.instrument_device_id for i_obj in instrs)
+        all_origins = sorted(all_origins)
+        child_agg_status_keys = sorted(child_agg_status.keys())
+        self.assertEquals(all_origins, child_agg_status_keys)
+
+        #####################################################################
+        # all statuses must be OK (in particular for the instrument children
+        self._verify_all_statuses_OK(aggstatus, child_agg_status, rollup_status)
+
+        #####################################################################
+        # Done.
+        # For orchestration with instruments that have been launched before
+        # the platform, see test_platform_launch.py, in particular
+        # test_instrument_first_then_platform.
