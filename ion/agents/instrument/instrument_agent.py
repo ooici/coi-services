@@ -246,6 +246,14 @@ class InstrumentAgent(ResourceAgent):
         super(InstrumentAgent, self).on_quit()
 
         self._aam.stop_all()
+        
+        params = {}
+        for (k,v) in self.aparam_pubrate.iteritmes():
+            if v > 0:
+                params[k] = 0
+        
+        if len(params)>0:
+            self.aparam_set_pubrate(params)
                 
         state = self._fsm.get_current_state()
         if state == ResourceAgentState.UNINITIALIZED:
