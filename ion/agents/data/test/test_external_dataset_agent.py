@@ -754,7 +754,8 @@ class ExternalDatasetAgentTestBase(object):
 #            }
 
 
-@attr('INT', group='eoi')
+#DISABLED: attr('INT_LONG', group='eoi')
+# these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
 class TestExternalDatasetAgent(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod': 'ion.agents.data.handlers.base_data_handler',
