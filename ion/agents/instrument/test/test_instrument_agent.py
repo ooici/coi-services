@@ -1353,13 +1353,22 @@ class InstrumentAgentTest():
                                 self.assertIn(y, keys)
                         
                 elif x.cap_type == CapabilityType.RES_CMD:
-                    pass
-                
+                    keys = x.schema.keys()
+                    self.assertIn('return',keys)
+                    self.assertIn('display_name',keys)
+                    self.assertIn('arguments',keys)
+                    self.assertIn('timeout',keys)
+               
                 elif x.cap_type == CapabilityType.RES_IFACE:
                     pass
-                
+
                 elif x.cap_type == CapabilityType.RES_PAR:
-                    pass
+                    keys = x.schema.keys()
+                    self.assertIn('get_timeout',keys)
+                    self.assertIn('set_timeout',keys)
+                    self.assertIn('direct_access',keys)
+                    self.assertIn('startup',keys)
+                    self.assertIn('visibility',keys)
                 
                 elif x.cap_type == CapabilityType.AGT_STATES:
                     for (k,v) in x.schema.iteritems():
@@ -1421,6 +1430,9 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
                                 
+        # Check all capabilities carry correct schema information.
+        verify_schema(retval)        
+
         cmd = AgentCommand(command=ResourceAgentEvent.INITIALIZE)
         retval = self._ia_client.execute_agent(cmd)
         
@@ -1466,7 +1478,7 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
         
-        # Check all the agent capabilities carry schema information.
+        # Check all capabilities carry correct schema information.
         verify_schema(retval)        
         
         cmd = AgentCommand(command=ResourceAgentEvent.GO_ACTIVE)
@@ -1514,6 +1526,9 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])
                         
+        # Check all capabilities carry correct schema information.
+        verify_schema(retval)        
+
         cmd = AgentCommand(command=ResourceAgentEvent.RUN)
         retval = self._ia_client.execute_agent(cmd)
         
@@ -1564,6 +1579,12 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
         
+        for x in res_cmds:
+            pass
+        
+        # Check all capabilities carry correct schema information.
+        verify_schema(retval)        
+
         cmd = AgentCommand(command=SBE37ProtocolEvent.START_AUTOSAMPLE)
         retval = self._ia_client.execute_resource(cmd)
     
@@ -1615,6 +1636,9 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)
         
+        # Check all capabilities carry correct schema information.
+        verify_schema(retval)        
+
         gevent.sleep(5)
         
         cmd = AgentCommand(command=SBE37ProtocolEvent.STOP_AUTOSAMPLE)
@@ -1651,6 +1675,9 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, res_pars_all)        
         
+        # Check all capabilities carry correct schema information.
+        verify_schema(retval)        
+
         cmd = AgentCommand(command=ResourceAgentEvent.RESET)
         retval = self._ia_client.execute_agent(cmd)
         
@@ -1684,6 +1711,9 @@ class InstrumentAgentTest():
         self.assertItemsEqual(res_cmds, [])
         self.assertItemsEqual(res_iface, res_iface_all)
         self.assertItemsEqual(res_pars, [])        
+
+        # Check all capabilities carry correct schema information.
+        verify_schema(retval)        
         
     def test_command_errors(self):
         """

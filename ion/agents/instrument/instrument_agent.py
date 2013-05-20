@@ -525,10 +525,8 @@ class InstrumentAgent(ResourceAgent):
         # Reset the connection id and index.
         self._asp.reset_connection()
 
-        #print '######### getting resource schema'
-        #resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
-        #self._resource_schema = json.loads(resource_schema)
-        #print str(self._resource_schema)
+        resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
+        self._resource_schema = json.loads(resource_schema)
 
         max_tries = kwargs.get('max_tries', 5)
         if not isinstance(max_tries, int) or max_tries < 1:
@@ -543,8 +541,6 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-                    #self._dvr_client.cmd_dvr('disconnect')
-                    #raise 
         
         return (next_state, None)
 
