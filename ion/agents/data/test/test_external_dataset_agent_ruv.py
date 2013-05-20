@@ -30,7 +30,8 @@ from coverage_model.coverage import GridDomain, GridShape, CRS
 import numpy
 
 
-@attr('INT_LONG', group='eoi')
+#DISABLED: attr('INT_LONG', group='eoi')
+# these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
 class TestExternalDatasetAgent_Ruv(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod': 'ion.agents.data.handlers.ruv_data_handler',

@@ -133,14 +133,18 @@ class RegistrationProcess(StandaloneProcess):
                 dataset_element.appendChild(source_element)
 
                 reload_element = doc.createElement('reloadEveryNMinutes')
-                text_node = doc.createTextNode('1440')
+                if self.CFG.get_safe('server.erddap.dataset_caching',True):
+                    text_node = doc.createTextNode('1440')
+                else:
+                    text_node = doc.createTextNode('5')
                 reload_element.appendChild(text_node)
                 dataset_element.appendChild(reload_element)
 
-                update_element = doc.createElement('updateEveryNMillis')
-                text_node = doc.createTextNode('1000')
-                update_element.appendChild(text_node)
-                dataset_element.appendChild(update_element)
+                if self.CFG.get_safe('server.erddap.dataset_caching',True):
+                    update_element = doc.createElement('updateEveryNMillis')
+                    text_node = doc.createTextNode('1000')
+                    update_element.appendChild(text_node)
+                    dataset_element.appendChild(update_element)
                 
 
                 add_attributes_element = doc.createElement('addAttributes')

@@ -257,7 +257,7 @@ class AgentConfigurationBuilder(object):
                                                     #'stream_def_id':stream_def_id,
                                                     'records_per_granule': stream_cfg.records_per_granule,
                                                     'granule_publish_rate':stream_cfg.granule_publish_rate,
-                                                    'alarms'              :stream_cfg.alarms  }
+                                                     }
 
         #retrieve the output products
         device_id = device_obj._id
@@ -291,7 +291,6 @@ class AgentConfigurationBuilder(object):
                                                         'parameter_dictionary'  : stream_def.parameter_dictionary,
                                                         'records_per_granule'   : stream_info_dict.get('records_per_granule'),
                                                         'granule_publish_rate'  : stream_info_dict.get('granule_publish_rate'),
-                                                        'alarms'                : stream_info_dict.get('alarms')
                     }
 
         log.debug("Stream config generated")

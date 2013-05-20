@@ -13,6 +13,8 @@ try:
 except ImportError:
     print "Excel imports failed"
 
+from ooi.timer import get_accumulators
+
 from pyon.core import bootstrap
 from pyon.core.bootstrap import CFG, get_sys_name
 
@@ -28,6 +30,10 @@ class ResourceRegistryHelper(object):
     def __init__(self, container = None):
         self.container = container or bootstrap.container_instance
         self.sysname = get_sys_name()
+
+        self._clear()
+
+    def _clear(self):
         self._resources = {}
         self._associations = {}
         self._assoc_by_sub = {}
@@ -36,6 +42,7 @@ class ResourceRegistryHelper(object):
         self._attr_by_type = {}
 
     def dump_resources_as_xlsx(self, filename=None):
+        self._clear()
         # TODO: Use DatastoreFactory for couch independence
         ds = CouchDataStore(DataStore.DS_RESOURCES, profile=DataStore.DS_PROFILE.RESOURCES, config=CFG, scope=self.sysname)
         all_objs = ds.find_docs_by_view("_all_docs", None, id_only=False)
@@ -59,6 +66,7 @@ class ResourceRegistryHelper(object):
         self._wb.save(path)
 
     def dump_dicts_as_xlsx(self, objects, filename=None):
+        self._clear()
         """Dumps a dict of dicts. Tab names will be the names of keys in the objects dict"""
         self._wb = xlwt.Workbook()
         self._worksheets = {}
@@ -211,3 +219,28 @@ class ResourceRegistryHelper(object):
 
         for dev_id in roots:
             follow_dev(dev_id, 0)
+
+    def dump_accumulators_as_xlsx(self, filename=None):
+        dtstr = datetime.datetime.today().strftime('%Y%m%d_%H%M%S')
+
+        all_acc_dict = {}
+        for acc_name, acc in get_accumulators().iteritems():
+            acc_dict = {}
+            acc_name = acc_name.split(".")[-1]
+            acc_name = acc_name[:30]
+            all_acc_dict[acc_name] = acc_dict
+            for key in acc.keys():
+                count = acc.get_count(key)
+                if count:
+                    acc_dict[key] = dict(
+                        _key=key,
+                        count=count,
+                        sum=acc.get_average(key) * count,
+                        min=acc.get_min(key),
+                        avg=acc.get_average(key),
+                        max=acc.get_max(key),
+                        sdev=acc.get_standard_deviation(key)
+                    )
+
+        path = filename or "interface/accumulators_%s.xls" % (dtstr)
+        self.dump_dicts_as_xlsx(all_acc_dict, path)

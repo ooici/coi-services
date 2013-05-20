@@ -29,7 +29,8 @@ from coverage_model.parameter_types import QuantityType
 import numpy
 
 
-@attr('INT_LONG', group='now')
+#DISABLED: attr('INT_LONG', group='eoi')
+# these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
 class TestExternalDatasetAgent_Slocum(ExternalDatasetAgentTestBase,
     IonIntegrationTestCase):
     DVR_CONFIG = {
