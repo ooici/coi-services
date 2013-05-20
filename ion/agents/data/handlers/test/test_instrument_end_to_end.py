@@ -200,36 +200,6 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
         self.assertIsNotNone(rdt['temp'])
 
 @attr('INT', group='eoi')
-class TestBinaryCTD_DelegateAgent(TestBinaryCTD):
-    """ repeat same test using the simple_dataset_agent """
-    def setup_resources(self):
-        self.name = 'hypm_01_wpf_ctd'
-        self.description = 'ctd instrument test'
-        self.EDA_NAME = 'ExampleEDA'
-        self.EDA_MOD = 'ion.agents.data.simple_dataset_agent'
-        self.EDA_CLS = 'TwoDelegateDatasetAgent'
-    def get_dvr_config(self):
-        pdict = self.dataset_management.read_parameter_dictionary(self.pdict_id)
-        stream_def_obj = self.pubsub_management.read_stream_definition(self.stream_def_id)
-        DVR_CONFIG = {
-            'directory': 'test_data',
-            'pattern': 'C*.DAT',
-            'frequency': 5,
-            'max_records': 5,
-            'stream_id': self.stream_id,
-            'stream_route': { key: getattr(self.route, key) for key in self.route._schema },
-            'parser.module': 'ion.agents.data.handlers.sbe52_binary_handler',
-            'parser.class': 'SBE52BinaryCTDParser',
-            'poller.module': 'ion.agents.data.simple_dataset_agent',
-            'poller.class': 'AdditiveSequentialFilePoller',
-            'parameter_dict': stream_def_obj.parameter_dictionary,
-            'last_time': 0
-        }
-        return DVR_CONFIG
-
-
-
-@attr('INT', group='eoi')
 class TestHypm_WPF_CTD(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
