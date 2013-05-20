@@ -155,28 +155,46 @@ class ReplayProcess(BaseReplayProcess):
         if slice_.start == slice_.stop and slice_.start is not None:
             log.warning('Requested empty set of data.  %s', slice_)
             return rdt
+        
+        # Do time first
+        tname = coverage.temporal_parameter_name
+        cls.map_cov_rdt(coverage,rdt,tname, slice_)
+
         for field in fields:
-            log.trace( 'Slice is %s' , slice_)
-            try:
-                n = coverage.get_parameter_values(field,tdoa=slice_)
-            except ParameterFunctionException:
+            if field == tname:
                 continue
-            if n is None:
-                rdt[field] = [n]
-            elif isinstance(n,np.ndarray):
-                if coverage.get_data_extents(field)[0] < coverage.num_timesteps:
-                    log.error("Misformed coverage detected, padding with fill_value")
-                    arr_len = utils.slice_shape(slice_, (coverage.num_timesteps,))[0]
-                    fill_arr = np.empty(arr_len - n.shape[0] , dtype=n.dtype)
-                    fill_arr.fill(coverage.get_parameter_context(field).fill_value)
-                    n = np.append(n,fill_arr)
-                elif coverage.get_data_extents(field)[0] > coverage.num_timesteps:
-                    raise CorruptionError('The coverage is corrupted:\n\tfield: %s\n\textents: %s\n\ttimesteps: %s' % (field, coverage.get_data_extents(field), coverage.num_timesteps))
-                rdt[field] = np.atleast_1d(n)
-            else:
-                rdt[field] = [n]
+            cls.map_cov_rdt(coverage,rdt,field, slice_)
         return rdt
 
+    @classmethod
+    def map_cov_rdt(cls, coverage, rdt, field, slice_):
+        log.trace( 'Slice is %s' , slice_)
+        try:
+            n = coverage.get_parameter_values(field,tdoa=slice_)
+        except ParameterFunctionException:
+            return
+        if n is None:
+            rdt[field] = [n]
+        elif isinstance(n,np.ndarray):
+            if coverage.get_data_extents(field)[0] < coverage.num_timesteps:
+                log.error("Misformed coverage detected, padding with fill_value")
+                arr_len = utils.slice_shape(slice_, (coverage.num_timesteps,))[0]
+                fill_arr = np.empty(arr_len - n.shape[0] , dtype=n.dtype)
+                fill_arr.fill(coverage.get_parameter_context(field).fill_value)
+                n = np.append(n,fill_arr)
+            elif coverage.get_data_extents(field)[0] > coverage.num_timesteps:
+                raise CorruptionError('The coverage is corrupted:\n\tfield: %s\n\textents: %s\n\ttimesteps: %s' % (field, coverage.get_data_extents(field), coverage.num_timesteps))
+            try:
+                rdt[field] = np.atleast_1d(n)
+            except:
+                print 'Field: ', field
+                print 'n.shape: ', n.shape
+                print 'np.atleast_1d(n).shape: ', np.atleast_1d(n).shape
+                print 'rdt._shp: ', rdt._shp
+                raise
+        else:
+            rdt[field] = [n]
+    
     def execute_retrieve(self):
         '''
         execute_retrieve Executes a retrieval and returns the result 
