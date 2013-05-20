@@ -248,7 +248,7 @@ class InstrumentAgent(ResourceAgent):
         self._aam.stop_all()
         
         params = {}
-        for (k,v) in self.aparam_pubrate.iteritmes():
+        for (k,v) in self.aparam_pubrate.iteritems():
             if v > 0:
                 params[k] = 0
         
