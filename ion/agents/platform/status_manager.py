@@ -81,6 +81,7 @@ class StatusManager(object):
 
         self._platform_id            = pa._platform_id
         self.resource_id             = pa.resource_id
+        self._children_resource_ids  = pa._children_resource_ids
         self._event_publisher        = pa._event_publisher
         self.aparam_child_agg_status = pa.aparam_child_agg_status
         self.aparam_aggstatus        = pa.aparam_aggstatus
@@ -102,9 +103,13 @@ class StatusManager(object):
                 self.aparam_aggstatus[status_name]     = DeviceStatusType.STATUS_UNKNOWN
                 self.aparam_rollup_status[status_name] = DeviceStatusType.STATUS_UNKNOWN
 
-            # do status preparations for the children
+            # do status preparations for the immediate children
             for origin in pa._children_resource_ids:
                 self._prepare_new_child(origin)
+
+        # diagnostics report on demand:
+        self._diag_sub = None
+        self._start_diagnostics_subscriber()
 
     def destroy(self):
         """
@@ -121,21 +126,125 @@ class StatusManager(object):
 
             self._event_subscribers.clear()
             self.aparam_child_agg_status.clear()
-            self.aparam_rollup_status.clear()
-            self.aparam_aggstatus.clear()
+            for status_name in AggregateStatusType._str_map.keys():
+                self.aparam_rollup_status[status_name] = DeviceStatusType.STATUS_UNKNOWN
 
             for origin, es in ess.iteritems():
-                try:
-                    es.stop()
+                self._stop_event_subscriber(origin, es)
 
-                except Exception as ex:
-                    log.warn("%r: error stopping event subscriber: origin=%r: %s",
-                             self._platform_id, origin, ex)
+        if self._diag_sub:  # pragma: no cover
+            self._stop_event_subscriber(None, self._diag_sub)
+            self._diag_sub = None
+
+    def _stop_event_subscriber(self, origin, es):
+        try:
+            es.stop()
+        except Exception as ex:
+            log.warn("%r: error stopping event subscriber: origin=%r: %s",
+                     self._platform_id, origin, ex)
+
+    def instrument_launched(self, ia_client, i_resource_id):
+        """
+        PlatformAgent calls this to indicate that a child instrument has been
+        launched.
+
+        - Since the instrument may have been running already by the time
+        the PlatformAgent is to add it, this method directly gets the
+        "aggstatus" of the child and do updates here.
+
+        NOTE : *no* publications of DeviceAggregateStatusEvent events are done
+        because ancestors may not already have entries for this platform.
+
+        - also does the corresponding "device_added" event publication.
+
+        @param ia_client      instrument's resource client
+        @param i_resource_id  instrument's resource ID
+        """
+
+        # do any updates from instrument's aggstatus:
+        try:
+            aggstatus = ia_client.get_agent(['aggstatus'])['aggstatus']
+
+            log.trace("%r: retrieved aggstatus from instrument %r: %s",
+                      self._platform_id, i_resource_id, aggstatus)
+
+            with self._lock:
+                for status_name, status in aggstatus.iteritems():
+                    # update my image of the child's status:
+                    self.aparam_child_agg_status[i_resource_id][status_name] = status
+
+                    self._update_rollup_status(status_name)
+
+            log.trace("%r: my updated child status for instrument %r: %s",
+                      self._platform_id, i_resource_id,
+                      self.aparam_child_agg_status[i_resource_id])
+
+        except Exception as e:
+            log.warn("%r: could not get aggstatus or reported aggstatus is "
+                     "invalid from instrument %r: %s",
+                     self._platform_id, i_resource_id, e)
+
+        # publish device_added event:
+        self.publish_device_added_event(i_resource_id)
+
+    def subplatform_launched(self, pa_client, sub_resource_id):
+        """
+        PlatformAgent calls this to indicate that a child sub-platform has been
+        launched.
+
+        - Since the sub-platform may have been running already by the time
+        the PlatformAgent is to add it, this method directly gets the
+        "rollup_status" and the "child_agg_status" of the child and do
+        updates here.
+
+        NOTE : *no* publications of DeviceAggregateStatusEvent events are done
+        because ancestors may not already have entries for this platform.
+
+        - also does the corresponding "device_added" event publication.
+
+        @param pa_client        sub-platform's resource client
+        @param sub_resource_id  sub-platform's resource ID
+        """
+
+        # do any updates from sub-platform's rollup_status and child_agg_status:
+        try:
+            resp = pa_client.get_agent(['child_agg_status', 'rollup_status'])
+            child_child_agg_status = resp['child_agg_status']
+            child_rollup_status    = resp['rollup_status']
+
+            log.trace("%r: retrieved from sub-platform %r: "
+                      "child_agg_status=%s  rollup_status=%s",
+                      self._platform_id, sub_resource_id,
+                      child_child_agg_status, child_rollup_status)
+
+            with self._lock:
+
+                # take the child's child_agg_status'es:
+                for sub_origin, sub_statuses in child_child_agg_status.iteritems():
+                    self._prepare_new_child(sub_origin, False, sub_statuses)
+
+                # update my own child_agg_status from the child's rollup_status
+                # and also my rollup_status:
+                for status_name, status in child_rollup_status.iteritems():
+                    self.aparam_child_agg_status[sub_resource_id][status_name] = status
+                    self._update_rollup_status(status_name)
+
+            log.trace("%r: my updated child status after processing sub-platform %r: %s",
+                      self._platform_id, sub_resource_id,
+                      self.aparam_child_agg_status)
+
+        except Exception as e:
+            log.warn("%r: could not get rollup_status or reported rollup_status is "
+                     "invalid from sub-platform %r: %s",
+                     self._platform_id, sub_resource_id, e)
+
+        # publish device_added event:
+        self.publish_device_added_event(sub_resource_id)
 
     def publish_device_added_event(self, sub_resource_id):
         """
-        PlatformAgent calls this method to publish a DeviceStatusEvent
-        indicating that the given child has been launched.
+        Publishes a DeviceStatusEvent indicating that the given child has been
+        added to the platform.
 
         @param sub_resource_id   resource id of child
         """
@@ -158,8 +267,8 @@ class StatusManager(object):
 
     def publish_device_removed_event(self, sub_resource_id):
         """
-        PlatformAgent calls this method to publish a DeviceStatusEvent
-        indicating that the given child has been stopped.
+        Publishes a DeviceStatusEvent indicating that the given child has been
+        removed from the platform.
 
         @param sub_resource_id   resource id of child
         """
@@ -328,33 +437,41 @@ class StatusManager(object):
             log.exception('%r: platform agent could not publish event: %s',
                           self._platform_id, evt)
 
-    def _prepare_new_child(self, origin):
+    def _initialize_child_agg_status(self, origin, statuses=None):
+        """
+        @param origin               resource id of the child that has been added.
+        @param statuses             initial values
+        """
+        self.aparam_child_agg_status[origin] = {}
+        for status_name in AggregateStatusType._str_map.keys():
+            if statuses is None:
+                value = DeviceStatusType.STATUS_UNKNOWN
+            else:
+                value = statuses[status_name]
+            self.aparam_child_agg_status[origin][status_name] = value
+
+    def _prepare_new_child(self, origin, update_rollup_status=True, statuses=None):
         """
         Does all status related preparations related with the new child, and do
         status updates, which may result in events being published.
 
-        @param origin   resource id of the child that has been added.
+        @param origin               resource id of the child that has been added.
+        @param update_rollup_status
+        @param statuses             initial values
         """
 
         with self._lock:
-            if origin in self._event_subscribers:
-                # already prepared -- nothing to do.
-                return
-
-            # initialize aparam_child_agg_status for this new child:
-            self.aparam_child_agg_status[origin] = {}
-            for status_name in AggregateStatusType._str_map.keys():
-                self.aparam_child_agg_status[origin][status_name] = DeviceStatusType.STATUS_UNKNOWN
+            if origin not in self.aparam_child_agg_status or statuses is not None:
+                self._initialize_child_agg_status(origin, statuses)
 
             # start subscribers:
-            self._start_subscriber_device_status_event(origin)
-            self._start_subscriber_device_aggregate_status_event(origin)
+            if origin not in self._event_subscribers:
+                self._start_subscriber_device_status_event(origin)
+                self._start_subscriber_device_aggregate_status_event(origin)
 
-            # update aparam_rollup_status:
-            # (note: presumably the new UNKNOWN entries will not cause any changes
-            # in the rollups, but we call this here for consistency)
-            for status_name in AggregateStatusType._str_map.keys():
-                self._update_rollup_status_and_publish(status_name, origin)
+            if update_rollup_status:
+                for status_name in AggregateStatusType._str_map.keys():
+                    self._update_rollup_status_and_publish(status_name, origin)
 
     def _device_removed_event(self, evt):
         """
@@ -480,17 +597,17 @@ class StatusManager(object):
         log.debug("%r: _got_device_aggregate_status_event: %s",
                   self._platform_id, evt)
 
-        if evt.origin not in self.aparam_child_agg_status:
-            # should not happen.
-            msg = "%r: got event from unrecognized origin=%s" % (
-                  self._platform_id, evt.origin)
-            log.error(msg)
-            raise PlatformException(msg)
-
         if evt.type_ != "DeviceAggregateStatusEvent":
             # should not happen.
             msg = "%r: Got event for different event_type=%r but subscribed to %r" % (
                 self._platform_id, evt.type_, "DeviceAggregateStatusEvent")
+            log.error(msg)
+            raise PlatformException(msg)
+
+        if evt.origin not in self.aparam_child_agg_status:
+            # should not happen.
+            msg = "%r: got event from unrecognized origin=%s" % (
+                  self._platform_id, evt.origin)
             log.error(msg)
             raise PlatformException(msg)
 
@@ -514,20 +631,14 @@ class StatusManager(object):
         if new_rollup_status and log.isEnabledFor(logging.TRACE):  # pragma: no cover
             self._log_agg_status_update(log.trace, evt, new_rollup_status)
 
-    def _update_rollup_status_and_publish(self, status_name, child_origin=None):
+    def _update_rollup_status(self, status_name):
         """
-        Re-consolidates the rollup status for the given status and publishes
-        event in case this status changed.
+        Re-consolidates the rollup status for the given status.
 
         @param status_name   the specific status category
-        @param child_origin  the origin of the child that triggered the
-                             update, if any. None by default
 
-        @return new_rollup_status
-                             The new rollup status (also indicating that an event
-                             was published), or None if no publication was necessary
+        @return (new_rollup_status, old_rollup_status)
         """
-
         with self._lock:
             # get all status values for the status name, that is,
             # all from the children ...
@@ -552,6 +663,28 @@ class StatusManager(object):
             # device and status category,
 
             self.aparam_rollup_status[status_name] = new_rollup_status
+
+        return new_rollup_status, old_rollup_status
+
+    def _update_rollup_status_and_publish(self, status_name, child_origin=None):
+        """
+        Re-consolidates the rollup status for the given status and publishes
+        event in case this status changed.
+
+        @param status_name   the specific status category
+        @param child_origin  the origin of the child that triggered the
+                             update, if any. None by default
+
+        @return new_rollup_status
+                             The new rollup status (also indicating that an event
+                             was published), or None if no publication was necessary
+        """
+
+        ret = self._update_rollup_status(status_name)
+        if ret is None:
+            return
+
+        new_rollup_status, old_rollup_status = ret
 
         # and publish event to notify all interested ancestors:
         description = "event generated from platform_id=%r" % self._platform_id
@@ -580,14 +713,15 @@ class StatusManager(object):
         """
         Logs formatted statuses for easier inspection; looks like:
 
-013-04-10 21:10:24,193 TRACE Dummy-174 ion.agents.platform.status_manager:204 'LV01A': event published triggered by event from child '6c9ed2a39e2b426890e14de986c48db9': AGGREGATE_COMMS -> STATUS_CRITICAL
-                               aggstatus : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-        12977248dd594e0ca4048bfbd28cfb56 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-        a583e69d83e549088764757d7beaa9a4 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-        6c9ed2a39e2b426890e14de986c48db9 : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-        42301443895f4f038845f772c4af437d : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-                           rollup_status : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-Published event: AGGREGATE_COMMS -> STATUS_CRITICAL
+2013-05-17 17:10:58,989 TRACE Dummy-246 ion.agents.platform.status_manager:716 'MJ01C': event published triggered by event from child '55ee7225435444e3a862d7ceaa9d1875': AGGREGATE_POWER -> STATUS_OK
+                                           AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        d231ccba8d674b4691b039ceecec8d95 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        40c787fc727a4734b219fde7c8df7543 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        55ee7225435444e3a862d7ceaa9d1875 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        1d27e0c2723149cc9692488dced7dd95 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+                               aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+                           rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+Published event: AGGREGATE_POWER -> STATUS_OK
         """
 
         status_name = evt.status_name
@@ -599,24 +733,9 @@ Published event: AGGREGATE_COMMS -> STATUS_CRITICAL
             AggregateStatusType._str_map[status_name],
             DeviceStatusType._str_map[child_status])
 
-        # show aparam_aggstatus:
-        vs = dict((AggregateStatusType._str_map[k2],
-                   "%-16s" % DeviceStatusType._str_map[v2]) for
-                  (k2, v2) in self.aparam_aggstatus.items())
-        msg += "%40s : %s\n" % ("aggstatus", vs)
-
-        # show updated aparam_child_agg_status:
-        for k, v in self.aparam_child_agg_status.iteritems():
-            vs = dict((AggregateStatusType._str_map[k2],
-                       "%-16s" % DeviceStatusType._str_map[v2]) for
-                      (k2, v2) in v.items())
-            msg += "%40s : %s\n" % (k, vs)
-
-        # show updated aparam_rollup_status:
-        vs = dict((AggregateStatusType._str_map[k2],
-                   "%-16s" % DeviceStatusType._str_map[v2]) for
-                  (k2, v2) in self.aparam_rollup_status.items())
-        msg += "%40s : %s\n" % ("rollup_status", vs)
+        msg += formatted_statuses(self.aparam_aggstatus,
+                                  self.aparam_child_agg_status,
+                                  self.aparam_rollup_status)
 
         # show published event with the specific new_rollup_status:
         msg += "Published event: %s -> %s\n" % (
@@ -627,41 +746,129 @@ Published event: AGGREGATE_COMMS -> STATUS_CRITICAL
         logfun("%r: event published triggered by event from child %r: %s",
                self._platform_id, child_origin, msg)
 
+    def _start_diagnostics_subscriber(self):  # pragma: no cover
+        """
+        For debugging/diagnostics purposes.
+        Registers a subscriber to DeviceEvent events with origin="command_line"
+        and sub_type="diagnoser" to log the current statuses via log.info.
+        This method does nothing if the logging level is not enabled for INFO
+        for this module.
+
+        From the pycc command line, the event can be sent as indicated in
+        publish_event_for_diagnostics().
+
+        """
+        # TODO perhaps a more visible/official command for diagnostic purposes,
+        # and for resource agents in general should be considered, something
+        # like RESOURCE_AGENT_EVENT_REPORT_DIAGNOSTICS.
+
+        if not log.isEnabledFor(logging.INFO):
+            return
+
+        event_type  = "DeviceEvent"
+        origin      = "command_line"
+        sub_type    = "diagnoser"
+
+        def got_event(evt, *args, **kwargs):
+            if not self._active:
+                log.warn("%r: got_event called but manager has been destroyed",
+                         self._platform_id)
+                return
+
+            if evt.type_ != event_type:
+                log.trace("%r: ignoring event type %r. Only handle %r directly",
+                          self._platform_id, evt.type_, event_type)
+                return
+
+            if evt.sub_type != sub_type:
+                log.trace("%r: ignoring event sub_type %r. Only handle %r",
+                          self._platform_id, evt.sub_type, sub_type)
+                return
+
+            statuses = formatted_statuses(self.aparam_aggstatus,
+                                          self.aparam_child_agg_status,
+                                          self.aparam_rollup_status)
+            log.info("%r: (%s) statuses:\n%s\n", self._platform_id, self.resource_id, statuses)
+
+        self._diag_sub = EventSubscriber(event_type=event_type,
+                                         origin=origin,
+                                         sub_type=sub_type,
+                                         callback=got_event)
+        self._diag_sub.start()
+
+        log.info("%r: registered diagnostics event subscriber", self._platform_id)
+
 
 #----------------------------------
 # some utilities
+
+def publish_event_for_diagnostics():  # pragma: no cover
+    """
+    Convenient method to do the publication of the event to generate diagnostic
+    information about the statuses kept in each running platform agent.
+
+    ><> from ion.agents.platform.status_manager import publish_event_for_diagnostics
+    ><> publish_event_for_diagnostics()
+
+    and something like the following will be logged out:
+
+2013-05-17 17:25:16,076 INFO Dummy-247 ion.agents.platform.status_manager:760 'MJ01C': (99cb3e71302a4e5ca0c137292103e357) statuses:
+                                           AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        d231ccba8d674b4691b039ceecec8d95 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        40c787fc727a4734b219fde7c8df7543 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        55ee7225435444e3a862d7ceaa9d1875 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        1d27e0c2723149cc9692488dced7dd95 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+                               aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+                           rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+    """
+
+    from pyon.event.event import EventPublisher
+    ep = EventPublisher()
+    evt = dict(event_type='DeviceEvent', sub_type='diagnoser', origin='command_line')
+    print("publishing: %s" % str(evt))
+    ep.publish_event(**evt)
+
 
 def formatted_statuses(aggstatus, child_agg_status, rollup_status):  # pragma: no cover
     """
     returns a string with formatted statuses like so:
 
-                           aggstatus : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-    12977248dd594e0ca4048bfbd28cfb56 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-    a583e69d83e549088764757d7beaa9a4 : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-    6c9ed2a39e2b426890e14de986c48db9 : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-    42301443895f4f038845f772c4af437d : {'AGGREGATE_COMMS': 'STATUS_UNKNOWN  ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
-                       rollup_status : {'AGGREGATE_COMMS': 'STATUS_CRITICAL ', 'AGGREGATE_POWER': 'STATUS_UNKNOWN  ', 'AGGREGATE_DATA': 'STATUS_UNKNOWN  ', 'AGGREGATE_LOCATION': 'STATUS_UNKNOWN  '}
+                                           AGGREGATE_COMMS     AGGREGATE_DATA      AGGREGATE_LOCATION  AGGREGATE_POWER
+        d231ccba8d674b4691b039ceecec8d95 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        40c787fc727a4734b219fde7c8df7543 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+        55ee7225435444e3a862d7ceaa9d1875 : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+        1d27e0c2723149cc9692488dced7dd95 : STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN      STATUS_UNKNOWN
+                               aggstatus : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
+                           rollup_status : STATUS_OK           STATUS_OK           STATUS_OK           STATUS_OK
     """
+
+    status_types = sorted(AggregateStatusType._str_map.keys())
 
     msg = ""
 
-    # aggstatus:
-    vs = dict((AggregateStatusType._str_map[k2],
-               "%-16s" % DeviceStatusType._str_map[v2]) for
-              (k2, v2) in aggstatus.items())
-    msg += "%40s : %s\n" % ("aggstatus", vs)
+    # header:
+    msg += "%40s   " % ""
+    for status_type in status_types:
+        msg += "%-20s" % AggregateStatusType._str_map[status_type]
+    msg += "\n"
 
     # child_agg_status:
     for k, v in child_agg_status.iteritems():
-        vs = dict((AggregateStatusType._str_map[k2],
-                   "%-16s" % DeviceStatusType._str_map[v2]) for
-                  (k2, v2) in v.items())
-        msg += "%40s : %s\n" % (k, vs)
+        msg += "%40s : " % k
+        for status_type in status_types:
+            msg += "%-20s" % DeviceStatusType._str_map[v[status_type]]
+        msg += "\n"
+
+    # aggstatus:
+    msg += "%40s : " % "aggstatus"
+    for status_type in status_types:
+        msg += "%-20s" % DeviceStatusType._str_map[aggstatus[status_type]]
+    msg += "\n"
 
     # rollup_status:
-    vs = dict((AggregateStatusType._str_map[k2],
-               "%-16s" % DeviceStatusType._str_map[v2]) for
-              (k2, v2) in rollup_status.items())
-    msg += "%40s : %s\n" % ("rollup_status", vs)
+    msg += "%40s : " % "rollup_status"
+    for status_type in status_types:
+        msg += "%-20s" % DeviceStatusType._str_map[rollup_status[status_type]]
+    msg += "\n"
 
     return msg

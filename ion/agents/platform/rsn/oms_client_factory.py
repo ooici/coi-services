@@ -141,5 +141,10 @@ class CIOMSClientFactory(object):
         """
         if cls._sim_process:
             log.debug("stopping launched simulator...")
-            cls._sim_process.stop()
-            cls._sim_process = None
+            try:
+                cls._sim_process.stop()
+            except Exception as e:
+                log.warn("error while stopping simulator process: %s", e)
+                # and just continue (not critical)
+            finally:
+                cls._sim_process = None
