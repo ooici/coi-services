@@ -1337,6 +1337,10 @@ class InstrumentAgentTest():
             stream_list = ['raw', 'parsed']            
             
             for x in caps_list:
+                if isinstance(x,dict):
+                    x.pop('type_')
+                    x = IonObject('AgentCapability', **x)
+                
                 if x.cap_type == CapabilityType.AGT_CMD:
                     keys = x.schema.keys()
                     for y in ddak_list:
