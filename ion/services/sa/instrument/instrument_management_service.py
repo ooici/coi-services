@@ -1960,9 +1960,6 @@ class InstrumentManagementService(BaseInstrumentManagementService):
             'unassign_sensor_device_from_instrument_device', { "sensor_device_id":  "$(sensor_device_id)",
                                                                 "instrument_device_id":  instrument_device_id })
 
-        # the 'InstrumentAgent' association, correct or not here, needs to be multiple
-        resource_data.associations['InstrumentAgent'].multiple_associations = True
-
         return resource_data
 
     def prepare_instrument_agent_instance_support(self, instrument_agent_instance_id=''):
