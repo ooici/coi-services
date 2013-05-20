@@ -36,6 +36,9 @@ class TestDMExtended(DMTestCase):
     def preload_beta(self):
         config = DotDict()
         config.op = 'load'
+        config.loadui=True
+        config.ui_path =  "https://userexperience.oceanobservatories.org/database-exports/Candidates"
+        config.attachments = "res/preload/r2_ioc/attachments"
         config.scenario = 'BETA'
         config.categories='ParameterFunctions,ParameterDefs,ParameterDictionary'
         self.container.spawn_process('preloader', 'ion.processes.bootstrap.ion_loader', 'IONLoader', config)
@@ -93,9 +96,12 @@ class TestDMExtended(DMTestCase):
         workflow_def_id = self.create_google_dt_workflow_def()
 
         #Create the input data product
-        data_product_id = self.create_data_product('ctd simulator', param_dict_name='ctd_simulator')
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_simulator', id_only=True)
+        stream_def_id = self.create_stream_definition('ctd sim L2', parameter_dictionary_id=pdict_id, available_fields=['time','salinity','density'])
+        data_product_id = self.create_data_product('ctd simulator', stream_def_id=stream_def_id)
+        self.activate_data_product(data_product_id)
 
-        viz_token = self.visualization.initiate_realtime_visualization_data(data_product_id=data_product_id)
+        #viz_token = self.visualization.initiate_realtime_visualization_data(data_product_id=data_product_id)
 
         streamer = Streamer(data_product_id)
         self.addCleanup(streamer.stop)
