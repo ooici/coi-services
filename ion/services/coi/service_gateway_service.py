@@ -538,7 +538,7 @@ def set_object_field(obj, field, field_val):
                     sub_obj = IonObject(field_val['type_'])
                     setattr(obj, field, sub_obj)
                 else:
-                    raise Inconsistent("Unable to walk the field %s as an IonObject since the types don't match: %s %s", field, sub_obj.type_, field_val['type_'] )
+                    raise Inconsistent("Unable to walk the field %s as an IonObject since the types don't match: %s %s" % (field, sub_obj.type_, field_val['type_']))
 
             for sub_field in field_val:
                 set_object_field(sub_obj, sub_field, field_val.get(sub_field))
