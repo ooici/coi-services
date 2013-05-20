@@ -299,9 +299,7 @@ class TestIntDataAcquisitionManagementService(IonIntegrationTestCase):
             print 'Creating new external data agent '
             datasetagent_obj = IonObject(RT.ExternalDatasetAgent,
                                name='ExternalDatasetAgent1',
-                               description='external data agent ',
-                                handler_module = 'module_name',
-                                handler_class = 'class_name')
+                               description='external data agent ')
             try:
                 datasetagent_id = self.client.create_external_dataset_agent(datasetagent_obj)
             except BadRequest as ex:
