@@ -126,6 +126,7 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
         time_fill_value = 0.0 # should be derived from the granule's param dict.
         data_description.append(('time','number','time'))
 
+        import re
         for field in fields:
 
             if field == rdt.temporal_parameter:
@@ -148,9 +149,13 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
             if field.endswith('_qc'):
                 continue
 
+            from coverage_model import ArrayType
             # Handle string type or if its an unknown type, convert to string
             if (rdt[field].dtype == 'string' or rdt[field].dtype not in gdt_allowed_numerical_types):
                 data_description.append((field, 'string', field ))
+            elif isinstance(rdt.context(field).param_type, ArrayType) and len(rdt[field].shape)>1:
+                for i in xrange(rdt[field].shape[1]):
+                    data_description.append(('%s[%s]' % (field,i), 'number', '%s[%s]' % (field,i), {'precision':str(precisions[field])}))
             else:
                 data_description.append((field, 'number', field, {'precision':str(precisions[field])} ))
 
@@ -170,7 +175,11 @@ class VizTransformGoogleDTAlgorithm(SimpleGranuleTransformFunction):
                 if field == None or field == 'time':
                     continue
 
-                if rdt[field] == None or rdt[field][i] == None:
+                if re.match(r'.*\[\d+\]', field):
+                    field, j = re.match(r'(.*)\[(\d+)\]', field).groups()
+                    j = int(j)
+                    varTuple.append(float(rdt[field][i][j]))
+                elif rdt[field] == None or rdt[field][i] == None:
                     varTuple.append(None)
                 else:
                     if(field_type == 'number'):
