@@ -199,7 +199,8 @@ class TestBinaryCTD(BulkIngestBase, IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         self.assertIsNotNone(rdt['temp'])
 
-@attr('INT', group='eoi')
+#DISABLED: attr('INT', group='eoi')
+# these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
 class TestHypm_WPF_CTD(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
@@ -264,9 +265,9 @@ class TestHypm_WPF_CTD(BulkIngestBase, IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         self.assertIsNotNone(rdt['temperature'])
 
-@attr('INT', group='eoi')
+#PASSES BUT DISABLED: attr('INT', group='eoi')
+# these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
 class TestHypm_WPF_ACM(BulkIngestBase, IonIntegrationTestCase):
-
     def setup_resources(self):
         self.name = 'hypm_01_wpf_acm'
         self.description = 'acm instrument test'
@@ -353,7 +354,8 @@ class TestHypm_WPF_ACM(BulkIngestBase, IonIntegrationTestCase):
         rdt = RecordDictionaryTool.load_from_granule(replay_data)
         self.assertIsNotNone(rdt['time'])
 
-@attr('INT', group='eoi')
+#PASSES BUT DISABLED: attr('INT', group='eoi')
+# these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
 class TestHypm_WPF_ENG(BulkIngestBase, IonIntegrationTestCase):
 
     def setup_resources(self):
