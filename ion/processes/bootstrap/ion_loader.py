@@ -79,7 +79,7 @@ from ion.util.parse_utils import parse_dict, parse_phones, get_typed_value
 from ion.util.xlsparser import XLSParser
 
 from coverage_model.parameter import ParameterContext
-from coverage_model import NumexprFunction, PythonFunction
+from coverage_model import NumexprFunction, PythonFunction, QuantityType
 
 from interface import objects
 from interface.objects import StreamAlertType
@@ -1695,7 +1695,8 @@ Reason: %s
 
             if qc:
                 try:
-                    context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id)
+                    if isinstance(context.param_type, QuantityType):
+                        context.qc_contexts = tm.make_qc_functions(name,qc,self._register_id)
                 except KeyError:
                     pass
 

@@ -275,7 +275,7 @@ class RecordDictionaryTool(object):
         
         elif self._shp is None or self._dirty_shape:
             if isinstance(vals, np.ndarray):
-                self._shp = vals.shape
+                self._shp = (vals.shape[0],) # Only support 1-d right now
             elif isinstance(vals, list):
                 self._shp = (len(vals),)
             else:
@@ -321,19 +321,18 @@ class RecordDictionaryTool(object):
             return None
         if self._available_fields and name not in self._available_fields:
             raise KeyError(name)
-        if self._rd[name] is not None:
-            context = self._pdict.get_context(name)
-            if isinstance(context.param_type, ParameterFunctionType):
-                return self._rd[name].memoized_values[:]
-            return self._rd[name][:]
         ptype = self._pdict.get_context(name).param_type
         if isinstance(ptype, ParameterFunctionType):
+            if self._rd[name] is not None and getattr(self._rd[name],'memoized_values',None) is not None:
+                return self._rd[name].memoized_values[:]
             try:
                 pfv = get_value_class(ptype, self.domain)
                 pfv._pval_callback = self._pval_callback
                 return pfv[:]
             except ParameterFunctionException:
                 log.debug('failed to get parameter function field: %s (%s)', name, self._pdict.keys(), exc_info=True)
+        if self._rd[name] is not None:
+            return self._rd[name][:]
         return None
 
     def iteritems(self):

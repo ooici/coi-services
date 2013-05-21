@@ -32,9 +32,9 @@ from interface.services.dm.ipubsub_management_service import\
 import numpy
 
 
-@attr('INT_LONG', group='eoi')
-class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase,
-    IonIntegrationTestCase):
+#DISABLED: attr('INT_LONG', group='eoi')
+# these tests rely on the original handler mechanism which had several shortcomings leading to the poller/parser rewrite
+class TestExternalDatasetAgent_Netcdf(ExternalDatasetAgentTestBase, IonIntegrationTestCase):
     DVR_CONFIG = {
         'dvr_mod': 'ion.agents.data.handlers.netcdf_data_handler',
         'dvr_cls': 'NetcdfDataHandler', }

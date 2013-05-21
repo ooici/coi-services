@@ -36,8 +36,10 @@ class TypesManager(object):
         self.resource_ids = resource_ids
         self.resource_objs = resource_objs
 
-    def get_array_type(self,parameter_type=None):
-        return ArrayType()
+    def get_array_type(self,parameter_type=None, encoding=None):
+        if encoding in ('str', '', 'opaque'):
+            encoding = None
+        return ArrayType(inner_encoding=encoding)
 
     def get_boolean_type(self):
         return QuantityType(value_encoding = np.dtype('int8'))
@@ -108,7 +110,7 @@ class TypesManager(object):
         if parameter_type == 'quantity':
             return self.get_quantity_type(parameter_type,encoding)
         elif re.match(r'array<.*>', parameter_type):
-            return self.get_array_type(parameter_type)
+            return self.get_array_type(parameter_type, encoding)
         elif re.match(r'category<.*>', parameter_type):
             return self.get_category_type(parameter_type, encoding, code_set)
         elif parameter_type == 'str':

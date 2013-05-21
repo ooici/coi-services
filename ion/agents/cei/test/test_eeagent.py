@@ -544,6 +544,39 @@ class ExecutionEngineAgentPyonIntTest(IonIntegrationTestCase):
         self.wait_for_state(u_pid, [850, 'FAILED'])
 
     @needs_eeagent
+    def test_run_out_of_slots(self):
+        """test_run_out_of_slots
+        """
+        old_eea_pid = str(self._eea_pid)
+        self.container.terminate_process(self._eea_pid)
+        self.agent_config['eeagent']['slots'] = 1
+        self._start_eeagent()
+        self.assertNotEqual(old_eea_pid, self._eea_pid)
+
+        u_pid_0, u_pid_1 = "test0", "test1"
+        round = 0
+        run_type = "pyon"
+        proc_name = 'test_transform'
+        module = 'ion.agents.cei.test.test_eeagent'
+        cls = 'TestProcess'
+        parameters = {'name': proc_name, 'module': module, 'cls': cls}
+
+        self.eea_client.launch_process(u_pid_0, round, run_type, parameters)
+        self.wait_for_state(u_pid_0, [500, 'RUNNING'])
+
+        self.eea_client.launch_process(u_pid_1, round, run_type, parameters)
+        self.wait_for_state(u_pid_1, [900, 'REJECTED'])
+
+        old_eea_pid = str(self._eea_pid)
+        self.container.terminate_process(self._eea_pid)
+        self.agent_config['eeagent']['slots'] = 1
+        self._start_eeagent()
+        self.assertNotEqual(old_eea_pid, self._eea_pid)
+
+        self.wait_for_state(u_pid_0, [850, 'FAILED'])
+        self.wait_for_state(u_pid_1, [900, 'REJECTED'])
+
+    @needs_eeagent
     def test_download_code(self):
 
         self._enable_code_download(whitelist=['*'])

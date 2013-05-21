@@ -13,7 +13,7 @@ def describe_deployments(deployments, context):
         return {}
     rr=context.resource_registry
     deployment_ids = [ d._id for d in deployments ]
-    descriptions = { d._id: { 'is_primary': 'False', 'name': d.name, 'description': d.description } for d in deployments }
+    descriptions = { d._id: { 'is_primary': False, 'name': d.name, 'description': d.description } for d in deployments }
 
     # first get the all site and instrument objects
     site_ids = []

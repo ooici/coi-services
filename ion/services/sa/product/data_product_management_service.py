@@ -1210,26 +1210,26 @@ class DataProductManagementService(BaseDataProductManagementService):
         #Fill out service request information for assigning an instrument
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].assign_request, 'data_acquisition_management',
             'assign_data_product', {"data_product_id": data_product_id,
-                                    "instrument_device_id": "$(instrument_device_id)"})
+                                    "input_resource_id": "$(instrument_device_id)"})
 
 
         #Fill out service request information for unassigning an instrument
         extended_resource_handler.set_service_requests(resource_data.associations['InstrumentDevice'].unassign_request, 'data_acquisition_management',
             'unassign_data_product', {"data_product_id": data_product_id,
-                                      "instrument_device_id": "$(instrument_device_id)" })
+                                      "input_resource_id": "$(instrument_device_id)" })
 
 
 
         #Fill out service request information for assigning an instrument
         extended_resource_handler.set_service_requests(resource_data.associations['PlatformDevice'].assign_request, 'data_acquisition_management',
             'assign_data_product', {"data_product_id": data_product_id,
-                                    "instrument_device_id": "$(platform_device_id)"})
+                                    "input_resource_id": "$(platform_device_id)"})
 
 
         #Fill out service request information for unassigning an instrument
         extended_resource_handler.set_service_requests(resource_data.associations['PlatformDevice'].unassign_request, 'data_acquisition_management',
             'unassign_data_product', {"data_product_id": data_product_id,
-                                      "instrument_device_id": "$(platform_device_id)" })
+                                      "input_resource_id": "$(platform_device_id)" })
 
 
 
