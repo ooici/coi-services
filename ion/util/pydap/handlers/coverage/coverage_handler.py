@@ -89,6 +89,8 @@ class Handler(BaseHandler):
         return grid    
 
     def filter_data(self, data):
+        if len(data.shape) > 1:
+            return self.stringify(data), 'S'
         if data.dtype.char in numpy_integer_types + numpy_uinteger_types:
             return data, data.dtype.char
         if data.dtype.char in numpy_floats:
@@ -108,7 +110,10 @@ class Handler(BaseHandler):
         retval = np.empty(data.shape, dtype='O')
         try:
             for i,obj in enumerate(data):
-                retval[i] = str(obj)
+                if isinstance(obj, np.ndarray):
+                    retval[i] = ','.join(map(lambda x: str(x), obj.tolist()))
+                else:
+                    retval[i] = str(obj)
         except:
             retval = np.asanyarray(['None' for d in data])
         return retval
