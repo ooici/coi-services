@@ -563,6 +563,12 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
         return func
 
+    def create_matrix_offset_function(self):
+        func = PythonFunction('matrix_offset', 'ion.services.dm.utility.test.parameter_helper','matrix_offset', ['x','y'])
+        func_id = self.dataset_management.create_parameter_function(name='matrix_offset', parameter_function=func.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
+        return func
+
 
     def create_simple_array(self):
         contexts = {}
@@ -576,21 +582,34 @@ class ParameterHelper(object):
         temp_ctxt = ParameterContext('temp_sample', param_type=ArrayType(inner_encoding='float32'))
         temp_ctxt.uom = 'deg_C'
         temp_ctxt.ooi_short_name = 'TEMPWAT'
-        temp_ctxt.qc_contexts = types_manager.make_qc_functions('temp','TEMPWAT',lambda *args, **kwargs : None)
+        temp_ctxt.display_name = 'Temperature'
         temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
         self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
         contexts['temp'] = temp_ctxt, temp_ctxt_id
+        
+        cond_ctxt = ParameterContext('cond_sample', param_type=ArrayType(inner_encoding='float64'))
+        cond_ctxt.uom = 'deg_C'
+        cond_ctxt.ooi_short_name = 'CONDWAT'
+        cond_ctxt.display_anme = 'Conductivity'
+        cond_ctxt_id = self.dataset_management.create_parameter_context(name='cond', parameter_context=cond_ctxt.dump(), ooi_short_name='CONDWAT')
+        self.addCleanup(self.dataset_management.delete_parameter_context, cond_ctxt_id)
+        contexts['cond'] = cond_ctxt, cond_ctxt_id
+
+        func = self.create_matrix_offset_function()
+        func.param_map = {'x':'temp_sample', 'y':'cond_sample'}
+        temp_offset = ParameterContext('temp_offset', param_type=ParameterFunctionType(func))
+        temp_offset.uom = '1'
+        temp_offset_id = self.dataset_management.create_parameter_context(name='temp_offset', parameter_context=temp_offset.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_offset_id)
+
+        contexts['temp_offset'] = temp_offset, temp_offset_id
 
         return contexts
 
     def crete_simple_array_pdict(self):
-        types_manager = TypesManager(self.dataset_management, None, None)
         # TODO: Create the QC Functions here
         contexts = self.create_simple_array()
         context_ids = [i[1] for i in contexts.itervalues()]
-        context_ids.extend(contexts['temp'][0].qc_contexts)
-        for qc_context in contexts['temp'][0].qc_contexts:
-            context_ids.extend(types_manager.get_lookup_value_ids(DatasetManagementService.get_parameter_context(qc_context)))
         pdict_id = self.dataset_management.create_parameter_dictionary('simple_array', parameter_context_ids=context_ids, temporal_context='time')
         self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
 
@@ -685,3 +704,7 @@ class ParameterHelper(object):
         contexts['calibrated_b'] = calibrated_b, calibrated_b_id
 
         return contexts
+
+def matrix_offset(x,y):
+    return x+y
+
