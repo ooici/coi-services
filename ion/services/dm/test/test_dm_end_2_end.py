@@ -21,6 +21,7 @@ from ion.services.dm.inventory.data_retriever_service import DataRetrieverServic
 from ion.services.dm.utility.granule_utils import RecordDictionaryTool, CoverageCraft, time_series_domain
 from ion.services.dm.utility.test.parameter_helper import ParameterHelper
 from ion.util.stored_values import StoredValueManager
+from ion.util.direct_coverage_utils import DirectCoverageAccess
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
@@ -63,6 +64,7 @@ class TestDMEnd2End(IonIntegrationTestCase):
         self.exchange_space_name  = 'test_granules'
         self.exchange_point_name  = 'science_data'       
         self.i                    = 0
+        self.cci                  = 0
 
         self.purge_queues()
         self.queue_buffer         = []
@@ -130,6 +132,11 @@ class TestDMEnd2End(IonIntegrationTestCase):
         '''
 
         pid = self.container.spawn_process('better_data_producer', 'ion.processes.data.example_data_producer', 'BetterDataProducer', {'process':{'stream_id':stream_id}})
+
+        self.pids.append(pid)
+
+    def launch_cc_producer(self, stream_id=''):
+        pid = self.container.spawn_process('simple_data_producer', 'ion.processes.data.example_data_producer', 'CCDataProducer', {'process': {'stream_id': stream_id}})
 
         self.pids.append(pid)
 
@@ -212,7 +219,24 @@ class TestDMEnd2End(IonIntegrationTestCase):
                     gevent.sleep(0.2)
 
 
+    def make_cal_dataset(self):
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
 
+        # Add a handful of Calibration Coefficient parameters
+        for cc in ['cc_ta0', 'cc_ta1', 'cc_ta2', 'cc_ta3', 'cc_toffset']:
+            c = ParameterContext(cc, param_type=SparseConstantType(value_encoding='float32', fill_value=-9999))
+            c.uom = '1'
+            context_ids.append(self.dataset_management.create_parameter_context(cc, c.dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('calcoeff_dict', context_ids, temporal_context='time')
+        stream_def_id = self.pubsub_management.create_stream_definition('calcoeff_stream_def', parameter_dictionary_id=pdict_id)
+        stream_id, route = self.pubsub_management.create_stream('calcoeff stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.cci += 1
+        return stream_id, route, stream_def_id, dataset_id
 
     #--------------------------------------------------------------------------------
     # Test Methods
@@ -528,6 +552,42 @@ class TestDMEnd2End(IonIntegrationTestCase):
         np.testing.assert_array_almost_equal(rdt2['time'], np.arange(20))
 
         self.stop_ingestion(ctd_stream_id)
+
+
+    def test_upload_calibration_coefficients(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_cal_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+
+        self.launch_cc_producer(stream_id)
+
+        # Let a little data accumulate
+        gevent.sleep(2)
+
+        # Verify that the CC parameters are fill value
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, -1), -9999.)
+
+        # Upload the calibration coefficients - this pauses ingestion, performs the upload, and resumes ingestion
+        with DirectCoverageAccess() as dca:
+            dca.upload_calibration_coefficients(dataset_id, 'test_data/testcalcoeff.csv', 'test_data/testcalcoeff.yml')
+
+        # Let a little more data accumulate
+        gevent.sleep(2)
+
+        # Verify that the CC parameters now have the correct values
+        want_vals = {
+            'cc_ta0': np.float32(1.155787e-03),
+            'cc_ta1': np.float32(2.725208e-04),
+            'cc_ta2': np.float32(-7.526811e-07),
+            'cc_ta3': np.float32(1.716270e-07),
+            'cc_toffset': np.float32(0.000000e+00)
+        }
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, -1), want_vals[p])
 
 
     def test_retrieve_and_transform(self):

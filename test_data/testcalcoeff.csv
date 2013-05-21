@@ -1,0 +1,11 @@
+<Calibration format = 'TEMP1' id = 'Main Temperature'>
+<SerialNum>01606001</SerialNum>
+<CalDate>19-Dec-12</CalDate> [TCalDate=]
+<TA0>1.155787e-03</TA0> [TA0=]
+<TA1>2.725208e-04</TA1> [TA1=]
+<TA2>-7.526811e-07</TA2> [TA2=]
+<TA3>1.716270e-07</TA3> [TA3=]
+<TOFFSET>0.000000e+00</TOFFSET>
+</Calibration>
+time,cc_ta0,cc_ta1,cc_ta2,cc_ta3,cc_toffset
+19-Dec-12,1.155787e-03,2.725208e-04,-7.526811e-07,1.716270e-07,0.000000e+00
