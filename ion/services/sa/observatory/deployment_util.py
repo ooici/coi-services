@@ -48,7 +48,7 @@ def describe_deployments(deployments, context):
         if assoc.p==PRED.hasDevice:
             found_match = False
             for description in descriptions.itervalues():
-                if description['site_id']==assoc.s and description['device_id']==assoc.o:
+                if description.get('site_id', None)==assoc.s and description.get('device_id', None)==assoc.o:
                     if found_match:
                         log.warn('more than one primary deployment for site %s (%s) and device %s (%s)',
                                  assoc.s, description['site_name'], assoc.o, description['device_name'])
