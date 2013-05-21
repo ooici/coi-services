@@ -34,6 +34,25 @@ class BetterDataProducer(SimpleCtdPublisher):
             t_i += 1
 
 
+class CCDataProducer(SimpleCtdPublisher):
+    def on_start(self):
+        self.pdict = None
+        stream_id = self.CFG.get_safe('process.stream_id')
+        pubsub_cli = PubsubManagementServiceProcessClient(process=self)
+        self.stream_def = pubsub_cli.read_stream_definition(stream_id=stream_id)
+        super(CCDataProducer,self).on_start()
+
+    def publish_loop(self):
+        t_i = 0
+        while not self.finished.is_set():
+            rdt = RecordDictionaryTool(stream_definition_id=self.stream_def._id)
+            rdt['time'] = numpy.arange(10) + t_i*10
+            rdt['temp'] = numpy.random.random_sample(10)*(30-0)+0
+
+            self.publish(rdt.to_granule())
+            gevent.sleep(self.interval)
+            t_i += 1
+
 
 class ExampleDataProducer(SimpleCtdPublisher):
     """

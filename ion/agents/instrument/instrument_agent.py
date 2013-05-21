@@ -526,7 +526,14 @@ class InstrumentAgent(ResourceAgent):
         self._asp.reset_connection()
 
         resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
-        self._resource_schema = json.loads(resource_schema)
+        if isinstance(resource_schema, str):
+            resource_schema = json.loads(resource_schema)
+            if isinstance(resource_schema, dict):
+                self._resource_schema = resource_schema
+            else:
+                self._resource_schema = {}                    
+        else:
+            self._resource_schema = {}
 
         max_tries = kwargs.get('max_tries', 5)
         if not isinstance(max_tries, int) or max_tries < 1:
