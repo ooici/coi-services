@@ -353,7 +353,8 @@ class TestBulkIngest(IonIntegrationTestCase):
 
         #save the incoming slocum data
         self.dataproductclient.activate_data_product_persistence(self.dproduct_id)
-
+        self.addCleanup(self.dataproductclient.suspend_data_product_persistence, self.dproduct_id)
+        
         stream_ids, assn = self.rrclient.find_objects(subject=self.dproduct_id, predicate=PRED.hasStream, object_type=RT.Stream, id_only=True)
         stream_id = stream_ids[0]
 
