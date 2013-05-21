@@ -311,6 +311,7 @@ class DeploymentResourceCollector(DeploymentOperator):
         tree["_id"] = root_id
         tree["name"] = root_obj.name
         tree["children"] = {}
+        tree["type"] = self._type_lookup[root_id]
         if PRED.hasDevice == assn_type:
             tree["model"] = self.find_models_fromcache(root_id)
             tree["model_name"] = self.RR2.read(tree["model"]).name
@@ -484,7 +485,8 @@ class DeploymentResourceCollector(DeploymentOperator):
 
         # various validation
         if len(device_models) > len(site_models):
-            raise BadRequest("Devices in this deployment outnumber sites (%s to %s)" % (len(device_models), len(site_models)))
+            raise BadRequest("Devices in this deployment outnumber sites (%s to %s).  Device tree: %s Site tree: %s" %
+                             (len(device_models), len(site_models), device_tree, site_tree))
 
         if 0 == len(device_models):
             raise BadRequest("No devices were found in the deployment")
@@ -769,9 +771,9 @@ class DeploymentActivator(DeploymentOperator):
             # add parent-child constraints
             try:
                 parent_device_id = self.RR2.find_subject(RT.PlatformDevice, PRED.hasDevice, device_id, id_only=True)
-
-                problem.addConstraint(lambda child_site, parent_site: parent_site == safe_get_parent(child_site),
-                                      [device_var, mk_csp_var(parent_device_id)])
+                if parent_device_id in device_models:
+                    problem.addConstraint(lambda child_site, parent_site: parent_site == safe_get_parent(child_site),
+                                          [device_var, mk_csp_var(parent_device_id)])
 
 
             except NotFound:
