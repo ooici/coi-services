@@ -724,15 +724,18 @@ class DeploymentActivator(DeploymentOperator):
             raise BadRequest("The set of devices could not be mapped to the set of sites, based on matching " +
                              "models") # and streamdefs")
 
-        if 1 < len(solutions):
+        if 1 == len(solutions):
+            log.info("Found one possible way to map devices and sites.  Best case scenario!")
+        else:
             log.info("Found %d possible ways to map device and site", len(solutions))
             log.trace("Here is the %s of all of them:", type(solutions).__name__)
             for i, s in enumerate(solutions):
                 log.trace("Option %d: %s" , i+1, self._csp_solution_to_string(s))
-            raise BadRequest(("The set of devices could be mapped to the set of sites in %s ways based only " +
-                              "on matching models, and no port assignments were specified") % len(solutions))
+            uhoh = ("The set of devices could be mapped to the set of sites in %s ways based only " +
+                    "on matching models, and no port assignments were specified.") % len(solutions)
+            #raise BadRequest(uhoh)
+            log.warn(uhoh + "  PICKING THE FIRST AVAILABLE OPTION.")
 
-        log.info("Found one possible way to map devices and sites.  Best case scenario!")
         # return list of site_id, device_id
         return [(solutions[0][mk_csp_var(device_id)], device_id) for device_id in device_models.keys()]
 
