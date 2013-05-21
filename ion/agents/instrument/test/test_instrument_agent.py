@@ -404,8 +404,7 @@ class InstrumentAgentTest():
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -420,8 +419,7 @@ class InstrumentAgentTest():
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,

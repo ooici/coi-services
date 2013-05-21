@@ -15,6 +15,7 @@ __license__ = 'Apache 2.0'
 # Pyon log and config objects.
 from pyon.public import log
 from pyon.public import CFG
+from pyon.public import get_obj_registry
 
 # Standard imports.
 import sys
@@ -24,6 +25,7 @@ import re
 import json
 import unittest
 import os
+from copy import deepcopy
 
 # 3rd party imports.
 import gevent
@@ -64,11 +66,16 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 # Alerts.
 from interface.objects import StreamAlertType, AggregateStatusType
 
+
+from pyon.core.object import IonObjectSerializer, IonObjectDeserializer
+from pyon.core.bootstrap import IonObject
+
 """
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_config_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_state_persistence
 bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_agent_rparam_persistence
+bin/nosetests -s -v --nologcapture ion/agents/instrument/test/test_agent_persistence.py:TestAgentPersistence.test_xx
 """
 
 ###############################################################################
@@ -237,8 +244,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -253,8 +259,7 @@ class TestAgentPersistence(IonIntegrationTestCase):
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
                                                 stream_definition_id=stream_def_id)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -686,4 +691,11 @@ class TestAgentPersistence(IonIntegrationTestCase):
         retval = self._ia_client.execute_agent(cmd)
         state = self._ia_client.get_agent_state()
         self.assertEqual(state, ResourceAgentState.UNINITIALIZED)
+        
+        
+    def test_xx(self):
+        pass
+    
+    
+    
         

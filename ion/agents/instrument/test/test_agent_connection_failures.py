@@ -388,17 +388,13 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
 
         stream_name = 'parsed'
         param_dict_name = 'ctd_parsed_param_dict'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(
-                    param_dict_name, id_only=True,timeout=120)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name,
-                    parameter_dictionary_id=pd_id)
-        pd = pubsub_client.read_stream_definition(stream_def_id,timeout=120).parameter_dictionary
+        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
+        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
-                                                stream_definition_id=stream_def_id,
-                                                timeout=120)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+                                                stream_definition_id=stream_def_id)
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
@@ -407,17 +403,13 @@ class TestAgentConnectionFailures(IonIntegrationTestCase):
 
         stream_name = 'raw'
         param_dict_name = 'ctd_raw_param_dict'
-        pd_id = dataset_management.read_parameter_dictionary_by_name(
-            param_dict_name, id_only=True,timeout=120)
-        stream_def_id = pubsub_client.create_stream_definition(name=stream_name,
-                        parameter_dictionary_id=pd_id,timeout=120)
-        pd = pubsub_client.read_stream_definition(stream_def_id,timeout=120).parameter_dictionary
+        pd_id = dataset_management.read_parameter_dictionary_by_name(param_dict_name, id_only=True)
+        stream_def_id = pubsub_client.create_stream_definition(name=stream_name, parameter_dictionary_id=pd_id)
+        pd = pubsub_client.read_stream_definition(stream_def_id).parameter_dictionary
         stream_id, stream_route = pubsub_client.create_stream(name=stream_name,
                                                 exchange_point='science_data',
-                                                stream_definition_id=stream_def_id,
-                                                timeout=120)
-        stream_config = dict(stream_route=stream_route,
-                                 routing_key=stream_route.routing_key,
+                                                stream_definition_id=stream_def_id)
+        stream_config = dict(routing_key=stream_route.routing_key,
                                  exchange_point=stream_route.exchange_point,
                                  stream_id=stream_id,
                                  stream_definition_ref=stream_def_id,
