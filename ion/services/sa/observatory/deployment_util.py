@@ -7,6 +7,9 @@ suitable for the UI table:
 
 from ooi.logging import log, TRACE
 from pyon.ion.resource import RT, PRED, LCS, OT
+import time
+
+TIME_FORMAT='%Y-%m-%d %H:%M:%S'
 
 def describe_deployments(deployments, context):
     if not deployments:
@@ -18,6 +21,18 @@ def describe_deployments(deployments, context):
         descriptions[d._id] = { 'is_primary': False, '_id': d._id }
         for k in d._schema:
             descriptions[d._id][k] = getattr(d,k)
+        time_constraint = None
+        for constraint in d.constraint_list:
+            if constraint.type_ == OT.TemporalBounds:
+                if time_constraint:
+                    log.warn('deployment %s has more than one time constraint (using first)', d.name)
+                else:
+                    time_constraint = constraint
+        if time_constraint:
+            descriptions[d._id]['start_time'] = time.strftime(TIME_FORMAT, time.gmtime(float(time_constraint.start_datetime))) if time_constraint.start_datetime else ""
+            descriptions[d._id]['end_time'] = time.strftime(TIME_FORMAT, time.gmtime(float(time_constraint.end_datetime))) if time_constraint.end_datetime else ""
+        else:
+            descriptions[d._id]['start_time'] = descriptions[d._id]['end_time'] = ""
 
     # first get the all site and instrument objects
     site_ids = []
