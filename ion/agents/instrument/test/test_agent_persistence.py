@@ -67,6 +67,10 @@ from interface.services.dm.idataset_management_service import DatasetManagementS
 from interface.objects import StreamAlertType, AggregateStatusType
 
 
+from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
+from interface.objects import ProcessDefinition, ProcessSchedule, ProcessTarget,\
+    ProcessStateEnum, ProcessQueueingMode, ProcessRestartMode, ProcessDefinitionType
+
 from pyon.core.object import IonObjectSerializer, IonObjectDeserializer
 from pyon.core.bootstrap import IonObject
 
@@ -694,8 +698,34 @@ class TestAgentPersistence(IonIntegrationTestCase):
         
         
     def test_xx(self):
-        pass
-    
+        
+        pdc = ProcessDispatcherServiceClient(node=self.container.node)
+        p_def = ProcessDefinition(name='Agent007')
+        p_def.executable = {
+            'module' : 'ion.agents.instrument.instrument_agent',
+            'class' : 'InstrumentAgent'
+        }
+        p_def_id = pdc.create_process_definition(p_def)
+        
+        
+        def event_callback(event, *args, **kwargs):
+            print '######### proc %s in state %s' % (event.origin, ProcessStateEnum._str_map[event.state])
+            
+        pid = pdc.create_process(p_def_id)
+        
+        sub = EventSubscriber(event_type='ProcessLifecycleEvent',
+                              callback=event_callback,
+                              origin=pid,
+                              origin_type='DispatchedProcess')
+        
+        sub.start()
+        
+        pdc.schedule_process(p_def_id, process_id=pid,
+                             configuration=self._agent_config)
+        
+        gevent.sleep(5)
+        
+        sub.stop()
     
     
         
