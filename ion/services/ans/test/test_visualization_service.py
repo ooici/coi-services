@@ -6,6 +6,7 @@ __license__ = 'Apache 2.0'
 import unittest, os
 import gevent
 import simplejson
+import ast
 from mock import patch
 import logging
 from pyon.net.endpoint import Subscriber
@@ -309,9 +310,6 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         vis_params ={}
         vis_token_resp = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id, visualization_parameters=simplejson.dumps(vis_params))
-        print ">>>>>>>>>>>>>>>>>>> vis_token_resp : ", vis_token_resp
-
-        import ast
         vis_token = ast.literal_eval(vis_token_resp)["rt_query_token"]
 
         result = gevent.event.AsyncResult()
@@ -376,13 +374,17 @@ class TestVisualizationServiceIntegration(VisualizationIntegrationTestHelper):
 
         #Start up a number of requests - and queues - to start accumulating messages. THe test will not clean them up
         #but instead check to see if the monitoring thread will.
-        bad_vis_token1 = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        vis_token_resp = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        bad_vis_token1 = ast.literal_eval(vis_token_resp)["rt_query_token"]
 
-        bad_vis_token2 = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        vis_token_resp = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        bad_vis_token2 = ast.literal_eval(vis_token_resp)["rt_query_token"]
 
-        bad_vis_token3 = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        vis_token_resp = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        bad_vis_token3 = ast.literal_eval(vis_token_resp)["rt_query_token"]
 
-        vis_token = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        vis_token_resp = self.vis_client.initiate_realtime_visualization_data(data_product_id=ctd_parsed_data_product_id)
+        vis_token = ast.literal_eval(vis_token_resp)["rt_query_token"]
 
         #Get the default exchange space
         exchange = self.container.ex_manager.default_xs.exchange

@@ -563,6 +563,39 @@ class ParameterHelper(object):
         self.addCleanup(self.dataset_management.delete_parameter_function, func_id)
         return func
 
+
+    def create_simple_array(self):
+        contexts = {}
+        types_manager = TypesManager(self.dataset_management,None,None)
+        t_ctxt = ParameterContext('time', param_type=QuantityType(value_encoding=np.dtype('float64')))
+        t_ctxt.uom = 'seconds since 1900-01-01'
+        t_ctxt_id = self.dataset_management.create_parameter_context(name='time', parameter_context=t_ctxt.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, t_ctxt_id)
+        contexts['time'] = (t_ctxt, t_ctxt_id)
+
+        temp_ctxt = ParameterContext('temp_sample', param_type=ArrayType(inner_encoding='float32'))
+        temp_ctxt.uom = 'deg_C'
+        temp_ctxt.ooi_short_name = 'TEMPWAT'
+        temp_ctxt.qc_contexts = types_manager.make_qc_functions('temp','TEMPWAT',lambda *args, **kwargs : None)
+        temp_ctxt_id = self.dataset_management.create_parameter_context(name='temp', parameter_context=temp_ctxt.dump(), ooi_short_name='TEMPWAT')
+        self.addCleanup(self.dataset_management.delete_parameter_context, temp_ctxt_id)
+        contexts['temp'] = temp_ctxt, temp_ctxt_id
+
+        return contexts
+
+    def crete_simple_array_pdict(self):
+        types_manager = TypesManager(self.dataset_management, None, None)
+        # TODO: Create the QC Functions here
+        contexts = self.create_simple_array()
+        context_ids = [i[1] for i in contexts.itervalues()]
+        context_ids.extend(contexts['temp'][0].qc_contexts)
+        for qc_context in contexts['temp'][0].qc_contexts:
+            context_ids.extend(types_manager.get_lookup_value_ids(DatasetManagementService.get_parameter_context(qc_context)))
+        pdict_id = self.dataset_management.create_parameter_dictionary('simple_array', parameter_context_ids=context_ids, temporal_context='time')
+        self.addCleanup(self.dataset_management.delete_parameter_dictionary, pdict_id)
+
+        return pdict_id
+    
     def create_simple_qc(self):
         contexts = {}
         types_manager = TypesManager(self.dataset_management,None,None)
@@ -581,6 +614,7 @@ class ParameterHelper(object):
         contexts['temp'] = temp_ctxt, temp_ctxt_id
 
         return contexts
+
 
     def create_simple_qc_pdict(self):
         types_manager = TypesManager(self.dataset_management,None,None)

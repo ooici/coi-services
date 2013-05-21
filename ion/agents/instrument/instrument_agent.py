@@ -246,6 +246,14 @@ class InstrumentAgent(ResourceAgent):
         super(InstrumentAgent, self).on_quit()
 
         self._aam.stop_all()
+        
+        params = {}
+        for (k,v) in self.aparam_pubrate.iteritems():
+            if v > 0:
+                params[k] = 0
+        
+        if len(params)>0:
+            self.aparam_set_pubrate(params)
                 
         state = self._fsm.get_current_state()
         if state == ResourceAgentState.UNINITIALIZED:
@@ -517,6 +525,9 @@ class InstrumentAgent(ResourceAgent):
         # Reset the connection id and index.
         self._asp.reset_connection()
 
+        resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
+        self._resource_schema = json.loads(resource_schema)
+
         max_tries = kwargs.get('max_tries', 5)
         if not isinstance(max_tries, int) or max_tries < 1:
             max_tries = 5
@@ -530,8 +541,6 @@ class InstrumentAgent(ResourceAgent):
                 if no_tries >= max_tries:
                     log.error("Could not discover instrument state")
                     next_state = ResourceAgentState.ACTIVE_UNKNOWN
-                    #self._dvr_client.cmd_dvr('disconnect')
-                    #raise 
         
         return (next_state, None)
 
@@ -1182,22 +1191,11 @@ class InstrumentAgent(ResourceAgent):
             driver_client.start_messaging(self.evt_recv)
             retval = driver_client.cmd_dvr('process_echo', 'Test.')
             self._dvr_client = driver_client
-            resource_schema = self._dvr_client.cmd_dvr('get_config_metadata')
-            if isinstance(resource_schema, dict):
-                self._resource_schema = resource_schema
-                
-            elif isinstance(self._resource_schema, str):
-                self._resource_schema = json.loads(resource_schema)
-
-            else:
-                log.error('Got bad resource schema type: %s',
-                          str(resource_schema))
 
         except Exception, e:
             self._dvr_proc.stop()
             self._dvr_proc = None
             self._dvr_client = None
-            self._resource_schema = None
             log.error('Instrument agent %s rror starting driver client. %s', self._proc_name, e)
             raise ResourceError('Error starting driver client.')
 
@@ -1212,7 +1210,7 @@ class InstrumentAgent(ResourceAgent):
             self._dvr_proc.stop()
             self._dvr_proc = None
             self._dvr_client = None
-            self._resource_schema = None
+            self._resource_schema = {}
             log.info('Instrument agent %s stopped its driver.', self._proc_name)
 
     def _validate_driver_config(self):
