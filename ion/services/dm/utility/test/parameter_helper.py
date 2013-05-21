@@ -94,7 +94,10 @@ class ParameterHelper(object):
             else:
                 rdt[parameter] = np.sin(np.pi * 2 * tn / 60)
         elif isinstance(context.param_type, ArrayType):
-            rdt[parameter] = np.array([range(10)] * t)
+            if context.param_type.inner_encoding is None:
+                rdt[parameter] = np.array([range(10)] * t)
+            else:
+                rdt[parameter] = np.array([[1,2,3,4]]*t)
         elif isinstance(context.param_type, CategoryType):
             rdt[parameter] = [context.categories.keys()[0]] * t
         elif isinstance(context.param_type, ConstantType):
@@ -474,6 +477,13 @@ class ParameterHelper(object):
         lon_lookup_ctxt_id = self.dataset_management.create_parameter_context(name='lon_lookup', parameter_context=lon_lookup_ctxt.dump())
         self.addCleanup(self.dataset_management.delete_parameter_context, lon_lookup_ctxt_id)
         contexts['lon_lookup'] = lon_lookup_ctxt, lon_lookup_ctxt_id
+
+
+        beam_samples = ParameterContext('beam_samples', param_type=ArrayType(inner_encoding='float64'))
+        beam_samples.uom = 'db'
+        beam_samples_id = self.dataset_management.create_parameter_context(name='beam_samples', parameter_context=beam_samples.dump())
+        self.addCleanup(self.dataset_management.delete_parameter_context, beam_samples_id)
+        contexts['beam_samples'] = beam_samples, beam_samples_id
 
         return contexts, funcs
 

@@ -90,7 +90,7 @@ class Handler(BaseHandler):
 
     def filter_data(self, data):
         if len(data.shape) > 1:
-            return self.stringify(data), 'S'
+            return self.ndim_stringify(data), 'S'
         if data.dtype.char in numpy_integer_types + numpy_uinteger_types:
             return data, data.dtype.char
         if data.dtype.char in numpy_floats:
@@ -106,14 +106,23 @@ class Handler(BaseHandler):
         return np.asanyarray(['Unsupported Type' for i in data]), 'S'
 
 
+    def ndim_stringify(self, data):
+        retval = np.empty(data.shape[0], dtype='O')
+        try:
+            if len(data.shape)>1:
+                for i in xrange(data.shape[0]):
+                    retval[i] = ','.join(map(lambda x : str(x), data[i].tolist()))
+                return retval
+        except:
+            retval = np.asanyarray(['None' for d in data])
+        return retval
+
+
     def stringify(self, data):
         retval = np.empty(data.shape, dtype='O')
         try:
             for i,obj in enumerate(data):
-                if isinstance(obj, np.ndarray):
-                    retval[i] = ','.join(map(lambda x: str(x), obj.tolist()))
-                else:
-                    retval[i] = str(obj)
+                retval[i] = str(obj)
         except:
             retval = np.asanyarray(['None' for d in data])
         return retval
