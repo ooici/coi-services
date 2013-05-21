@@ -566,7 +566,7 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         """
         #Verify that the deployment exists
         depl_obj = self.RR2.read(deployment_id)
-        log.debug("Activating deployment '%s' (%s)", depl_obj.name, deployment_id)
+        log.debug("Activing deployment '%s' (%s)", depl_obj.name, deployment_id)
 
         deployment_activator_factory = DeploymentActivatorFactory(self.clients)
         deployment_activator = deployment_activator_factory.create(depl_obj)
