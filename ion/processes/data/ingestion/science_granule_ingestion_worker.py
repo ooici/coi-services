@@ -100,6 +100,9 @@ class ScienceGranuleIngestionWorker(TransformStreamListener, BaseIngestionWorker
         self.start_listener()
 
     def on_quit(self): #pragma no cover
+        self.event_publisher.close()
+        self.qc_publisher.close()
+        self.lookup_monitor.stop()
         if self.subscriber_thread:
             self.stop_listener()
         for stream, coverage in self._coverages.iteritems():
