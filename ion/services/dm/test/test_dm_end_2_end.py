@@ -25,7 +25,7 @@ from ion.util.direct_coverage_utils import DirectCoverageAccess
 
 from coverage_model.parameter import ParameterContext
 from coverage_model.parameter_types import ArrayType, RecordType
-from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, ConstantType, ViewCoverage, ComplexCoverage, SimplexCoverage
+from coverage_model import ParameterFunctionType, NumexprFunction, QuantityType, SparseConstantType, BooleanType, ConstantType, ViewCoverage, ComplexCoverage, SimplexCoverage
 
 from interface.services.cei.iprocess_dispatcher_service import ProcessDispatcherServiceClient
 from interface.services.coi.iresource_registry_service import ResourceRegistryServiceClient
@@ -233,6 +233,25 @@ class TestDMEnd2End(IonIntegrationTestCase):
         pdict_id = self.dataset_management.create_parameter_dictionary('calcoeff_dict', context_ids, temporal_context='time')
         stream_def_id = self.pubsub_management.create_stream_definition('calcoeff_stream_def', parameter_dictionary_id=pdict_id)
         stream_id, route = self.pubsub_management.create_stream('calcoeff stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
+        dataset_id = self.create_dataset(pdict_id)
+
+        self.cci += 1
+        return stream_id, route, stream_def_id, dataset_id
+
+    def make_manual_upload_dataset(self):
+        # Get a precompiled parameter dictionary with basic ctd fields
+        pdict_id = self.dataset_management.read_parameter_dictionary_by_name('ctd_parsed_param_dict',id_only=True)
+        context_ids = self.dataset_management.read_parameter_contexts(pdict_id, id_only=True)
+
+        # Add a handful of Calibration Coefficient parameters
+        for cc in ['temp_hitl_qc', 'cond_hitl_qc']:
+            c = ParameterContext(cc, param_type=BooleanType())
+            c.uom = '1'
+            context_ids.append(self.dataset_management.create_parameter_context(cc, c.dump()))
+
+        pdict_id = self.dataset_management.create_parameter_dictionary('manup_dict', context_ids, temporal_context='time')
+        stream_def_id = self.pubsub_management.create_stream_definition('manup_stream_def', parameter_dictionary_id=pdict_id)
+        stream_id, route = self.pubsub_management.create_stream('manual upload stream %i' % self.cci, 'xp1', stream_definition_id=stream_def_id)
         dataset_id = self.create_dataset(pdict_id)
 
         self.cci += 1
@@ -588,6 +607,40 @@ class TestDMEnd2End(IonIntegrationTestCase):
             cov = dca.get_read_only_coverage(dataset_id)
             for p in [p for p in cov.list_parameters() if p.startswith('cc_')]:
                 np.testing.assert_equal(cov.get_parameter_values(p, -1), want_vals[p])
+
+
+    def test_manual_data_upload(self):
+        stream_id, route, stream_def_id, dataset_id = self.make_manual_upload_dataset()
+        self.start_ingestion(stream_id, dataset_id)
+
+        self.launch_cc_producer(stream_id)
+
+        # Let at least 20 samples accumulate
+        gevent.sleep(2)
+
+        # Verify that the HITL parameters are fill value
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            fillarr = np.array([False]*10)
+            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), fillarr)
+
+        # Upload the data - this pauses ingestion, performs the upload, and resumes ingestion
+        with DirectCoverageAccess() as dca:
+            dca.manual_upload(dataset_id, 'test_data/testmanualupload.csv', 'test_data/testmanualupload.yml')
+
+        # Wait a moment
+        gevent.sleep(0.5)
+
+        # Verify that the HITL parameters now have the correct values
+        want_vals = {
+            'temp_hitl_qc': np.array([0, 0, 0, 0, 1, 0, 0, 1, 0, 0], dtype=bool),
+            'cond_hitl_qc': np.array([1, 0, 1, 0, 0, 0, 1, 1, 0, 0], dtype=bool)
+        }
+        with DirectCoverageAccess() as dca:
+            cov = dca.get_read_only_coverage(dataset_id)
+            for p in [p for p in cov.list_parameters() if p.endswith('_hitl_qc')]:
+                np.testing.assert_equal(cov.get_parameter_values(p, slice(None, 10)), want_vals[p])
 
 
     def test_retrieve_and_transform(self):
