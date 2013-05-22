@@ -1236,6 +1236,16 @@ class ObservatoryManagementService(BaseObservatoryManagementService):
         self.agent_status_builder.set_status_computed_attributes(extended_org.computed,
                                                                  org_aggregate,
                                                                  ComputedValueAvailability.PROVIDED)
+
+        # station_site is currently all PlatformSites, need to limit to those with alt_resource_type
+        subset = []
+        for site in extended_org.station_sites:
+            if site.alt_resource_type=='StationSite':
+                subset.append(site)
+        extended_org.station_sites = subset
+        station_status = self._get_site_rollup_list(RR2, all_device_statuses, [s._id for s in extended_org.station_sites])
+        extended_org.computed.station_status = ComputedListValue(status=ComputedValueAvailability.PROVIDED, value=station_status)
+
         return extended_org
 
 
