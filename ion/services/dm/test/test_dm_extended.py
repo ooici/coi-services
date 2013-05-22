@@ -40,7 +40,12 @@ class TestDMExtended(DMTestCase):
         rdt = RecordDictionaryTool(stream_definition_id=stream_def_id)
         rdt['time'] = np.arange(2208988800, 2208988810)
         rdt['temp_sample'] = np.arange(10*4).reshape(10,4)
+        rdt['cond_sample'] = np.arange(10*4).reshape(10,4)
+
         granule = rdt.to_granule()
+        dataset_monitor = DatasetMonitor(self.RR2.find_dataset_id_of_data_product_using_has_dataset(data_product_id))
+        self.ph.publish_rdt_to_data_product(data_product_id, rdt)
+        dataset_monitor.event.wait(10)
 
         gdt_pdict_id = self.dataset_management.read_parameter_dictionary_by_name('google_dt',id_only=True)
         gdt_stream_def = self.create_stream_definition('gdt', parameter_dictionary_id=gdt_pdict_id)
@@ -48,25 +53,33 @@ class TestDMExtended(DMTestCase):
         gdt_data_granule = VizTransformGoogleDTAlgorithm.execute(granule, params=gdt_stream_def)
 
         rdt = RecordDictionaryTool.load_from_granule(gdt_data_granule)
-        testval = {'data_content': [[0.0, 0.0, 1.0, 2.0, 3.0],
-              [1.0, 4.0, 5.0, 6.0, 7.0],
-              [2.0, 8.0, 9.0, 10.0, 11.0],
-              [3.0, 12.0, 13.0, 14.0, 15.0],
-              [4.0, 16.0, 17.0, 18.0, 19.0],
-              [5.0, 20.0, 21.0, 22.0, 23.0],
-              [6.0, 24.0, 25.0, 26.0, 27.0],
-              [7.0, 28.0, 29.0, 30.0, 31.0],
-              [8.0, 32.0, 33.0, 34.0, 35.0],
-              [9.0, 36.0, 37.0, 38.0, 39.0]],
-             'data_description': [('time', 'number', 'time'),
+        testval = {'data_content': [
+            [0.0 , 0.0  , 1.0  , 2.0  , 3.0  , 0.0  , 2.0  , 4.0  , 6.0  , 0.0  , 1.0  , 2.0  , 3.0]   ,
+            [1.0 , 4.0  , 5.0  , 6.0  , 7.0  , 8.0  , 10.0 , 12.0 , 14.0 , 4.0  , 5.0  , 6.0  , 7.0]   ,
+            [2.0 , 8.0  , 9.0  , 10.0 , 11.0 , 16.0 , 18.0 , 20.0 , 22.0 , 8.0  , 9.0  , 10.0 , 11.0]  ,
+            [3.0 , 12.0 , 13.0 , 14.0 , 15.0 , 24.0 , 26.0 , 28.0 , 30.0 , 12.0 , 13.0 , 14.0 , 15.0]  ,
+            [4.0 , 16.0 , 17.0 , 18.0 , 19.0 , 32.0 , 34.0 , 36.0 , 38.0 , 16.0 , 17.0 , 18.0 , 19.0]  ,
+            [5.0 , 20.0 , 21.0 , 22.0 , 23.0 , 40.0 , 42.0 , 44.0 , 46.0 , 20.0 , 21.0 , 22.0 , 23.0]  ,
+            [6.0 , 24.0 , 25.0 , 26.0 , 27.0 , 48.0 , 50.0 , 52.0 , 54.0 , 24.0 , 25.0 , 26.0 , 27.0]  ,
+            [7.0 , 28.0 , 29.0 , 30.0 , 31.0 , 56.0 , 58.0 , 60.0 , 62.0 , 28.0 , 29.0 , 30.0 , 31.0]  ,
+            [8.0 , 32.0 , 33.0 , 34.0 , 35.0 , 64.0 , 66.0 , 68.0 , 70.0 , 32.0 , 33.0 , 34.0 , 35.0]  ,
+            [9.0 , 36.0 , 37.0 , 38.0 , 39.0 , 72.0 , 74.0 , 76.0 , 78.0 , 36.0 , 37.0 , 38.0 , 39.0]] ,
+                 'data_description': [('time', 'number', 'time'),
               ('temp_sample[0]', 'number', 'temp_sample[0]', {'precision': '5'}),
               ('temp_sample[1]', 'number', 'temp_sample[1]', {'precision': '5'}),
               ('temp_sample[2]', 'number', 'temp_sample[2]', {'precision': '5'}),
-              ('temp_sample[3]', 'number', 'temp_sample[3]', {'precision': '5'})],
+              ('temp_sample[3]', 'number', 'temp_sample[3]', {'precision': '5'}),
+              ('temp_offset[0]', 'number', 'temp_offset[0]', {'precision': '5'}),
+              ('temp_offset[1]', 'number', 'temp_offset[1]', {'precision': '5'}),
+              ('temp_offset[2]', 'number', 'temp_offset[2]', {'precision': '5'}),
+              ('temp_offset[3]', 'number', 'temp_offset[3]', {'precision': '5'}),
+              ('cond_sample[0]', 'number', 'cond_sample[0]', {'precision': '5'}),
+              ('cond_sample[1]', 'number', 'cond_sample[1]', {'precision': '5'}),
+              ('cond_sample[2]', 'number', 'cond_sample[2]', {'precision': '5'}),
+              ('cond_sample[3]', 'number', 'cond_sample[3]', {'precision': '5'})],
              'viz_product_type': 'google_dt'}
         self.assertEquals(rdt['google_dt_components'][0], testval)
-
-
+        breakpoint(locals())
 
     def test_array_flow_paths(self):
         data_product_id, stream_def_id = self.make_array_data_product()
